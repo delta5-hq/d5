@@ -1,0 +1,18 @@
+.menuLinkButton {
+  position: relative;
+  color: var(--active);
+
+  &::before {
+    position: absolute;
+    width: 2px;
+    height: 100%;
+
+    left: 0;
+    background-color: var(--active);
+    content: "";
+  }
+}
+
+.menuLinkText {
+  color: var(--active);
+}

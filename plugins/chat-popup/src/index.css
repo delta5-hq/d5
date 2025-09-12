@@ -1,0 +1,35 @@
+#deltafive-chat-popup-container {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans",
+    "Droid Sans", "Helvetica Neue", sans-serif;
+  line-height: 1.5;
+}
+
+.deltafive-small-btn {
+  position: relative;
+  border: none;
+  outline: none;
+  background: none;
+  cursor: pointer;
+}
+
+.deltafive-small-btn:disabled {
+  cursor: not-allowed;
+}
+
+.deltafive-tooltip {
+  background-color: #000;
+  color: white;
+  font-size: 12px;
+  border-radius: 8px;
+  box-sizing: border-box;
+  padding: 6px 9px;
+  opacity: 0;
+  display: block;
+  position: absolute;
+  white-space: nowrap;
+  transition: 0.1s;
+}
+
+button:hover:enabled .deltafive-tooltip {
+  opacity: 1;
+}

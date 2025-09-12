@@ -1,0 +1,197 @@
+{
+    "cell": {
+        "id": "LhTRpdhbtpF",
+        "children": [
+            "bg8nhmdRBRF",
+            "FMrpdbQ6qFG",
+            "8BLtnjhFFRm",
+            "LjDTf842nT9"
+        ],
+        "title": "/steps Steps example",
+        "color": "@salmon-light",
+        "scale": 0.6666666666666666,
+        "parent": "BjHPHd9BqbT",
+        "x": -280.8,
+        "y": 624,
+        "width": 265.2,
+        "height": 1638,
+        "tags": [],
+        "autoshrink": false,
+        "command": "/steps Steps example",
+        "prompts": []
+    },
+    "queryType": "steps",
+    "mapNodes": {
+        "BjHPHd9BqbT": {
+            "id": "BjHPHd9BqbT",
+            "children": [
+                "LhTRpdhbtpF"
+            ],
+            "title": "Execute Steps + Summarize Test",
+            "borderColor": "@green",
+            "scale": 0.6666666666666666,
+            "x": 0,
+            "y": 0,
+            "width": 1024,
+            "height": 768,
+            "tags": [],
+            "autoshrink": false,
+            "prompts": []
+        },
+        "LhTRpdhbtpF": {
+            "id": "LhTRpdhbtpF",
+            "children": [
+                "bg8nhmdRBRF",
+                "FMrpdbQ6qFG",
+                "8BLtnjhFFRm",
+                "LjDTf842nT9"
+            ],
+            "title": "/steps Steps example",
+            "color": "@salmon-light",
+            "scale": 0.6666666666666666,
+            "parent": "BjHPHd9BqbT",
+            "x": -280.8,
+            "y": 624,
+            "width": 265.2,
+            "height": 1638,
+            "tags": [],
+            "autoshrink": false,
+            "command": "/steps Steps example",
+            "prompts": []
+        },
+        "bg8nhmdRBRF": {
+            "id": "bg8nhmdRBRF",
+            "children": [],
+            "title": "#1 /chatgpt generate cat name 1 word @foo2",
+            "color": "@white",
+            "scale": 0.6666666666666666,
+            "parent": "LhTRpdhbtpF",
+            "x": 0,
+            "y": 15.6,
+            "width": 156,
+            "height": 234,
+            "tags": [],
+            "autoshrink": false,
+            "command": "#1 /chatgpt generate cat name 1 word @foo2",
+            "prompts": [
+                "4ngf3DDBf7r"
+            ]
+        },
+        "FMrpdbQ6qFG": {
+            "id": "FMrpdbQ6qFG",
+            "children": [],
+            "title": "#2 /chatgpt tell a story about character @@foo2 who met  @@baz2",
+            "color": "@white",
+            "scale": 0.6666666666666666,
+            "parent": "LhTRpdhbtpF",
+            "x": 77.99999999999999,
+            "y": 405.6,
+            "width": 187.2,
+            "height": 1404,
+            "tags": [],
+            "autoshrink": false,
+            "command": "#2 /chatgpt tell a story about character @@foo2 who met  @@baz2",
+            "prompts": [
+                "7GMjBHbFJBB",
+                "jjRd2fbmJdd",
+                "BQ69gqgdjpG",
+                "mRj9m42TLfm",
+                "nj4JQ6M47Fd",
+                "g22qbt2JgFn",
+                "t8B2b6Mjjt2",
+                "qdThgTD7mt7",
+                "mRHt8gf3nFT",
+                "Pg4LMqfqN8p",
+                "f4778phgGL2",
+                "P4dQGb6r7G9"
+            ]
+        },
+        "brPPg9BJGG4": {
+            "id": "brPPg9BJGG4",
+            "children": [],
+            "title": "#2 /chatgpt generate the priest name of the god 1 word @@bar2 @baz2",
+            "color": "@white",
+            "scale": 0.6666666666666666,
+            "parent": "8BLtnjhFFRm",
+            "x": 0,
+            "y": 249.6,
+            "width": 187.2,
+            "height": 202.79999999999998,
+            "tags": [],
+            "autoshrink": false,
+            "command": "#2 /chatgpt generate the priest name of the god 1 word @@bar2 @baz2",
+            "prompts": [
+                "nTQtd9dbH8L"
+            ]
+        },
+        "ghDr8fR2GHP": {
+            "id": "ghDr8fR2GHP",
+            "children": [],
+            "title": "#1 /chatgpt generate god name 1 word @bar2",
+            "color": "@white",
+            "scale": 0.6666666666666666,
+            "parent": "8BLtnjhFFRm",
+            "x": 0,
+            "y": 15.6,
+            "width": 156,
+            "height": 234,
+            "tags": [],
+            "autoshrink": false,
+            "command": "#1 /chatgpt generate god name 1 word @bar2",
+            "prompts": [
+                "6j2J34L9tfh"
+            ]
+        },
+        "8BLtnjhFFRm": {
+            "id": "8BLtnjhFFRm",
+            "children": [
+                "ghDr8fR2GHP",
+                "brPPg9BJGG4"
+            ],
+            "title": "#1 /steps Sub-steps",
+            "color": "@salmon-light",
+            "scale": 0.6666666666666666,
+            "parent": "LhTRpdhbtpF",
+            "x": 202.79999999999998,
+            "y": 15.599999999999994,
+            "width": 156,
+            "height": 390,
+            "tags": [],
+            "autoshrink": false,
+            "command": "#1 /steps Sub-steps",
+            "prompts": []
+        },
+        "LjDTf842nT9": {
+            "id": "LjDTf842nT9",
+            "children": [],
+            "title": "write abstract for this story",
+            "color": "@blue",
+            "scale": 0.6666666666666666,
+            "parent": "LhTRpdhbtpF",
+            "x": 31.19999999999999,
+            "y": 1809.6,
+            "width": 280.8,
+            "height": 530.4,
+            "tags": [],
+            "autoshrink": false,
+            "command": "/outline write abstract for this story --lang=en --summarize",
+            "prompts": [
+                "dNNtdgJ3FJQ",
+                "Jb4BGMt4rbR",
+                "Fj8rp7pd48b",
+                "Hthf9gmTjNm"
+            ]
+        },
+        "LRpD3jBT7mJ": {
+            "height": 31.2,
+            "width": 265.2,
+            "x": -280.8,
+            "y": 2277.6,
+            "parent": "BjHPHd9BqbT",
+            "color": "@salmon-light",
+            "scale": 0.6666666666666666,
+            "id": "LRpD3jBT7mJ"
+        }
+    },
+    "mapFiles": {}
+}

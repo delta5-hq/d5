@@ -1,0 +1,79 @@
+.button {
+  border: none;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s ease-in-out 0s;
+  opacity: 1;
+  cursor: pointer;
+  position: fixed;
+  /* box-shadow: 0px 2px 2px #888888; */
+}
+
+.button:hover {
+  transform: scale(1.05);
+  transition: transform 0.1s ease-in-out 0s;
+}
+
+.button:active {
+  transform: scale(0.9);
+  transition: transform 0.1s;
+}
+
+.button:focus {
+  outline: none;
+}
+
+.imageContainer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fadingImage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%); /* center the image */
+  transition: opacity 0.1s ease-in-out;
+  width: 100%;
+  height: 100%;
+}
+
+.hiddenImage {
+  opacity: 0;
+}
+
+.unreadDot {
+  border-style: solid;
+  border-color: white;
+  background-color: orange;
+  box-sizing: content-box;
+  position: absolute;
+  top: 0px;
+  right: 0px;
+}
+
+.popupWidget {
+  display: flex;
+  cursor: default;
+  flex-direction: row;
+  gap: 2px;
+  padding: 6px 12px;
+  box-shadow: rgba(0, 0, 0, 0.3) 0px 2px 6px;
+  border-radius: 8px;
+  font-size: 12px;
+  position: fixed;
+  white-space: nowrap;
+  background-color: white;
+  transition: all 0.25s ease-in-out 0s;
+}
+
+.popupWidget:hover {
+  transform: scale(1.05);
+  transition: transform 0.1s ease-in-out 0s;
+}

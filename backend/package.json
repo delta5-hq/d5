@@ -1,0 +1,107 @@
+{
+  "name": "delta5-backend",
+  "version": "0.1.0",
+  "description": "persist data and proxy changes to collaboraters",
+  "main": "index.js",
+  "scripts": {
+    "start": "node build/index.js",
+    "build": "cross-env NODE_ENV=production babel src -d build",
+    "dev": "cross-env DEBUG=${DEBUG:-'delta5:*'} nodemon src/index.js",
+    "test": "cross-env DEBUG=${DEBUG:-''} NODE_ENV=test jest --verbose --coverage --reporters=default --reporters=jest-junit",
+    "format": "npx eslint src --fix",
+    "lint": "npx eslint src",
+    "user": "npx babel-node --presets @babel/preset-env scripts/createUser.js"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.16.0",
+    "@getbrevo/brevo": "^1.0.1",
+    "@iamtraction/google-translate": "^2.0.1",
+    "@koa/router": "^10.1.1",
+    "archiver": "^5.3.1",
+    "bcryptjs": "^2.4.3",
+    "cheerio": "^1.0.0-rc.12",
+    "cookie": "^0.4.1",
+    "debug": "^4.3.2",
+    "entropy-string": "^4.2.0",
+    "immutable": "^3.8.2",
+    "jsonwebtoken": "^8.5.1",
+    "koa": "^2.13.4",
+    "koa-body-parsers": "^3.1.0",
+    "koa-compress": "^5.1.0",
+    "koa-jwt": "^4.0.3",
+    "koa-logger": "^3.2.1",
+    "koa-qs": "^3.0.0",
+    "koa-send": "^5.0.1",
+    "koa-static": "^5.0.0",
+    "langchain": "^0.0.112",
+    "mongoose": "^6.0.12",
+    "mongoose-gridfs": "1.3.0",
+    "node-fetch": "^2.6.7",
+    "openai": "^3.2.1",
+    "pdf-parse": "^1.1.1",
+    "plantuml": "^0.0.2",
+    "prom-client": "^14.0.1",
+    "sharp": "^0.32.6",
+    "string-similarity": "^4.0.4",
+    "unzipper": "^0.10.11"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.17.6",
+    "@babel/core": "^7.17.9",
+    "@babel/eslint-parser": "^7.17.0",
+    "@babel/node": "^7.16.8",
+    "@babel/plugin-proposal-class-properties": "^7.16.7",
+    "@babel/plugin-proposal-object-rest-spread": "^7.17.3",
+    "@babel/plugin-transform-runtime": "^7.17.0",
+    "@babel/preset-env": "^7.16.11",
+    "@babel/preset-flow": "^7.16.7",
+    "@types/koa": "^2.13.4",
+    "@types/koa-router": "^7.4.4",
+    "babel-jest": "^27.5.1",
+    "babel-plugin-source-map-support": "^2.1.3",
+    "cross-env": "^6.0.3",
+    "dotenv": "^16.0.3",
+    "eslint": "^8.12.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-babel": "^5.3.1",
+    "eslint-plugin-jest": "^26.1.3",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^4.0.0",
+    "eslint-plugin-standard": "^5.0.0",
+    "fetch-mock-jest": "^1.5.1",
+    "jest": "^27.5.1",
+    "jest-junit": "^13.1.0",
+    "nodemon": "^2.0.15",
+    "prettier": "^2.6.2",
+    "supertest": "^6.2.2"
+  },
+  "nodemonConfig": {
+    "execMap": {
+      "js": "babel-node"
+    }
+  },
+  "jest": {
+    "transformIgnorePatterns": [
+      "node_modules/(?!(langchain|langsmith)/)"
+    ],
+    "moduleDirectories": [
+      "node_modules",
+      "<rootDir>/src"
+    ],
+    "testMatch": [
+      "<rootDir>/src/**/*.test.js"
+    ],
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+      "**/src/**/*.js"
+    ],
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "/build/",
+      "src/lib/env",
+      "src/bin",
+      "src/index.js",
+      "src/scripts/*"
+    ]
+  }
+}
