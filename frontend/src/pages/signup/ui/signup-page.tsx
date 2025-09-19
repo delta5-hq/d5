@@ -3,7 +3,7 @@ import { FormattedMessage } from 'react-intl'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod/v3'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useAuth, validateUsernameOrEmail, isValidPassword, LoginDialog } from '@entities/auth'
+import { useAuthContext, validateUsernameOrEmail, isValidPassword, LoginDialog } from '@entities/auth'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@shared/ui/button'
 import { Input } from '@shared/ui/input'
@@ -40,7 +40,7 @@ type SignupForm = z.infer<typeof signupSchema>
 
 const Signup: React.FC = () => {
   const navigate = useNavigate()
-  const { isLoggedIn, signup, isSuccessSignup: isSuccess } = useAuth()
+  const { isLoggedIn, signup, isSuccessSignup: isSuccess } = useAuthContext()
   const [showAlertDialog, setShowAlertDialog] = useState(false)
   const { showDialog } = useDialog()
 

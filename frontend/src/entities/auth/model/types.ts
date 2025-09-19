@@ -1,3 +1,5 @@
+import type { useAuth } from '../api'
+
 export interface UserMeRes {
   id: string
   name: string
@@ -15,3 +17,5 @@ export interface ResetPasswordDto {
   token: string
   password: string
 }
+
+export type AuthStore = ReturnType<typeof useAuth>

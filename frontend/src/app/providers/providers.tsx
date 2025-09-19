@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from '@shared/ui/sonner'
 import { DialogProvider } from '@entities/dialog'
 import { Outlet } from 'react-router-dom'
+import { AuthProvider } from '@entities/auth'
 
 const queryClient = new QueryClient()
 
@@ -12,9 +13,11 @@ const Providers = () => (
   <ThemeProvider>
     <IntlProvider locale="en" messages={messages.en}>
       <QueryClientProvider client={queryClient}>
-        <DialogProvider>
-          <Outlet />
-        </DialogProvider>
+        <AuthProvider>
+          <DialogProvider>
+            <Outlet />
+          </DialogProvider>
+        </AuthProvider>
       </QueryClientProvider>
       <Toaster position="bottom-left" />
     </IntlProvider>

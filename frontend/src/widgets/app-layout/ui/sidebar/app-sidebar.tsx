@@ -15,7 +15,7 @@ import { useEffect } from 'react'
 import { FormattedMessage } from 'react-intl'
 import { AppSearch, HelpButton, LoginButton, UserSettingsButton } from './../header'
 
-import { useAuth } from '@entities/auth'
+import { useAuthContext } from '@entities/auth'
 import { Link, useLocation } from 'react-router-dom'
 import styles from './app-sidebar.module.scss'
 
@@ -56,7 +56,7 @@ const items = [
 const AppSidebar = ({ isResponsive, isDesktop, isMinimized }: AppSidebarProps) => {
   const { isMobile, open, toggleSidebar } = useSidebar()
   const location = useLocation()
-  const { isLoggedIn, login } = useAuth()
+  const { isLoggedIn } = useAuthContext()
 
   useEffect(() => {
     if (!open && !isResponsive && isDesktop) {
@@ -82,7 +82,7 @@ const AppSidebar = ({ isResponsive, isDesktop, isMinimized }: AppSidebarProps) =
                 <UserSettingsButton />
               </>
             ) : (
-              <LoginButton login={login} />
+              <LoginButton />
             )}
           </div>
         </div>

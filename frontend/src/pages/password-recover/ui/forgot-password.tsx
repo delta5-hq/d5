@@ -9,7 +9,7 @@ import { Logo } from '@shared/ui/logo'
 import { Version } from '@shared/ui/version'
 import AlertDialog from '@shared/ui/alert-dialog'
 import { useCallback, useEffect, useState } from 'react'
-import { useAuth, usePasswordRecovery, type RequestRecoveryDto } from '@entities/auth'
+import { useAuthContext, usePasswordRecovery, type RequestRecoveryDto } from '@entities/auth'
 import { Label } from '@shared/ui/label'
 import { Copyright } from '@shared/ui/copyright'
 
@@ -21,7 +21,7 @@ type RecoveryFormValues = z.infer<typeof recoverySchema>
 
 const ForgotPassword = () => {
   const navigate = useNavigate()
-  const { isLoggedIn } = useAuth()
+  const { isLoggedIn } = useAuthContext()
   const [showAlertDialog, setShowAlertDialog] = useState(false)
 
   if (isLoggedIn) {

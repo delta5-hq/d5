@@ -1,4 +1,4 @@
-import { useAuth } from '@entities/auth'
+import { useAuthContext } from '@entities/auth'
 import { Button } from '@shared/ui/button'
 import {
   DropdownMenu,
@@ -13,7 +13,7 @@ import { useNavigate } from 'react-router-dom'
 
 const UserSettingsButton = () => {
   const [isOpen, setIsOpen] = useState(false)
-  const { user, logout } = useAuth()
+  const { user, logout } = useAuthContext()
   const navigate = useNavigate()
 
   const onLogout = async () => {

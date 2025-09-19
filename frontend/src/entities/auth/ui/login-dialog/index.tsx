@@ -8,7 +8,7 @@ import type { LoginDialogProps } from './types'
 import { Input } from '@shared/ui/input'
 import { Button } from '@shared/ui/button'
 import { useEffect } from 'react'
-import { useAuth } from '@entities/auth/api'
+import { useAuthContext } from '@entities/auth/model'
 
 const LoginSchema = z.object({
   usernameOrEmail: z.string().nonempty('Username or email is required'),
@@ -18,7 +18,7 @@ const LoginSchema = z.object({
 type LoginFormValues = z.infer<typeof LoginSchema>
 
 export const LoginDialog = ({ open, onClose }: LoginDialogProps) => {
-  const { login } = useAuth()
+  const { login } = useAuthContext()
   const {
     register,
     handleSubmit,

@@ -6,7 +6,7 @@ import { FormattedMessage } from 'react-intl'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@shared/ui/button'
 import { Input } from '@shared/ui/input'
-import { isValidPassword, useAuth, usePasswordRecovery, useResetTokenCheck } from '@entities/auth'
+import { isValidPassword, useAuthContext, usePasswordRecovery, useResetTokenCheck } from '@entities/auth'
 import { Logo } from '@shared/ui/logo'
 import { Version } from '@shared/ui/version'
 import { Label } from '@shared/ui/label'
@@ -25,7 +25,7 @@ type ResetPasswordForm = z.infer<typeof resetPasswordSchema>
 const ResetPassword = () => {
   const navigate = useNavigate()
   const { pwdResetToken } = useParams<{ pwdResetToken: string }>()
-  const { isLoggedIn } = useAuth()
+  const { isLoggedIn } = useAuthContext()
 
   const { isValid, isLoading } = useResetTokenCheck(pwdResetToken)
   const { resetPassword, isResetDone: isSuccess } = usePasswordRecovery()
