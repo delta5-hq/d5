@@ -90,42 +90,6 @@ export const userStatisticsAllMaps = async (userId = null) => {
   return await Workflow.aggregate(pipeline)
 }
 
-const userStatisticsAllUsers = async () => {
-  const users = Object.fromEntries((await userStatisticsAllMaps()).map(data => [data._id, data]))
-
-  return Object.fromEntries(
-    (await User.find()).map(user => {
-      const userId = user.id
-      const statistics = users[userId] || {}
-
-      return [
-        userId,
-        {
-          id: userId,
-          name: user.name || '',
-          mail: user.mail || '',
-          roles: user.roles || [],
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
-          limitMaps: user.limitMaps || null,
-          limitNodes: user.limitNodes || null,
-          lastMapChange: statistics?.lastMapChange || null,
-          biggestMapCount: statistics?.biggestMapCount || null,
-          mapCount: statistics?.mapCount || 0,
-          mapShareCount: statistics?.mapShareCount || 0,
-          sharedWithCount: statistics?.sharedWithCount || 0,
-          mapIds: statistics?.mapIds || null,
-          sharedMaps: statistics?.sharedMaps || 0,
-          nodeCount: statistics?.nodeCount || 0,
-          edgeCount: statistics?.edgeCount || 0,
-          meta: user.meta || {},
-          comment: user.comment,
-        },
-      ]
-    }),
-  )
-}
-
 const StatisticsController = {
   authorization: (ctx, next) => {
     const {auth} = ctx.state
@@ -170,7 +134,49 @@ const StatisticsController = {
     ctx.body = await userStatisticsAllMaps()
   },
   userList: async ctx => {
-    ctx.body = await userStatisticsAllUsers()
+    const page = Math.max(parseInt(ctx.query.page) || 1, 1)
+    const limit = Math.max(parseInt(ctx.query.limit) || 10, 1)
+    const skip = (page - 1) * limit
+
+    const statsByUser = Object.fromEntries((await userStatisticsAllMaps()).map(data => [data._id, data]))
+
+    const total = await User.countDocuments()
+
+    const paginatedUsers = await User.find().sort({createdAt: -1}).skip(skip).limit(limit).lean()
+
+    const users = paginatedUsers.map(user => {
+      const userId = user.id
+      const statistics = statsByUser[userId] || {}
+
+      return {
+        id: userId,
+        name: user.name || '',
+        mail: user.mail || '',
+        roles: user.roles || [],
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        limitMaps: user.limitMaps || null,
+        limitNodes: user.limitNodes || null,
+        lastMapChange: statistics.lastMapChange || null,
+        biggestMapCount: statistics.biggestMapCount || null,
+        mapCount: statistics.mapCount || 0,
+        mapShareCount: statistics.mapShareCount || 0,
+        sharedWithCount: statistics.sharedWithCount || 0,
+        mapIds: statistics.mapIds || null,
+        sharedMaps: statistics.sharedMaps || 0,
+        nodeCount: statistics.nodeCount || 0,
+        edgeCount: statistics.edgeCount || 0,
+        meta: user.meta || {},
+        comment: user.comment || '',
+      }
+    })
+
+    ctx.body = {
+      total,
+      page,
+      limit,
+      data: users,
+    }
   },
   userStatistics: async ctx => {
     const {statisticsUser} = ctx
