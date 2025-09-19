@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import type { LoginDialogProps } from './types'
 import { Input } from '@shared/ui/input'
 import { Button } from '@shared/ui/button'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 const LoginSchema = z.object({
   usernameOrEmail: z.string().nonempty('Username or email is required'),
@@ -22,9 +22,15 @@ export const LoginDialog = ({ children, login }: LoginDialogProps) => {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
+    reset,
   } = useForm({
     resolver: zodResolver(LoginSchema),
   })
+
+  useEffect(() => {
+    if (!open) reset()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   const onSubmit = async (data: LoginFormValues) => {
     await login(data)

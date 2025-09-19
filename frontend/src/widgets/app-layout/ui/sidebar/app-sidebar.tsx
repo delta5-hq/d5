@@ -1,4 +1,3 @@
-import { AppSearch, HelpButton, UserSettingsButton } from './../header'
 import { cn } from '@shared/lib/utils'
 import {
   Sidebar,
@@ -14,7 +13,9 @@ import {
 import { Calendar, Home, Inbox, Search, Settings } from 'lucide-react'
 import { useEffect } from 'react'
 import { FormattedMessage } from 'react-intl'
+import { AppSearch, HelpButton, LoginButton, UserSettingsButton } from './../header'
 
+import { useAuth } from '@entities/auth'
 import { Link, useLocation } from 'react-router-dom'
 import styles from './app-sidebar.module.scss'
 
@@ -55,6 +56,7 @@ const items = [
 const AppSidebar = ({ isResponsive, isDesktop, isMinimized }: AppSidebarProps) => {
   const { isMobile, open, toggleSidebar } = useSidebar()
   const location = useLocation()
+  const { isLoggedIn, login } = useAuth()
 
   useEffect(() => {
     if (!open && !isResponsive && isDesktop) {
@@ -74,8 +76,14 @@ const AppSidebar = ({ isResponsive, isDesktop, isMinimized }: AppSidebarProps) =
         <div className="flex flex-col gap-y-5 p-2">
           <AppSearch />
           <div className="flex items-center gap-2">
-            <HelpButton />
-            <UserSettingsButton />
+            {isLoggedIn ? (
+              <>
+                <HelpButton />
+                <UserSettingsButton />
+              </>
+            ) : (
+              <LoginButton login={login} />
+            )}
           </div>
         </div>
       ) : null}

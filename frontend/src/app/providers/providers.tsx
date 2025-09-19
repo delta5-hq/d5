@@ -11,7 +11,7 @@ const Providers = ({ children }: { children: React.ReactNode }) => (
   <ThemeProvider>
     <IntlProvider locale="en" messages={messages.en}>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-      <Toaster />
+      <Toaster position="bottom-left" />
     </IntlProvider>
   </ThemeProvider>
 )
