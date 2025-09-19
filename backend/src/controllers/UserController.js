@@ -149,6 +149,10 @@ const UserController = {
       ctx.throw(500, e.message)
     }
   },
+  me: async ctx => {
+    const {user} = ctx.state
+    return user
+  },
 }
 
 export default UserController

@@ -9,5 +9,6 @@ userRouter
   .get('/users/:userId', UserController.get)
   .delete('/users/:userId', UserController.delete)
   .get('/current-user-statistics', UserController.currentUserStatistics)
+  .get('/users/me', UserController.me)
 
 export default userRouter

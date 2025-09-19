@@ -49,7 +49,7 @@ const AuthController = {
     auth = generateAuth(await User.findOne(filter))
 
     const {refresh_token, access_token, ...restAuth} = auth || {}
-    console.log(access_token)
+
     if (refresh_token)
       ctx.cookies.set('refresh_token', refresh_token, {maxAge: auth.expires_in * 1000, domain: getDomain(ctx)})
 
