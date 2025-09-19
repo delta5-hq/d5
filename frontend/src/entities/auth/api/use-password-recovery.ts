@@ -37,6 +37,7 @@ export const usePasswordRecovery = () => {
     isRecovering: requestRecoveryMutation.isPending,
     isResetting: resetPasswordMutation.isPending,
     isRecoverySent: requestRecoveryMutation.isSuccess,
+    isResetDone: resetPasswordMutation.isSuccess,
 
     requestRecover,
     resetPassword,

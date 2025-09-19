@@ -46,4 +46,8 @@ export default {
   forgotPasswordDialogTitle: 'Email Sent',
   forgotPasswordDialogMessage:
     "A password reset email has been sent to your email address. Once you receive the email, open the link provided to reset your password.<br><br>If you don't see the email in your inbox, please also check your spam folder. ",
+  noDataAvailable: 'No data available',
+  resetPassword: 'Reset Password',
+  reset: 'Reset',
+  passwordChanged: 'Password has been successfully changed',
 }

@@ -21,7 +21,7 @@ const Input = ({ className, type, error, errorHelper, ...props }: InputProps) =>
       {...props}
     />
 
-    {errorHelper ? <p className="text-destructive text-sm">{errorHelper}</p> : null}
+    {error && errorHelper ? <p className="text-destructive text-sm">{errorHelper}</p> : null}
   </div>
 )
 
