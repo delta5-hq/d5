@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import { Logo } from '@shared/ui/logo'
 import { Version } from '@shared/ui/version'
 import AlertDialog from '@shared/ui/alert-dialog'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useAuthContext, usePasswordRecovery, type RequestRecoveryDto } from '@entities/auth'
 import { Label } from '@shared/ui/label'
 import { Copyright } from '@shared/ui/copyright'
@@ -28,13 +28,7 @@ const ForgotPassword = () => {
     navigate('/')
   }
 
-  const { requestRecover, isRecoverySent: isSuccess } = usePasswordRecovery()
-
-  useEffect(() => {
-    if (isSuccess) {
-      setShowAlertDialog(true)
-    }
-  }, [isSuccess])
+  const { requestRecover } = usePasswordRecovery()
 
   const {
     register,
@@ -49,8 +43,9 @@ const ForgotPassword = () => {
   }
 
   const onSubmit = useCallback(
-    (formData: RequestRecoveryDto) => {
-      requestRecover(formData)
+    async (formData: RequestRecoveryDto) => {
+      await requestRecover(formData)
+      setShowAlertDialog(true)
     },
     [requestRecover],
   )
@@ -69,44 +64,42 @@ const ForgotPassword = () => {
         translationKey="forgotPasswordDialogMessage"
       />
 
-      {!isSuccess ? (
-        <div className="w-full max-w-md bg-white shadow-md rounded-lg p-6">
-          <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)}>
-            <h2>
-              <FormattedMessage id="accountRecovery" />
-            </h2>
+      <div className="w-full max-w-md bg-white shadow-md rounded-lg p-6">
+        <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)}>
+          <h2>
+            <FormattedMessage id="accountRecovery" />
+          </h2>
 
-            <div className="flex flex-col gap-4">
-              <div>
-                <Label htmlFor="usernameOrEmail">
-                  <FormattedMessage id="usernameOrEmail" />
-                </Label>
-                <Input
-                  {...register('usernameOrEmail')}
-                  autoFocus
-                  error={!!errors.usernameOrEmail?.message}
-                  errorHelper={errors.usernameOrEmail?.message}
-                  id="usernameOrEmail"
-                  required
-                />
-              </div>
-
-              <div className="text-center text-foreground/40 text-sm">
-                Version <Version /> - <Copyright />
-              </div>
+          <div className="flex flex-col gap-4">
+            <div>
+              <Label htmlFor="usernameOrEmail">
+                <FormattedMessage id="usernameOrEmail" />
+              </Label>
+              <Input
+                {...register('usernameOrEmail')}
+                autoFocus
+                error={!!errors.usernameOrEmail?.message}
+                errorHelper={errors.usernameOrEmail?.message}
+                id="usernameOrEmail"
+                required
+              />
             </div>
 
-            <div className="flex justify-between">
-              <Button onClick={() => navigate(-1)} variant="outline">
-                <FormattedMessage id="buttonCancel" />
-              </Button>
-              <Button disabled={isSubmitting} type="submit">
-                <FormattedMessage id="sendRecoveryLink" />
-              </Button>
+            <div className="text-center text-foreground/40 text-sm">
+              Version <Version /> - <Copyright />
             </div>
-          </form>
-        </div>
-      ) : null}
+          </div>
+
+          <div className="flex justify-between">
+            <Button onClick={() => navigate(-1)} variant="outline">
+              <FormattedMessage id="buttonCancel" />
+            </Button>
+            <Button disabled={isSubmitting} type="submit">
+              <FormattedMessage id="sendRecoveryLink" />
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }

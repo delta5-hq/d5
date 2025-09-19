@@ -205,6 +205,7 @@ const AuthController = {
       password,
       roles: [ROLES.subscriber],
       confirmed: false,
+      rejected: false,
     })
 
     await user.save()

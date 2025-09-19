@@ -101,4 +101,10 @@ export default {
   activationError: 'Activation Error',
   accountApproved: 'Account approved',
   approveAll: 'Approve All',
+  rejectAll: 'Reject All',
+  allAccountRejected: 'Accounts removed from the waitlist',
+  rejectError: 'Rejection operation failed',
+  accountRejected: 'Account rejected',
+  approve: 'Approve',
+  reject: 'Reject',
 }

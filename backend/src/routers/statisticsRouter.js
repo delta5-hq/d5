@@ -16,5 +16,7 @@ statisticsRouter
   .get('/waitlist', StatisticsController.userWaitlist)
   .post('/waitlist/confirm/all', StatisticsController.activateUsersBatch)
   .get('/waitlist/confirm/:userId', StatisticsController.activateUser)
+  .post('/waitlist/reject/all', StatisticsController.activateUsersBatch)
+  .get('/waitlist/reject/:userId', StatisticsController.activateUser)
 
 export default statisticsRouter

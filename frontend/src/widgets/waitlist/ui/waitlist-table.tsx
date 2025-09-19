@@ -7,7 +7,7 @@ import type { User } from '@shared/base-types'
 import { toast } from 'sonner'
 import { apiFetch } from '@shared/lib/base-api'
 import { DateCell, StringCell, type Column } from '@entities/table'
-import { useIntl } from 'react-intl'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 interface Row {
   userId: string
@@ -35,7 +35,6 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
   onRowsPerPageChange,
   refresh,
 }) => {
-  const [waitlist, setWaitlist] = React.useState(initialWaitlist)
   const [searchField, setSearchField] = React.useState<string>('')
   const [orderBy, setOrderBy] = React.useState<keyof Row>('userId')
   const [order, setOrder] = React.useState<'asc' | 'desc'>('desc')
@@ -44,7 +43,7 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
 
   const rows: Row[] = useMemo(
     () =>
-      waitlist
+      initialWaitlist
         .filter(value =>
           searchField
             .toLowerCase()
@@ -57,7 +56,7 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
           mail: value.mail,
           createdAt: value.createdAt,
         })),
-    [waitlist, searchField],
+    [initialWaitlist, searchField],
   )
 
   const columns: Column<Row>[] = [
@@ -93,7 +92,7 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
     try {
       await apiFetch(`/statistics/waitlist/confirm/${id}`)
       toast.success(formatMessage({ id: 'accountApproved' }))
-      setWaitlist(prev => prev.filter(item => item.id !== id))
+      refresh()
     } catch {
       toast.error(formatMessage({ id: 'activationError' }))
     }
@@ -116,6 +115,33 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
     }
   }
 
+  const onRejectAll = async () => {
+    try {
+      const ids = rows.map(r => r.userId)
+      if (!ids.length) return
+
+      await apiFetch('/statistics/waitlist/reject/all', {
+        method: 'POST',
+        body: JSON.stringify({ ids }),
+      })
+
+      toast.info(formatMessage({ id: 'allAccountRejected' }))
+      refresh()
+    } catch {
+      toast.error(formatMessage({ id: 'rejectError' }))
+    }
+  }
+
+  const onReject = async (id: string) => {
+    try {
+      await apiFetch(`/statistics/waitlist/reject/${id}`)
+      toast.info(formatMessage({ id: 'accountRejected' }))
+      refresh()
+    } catch {
+      toast.error(formatMessage({ id: 'rejectError' }))
+    }
+  }
+
   const stableSort = <T,>(array: T[], comparator: (a: T, b: T) => number): T[] => {
     const stabilizedThis: [T, number][] = array.map((el, index) => [el, index])
     stabilizedThis.sort((a, b) => {
@@ -130,9 +156,14 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
     <div className="w-full">
       <div className="flex justify-between items-center mb-2">
         <Input className="w-[250px]" onChange={handleChangeSearch} placeholder="Search" value={searchField} />
-        <Button onClick={onActivateAll} variant="outline">
-          Approve All
-        </Button>
+        <div>
+          <Button onClick={onActivateAll} variant="outline">
+            <FormattedMessage id="approveAll" />
+          </Button>
+          <Button onClick={onRejectAll} variant="destructive">
+            <FormattedMessage id="rejectAll" />
+          </Button>
+        </div>
       </div>
 
       <Card className="overflow-x-auto">
@@ -164,9 +195,12 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
                       {Cell ? <Cell row={row} value={row[id]} /> : (row[id] as string)}
                     </TableCell>
                   ))}
-                  <TableCell>
+                  <TableCell className="flex gap-x-2">
                     <Button className="cursor-pointer" onClick={() => onActivate(row.userId)} variant="outline">
-                      Approve
+                      <FormattedMessage id="approve" />
+                    </Button>
+                    <Button className="cursor-pointer" onClick={() => onReject(row.userId)} variant="destructive">
+                      <FormattedMessage id="reject" />
                     </Button>
                   </TableCell>
                 </TableRow>

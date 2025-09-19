@@ -48,6 +48,14 @@ export class Emailer {
     return this._sendMail(email, subject, text, html)
   }
 
+  async notifyUserOfRejection(email) {
+    const subject = 'Your account has been rejected'
+    const text = 'We regret to inform you that your account has been rejected.'
+    const html = '<p>We regret to inform you that your account has been rejected.</p>'
+
+    return this._sendMail(email, subject, text, html)
+  }
+
   async _sendMail(to, subject, text, html) {
     const message = {
       from: `Delta 5 ${MAIL_USER}`,

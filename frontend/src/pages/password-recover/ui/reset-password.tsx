@@ -30,17 +30,11 @@ const ResetPassword = () => {
   const { showDialog } = useDialog()
 
   const { isValid, isLoading } = useResetTokenCheck(pwdResetToken)
-  const { resetPassword, isResetDone: isSuccess } = usePasswordRecovery()
+  const { resetPassword } = usePasswordRecovery()
 
   useEffect(() => {
     if (isLoggedIn) navigate('/')
   }, [isLoggedIn, navigate])
-
-  useEffect(() => {
-    if (isSuccess) {
-      navigate('/')
-    }
-  }, [isSuccess, navigate])
 
   const {
     register,
@@ -51,12 +45,13 @@ const ResetPassword = () => {
   })
 
   const onSubmit = useCallback(
-    (data: ResetPasswordForm) => {
+    async (data: ResetPasswordForm) => {
       if (!pwdResetToken) return
-      resetPassword({ ...data, token: pwdResetToken })
+      await resetPassword({ ...data, token: pwdResetToken })
+      navigate('/')
       showDialog(LoginDialog)
     },
-    [resetPassword, pwdResetToken, showDialog],
+    [resetPassword, pwdResetToken, showDialog, navigate],
   )
 
   return (
@@ -73,7 +68,7 @@ const ResetPassword = () => {
         </p>
       ) : null}
 
-      {!isLoading && isValid && !isSuccess ? (
+      {!isLoading && isValid ? (
         <div className="w-full max-w-md bg-white shadow-md rounded-lg p-6">
           <form className="flex flex-col h-full justify-between gap-y-4" onSubmit={handleSubmit(onSubmit)}>
             <h2>

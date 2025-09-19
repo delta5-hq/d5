@@ -290,12 +290,12 @@ const StatisticsController = {
     const limit = Math.max(parseInt(ctx.query.limit) || 10, 1)
     const skip = (page - 1) * limit
 
-    const users = await User.find({confirmed: false}, {id: 1, name: 1, mail: 1, createdAt: 1})
+    const users = await User.find({confirmed: false, rejected: false}, {id: 1, name: 1, mail: 1, createdAt: 1})
       .skip(skip)
       .limit(limit)
       .lean()
 
-    const total = await User.countDocuments({confirmed: false})
+    const total = await User.countDocuments({confirmed: false, rejected: false})
 
     ctx.body = {
       total,
@@ -339,6 +339,49 @@ const StatisticsController = {
         await user.save()
         emailer.notifyUserOfApproval(user.mail)
         await createOpenaiIntegration(user.id)
+
+        results.push({id: user.id, success: true})
+      } catch (err) {
+        results.push({id: user.id, success: false, error: err.message})
+      }
+    }
+
+    ctx.body = {results}
+  },
+
+  rejectUser: async ctx => {
+    const {statisticsUser} = ctx
+    if (statisticsUser.rejected) ctx.throw(400, 'User is already rejected')
+    statisticsUser.rejected = true
+    await statisticsUser.save()
+
+    emailer.notifyUserOfRejection(statisticsUser.mail)
+
+    ctx.body = {success: true}
+  },
+
+  rejectUsersBatch: async ctx => {
+    const {ids} = await ctx.request.json()
+
+    if (!Array.isArray(ids) || !ids.length) {
+      ctx.throw(400, 'No user IDs provided')
+    }
+
+    const users = await User.find({id: {$in: ids}})
+
+    if (!users.length) {
+      ctx.throw(404, 'Users not found')
+    }
+
+    const results = []
+
+    for (const user of users) {
+      try {
+        if (user.rejected) throw new Error('User is already rejected')
+
+        user.rejected = true
+        await user.save()
+        emailer.notifyUserOfRejection(user.mail)
 
         results.push({id: user.id, success: true})
       } catch (err) {
