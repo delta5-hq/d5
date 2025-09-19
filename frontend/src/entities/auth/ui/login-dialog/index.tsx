@@ -28,6 +28,7 @@ export const LoginDialog = ({ children, login }: LoginDialogProps) => {
 
   const onSubmit = async (data: LoginFormValues) => {
     await login(data)
+    setOpen(false)
   }
 
   return (

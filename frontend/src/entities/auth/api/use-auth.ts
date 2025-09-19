@@ -11,9 +11,13 @@ export const useAuth = () => {
   const loginMutation = useApiMutation<unknown, unknown, LoginCredentials>({
     url: '/auth',
   })
+  const refreshMutation = useApiMutation<unknown, unknown, void>({
+    url: '/auth/refresh',
+  })
 
   const login = async (data: LoginCredentials) => {
     await loginMutation.mutateAsync(data)
+    await refreshMutation.mutateAsync()
     await meQuery.refetch()
   }
 
