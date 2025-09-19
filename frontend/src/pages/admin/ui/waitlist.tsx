@@ -4,8 +4,11 @@ import { StatusPlaceholder } from '@shared/ui/status-placeholder'
 import { WaitlistTable } from '@widgets/waitlist'
 import { useState } from 'react'
 import { useIntl } from 'react-intl'
+import { useNavigate } from 'react-router-dom'
 
 const Waitlist = () => {
+  const navigate = useNavigate()
+
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(25)
   const { users, total, isLoading } = useWaitlist(page, limit)
@@ -13,7 +16,10 @@ const Waitlist = () => {
 
   const { isAdmin } = useAuthContext()
 
-  if (!isAdmin) return null
+  if (!isAdmin) {
+    navigate('/')
+    return null
+  }
 
   if (isLoading) return <StatusPlaceholder loading />
   if (!users.length) return <StatusPlaceholder empty message={formatMessage({ id: 'noUsersInWaitlist' })} />
