@@ -16,6 +16,7 @@ export default {
   sidebarSettingsLabel: 'Settings',
 
   buttonCancel: 'Cancel',
+  OK: 'OK',
 
   loginForgotPassword: 'Forgot password?',
   loginSignUp: 'Register',
