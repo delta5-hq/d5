@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { apiFetch } from '@shared/lib/base-api'
 import { DateCell, StringCell, type Column } from '@entities/table'
 import { FormattedMessage, useIntl } from 'react-intl'
+import { Checkbox } from '@shared/ui/checkbox'
 
 interface Row {
   userId: string
@@ -38,6 +39,9 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
   const [searchField, setSearchField] = React.useState<string>('')
   const [orderBy, setOrderBy] = React.useState<keyof Row>('userId')
   const [order, setOrder] = React.useState<'asc' | 'desc'>('desc')
+
+  // выбранные id
+  const [selected, setSelected] = React.useState<string[]>([])
 
   const { formatMessage } = useIntl()
 
@@ -98,34 +102,30 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
     }
   }
 
-  const onActivateAll = async () => {
+  const onActivateSelected = async () => {
+    if (!selected.length) return
     try {
-      const ids = rows.map(r => r.userId)
-      if (!ids.length) return
-
       await apiFetch('/statistics/waitlist/confirm/all', {
         method: 'POST',
-        body: JSON.stringify({ ids }),
+        body: JSON.stringify({ ids: selected }),
       })
-
       toast.success(formatMessage({ id: 'allAccountApproved' }))
+      setSelected([])
       refresh()
     } catch {
       toast.error(formatMessage({ id: 'activationError' }))
     }
   }
 
-  const onRejectAll = async () => {
+  const onRejectSelected = async () => {
+    if (!selected.length) return
     try {
-      const ids = rows.map(r => r.userId)
-      if (!ids.length) return
-
       await apiFetch('/statistics/waitlist/reject/all', {
         method: 'POST',
-        body: JSON.stringify({ ids }),
+        body: JSON.stringify({ ids: selected }),
       })
-
       toast.info(formatMessage({ id: 'allAccountRejected' }))
+      setSelected([])
       refresh()
     } catch {
       toast.error(formatMessage({ id: 'rejectError' }))
@@ -152,16 +152,34 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
     return stabilizedThis.slice(0, array.length).map(el => el[0])
   }
 
+  const allCurrentPageIds = stableSort(rows, getComparator(order, orderBy))
+    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+    .map(r => r.userId)
+
+  const allSelectedOnPage = allCurrentPageIds.every(id => selected.includes(id))
+
+  const toggleSelectAll = () => {
+    if (allSelectedOnPage) {
+      setSelected(prev => prev.filter(id => !allCurrentPageIds.includes(id)))
+    } else {
+      setSelected(prev => Array.from(new Set([...prev, ...allCurrentPageIds])))
+    }
+  }
+
+  const toggleSelectOne = (id: string) => {
+    setSelected(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]))
+  }
+
   return (
     <div className="w-full">
       <div className="flex justify-between items-center mb-2">
         <Input className="w-[250px]" onChange={handleChangeSearch} placeholder="Search" value={searchField} />
-        <div>
-          <Button onClick={onActivateAll} variant="outline">
-            <FormattedMessage id="approveAll" />
+        <div className="flex gap-x-2">
+          <Button disabled={!selected.length} onClick={onActivateSelected} variant="outline">
+            <FormattedMessage id="approve" />
           </Button>
-          <Button onClick={onRejectAll} variant="destructive">
-            <FormattedMessage id="rejectAll" />
+          <Button disabled={!selected.length} onClick={onRejectSelected} variant="destructive">
+            <FormattedMessage id="reject" />
           </Button>
         </div>
       </div>
@@ -170,6 +188,9 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead onClick={toggleSelectAll}>
+                <Checkbox checked={allSelectedOnPage} />
+              </TableHead>
               {columns.map(col => (
                 <TableHead
                   className="cursor-pointer select-none"
@@ -189,7 +210,10 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
             {stableSort(rows, getComparator(order, orderBy))
               .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
               .map(row => (
-                <TableRow key={row.userId}>
+                <TableRow key={row.userId} onClick={() => toggleSelectOne(row.userId)}>
+                  <TableCell>
+                    <Checkbox checked={selected.includes(row.userId)} />
+                  </TableCell>
                   {columns.map(({ Cell, id }) => (
                     <TableCell key={id as string}>
                       {Cell ? <Cell row={row} value={row[id]} /> : (row[id] as string)}
