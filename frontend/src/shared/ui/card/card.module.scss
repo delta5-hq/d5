@@ -1,0 +1,38 @@
+$light-bg: rgba(255, 255, 255, 0.2);
+$light-gradient: radial-gradient(
+  circle at 20% 0%,
+  rgba(255, 255, 255, 0.4) 0%,
+  rgba(255, 255, 255, 0.2) 40%,
+  rgba(231, 230, 230, 0.1) 70%,
+  rgba(231, 230, 230, 0.05) 100%
+);
+$light-border: rgba(255, 255, 255, 0.3);
+$light-shadow: rgba(0, 0, 0, 0.1);
+
+$dark-bg: rgba(0, 0, 0, 0.3);
+$dark-gradient: radial-gradient(
+  circle at 20% 0%,
+  rgba(0, 0, 0, 0.6) 0%,
+  rgba(0, 0, 0, 0.4) 40%,
+  rgba(58, 58, 58, 0.2) 70%,
+  rgba(58, 58, 58, 0.05) 100%
+);
+$dark-border: rgba(255, 255, 255, 0.1);
+$dark-shadow: rgba(0, 0, 0, 0.6);
+
+.glassCard {
+  background: $light-bg;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background-image: $light-gradient;
+  border: 1px solid $light-border;
+  box-shadow: 0 4px 30px $light-shadow;
+  border-radius: 1rem;
+
+  :global(.dark) & {
+    background: $dark-bg;
+    background-image: $dark-gradient;
+    border: 1px solid $dark-border;
+    box-shadow: 0 4px 30px $dark-shadow;
+  }
+}
