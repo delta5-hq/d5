@@ -14,7 +14,11 @@ export default defineConfig([
     files: ['src/widgets/**'],
     rules: {
       'fsd/no-cross-imports': 'off',
-      'fsd/insignificant-slice': 'off'
+    },
+  },
+  {
+    rules: {
+      'fsd/insignificant-slice': 'off',
     },
   },
 ])
