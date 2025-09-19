@@ -1,5 +1,5 @@
+import { useAdminUsers } from '@entities/admin'
 import { useAuthContext } from '@entities/auth'
-import { useAdminUsers } from '@entities/waitlist'
 import { HelmetTitle } from '@shared/ui/helmet'
 import { StatusPlaceholder } from '@shared/ui/status-placeholder'
 import { AdminUsersTable } from '@widgets/dashboard-admin'

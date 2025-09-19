@@ -1,11 +1,11 @@
-import React, { useMemo, useState, type ChangeEvent } from 'react'
-import { Button } from '@shared/ui/button'
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell, TablePagination } from '@shared/ui/table'
-import { Input } from '@shared/ui/input'
-import { Card } from '@shared/ui/card'
+import type { FullUserStatistics } from '@entities/admin'
 import { DateCell, FieldsOfWorkCell, NumberCell, RoleCell, StringCell, type Column } from '@entities/table'
-import type { FullUserStatistics } from '@entities/waitlist'
 import { ROLES } from '@shared/base-types'
+import { Button } from '@shared/ui/button'
+import { Card } from '@shared/ui/card'
+import { Input } from '@shared/ui/input'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TablePagination, TableRow } from '@shared/ui/table'
+import React, { useMemo, useState, type ChangeEvent } from 'react'
 
 interface Row {
   userId: string

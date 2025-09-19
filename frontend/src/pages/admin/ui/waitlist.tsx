@@ -1,5 +1,5 @@
+import { useWaitlist } from '@entities/admin'
 import { useAuthContext } from '@entities/auth'
-import { useWaitlist } from '@entities/waitlist'
 import { HelmetTitle } from '@shared/ui/helmet'
 import { StatusPlaceholder } from '@shared/ui/status-placeholder'
 import { WaitlistTable } from '@widgets/waitlist'
