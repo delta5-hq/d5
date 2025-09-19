@@ -58,6 +58,7 @@ export const LoginDialog = ({ open, onClose }: LoginDialogProps) => {
           <div className="flex flex-col">
             <Input
               {...register('usernameOrEmail')}
+              autoComplete="username"
               autoFocus
               className="border rounded px-3 py-2"
               placeholder="Username or Email"
@@ -72,6 +73,7 @@ export const LoginDialog = ({ open, onClose }: LoginDialogProps) => {
           <div className="flex flex-col">
             <Input
               {...register('password')}
+              autoComplete="current-password"
               className="border rounded px-3 py-2"
               placeholder="Password"
               type="password"
@@ -82,7 +84,7 @@ export const LoginDialog = ({ open, onClose }: LoginDialogProps) => {
           {/* Links */}
           <div className="flex flex-col items-center gap-2 text-sm">
             <span className="cursor-pointer hover:underline hover:text-link-hover text-link">
-              <Link to="/forgot-password">
+              <Link onClick={() => onClose?.()} to="/forgot-password">
                 <FormattedMessage id="loginForgotPassword" />
               </Link>
             </span>
