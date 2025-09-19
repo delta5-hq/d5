@@ -43,7 +43,7 @@ export const LoginDialog = ({ children, login }: LoginDialogProps) => {
           <DialogDescription />
         </DialogHeader>
 
-        <form className="flex flex-col gap-4 mt-4" onSubmit={handleSubmit(onSubmit)}>
+        <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)}>
           {/* Username / Email */}
           <div className="flex flex-col">
             <Input
@@ -54,7 +54,7 @@ export const LoginDialog = ({ children, login }: LoginDialogProps) => {
               type="text"
             />
             {errors.usernameOrEmail ? (
-              <span className="text-red-500 text-sm mt-1">{errors.usernameOrEmail.message}</span>
+              <span className="text-red-500 text-sm">{errors.usernameOrEmail.message}</span>
             ) : null}
           </div>
 
@@ -66,11 +66,11 @@ export const LoginDialog = ({ children, login }: LoginDialogProps) => {
               placeholder="Password"
               type="password"
             />
-            {errors.password ? <span className="text-red-500 text-sm mt-1">{errors.password.message}</span> : null}
+            {errors.password ? <span className="text-red-500 text-sm">{errors.password.message}</span> : null}
           </div>
 
           {/* Links */}
-          <div className="flex flex-col items-center gap-2 text-sm mt-2">
+          <div className="flex flex-col items-center gap-2 text-sm">
             <span className="cursor-pointer hover:underline hover:text-link-hover text-link">
               <Link to="/forgot-password">
                 <FormattedMessage id="loginForgotPassword" />
@@ -90,7 +90,7 @@ export const LoginDialog = ({ children, login }: LoginDialogProps) => {
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-2 mt-6">
+          <div className="flex justify-end gap-2">
             <Button
               className="px-4 py-2 rounded border"
               onClick={() => setOpen(false)}
