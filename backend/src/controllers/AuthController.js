@@ -212,6 +212,7 @@ const AuthController = {
     emailer.notifyUserForSignup(serializedMail, serializedUsername)
 
     ctx.status = 200
+    ctx.body = {success: true}
   },
 
   logout: ctx => {
