@@ -42,6 +42,7 @@
     --color-active: var(--active);
     --color-link: var(--link);
     --color-link-active: var(--link-active);
+    --color-success: var(--success);
 }
 
 :root {
@@ -79,6 +80,7 @@
     --sidebar-ring: oklch(0.708 0 0);
     --link: oklch(0.78 0.19 95);
     --link-hover: oklch(0.83 0.22 95);
+    --success: oklch(0.618 0.233 142.478);
 }
 
 .dark {
@@ -115,6 +117,7 @@
     --sidebar-ring: oklch(0.556 0 0);
     --link: oklch(0.88 0.17 95);
     --link-hover: oklch(0.95 0.21 95);
+    --success: oklch(0.618 0.233 142.478);
 }
 
 @layer base {
