@@ -1,6 +1,7 @@
 import * as React from 'react'
 
 import { cn } from '@shared/lib/utils'
+import { Button } from './button'
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
@@ -73,4 +74,57 @@ const TableCaption = React.forwardRef<HTMLTableCaptionElement, React.HTMLAttribu
 )
 TableCaption.displayName = 'TableCaption'
 
-export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption }
+interface TablePaginationProps {
+  page: number
+  rowsPerPage: number
+  totalRows: number
+  onPageChange: (newPage: number) => void
+  onRowsPerPageChange: (rows: number) => void
+  className?: string
+}
+
+const TablePagination = React.forwardRef<HTMLDivElement, TablePaginationProps>(
+  ({ page, rowsPerPage, totalRows, onPageChange, onRowsPerPageChange, className }, ref) => {
+    const totalPages = Math.ceil(totalRows / rowsPerPage) || 1
+
+    return (
+      <div
+        className={cn('flex justify-between items-center text-sm mt-4 px-2 py-1 border-t bg-muted/10', className)}
+        ref={ref}
+      >
+        <div className="flex items-center space-x-2">
+          <span>Rows per page:</span>
+          <select
+            className="border rounded p-1 text-sm bg-background text-foreground"
+            onChange={e => onRowsPerPageChange(+e.target.value)}
+            value={rowsPerPage}
+          >
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Button disabled={page === 0} onClick={() => onPageChange(Math.max(0, page - 1))} size="sm" variant="outline">
+            Prev
+          </Button>
+          <span>
+            Page {page + 1} of {totalPages}
+          </span>
+          <Button
+            disabled={page >= totalPages - 1}
+            onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}
+            size="sm"
+            variant="outline"
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+    )
+  },
+)
+TablePagination.displayName = 'TablePagination'
+
+export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption, TablePagination }
