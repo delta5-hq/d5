@@ -12,7 +12,7 @@ const Waitlist = () => {
 
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(25)
-  const { users, total, isLoading } = useWaitlist(page, limit)
+  const { users, total, isLoading, refresh } = useWaitlist(page, limit)
   const { formatMessage } = useIntl()
 
   const { isAdmin } = useAuthContext()
@@ -36,6 +36,7 @@ const Waitlist = () => {
           setPage(1)
         }}
         page={page - 1}
+        refresh={refresh}
         rowsPerPage={limit}
         totalRows={total}
       />

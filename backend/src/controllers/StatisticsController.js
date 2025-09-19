@@ -316,6 +316,38 @@ const StatisticsController = {
 
     ctx.body = {success: true}
   },
+  activateUsersBatch: async ctx => {
+    const {ids} = await ctx.request.json()
+
+    if (!Array.isArray(ids) || !ids.length) {
+      ctx.throw(400, 'No user IDs provided')
+    }
+
+    const users = await User.find({id: {$in: ids}})
+
+    if (!users.length) {
+      ctx.throw(404, 'Users not found')
+    }
+
+    const results = []
+
+    for (const user of users) {
+      try {
+        if (user.confirmed) throw new Error('User is already confirmed')
+
+        user.confirmed = true
+        await user.save()
+        emailer.notifyUserOfApproval(user.mail)
+        await createOpenaiIntegration(user.id)
+
+        results.push({id: user.id, success: true})
+      } catch (err) {
+        results.push({id: user.id, success: false, error: err.message})
+      }
+    }
+
+    ctx.body = {results}
+  },
 }
 
 export default StatisticsController

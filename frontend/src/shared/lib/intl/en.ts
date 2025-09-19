@@ -97,4 +97,8 @@ export default {
   adminWaitlist: 'Waitlist',
 
   menuItemTraining: 'Training',
+  allAccountApproved: 'All accounts approved',
+  activationError: 'Activation Error',
+  accountApproved: 'Account approved',
+  approveAll: 'Approve All',
 }

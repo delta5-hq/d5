@@ -7,6 +7,7 @@ import type { User } from '@shared/base-types'
 import { toast } from 'sonner'
 import { apiFetch } from '@shared/lib/base-api'
 import { DateCell, StringCell, type Column } from '@entities/table'
+import { useIntl } from 'react-intl'
 
 interface Row {
   userId: string
@@ -22,6 +23,7 @@ interface WaitlistTableProps {
   totalRows: number
   onPageChange: (newPage: number) => void
   onRowsPerPageChange: (newLimit: number) => void
+  refresh: () => void
 }
 
 const WaitlistTable: React.FC<WaitlistTableProps> = ({
@@ -31,11 +33,14 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
   totalRows,
   onPageChange,
   onRowsPerPageChange,
+  refresh,
 }) => {
   const [waitlist, setWaitlist] = React.useState(initialWaitlist)
   const [searchField, setSearchField] = React.useState<string>('')
   const [orderBy, setOrderBy] = React.useState<keyof Row>('userId')
   const [order, setOrder] = React.useState<'asc' | 'desc'>('desc')
+
+  const { formatMessage } = useIntl()
 
   const rows: Row[] = useMemo(
     () =>
@@ -87,10 +92,27 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
   const onActivate = async (id: string) => {
     try {
       await apiFetch(`/statistics/waitlist/confirm/${id}`)
-      toast.success('Account activated')
+      toast.success(formatMessage({ id: 'accountApproved' }))
       setWaitlist(prev => prev.filter(item => item.id !== id))
     } catch {
-      toast.error('Activation error')
+      toast.error(formatMessage({ id: 'activationError' }))
+    }
+  }
+
+  const onActivateAll = async () => {
+    try {
+      const ids = rows.map(r => r.userId)
+      if (!ids.length) return
+
+      await apiFetch('/statistics/waitlist/confirm/all', {
+        method: 'POST',
+        body: JSON.stringify({ ids }),
+      })
+
+      toast.success(formatMessage({ id: 'allAccountApproved' }))
+      refresh()
+    } catch {
+      toast.error(formatMessage({ id: 'activationError' }))
     }
   }
 
@@ -106,8 +128,11 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
 
   return (
     <div className="w-full">
-      <div className="mb-2">
+      <div className="flex justify-between items-center mb-2">
         <Input className="w-[250px]" onChange={handleChangeSearch} placeholder="Search" value={searchField} />
+        <Button onClick={onActivateAll} variant="outline">
+          Approve All
+        </Button>
       </div>
 
       <Card className="overflow-x-auto">

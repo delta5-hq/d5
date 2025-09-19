@@ -4,7 +4,7 @@ import { useApiQuery } from '@shared/composables'
 import { queryKeys } from '@shared/config'
 
 export const useWaitlist = (page = 1, limit = 25) => {
-  const { data, isLoading, error } = useApiQuery<Paginated<User>>({
+  const { data, isLoading, error, refetch } = useApiQuery<Paginated<User>>({
     queryKey: [queryKeys.waitlist, page, limit],
     url: `/statistics/waitlist?page=${page}&limit=${limit}`,
   })
@@ -14,6 +14,7 @@ export const useWaitlist = (page = 1, limit = 25) => {
     total: data?.total ?? 0,
     page: data?.page ?? page,
     limit: data?.limit ?? limit,
+    refresh: refetch,
 
     isLoading,
     error,
