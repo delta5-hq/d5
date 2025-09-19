@@ -1,4 +1,4 @@
-import { ThemeProvider } from '@app/providers/ThemeProvider'
+import { ThemeProvider } from '@app/providers/theme-provider'
 import { RouterProvider } from 'react-router-dom'
 import { router } from './routers'
 import { IntlProvider } from 'react-intl'
