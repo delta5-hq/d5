@@ -9,7 +9,6 @@ $light-gradient: radial-gradient(
 $light-border: rgba(255, 255, 255, 0.3);
 $light-shadow: rgba(0, 0, 0, 0.1);
 
-$dark-bg: rgba(0, 0, 0, 0.3);
 $dark-gradient: radial-gradient(
   circle at 20% 0%,
   rgba(0, 0, 0, 0.6) 0%,
@@ -30,7 +29,6 @@ $dark-shadow: rgba(0, 0, 0, 0.6);
   border-radius: 1rem;
 
   :global(.dark) & {
-    background: $dark-bg;
     background-image: $dark-gradient;
     border: 1px solid $dark-border;
     box-shadow: 0 4px 30px $dark-shadow;
