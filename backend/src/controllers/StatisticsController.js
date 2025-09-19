@@ -280,7 +280,23 @@ const StatisticsController = {
   },
 
   userWaitlist: async ctx => {
-    ctx.body = await User.find({confirmed: false}, {id: 1, name: 1, mail: 1, createdAt: 1})
+    const page = Math.max(parseInt(ctx.query.page) || 1, 1)
+    const limit = Math.max(parseInt(ctx.query.limit) || 10, 1)
+    const skip = (page - 1) * limit
+
+    const users = await User.find({confirmed: false}, {id: 1, name: 1, mail: 1, createdAt: 1})
+      .skip(skip)
+      .limit(limit)
+      .lean()
+
+    const total = await User.countDocuments({confirmed: false})
+
+    ctx.body = {
+      total,
+      page,
+      limit,
+      data: users,
+    }
   },
 
   activateUser: async ctx => {
