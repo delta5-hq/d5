@@ -1,6 +1,7 @@
 import { useApiMutation, useApiQuery } from '@shared/composables'
 import { queryKeys } from '@shared/config'
 import type { LoginCredentials, User } from '@shared/base-types'
+import { toast } from 'sonner'
 
 export const useAuth = () => {
   const meQuery = useApiQuery<User>({
@@ -8,8 +9,11 @@ export const useAuth = () => {
     url: '/users/me',
   })
 
-  const loginMutation = useApiMutation<unknown, unknown, LoginCredentials>({
+  const loginMutation = useApiMutation<unknown, Error, LoginCredentials>({
     url: '/auth',
+    onError: async (error: Error) => {
+      toast.error(error.message)
+    },
   })
   const refreshMutation = useApiMutation<unknown, unknown, void>({
     url: '/auth/refresh',

@@ -43,7 +43,7 @@ export const apiFetch = async <T = unknown>(url: string, options: ApiFetchOption
       logger.error('Failed to parse error response as JSON')
     }
 
-    throw new Error(`HTTP ${res.status}: ${errorMessage}`)
+    throw new Error(errorMessage)
   }
 
   return res.json() as Promise<T>
