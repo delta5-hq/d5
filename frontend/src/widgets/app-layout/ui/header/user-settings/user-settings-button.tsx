@@ -1,3 +1,4 @@
+import { useAuth } from '@entities/auth'
 import { Button } from '@shared/ui/button'
 import {
   DropdownMenu,
@@ -11,6 +12,7 @@ import { useState } from 'react'
 
 const UserSettingsButton = () => {
   const [isOpen, setIsOpen] = useState(false)
+  const { user } = useAuth()
   return (
     <DropdownMenu onOpenChange={() => setIsOpen(prev => !prev)} open={isOpen}>
       <DropdownMenuTrigger asChild>
@@ -22,7 +24,7 @@ const UserSettingsButton = () => {
       <DropdownMenuContent align="start" className="w-56">
         <div>
           <DropdownMenuLabel>Signed In</DropdownMenuLabel>
-          <p className="color px-2 text-xs text-gray-400">email@domain.com</p>
+          <p className="color px-2 text-xs text-gray-400">{user?.name}</p>
         </div>
         <DropdownMenuItem>Account Settings</DropdownMenuItem>
       </DropdownMenuContent>
