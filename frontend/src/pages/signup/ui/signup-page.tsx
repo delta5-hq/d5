@@ -75,7 +75,6 @@ const Signup: React.FC = () => {
 
   const onClose = () => {
     navigate('/')
-    showDialog(LoginDialog)
   }
 
   return (

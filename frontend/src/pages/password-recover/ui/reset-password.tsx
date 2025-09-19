@@ -6,12 +6,13 @@ import { FormattedMessage } from 'react-intl'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@shared/ui/button'
 import { Input } from '@shared/ui/input'
-import { isValidPassword, useAuthContext, usePasswordRecovery, useResetTokenCheck } from '@entities/auth'
+import { isValidPassword, LoginDialog, useAuthContext, usePasswordRecovery, useResetTokenCheck } from '@entities/auth'
 import { Logo } from '@shared/ui/logo'
 import { Version } from '@shared/ui/version'
 import { Label } from '@shared/ui/label'
 import { Spinner } from '@shared/ui/spinner'
 import { Copyright } from '@shared/ui/copyright'
+import { useDialog } from '@entities/dialog'
 
 const resetPasswordSchema = z.object({
   password: z
@@ -26,6 +27,7 @@ const ResetPassword = () => {
   const navigate = useNavigate()
   const { pwdResetToken } = useParams<{ pwdResetToken: string }>()
   const { isLoggedIn } = useAuthContext()
+  const { showDialog } = useDialog()
 
   const { isValid, isLoading } = useResetTokenCheck(pwdResetToken)
   const { resetPassword, isResetDone: isSuccess } = usePasswordRecovery()
@@ -52,8 +54,9 @@ const ResetPassword = () => {
     (data: ResetPasswordForm) => {
       if (!pwdResetToken) return
       resetPassword({ ...data, token: pwdResetToken })
+      showDialog(LoginDialog)
     },
-    [resetPassword, pwdResetToken],
+    [resetPassword, pwdResetToken, showDialog],
   )
 
   return (

@@ -32,13 +32,14 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
   onPageChange,
   onRowsPerPageChange,
 }) => {
+  const [waitlist, setWaitlist] = React.useState(initialWaitlist)
   const [searchField, setSearchField] = React.useState<string>('')
   const [orderBy, setOrderBy] = React.useState<keyof Row>('userId')
   const [order, setOrder] = React.useState<'asc' | 'desc'>('desc')
 
   const rows: Row[] = useMemo(
     () =>
-      initialWaitlist
+      waitlist
         .filter(value =>
           searchField
             .toLowerCase()
@@ -51,7 +52,7 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
           mail: value.mail,
           createdAt: value.createdAt,
         })),
-    [initialWaitlist, searchField],
+    [waitlist, searchField],
   )
 
   const columns: Column<Row>[] = [
@@ -87,6 +88,7 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
     try {
       await apiFetch(`/statistics/waitlist/confirm/${id}`)
       toast.success('Account activated')
+      setWaitlist(prev => prev.filter(item => item.id !== id))
     } catch {
       toast.error('Activation error')
     }
