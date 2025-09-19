@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import React, { useEffect } from 'react'
 import { FormattedMessage } from 'react-intl'
 
 interface TitleUpdaterProps {
@@ -13,22 +13,20 @@ const TitleUpdater = ({ title }: TitleUpdaterProps) => {
   return null
 }
 
-type HelmetTitleProps =
-  | {
-      title: string
-    }
-  | {
-      titleId: string
-    }
+const TitleFromTranslation: React.FC<{ id: string }> = ({ id }) => (
+  <FormattedMessage id={id}>{translated => <TitleUpdater title={String(translated)} />}</FormattedMessage>
+)
+
+type HelmetTitleProps = { title: string } | { titleId: string }
 
 const HelmetTitle = (props: HelmetTitleProps) => {
   if ('titleId' in props) {
     const { titleId } = props
-    return <FormattedMessage id={titleId}>{translated => <TitleUpdater title={String(translated)} />}</FormattedMessage>
+    return <TitleFromTranslation id={titleId} />
   }
   const { title } = props
 
-  return <TitleUpdater title={title} />
+  return <TitleUpdater title={title ?? ''} />
 }
 
 export { HelmetTitle }

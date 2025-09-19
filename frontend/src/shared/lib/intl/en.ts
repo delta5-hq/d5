@@ -52,4 +52,8 @@ export default {
   passwordChanged: 'Password has been successfully changed',
 
   noUsersInWaitlist: 'No users in the waitlist',
+  pageTitle: {
+    adminCRM: 'User Stats',
+    adminWaitlist: 'Waitlist',
+  },
 }
