@@ -1,6 +1,6 @@
-import { apiFetch } from '@shared/lib/base-api'
-import { useQuery, type DefinedInitialDataOptions } from '@tanstack/react-query'
+import { useQuery, type UseQueryOptions } from '@tanstack/react-query'
 import { useEffect } from 'react'
+import { apiFetch } from '@shared/lib/base-api'
 
 interface ExtraQueryParams<TData = unknown, TError = unknown> {
   url?: string
@@ -8,7 +8,7 @@ interface ExtraQueryParams<TData = unknown, TError = unknown> {
   onError?: (error: TError) => void
 }
 
-type ExtendedOptions<TQueryFnData, TError, TData, TQueryKey extends readonly unknown[]> = DefinedInitialDataOptions<
+type ExtendedOptions<TQueryFnData, TError, TData, TQueryKey extends readonly unknown[]> = UseQueryOptions<
   TQueryFnData,
   TError,
   TData,
@@ -16,10 +16,10 @@ type ExtendedOptions<TQueryFnData, TError, TData, TQueryKey extends readonly unk
 > &
   ExtraQueryParams<TData, TError>
 
-const useApiQuery = <
+export const useApiQuery = <
+  TData = unknown,
   TQueryFnData = unknown,
   TError = Error,
-  TData = TQueryFnData,
   TQueryKey extends readonly unknown[] = readonly unknown[],
 >(
   options: ExtendedOptions<TQueryFnData, TError, TData, TQueryKey>,
@@ -28,11 +28,10 @@ const useApiQuery = <
 
   const query = useQuery<TQueryFnData, TError, TData, TQueryKey>({
     queryFn: async () => {
-      if (!url) {
-        throw new Error('Url is required')
-      }
+      if (!url) throw new Error('Url is required')
       return apiFetch(url)
     },
+    retry: 0,
     ...rest,
   })
 
@@ -46,5 +45,3 @@ const useApiQuery = <
 
   return query
 }
-
-export default useApiQuery
