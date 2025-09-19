@@ -4,7 +4,7 @@ import { ForgotPasswordPage, ResetPasswordPage } from '@pages/password-recover'
 import { SignUpPage } from '@pages/signup'
 import Providers from '@app/providers/providers'
 import { AppLayout } from '@widgets/app-layout'
-import { WaitlistPage } from '@pages/admin'
+import { UserProfilePage, WaitlistPage } from '@pages/admin'
 import { AdminUsersPage } from '@pages/admin'
 
 export const router = createBrowserRouter([
@@ -32,6 +32,14 @@ export const router = createBrowserRouter([
             element: (
               <AppLayout>
                 <AdminUsersPage />
+              </AppLayout>
+            ),
+          },
+          {
+            path: 'users/:id',
+            element: (
+              <AppLayout>
+                <UserProfilePage />
               </AppLayout>
             ),
           },

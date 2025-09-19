@@ -2,14 +2,16 @@ import type { FullUser } from '@shared/base-types'
 
 export interface UserMapStatistics {
   _id: string
-  mapCount?: number
-  mapShareCount?: number
-  nodeCount?: number
-  edgeCount?: number
-  mapIds?: string[]
-  sharedWithCount?: number
-  biggestMapCount?: number
-  lastMapChange?: string
+  mapId: string
+  userId: string
+  createdAt: string
+  updatedAt: string
+  mapNodeCount: number
+  mapEdgeCount: number
+  role: 'owner' | 'editor' | 'viewer' | string
+  sharedWithCount: number
+  public: boolean
+  hidden: boolean
 }
 
 export interface FullUserStatistics extends FullUser {
