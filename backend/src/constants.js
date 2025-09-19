@@ -40,19 +40,11 @@ export const EXPORT_FILE_SIZE_LIMIT = env.EXPORT_FILE_SIZE_LIMIT || 20 * 1024 * 
 
 export const MAIL_HOST = env.MAIL_HOST
 
-export const MAIL_PORT = env.MAIL_PORT
-
 export const MAIL_USER = env.MAIL_USER
 
 export const MAIL_PASSWORD = env.MAIL_PASSWORD
 
-export const MAIL_FROM = env.MAIL_FROM
-
-export const MAIL_SUBJECT = env.MAIL_SUBJECT
-
 export const GOOGLE_API_KEY = env.GOOGLE_API_KEY
-
-export const BREVO_API_KEY = env.BREVO_API_KEY
 
 export const SERP_API_KEY = env.SERP_API_KEY
 
