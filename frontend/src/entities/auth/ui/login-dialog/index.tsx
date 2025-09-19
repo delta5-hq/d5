@@ -59,7 +59,6 @@ export const LoginDialog = ({ open, onClose }: LoginDialogProps) => {
             <Input
               {...register('usernameOrEmail')}
               autoComplete="username"
-              autoFocus
               className="border rounded px-3 py-2"
               placeholder="Username or Email"
               type="text"
