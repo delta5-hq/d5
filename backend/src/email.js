@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer'
 import debug from 'debug'
 import {MAIL_HOST, MAIL_PASSWORD, MAIL_USER} from './constants'
-console.log(MAIL_HOST, MAIL_PASSWORD, MAIL_USER)
+
 const log = debug('delta5:Email')
 const logError = log.extend('ERROR', '::')
 

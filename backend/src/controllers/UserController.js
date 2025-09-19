@@ -28,7 +28,7 @@ const UserController = {
     }
 
     const user = await User.findOne({id: userId}, {name: 1})
-    console.log(user)
+
     if (user) {
       ctx.body = user
     } else {

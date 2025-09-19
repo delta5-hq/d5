@@ -249,7 +249,7 @@ const AuthController = {
       resetToken = generateRandomString(100)
       tokenExists = await User.exists({pwdResetToken: resetToken})
     } while (tokenExists)
-    console.log(resetToken)
+
     user.pwdResetToken = resetToken
     await user.save()
 
