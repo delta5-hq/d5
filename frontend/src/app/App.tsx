@@ -1,15 +1,11 @@
-import { ThemeProvider } from '@app/providers/theme-provider'
 import { RouterProvider } from 'react-router-dom'
 import { router } from './routers'
-import { IntlProvider } from 'react-intl'
-import messages from '@shared/lib/intl/index'
+import Providers from './providers/providers'
 
 const App = () => (
-  <ThemeProvider>
-    <IntlProvider locale="en" messages={messages.en}>
-      <RouterProvider router={router} />
-    </IntlProvider>
-  </ThemeProvider>
+  <Providers>
+    <RouterProvider router={router} />
+  </Providers>
 )
 
 export default App
