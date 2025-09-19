@@ -3,11 +3,12 @@ import { z } from 'zod/v3'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { FormattedMessage } from 'react-intl'
 import { Link } from 'react-router-dom'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@shared/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@shared/ui/dialog'
 import type { LoginDialogProps } from './types'
 import { Input } from '@shared/ui/input'
 import { Button } from '@shared/ui/button'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+import { useAuth } from '@entities/auth/api'
 
 const LoginSchema = z.object({
   usernameOrEmail: z.string().nonempty('Username or email is required'),
@@ -16,8 +17,8 @@ const LoginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof LoginSchema>
 
-export const LoginDialog = ({ children, login }: LoginDialogProps) => {
-  const [open, setOpen] = useState(false)
+export const LoginDialog = ({ open, onClose }: LoginDialogProps) => {
+  const { login } = useAuth()
   const {
     register,
     handleSubmit,
@@ -34,13 +35,16 @@ export const LoginDialog = ({ children, login }: LoginDialogProps) => {
 
   const onSubmit = async (data: LoginFormValues) => {
     await login(data)
-    setOpen(false)
+    onClose?.()
   }
 
   return (
-    <Dialog onOpenChange={() => setOpen(prev => !prev)} open={open}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
-
+    <Dialog
+      onOpenChange={val => {
+        if (!val) onClose?.()
+      }}
+      open={open}
+    >
       <DialogContent className="max-w-md w-full p-6">
         <DialogHeader>
           <DialogTitle>
@@ -88,7 +92,7 @@ export const LoginDialog = ({ children, login }: LoginDialogProps) => {
                 <FormattedMessage id="notRegistered" />
               </span>
               <span className="cursor-pointer hover:underline hover:text-link-hover text-link">
-                <Link to="/register">
+                <Link onClick={() => onClose?.()} to="/register">
                   <FormattedMessage id="loginSignUp" />
                 </Link>
               </span>
@@ -97,12 +101,7 @@ export const LoginDialog = ({ children, login }: LoginDialogProps) => {
 
           {/* Actions */}
           <div className="flex justify-end gap-2">
-            <Button
-              className="px-4 py-2 rounded border"
-              onClick={() => setOpen(false)}
-              type="button"
-              variant="secondary"
-            >
+            <Button className="px-4 py-2 rounded border" onClick={() => onClose?.()} type="button" variant="secondary">
               <FormattedMessage id="buttonCancel" />
             </Button>
             <Button

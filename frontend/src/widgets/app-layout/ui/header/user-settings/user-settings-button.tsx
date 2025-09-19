@@ -9,10 +9,17 @@ import {
 } from '@shared/ui/dropdown-menu'
 import { UserIcon, ChevronDown, ChevronUp } from 'lucide-react'
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 const UserSettingsButton = () => {
   const [isOpen, setIsOpen] = useState(false)
   const { user, logout } = useAuth()
+  const navigate = useNavigate()
+
+  const onLogout = async () => {
+    await logout()
+    navigate('/')
+  }
   return (
     <DropdownMenu onOpenChange={() => setIsOpen(prev => !prev)} open={isOpen}>
       <DropdownMenuTrigger asChild>
@@ -27,7 +34,7 @@ const UserSettingsButton = () => {
           <p className="color px-2 text-xs text-gray-400">@{user?.name}</p>
         </div>
         <DropdownMenuItem>Account Settings</DropdownMenuItem>
-        <DropdownMenuItem onClick={logout}>Log out</DropdownMenuItem>
+        <DropdownMenuItem onClick={onLogout}>Log out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

@@ -1,7 +1,3 @@
-import type { LoginCredentials } from '@shared/base-types'
-import type React from 'react'
+import type { DialogProps } from '@shared/base-types'
 
-export interface LoginDialogProps {
-  children: React.ReactNode
-  login: (data: LoginCredentials) => Promise<void>
-}
+export interface LoginDialogProps extends DialogProps {}

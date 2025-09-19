@@ -1,16 +1,21 @@
 import { IntlProvider } from 'react-intl'
 import { ThemeProvider } from './theme-provider'
-import type React from 'react'
 import messages from '@shared/lib/intl'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from '@shared/ui/sonner'
+import { DialogProvider } from '@entities/dialog'
+import { Outlet } from 'react-router-dom'
 
 const queryClient = new QueryClient()
 
-const Providers = ({ children }: { children: React.ReactNode }) => (
+const Providers = () => (
   <ThemeProvider>
     <IntlProvider locale="en" messages={messages.en}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <DialogProvider>
+          <Outlet />
+        </DialogProvider>
+      </QueryClientProvider>
       <Toaster position="bottom-left" />
     </IntlProvider>
   </ThemeProvider>

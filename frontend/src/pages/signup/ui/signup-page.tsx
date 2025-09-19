@@ -13,6 +13,7 @@ import { Version } from '@shared/ui/version'
 import { Copyright } from '@shared/ui/copyright'
 import { Logo } from '@shared/ui/logo'
 import { Label } from '@shared/ui/label'
+import { useDialog } from '@entities/dialog'
 
 const signupSchema = z.object({
   username: z
@@ -39,8 +40,9 @@ type SignupForm = z.infer<typeof signupSchema>
 
 const Signup: React.FC = () => {
   const navigate = useNavigate()
-  const { isLoggedIn, login, signup, isSuccessSignup: isSuccess } = useAuth()
+  const { isLoggedIn, signup, isSuccessSignup: isSuccess } = useAuth()
   const [showAlertDialog, setShowAlertDialog] = useState(false)
+  const { showDialog } = useDialog()
 
   if (isLoggedIn) {
     navigate('/')
@@ -161,11 +163,12 @@ const Signup: React.FC = () => {
             {/* Already have account */}
             <div className="flex gap-x-2 justify-center text-center text-sm">
               <FormattedMessage id="alreadyExistAccount" />{' '}
-              <LoginDialog login={login}>
-                <span className="cursor-pointer hover:underline hover:text-link-hover text-link">
-                  <FormattedMessage id="loginTitle" />
-                </span>
-              </LoginDialog>
+              <span
+                className="cursor-pointer hover:underline hover:text-link-hover text-link"
+                onClick={() => showDialog(LoginDialog)}
+              >
+                <FormattedMessage id="loginTitle" />
+              </span>
             </div>
 
             {/* Version */}

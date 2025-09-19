@@ -3,12 +3,10 @@ import { queryKeys } from '@shared/config'
 import type { LoginCredentials, User } from '@shared/base-types'
 import { toast } from 'sonner'
 import { useIntl } from 'react-intl'
-import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 
 export const useAuth = () => {
   const { formatMessage } = useIntl()
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   const meQuery = useApiQuery<User>({
@@ -41,7 +39,6 @@ export const useAuth = () => {
     method: 'POST',
     onSuccess: async () => {
       queryClient.clear()
-      navigate('/')
     },
   })
 
