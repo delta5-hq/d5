@@ -2,6 +2,7 @@ import * as React from 'react'
 
 import { cn } from '@shared/lib/utils'
 import { Button } from './button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select'
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
@@ -94,15 +95,16 @@ const TablePagination = React.forwardRef<HTMLDivElement, TablePaginationProps>(
       >
         <div className="flex items-center space-x-2">
           <span>Rows per page:</span>
-          <select
-            className="border rounded p-1 text-sm bg-background text-foreground"
-            onChange={e => onRowsPerPageChange(+e.target.value)}
-            value={rowsPerPage}
-          >
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-          </select>
+          <Select onValueChange={value => onRowsPerPageChange(Number(value))} value={rowsPerPage.toString()}>
+            <SelectTrigger className="w-[80px] text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex items-center space-x-2">
