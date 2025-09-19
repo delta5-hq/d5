@@ -14,6 +14,24 @@ const StringCell: React.FC<{ value: string }> = ({ value }) => {
   return <span>{value}</span>
 }
 
-const DateCell: React.FC<{ value: string }> = ({ value }) => <span>{new Date(Date.parse(value)).toLocaleString()}</span>
+const DateCell: React.FC<{ value?: string | null }> = ({ value }) => {
+  if (!value) return <span>-</span>
 
-export { StringCell, DateCell }
+  const date = new Date(value)
+  if (isNaN(date.getTime())) return <span>-</span>
+
+  return <span>{date.toLocaleString()}</span>
+}
+
+const RoleCell = ({ value }: { value?: boolean }) => (value ? '✓' : '✖')
+
+const FieldsOfWorkCell = ({ value }: { value?: Record<string, string> }) => {
+  if (!value) return '-'
+
+  const filteredValues = Object.values(value).filter(v => v && v.trim() !== '')
+  return filteredValues.length > 0 ? filteredValues.join(', ') : '-'
+}
+
+const NumberCell = ({ value }: { value?: number }) => ((value ?? value === 0) ? value : '-')
+
+export { StringCell, DateCell, RoleCell, FieldsOfWorkCell, NumberCell }

@@ -5,6 +5,7 @@ import { SignUpPage } from '@pages/signup'
 import Providers from '@app/providers/providers'
 import { AppLayout } from '@widgets/app-layout'
 import { WaitlistPage } from '@pages/admin'
+import { AdminUsersPage } from '@pages/admin'
 
 export const router = createBrowserRouter([
   {
@@ -23,6 +24,14 @@ export const router = createBrowserRouter([
             element: (
               <AppLayout>
                 <WaitlistPage />
+              </AppLayout>
+            ),
+          },
+          {
+            path: 'users',
+            element: (
+              <AppLayout>
+                <AdminUsersPage />
               </AppLayout>
             ),
           },
