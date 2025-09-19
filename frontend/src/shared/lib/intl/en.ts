@@ -40,4 +40,10 @@ export default {
   signupDialogTitle: 'Thank you for signing up!',
   signupDialogMessage:
     '<b>Your account is currently in the waitlist for manual approval.</b> You will receive an email notification once your account has been approved.<br><br><b>We appreciate your patience and look forward to having you as a user of our product!</b>',
+
+  accountRecovery: 'Account Recovery',
+  sendRecoveryLink: 'Send recovery link',
+  forgotPasswordDialogTitle: 'Email Sent',
+  forgotPasswordDialogMessage:
+    "A password reset email has been sent to your email address. Once you receive the email, open the link provided to reset your password.<br><br>If you don't see the email in your inbox, please also check your spam folder. ",
 }

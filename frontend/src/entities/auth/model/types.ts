@@ -6,3 +6,12 @@ export interface UserMeRes {
   createdAt: string // ISO
   updatedAt: string // ISO
 }
+
+export interface RequestRecoveryDto {
+  usernameOrEmail: string
+}
+
+export interface ResetPasswordDto {
+  token: string
+  password: string
+}
