@@ -38,13 +38,11 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
       <DialogContent className="sm:max-w-lg">
         {headline ? (
           <DialogHeader>
-            <DialogTitle>{typeof headline === 'string' ? <FormattedMessage id={headline} /> : headline}</DialogTitle>
+            <DialogTitle>{headline}</DialogTitle>
           </DialogHeader>
         ) : null}
         {question ? (
-          <DialogDescription className="mt-2 text-sm text-muted-foreground">
-            {typeof question === 'string' ? <FormattedMessage id={question} /> : question}
-          </DialogDescription>
+          <DialogDescription className="mt-2 text-sm text-muted-foreground">{question}</DialogDescription>
         ) : null}
         <DialogFooter className="mt-4 flex justify-end gap-2">
           <Button onClick={onNotConfirm} variant="outline">

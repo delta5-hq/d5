@@ -6,6 +6,7 @@ import { Card } from '@shared/ui/card'
 import { Input } from '@shared/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TablePagination, TableRow } from '@shared/ui/table'
 import React, { useMemo, useState, type ChangeEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 interface Row {
   userId: string
@@ -65,6 +66,7 @@ const AdminTable: React.FC<AdminTableProps> = ({
   const [searchField, setSearchField] = useState('')
   const [orderBy, setOrderBy] = useState<keyof Row>('userId')
   const [order, setOrder] = useState<'asc' | 'desc'>('desc')
+  const navigate = useNavigate()
 
   const filteredRows: Row[] = useMemo(() => {
     const searchWords = searchField.toLowerCase().split(' ')
@@ -166,7 +168,11 @@ const AdminTable: React.FC<AdminTableProps> = ({
             {stableSort(filteredRows, getComparator(order, orderBy))
               .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
               .map(row => (
-                <TableRow key={row.userId}>
+                <TableRow
+                  className="cursor-pointer"
+                  key={row.userId}
+                  onClick={() => navigate(`/admin/users/${row.userId}`)}
+                >
                   {columns.map(({ Cell, id }) => (
                     <TableCell key={id as string}>
                       {Cell ? <Cell row={row} value={row[id]} /> : (row[id] as string)}

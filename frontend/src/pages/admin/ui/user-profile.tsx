@@ -1,10 +1,19 @@
 import { useUserProfile } from '@entities/admin'
+import { useAuthContext } from '@entities/auth'
 import { UserProfileDashboard } from '@widgets/dashboard-admin'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 
 const UserProfile = () => {
   const { id } = useParams()
   const { isUserFetched, userData, mapsData } = useUserProfile(id as string)
+
+  const navigate = useNavigate()
+  const { isAdmin } = useAuthContext()
+
+  if (!isAdmin) {
+    navigate('/')
+    return null
+  }
 
   if (!isUserFetched || !id || !userData || !mapsData) return null
 

@@ -23,7 +23,7 @@ export const useUserProfile = (userId: string) => {
     url: `/users/${userId}`,
     method: 'DELETE',
     onSuccess: () => {
-      navigate('/maps/admin/users')
+      navigate('/admin/users')
       toast.success(formatMessage({ id: 'userProfileDeleteSuccess' }))
     },
     onError: err => {

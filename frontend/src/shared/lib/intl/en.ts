@@ -93,4 +93,8 @@ export default {
   errorNoPermissions: 'No permissions found',
   errorList: 'Error List',
   error404: 'The page you requested was not found.',
+  adminList: 'User Stats',
+  adminWaitlist: 'Waitlist',
+
+  menuItemTraining: 'Training',
 }

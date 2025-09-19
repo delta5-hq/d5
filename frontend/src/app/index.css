@@ -84,6 +84,7 @@
     --link: oklch(0.78 0.19 95);
     --link-hover: oklch(0.83 0.22 95);
     --success: oklch(0.618 0.233 142.478);
+    --active: oklch(62.3% 0.214 259.815);
 }
 
 .dark {
