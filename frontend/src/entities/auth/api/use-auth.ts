@@ -1,6 +1,6 @@
 import { useApiMutation, useApiQuery } from '@shared/composables'
 import { queryKeys } from '@shared/config'
-import type { LoginCredentials, User } from '@shared/base-types'
+import { ROLES, type LoginCredentials, type User } from '@shared/base-types'
 import { toast } from 'sonner'
 import { useIntl } from 'react-intl'
 import { useQueryClient } from '@tanstack/react-query'
@@ -57,12 +57,15 @@ export const useAuth = () => {
   }
 
   const user = meQuery.data
+  const isAdmin = user?.roles.includes(ROLES.administrator)
 
   return {
     user,
     isLoggedIn: !!user,
     isLoading: meQuery.isLoading || loginMutation.isPending || signupMutation.isPending,
     isSuccessSignup: signupMutation.isSuccess,
+
+    isAdmin,
 
     login,
     signup,

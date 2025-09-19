@@ -6,3 +6,10 @@ export interface User {
   updatedAt: string
   roles: string[]
 }
+
+export const ROLES = {
+  subscriber: 'subscriber',
+  org_subscriber: 'org_subscriber',
+  customer: 'customer',
+  administrator: 'administrator',
+}

@@ -50,4 +50,6 @@ export default {
   resetPassword: 'Reset Password',
   reset: 'Reset',
   passwordChanged: 'Password has been successfully changed',
+
+  noUsersInWaitlist: 'No users in the waitlist',
 }
