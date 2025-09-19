@@ -3,9 +3,13 @@ import { queryKeys } from '@shared/config'
 import type { LoginCredentials, User } from '@shared/base-types'
 import { toast } from 'sonner'
 import { useIntl } from 'react-intl'
+import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 
 export const useAuth = () => {
   const { formatMessage } = useIntl()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const meQuery = useApiQuery<User>({
     queryKey: queryKeys.authMe,
@@ -32,6 +36,14 @@ export const useAuth = () => {
       }
     },
   })
+  const logoutMutation = useApiMutation<unknown, unknown, void>({
+    url: '/auth/logout',
+    method: 'POST',
+    onSuccess: async () => {
+      queryClient.clear()
+      navigate('/')
+    },
+  })
 
   const login = async (data: LoginCredentials) => {
     await loginMutation.mutateAsync(data)
@@ -41,6 +53,10 @@ export const useAuth = () => {
 
   const signup = async (data: unknown) => {
     await signupMutation.mutateAsync(data)
+  }
+
+  const logout = async () => {
+    await logoutMutation.mutateAsync()
   }
 
   const user = meQuery.data
@@ -53,5 +69,6 @@ export const useAuth = () => {
 
     login,
     signup,
+    logout,
   }
 }

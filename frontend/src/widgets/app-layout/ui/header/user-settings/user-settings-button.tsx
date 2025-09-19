@@ -12,7 +12,7 @@ import { useState } from 'react'
 
 const UserSettingsButton = () => {
   const [isOpen, setIsOpen] = useState(false)
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   return (
     <DropdownMenu onOpenChange={() => setIsOpen(prev => !prev)} open={isOpen}>
       <DropdownMenuTrigger asChild>
@@ -22,11 +22,12 @@ const UserSettingsButton = () => {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
-        <div>
+        <div className="flex flex-row justify-between items-center">
           <DropdownMenuLabel>Signed In</DropdownMenuLabel>
-          <p className="color px-2 text-xs text-gray-400">{user?.name}</p>
+          <p className="color px-2 text-xs text-gray-400">@{user?.name}</p>
         </div>
         <DropdownMenuItem>Account Settings</DropdownMenuItem>
+        <DropdownMenuItem onClick={logout}>Log out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
