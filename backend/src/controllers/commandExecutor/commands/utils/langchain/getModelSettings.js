@@ -10,7 +10,12 @@ export const GPT_O_1_MAX_TOKENS = 200000
 export const GPT_O_3_MINI_MAX_TOKENS = 200000
 export const GPT_4_5_PREVIEW_MAX_TOKENS = 128000
 export const GPT_4_1_MAX_TOKENS = 1_047_576
+export const GPT_4_1_MINI_MAX_TOKENS = 128000
+export const GPT_4_1_NANO_MAX_TOKENS = 128000
 export const GPT_5_MAX_TOKENS = 400000
+export const GPT_5_MINI_MAX_TOKENS = 400000
+export const GPT_5_NANO_MAX_TOKENS = 400000
+export const GPT_5_CHAT_MAX_TOKENS = 128000
 export const GPT_o3_MAX_TOKENS = 200000
 export const GPT_o3_PRO_MAX_TOKENS = 200000
 export const GPT_o3_DEEP_RESEARCH_MAX_TOKENS = 200000
@@ -49,6 +54,16 @@ export const getOpenaiModelSettings = modelName => {
       return {model: OPENAI_MODELS.GPT_o4_MINI, chunkSize: GPT_o4_MINI_MAX_TOKENS}
     case OPENAI_MODELS.GPT_o4_MINI_DEEP_RESEARCH:
       return {model: OPENAI_MODELS.GPT_o4_MINI_DEEP_RESEARCH, chunkSize: GPT_o4_MINI_DEEP_RESEARCH_MAX_TOKENS}
+    case OPENAI_MODELS.GPT_4_1_MINI:
+      return {model: OPENAI_MODELS.GPT_4_1_MINI, chunkSize: GPT_4_1_MINI_MAX_TOKENS}
+    case OPENAI_MODELS.GPT_4_1_NANO:
+      return {model: OPENAI_MODELS.GPT_4_1_NANO, chunkSize: GPT_4_1_NANO_MAX_TOKENS}
+    case OPENAI_MODELS.GPT_5_MINI:
+      return {model: OPENAI_MODELS.GPT_5_MINI, chunkSize: GPT_5_MINI_MAX_TOKENS}
+    case OPENAI_MODELS.GPT_5_NANO:
+      return {model: OPENAI_MODELS.GPT_5_NANO, chunkSize: GPT_5_NANO_MAX_TOKENS}
+    case OPENAI_MODELS.GPT_5_CHAT:
+      return {model: OPENAI_MODELS.GPT_5_CHAT, chunkSize: GPT_5_CHAT_MAX_TOKENS}
     default:
       return {model: OPENAI_MODELS.GPT_4o, chunkSize: GPT_4o_MAX_TOKENS}
   }
