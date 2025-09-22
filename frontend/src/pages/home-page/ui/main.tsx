@@ -5,10 +5,10 @@ import { cn } from '@shared/lib/utils'
 const Main = () => {
   const buttonVariants: Parameters<typeof Button>[0]['variant'][] = [
     'default',
-    'destructive',
+    'danger',
     'accent',
-    'outline',
-    'secondary',
+    'warning',
+    'info',
     'ghost',
     'link',
   ]
@@ -31,7 +31,7 @@ const Main = () => {
               <Button size="sm" variant="default">
                 Action
               </Button>
-              <Button className="ml-2" size="sm" variant="secondary">
+              <Button className="ml-2" size="sm" variant="info">
                 Secondary
               </Button>
             </CardFooter>

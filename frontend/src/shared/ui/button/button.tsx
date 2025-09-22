@@ -5,12 +5,12 @@ import { cn } from '@shared/lib/utils'
 
 const Button = ({
   className,
-  variant = 'default',
+  variant = 'accent',
   size = 'default',
   asChild = false,
   ...props
 }: React.ComponentProps<'button'> & {
-  variant?: 'default' | 'destructive' | 'accent' | 'outline' | 'secondary' | 'ghost' | 'link'
+  variant?: 'accent' | 'danger' | 'warning' | 'default' | 'info' | 'ghost' | 'link'
   size?: 'default' | 'sm' | 'lg' | 'icon'
   asChild?: boolean
 }) => {
