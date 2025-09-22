@@ -10,6 +10,7 @@
     "format": "steiger ./src; eslint --fix src",
     "preview": "vite preview",
     "test:e2e": "playwright test",
+    "test:e2e:firefox": "playwright test --project=firefox",
     "genversion": "genversion src/version.ts --es6"
   },
   "dependencies": {
