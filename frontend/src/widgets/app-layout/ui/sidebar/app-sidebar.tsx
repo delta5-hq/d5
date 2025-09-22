@@ -74,7 +74,7 @@ const AppSidebar: FC<AppSidebarProps> = ({ isResponsive, isDesktop, isMinimized 
 
   return (
     <Sidebar
-      className={cn(isMobile ? 'mt-16 p-2 border-r border-sidebar-border' : 'pt-16', 'w-[175px]')}
+      className={cn(isMobile ? 'mt-16 p-2 border-r border-sidebar-border' : 'pt-16', 'w-(--sidebar-width)')}
       collapsible={isMinimized ? 'icon' : 'offcanvas'}
       disableOverlay
       side={isMobile ? 'right' : 'left'}
