@@ -12,6 +12,7 @@ const UserSchema = createSchema({
   password: {type: String, select: false},
   mail: {type: String, index: {unique: true}, required: true},
   confirmed: {type: Boolean, required: false},
+  rejected: {type: Boolean, required: false},
   roles: [String],
   comment: {type: String},
   limitNodes: Number,

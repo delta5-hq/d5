@@ -49,7 +49,7 @@ const AuthController = {
     auth = generateAuth(await User.findOne(filter))
 
     const {refresh_token, access_token, ...restAuth} = auth || {}
-    console.log(access_token)
+
     if (refresh_token)
       ctx.cookies.set('refresh_token', refresh_token, {maxAge: auth.expires_in * 1000, domain: getDomain(ctx)})
 
@@ -205,6 +205,7 @@ const AuthController = {
       password,
       roles: [ROLES.subscriber],
       confirmed: false,
+      rejected: false,
     })
 
     await user.save()
@@ -212,6 +213,7 @@ const AuthController = {
     emailer.notifyUserForSignup(serializedMail, serializedUsername)
 
     ctx.status = 200
+    ctx.body = {success: true}
   },
 
   logout: ctx => {
@@ -247,7 +249,7 @@ const AuthController = {
       resetToken = generateRandomString(100)
       tokenExists = await User.exists({pwdResetToken: resetToken})
     } while (tokenExists)
-    console.log(resetToken)
+
     user.pwdResetToken = resetToken
     await user.save()
 

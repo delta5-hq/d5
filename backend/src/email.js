@@ -1,70 +1,75 @@
-import {
-  ApiClient,
-  ContactsApi,
-  CreateContact,
-  AddContactToList,
-  SendSmtpEmail,
-  TransactionalEmailsApi,
-} from '@getbrevo/brevo'
+import nodemailer from 'nodemailer'
 import debug from 'debug'
-import {BREVO_API_KEY} from './constants'
+import {MAIL_HOST, MAIL_PASSWORD, MAIL_USER} from './constants'
 
-const log = debug('delta5:Brevo:email')
+const log = debug('delta5:Email')
 const logError = log.extend('ERROR', '::')
 
-const USER_NEW_SIGNUP_LIST_NUMBER = 5
-const ADMIN_SIGNUP_APPROVAL_LIST_NUMBER = 6
+const SMTP_CONFIG = {
+  host: MAIL_HOST,
+  port: 465,
+  secure: true,
+  auth: {
+    user: MAIL_USER,
+    pass: MAIL_PASSWORD,
+  },
+  tls: {
+    rejectUnauthorized: false,
+  },
+}
 
 export class Emailer {
-  #brevoContactsApi
-  #transactionalEmailsApi
+  #transporter
   constructor() {
-    let defaultClient = ApiClient.instance
-    let apiKey = defaultClient.authentications['api-key']
-
-    apiKey.apiKey = BREVO_API_KEY
-    this.#brevoContactsApi = new ContactsApi()
-    this.#transactionalEmailsApi = new TransactionalEmailsApi()
+    this.#transporter = nodemailer.createTransport(SMTP_CONFIG)
   }
 
   async notifyUserForSignup(email, username) {
-    const createContact = new CreateContact()
-    createContact.email = email
-    createContact.updateEnabled = true
-    createContact.listIds = [USER_NEW_SIGNUP_LIST_NUMBER]
-    createContact.attributes = {FIRSTNAME: username}
+    const subject = 'Welcome to Delta 5'
+    const text = `Hello ${username}, welcome to Delta 5!`
+    const html = `<p>Hello ${username}, welcome to Delta 5!</p>`
 
-    await this.#brevoContactsApi.createContact(createContact).catch(e => logError(e))
+    return this._sendMail(email, subject, text, html)
   }
 
   async notifyUserOfApproval(email) {
-    let contactEmails = new AddContactToList()
+    const subject = 'Your account is approved'
+    const text = 'Your account has been approved.'
+    const html = '<p>Your account has been approved.</p>'
 
-    contactEmails.emails = [email]
-
-    this.#brevoContactsApi
-      .addContactToList(ADMIN_SIGNUP_APPROVAL_LIST_NUMBER, contactEmails)
-      .catch(e => logError(e.message))
+    return this._sendMail(email, subject, text, html)
   }
 
   async sendResetEmail(email, username, link) {
-    const sendSmtpEmail = new SendSmtpEmail()
+    const subject = 'Password Recovery'
+    const text = `Click on the link to recover your account: ${link}`
+    const html = `<!DOCTYPE html><html><body><p>Click on the link to recover your account:</p><br><p>${link}</p></body></html>`
 
-    sendSmtpEmail.subject = 'Password Recovery'
-    sendSmtpEmail.sender = {
-      name: 'Delta 5',
-      email: 'delta5-admins@googlegroups.com',
+    return this._sendMail(email, subject, text, html)
+  }
+
+  async notifyUserOfRejection(email) {
+    const subject = 'Your account has been rejected'
+    const text = 'We regret to inform you that your account has been rejected.'
+    const html = '<p>We regret to inform you that your account has been rejected.</p>'
+
+    return this._sendMail(email, subject, text, html)
+  }
+
+  async _sendMail(to, subject, text, html) {
+    const message = {
+      from: `Delta 5 ${MAIL_USER}`,
+      to,
+      subject,
+      text,
+      html,
     }
-    sendSmtpEmail.to = [
-      {
-        name: username,
-        email,
-      },
-    ]
-    sendSmtpEmail.htmlContent = `<!DOCTYPE html> <html> <body> <p>Click on the link to recover your account:</p> <br></br> <p>${link}</p> </body> </html>`
-    sendSmtpEmail.textContent = 'Click on the link to recover your account'
-
-    this.#transactionalEmailsApi.sendTransacEmail(sendSmtpEmail).catch(e => logError(e))
+    try {
+      const info = await this.#transporter.sendMail(message)
+      return info
+    } catch (err) {
+      logError(err)
+    }
   }
 }
 

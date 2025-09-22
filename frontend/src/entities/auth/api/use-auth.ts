@@ -1,0 +1,74 @@
+import { useApiMutation, useApiQuery } from '@shared/composables'
+import { queryKeys } from '@shared/config'
+import { ROLES, type LoginCredentials, type User } from '@shared/base-types'
+import { toast } from 'sonner'
+import { useIntl } from 'react-intl'
+import { useQueryClient } from '@tanstack/react-query'
+
+export const useAuth = () => {
+  const { formatMessage } = useIntl()
+  const queryClient = useQueryClient()
+
+  const meQuery = useApiQuery<User>({
+    queryKey: queryKeys.authMe,
+    url: '/users/me',
+  })
+
+  const loginMutation = useApiMutation<unknown, Error, LoginCredentials>({
+    url: '/auth',
+    onError: async (error: Error) => {
+      toast.error(error.message)
+    },
+  })
+  const refreshMutation = useApiMutation<unknown, unknown, void>({
+    url: '/auth/refresh',
+  })
+  const signupMutation = useApiMutation<unknown, Error, unknown>({
+    url: '/auth/signup',
+    onError: async (error: Error) => {
+      const { message } = error
+      if (message) {
+        toast.error(message)
+      } else {
+        toast.error(formatMessage({ id: 'errorServer' }))
+      }
+    },
+  })
+  const logoutMutation = useApiMutation<unknown, unknown, void>({
+    url: '/auth/logout',
+    method: 'POST',
+    onSuccess: async () => {
+      queryClient.clear()
+    },
+  })
+
+  const login = async (data: LoginCredentials) => {
+    await loginMutation.mutateAsync(data)
+    await refreshMutation.mutateAsync()
+    await meQuery.refetch()
+  }
+
+  const signup = async (data: unknown) => {
+    await signupMutation.mutateAsync(data)
+  }
+
+  const logout = async () => {
+    await logoutMutation.mutateAsync()
+  }
+
+  const user = meQuery.data
+  const isAdmin = user?.roles.includes(ROLES.administrator)
+
+  return {
+    user,
+    isLoggedIn: !!user,
+    isLoading: meQuery.isLoading || loginMutation.isPending || signupMutation.isPending,
+    isSuccessSignup: signupMutation.isSuccess,
+
+    isAdmin,
+
+    login,
+    signup,
+    logout,
+  }
+}

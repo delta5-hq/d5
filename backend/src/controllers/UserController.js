@@ -149,6 +149,16 @@ const UserController = {
       ctx.throw(500, e.message)
     }
   },
+  me: async ctx => {
+    const {userId} = ctx.state
+
+    const user = await User.findOne({id: userId}, {id: 1, name: 1, mail: 1, roles: 1, createdAt: 1, updatedAt: 1})
+    if (!user) {
+      ctx.throw(404, 'User not found.')
+    }
+
+    ctx.body = user
+  },
 }
 
 export default UserController

@@ -1,0 +1,83 @@
+$light-bg: rgba(255, 255, 255, 0.2);
+// Maximum smoothness gradient with ultra-fine steps to eliminate remaining banding
+$light-gradient: radial-gradient(
+  circle at 20% 0%,
+  rgba(255, 255, 255, 0.4) 0%,
+  rgba(255, 255, 255, 0.38) 8%,
+  rgba(255, 255, 255, 0.35) 15%,
+  rgba(255, 255, 255, 0.32) 20%,
+  rgba(255, 255, 255, 0.3) 25%,
+  rgba(255, 255, 255, 0.26) 32%,
+  rgba(255, 255, 255, 0.2) 40%,
+  rgba(249, 248, 248, 0.18) 47%,
+  rgba(243, 242, 242, 0.15) 55%,
+  rgba(237, 236, 236, 0.13) 62%,
+  rgba(231, 230, 230, 0.1) 70%,
+  rgba(231, 230, 230, 0.09) 77%,
+  rgba(231, 230, 230, 0.075) 85%,
+  rgba(231, 230, 230, 0.06) 92%,
+  rgba(231, 230, 230, 0.05) 100%
+);
+$light-border: rgba(255, 255, 255, 0.3);
+$light-shadow: rgba(0, 0, 0, 0.1);
+
+// Maximum smoothness gradient for dark theme with ultra-fine steps
+$dark-gradient: radial-gradient(
+  circle at 20% 0%,
+  rgba(0, 0, 0, 0.6) 0%,
+  rgba(0, 0, 0, 0.58) 8%,
+  rgba(0, 0, 0, 0.55) 15%,
+  rgba(0, 0, 0, 0.52) 20%,
+  rgba(0, 0, 0, 0.5) 25%,
+  rgba(0, 0, 0, 0.46) 32%,
+  rgba(0, 0, 0, 0.4) 40%,
+  rgba(14, 14, 14, 0.35) 47%,
+  rgba(29, 29, 29, 0.3) 55%,
+  rgba(43, 43, 43, 0.25) 62%,
+  rgba(58, 58, 58, 0.2) 70%,
+  rgba(58, 58, 58, 0.16) 77%,
+  rgba(58, 58, 58, 0.125) 85%,
+  rgba(58, 58, 58, 0.08) 92%,
+  rgba(58, 58, 58, 0.05) 100%
+);
+$dark-border: rgba(255, 255, 255, 0.1);
+$dark-shadow: rgba(0, 0, 0, 0.6);
+
+// Enhanced noise pattern - more effective while staying subtle
+$ultra-fine-noise: 
+  radial-gradient(circle at 29% 71%, transparent 0.2px, rgba(255, 255, 255, 0.025) 0.2px),
+  radial-gradient(circle at 73% 23%, transparent 0.3px, rgba(255, 255, 255, 0.022) 0.3px),
+  radial-gradient(circle at 47% 89%, transparent 0.25px, rgba(255, 255, 255, 0.028) 0.25px),
+  radial-gradient(circle at 83% 41%, transparent 0.15px, rgba(255, 255, 255, 0.020) 0.15px),
+  radial-gradient(circle at 17% 53%, transparent 0.35px, rgba(255, 255, 255, 0.024) 0.35px),
+  radial-gradient(circle at 61% 13%, transparent 0.4px, rgba(255, 255, 255, 0.019) 0.4px);
+
+$dark-ultra-fine-noise: 
+  radial-gradient(circle at 29% 71%, transparent 0.2px, rgba(0, 0, 0, 0.025) 0.2px),
+  radial-gradient(circle at 73% 23%, transparent 0.3px, rgba(0, 0, 0, 0.022) 0.3px),
+  radial-gradient(circle at 47% 89%, transparent 0.25px, rgba(0, 0, 0, 0.028) 0.25px),
+  radial-gradient(circle at 83% 41%, transparent 0.15px, rgba(0, 0, 0, 0.020) 0.15px),
+  radial-gradient(circle at 17% 53%, transparent 0.35px, rgba(0, 0, 0, 0.024) 0.35px),
+  radial-gradient(circle at 61% 13%, transparent 0.4px, rgba(0, 0, 0, 0.019) 0.4px);
+
+.glassCard {
+  background: $light-bg;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  
+  // Enhanced anti-banding with more comprehensive noise coverage
+  background-image: $ultra-fine-noise, $light-gradient;
+  background-size: 13px 17px, 19px 23px, 11px 13px, 7px 9px, 5px 7px, 3px 5px, 100% 100%;
+  background-position: 0 0, 7px 11px, 3px 5px, 13px 2px, 9px 17px, 2px 8px, 0 0;
+  
+  border: 1px solid $light-border;
+  box-shadow: 0 4px 30px $light-shadow;
+  border-radius: 1rem;
+
+  :global(.dark) & {
+    background-image: $dark-ultra-fine-noise, $dark-gradient;
+    background-size: 13px 17px, 19px 23px, 11px 13px, 7px 9px, 5px 7px, 3px 5px, 100% 100%;
+    border: 1px solid $dark-border;
+    box-shadow: 0 4px 30px $dark-shadow;
+  }
+}

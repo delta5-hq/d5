@@ -1,0 +1,50 @@
+import { API_BASE_PATH } from '@shared/config/api'
+import logger from './logger'
+
+interface ApiFetchOptions extends RequestInit {
+  retry?: boolean
+}
+
+let refreshPromise: Promise<Response> | null = null
+
+async function refreshToken() {
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_BASE_PATH}/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    }).finally(() => {
+      refreshPromise = null
+    })
+  }
+
+  return refreshPromise
+}
+
+export const apiFetch = async <T = unknown>(url: string, options: ApiFetchOptions = {}): Promise<T> => {
+  const res = await fetch(`${API_BASE_PATH}${url}`, options)
+
+  if (res.status === 401 && !url.startsWith('/auth') && !options.retry) {
+    const refreshRes = await refreshToken()
+
+    if (!refreshRes.ok) {
+      throw new Error('Unauthorized, refresh failed')
+    }
+
+    return apiFetch<T>(url, { ...options, retry: true })
+  }
+
+  if (!res.ok) {
+    let errorMessage = res.statusText
+
+    try {
+      const data = await res.json()
+      if (data?.message) errorMessage = data.message
+    } catch {
+      logger.error('Failed to parse error response as JSON')
+    }
+
+    throw new Error(errorMessage)
+  }
+
+  return res.json() as Promise<T>
+}
