@@ -1,5 +1,5 @@
 import { IntlProvider } from 'react-intl'
-import { ThemeProvider } from './theme-provider'
+import { ThemeProvider } from '@shared/lib/theme-provider'
 import messages from '@shared/lib/intl'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from '@shared/ui/sonner'

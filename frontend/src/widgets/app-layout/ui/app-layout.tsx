@@ -3,6 +3,7 @@ import { SidebarProvider, useSidebar } from '@shared/ui/sidebar'
 import React, { useEffect } from 'react'
 import { AppHeader } from './header'
 import { AppSidebar } from './sidebar'
+import { Background, BackgroundContainer } from './background'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -31,7 +32,13 @@ const AppLayoutContent = ({ children, breakpoint }: AppLayoutProps) => {
       <div className="flex flex-1 overflow-hidden">
         <AppSidebar isDesktop={isDesktop} isMinimized={isMinimized} isResponsive={isResponsive} />
 
-        <main className="relative flex-1 p-5 overflow-auto">{children}</main>
+        <BackgroundContainer>
+          <div className="relative min-h-full">
+            {/* Background component that grows with content */}
+            <Background />
+            <div className="relative z-10 p-5">{children}</div>
+          </div>
+        </BackgroundContainer>
       </div>
     </>
   )
