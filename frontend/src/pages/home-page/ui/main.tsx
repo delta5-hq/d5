@@ -1,5 +1,6 @@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@shared/ui/card'
 import { Button } from '@shared/ui/button'
+import { cn } from '@shared/lib/utils'
 
 const Main = () => {
   const buttonVariants: Parameters<typeof Button>[0]['variant'][] = [
@@ -16,9 +17,9 @@ const Main = () => {
 
   return (
     <div className="p-8 flex flex-col gap-12">
-      <div className="flex gap-6 flex-wrap">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 w-full">
         {[1, 2, 3].map(i => (
-          <Card className="w-80" key={i}>
+          <Card className={cn(i === 1 && 'col-span-2')} key={i}>
             <CardHeader>
               <CardTitle>Card {i}</CardTitle>
               <CardDescription>Description for card {i}</CardDescription>

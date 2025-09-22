@@ -3,7 +3,11 @@ import styles from './card.module.scss'
 import { cn } from '@shared/lib/utils'
 
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} {...props} className={cn('rounded-xl text-card-foreground shadow', styles.glassCard, className)} />
+  <div
+    ref={ref}
+    {...props}
+    className={cn('w-full rounded-xl text-card-foreground shadow', styles.glassCard, className)}
+  />
 ))
 Card.displayName = 'Card'
 
