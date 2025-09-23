@@ -99,70 +99,68 @@ const UserProfile: React.FC<UserProfileProps> = ({ userData, mapsData }) => {
   const handleSaveComment = (txt: string) => {
     if (txt === userData.comment) return
     setComment(txt)
-    updateComment({ body: { data: txt } })
+    updateComment({ data: txt })
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <Button onClick={() => window.history.back()} variant="secondary">
+    <Card className="p-2 space-y-6">
+      <Button onClick={() => window.history.back()} variant="default">
         {formatMessage({ id: 'back' })}
       </Button>
 
       <div className="grid grid-cols-2 gap-6">
         <div className="space-y-4">
-          <Card>
-            <CardContent className="space-y-2">
-              <p>
-                <b>{formatMessage({ id: 'userProfileUserId' })}:</b> {userData.id}
-              </p>
-              <p>
-                <b>{formatMessage({ id: 'userProfileName' })}:</b> {userData.name}
-              </p>
-              <p>
-                <b>{formatMessage({ id: 'userProfileMail' })}:</b> {userData.mail}
-              </p>
-              <p>
-                <b>{formatMessage({ id: 'userProfileMapCount' })}:</b> {userData.mapCount}
-              </p>
-              <p>
-                <b>{formatMessage({ id: 'userProfileSharedMaps' })}:</b> {userData.mapShareCount}
-              </p>
-              <p>
-                <b>{formatMessage({ id: 'userProfileNodeCount' })}:</b> {userData.nodeCount}
-              </p>
-              <p>
-                <b>{formatMessage({ id: 'userProfileMaxNodeCount' })}:</b> {userData.biggestMapCount}
-              </p>
-              <p>
-                <b>{formatMessage({ id: 'userProfileNodeLimit' })}:</b> {userData.limitNodes ?? '-'}
-              </p>
-              <p>
-                <b>{formatMessage({ id: 'userProfileSubscriber' })}:</b>{' '}
-                {userData.roles?.includes(ROLES.subscriber) || userData.roles?.includes(ROLES.org_subscriber)
-                  ? '✓'
-                  : '✖'}
-              </p>
-              <p>
-                <b>{formatMessage({ id: 'userProfileCreatedAt' })}:</b> {convertDate(userData.createdAt)}
-              </p>
-              <p>
-                <b>{formatMessage({ id: 'userProfileLastMapChange' })}:</b> {convertDate(userData.lastMapChange)}
-              </p>
+          <div className="bg-card p-3 space-y-2 rounded-xl">
+            <p>
+              <b>{formatMessage({ id: 'userProfileUserId' })}:</b> {userData.id}
+            </p>
+            <p>
+              <b>{formatMessage({ id: 'userProfileName' })}:</b> {userData.name}
+            </p>
+            <p>
+              <b>{formatMessage({ id: 'userProfileMail' })}:</b> {userData.mail}
+            </p>
+            <p>
+              <b>{formatMessage({ id: 'userProfileMapCount' })}:</b> {userData.mapCount}
+            </p>
+            <p>
+              <b>{formatMessage({ id: 'userProfileSharedMaps' })}:</b> {userData.mapShareCount}
+            </p>
+            <p>
+              <b>{formatMessage({ id: 'userProfileNodeCount' })}:</b> {userData.nodeCount}
+            </p>
+            <p>
+              <b>{formatMessage({ id: 'userProfileMaxNodeCount' })}:</b> {userData.biggestMapCount}
+            </p>
+            <p>
+              <b>{formatMessage({ id: 'userProfileNodeLimit' })}:</b> {userData.limitNodes ?? '-'}
+            </p>
+            <p>
+              <b>{formatMessage({ id: 'userProfileSubscriber' })}:</b>{' '}
+              {userData.roles?.includes(ROLES.subscriber) || userData.roles?.includes(ROLES.org_subscriber)
+                ? '✓'
+                : '✖'}
+            </p>
+            <p>
+              <b>{formatMessage({ id: 'userProfileCreatedAt' })}:</b> {convertDate(userData.createdAt)}
+            </p>
+            <p>
+              <b>{formatMessage({ id: 'userProfileLastMapChange' })}:</b> {convertDate(userData.lastMapChange)}
+            </p>
 
-              <Button
-                onClick={() =>
-                  showDialog(ConfirmationDialog, {
-                    question: `Delete user ${userData.name}?`,
-                    headline: 'Confirm Delete',
-                    onYes: () => deleteUser(),
-                  })
-                }
-                variant="destructive"
-              >
-                {formatMessage({ id: 'userProfileDeleteUser' })}
-              </Button>
-            </CardContent>
-          </Card>
+            <Button
+              onClick={() =>
+                showDialog(ConfirmationDialog, {
+                  question: `Delete user ${userData.name}?`,
+                  headline: 'Confirm Delete',
+                  onYes: () => deleteUser(),
+                })
+              }
+              variant="danger"
+            >
+              {formatMessage({ id: 'userProfileDeleteUser' })}
+            </Button>
+          </div>
 
           <SurveyContainer userData={userData} />
 
@@ -182,7 +180,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ userData, mapsData }) => {
           <UserMaps rows={rows} userData={userData} />
         </div>
       </div>
-    </div>
+    </Card>
   )
 }
 

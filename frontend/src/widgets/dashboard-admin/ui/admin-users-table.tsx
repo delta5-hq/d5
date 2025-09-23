@@ -139,14 +139,14 @@ const AdminTable: React.FC<AdminTableProps> = ({
   }
 
   return (
-    <div className="w-full">
+    <Card className="p-2">
       <div className="mb-2 flex justify-between items-center">
         <Input className="w-[250px]" onChange={handleChangeSearch} placeholder="Search" value={searchField} />
         <Button onClick={() => toCsv(filteredRows)}>Download CSV</Button>
       </div>
 
-      <Card className="overflow-x-auto">
-        <Table>
+      <div className="overflow-x-auto">
+        <Table className="bg-card rounded-xl p-2">
           <TableHeader>
             <TableRow>
               {columns.map(col => (
@@ -182,7 +182,7 @@ const AdminTable: React.FC<AdminTableProps> = ({
               ))}
           </TableBody>
         </Table>
-      </Card>
+      </div>
 
       <TablePagination
         onPageChange={onPageChange}
@@ -191,7 +191,7 @@ const AdminTable: React.FC<AdminTableProps> = ({
         rowsPerPage={rowsPerPage}
         totalRows={totalRows}
       />
-    </div>
+    </Card>
   )
 }
 

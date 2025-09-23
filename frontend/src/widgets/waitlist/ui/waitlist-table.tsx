@@ -171,21 +171,21 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
   }
 
   return (
-    <div className="w-full">
+    <Card className="p-2">
       <div className="flex justify-between items-center mb-2">
         <Input className="w-[250px]" onChange={handleChangeSearch} placeholder="Search" value={searchField} />
         <div className="flex gap-x-2">
-          <Button disabled={!selected.length} onClick={onActivateSelected} variant="outline">
+          <Button disabled={!selected.length} onClick={onActivateSelected} variant="default">
             <FormattedMessage id="approve" />
           </Button>
-          <Button disabled={!selected.length} onClick={onRejectSelected} variant="destructive">
+          <Button disabled={!selected.length} onClick={onRejectSelected} variant="danger">
             <FormattedMessage id="reject" />
           </Button>
         </div>
       </div>
 
-      <Card className="overflow-x-auto">
-        <Table>
+      <div className="overflow-x-auto">
+        <Table className="bg-card rounded-xl p-2">
           <TableHeader>
             <TableRow>
               <TableHead onClick={toggleSelectAll}>
@@ -220,10 +220,10 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
                     </TableCell>
                   ))}
                   <TableCell className="flex gap-x-2">
-                    <Button className="cursor-pointer" onClick={() => onActivate(row.userId)} variant="outline">
+                    <Button className="cursor-pointer" onClick={() => onActivate(row.userId)} variant="default">
                       <FormattedMessage id="approve" />
                     </Button>
-                    <Button className="cursor-pointer" onClick={() => onReject(row.userId)} variant="destructive">
+                    <Button className="cursor-pointer" onClick={() => onReject(row.userId)} variant="danger">
                       <FormattedMessage id="reject" />
                     </Button>
                   </TableCell>
@@ -231,7 +231,7 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
               ))}
           </TableBody>
         </Table>
-      </Card>
+      </div>
 
       <TablePagination
         onPageChange={onPageChange}
@@ -240,7 +240,7 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
         rowsPerPage={rowsPerPage}
         totalRows={totalRows}
       />
-    </div>
+    </Card>
   )
 }
 

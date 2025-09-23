@@ -69,7 +69,7 @@ const ResetPassword = () => {
       ) : null}
 
       {!isLoading && isValid ? (
-        <div className="w-full max-w-md bg-white shadow-md rounded-lg p-6">
+        <div className="w-full max-w-md bg-card shadow-md rounded-lg p-6">
           <form className="flex flex-col h-full justify-between gap-y-4" onSubmit={handleSubmit(onSubmit)}>
             <h2>
               <FormattedMessage id="resetPassword" />
@@ -95,7 +95,7 @@ const ResetPassword = () => {
             </div>
 
             <div className="flex justify-between mt-4">
-              <Button onClick={() => navigate('/')} variant="outline">
+              <Button onClick={() => navigate('/')} variant="default">
                 <FormattedMessage id="buttonCancel" />
               </Button>
               <Button disabled={isSubmitting} type="submit">

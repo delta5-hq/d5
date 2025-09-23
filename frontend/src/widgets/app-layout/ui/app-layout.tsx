@@ -36,7 +36,7 @@ const AppLayoutContent = ({ children, breakpoint }: AppLayoutProps) => {
           <div className="relative min-h-full">
             {/* Background component that grows with content */}
             <Background />
-            <div className="relative z-10 p-5">{children}</div>
+            <div className="relative z-10 p-5 min-h-full">{children}</div>
           </div>
         </BackgroundContainer>
       </div>

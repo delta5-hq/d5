@@ -1,6 +1,7 @@
 import {ROLES} from '../shared/config/constants'
 import Workflow from '../models/Workflow'
 import User from '../models/User'
+import Waitlist from '../models/Waitlist'
 import {emailer} from '../email'
 import {createOpenaiIntegration} from './utils/createOpenaiIntegration'
 
@@ -290,12 +291,9 @@ const StatisticsController = {
     const limit = Math.max(parseInt(ctx.query.limit) || 10, 1)
     const skip = (page - 1) * limit
 
-    const users = await User.find({confirmed: false, rejected: false}, {id: 1, name: 1, mail: 1, createdAt: 1})
-      .skip(skip)
-      .limit(limit)
-      .lean()
+    const users = await Waitlist.find({}, {id: 1, name: 1, mail: 1, createdAt: 1}).skip(skip).limit(limit).lean()
 
-    const total = await User.countDocuments({confirmed: false, rejected: false})
+    const total = await Waitlist.countDocuments({})
 
     ctx.body = {
       total,
@@ -305,91 +303,112 @@ const StatisticsController = {
     }
   },
 
-  activateUser: async ctx => {
-    const {statisticsUser} = ctx
-    if (statisticsUser.confirmed) ctx.throw(400, 'User is not pending activation')
-    statisticsUser.confirmed = true
-    emailer.notifyUserOfApproval(statisticsUser.mail)
-    await statisticsUser.save()
-
-    await createOpenaiIntegration(statisticsUser.id)
-
-    ctx.body = {success: true}
-  },
   activateUsersBatch: async ctx => {
     const {ids} = await ctx.request.json()
-
     if (!Array.isArray(ids) || !ids.length) {
       ctx.throw(400, 'No user IDs provided')
     }
-
-    const users = await User.find({id: {$in: ids}})
-
-    if (!users.length) {
-      ctx.throw(404, 'Users not found')
-    }
-
     const results = []
 
-    for (const user of users) {
+    for (const userId of ids) {
       try {
-        if (user.confirmed) throw new Error('User is already confirmed')
+        const waitlistRecord = await Waitlist.findOne({id: userId})
+        if (!waitlistRecord) throw new Error('Waitlist record not found')
 
-        user.confirmed = true
+        const existingUser = await User.findOne({id: userId})
+        if (existingUser) throw new Error('User already exists')
+
+        const user = new User({
+          id: waitlistRecord.id,
+          name: waitlistRecord.name,
+          mail: waitlistRecord.mail,
+          password: waitlistRecord.password,
+          roles: [ROLES.subscriber],
+          confirmed: true,
+          rejected: false,
+          meta: waitlistRecord.meta,
+        })
+        user._skipHash = true
         await user.save()
-        emailer.notifyUserOfApproval(user.mail)
-        await createOpenaiIntegration(user.id)
+        await Waitlist.deleteOne({id: userId})
+        await createOpenaiIntegration(userId)
 
-        results.push({id: user.id, success: true})
+        emailer.notifyUserOfApproval(waitlistRecord.mail)
+        results.push({id: userId, success: true})
       } catch (err) {
-        results.push({id: user.id, success: false, error: err.message})
+        results.push({id: userId, success: false, error: err.message})
       }
     }
-
     ctx.body = {results}
-  },
-
-  rejectUser: async ctx => {
-    const {statisticsUser} = ctx
-    if (statisticsUser.rejected) ctx.throw(400, 'User is already rejected')
-    statisticsUser.rejected = true
-    await statisticsUser.save()
-
-    emailer.notifyUserOfRejection(statisticsUser.mail)
-
-    ctx.body = {success: true}
   },
 
   rejectUsersBatch: async ctx => {
     const {ids} = await ctx.request.json()
-
     if (!Array.isArray(ids) || !ids.length) {
       ctx.throw(400, 'No user IDs provided')
     }
 
-    const users = await User.find({id: {$in: ids}})
-
-    if (!users.length) {
-      ctx.throw(404, 'Users not found')
-    }
-
     const results = []
 
-    for (const user of users) {
+    for (const userId of ids) {
       try {
-        if (user.rejected) throw new Error('User is already rejected')
+        const waitlistRecord = await Waitlist.findOne({id: userId})
+        if (!waitlistRecord) throw new Error('Waitlist record not found')
 
-        user.rejected = true
-        await user.save()
-        emailer.notifyUserOfRejection(user.mail)
+        await Waitlist.deleteOne({id: userId})
+        emailer.notifyUserOfRejection(waitlistRecord.mail)
 
-        results.push({id: user.id, success: true})
+        results.push({id: userId, success: true})
       } catch (err) {
-        results.push({id: user.id, success: false, error: err.message})
+        results.push({id: userId, success: false, error: err.message})
       }
     }
-
     ctx.body = {results}
+  },
+
+  approveWaitlistUser: async ctx => {
+    const {waitUserId} = ctx.params
+    const waitlistRecord = await Waitlist.findOne({id: waitUserId})
+    if (!waitlistRecord) {
+      ctx.throw(404, 'Waitlist record not found')
+    }
+
+    const existingUser = await User.findOne({id: waitUserId})
+    if (existingUser) {
+      ctx.throw(400, 'User already exists')
+    }
+
+    const user = new User({
+      id: waitlistRecord.id,
+      name: waitlistRecord.name,
+      mail: waitlistRecord.mail,
+      password: waitlistRecord.password,
+      roles: [ROLES.subscriber],
+      confirmed: true,
+      rejected: false,
+      meta: waitlistRecord.meta,
+    })
+    user._skipHash = true
+    await user.save()
+    await Waitlist.deleteOne({id: waitUserId})
+    await createOpenaiIntegration(waitUserId)
+
+    emailer.notifyUserOfApproval(waitlistRecord.mail)
+
+    ctx.body = {success: true}
+  },
+  rejectWaitlistUser: async ctx => {
+    const {waitUserId} = ctx.params
+
+    const waitlistRecord = await Waitlist.findOne({id: waitUserId})
+    if (!waitlistRecord) {
+      ctx.throw(404, 'Waitlist record not found')
+    }
+
+    await Waitlist.deleteOne({id: waitUserId})
+    emailer.notifyUserOfRejection(waitlistRecord.mail)
+
+    ctx.body = {success: true}
   },
 }
 

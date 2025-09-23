@@ -3,13 +3,14 @@ import jwt from 'jsonwebtoken'
 import * as constants from '../constants'
 import User from '../models/User'
 import generateAuth from './utils/generateAuth'
+import Waitlist from '../models/Waitlist'
 
 import {createHash} from 'crypto'
 import {emailer} from '../email'
-import {ROLES} from '../shared/config/constants'
 import {sanitizeUsernameOrEmail} from './utils/sanitizeUsernameOrEmail'
 import {isInvalidUsernameOrEmail, isValidEmail} from './utils/validateUsernameOrEmail'
 import {generateRandomString} from './utils/generateRandomString'
+import bcryptjs from 'bcryptjs'
 
 const shaHash = str => {
   const shasum = createHash('sha1')
@@ -198,17 +199,35 @@ const AuthController = {
       }
     }
 
-    const user = new User({
+    const existingWaitlist = (
+      await Waitlist.find({
+        $or: [{mail: serializedMail}, {name: serializedUsername}, {mail: serializedUsername}],
+      })
+        .limit(1)
+        .exec()
+    )[0]
+
+    if (existingWaitlist) {
+      if (existingWaitlist.name === serializedUsername || existingWaitlist.mail === serializedUsername) {
+        ctx.throw(400, 'Username already in waitlist.')
+      } else if (existingWaitlist.mail === serializedMail) {
+        ctx.throw(400, 'Email already in waitlist.')
+      }
+    }
+
+    const SALT_COMPUTE_EFFORT = 10
+    const salt = await bcryptjs.genSaltSync(SALT_COMPUTE_EFFORT)
+    const hashedPassword = await bcryptjs.hashSync(password, salt)
+
+    const waitlistRecord = new Waitlist({
       id: serializedUsername,
       name: serializedUsername,
       mail: serializedMail,
-      password,
-      roles: [ROLES.subscriber],
-      confirmed: false,
-      rejected: false,
+      password: hashedPassword,
+      meta: {},
     })
 
-    await user.save()
+    await waitlistRecord.save()
 
     emailer.notifyUserForSignup(serializedMail, serializedUsername)
 

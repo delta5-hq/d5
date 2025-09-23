@@ -8,9 +8,9 @@ const UserProfile = () => {
   const { isUserFetched, userData, mapsData } = useUserProfile(id as string)
 
   const navigate = useNavigate()
-  const { isAdmin } = useAuthContext()
+  const { isAdmin, isLoggedIn } = useAuthContext()
 
-  if (!isAdmin) {
+  if (!isAdmin && isLoggedIn) {
     navigate('/')
     return null
   }

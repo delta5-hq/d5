@@ -13,9 +13,9 @@ const AdminUsers = () => {
   const [limit, setLimit] = useState(25)
   const { users, total, isLoading } = useAdminUsers(page, limit)
 
-  const { isAdmin } = useAuthContext()
+  const { isAdmin, isLoggedIn } = useAuthContext()
 
-  if (!isAdmin) {
+  if (!isAdmin && isLoggedIn) {
     navigate('/')
     return null
   }

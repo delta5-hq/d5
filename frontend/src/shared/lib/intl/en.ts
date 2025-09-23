@@ -107,4 +107,16 @@ export default {
   accountRejected: 'Account rejected',
   approve: 'Approve',
   reject: 'Reject',
+
+  admin: {
+    crm: {
+      userProfile: {
+        commentSaveSuccess: 'Your comment was saved successfully',
+      },
+      waitlist: {
+        ActivateAccountSuccess: 'Account has been activated successfully',
+        ActivateAccountError: 'Failed to activate',
+      },
+    },
+  },
 }
