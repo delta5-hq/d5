@@ -16,7 +16,9 @@ export default {
   sidebarSettingsLabel: 'Settings',
 
   buttonCancel: 'Cancel',
+  cancel: 'Cancel',
   OK: 'OK',
+  save: 'Save',
 
   loginForgotPassword: 'Forgot password?',
   loginSignUp: 'Register',
@@ -55,6 +57,7 @@ export default {
   pageTitle: {
     adminCRM: 'User Stats',
     adminWaitlist: 'Waitlist',
+    settings: 'Settings',
   },
 
   userProfileUserId: 'User Id',
@@ -107,4 +110,88 @@ export default {
   accountRejected: 'Account rejected',
   approve: 'Approve',
   reject: 'Reject',
+
+  integrationSettings: {
+    appsIntegrations: 'Apps & Integrations',
+    addApps: 'Add apps',
+  },
+  integration: {
+    openai: {
+      title: 'OpenAI ChatGPT',
+      installed: 'Installed',
+    },
+    google: {
+      title: 'Google Drive',
+      installed: 'Installed',
+      enable: 'Enable Google Drive',
+      disable: 'Disable Google Drive',
+      error: 'Something went wrong',
+      loading: 'Loading...',
+    },
+    yandex: {
+      title: 'Yandex GPT',
+      installed: 'Installed',
+    },
+    claude: {
+      title: 'Claude',
+      installed: 'Installed',
+    },
+    perplexity: {
+      title: 'Perplexity',
+      installed: 'Installed',
+    },
+    qwen: {
+      title: 'Qwen',
+      installed: 'Installed',
+    },
+    deepseek: {
+      title: 'Deepseek',
+      installed: 'Installed',
+    },
+    custom_llm: {
+      title: 'Custom LLM',
+    },
+    installed: 'Installed',
+  },
+
+  dialog: {
+    integration: {
+      title: 'HyperClarity Marketplace',
+      apiKey: 'API key',
+      folderId: 'Folder ID',
+      model: 'Model',
+      otherSettings: 'Other settings',
+      saveSuccess: 'Integration changes have been applied successfully!',
+      authenticationError: 'Please double-check your API key and its validity',
+      genericError: "Something went wrong. Please check the Network logs in  your browser's developer tools",
+      rateLimitExceeded: 'You have exceeded your current quota, please check your plan and billing details',
+      serverError: 'Model or server is overloaded. Please try again later',
+      wrongRequest: 'Something went wrong with the request, please check the network log',
+      noAccess: 'You have no access to {model}',
+      wrongFolderId: 'Please double-check your Folder ID',
+      useApi: 'Use API [experimental]',
+    },
+  },
+
+  settingsLayout: {
+    profileSettings: 'Profile settings',
+    appsIntegrations: 'Apps & Integrations',
+  },
+
+  apiRootUrl: 'API Root URL',
+  maxTokens: 'Max Tokens',
+  apiType: 'API Type',
+  embeddingsChunkSize: 'Embeddings Chunk Size',
+  customLLMHint: 'Hint: use `/custom` command to trigger this integration',
+
+  profileSettings: {
+    applyChanges: 'Apply Changes',
+    emailAddress: 'Email Address',
+    editProfile: 'Edit Profile',
+    appsIntegrations: 'Apps & Integrations',
+    username: 'Username',
+    success: 'Success',
+    unknown: 'Unknown',
+    model: 'Model',
+  },
 }

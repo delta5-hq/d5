@@ -33,7 +33,7 @@ const UserSettingsButton = () => {
           <DropdownMenuLabel>Signed In</DropdownMenuLabel>
           <p className="color px-2 text-xs text-gray-400">@{user?.name}</p>
         </div>
-        <DropdownMenuItem>Account Settings</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => navigate('/settings')}>Account Settings</DropdownMenuItem>
         <DropdownMenuItem onClick={onLogout}>Log out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

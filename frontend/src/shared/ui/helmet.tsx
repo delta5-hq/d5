@@ -8,6 +8,10 @@ interface TitleUpdaterProps {
 const TitleUpdater = ({ title }: TitleUpdaterProps) => {
   useEffect(() => {
     document.title = title ? `${title} | D5` : 'D5'
+
+    return () => {
+      document.title = 'D5'
+    }
   }, [title])
 
   return null

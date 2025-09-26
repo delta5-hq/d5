@@ -19,6 +19,11 @@
     box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1) inset;
   }
 
+  &:disabled {
+    filter: brightness(0.6);
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1) inset;
+  }
+
   &[data-size='default'] {
     height: 2.25rem;
     padding: 0 1rem;

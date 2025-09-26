@@ -96,6 +96,10 @@ const CustomLLM = createSchema(
     maxTokens: Number,
     embeddingsChunkSize: Number,
     apiType: String,
+    apiKey: {
+      type: String,
+      required: false,
+    },
     useApi: {
       type: Boolean,
       default: false,

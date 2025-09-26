@@ -6,4 +6,8 @@ export const queryKeys = {
 
   userProfile: (userId: string) => ['users', userId],
   userMaps: (userId: string) => ['maps', userId],
+
+  integration: ['settings', 'integration'],
+  openai: ['settings', 'integration', 'openai'],
+  openaiStatus: ['settings', 'integration', 'openai', 'status'],
 }

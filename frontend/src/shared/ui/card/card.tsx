@@ -2,11 +2,19 @@ import * as React from 'react'
 import styles from './card.module.scss'
 import { cn } from '@shared/lib/utils'
 
-const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  glassEffect?: boolean
+}
+
+const Card = React.forwardRef<HTMLDivElement, CardProps>(({ className, glassEffect = true, ...props }, ref) => (
   <div
     ref={ref}
     {...props}
-    className={cn('w-full rounded-xl text-card-foreground shadow', styles.glassCard, className)}
+    className={cn(
+      'w-full rounded-xl text-card-foreground shadow',
+      glassEffect ? styles.glassCard : 'bg-card border',
+      className,
+    )}
   />
 ))
 Card.displayName = 'Card'
@@ -37,9 +45,7 @@ const CardDescription = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HT
 CardDescription.displayName = 'CardDescription'
 
 const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div className={cn('p-6 pt-0 text-card-foreground', className)} ref={ref} {...props} />
-  ),
+  ({ className, ...props }, ref) => <div className={cn('p-6 text-card-foreground', className)} ref={ref} {...props} />,
 )
 CardContent.displayName = 'CardContent'
 
