@@ -49,7 +49,7 @@ const DropdownMenuItem = ({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Item> & {
   inset?: boolean
-  variant?: 'default' | 'destructive'
+  variant?: string
 }) => (
   <DropdownMenuPrimitive.Item
     className={cn(

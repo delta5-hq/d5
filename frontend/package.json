@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "test:e2e": "playwright test",
     "test:e2e:firefox": "playwright test --project=firefox",
+    "test:e2e:ci": "CI=true playwright test",
     "genversion": "genversion src/version.ts --es6"
   },
   "dependencies": {
@@ -71,6 +72,6 @@
   },
   "engines": {
     "pnpm": ">=9",
-    "node": ">=22"
+    "node": ">=20"
   }
 }
