@@ -17,7 +17,7 @@ const UserProfile = () => {
 
   if (!isUserFetched || !id || !userData || !mapsData) return null
 
-  return <UserProfileDashboard mapsData={mapsData} userData={userData} />
+  return <UserProfileDashboard userData={userData} workflowsData={mapsData} />
 }
 
 export default UserProfile

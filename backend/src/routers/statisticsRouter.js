@@ -10,7 +10,7 @@ statisticsRouter
 
   .post('/waitlist/confirm/all', StatisticsController.activateUsersBatch)
   .get('/waitlist/confirm/:waitUserId', StatisticsController.approveWaitlistUser)
-  .post('/waitlist/reject/all', StatisticsController.activateUsersBatch)
+  .post('/waitlist/reject/all', StatisticsController.rejectUsersBatch)
   .get('/waitlist/reject/:waitUserId', StatisticsController.rejectWaitlistUser)
 
   .param('userId', StatisticsController.userLoad)

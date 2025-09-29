@@ -1,4 +1,4 @@
-import React, { useMemo, type ChangeEvent } from 'react'
+import React, { useMemo, useRef } from 'react'
 import { Button } from '@shared/ui/button'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell, TablePagination } from '@shared/ui/table'
 import { Input } from '@shared/ui/input'
@@ -9,6 +9,7 @@ import { apiFetch } from '@shared/lib/base-api'
 import { DateCell, StringCell, type Column } from '@entities/table'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { Checkbox } from '@shared/ui/checkbox'
+import { DEBOUNCE_TIMEOUT } from '@shared/config'
 
 interface Row {
   userId: string
@@ -25,6 +26,7 @@ interface WaitlistTableProps {
   onPageChange: (newPage: number) => void
   onRowsPerPageChange: (newLimit: number) => void
   refresh: () => void
+  setSearch: (str: string) => void
 }
 
 const WaitlistTable: React.FC<WaitlistTableProps> = ({
@@ -35,32 +37,25 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
   onPageChange,
   onRowsPerPageChange,
   refresh,
+  setSearch,
 }) => {
-  const [searchField, setSearchField] = React.useState<string>('')
+  const [localSearch, setLocalSearch] = React.useState<string>('')
   const [orderBy, setOrderBy] = React.useState<keyof Row>('userId')
   const [order, setOrder] = React.useState<'asc' | 'desc'>('desc')
 
-  // выбранные id
   const [selected, setSelected] = React.useState<string[]>([])
 
   const { formatMessage } = useIntl()
 
   const rows: Row[] = useMemo(
     () =>
-      initialWaitlist
-        .filter(value =>
-          searchField
-            .toLowerCase()
-            .split(' ')
-            .every(w => [value.id, value.name, value.mail].toString().toLowerCase().includes(w)),
-        )
-        .map(value => ({
-          userId: value.id,
-          name: value.name,
-          mail: value.mail,
-          createdAt: value.createdAt,
-        })),
-    [initialWaitlist, searchField],
+      initialWaitlist.map(value => ({
+        userId: value.id,
+        name: value.name,
+        mail: value.mail,
+        createdAt: value.createdAt,
+      })),
+    [initialWaitlist],
   )
 
   const columns: Column<Row>[] = [
@@ -87,9 +82,20 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
     setOrderBy(property)
   }
 
-  const handleChangeSearch = (e: ChangeEvent<HTMLInputElement>) => {
-    setSearchField(e.target.value)
-    onPageChange(0)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleChangeSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setLocalSearch(value)
+
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+    }
+
+    debounceRef.current = setTimeout(() => {
+      setSearch(value)
+      onPageChange(0)
+    }, DEBOUNCE_TIMEOUT)
   }
 
   const onActivate = async (id: string) => {
@@ -173,7 +179,7 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
   return (
     <Card className="p-2">
       <div className="flex justify-between items-center mb-2">
-        <Input className="w-[250px]" onChange={handleChangeSearch} placeholder="Search" value={searchField} />
+        <Input className="w-[250px]" onChange={handleChangeSearch} placeholder="Search" value={localSearch} />
         <div className="flex gap-x-2">
           <Button disabled={!selected.length} onClick={onActivateSelected} variant="default">
             <FormattedMessage id="approve" />
@@ -207,28 +213,26 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {stableSort(rows, getComparator(order, orderBy))
-              .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-              .map(row => (
-                <TableRow key={row.userId} onClick={() => toggleSelectOne(row.userId)}>
-                  <TableCell>
-                    <Checkbox checked={selected.includes(row.userId)} />
+            {stableSort(rows, getComparator(order, orderBy)).map(row => (
+              <TableRow key={row.userId} onClick={() => toggleSelectOne(row.userId)}>
+                <TableCell>
+                  <Checkbox checked={selected.includes(row.userId)} />
+                </TableCell>
+                {columns.map(({ Cell, id }) => (
+                  <TableCell key={id as string}>
+                    {Cell ? <Cell row={row} value={row[id]} /> : (row[id] as string)}
                   </TableCell>
-                  {columns.map(({ Cell, id }) => (
-                    <TableCell key={id as string}>
-                      {Cell ? <Cell row={row} value={row[id]} /> : (row[id] as string)}
-                    </TableCell>
-                  ))}
-                  <TableCell className="flex gap-x-2">
-                    <Button className="cursor-pointer" onClick={() => onActivate(row.userId)} variant="default">
-                      <FormattedMessage id="approve" />
-                    </Button>
-                    <Button className="cursor-pointer" onClick={() => onReject(row.userId)} variant="danger">
-                      <FormattedMessage id="reject" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+                ))}
+                <TableCell className="flex gap-x-2">
+                  <Button className="cursor-pointer" onClick={() => onActivate(row.userId)} variant="default">
+                    <FormattedMessage id="approve" />
+                  </Button>
+                  <Button className="cursor-pointer" onClick={() => onReject(row.userId)} variant="danger">
+                    <FormattedMessage id="reject" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </div>

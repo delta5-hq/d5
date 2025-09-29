@@ -11,7 +11,8 @@ const AdminUsers = () => {
 
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(25)
-  const { users, total, isLoading } = useAdminUsers(page, limit)
+  const [search, setSearch] = useState('')
+  const { users, total, isLoading } = useAdminUsers({ page, limit, search })
 
   const { isAdmin, isLoggedIn } = useAuthContext()
 
@@ -21,7 +22,7 @@ const AdminUsers = () => {
   }
 
   if (isLoading) return <StatusPlaceholder loading />
-  if (!users.length) return <StatusPlaceholder empty />
+  if (!users.length && !search.trim()) return <StatusPlaceholder empty />
 
   return (
     <>
@@ -34,6 +35,7 @@ const AdminUsers = () => {
         }}
         page={page - 1}
         rowsPerPage={limit}
+        setSearch={setSearch}
         totalRows={total}
         users={users}
       />

@@ -2,12 +2,23 @@ import type { User } from '@shared/base-types'
 import type { Paginated } from '@shared/base-types'
 import { useApiQuery } from '@shared/composables'
 import { queryKeys } from '@shared/config'
+import { useEffect } from 'react'
 
-export const useWaitlist = (page = 1, limit = 25) => {
+interface UseWaitlistProps {
+  page?: number
+  limit?: number
+  search?: string
+}
+
+export const useWaitlist = ({ page = 1, limit = 25, search = '' }: UseWaitlistProps) => {
   const { data, isLoading, error, refetch } = useApiQuery<Paginated<User>>({
-    queryKey: [queryKeys.waitlist, page, limit],
-    url: `/statistics/waitlist?page=${page}&limit=${limit}`,
+    queryKey: [queryKeys.waitlist],
+    url: `/statistics/waitlist?page=${page}&limit=${limit}&search=${search}`,
   })
+
+  useEffect(() => {
+    refetch()
+  }, [page, limit, search, refetch])
 
   return {
     users: data?.data ?? [],

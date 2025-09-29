@@ -1,11 +1,12 @@
 import type { FullUserStatistics } from '@entities/admin'
 import { DateCell, FieldsOfWorkCell, NumberCell, RoleCell, StringCell, type Column } from '@entities/table'
 import { ROLES } from '@shared/base-types'
+import { DEBOUNCE_TIMEOUT } from '@shared/config'
 import { Button } from '@shared/ui/button'
 import { Card } from '@shared/ui/card'
 import { Input } from '@shared/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TablePagination, TableRow } from '@shared/ui/table'
-import React, { useMemo, useState, type ChangeEvent } from 'react'
+import React, { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 interface Row {
@@ -33,6 +34,7 @@ interface AdminTableProps {
   totalRows: number
   onPageChange: (newPage: number) => void
   onRowsPerPageChange: (newLimit: number) => void
+  setSearch: (str: string) => void
 }
 
 const toCsv = (rows: Row[]) => {
@@ -62,18 +64,16 @@ const AdminTable: React.FC<AdminTableProps> = ({
   page,
   rowsPerPage,
   totalRows,
+  setSearch,
 }) => {
-  const [searchField, setSearchField] = useState('')
+  const [localSearch, setLocalSearch] = useState('')
   const [orderBy, setOrderBy] = useState<keyof Row>('userId')
   const [order, setOrder] = useState<'asc' | 'desc'>('desc')
   const navigate = useNavigate()
 
-  const filteredRows: Row[] = useMemo(() => {
-    const searchWords = searchField.toLowerCase().split(' ')
-
-    return users
-      .filter(user => searchWords.every(w => [user.id, user.name, user.mail].join(' ').toLowerCase().includes(w)))
-      .map(user => ({
+  const filteredRows: Row[] = useMemo(
+    () =>
+      users.map(user => ({
         userId: user.id,
         name: user.name,
         mail: user.mail,
@@ -88,20 +88,21 @@ const AdminTable: React.FC<AdminTableProps> = ({
         createdAt: user.createdAt,
         lastMapChange: user.lastMapChange,
         comment: user.comment ?? '',
-      }))
-  }, [users, searchField])
+      })),
+    [users],
+  )
 
   const columns: Column<Row>[] = [
     { id: 'userId', label: 'ID' },
     { id: 'name', label: 'Username', Cell: StringCell },
     { id: 'mail', label: 'Email', Cell: StringCell },
     { id: 'fieldsOfWork', label: 'Fields of Work', Cell: FieldsOfWorkCell },
-    { id: 'mapCount', label: 'Own Maps', Cell: NumberCell },
-    { id: 'mapShareCount', label: 'Shared Maps', Cell: NumberCell },
+    { id: 'mapCount', label: 'Own Workflow', Cell: NumberCell },
+    { id: 'mapShareCount', label: 'Shared Workflows', Cell: NumberCell },
     { id: 'sharedWithCount', label: 'Shared With', Cell: NumberCell },
-    { id: 'nodeCount', label: 'Total Cards', Cell: NumberCell },
-    { id: 'biggestMapCount', label: 'Most Cards', Cell: NumberCell },
-    { id: 'nodeLimit', label: 'Card Limit', Cell: NumberCell },
+    { id: 'nodeCount', label: 'Total Nodes', Cell: NumberCell },
+    { id: 'biggestMapCount', label: 'Most Nodes', Cell: NumberCell },
+    { id: 'nodeLimit', label: 'Nodes Limit', Cell: NumberCell },
     { id: 'subscriber', label: 'Paid', Cell: RoleCell },
     { id: 'createdAt', label: 'Signed Up', Cell: DateCell },
     { id: 'lastMapChange', label: 'Last Change', Cell: DateCell },
@@ -133,15 +134,26 @@ const AdminTable: React.FC<AdminTableProps> = ({
     return stabilized.map(el => el[0])
   }
 
-  const handleChangeSearch = (e: ChangeEvent<HTMLInputElement>) => {
-    setSearchField(e.target.value)
-    onPageChange(0)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleChangeSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setLocalSearch(value)
+
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+    }
+
+    debounceRef.current = setTimeout(() => {
+      setSearch(value)
+      onPageChange(0)
+    }, DEBOUNCE_TIMEOUT)
   }
 
   return (
     <Card className="p-2">
       <div className="mb-2 flex justify-between items-center">
-        <Input className="w-[250px]" onChange={handleChangeSearch} placeholder="Search" value={searchField} />
+        <Input className="w-[250px]" onChange={handleChangeSearch} placeholder="Search" value={localSearch} />
         <Button onClick={() => toCsv(filteredRows)}>Download CSV</Button>
       </div>
 
@@ -165,21 +177,19 @@ const AdminTable: React.FC<AdminTableProps> = ({
           </TableHeader>
 
           <TableBody>
-            {stableSort(filteredRows, getComparator(order, orderBy))
-              .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-              .map(row => (
-                <TableRow
-                  className="cursor-pointer"
-                  key={row.userId}
-                  onClick={() => navigate(`/admin/users/${row.userId}`)}
-                >
-                  {columns.map(({ Cell, id }) => (
-                    <TableCell key={id as string}>
-                      {Cell ? <Cell row={row} value={row[id]} /> : (row[id] as string)}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
+            {stableSort(filteredRows, getComparator(order, orderBy)).map(row => (
+              <TableRow
+                className="cursor-pointer"
+                key={row.userId}
+                onClick={() => navigate(`/admin/users/${row.userId}`)}
+              >
+                {columns.map(({ Cell, id }) => (
+                  <TableCell key={id as string}>
+                    {Cell ? <Cell row={row} value={row[id]} /> : (row[id] as string)}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </div>

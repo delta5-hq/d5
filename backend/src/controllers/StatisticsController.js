@@ -139,11 +139,22 @@ const StatisticsController = {
     const limit = Math.max(parseInt(ctx.query.limit) || 10, 1)
     const skip = (page - 1) * limit
 
+    const search = ctx.query.search?.trim() || ''
+
+    const query = {}
+
+    if (search) {
+      query.$or = [
+        {name: {$regex: search, $options: 'i'}},
+        {mail: {$regex: search, $options: 'i'}},
+        {id: {$regex: search, $options: 'i'}},
+      ]
+    }
     const statsByUser = Object.fromEntries((await userStatisticsAllMaps()).map(data => [data._id, data]))
 
-    const total = await User.countDocuments()
+    const total = await User.countDocuments(query)
 
-    const paginatedUsers = await User.find().sort({createdAt: -1}).skip(skip).limit(limit).lean()
+    const paginatedUsers = await User.find(query).sort({createdAt: -1}).skip(skip).limit(limit).lean()
 
     const users = paginatedUsers.map(user => {
       const userId = user.id
@@ -291,7 +302,19 @@ const StatisticsController = {
     const limit = Math.max(parseInt(ctx.query.limit) || 10, 1)
     const skip = (page - 1) * limit
 
-    const users = await Waitlist.find({}, {id: 1, name: 1, mail: 1, createdAt: 1}).skip(skip).limit(limit).lean()
+    const search = ctx.query.search?.trim() || ''
+
+    const filter = search
+      ? {
+          $or: [
+            {id: {$regex: search, $options: 'i'}},
+            {name: {$regex: search, $options: 'i'}},
+            {mail: {$regex: search, $options: 'i'}},
+          ],
+        }
+      : {}
+
+    const users = await Waitlist.find(filter, {id: 1, name: 1, mail: 1, createdAt: 1}).skip(skip).limit(limit).lean()
 
     const total = await Waitlist.countDocuments({})
 

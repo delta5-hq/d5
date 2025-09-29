@@ -1,4 +1,4 @@
-import { useUserProfile, type FullUserStatistics, type UserMapStatistics } from '@entities/admin'
+import { useUserProfile, type FullUserStatistics, type UserWorkflowStatistics } from '@entities/admin'
 import { useDialog } from '@entities/dialog'
 import { ROLES } from '@shared/base-types'
 import { Button } from '@shared/ui/button'
@@ -12,7 +12,7 @@ import { FormattedMessage, useIntl } from 'react-intl'
 
 interface UserProfileProps {
   userData: FullUserStatistics
-  mapsData: UserMapStatistics[]
+  workflowsData: UserWorkflowStatistics[]
 }
 
 const convertDate = (dateString?: string) => {
@@ -51,14 +51,17 @@ const SurveyContainer: React.FC<{ userData: FullUserStatistics }> = ({ userData 
   )
 }
 
-const UserMaps: React.FC<{ userData: FullUserStatistics; rows: UserMapStatistics[] }> = ({ userData, rows }) => {
+const UserWorkflows: React.FC<{ userData: FullUserStatistics; rows: UserWorkflowStatistics[] }> = ({
+  userData,
+  rows,
+}) => {
   if (!rows.length) return null
 
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Map (Id)</TableHead>
+          <TableHead>Workflow (Id)</TableHead>
           <TableHead>Node Count</TableHead>
           <TableHead>Edge Count</TableHead>
           <TableHead>Shared With</TableHead>
@@ -84,7 +87,7 @@ const UserMaps: React.FC<{ userData: FullUserStatistics; rows: UserMapStatistics
   )
 }
 
-const UserProfile: React.FC<UserProfileProps> = ({ userData, mapsData }) => {
+const UserProfile: React.FC<UserProfileProps> = ({ userData, workflowsData }) => {
   const [comment, setComment] = useState('')
   const { formatMessage } = useIntl()
   const { deleteUser, updateComment } = useUserProfile(userData.id)
@@ -94,7 +97,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ userData, mapsData }) => {
     setComment(userData.comment || '')
   }, [userData.comment])
 
-  const rows = useMemo(() => mapsData, [mapsData])
+  const rows = useMemo(() => workflowsData, [workflowsData])
 
   const handleSaveComment = (txt: string) => {
     if (txt === userData.comment) return
@@ -121,10 +124,10 @@ const UserProfile: React.FC<UserProfileProps> = ({ userData, mapsData }) => {
               <b>{formatMessage({ id: 'userProfileMail' })}:</b> {userData.mail}
             </p>
             <p>
-              <b>{formatMessage({ id: 'userProfileMapCount' })}:</b> {userData.mapCount}
+              <b>{formatMessage({ id: 'userProfileWorkflowCount' })}:</b> {userData.mapCount}
             </p>
             <p>
-              <b>{formatMessage({ id: 'userProfileSharedMaps' })}:</b> {userData.mapShareCount}
+              <b>{formatMessage({ id: 'userProfileSharedWorkflows' })}:</b> {userData.mapShareCount}
             </p>
             <p>
               <b>{formatMessage({ id: 'userProfileNodeCount' })}:</b> {userData.nodeCount}
@@ -145,7 +148,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ userData, mapsData }) => {
               <b>{formatMessage({ id: 'userProfileCreatedAt' })}:</b> {convertDate(userData.createdAt)}
             </p>
             <p>
-              <b>{formatMessage({ id: 'userProfileLastMapChange' })}:</b> {convertDate(userData.lastMapChange)}
+              <b>{formatMessage({ id: 'userProfileLastWorkflowChange' })}:</b> {convertDate(userData.lastMapChange)}
             </p>
 
             <Button
@@ -177,7 +180,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ userData, mapsData }) => {
         </div>
 
         <div className="col-span-1">
-          <UserMaps rows={rows} userData={userData} />
+          <UserWorkflows rows={rows} userData={userData} />
         </div>
       </div>
     </Card>
