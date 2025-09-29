@@ -1,0 +1,295 @@
+image: "alpine"
+
+stages:
+  - lint
+  - audit
+  - test
+  - build
+  - e2e
+  - package
+
+.retry:
+  retry: 2
+
+.when:
+  extends: .retry
+  only:
+    refs:
+      - main
+
+.frontend:
+  extends: .when
+  before_script:
+    - cd frontend
+
+.frontend-pnpm:
+  extends: .frontend
+  image: "node:22-alpine"
+  before_script:
+    - cd frontend
+    - npm install -g pnpm@10
+  cache:
+    key: pnpm-store-frontend
+    paths:
+      - /root/.local/share/pnpm/**/*
+
+.backend:
+  extends: .when
+  before_script:
+    - cd backend
+
+.backend-npm:
+  extends: .backend
+  image: "node:22-alpine"
+  cache:
+    key: node-modules-backend
+    paths:
+      - /root/.npm/**/*
+
+.chatpopup:
+  extends: .when
+  before_script:
+    - cd plugins/chat-popup
+
+.chatpopup-pnpm:
+  extends: .chatpopup
+  image: "node:22-alpine"
+  before_script:
+    - cd plugins/chat-popup
+    - npm install -g pnpm@10
+  cache:
+    key: pnpm-store-chatpopup
+    paths:
+      - /root/.local/share/pnpm/**/*
+
+.frontend-playwright:
+  extends: .frontend
+  image: "mcr.microsoft.com/playwright:v1.47.0-focal"
+  before_script:
+    - cd frontend
+    - npm install -g pnpm@10
+  cache:
+    key: pnpm-store-frontend
+    paths:
+      - /root/.local/share/pnpm/**/*
+
+lint-docker-frontend:
+  extends: .frontend
+  stage: lint
+  image: "hadolint/hadolint:latest-debian"
+  script:
+    - /bin/hadolint Dockerfile
+  only:
+    changes:
+      - frontend/Dockerfile
+
+lint-docker-backend:
+  extends: .backend
+  stage: lint
+  image: "hadolint/hadolint:latest-debian"
+  script:
+    - /bin/hadolint Dockerfile
+  only:
+    changes:
+      - backend/Dockerfile
+
+lint-frontend:
+  extends: .frontend-pnpm
+  stage: lint
+  script:
+    - if grep "material-ui/[^/]*'$" src -Rl ; then echo 'Do not import material ui through root' ; false ; fi
+    - pnpm install --frozen-lockfile
+    - pnpm run genversion
+    - pnpm run lint
+  only:
+    changes:
+      - frontend/**/*
+
+lint-backend:
+  extends: .backend-npm
+  stage: lint
+  script:
+    - npm ci
+    - npm run lint
+  only:
+    changes:
+      - backend/**/*
+
+# test-frontend:
+#   extends: .frontend-playwright
+#   stage: test
+#   script:
+#     # install backend too, as jest uses the backend node_modules directory to resolve modules from the shared folder
+#     - cd ../backend
+#     - npm ci
+#     - cd ../frontend
+#     - pnpm install --frozen-lockfile
+#     - pnpm run genversion
+#     - DEBUG="app:*" pnpm run test:e2e:ci
+#   artifacts:
+#     reports:
+#       junit: ./frontend/junit.xml
+#   coverage: /All\sfiles.*?\s+(\d+.\d+)/
+#   needs: []
+#   only:
+#     changes:
+#       - frontend/**/*
+
+test-backend:
+  extends: .backend-npm
+  stage: test
+  services:
+    - name: "mongo:4.2.8"
+      alias: mongo
+  variables:
+    MONGO_HOST: "mongo"
+    MONGO_PORT: "27017"
+  script:
+    - npm ci
+    - DEBUG="infinity:*" npm run test
+  artifacts:
+    reports:
+      junit: ./backend/junit.xml
+  coverage: /All\sfiles.*?\s+(\d+.\d+)/
+  needs: []
+  only:
+    changes:
+      - backend/**/*
+
+build-frontend:
+  extends: .frontend-pnpm
+  stage: build
+  script:
+    - |
+      if [[ "${CI_COMMIT_REF_NAME}" != "${CI_COMMIT_REF_NAME/deploy/}" ]] ; then
+        VERSION="0.0.0-${CI_COMMIT_SHORT_SHA}+$(date '+%Y%m%d%H%M')"
+      else
+        VERSION=${CI_COMMIT_TAG:-0.0.0-${CI_COMMIT_SHORT_SHA}+$(date '+%Y%m%d%H%M')}
+      fi
+    - 'sed "s/\"version\":[^,]*/\"version\": \"${VERSION}\"/" -i package.json'
+    - pnpm install --frozen-lockfile
+    # disable the source maps, to hide our code, see https://create-react-app.dev/docs/advanced-configuration/
+    - GENERATE_SOURCEMAP=false npm run build
+    # make sure the build was successful and all files have been created
+    - ls dist/index.html
+  artifacts:
+    paths:
+      - frontend/dist
+    expire_in: 1 day
+  needs: []
+
+build-backend:
+  extends: .backend-npm
+  stage: build
+  script:
+    - |
+      if [[ "${CI_COMMIT_REF_NAME}" != "${CI_COMMIT_REF_NAME/deploy/}" ]] ; then
+        VERSION=0.0.0-${CI_COMMIT_SHORT_SHA}+$(date '+%Y%m%d%H%M')
+      else
+        VERSION=${CI_COMMIT_TAG:-0.0.0-${CI_COMMIT_SHORT_SHA}+$(date '+%Y%m%d%H%M')}
+      fi
+    - 'sed "s/\"version\":[^,]*/\"version\": \"${VERSION}\"/" -i package.json'
+    - npm ci
+    - npm run build
+  artifacts:
+    paths:
+      - backend/build
+    expire_in: 1 day
+  needs: []
+
+build-chatpopup:
+  extends: .chatpopup-pnpm
+  stage: build
+  script:
+    - |
+      if [[ "${CI_COMMIT_REF_NAME}" != "${CI_COMMIT_REF_NAME/deploy/}" ]] ; then
+        VERSION="0.0.0-${CI_COMMIT_SHORT_SHA}+$(date '+%Y%m%d%H%M')"
+      else
+        VERSION=${CI_COMMIT_TAG:-0.0.0-${CI_COMMIT_SHORT_SHA}+$(date '+%Y%m%d%H%M')}
+      fi
+    - 'sed "s/\"version\":[^,]*/\"version\": \"${VERSION}\"/" -i package.json'
+    - pnpm install --frozen-lockfile
+    # disable the source maps, to hide our code, see https://create-react-app.dev/docs/advanced-configuration/
+    - GENERATE_SOURCEMAP=false pnpm run build
+    # make sure the build was successful and all files have been created
+    - ls dist/index.html
+  artifacts:
+    paths:
+      - plugins/chat-popup/dist
+    expire_in: 1 day
+  needs: []
+
+package-frontend:
+  extends: .frontend
+  stage: package
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  script:
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}"
+      > /kaniko/.docker/config.json
+    - |
+      if [[ -n "${CI_MERGE_REQUEST_IID}" ]] ; then
+        TAG=${CI_MERGE_REQUEST_IID}
+        NAME="frontend-merge"
+      elif [[ "${CI_COMMIT_REF_NAME}" != "${CI_COMMIT_REF_NAME/deploy/}" ]] ; then
+        TAG=${CI_COMMIT_SHORT_SHA}
+        NAME="frontend-branch"
+      else
+        TAG=${CI_COMMIT_REF_NAME/main/latest}
+        NAME="frontend"
+      fi
+    - /kaniko/executor
+      --context "$CI_PROJECT_DIR/frontend"
+      --dockerfile Dockerfile
+      --destination "$CI_REGISTRY_IMAGE:$NAME-$TAG"
+
+package-backend:
+  extends: .backend
+  stage: package
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  script:
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}"
+      > /kaniko/.docker/config.json
+    - |
+      if [[ -n "${CI_MERGE_REQUEST_IID}" ]] ; then
+        TAG=${CI_MERGE_REQUEST_IID}
+        NAME="backend-merge"
+      elif [[ "${CI_COMMIT_REF_NAME}" != "${CI_COMMIT_REF_NAME/deploy/}" ]] ; then
+        TAG=${CI_COMMIT_SHORT_SHA}
+        NAME="backend-branch"
+      else
+        TAG=${CI_COMMIT_REF_NAME/main/latest}
+        NAME="backend"
+      fi
+    - /kaniko/executor
+      --context "$CI_PROJECT_DIR/backend"
+      --dockerfile Dockerfile
+      --destination "$CI_REGISTRY_IMAGE:$NAME-$TAG"
+
+package-chatpopup:
+  extends: .chatpopup
+  stage: package
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  script:
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}"
+      > /kaniko/.docker/config.json
+    - |
+      if [[ -n "${CI_MERGE_REQUEST_IID}" ]] ; then
+        TAG=${CI_MERGE_REQUEST_IID}
+        NAME="chatpopup-merge"
+      elif [[ "${CI_COMMIT_REF_NAME}" != "${CI_COMMIT_REF_NAME/deploy/}" ]] ; then
+        TAG=${CI_COMMIT_SHORT_SHA}
+        NAME="chatpopup-branch"
+      else
+        TAG=${CI_COMMIT_REF_NAME/main/latest}
+        NAME="chatpopup"
+      fi
+    - /kaniko/executor
+      --context "$CI_PROJECT_DIR/plugins/chat-popup"
+      --dockerfile Dockerfile
+      --destination "$CI_REGISTRY_IMAGE:$NAME-$TAG"

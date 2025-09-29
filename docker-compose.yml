@@ -1,0 +1,88 @@
+version: "3.9"
+services:
+
+  backend:
+    image: "registry.dreaktor.com/solidbranch/d5/d5:backend-latest"
+    restart: unless-stopped
+    labels:
+      - traefik.http.routers.backend-d5.rule=Host(`app.delta5.tech`, `delta5.tech`) && PathPrefix(`/api`, `/socket.io`, `/websocket`)
+      - traefik.http.services.backend-d5.loadbalancer.server.port=3000
+      - traefik.http.routers.backend-d5.entrypoints=http # https
+      #- traefik.http.routers.backend-d5.tls.certresolver=letsencrypt
+    environment:
+      MONGO_HOST: mongodb
+      MONGO_PORT: "27017"
+      MONGO_DATABASE: "delta5"
+      JWT_TTL: "999999999"
+      JWT_SECRET: ""
+      MAIL_HOST: ""
+      MAIL_PORT: ""
+      MAIL_USER: ""
+      MAIL_PASSWORD: ""
+      MAIL_FROM: ""
+      MAIL_SUBJECT: "Welcome"
+      GOOGLE_API_KEY: ""
+      OPENAI_API_KEY: ""
+      SERP_API_KEY: ""
+      FREEPIK_API_KEY: ""
+      GOAPI_API_KEY: ""
+      SCRAPER_API_KEY: ""
+
+  frontend:
+    image: "registry.dreaktor.com/solidbranch/d5/d5:frontend-latest"
+    restart: unless-stopped
+    labels:
+      - traefik.http.routers.frontend-d5.rule=Host(`app.delta5.tech`, `delta5.tech`) && !PathPrefix(`/api`, `/socket.io`, `/websocket`, `/nodered`, `/chat-popup`)
+      - traefik.http.services.frontend-d5.loadbalancer.server.port=80
+      - traefik.http.routers.frontend-d5.entrypoints=http # https
+      #- traefik.http.routers.frontend-d5.tls.certresolver=letsencrypt
+
+  mongodb:
+    image: mongo:4.4.21
+    restart: unless-stopped
+    command: "--wiredTigerCacheSizeGB=1 --logpath=/dev/stdout"
+    volumes:
+      - ./data/mongodb:/data/db
+
+  traefik:
+    image: traefik:2.10.1
+    restart: unless-stopped
+    command:
+      - --log.level=DEBUG
+      - --entrypoints.http.address=:80
+      #- --entrypoints.https.address=:443
+
+      - --providers.docker=true
+      - --api.insecure=true
+      #- --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      #- --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=http
+      #- --certificatesresolvers.letsencrypt.acme.email=admin@xcells.io
+      #- --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      ## LetsEncrypt Staging Server - uncomment when testing
+      ##- --certificatesResolvers.letsencrypt.acme.caServer=https://acme-staging-v02.api.letsencrypt.org/directory
+    ports:
+      - 8086:80
+#      - 8484:443
+    volumes:
+      #- ./data/letsencrypt:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    #labels:
+      #- traefik.http.routers.to-https.rule=HostRegexp(`{host:.+}`)
+      #- traefik.http.routers.to-https.entrypoints=http
+      #- traefik.http.routers.to-https.middlewares=to-https
+      #- traefik.http.middlewares.to-https.redirectscheme.scheme=https
+
+  chatpopup:
+    image: "registry.dreaktor.com/solidbranch/d5/d5:chatpopup-latest"
+    restart: unless-stopped
+    labels:
+      - traefik.http.middlewares.chatpopup-stripprefix-d5.stripprefix.prefixes=/chat-popup
+      - traefik.http.middlewares.chatpopup-stripprefix-d5.stripprefix.forceSlash=true
+      - traefik.http.services.chatpopup-d5.loadbalancer.server.port=80
+      - traefik.http.routers.chatpopup-d5.service=chatpopup-d5
+      - traefik.http.routers.chatpopup-d5.rule=Host(`app.delta5.tech`, `delta5.tech`) && PathPrefix(`/chat-popup`)
+      - traefik.http.routers.chatpopup-d5.entrypoints=http
+      - traefik.http.routers.chatpopup-d5.middlewares=chatpopup-stripprefix-d5
+    environment:
+      API_ROOT: "https://app.delta5.tech"
+      BASE_URL: "chat-popup"
