@@ -10,7 +10,6 @@ import { useApiMutation } from '@shared/composables'
 import { YANDEX_DEFAULT_MODEL, YandexGPTModel } from '@shared/config'
 import { createResponseYandexGPT } from '@shared/lib/llm'
 import { Button } from '@shared/ui/button'
-import { Checkbox } from '@shared/ui/checkbox'
 import {
   Dialog,
   DialogClose,
@@ -25,7 +24,6 @@ import { Label } from '@shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
 import { toast } from 'sonner'
 import type { HttpError } from '@shared/lib/error'
-import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
 
 const YandexModelNames: Record<YandexGPTModel, string> = {
   [YandexGPTModel.GPT_PRO_LATEST]: 'YandexGPT 5 Pro',
@@ -46,7 +44,6 @@ const yandexSchema = z.object({
   model: z.nativeEnum(YandexGPTModel, {
     errorMap: () => ({ message: 'Please select a model' }),
   }),
-  useApi: z.boolean(),
 })
 
 type YandexFormValues = z.infer<typeof yandexSchema>
@@ -70,7 +67,6 @@ export const YandexDialog: React.FC<Props> = ({ data, open, onClose, refresh }) 
       apiKey: data?.apiKey || '',
       folder_id: data?.folder_id || '',
       model: (data?.model as YandexGPTModel) || YANDEX_DEFAULT_MODEL,
-      useApi: data?.useApi || false,
     },
   })
 
@@ -90,8 +86,6 @@ export const YandexDialog: React.FC<Props> = ({ data, open, onClose, refresh }) 
 
       if (apiKeyChanged || folderIdChanged || modelChanged) {
         await createResponseYandexGPT('Hello!', values, { maxRetries: 0 })
-        await save(values)
-      } else if (!objectsAreEqual(values, data)) {
         await save(values)
       }
 
@@ -177,18 +171,6 @@ export const YandexDialog: React.FC<Props> = ({ data, open, onClose, refresh }) 
               ))}
             </SelectContent>
           </Select>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            checked={watch('useApi')}
-            disabled={isSubmitting}
-            id="useApi"
-            onCheckedChange={checked => setValue('useApi', !!checked)}
-          />
-          <Label htmlFor="useApi">
-            <FormattedMessage id="dialog.integration.useApi" />
-          </Label>
         </div>
 
         <DialogFooter className="mt-4 flex justify-end gap-2">

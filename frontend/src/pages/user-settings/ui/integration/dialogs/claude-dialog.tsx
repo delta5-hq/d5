@@ -11,7 +11,6 @@ import { CLAUDE_DEFAULT_MODEL, ClaudeModels } from '@shared/config'
 import { createResponseClaude, getClaudeMaxOutput } from '@shared/lib/llm'
 import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
 import { Button } from '@shared/ui/button'
-import { Checkbox } from '@shared/ui/checkbox'
 import {
   Dialog,
   DialogClose,
@@ -32,7 +31,6 @@ const claudeSchema = z.object({
   model: z.nativeEnum(ClaudeModels, {
     errorMap: () => ({ message: 'Please select a model' }),
   }),
-  useApi: z.boolean(),
 })
 
 type ClaudeFormValues = z.infer<typeof claudeSchema>
@@ -55,7 +53,6 @@ export const ClaudeDialog: React.FC<Props> = ({ data, open, onClose, refresh }) 
     defaultValues: {
       apiKey: data?.apiKey || '',
       model: (data?.model as ClaudeModels) || CLAUDE_DEFAULT_MODEL,
-      useApi: data?.useApi || false,
     },
   })
 
@@ -152,18 +149,6 @@ export const ClaudeDialog: React.FC<Props> = ({ data, open, onClose, refresh }) 
               ))}
             </SelectContent>
           </Select>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            checked={watch('useApi')}
-            disabled={isSubmitting}
-            id="useApi"
-            onCheckedChange={checked => setValue('useApi', !!checked)}
-          />
-          <Label htmlFor="useApi">
-            <FormattedMessage id="dialog.integration.useApi" />
-          </Label>
         </div>
 
         <DialogFooter className="mt-4 flex justify-end gap-2">

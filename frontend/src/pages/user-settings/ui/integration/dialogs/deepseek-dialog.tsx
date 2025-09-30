@@ -17,7 +17,6 @@ import {
 import { Input } from '@shared/ui/input'
 import { Label } from '@shared/ui/label'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@shared/ui/select'
-import { Checkbox } from '@shared/ui/checkbox'
 import { Button } from '@shared/ui/button'
 import { useApiMutation } from '@shared/composables'
 import type { Deepseek, DialogProps } from '@shared/base-types'
@@ -32,7 +31,6 @@ const deepseekSchema = z.object({
   model: z.nativeEnum(DeepseekModels, {
     errorMap: () => ({ message: 'Please select a model' }),
   }),
-  useApi: z.boolean(),
 })
 
 type DeepseekFormValues = z.infer<typeof deepseekSchema>
@@ -54,7 +52,6 @@ export const DeepseekDialog: React.FC<DeepseekDialogProps> = ({ data, open, onCl
     resolver: zodResolver(deepseekSchema),
     defaultValues: {
       apiKey: data?.apiKey || '',
-      useApi: data?.useApi || false,
       model: (data?.model as DeepseekModels) || DEEPSEEK_DEFAULT_MODEL,
     },
   })
@@ -147,18 +144,6 @@ export const DeepseekDialog: React.FC<DeepseekDialogProps> = ({ data, open, onCl
             </SelectContent>
           </Select>
           {errors.model ? <span className="text-sm text-destructive">{errors.model.message}</span> : null}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Checkbox
-            checked={watch('useApi')}
-            disabled={isSubmitting}
-            id="useApi"
-            onCheckedChange={checked => setValue('useApi', !!checked)}
-          />
-          <Label htmlFor="useApi">
-            <FormattedMessage id="dialog.integration.useApi" />
-          </Label>
         </div>
 
         <DialogFooter className="mt-4 flex justify-end gap-2">

@@ -8,10 +8,6 @@ const Openai = createSchema(
     model: String,
     user: String,
     suffix: String,
-    useApi: {
-      type: Boolean,
-      default: false,
-    },
   },
   {_id: false, timestamps: false},
 )
@@ -31,10 +27,6 @@ const Yandex = createSchema(
     apiKey: String,
     folder_id: String,
     model: String,
-    useApi: {
-      type: Boolean,
-      default: false,
-    },
   },
   {
     _id: false,
@@ -46,10 +38,6 @@ const Claude = createSchema(
   {
     apiKey: String,
     model: String,
-    useApi: {
-      type: Boolean,
-      default: false,
-    },
   },
   {_id: false, timestamps: false},
 )
@@ -58,10 +46,6 @@ const Perplexity = createSchema(
   {
     apiKey: String,
     model: String,
-    useApi: {
-      type: Boolean,
-      default: false,
-    },
   },
   {_id: false, timestamps: false},
 )
@@ -70,10 +54,6 @@ const Qwen = createSchema(
   {
     apiKey: String,
     model: String,
-    useApi: {
-      type: Boolean,
-      default: false,
-    },
   },
   {_id: false, timestamps: false},
 )
@@ -82,10 +62,6 @@ const Deepseek = createSchema(
   {
     apiKey: String,
     model: String,
-    useApi: {
-      type: Boolean,
-      default: false,
-    },
   },
   {_id: false, timestamps: false},
 )
@@ -99,10 +75,6 @@ const CustomLLM = createSchema(
     apiKey: {
       type: String,
       required: false,
-    },
-    useApi: {
-      type: Boolean,
-      default: false,
     },
   },
   {_id: false, timestamps: false},

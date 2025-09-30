@@ -17,7 +17,6 @@ import {
 import { Input } from '@shared/ui/input'
 import { Label } from '@shared/ui/label'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@shared/ui/select'
-import { Checkbox } from '@shared/ui/checkbox'
 import { Button } from '@shared/ui/button'
 
 import { useApiMutation } from '@shared/composables'
@@ -37,7 +36,6 @@ const customLLMSchema = z.object({
   apiRootUrl: z.string().min(1, 'API Root URL is required').refine(isUrl, 'Invalid URL'),
   maxTokens: z.number().min(1, 'Max tokens must be positive'),
   embeddingsChunkSize: z.number().min(1, 'Chunk size must be positive'),
-  useApi: z.boolean(),
 })
 
 type CustomLLMFormValues = z.infer<typeof customLLMSchema>
@@ -63,7 +61,6 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
       apiRootUrl: data?.apiRootUrl || '',
       maxTokens: data?.maxTokens || 30000,
       embeddingsChunkSize: data?.embeddingsChunkSize || 2048,
-      useApi: data?.useApi ?? false,
     },
   })
 
@@ -205,19 +202,6 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
             error={!!errors.embeddingsChunkSize}
             errorHelper={errors.embeddingsChunkSize?.message?.toString()}
           />
-        </div>
-
-        {/* useApi */}
-        <div className="flex items-center gap-2">
-          <Checkbox
-            checked={watch('useApi')}
-            disabled={isSubmitting}
-            id="useApi"
-            onCheckedChange={checked => setValue('useApi', !!checked)}
-          />
-          <Label htmlFor="useApi">
-            <FormattedMessage id="dialog.integration.useApi" />
-          </Label>
         </div>
 
         <DialogFooter className="mt-4 flex justify-end gap-2">

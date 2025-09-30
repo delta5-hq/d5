@@ -51,10 +51,10 @@ export const YANDEX_4_GEN_MAX_TOKENS = 32000
 export const LLAMA_8B_MAX_TOKENS = 8192
 export const LLAMA_70B_GEN_MAX_TOKENS = 8192
 
-const PROD_GOOGLE_API_KEY = 'AIzaSyBj2cp41GabeWOA_oe9TPEAO_3m2l1_w4E'
-const PROD_GOOGLE_CLIENT_ID = '15527659405-7iin55qlruaoukr187bobn0hk0p5q7t3.apps.googleusercontent.com'
-const DEV_GOOGLE_API_KEY = 'AIzaSyC9la_wPG4p0r4lPlUsmo9NitjVuwgZxv4'
-const DEV_GOOGLE_CLIENT_ID = '424102186327-o9t7dn7fsunsh79aj386pn2v539ka7go.apps.googleusercontent.com'
+const PROD_GOOGLE_API_KEY = ''
+const PROD_GOOGLE_CLIENT_ID = ''
+const DEV_GOOGLE_API_KEY = ''
+const DEV_GOOGLE_CLIENT_ID = ''
 export const GOOGLE_DRIVE_DISCOVERY_DOCS = ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
 export const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'
 

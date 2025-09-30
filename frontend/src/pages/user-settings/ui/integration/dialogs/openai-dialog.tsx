@@ -4,7 +4,6 @@ import { useForm } from 'react-hook-form'
 import { FormattedMessage } from 'react-intl'
 
 import { Button } from '@shared/ui/button'
-import { Checkbox } from '@shared/ui/checkbox'
 import {
   Dialog,
   DialogClose,
@@ -34,7 +33,6 @@ export const openaiSchema = z.object({
   model: z.nativeEnum(OpenaiModels, {
     errorMap: () => ({ message: 'Please select a model' }),
   }),
-  useApi: z.boolean(),
 })
 
 export type OpenaiFormValues = z.infer<typeof openaiSchema>
@@ -66,7 +64,6 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
     defaultValues: {
       apiKey: data?.apiKey || '',
       model: (data?.model as OpenaiModels) || OpenaiModels.GPT_4o_MINI,
-      useApi: data?.useApi || false,
     },
   })
 
@@ -165,19 +162,6 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
               </SelectContent>
             </Select>
             {errors.model ? <span className="text-sm text-destructive">{errors.model.message?.toString()}</span> : null}
-          </div>
-
-          {/* useApi */}
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              checked={watch('useApi')}
-              disabled={isSubmitting}
-              id="useApi"
-              onCheckedChange={checked => setValue('useApi', !!checked)}
-            />
-            <Label htmlFor="useApi">
-              <FormattedMessage id="dialog.integration.useApi" />
-            </Label>
           </div>
         </div>
 

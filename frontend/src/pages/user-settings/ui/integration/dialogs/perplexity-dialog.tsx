@@ -11,7 +11,6 @@ import { PERPLEXITY_DEFAULT_MODEL, PerplexityModels } from '@shared/config'
 import type { HttpError } from '@shared/lib/error'
 import { createPerplexityResponse } from '@shared/lib/llm'
 import { Button } from '@shared/ui/button'
-import { Checkbox } from '@shared/ui/checkbox'
 import {
   Dialog,
   DialogClose,
@@ -31,7 +30,6 @@ const perplexitySchema = z.object({
   model: z.nativeEnum(PerplexityModels, {
     errorMap: () => ({ message: 'Please select a model' }),
   }),
-  useApi: z.boolean(),
 })
 
 type PerplexityFormValues = z.infer<typeof perplexitySchema>
@@ -54,7 +52,6 @@ export const PerplexityDialog: React.FC<Props> = ({ data, open, onClose, refresh
     defaultValues: {
       apiKey: data?.apiKey || '',
       model: (data?.model as PerplexityModels) || PERPLEXITY_DEFAULT_MODEL,
-      useApi: data?.useApi || false,
     },
   })
 
@@ -80,9 +77,8 @@ export const PerplexityDialog: React.FC<Props> = ({ data, open, onClose, refresh
           },
           { maxRetries: 0 },
         )
+        await save(values)
       }
-
-      await save(values)
 
       await refresh()
       onClose?.()
@@ -152,18 +148,6 @@ export const PerplexityDialog: React.FC<Props> = ({ data, open, onClose, refresh
               ))}
             </SelectContent>
           </Select>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            checked={watch('useApi')}
-            disabled={isSubmitting}
-            id="useApi"
-            onCheckedChange={checked => setValue('useApi', !!checked)}
-          />
-          <Label htmlFor="useApi">
-            <FormattedMessage id="dialog.integration.useApi" />
-          </Label>
         </div>
 
         <DialogFooter className="mt-4 flex justify-end gap-2">

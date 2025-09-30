@@ -10,4 +10,5 @@ export const queryKeys = {
   integration: ['settings', 'integration'],
   openai: ['settings', 'integration', 'openai'],
   openaiStatus: ['settings', 'integration', 'openai', 'status'],
+  languages: ['languages'],
 }

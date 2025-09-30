@@ -14,7 +14,6 @@ import {
 import { Input } from '@shared/ui/input'
 import { Label } from '@shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
-import { Checkbox } from '@shared/ui/checkbox'
 import { Button } from '@shared/ui/button'
 import { FormattedMessage } from 'react-intl'
 import { toast } from 'sonner'
@@ -22,7 +21,6 @@ import { useApiMutation } from '@shared/composables'
 import type { DialogProps, Qwen } from '@shared/base-types'
 import { QWEN_DEFAULT_MODEL, QwenModels } from '@shared/config'
 import type { HttpError } from '@shared/lib/error'
-import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
 import { createResponseQwen } from '@shared/lib/llm'
 import { X } from 'lucide-react'
 
@@ -31,7 +29,6 @@ const qwenSchema = z.object({
   model: z.nativeEnum(QwenModels, {
     errorMap: () => ({ message: 'Please select a model' }),
   }),
-  useApi: z.boolean(),
 })
 
 type QwenFormValues = z.infer<typeof qwenSchema>
@@ -61,7 +58,6 @@ export const QwenDialog: React.FC<QwenDialogProps> = ({ data, open, onClose, ref
     defaultValues: {
       apiKey: data?.apiKey || '',
       model: (data?.model as QwenModels) || QWEN_DEFAULT_MODEL,
-      useApi: data?.useApi || false,
     },
   })
 
@@ -80,8 +76,6 @@ export const QwenDialog: React.FC<QwenDialogProps> = ({ data, open, onClose, ref
 
       if (apiKeyChanged || modelChanged) {
         await createResponseQwen('Hello!', values)
-        await save(values)
-      } else if (!objectsAreEqual(values, data)) {
         await save(values)
       }
 
@@ -153,18 +147,6 @@ export const QwenDialog: React.FC<QwenDialogProps> = ({ data, open, onClose, ref
               ))}
             </SelectContent>
           </Select>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            checked={watch('useApi')}
-            disabled={isSubmitting}
-            id="useApi"
-            onCheckedChange={checked => setValue('useApi', !!checked)}
-          />
-          <Label htmlFor="useApi">
-            <FormattedMessage id="dialog.integration.useApi" />
-          </Label>
         </div>
 
         <DialogFooter className="mt-4 flex justify-end gap-2">

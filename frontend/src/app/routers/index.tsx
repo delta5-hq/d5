@@ -6,8 +6,7 @@ import Providers from '@app/providers/providers'
 import { AppLayout } from '@widgets/app-layout'
 import { UserProfilePage, WaitlistPage } from '@pages/admin'
 import { AdminUsersPage } from '@pages/admin'
-import { IntegrationsPage, UserSettingsPage } from '@pages/user-settings'
-import { SettingsLayout } from '@widgets/settings-layout'
+import { SettingsPage } from '@pages/user-settings'
 
 export const router = createBrowserRouter([
   {
@@ -19,19 +18,11 @@ export const router = createBrowserRouter([
       { path: '/reset-password/:pwdResetToken', element: <ResetPasswordPage /> },
 
       {
-        path: '/settings/apps',
-        element: (
-          <SettingsLayout>
-            <IntegrationsPage />
-          </SettingsLayout>
-        ),
-      },
-      {
         path: '/settings',
         element: (
-          <SettingsLayout>
-            <UserSettingsPage />
-          </SettingsLayout>
+          <AppLayout>
+            <SettingsPage />
+          </AppLayout>
         ),
       },
 

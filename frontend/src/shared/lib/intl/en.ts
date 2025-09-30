@@ -156,7 +156,7 @@ export default {
 
   dialog: {
     integration: {
-      title: 'HyperClarity Marketplace',
+      title: 'Available integrations',
       apiKey: 'API key',
       folderId: 'Folder ID',
       model: 'Model',
@@ -169,13 +169,7 @@ export default {
       wrongRequest: 'Something went wrong with the request, please check the network log',
       noAccess: 'You have no access to {model}',
       wrongFolderId: 'Please double-check your Folder ID',
-      useApi: 'Use API [experimental]',
     },
-  },
-
-  settingsLayout: {
-    profileSettings: 'Profile settings',
-    appsIntegrations: 'Apps & Integrations',
   },
 
   apiRootUrl: 'API Root URL',
@@ -194,4 +188,9 @@ export default {
     unknown: 'Unknown',
     model: 'Model',
   },
+
+  defaultLang: 'Auto based on language',
+  noLanguage: 'No language found',
+  default: 'Default',
+  lang: 'Language',
 }
