@@ -3,6 +3,16 @@ import { test, expect } from '@playwright/test'
 test.describe('Main navigation (desktop)', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 })
+    await page.route('**/api/v1/auth/refresh', route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }),
+    )
+    await page.route('**/api/v1/users/me', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: 'e2e-user', name: 'E2E User', mail: 'e2e@example.com', roles: [] }),
+      })
+    })
     await page.goto('/')
   })
 
@@ -31,6 +41,16 @@ test.describe('Main navigation (desktop)', () => {
 test.describe('Sidebar behavior (tablet width)', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 800 })
+    await page.route('**/api/v1/auth/refresh', route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }),
+    )
+    await page.route('**/api/v1/users/me', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: 'e2e-user', name: 'E2E User', mail: 'e2e@example.com', roles: [] }),
+      })
+    })
     await page.goto('/')
   })
 
@@ -51,6 +71,16 @@ test.describe('Sidebar behavior (tablet width)', () => {
 test.describe('Main navigation (mobile)', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 })
+    await page.route('**/api/v1/auth/refresh', route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }),
+    )
+    await page.route('**/api/v1/users/me', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: 'e2e-user', name: 'E2E User', mail: 'e2e@example.com', roles: [] }),
+      })
+    })
     await page.goto('/')
   })
 

@@ -7,6 +7,12 @@ statisticsRouter
   .use(StatisticsController.authorization)
   .get('/workflow', StatisticsController.workflowServe)
   .get('/workflow/download', StatisticsController.workflowCsv)
+
+  .post('/waitlist/confirm/all', StatisticsController.activateUsersBatch)
+  .get('/waitlist/confirm/:waitUserId', StatisticsController.approveWaitlistUser)
+  .post('/waitlist/reject/all', StatisticsController.rejectUsersBatch)
+  .get('/waitlist/reject/:waitUserId', StatisticsController.rejectWaitlistUser)
+
   .param('userId', StatisticsController.userLoad)
   .get('/workflow/:userId', StatisticsController.userWorkflowStatistics)
   .get('/users', StatisticsController.userList)
@@ -14,9 +20,5 @@ statisticsRouter
   .get('/users/:userId', StatisticsController.userStatistics)
   .post('/users/:userId/comment', StatisticsController.userComment)
   .get('/waitlist', StatisticsController.userWaitlist)
-  .post('/waitlist/confirm/all', StatisticsController.activateUsersBatch)
-  .get('/waitlist/confirm/:userId', StatisticsController.activateUser)
-  .post('/waitlist/reject/all', StatisticsController.activateUsersBatch)
-  .get('/waitlist/reject/:userId', StatisticsController.activateUser)
 
 export default statisticsRouter

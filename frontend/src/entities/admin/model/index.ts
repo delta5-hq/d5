@@ -1,6 +1,6 @@
 import type { FullUser } from '@shared/base-types'
 
-export interface UserMapStatistics {
+export interface UserWorkflowStatistics {
   _id: string
   mapId: string
   userId: string

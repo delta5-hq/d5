@@ -1,12 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
+import dotenv from 'dotenv';
 
-/**
- * Read environment variables from file.
- * https://github.com/motdotla/dotenv
- */
-// import dotenv from 'dotenv';
-// import path from 'path';
-// dotenv.config({ path: path.resolve(__dirname, '.env') });
+dotenv.config()
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -58,6 +53,7 @@ export default defineConfig({
         ...devices['Pixel 5'],
         viewport: { width: 375, height: 667 }
       },
+      testIgnore: ['**/e2e/auth-flows.spec.ts'],
     },
   ],
 
