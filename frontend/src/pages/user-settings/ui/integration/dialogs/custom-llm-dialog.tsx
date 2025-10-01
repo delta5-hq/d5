@@ -22,7 +22,7 @@ import { Button } from '@shared/ui/button'
 import { useApiMutation } from '@shared/composables'
 import type { CustomLLM, DialogProps } from '@shared/base-types'
 import type { HttpError } from '@shared/lib/error'
-import { CustomLLMApiType } from '@shared/config'
+import { CustomLLMApiType, OPENAI_API_KEY_EMPTY } from '@shared/config'
 import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
 
 import isUrl from '@shared/lib/isUrl'
@@ -79,7 +79,7 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
 
       if (urlChanged || apiKeyChanged) {
         const client = new OpenAI({
-          apiKey: values.apiKey || undefined,
+          openAIApiKey: values.apiKey || OPENAI_API_KEY_EMPTY,
           configuration: {
             baseURL: values.apiRootUrl,
           },

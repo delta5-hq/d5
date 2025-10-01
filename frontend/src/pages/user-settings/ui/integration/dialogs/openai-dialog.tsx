@@ -29,7 +29,7 @@ import type { HttpError } from '@shared/lib/error'
 import { X } from 'lucide-react'
 
 export const openaiSchema = z.object({
-  apiKey: z.string().min(1, { message: 'API Key is required' }).optional(),
+  apiKey: z.string().optional(),
   model: z.nativeEnum(OpenaiModels, {
     errorMap: () => ({ message: 'Please select a model' }),
   }),
@@ -74,6 +74,8 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
     setValue,
     watch,
   } = form
+
+  const apiKeyValue = watch('apiKey')
 
   const onSubmit = async (values: OpenaiFormValues) => {
     try {
@@ -150,7 +152,7 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
                 <SelectValue placeholder="Select model" />
               </SelectTrigger>
               <SelectContent>
-                {!apiStatus?.success ? (
+                {!apiStatus?.success || !apiKeyValue ? (
                   <SelectItem value={OpenaiModels.GPT_4o_MINI}>{OpenaiModels.GPT_4o_MINI}</SelectItem>
                 ) : (
                   Object.values(OpenaiModels).map(m => (

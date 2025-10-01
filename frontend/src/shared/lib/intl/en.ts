@@ -125,7 +125,8 @@ export default {
 
   integrationSettings: {
     appsIntegrations: 'Apps & Integrations',
-    addApps: 'Add apps',
+    addApps: 'Add integration',
+    none: 'No integrations yet',
   },
   integration: {
     openai: {
