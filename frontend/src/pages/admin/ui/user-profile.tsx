@@ -8,16 +8,16 @@ const UserProfile = () => {
   const { isUserFetched, userData, mapsData } = useUserProfile(id as string)
 
   const navigate = useNavigate()
-  const { isAdmin } = useAuthContext()
+  const { isAdmin, isLoggedIn } = useAuthContext()
 
-  if (!isAdmin) {
+  if (!isAdmin && isLoggedIn) {
     navigate('/')
     return null
   }
 
   if (!isUserFetched || !id || !userData || !mapsData) return null
 
-  return <UserProfileDashboard mapsData={mapsData} userData={userData} />
+  return <UserProfileDashboard userData={userData} workflowsData={mapsData} />
 }
 
 export default UserProfile

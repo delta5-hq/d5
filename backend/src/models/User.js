@@ -49,6 +49,12 @@ UserSchema.pre('save', async function (next) {
   // only hash the password if it has been modified (or is new)
   if (!user.isModified('password')) return next()
 
+  // skip hashing if _skipHash is set (e.g. when copying from Waitlist)
+  if (user._skipHash) {
+    delete user._skipHash
+    return next()
+  }
+
   // generate a salt
   const salt = await bcrypt.genSaltSync(SALT_COMPUTE_EFFORT)
 
