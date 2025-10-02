@@ -99,7 +99,7 @@ const UserSettingsPage: React.FC = () => {
     }
   }
 
-  const onLangChange = (newLang: string) => {
+  const onLangChange = (newLang: string) => () => {
     setLang(newLang)
     setOpenLangBox(false)
   }
@@ -149,11 +149,11 @@ const UserSettingsPage: React.FC = () => {
                         <FormattedMessage id="noLanguage" />.
                       </CommandEmpty>
                       <CommandGroup>
-                        <CommandItem onSelect={onLangChange} value={USER_DEFAULT_LANGUAGE}>
+                        <CommandItem onSelect={onLangChange(USER_DEFAULT_LANGUAGE)} value={USER_DEFAULT_LANGUAGE}>
                           <FormattedMessage id="defaultLang" />
                         </CommandItem>
                         {languages.map(l => (
-                          <CommandItem key={l.code} onSelect={onLangChange} value={l.code}>
+                          <CommandItem key={l.code} onSelect={onLangChange(l.code)} value={l.name}>
                             {lang === l.code ? <Check /> : null}
                             {l.name}
                           </CommandItem>

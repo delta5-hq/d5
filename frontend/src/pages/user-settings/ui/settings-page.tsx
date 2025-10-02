@@ -1,4 +1,4 @@
-import { useResponsive } from '@shared/composables'
+import { useIsMobile } from '@shared/composables'
 import { Card, CardContent } from '@shared/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shared/ui/tabs'
 import React from 'react'
@@ -8,12 +8,10 @@ import UserSettingsPage from './user-settings'
 const ProfileSettings: React.FC = () => <UserSettingsPage />
 const IntegrationsSettings: React.FC = () => <IntegrationsPage />
 
-const MOBILE_BREAKPOINT = 768
-
 const SettingsPage: React.FC = () => {
-  const { isDesktop } = useResponsive({ breakpoint: MOBILE_BREAKPOINT })
+  const isMobile = useIsMobile()
 
-  if (!isDesktop) {
+  if (isMobile) {
     return (
       <Card className="w-full h-full">
         <CardContent className="w-full h-full overflow-y-auto">
@@ -35,7 +33,7 @@ const SettingsPage: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col gap-4 w-full h-full">
+    <div className="grid gap-4 w-full h-full grid-cols-1 xl:grid-cols-2">
       <Card className="w-full">
         <CardContent className="w-full overflow-y-auto">
           <ProfileSettings />
