@@ -125,7 +125,8 @@ export default {
 
   integrationSettings: {
     appsIntegrations: 'Apps & Integrations',
-    addApps: 'Add apps',
+    addApps: 'Add integration',
+    none: 'No integrations yet',
   },
   integration: {
     openai: {
@@ -205,4 +206,8 @@ export default {
   noLanguage: 'No language found',
   default: 'Default',
   lang: 'Language',
+
+  themeLight: 'Light',
+  themeDark: 'Dark',
+  themeSystem: 'System',
 }

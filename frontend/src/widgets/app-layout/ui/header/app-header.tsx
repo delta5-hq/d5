@@ -6,6 +6,7 @@ import { AppSearch } from './search'
 import { UserSettingsButton } from './user-settings'
 import { useAuthContext } from '@entities/auth'
 import { Logo } from '@shared/ui/logo'
+import { ThemeSwitcher } from './theme-resolver'
 
 interface HeaderProps {
   breakpoint?: number
@@ -22,20 +23,24 @@ const Header = ({ breakpoint }: HeaderProps) => {
         <Logo />
         {!isMobile ? <AppSearch className="h-9 w-64 lg:w-80" /> : null}
       </div>
-      {!isMobile ? (
-        <div className="flex items-center gap-2">
-          {isLoggedIn ? (
-            <>
-              <HelpButton />
-              <UserSettingsButton />
-            </>
-          ) : (
-            <LoginButton />
-          )}
-        </div>
-      ) : (
-        <MenuButton opened={sidebarOpened} toggleButton={toggleSidebar} />
-      )}
+
+      <div className="flex flex-row items-center justify-between">
+        <ThemeSwitcher />
+        {!isMobile ? (
+          <div className="flex items-center gap-2">
+            {isLoggedIn ? (
+              <>
+                <HelpButton />
+                <UserSettingsButton />
+              </>
+            ) : (
+              <LoginButton />
+            )}
+          </div>
+        ) : (
+          <MenuButton opened={sidebarOpened} toggleButton={toggleSidebar} />
+        )}
+      </div>
     </header>
   )
 }
