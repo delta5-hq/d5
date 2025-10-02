@@ -96,31 +96,31 @@ describe('workflow life-cycle', () => {
   })
 
   it('should create new workflows on api', async () => {
-    const response = await subscriberRequest.post('/maps').send()
+    const response = await subscriberRequest.post('/workflow').send()
 
     expect(response.status).toBe(200)
   })
 
   it('should not accept updates on api', async () => {
-    const response = await subscriberRequest.put(`/maps/${mapId}`).send(JSON.stringify(mapData))
+    const response = await subscriberRequest.put(`/workflow/${mapId}`).send(JSON.stringify(mapData))
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(405)
   })
 
   it('should not accept updates on api', async () => {
-    const response = await subscriberRequest.patch(`/maps/${mapId}`).send(JSON.stringify(mapData))
+    const response = await subscriberRequest.patch(`/workflow/${mapId}`).send(JSON.stringify(mapData))
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(405)
   })
 
   it('should not accept unauth requests to the workflow', async () => {
-    const response = await publicRequest.get(`/maps/${mapId}`)
+    const response = await publicRequest.get(`/workflow/${mapId}`)
 
     expect(response.status).toBe(401)
   })
 
   it('should be writeable for user', async () => {
-    const response = await subscriberRequest.get(`/maps/${mapId}/writeable`)
+    const response = await subscriberRequest.get(`/workflow/${mapId}/writeable`)
 
     const data = JSON.parse(response.res.text)
 
@@ -129,13 +129,13 @@ describe('workflow life-cycle', () => {
   })
 
   it('should not allow writeable endpoint for unauth user', async () => {
-    const response = await publicRequest.get(`/maps/${mapId}/writeable`)
+    const response = await publicRequest.get(`/workflow/${mapId}/writeable`)
 
     expect(response.status).toBe(401)
   })
 
   it('should serve the created workflow', async () => {
-    const response = await subscriberRequest.get(`/maps/${mapId}`)
+    const response = await subscriberRequest.get(`/workflow/${mapId}`)
 
     expect(response.status).toBe(200)
 
@@ -144,27 +144,27 @@ describe('workflow life-cycle', () => {
   })
 
   it('should serve all workflows', async () => {
-    const response = await subscriberRequest.get('/maps?public=false')
+    const response = await subscriberRequest.get('/workflow?public=false')
 
     expect(response.status).toBe(200)
     expect(JSON.parse(response.res.text).length).toBeGreaterThan(0)
   })
 
   it('should not accept unauth requests to delete workflow', async () => {
-    const response = await publicRequest.delete(`/maps/${mapId}`)
+    const response = await publicRequest.delete(`/workflow/${mapId}`)
 
     expect(response.status).toBe(401)
   })
 
   it('should delete the workflow', async () => {
-    const response = await subscriberRequest.delete(`/maps/${mapId}`)
+    const response = await subscriberRequest.delete(`/workflow/${mapId}`)
 
     expect(response.status).toBe(200)
     expect(JSON.parse(response.res.text).success).toBe(true)
   })
 
   it('should not find the workflow anymore', async () => {
-    const response = await subscriberRequest.get(`/maps/${mapId}`)
+    const response = await subscriberRequest.get(`/workflow/${mapId}`)
 
     expect(response.status).toBe(404)
   })
@@ -184,27 +184,29 @@ describe('public workflow life-cycle', () => {
   })
 
   it('should not yet accept unauth requests to the workflow', async () => {
-    const response = await publicRequest.get(`/maps/${mapId}`)
+    const response = await publicRequest.get(`/workflow/${mapId}`)
 
     expect(response.status).toBe(401)
   })
 
   it('should be marked public successfully', async () => {
-    const response = await subscriberRequest.post(`/maps/${mapId}/share/public`).send(JSON.stringify({enabled: true}))
+    const response = await subscriberRequest
+      .post(`/workflow/${mapId}/share/public`)
+      .send(JSON.stringify({enabled: true}))
 
     expect(response.status).toBe(200)
     expect(JSON.parse(response.res.text).success).toBe(true)
   })
 
   it('should accept unauth requests to list public workflows', async () => {
-    const response = await publicRequest.get('/maps')
+    const response = await publicRequest.get('/workflow')
 
     expect(response.status).toBe(200)
     expect(JSON.parse(response.res.text).length).toBeGreaterThan(0)
   })
 
   it('should serve the public workflow', async () => {
-    const response = await publicRequest.get(`/maps/${mapId}`)
+    const response = await publicRequest.get(`/workflow/${mapId}`)
 
     expect(response.status).toBe(200)
 
@@ -231,7 +233,7 @@ describe('map-image live cycle', () => {
 
   it('should not accept unauth requests to upload images', async () => {
     const response = await publicRequest
-      .post(`/maps/${mapId}/images`)
+      .post(`/workflow/${mapId}/images`)
       .query({filename: FILENAME})
       .type('jpg')
       .send(imageData)
@@ -241,7 +243,7 @@ describe('map-image live cycle', () => {
 
   it('should accept new images', async () => {
     const response = await subscriberRequest
-      .post(`/maps/${mapId}/images`)
+      .post(`/workflow/${mapId}/images`)
       .query({filename: FILENAME})
       .type('jpg')
       .send(imageData)
@@ -254,47 +256,47 @@ describe('map-image live cycle', () => {
   })
 
   it('should not accept unauth requests to serve images', async () => {
-    const response = await publicRequest.get(`/maps/${mapId}/images/${imageId}`)
+    const response = await publicRequest.get(`/workflow/${mapId}/images/${imageId}`)
 
     expect(response.status).toBe(401)
   })
 
   it('should serve the created image', async () => {
-    const response = await subscriberRequest.get(`/maps/${mapId}/images/${imageId}`)
+    const response = await subscriberRequest.get(`/workflow/${mapId}/images/${imageId}`)
 
     expect(response.status).toBe(200)
     expect(Buffer.from(response.body).equals(imageData)).toBe(true)
   })
 
   it('should list the images', async () => {
-    const response = await subscriberRequest.get(`/maps/${mapId}/images`)
+    const response = await subscriberRequest.get(`/workflow/${mapId}/images`)
 
     expect(response.status).toBe(200)
     expect(JSON.parse(response.res.text).length).toBe(1)
   })
 
   it('should not accept unauth requests to delete images', async () => {
-    const response = await publicRequest.delete(`/maps/${mapId}/images/${imageId}`)
+    const response = await publicRequest.delete(`/workflow/${mapId}/images/${imageId}`)
 
     expect(response.status).toBe(401)
   })
 
   it('should delete the image', async () => {
-    const response = await subscriberRequest.delete(`/maps/${mapId}/images/${imageId}`)
+    const response = await subscriberRequest.delete(`/workflow/${mapId}/images/${imageId}`)
 
     expect(response.status).toBe(200)
     expect(JSON.parse(response.res.text).success).toBe(true)
   })
 
   it('should not find the image anymore', async () => {
-    const response = await subscriberRequest.get(`/maps/${mapId}/images/${imageId}`)
+    const response = await subscriberRequest.get(`/workflow/${mapId}/images/${imageId}`)
 
     expect(response.status).toBe(404)
   })
 
   it('should not find image after workflow is deleted', async () => {
     const createResponse = await subscriberRequest
-      .post(`/maps/${mapId}/images`)
+      .post(`/workflow/${mapId}/images`)
       .query({filename: FILENAME})
       .type('jpg')
       .send(imageData)
@@ -305,10 +307,10 @@ describe('map-image live cycle', () => {
     expect(image).toHaveProperty('_id')
     imageId = image._id
 
-    const deleteResponse = await subscriberRequest.delete(`/maps/${mapId}`)
+    const deleteResponse = await subscriberRequest.delete(`/workflow/${mapId}`)
     expect(deleteResponse.status).toBe(200)
 
-    const response = await subscriberRequest.get(`/maps/${mapId}/images/${imageId}`)
+    const response = await subscriberRequest.get(`/workflow/${mapId}/images/${imageId}`)
     expect(response.status).toBe(404)
   })
 })
@@ -330,7 +332,7 @@ describe('map-file live cycle', () => {
 
   it('should not accept unauth requests to upload files', async () => {
     const response = await publicRequest
-      .post(`/maps/${mapId}/files`)
+      .post(`/workflow/${mapId}/files`)
       .query({filename: FILENAME})
       .type('jpg')
       .send(fileData)
@@ -340,7 +342,7 @@ describe('map-file live cycle', () => {
 
   it('should accept new files', async () => {
     const response = await subscriberRequest
-      .post(`/maps/${mapId}/files`)
+      .post(`/workflow/${mapId}/files`)
       .query({filename: FILENAME})
       .type('jpg')
       .send(fileData)
@@ -353,13 +355,13 @@ describe('map-file live cycle', () => {
   })
 
   it('should not accept unauth requests to serve files', async () => {
-    const response = await publicRequest.get(`/maps/${mapId}/files/${fileId}`)
+    const response = await publicRequest.get(`/workflow/${mapId}/files/${fileId}`)
 
     expect(response.status).toBe(401)
   })
 
   it('should serve the created file', async () => {
-    const response = await subscriberRequest.get(`/maps/${mapId}/files/${fileId}`)
+    const response = await subscriberRequest.get(`/workflow/${mapId}/files/${fileId}`)
 
     expect(response.status).toBe(200)
     expect(Buffer.from(response.body).equals(fileData)).toBe(true)
@@ -372,41 +374,41 @@ describe('map-file live cycle', () => {
   //   fileStream.end(fileData)
   //   await thumbnail.write(fileStream)
   //
-  //   const response = await subscriberRequest.get(`/maps/${mapId}/files/${fileId}/thumbnail`)
+  //   const response = await subscriberRequest.get(`/workflow/${mapId}/files/${fileId}/thumbnail`)
   //
   //   expect(response.status).toBe(200)
   //   expect(Buffer.from(response.body).equals(fileData)).toBe(true)
   // })
 
   it('should list the files', async () => {
-    const response = await subscriberRequest.get(`/maps/${mapId}/files`)
+    const response = await subscriberRequest.get(`/workflow/${mapId}/files`)
 
     expect(response.status).toBe(200)
     expect(JSON.parse(response.res.text).length).toBe(1)
   })
 
   it('should not accept unauth requests to delete files', async () => {
-    const response = await publicRequest.delete(`/maps/${mapId}/files/${fileId}`)
+    const response = await publicRequest.delete(`/workflow/${mapId}/files/${fileId}`)
 
     expect(response.status).toBe(401)
   })
 
   it('should delete the file', async () => {
-    const response = await subscriberRequest.delete(`/maps/${mapId}/files/${fileId}`)
+    const response = await subscriberRequest.delete(`/workflow/${mapId}/files/${fileId}`)
 
     expect(response.status).toBe(200)
     expect(JSON.parse(response.res.text).success).toBe(true)
   })
 
   it('should not find the file anymore', async () => {
-    const response = await subscriberRequest.get(`/maps/${mapId}/files/${fileId}`)
+    const response = await subscriberRequest.get(`/workflow/${mapId}/files/${fileId}`)
 
     expect(response.status).toBe(404)
   })
 
   it('should not find file after workflow is deleted', async () => {
     const createResponse = await subscriberRequest
-      .post(`/maps/${mapId}/files`)
+      .post(`/workflow/${mapId}/files`)
       .query({filename: FILENAME})
       .type('jpg')
       .send(fileData)
@@ -417,10 +419,10 @@ describe('map-file live cycle', () => {
     expect(file).toHaveProperty('_id')
     fileId = file._id
 
-    const deleteResponse = await subscriberRequest.delete(`/maps/${mapId}`)
+    const deleteResponse = await subscriberRequest.delete(`/workflow/${mapId}`)
     expect(deleteResponse.status).toBe(200)
 
-    const response = await subscriberRequest.get(`/maps/${mapId}/files/${fileId}`)
+    const response = await subscriberRequest.get(`/workflow/${mapId}/files/${fileId}`)
     expect(response.status).toBe(404)
   })
 })

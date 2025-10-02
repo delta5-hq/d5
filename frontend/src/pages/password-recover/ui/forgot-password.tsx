@@ -64,7 +64,7 @@ const ForgotPassword = () => {
         translationKey="forgotPasswordDialogMessage"
       />
 
-      <div className="w-full max-w-md bg-white shadow-md rounded-lg p-6">
+      <div className="w-full max-w-md bg-card shadow-md rounded-lg p-6">
         <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)}>
           <h2>
             <FormattedMessage id="accountRecovery" />
@@ -91,7 +91,7 @@ const ForgotPassword = () => {
           </div>
 
           <div className="flex justify-between">
-            <Button onClick={() => navigate(-1)} variant="outline">
+            <Button onClick={() => navigate(-1)} variant="default">
               <FormattedMessage id="buttonCancel" />
             </Button>
             <Button disabled={isSubmitting} type="submit">

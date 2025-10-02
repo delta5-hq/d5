@@ -102,14 +102,14 @@ export const LoginDialog = ({ open, onClose }: LoginDialogProps) => {
 
           {/* Actions */}
           <div className="flex justify-end gap-2">
-            <Button className="px-4 py-2 rounded border" onClick={() => onClose?.()} type="button" variant="secondary">
+            <Button className="px-4 py-2 rounded border" onClick={() => onClose?.()} type="button" variant="default">
               <FormattedMessage id="buttonCancel" />
             </Button>
             <Button
               className="px-4 py-2 rounded text-white disabled:opacity-50"
               disabled={isSubmitting}
               type="submit"
-              variant="default"
+              variant="accent"
             >
               <FormattedMessage id="loginTitle" />
             </Button>
