@@ -79,7 +79,7 @@ const GoogleDialog: React.FC<Props> = ({ data, open, onClose, refresh }) => {
       <DialogContent className="max-w-md sm:w-full">
         <DialogHeader>
           <DialogTitle>
-            <FormattedMessage id="dialog.integration.title" />
+            <FormattedMessage id="integration.google.title" />
           </DialogTitle>
           <DialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />

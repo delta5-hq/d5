@@ -113,7 +113,7 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            <FormattedMessage id="dialog.integration.title" />
+            <FormattedMessage id="integration.custom_llm.title" />
           </DialogTitle>
           <DialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />

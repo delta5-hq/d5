@@ -20,8 +20,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner'
 
 import type { ApiError, DialogProps, Openai } from '@shared/base-types'
-import { useApiMutation, useApiQuery } from '@shared/composables'
-import { OpenaiModels, queryKeys } from '@shared/config'
+import { useApiMutation } from '@shared/composables'
+import { OpenaiModels } from '@shared/config'
 import { createResponseChat } from '@shared/lib/llm'
 import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
 import { z } from 'zod'
@@ -52,11 +52,6 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
       if (message) toast.error(message)
       else toast.error(<FormattedMessage id="errorServer" />)
     },
-  })
-
-  const { data: apiStatus } = useApiQuery<{ success: boolean }>({
-    queryKey: queryKeys.openaiStatus,
-    url: '/integration/openai_api_key',
   })
 
   const form = useForm<OpenaiFormValues>({
@@ -114,7 +109,7 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            <FormattedMessage id="dialog.integration.title" />
+            <FormattedMessage id="integration.openai.title" />
           </DialogTitle>
           <DialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />
@@ -152,7 +147,7 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
                 <SelectValue placeholder="Select model" />
               </SelectTrigger>
               <SelectContent>
-                {!apiStatus?.success || !apiKeyValue ? (
+                {!apiKeyValue ? (
                   <SelectItem value={OpenaiModels.GPT_4o_MINI}>{OpenaiModels.GPT_4o_MINI}</SelectItem>
                 ) : (
                   Object.values(OpenaiModels).map(m => (

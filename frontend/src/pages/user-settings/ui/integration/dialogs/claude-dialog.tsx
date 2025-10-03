@@ -106,7 +106,7 @@ export const ClaudeDialog: React.FC<Props> = ({ data, open, onClose, refresh }) 
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            <FormattedMessage id="dialog.integration.title" />
+            <FormattedMessage id="integration.claude.title" />
           </DialogTitle>
           <DialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />

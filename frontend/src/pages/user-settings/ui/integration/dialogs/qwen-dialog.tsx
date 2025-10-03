@@ -105,7 +105,7 @@ export const QwenDialog: React.FC<QwenDialogProps> = ({ data, open, onClose, ref
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            <FormattedMessage id="dialog.integration.title" />
+            <FormattedMessage id="integration.qwen.title" />
           </DialogTitle>
           <DialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />
