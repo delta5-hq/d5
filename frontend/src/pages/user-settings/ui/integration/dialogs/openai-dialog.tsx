@@ -106,7 +106,7 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
 
   return (
     <Dialog onOpenChange={onClose} open={open}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" data-dialog-name="openai">
         <DialogHeader>
           <DialogTitle>
             <FormattedMessage id="integration.openai.title" />
@@ -143,7 +143,7 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
               onValueChange={(val: OpenaiModels) => setValue('model', val)}
               value={watch('model')}
             >
-              <SelectTrigger>
+              <SelectTrigger data-select-name="openai-model">
                 <SelectValue placeholder="Select model" />
               </SelectTrigger>
               <SelectContent>

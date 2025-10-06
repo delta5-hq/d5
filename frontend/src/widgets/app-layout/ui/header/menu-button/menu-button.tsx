@@ -8,7 +8,7 @@ interface MenuButtonProps {
 }
 
 const MenuButton = ({ opened, toggleButton }: MenuButtonProps) => (
-  <Button onClick={toggleButton} variant="outline">
+  <Button onClick={toggleButton} variant="default">
     <p>
       <FormattedMessage id="mobileMenuButtonTitle" />
     </p>

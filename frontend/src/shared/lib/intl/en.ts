@@ -124,7 +124,7 @@ export default {
   },
 
   integrationSettings: {
-    appsIntegrations: 'Apps & Integrations',
+    appsIntegrations: 'Integrations',
     addApps: 'Add integration',
     none: 'No integrations yet',
   },
@@ -195,7 +195,7 @@ export default {
     applyChanges: 'Apply Changes',
     emailAddress: 'Email Address',
     editProfile: 'Edit Profile',
-    appsIntegrations: 'Apps & Integrations',
+    appsIntegrations: 'Integrations',
     username: 'Username',
     success: 'Success',
     unknown: 'Unknown',
@@ -206,4 +206,7 @@ export default {
   noLanguage: 'No language found',
   default: 'Default',
   lang: 'Language',
+
+  langSaveSuccessfully: 'Language saved successfully',
+  modelSaveSuccessfully: 'Model saved successfully',
 }

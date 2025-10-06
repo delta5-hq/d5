@@ -23,7 +23,7 @@ const UserSettingsButton = () => {
   return (
     <DropdownMenu onOpenChange={() => setIsOpen(prev => !prev)} open={isOpen}>
       <DropdownMenuTrigger asChild data-type="user-settings">
-        <Button variant="outline">
+        <Button variant="ghost">
           <UserIcon />
           {isOpen ? <ChevronUp /> : <ChevronDown />}
         </Button>

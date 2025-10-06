@@ -98,7 +98,7 @@ export const DeepseekDialog: React.FC<DeepseekDialogProps> = ({ data, open, onCl
 
   return (
     <Dialog onOpenChange={onClose} open={open}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" data-dialog-name="deepseek">
         <DialogHeader>
           <DialogTitle>
             <FormattedMessage id="integration.deepseek.title" />
@@ -132,7 +132,7 @@ export const DeepseekDialog: React.FC<DeepseekDialogProps> = ({ data, open, onCl
             onValueChange={(val: DeepseekModels) => setValue('model', val)}
             value={watch('model')}
           >
-            <SelectTrigger>
+            <SelectTrigger data-select-name="deepseek-model">
               <SelectValue placeholder="Select model" />
             </SelectTrigger>
             <SelectContent>

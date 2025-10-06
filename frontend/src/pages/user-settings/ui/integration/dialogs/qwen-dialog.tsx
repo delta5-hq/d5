@@ -102,7 +102,7 @@ export const QwenDialog: React.FC<QwenDialogProps> = ({ data, open, onClose, ref
 
   return (
     <Dialog onOpenChange={onClose} open={open}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" data-dialog-name="qwen">
         <DialogHeader>
           <DialogTitle>
             <FormattedMessage id="integration.qwen.title" />
@@ -136,7 +136,7 @@ export const QwenDialog: React.FC<QwenDialogProps> = ({ data, open, onClose, ref
             onValueChange={(val: QwenModels) => setValue('model', val)}
             value={watch('model')}
           >
-            <SelectTrigger>
+            <SelectTrigger data-select-name="qwen-model">
               <SelectValue placeholder="Select model" />
             </SelectTrigger>
             <SelectContent>
