@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod/v3'
+import * as z from 'zod'
 import { FormattedMessage } from 'react-intl'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@shared/ui/button'

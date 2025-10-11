@@ -15,7 +15,7 @@ test.describe('Main navigation (desktop)', () => {
     const userMenuButton = page.locator('button:has(svg.lucide-user)')
     await userMenuButton.click()
 
-    const accountSettings = page.getByText('Account Settings', { exact: true })
+    const accountSettings = page.getByText('Settings', { exact: true })
     await expect(accountSettings).toBeVisible()
   })
 
@@ -72,7 +72,7 @@ test.describe('Main navigation (mobile)', () => {
     const userMenuButton = page.locator('button:has(svg.lucide-user)')
     await userMenuButton.click()
 
-    const accountSettings = page.getByText('Account Settings', { exact: true })
+    const accountSettings = page.getByText('Settings', { exact: true })
     await expect(accountSettings).toBeVisible()
   })
 

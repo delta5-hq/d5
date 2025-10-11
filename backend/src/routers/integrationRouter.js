@@ -6,6 +6,7 @@ import OpenAIController from '../controllers/integrations/OpenAIController'
 import ZoomController from '../controllers/integrations/ZoomController'
 import YandexController from '../controllers/integrations/yandex/YandexController'
 import ClaudeController from '../controllers/integrations/ClaudeController'
+import {PerplexityController} from '../controllers/integrations/PerplexityController'
 
 const integrationRouter = new Router({prefix: '/integration'})
 
@@ -36,6 +37,8 @@ integrationRouter
   .get('/zoom/meetings/:id/recordings', ZoomController.getRecordings)
   // Claude
   .post('/claude/messages', ClaudeController.sendMessages)
+  // Perplexity
+  .post('/perplexity/chat/completions', PerplexityController.completions)
   // Apps & Integrations
   .get('/languages', IntegrationController.getLanguages)
   .post('/language', IntegrationController.setLanguage)
