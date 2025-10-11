@@ -18,9 +18,9 @@ jest.mock('../../utils/pdf', () => ({
 
 describe('MemorizeCommand', () => {
   const userId = 'userId'
-  const mapId = 'mapId'
-  const mockStore = new Store({userId, mapId, nodes: {}})
-  const command = new MemorizeCommand(userId, mapId, mockStore)
+  const workflowId = 'workflowId'
+  const mockStore = new Store({userId, workflowId, nodes: {}})
+  const command = new MemorizeCommand(userId, workflowId, mockStore)
 
   beforeEach(() => {
     command.logError = jest.fn()

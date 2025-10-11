@@ -22,11 +22,11 @@ const ExecutorController = {
     const log = debug('delta5:app:ProgressReporter').extend(userId, '/')
     const progress = new ProgressReporter({title: 'root', log, outputInterval: 60000})
     try {
-      // queryType, context, prompt, cell, userId, mapId, mapNodes, mapFiles
-      let {mapNodes, mapEdges, mapId, mapFiles, ...otherData} = body
+      // queryType, context, prompt, cell, userId, workflowId, mapNodes, mapFiles
+      let {mapNodes, mapEdges, workflowId, mapFiles, ...otherData} = body
 
-      if (!mapNodes && mapId) {
-        const {nodes, edges} = await getMapData(mapId)
+      if (!mapNodes && workflowId) {
+        const {nodes, edges} = await getMapData(workflowId)
 
         if (!mapNodes) mapNodes = nodes
         if (!mapEdges) mapEdges = edges
@@ -40,7 +40,7 @@ const ExecutorController = {
         ...otherData,
         nodesChanged,
         edgesChanged,
-        mapId,
+        workflowId,
         cell: store.getNode(otherData.cell.id),
         mapNodes: store._nodes,
         mapFiles: store._files,

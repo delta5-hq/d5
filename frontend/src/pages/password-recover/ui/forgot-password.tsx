@@ -1,17 +1,17 @@
-import { useForm } from 'react-hook-form'
+import { useAuthContext, usePasswordRecovery, type RequestRecoveryDto } from '@entities/auth'
 import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
+import CustomAlertDialog from '@shared/ui/alert-dialog'
 import { Button } from '@shared/ui/button'
+import { Copyright } from '@shared/ui/copyright'
 import { Input } from '@shared/ui/input'
-import { FormattedMessage } from 'react-intl'
-import { useNavigate } from 'react-router-dom'
+import { Label } from '@shared/ui/label'
 import { Logo } from '@shared/ui/logo'
 import { Version } from '@shared/ui/version'
-import AlertDialog from '@shared/ui/alert-dialog'
 import { useCallback, useState } from 'react'
-import { useAuthContext, usePasswordRecovery, type RequestRecoveryDto } from '@entities/auth'
-import { Label } from '@shared/ui/label'
-import { Copyright } from '@shared/ui/copyright'
+import { useForm } from 'react-hook-form'
+import { FormattedMessage } from 'react-intl'
+import { useNavigate } from 'react-router-dom'
+import * as z from 'zod'
 
 const recoverySchema = z.object({
   usernameOrEmail: z.string().min(1, 'Required field'),
@@ -56,7 +56,7 @@ const ForgotPassword = () => {
         <Logo />
       </div>
 
-      <AlertDialog
+      <CustomAlertDialog
         onClose={onClose}
         onConfirm={onClose}
         open={showAlertDialog}

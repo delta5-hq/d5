@@ -36,13 +36,13 @@ jest.mock('./references/substitution')
 
 describe('YandexCommand', () => {
   const userId = 'userId'
-  const mapId = 'mapId'
+  const workflowId = 'workflowId'
   const mockStore = new Store({
     userId,
-    mapId,
+    workflowId,
     nodes: {},
   })
-  const command = new YandexCommand(userId, mapId, mockStore)
+  const command = new YandexCommand(userId, workflowId, mockStore)
 
   beforeEach(() => {
     jest.clearAllMocks()

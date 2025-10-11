@@ -22,7 +22,7 @@ export const userStatisticsAllMaps = async (userId = null) => {
     {
       $project: {
         userId: 1,
-        mapId: 1,
+        workflowId: 1,
         createdAt: 1,
         updatedAt: 1,
         mapNodeCount,
@@ -50,7 +50,7 @@ export const userStatisticsAllMaps = async (userId = null) => {
           {
             $group: {
               _id: '$userId',
-              mapId: {$addToSet: '$mapId'},
+              workflowId: {$addToSet: '$workflowId'},
               mapCount: {$sum: 1},
               nodeCount: {$sum: '$mapNodeCount'},
               edgeCount: {$sum: '$mapEdgeCount'},
@@ -72,7 +72,7 @@ export const userStatisticsAllMaps = async (userId = null) => {
         mapShareCount: {$sum: '$mapShareCount'},
         nodeCount: {$sum: '$nodeCount'},
         edgeCount: {$sum: '$edgeCount'},
-        mapIds: {$addToSet: '$mapId'},
+        workflowIds: {$addToSet: '$workflowId'},
         sharedWithCount: {$sum: '$sharedWithCount'},
         biggestMapCount: {$max: '$biggestMapCount'},
         lastMapChange: {$max: '$lastMapChange'},
@@ -111,11 +111,11 @@ const StatisticsController = {
   workflowServe: async ctx => {
     const cursor = Workflow.find().cursor()
 
-    const lines = [['mapId', 'userId', 'title', 'nodeCount', 'edgeCount', 'shareCount']]
+    const lines = [['workflowId', 'userId', 'title', 'nodeCount', 'edgeCount', 'shareCount']]
     for (let obj = await cursor.next(); obj !== null; obj = await cursor.next()) {
       const json = obj.toJSON()
       lines.push([
-        json.mapId,
+        json.workflowId,
         json.userId,
         json.title,
         Object.keys(json.nodes || {}).length,
@@ -174,7 +174,7 @@ const StatisticsController = {
         mapCount: statistics.mapCount || 0,
         mapShareCount: statistics.mapShareCount || 0,
         sharedWithCount: statistics.sharedWithCount || 0,
-        mapIds: statistics.mapIds || null,
+        workflowIds: statistics.workflowIds || null,
         sharedMaps: statistics.sharedMaps || 0,
         nodeCount: statistics.nodeCount || 0,
         edgeCount: statistics.edgeCount || 0,
@@ -212,7 +212,7 @@ const StatisticsController = {
       mapCount: statistics?.mapCount || 0,
       mapShareCount: statistics?.mapShareCount || 0,
       sharedWithCount: statistics?.sharedWithCount || 0,
-      mapIds: statistics?.mapIds || null,
+      workflowIds: statistics?.workflowIds || null,
       nodeCount: statistics?.nodeCount || 0,
       edgeCount: statistics?.edgeCount || 0,
       meta: statisticsUser.meta || {},
@@ -259,7 +259,7 @@ const StatisticsController = {
     const exportData = {
       $project: {
         userId: 1,
-        mapId: 1,
+        workflowId: 1,
         createdAt: 1,
         updatedAt: 1,
         mapNodeCount,
@@ -279,7 +279,7 @@ const StatisticsController = {
     const filterTitle = {
       $project: {
         userId: 1,
-        mapId: 1,
+        workflowId: 1,
         createdAt: 1,
         updatedAt: 1,
         mapNodeCount: 1,

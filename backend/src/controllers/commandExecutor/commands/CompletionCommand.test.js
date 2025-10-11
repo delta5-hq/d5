@@ -20,7 +20,7 @@ const mockMapFiles = {}
 
 describe('CompletionCommand', () => {
   const userId = 'user123'
-  const mapId = 'map456'
+  const workflowId = 'map456'
 
   beforeEach(() => {
     jest.clearAllMocks()
@@ -29,7 +29,7 @@ describe('CompletionCommand', () => {
 
   it('should throw error when no integration settings found', async () => {
     getIntegrationSettings.mockResolvedValue(null)
-    const command = new CompletionCommand(userId, mapId)
+    const command = new CompletionCommand(userId, workflowId)
     await expect(command.run(mockCell, mockMapNodes, mockMapFiles)).rejects.toThrow('No integration enabled')
   })
 
@@ -39,7 +39,7 @@ describe('CompletionCommand', () => {
       custom_llm: true,
     })
 
-    const command = new CompletionCommand(userId, mapId)
+    const command = new CompletionCommand(userId, workflowId)
     await command.run(mockCell, mockMapNodes, mockMapFiles)
 
     const callArgs = runCommand.mock.calls[0][0]
@@ -53,7 +53,7 @@ describe('CompletionCommand', () => {
       yandex: true,
     })
 
-    const command = new CompletionCommand(userId, mapId)
+    const command = new CompletionCommand(userId, workflowId)
     await command.run(mockCell, mockMapNodes, mockMapFiles)
 
     const callArgs = runCommand.mock.calls[0][0]
@@ -66,7 +66,7 @@ describe('CompletionCommand', () => {
       openai: true,
     })
 
-    const command = new CompletionCommand(userId, mapId)
+    const command = new CompletionCommand(userId, workflowId)
     await command.run(mockCell, mockMapNodes, mockMapFiles)
 
     const callArgs = runCommand.mock.calls[0][0]
@@ -79,7 +79,7 @@ describe('CompletionCommand', () => {
       claude: true,
     })
 
-    const command = new CompletionCommand(userId, mapId)
+    const command = new CompletionCommand(userId, workflowId)
     await command.run(mockCell, mockMapNodes, mockMapFiles)
 
     const callArgs = runCommand.mock.calls[0][0]
@@ -92,7 +92,7 @@ describe('CompletionCommand', () => {
       deepseek: true,
     })
 
-    const command = new CompletionCommand(userId, mapId)
+    const command = new CompletionCommand(userId, workflowId)
     await command.run(mockCell, mockMapNodes, mockMapFiles)
 
     const callArgs = runCommand.mock.calls[0][0]
@@ -105,7 +105,7 @@ describe('CompletionCommand', () => {
       qwen: true,
     })
 
-    const command = new CompletionCommand(userId, mapId)
+    const command = new CompletionCommand(userId, workflowId)
     await command.run(mockCell, mockMapNodes, mockMapFiles)
 
     const callArgs = runCommand.mock.calls[0][0]
@@ -117,7 +117,7 @@ describe('CompletionCommand', () => {
       model: 'unknown-model',
     })
 
-    const command = new CompletionCommand(userId, mapId)
+    const command = new CompletionCommand(userId, workflowId)
     await command.run(mockCell, mockMapNodes, mockMapFiles)
 
     expect(runCommand).not.toHaveBeenCalled()
@@ -129,7 +129,7 @@ describe('CompletionCommand', () => {
       openai: true,
     })
 
-    const command = new CompletionCommand(userId, mapId)
+    const command = new CompletionCommand(userId, workflowId)
     await command.run(mockCell, mockMapNodes, mockMapFiles)
 
     const callArgs = runCommand.mock.calls[0][0]

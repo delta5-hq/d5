@@ -72,7 +72,7 @@ jest.mock('../../ProgressReporter', () => {
 })
 
 const userId = 'userId'
-const mapId = 'mapId'
+const workflowId = 'workflowId'
 const settings = {
   openai: {
     apiKey: 'key',
@@ -119,7 +119,7 @@ describe('ChatCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -155,7 +155,7 @@ describe('ChatCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -186,7 +186,7 @@ describe('YandexCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -222,7 +222,7 @@ describe('YandexCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -256,7 +256,7 @@ describe('DeepseekCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -292,7 +292,7 @@ describe('DeepseekCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -323,7 +323,7 @@ describe('ClaudeCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -359,7 +359,7 @@ describe('ClaudeCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -390,7 +390,7 @@ describe('QwenCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -426,7 +426,7 @@ describe('QwenCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -462,7 +462,7 @@ describe('PerplexityCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -502,7 +502,7 @@ describe('PerplexityCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -544,7 +544,7 @@ describe('CustomLLMCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -580,7 +580,7 @@ describe('CustomLLMCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -611,7 +611,7 @@ describe('WebCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -647,7 +647,7 @@ describe('WebCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -678,7 +678,7 @@ describe('ScholarCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -714,7 +714,7 @@ describe('ScholarCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -745,7 +745,7 @@ describe('OutlineCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -781,7 +781,7 @@ describe('OutlineCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -812,7 +812,7 @@ describe('ExtCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -848,7 +848,7 @@ describe('ExtCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -894,7 +894,7 @@ describe('DownloadCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         downloadNode,
         rootNode,
@@ -948,7 +948,7 @@ describe('DownloadCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         downloadNode,
         rootNode,
@@ -1003,7 +1003,7 @@ describe('RefineCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         refineNode,
         childNode,
@@ -1050,7 +1050,7 @@ describe('RefineCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         refineNode,
         childNode,
@@ -1097,7 +1097,7 @@ describe('SwitchCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         switchNode,
         caseNode,
@@ -1149,7 +1149,7 @@ describe('SwitchCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         switchNode,
         caseNode,
@@ -1197,7 +1197,7 @@ describe('SummarizeCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         summarizeNode,
         contentNode,
@@ -1245,7 +1245,7 @@ describe('SummarizeCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         summarizeNode,
         contentNode,
@@ -1294,7 +1294,7 @@ describe('StepsCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         stepsNode,
         chatNode1,
@@ -1362,7 +1362,7 @@ describe('StepsCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         stepsNode,
         chatNode1,
@@ -1462,7 +1462,7 @@ describe('ForeachCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         root: rootNode,
         chatNode: chatNode,
@@ -1567,7 +1567,7 @@ describe('ForeachCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         root: rootNode,
         foreachNode: foreachNode,
@@ -1664,7 +1664,7 @@ describe('ForeachCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         root: rootNode,
         chatNode: chatNode,
@@ -1729,7 +1729,7 @@ describe('CompletionCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         completionNode,
         rootNode,
@@ -1793,7 +1793,7 @@ describe('MemorizeCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         memorizeNode,
         parentNode,
@@ -1860,7 +1860,7 @@ describe('MemorizeCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         memorizeNode,
         parentNode,

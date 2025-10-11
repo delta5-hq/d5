@@ -49,16 +49,16 @@ export class OutlineCommand {
   /**
    * Creates an instance of OutlineCommand
    * @param {string} userId - The unique identifier for the user
-   * @param {string} mapId - The unique identifier for the map (optional)
+   * @param {string} workflowId - The unique identifier for the map (optional)
    * @param {Store} store - The store object
    */
-  constructor(userId, mapId, store) {
+  constructor(userId, workflowId, store) {
     this.store = store
     this.userId = userId
-    this.mapId = mapId
+    this.workflowId = workflowId
     this.log = log.extend(userId, '/')
-    if (this.mapId) {
-      this.log = this.log.extend(mapId, '#')
+    if (this.workflowId) {
+      this.log = this.log.extend(workflowId, '#')
     }
     this.logError = this.log.extend('ERROR*', '::')
   }
@@ -218,7 +218,7 @@ export class OutlineCommand {
   }
 
   async replyWithSummarize(node, command, prompt, params) {
-    const summarizeExecutor = new SummarizeCommand(this.userId, this.mapId, this.store)
+    const summarizeExecutor = new SummarizeCommand(this.userId, this.workflowId, this.store)
 
     const answer = await summarizeExecutor.replyDefault(node, command, prompt, {
       ...params,

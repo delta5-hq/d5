@@ -66,7 +66,7 @@ beforeAll(async () => {
 
 afterAll(closeDb)
 
-const mapData = {
+const workflowData = {
   nodes: {
     rootId: {id: 'rootId', prompts: [], title: 'test root node', children: ['childId'], tags: [], autoshrink: false},
     childId: {
@@ -86,13 +86,13 @@ const mapData = {
 }
 
 describe('workflow life-cycle', () => {
-  let mapId
+  let workflowId
 
   beforeAll(async () => {
     await Workflow.deleteMany({userId})
-    const map = new Workflow({userId, ...mapData})
-    await map.save()
-    mapId = map.mapId
+    const workflow = new Workflow({userId, ...workflowData})
+    await workflow.save()
+    workflowId = workflow.workflowId
   })
 
   it('should create new workflows on api', async () => {
@@ -102,25 +102,25 @@ describe('workflow life-cycle', () => {
   })
 
   it('should not accept updates on api', async () => {
-    const response = await subscriberRequest.put(`/workflow/${mapId}`).send(JSON.stringify(mapData))
+    const response = await subscriberRequest.put(`/workflow/${workflowId}`).send(JSON.stringify(workflowData))
 
     expect(response.status).toBe(405)
   })
 
   it('should not accept updates on api', async () => {
-    const response = await subscriberRequest.patch(`/workflow/${mapId}`).send(JSON.stringify(mapData))
+    const response = await subscriberRequest.patch(`/workflow/${workflowId}`).send(JSON.stringify(workflowData))
 
     expect(response.status).toBe(405)
   })
 
   it('should not accept unauth requests to the workflow', async () => {
-    const response = await publicRequest.get(`/workflow/${mapId}`)
+    const response = await publicRequest.get(`/workflow/${workflowId}`)
 
     expect(response.status).toBe(401)
   })
 
   it('should be writeable for user', async () => {
-    const response = await subscriberRequest.get(`/workflow/${mapId}/writeable`)
+    const response = await subscriberRequest.get(`/workflow/${workflowId}/writeable`)
 
     const data = JSON.parse(response.res.text)
 
@@ -129,18 +129,18 @@ describe('workflow life-cycle', () => {
   })
 
   it('should not allow writeable endpoint for unauth user', async () => {
-    const response = await publicRequest.get(`/workflow/${mapId}/writeable`)
+    const response = await publicRequest.get(`/workflow/${workflowId}/writeable`)
 
     expect(response.status).toBe(401)
   })
 
   it('should serve the created workflow', async () => {
-    const response = await subscriberRequest.get(`/workflow/${mapId}`)
+    const response = await subscriberRequest.get(`/workflow/${workflowId}`)
 
     expect(response.status).toBe(200)
 
-    const map = JSON.parse(response.res.text)
-    expect(map).toMatchObject(mapData)
+    const workflow = JSON.parse(response.res.text)
+    expect(workflow).toMatchObject(workflowData)
   })
 
   it('should serve all workflows', async () => {
@@ -151,47 +151,47 @@ describe('workflow life-cycle', () => {
   })
 
   it('should not accept unauth requests to delete workflow', async () => {
-    const response = await publicRequest.delete(`/workflow/${mapId}`)
+    const response = await publicRequest.delete(`/workflow/${workflowId}`)
 
     expect(response.status).toBe(401)
   })
 
   it('should delete the workflow', async () => {
-    const response = await subscriberRequest.delete(`/workflow/${mapId}`)
+    const response = await subscriberRequest.delete(`/workflow/${workflowId}`)
 
     expect(response.status).toBe(200)
     expect(JSON.parse(response.res.text).success).toBe(true)
   })
 
   it('should not find the workflow anymore', async () => {
-    const response = await subscriberRequest.get(`/workflow/${mapId}`)
+    const response = await subscriberRequest.get(`/workflow/${workflowId}`)
 
     expect(response.status).toBe(404)
   })
 })
 
 describe('public workflow life-cycle', () => {
-  let mapId
+  let workflowId
 
   beforeAll(async () => {
-    const map = Workflow({userId, ...mapData})
-    await map.save()
-    mapId = map.mapId
+    const workflow = Workflow({userId, ...workflowData})
+    await workflow.save()
+    workflowId = workflow.workflowId
   })
 
   afterAll(async () => {
-    if (mapId) await Workflow.deleteOne({mapId})
+    if (workflowId) await Workflow.deleteOne({workflowId})
   })
 
   it('should not yet accept unauth requests to the workflow', async () => {
-    const response = await publicRequest.get(`/workflow/${mapId}`)
+    const response = await publicRequest.get(`/workflow/${workflowId}`)
 
     expect(response.status).toBe(401)
   })
 
   it('should be marked public successfully', async () => {
     const response = await subscriberRequest
-      .post(`/workflow/${mapId}/share/public`)
+      .post(`/workflow/${workflowId}/share/public`)
       .send(JSON.stringify({enabled: true}))
 
     expect(response.status).toBe(200)
@@ -206,34 +206,34 @@ describe('public workflow life-cycle', () => {
   })
 
   it('should serve the public workflow', async () => {
-    const response = await publicRequest.get(`/workflow/${mapId}`)
+    const response = await publicRequest.get(`/workflow/${workflowId}`)
 
     expect(response.status).toBe(200)
 
-    const map = JSON.parse(response.res.text)
-    Object.entries({...mapData, share: {public: {enabled: true}, access: []}}).forEach(([key, value]) => {
-      expect(map).toHaveProperty(key, value)
+    const workflow = JSON.parse(response.res.text)
+    Object.entries({...workflowData, share: {public: {enabled: true}, access: []}}).forEach(([key, value]) => {
+      expect(workflow).toHaveProperty(key, value)
     })
   })
 })
 
-describe('map-image live cycle', () => {
-  let mapId
+describe('workflow-image live cycle', () => {
+  let workflowId
   let imageId
 
   beforeAll(async () => {
-    const imageMap = Workflow({userId})
-    await imageMap.save()
-    mapId = imageMap.mapId
+    const imageWorkflow = Workflow({userId})
+    await imageWorkflow.save()
+    workflowId = imageWorkflow.workflowId
   })
 
   afterAll(async () => {
-    await Workflow.deleteOne({mapId})
+    await Workflow.deleteOne({workflowId})
   })
 
   it('should not accept unauth requests to upload images', async () => {
     const response = await publicRequest
-      .post(`/workflow/${mapId}/images`)
+      .post(`/workflow/${workflowId}/images`)
       .query({filename: FILENAME})
       .type('jpg')
       .send(imageData)
@@ -243,7 +243,7 @@ describe('map-image live cycle', () => {
 
   it('should accept new images', async () => {
     const response = await subscriberRequest
-      .post(`/workflow/${mapId}/images`)
+      .post(`/workflow/${workflowId}/images`)
       .query({filename: FILENAME})
       .type('jpg')
       .send(imageData)
@@ -256,47 +256,47 @@ describe('map-image live cycle', () => {
   })
 
   it('should not accept unauth requests to serve images', async () => {
-    const response = await publicRequest.get(`/workflow/${mapId}/images/${imageId}`)
+    const response = await publicRequest.get(`/workflow/${workflowId}/images/${imageId}`)
 
     expect(response.status).toBe(401)
   })
 
   it('should serve the created image', async () => {
-    const response = await subscriberRequest.get(`/workflow/${mapId}/images/${imageId}`)
+    const response = await subscriberRequest.get(`/workflow/${workflowId}/images/${imageId}`)
 
     expect(response.status).toBe(200)
     expect(Buffer.from(response.body).equals(imageData)).toBe(true)
   })
 
   it('should list the images', async () => {
-    const response = await subscriberRequest.get(`/workflow/${mapId}/images`)
+    const response = await subscriberRequest.get(`/workflow/${workflowId}/images`)
 
     expect(response.status).toBe(200)
     expect(JSON.parse(response.res.text).length).toBe(1)
   })
 
   it('should not accept unauth requests to delete images', async () => {
-    const response = await publicRequest.delete(`/workflow/${mapId}/images/${imageId}`)
+    const response = await publicRequest.delete(`/workflow/${workflowId}/images/${imageId}`)
 
     expect(response.status).toBe(401)
   })
 
   it('should delete the image', async () => {
-    const response = await subscriberRequest.delete(`/workflow/${mapId}/images/${imageId}`)
+    const response = await subscriberRequest.delete(`/workflow/${workflowId}/images/${imageId}`)
 
     expect(response.status).toBe(200)
     expect(JSON.parse(response.res.text).success).toBe(true)
   })
 
   it('should not find the image anymore', async () => {
-    const response = await subscriberRequest.get(`/workflow/${mapId}/images/${imageId}`)
+    const response = await subscriberRequest.get(`/workflow/${workflowId}/images/${imageId}`)
 
     expect(response.status).toBe(404)
   })
 
   it('should not find image after workflow is deleted', async () => {
     const createResponse = await subscriberRequest
-      .post(`/workflow/${mapId}/images`)
+      .post(`/workflow/${workflowId}/images`)
       .query({filename: FILENAME})
       .type('jpg')
       .send(imageData)
@@ -307,16 +307,16 @@ describe('map-image live cycle', () => {
     expect(image).toHaveProperty('_id')
     imageId = image._id
 
-    const deleteResponse = await subscriberRequest.delete(`/workflow/${mapId}`)
+    const deleteResponse = await subscriberRequest.delete(`/workflow/${workflowId}`)
     expect(deleteResponse.status).toBe(200)
 
-    const response = await subscriberRequest.get(`/workflow/${mapId}/images/${imageId}`)
+    const response = await subscriberRequest.get(`/workflow/${workflowId}/images/${imageId}`)
     expect(response.status).toBe(404)
   })
 })
 
-describe('map-file live cycle', () => {
-  let mapId
+describe('workflow-file live cycle', () => {
+  let workflowId
   let fileId
   let fileData
 
@@ -325,14 +325,18 @@ describe('map-file live cycle', () => {
   })
 
   beforeAll(async () => {
-    const fileMap = Workflow({userId})
-    await fileMap.save()
-    mapId = fileMap.mapId
+    const fileWorkflow = Workflow({userId})
+    await fileWorkflow.save()
+    workflowId = fileWorkflow.workflowId
+  })
+
+  afterAll(async () => {
+    await Workflow.deleteOne({workflowId})
   })
 
   it('should not accept unauth requests to upload files', async () => {
     const response = await publicRequest
-      .post(`/workflow/${mapId}/files`)
+      .post(`/workflow/${workflowId}/files`)
       .query({filename: FILENAME})
       .type('jpg')
       .send(fileData)
@@ -342,7 +346,7 @@ describe('map-file live cycle', () => {
 
   it('should accept new files', async () => {
     const response = await subscriberRequest
-      .post(`/workflow/${mapId}/files`)
+      .post(`/workflow/${workflowId}/files`)
       .query({filename: FILENAME})
       .type('jpg')
       .send(fileData)
@@ -355,13 +359,13 @@ describe('map-file live cycle', () => {
   })
 
   it('should not accept unauth requests to serve files', async () => {
-    const response = await publicRequest.get(`/workflow/${mapId}/files/${fileId}`)
+    const response = await publicRequest.get(`/workflow/${workflowId}/files/${fileId}`)
 
     expect(response.status).toBe(401)
   })
 
   it('should serve the created file', async () => {
-    const response = await subscriberRequest.get(`/workflow/${mapId}/files/${fileId}`)
+    const response = await subscriberRequest.get(`/workflow/${workflowId}/files/${fileId}`)
 
     expect(response.status).toBe(200)
     expect(Buffer.from(response.body).equals(fileData)).toBe(true)
@@ -369,46 +373,46 @@ describe('map-file live cycle', () => {
 
   // TODO: this should be done in the backend
   // it('should serve the thumbnail', async () => {
-  //   const thumbnail = new Thumbnail({filename: `${FILENAME}-thumbnail.jpg`, metadata: {mapId, fileId, userId}})
+  //   const thumbnail = new Thumbnail({filename: `${FILENAME}-thumbnail.jpg`, metadata: {workflowId, fileId, userId}})
   //   const fileStream = new PassThrough()
   //   fileStream.end(fileData)
   //   await thumbnail.write(fileStream)
   //
-  //   const response = await subscriberRequest.get(`/workflow/${mapId}/files/${fileId}/thumbnail`)
+  //   const response = await subscriberRequest.get(`/workflow/${workflowId}/files/${fileId}/thumbnail`)
   //
   //   expect(response.status).toBe(200)
   //   expect(Buffer.from(response.body).equals(fileData)).toBe(true)
   // })
 
   it('should list the files', async () => {
-    const response = await subscriberRequest.get(`/workflow/${mapId}/files`)
+    const response = await subscriberRequest.get(`/workflow/${workflowId}/files`)
 
     expect(response.status).toBe(200)
     expect(JSON.parse(response.res.text).length).toBe(1)
   })
 
   it('should not accept unauth requests to delete files', async () => {
-    const response = await publicRequest.delete(`/workflow/${mapId}/files/${fileId}`)
+    const response = await publicRequest.delete(`/workflow/${workflowId}/files/${fileId}`)
 
     expect(response.status).toBe(401)
   })
 
   it('should delete the file', async () => {
-    const response = await subscriberRequest.delete(`/workflow/${mapId}/files/${fileId}`)
+    const response = await subscriberRequest.delete(`/workflow/${workflowId}/files/${fileId}`)
 
     expect(response.status).toBe(200)
     expect(JSON.parse(response.res.text).success).toBe(true)
   })
 
   it('should not find the file anymore', async () => {
-    const response = await subscriberRequest.get(`/workflow/${mapId}/files/${fileId}`)
+    const response = await subscriberRequest.get(`/workflow/${workflowId}/files/${fileId}`)
 
     expect(response.status).toBe(404)
   })
 
   it('should not find file after workflow is deleted', async () => {
     const createResponse = await subscriberRequest
-      .post(`/workflow/${mapId}/files`)
+      .post(`/workflow/${workflowId}/files`)
       .query({filename: FILENAME})
       .type('jpg')
       .send(fileData)
@@ -419,10 +423,10 @@ describe('map-file live cycle', () => {
     expect(file).toHaveProperty('_id')
     fileId = file._id
 
-    const deleteResponse = await subscriberRequest.delete(`/workflow/${mapId}`)
+    const deleteResponse = await subscriberRequest.delete(`/workflow/${workflowId}`)
     expect(deleteResponse.status).toBe(200)
 
-    const response = await subscriberRequest.get(`/workflow/${mapId}/files/${fileId}`)
+    const response = await subscriberRequest.get(`/workflow/${workflowId}/files/${fileId}`)
     expect(response.status).toBe(404)
   })
 })
@@ -454,7 +458,7 @@ describe('client error handling', () => {
       backtrace: 'test',
       addition: 'additional information',
       path: '/test',
-      mapId: 'test-map-id',
+      workflowId: 'test-workflow-id',
       userId: 'any-user-id',
     })
 
@@ -577,9 +581,9 @@ describe('user life-cycle', () => {
 
 describe('private template life-cycle', () => {
   let userTemplateId
-  const {title, ...mapTemplateData} = mapData
+  const {title, ...workflowTemplateData} = workflowData
   const userTemplateData = {
-    ...mapTemplateData,
+    ...workflowTemplateData,
     name: 'user test template',
     keywords: ['test'],
     share: {public: false},
@@ -658,9 +662,9 @@ describe('private template life-cycle', () => {
 
 describe('public template life-cycle', () => {
   let publicTemplateId
-  const {title, ...mapTemplateData} = mapData
+  const {title, ...workflowTemplateData} = workflowData
   const publicTemplateData = {
-    ...mapTemplateData,
+    ...workflowTemplateData,
     name: 'public test template',
     keywords: ['test'],
     share: {public: true},
@@ -719,9 +723,9 @@ describe('public template life-cycle', () => {
 })
 
 describe('template image life-cycle', () => {
-  let mapId
+  let workflowId
   let imageId
-  let templateImageMapData
+  let templateImageWorkflowData
   let templateId
   let templateData
   let templateImageId
@@ -730,43 +734,46 @@ describe('template image life-cycle', () => {
   let publicTemplateImageId
 
   beforeAll(async () => {
-    const imageMap = Workflow({userId})
-    mapId = imageMap.mapId
+    const imageWorkflow = Workflow({userId})
+    workflowId = imageWorkflow.workflowId
 
     const dataStream = new PassThrough()
     dataStream.end(imageData)
     const image = await WorkflowImage.write(
-      {filename: 'test-file.jpg', metadata: {contentType: 'image/jpg', mapId, userId}},
+      {filename: 'test-file.jpg', metadata: {contentType: 'image/jpg', workflowId, userId}},
       dataStream,
     )
     imageId = image._id
 
-    templateImageMapData = {
-      ...mapData,
+    templateImageWorkflowData = {
+      ...workflowData,
       nodes: {
-        ...mapData.nodes,
-        rootId: {...mapData.nodes.rootId, children: ['childId', 'imageChildId']},
+        ...workflowData.nodes,
+        rootId: {...workflowData.nodes.rootId, children: ['childId', 'imageChildId']},
         imageChildId: {
-          ...mapData.nodes.childId,
+          ...workflowData.nodes.childId,
           id: 'imageChildId',
           image: imageId,
         },
       },
     }
 
-    imageMap.set(templateImageMapData)
+    imageWorkflow.set(templateImageWorkflowData)
 
-    await imageMap.save()
+    await imageWorkflow.save()
   })
 
   afterAll(async () => {
-    await Workflow.deleteOne({mapId})
-    await WorkflowImage.deleteMany({_id: imageId})
+    await Workflow.deleteOne({workflowId})
+    const idsToDelete = [imageId, templateImageId, publicTemplateImageId].filter(Boolean)
+    if (idsToDelete.length) {
+      await WorkflowImage.deleteMany({_id: {$in: idsToDelete}})
+    }
   })
 
   it('should accept new templates from authenticated user', async () => {
     templateData = {
-      ...templateImageMapData,
+      ...templateImageWorkflowData,
       name: 'image test template',
       keywords: ['test'],
       share: {public: false},

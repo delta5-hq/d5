@@ -55,14 +55,14 @@ const origianalClearStepsPrefix = jest.requireActual('../constants/steps').clear
 
 describe('SummarizeCommand', () => {
   const userId = 'userId'
-  const mapId = 'mapId'
+  const workflowId = 'workflowId'
   const rootId = 'rootId'
   const mockStore = new Store({
     userId,
-    mapId,
+    workflowId,
     nodes: {},
   })
-  const command = new SummarizeCommand(userId, mapId, mockStore)
+  const command = new SummarizeCommand(userId, workflowId, mockStore)
   const settings = {
     openai: {
       apiKey: 'apiKey',

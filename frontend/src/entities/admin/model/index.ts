@@ -2,7 +2,7 @@ import type { FullUser } from '@shared/base-types'
 
 export interface UserWorkflowStatistics {
   _id: string
-  mapId: string
+  workflowId: string
   userId: string
   createdAt: string
   updatedAt: string
@@ -20,7 +20,7 @@ export interface FullUserStatistics extends FullUser {
   mapCount: number
   mapShareCount: number
   sharedWithCount: number
-  mapIds?: string[] | null
+  workflowIds?: string[] | null
   sharedMaps?: number
   nodeCount: number
   edgeCount: number

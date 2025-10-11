@@ -62,7 +62,7 @@ describe('ExecutorController', () => {
   //     title: '/chatgpt hello',
   //   }
   //   const body = {
-  //     mapId: 'n3F4HRqbJpD',
+  //     workflowId: 'n3F4HRqbJpD',
   //     cell: {...cell},
   //     context: 'Context:\n```\n```\n',
   //     prompt: 'hello',
@@ -90,7 +90,7 @@ describe('ExecutorController', () => {
   //   expect(responseBody.cell).toEqual({...cell, children: [helloResId], prompts: [helloResId]})
 
   //   // other properties should not change
-  //   expect(responseBody.mapId).toBe(body.mapId)
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.context).toBe(body.context)
   //   expect(responseBody.prompt).toBe(body.prompt)
   //   expect(responseBody.queryType).toBe(body.queryType)
@@ -137,7 +137,7 @@ describe('ExecutorController', () => {
   //     children: ['HtB8mPBrJbH'],
   //   }
   //   const body = {
-  //     mapId: 'n3F4HRqbJpD',
+  //     workflowId: 'n3F4HRqbJpD',
   //     cell: {...cell},
   //     context: 'Context:\n```\n```\n',
   //     prompt: 'hello\n  user text',
@@ -166,7 +166,7 @@ describe('ExecutorController', () => {
   //   expect(responseBody.cell).toEqual({...cell, children: [userNode.id, helloResId], prompts: [helloResId]})
 
   //   // other properties should not change
-  //   expect(responseBody.mapId).toBe(body.mapId)
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.context).toBe(body.context)
   //   expect(responseBody.prompt).toBe(body.prompt)
   //   expect(responseBody.queryType).toBe(body.queryType)
@@ -213,7 +213,7 @@ describe('ExecutorController', () => {
   //     title: '/foreach /chatgpt say hello to @@',
   //   }
   //   const body = {
-  //     mapId: 'n3F4HRqbJpD',
+  //     workflowId: 'n3F4HRqbJpD',
   //     cell: {...cell},
   //     context: 'Context:\n```\n```\n',
   //     prompt: 'write one cat name',
@@ -256,7 +256,7 @@ describe('ExecutorController', () => {
   //   expect(responseBody.cell).toEqual({...cell, children: [foreach.id, sharikId], prompts: [sharikId]})
 
   //   // other properties should not change
-  //   expect(responseBody.mapId).toBe(body.mapId)
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.context).toBe(body.context)
   //   expect(responseBody.prompt).toBe(body.prompt)
   //   expect(responseBody.queryType).toBe(body.queryType)
@@ -330,7 +330,7 @@ describe('ExecutorController', () => {
   //     title: '#1 /chatgpt what is text about? @@cat',
   //   }
   //   const body = {
-  //     mapId: 'n3F4HRqbJpD',
+  //     workflowId: 'n3F4HRqbJpD',
   //     cell: {...cell},
   //     queryType: 'steps',
   //     mapNodes: {
@@ -387,7 +387,7 @@ describe('ExecutorController', () => {
   //   expect(responseBody.cell).toEqual(cell)
 
   //   // other properties should not change
-  //   expect(responseBody.mapId).toBe(body.mapId)
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.context).toBe(body.context)
   //   expect(responseBody.prompt).toBe(body.prompt)
   //   expect(responseBody.queryType).toBe(body.queryType)
@@ -469,7 +469,7 @@ describe('ExecutorController', () => {
   //     title: '/foreach /chatgpt say hello to @@',
   //   }
   //   const body = {
-  //     mapId: 'n3F4HRqbJpD',
+  //     workflowId: 'n3F4HRqbJpD',
   //     cell: {...cell},
   //     queryType: 'foreach',
   //     mapNodes: {
@@ -518,7 +518,7 @@ describe('ExecutorController', () => {
   //   expect(responseBody.cell).toEqual(cell)
 
   //   // other properties should not change
-  //   expect(responseBody.mapId).toBe(body.mapId)
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.context).toBe(body.context)
   //   expect(responseBody.prompt).toBe(body.prompt)
   //   expect(responseBody.queryType).toBe(body.queryType)
@@ -618,7 +618,7 @@ describe('ExecutorController', () => {
   //     parent: 'F36jb28Tgm3',
   //   }
   //   const body = {
-  //     mapId: 'n3F4HRqbJpD',
+  //     workflowId: 'n3F4HRqbJpD',
   //     cell: {...cell},
   //     queryType: 'foreach',
   //     mapNodes: {
@@ -669,7 +669,7 @@ describe('ExecutorController', () => {
   //   expect(responseBody.cell).toEqual(cell)
 
   //   // other properties should not change
-  //   expect(responseBody.mapId).toBe(body.mapId)
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.context).toBe(body.context)
   //   expect(responseBody.prompt).toBe(body.prompt)
   //   expect(responseBody.queryType).toBe(body.queryType)
@@ -719,7 +719,7 @@ describe('ExecutorController', () => {
   //     id: 'jg7JrBgL23r',
   //   }
   //   const body = {
-  //     mapId: 'qdb4dFjg4Hm',
+  //     workflowId: 'qdb4dFjg4Hm',
   //     cell: {...cell},
   //     context: 'Context:\n```\n```\n',
   //     prompt: 'hi',
@@ -750,7 +750,7 @@ describe('ExecutorController', () => {
   //   expect(responseBody.cell).toEqual({...cell, children: [helloResId], prompts: [helloResId]})
 
   //   // other properties should not change
-  //   expect(responseBody.mapId).toBe(body.mapId)
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.context).toBe(body.context)
   //   expect(responseBody.prompt).toBe(body.prompt)
   //   expect(responseBody.queryType).toBe(body.queryType)
@@ -788,7 +788,7 @@ describe('ExecutorController', () => {
   //       prompts: ['G3nqbfp47rL', 'mg7GqDHbGpM'],
   //     },
   //     userId: 'admin',
-  //     mapId: 'qdb4dFjg4Hm',
+  //     workflowId: 'qdb4dFjg4Hm',
   //     mapNodes: {
   //       r7N6TRJttHd: {
   //         id: 'r7N6TRJttHd',
@@ -858,13 +858,13 @@ describe('ExecutorController', () => {
   //   expect(responseBody.mapNodes).toHaveProperty('PtTgj6t8bTb')
   //   expect(responseBody.mapNodes).not.toHaveProperty('G3nqbfp47rL')
   //   expect(responseBody.mapNodes).not.toHaveProperty('mg7GqDHbGpM')
-  //   expect(responseBody.mapId).toBe(body.mapId)
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.queryType).toBe('refine')
   // })
 
   it('should maintain output structure when executing steps feedback loop', async () => {
     const body = {
-      mapId: 'qdb4dFjg4Hm',
+      workflowId: 'qdb4dFjg4Hm',
       cell: {
         id: 'LQffD2r83pf',
         title: '/steps Feedback Loop',
@@ -1075,7 +1075,7 @@ describe('ExecutorController', () => {
     expect(responseBody.mapNodes).toHaveProperty('fr6nT3mpbMG')
     expect(responseBody.mapNodes).not.toHaveProperty('GH68GpRFMfP')
     expect(responseBody.mapNodes).not.toHaveProperty('hBQMG8rTH7T')
-    expect(responseBody.mapId).toBe(body.mapId)
+    expect(responseBody.workflowId).toBe(body.workflowId)
     expect(responseBody.queryType).toBe('steps')
   })
 })

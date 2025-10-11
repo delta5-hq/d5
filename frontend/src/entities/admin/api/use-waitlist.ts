@@ -1,14 +1,10 @@
-import type { User } from '@shared/base-types'
+import type { PaginationQuery, User } from '@shared/base-types'
 import type { Paginated } from '@shared/base-types'
 import { useApiQuery } from '@shared/composables'
 import { queryKeys } from '@shared/config'
 import { useEffect } from 'react'
 
-interface UseWaitlistProps {
-  page?: number
-  limit?: number
-  search?: string
-}
+interface UseWaitlistProps extends PaginationQuery {}
 
 export const useWaitlist = ({ page = 1, limit = 25, search = '' }: UseWaitlistProps) => {
   const { data, isLoading, error, refetch } = useApiQuery<Paginated<User>>({

@@ -14,16 +14,16 @@ jest.mock('./StepsCommand')
 describe('ForeachCommand reference substitution', () => {
   let foreachCommand
   const userId = 'testUser'
-  const mapId = 'testMap'
+  const workflowId = 'testWorkflow'
   const mockStore = new Store({
     userId,
-    mapId,
+    workflowId,
     nodes: {},
   })
 
   beforeEach(() => {
-    // Initialize with backend constructor parameters - userId, mapId
-    foreachCommand = new ForeachCommand(userId, mapId, mockStore)
+    // Initialize with backend constructor parameters - userId, workflowId
+    foreachCommand = new ForeachCommand(userId, workflowId, mockStore)
     foreachCommand.logError = jest.fn()
   })
 

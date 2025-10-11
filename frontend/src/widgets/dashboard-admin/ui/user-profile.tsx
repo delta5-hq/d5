@@ -73,7 +73,7 @@ const UserWorkflows: React.FC<{ userData: FullUserStatistics; rows: UserWorkflow
       <TableBody>
         {rows.map(row => (
           <TableRow key={row._id}>
-            <TableCell>{row.mapId}</TableCell>
+            <TableCell>{row.workflowId}</TableCell>
             <TableCell>{row.mapNodeCount}</TableCell>
             <TableCell>{row.mapEdgeCount}</TableCell>
             <TableCell>{row.sharedWithCount}</TableCell>

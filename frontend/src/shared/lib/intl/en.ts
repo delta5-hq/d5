@@ -10,8 +10,8 @@ export default {
 
   sidebarMainGroupLabel: 'Application',
   sidebarHomeLabel: 'Home',
-  sidebarInboxLabel: 'Inbox',
-  sidebarCalendarLabel: 'Calendar',
+  sidebarPublicWorkflowsLabel: 'Public Workflows',
+  sidebarMyWorkflowsLabel: 'My Workflows',
   sidebarSearchLabel: 'Search',
   sidebarSettingsLabel: 'Settings',
 
@@ -125,7 +125,8 @@ export default {
 
   integrationSettings: {
     appsIntegrations: 'Apps & Integrations',
-    addApps: 'Add apps',
+    addApps: 'Add integration',
+    none: 'No integrations yet',
   },
   integration: {
     openai: {
@@ -205,4 +206,59 @@ export default {
   noLanguage: 'No language found',
   default: 'Default',
   lang: 'Language',
+
+  createWorkflow: 'Create Workflow',
+  callToRegisterTitle: 'Create your own Workflows',
+  buttonRegister: 'Signup For Free',
+
+  homePublicText: 'Public Workflows',
+  homePrivateText: 'My Workflows',
+  tabAll: 'All',
+  tabPrivate: 'Private',
+  tabPublic: 'Public',
+  tabPublicUnlisted: 'Public Unlisted',
+
+  workflowTitle: 'Name',
+  workflowShared: 'Shared',
+  workflowCreating: 'Creating a new workflow',
+  workflowLoading: 'Loading workflow',
+  workflowIsPublic: 'Public',
+  workflowCardCreated: 'created',
+  workflowCardUpdated: 'updated',
+  workflowCardTimeAgo: 'ago',
+  menuDeleteWorkflow: 'Delete',
+  menuExportWorkflow: 'Export',
+  menuVisibility: 'Set Visibility',
+  workflowAddCategoryLabel: 'Add Category',
+
+  dialogWorkflowPrivacyOpenerTitle: 'Change Privacy',
+  dialogWorkflowPrivacyMessage: 'Choose here how your workflow can be found, viewed or edited by others:',
+  dialogWorkflowPrivacyTitle: 'Sharing / Visibility',
+  buttonShare: 'Public',
+  buttonShareWritable: 'Public Writeable',
+  buttonShareWritableMessage: 'Everyone can edit it (Administrators only)',
+  buttonShareWritableHidden: 'Public Unlisted Writeable',
+  buttonShareWritableHiddenMessage: 'Everyone with the link to the map can edit it',
+  buttonShareMessage: 'Everyone can find it in the list of public maps',
+  buttonShareHidden: 'Public Unlisted',
+  buttonShareHiddenMessage: 'Everyone with the map link can view your map',
+  buttonUnshare: 'Private',
+  buttonUnshareMessage: 'Only you can view this map',
+  shareSuccessChange: 'Workflow visibility changed successfully',
+  categoryCreatedSuccesfully: 'Worfkwlo category created successfully',
+  workflowDeleteSuccessful: 'Your workflow was successfully deleted',
+
+  delete: 'Delete',
+  deleteWorkflowWarning: 'To confirm, type “{title}” below:',
+  deleteWorkflowMessage: 'This action cannot be undone. Please confirm by typing the workflow name',
+  deleteWorkflowDialogTitle: 'Delete workflow?',
+
+  noWorkflowsYet: 'There are no workflows here yet',
+  updated: 'Updated',
+  created: 'Created',
+  workflowIsHidden: 'Public Unlisted',
+  workflowIsPrivate: 'Private',
+  searchWorkflow: 'Search Workflow',
+  workflowsPublic: 'Public Workflows',
+  workflowsPrivate: 'My Workflows',
 }

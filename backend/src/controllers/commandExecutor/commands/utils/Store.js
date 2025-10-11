@@ -31,9 +31,9 @@
  */
 
 import debug from 'debug'
-import {isRecord, validateEdgeData, validateEdges, validateFiles, validateNodeData, validateNodes} from './validate'
-import ImportHandler from './ImportHandler'
 import {generateEdgeId, generateNodeId} from '../../../../shared/utils/generateId'
+import ImportHandler from './ImportHandler'
+import {isRecord, validateEdgeData, validateEdges, validateFiles, validateNodeData, validateNodes} from './validate'
 
 /**
  * Represents the core data store for a one full command execution
@@ -43,7 +43,7 @@ class Store {
   _userId
 
   /** @type {string|undefined} Map identifier */
-  _mapId
+  _workflowId
 
   /** @type {Record<string, NodeData>} Node map */
   _nodes = {}
@@ -78,14 +78,14 @@ class Store {
   /**
    * @param {Object} params - Initialization parameters
    * @param {string} params.userId - Required user ID
-   * @param {string} [params.mapId] - Optional map ID
+   * @param {string} [params.workflowId] - Optional map ID
    * @param {Record<string, NodeData>} params.nodes - Node map
    * @param {Record<string, EdgeData>} params.nodes - Edge map
    * @param {Record<string, string>} params.files - File map
    *
    * @throws {Error} If any required field is missing or incorrectly typed
    */
-  constructor({userId, mapId = undefined, nodes = {}, files = {}, edges = {}} = {}) {
+  constructor({userId, workflowId = undefined, nodes = {}, files = {}, edges = {}} = {}) {
     if (!userId) {
       throw new Error('User ID is required')
     }
@@ -103,7 +103,7 @@ class Store {
     }
 
     this._userId = userId
-    this._mapId = mapId
+    this._workflowId = workflowId
     this._nodes = nodes
     this._edges = edges
     this._files = files

@@ -6,13 +6,13 @@ jest.mock('./utils/langchain/getLLM')
 
 describe('RefineCommand', () => {
   const userId = 'userId'
-  const mapId = 'mapId'
+  const workflowId = 'workflowId'
   const mockStore = new Store({
     userId,
-    mapId,
+    workflowId,
     nodes: {},
   })
-  const command = new RefineCommand(userId, mapId, mockStore)
+  const command = new RefineCommand(userId, workflowId, mockStore)
   beforeEach(() => {
     jest.clearAllMocks()
   })

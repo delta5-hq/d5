@@ -44,13 +44,13 @@ const sourceGetIntegrationSettings = jest.requireActual('./utils/langchain/getLL
 
 describe('WebCommand', () => {
   const userId = 'userId'
-  const mapId = 'mapId'
+  const workflowId = 'workflowId'
   const mockStore = new Store({
     userId,
-    mapId,
+    workflowId,
     nodes: {},
   })
-  const command = new WebCommand(userId, mapId, mockStore)
+  const command = new WebCommand(userId, workflowId, mockStore)
   const settings = {
     openai: {
       apiKey: 'apiKey',

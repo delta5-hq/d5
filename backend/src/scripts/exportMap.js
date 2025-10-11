@@ -10,11 +10,11 @@ const log = debug('delta5:scripts:exportMap')
 const args = process.argv.slice(2)
 
 if (args.length !== 1) {
-  console.log(`usage: ${process.argv[0]} ${process.argv[1]} <mapId>`)
+  console.log(`usage: ${process.argv[0]} ${process.argv[1]} <workflowId>`)
   process.exit(1)
 }
 
-const [mapId] = args
+const [workflowId] = args
 
 const readToBuffer = readStream =>
   new Promise((resolve, reject) => {
@@ -33,16 +33,16 @@ const compact = async () => {
   try {
     await connectDb()
 
-    const map = await Workflow.findOne({mapId}, {mapId: 1, title: 1, nodes: 1, edges: 1, root: 1, _id: 0})
+    const map = await Workflow.findOne({workflowId}, {workflowId: 1, title: 1, nodes: 1, edges: 1, root: 1, _id: 0})
 
     if (!map) {
       console.error('Did not find the workflow')
       return
     }
-    const imageList = await WorkflowImage.find({'metadata.mapId': mapId})
+    const imageList = await WorkflowImage.find({'metadata.workflowId': workflowId})
     const images = await Promise.all((imageList || []).map(fileToBase64))
 
-    const documentList = await WorkflowFile.find({'metadata.mapId': mapId})
+    const documentList = await WorkflowFile.find({'metadata.workflowId': workflowId})
     const documents = await Promise.all((documentList || []).map(fileToBase64))
 
     console.log(JSON.stringify({...map.toJSON(), images, documents}))

@@ -14,6 +14,8 @@ import { Spinner } from '@shared/ui/spinner'
 import { Popover, PopoverContent, PopoverTrigger } from '@shared/ui/popover'
 import { Check, ChevronDown } from 'lucide-react'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@shared/ui/command'
+import IntegrationDialog from './integration/integration-dialog'
+import { useDialog } from '@entities/dialog'
 
 const modelMapping: Record<string, Model> = {
   openai: Model.OpenAI,
@@ -26,6 +28,7 @@ const modelMapping: Record<string, Model> = {
 
 const UserSettingsPage: React.FC = () => {
   const { user } = useAuthContext()
+  const { showDialog } = useDialog()
 
   const {
     data: integration,
@@ -60,18 +63,20 @@ const UserSettingsPage: React.FC = () => {
     method: 'POST',
   })
 
-  const [model, setModel] = useState(USER_DEFAULT_MODEL)
+  const [model, setModel] = useState('')
   const [lang, setLang] = useState(USER_DEFAULT_LANGUAGE)
   const [openLangBox, setOpenLangBox] = useState(false)
 
   useEffect(() => {
     if (integration?.model) {
       setModel(integration.model)
+    } else if (enabledIntegrations.length > 0) {
+      setModel(USER_DEFAULT_MODEL)
     }
     if (integration?.lang) {
       setLang(integration.lang)
     }
-  }, [integration])
+  }, [integration, enabledIntegrations])
 
   const handleSave = async () => {
     try {
@@ -94,7 +99,7 @@ const UserSettingsPage: React.FC = () => {
     }
   }
 
-  const onLangChange = (newLang: string) => {
+  const onLangChange = (newLang: string) => () => {
     setLang(newLang)
     setOpenLangBox(false)
   }
@@ -144,11 +149,11 @@ const UserSettingsPage: React.FC = () => {
                         <FormattedMessage id="noLanguage" />.
                       </CommandEmpty>
                       <CommandGroup>
-                        <CommandItem onSelect={onLangChange} value={USER_DEFAULT_LANGUAGE}>
+                        <CommandItem onSelect={onLangChange(USER_DEFAULT_LANGUAGE)} value={USER_DEFAULT_LANGUAGE}>
                           <FormattedMessage id="defaultLang" />
                         </CommandItem>
                         {languages.map(l => (
-                          <CommandItem key={l.code} onSelect={onLangChange} value={l.code}>
+                          <CommandItem key={l.code} onSelect={onLangChange(l.code)} value={l.name}>
                             {lang === l.code ? <Check /> : null}
                             {l.name}
                           </CommandItem>
@@ -161,31 +166,42 @@ const UserSettingsPage: React.FC = () => {
             </div>
           ) : null}
 
-          {enabledIntegrations.length > 0 ? (
-            <div className="flex flex-col gap-y-1">
-              <Label htmlFor="model">
-                <FormattedMessage id="profileSettings.model" />
-              </Label>
+          <div className="flex flex-col gap-y-1">
+            <Label htmlFor="model">
+              <FormattedMessage id="profileSettings.model" />
+            </Label>
 
-              <div>
-                <Select onValueChange={setModel} value={model}>
-                  <SelectTrigger aria-label="Model select" className="w-full">
-                    <SelectValue placeholder="Select model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={USER_DEFAULT_MODEL}>
-                      <FormattedMessage id="default" />
-                    </SelectItem>
-                    {enabledIntegrations.map(name => (
-                      <SelectItem key={name} value={name}>
-                        {name}
+            <div>
+              <Select onValueChange={setModel} value={model}>
+                <SelectTrigger aria-label="Model select" className="w-full">
+                  <SelectValue placeholder="Select model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {enabledIntegrations.length > 0 ? (
+                    <>
+                      <SelectItem value={USER_DEFAULT_MODEL}>
+                        <FormattedMessage id="default" />
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                      {enabledIntegrations.map(name => (
+                        <SelectItem key={name} value={name}>
+                          {name}
+                        </SelectItem>
+                      ))}
+                    </>
+                  ) : (
+                    <div className="p-3 flex flex-col items-start gap-2">
+                      <p className="text-sm text-muted-foreground">
+                        <FormattedMessage id="integrationSettings.none" />
+                      </p>
+                      <Button onClick={() => showDialog(IntegrationDialog)} size="sm">
+                        <FormattedMessage id="integrationSettings.addApps" />
+                      </Button>
+                    </div>
+                  )}
+                </SelectContent>
+              </Select>
             </div>
-          ) : null}
+          </div>
 
           <div className="flex items-center justify-end gap-2 pt-2">
             <Button className="px-4 py-2" disabled={isModelSaving || isLangSaving} onClick={handleSave}>

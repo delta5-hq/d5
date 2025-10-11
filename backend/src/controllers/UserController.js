@@ -133,8 +133,8 @@ const UserController = {
     }
 
     try {
-      const relatedMapsIds = (await Workflow.find({userId})).map(map => map.mapId)
-      await WorkflowPath.deleteMany({mapId: {$in: relatedMapsIds}})
+      const relatedMapsIds = (await Workflow.find({userId})).map(map => map.workflowId)
+      await WorkflowPath.deleteMany({workflowId: {$in: relatedMapsIds}})
       await Workflow.deleteMany({userId})
       await Integration.deleteOne({userId})
       await WorkflowFile.deleteMany({'metadata.userId': userId})
