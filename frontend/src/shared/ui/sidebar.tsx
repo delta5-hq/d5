@@ -164,7 +164,7 @@ const Sidebar = ({
   ...props
 }: React.ComponentProps<'div'> & {
   side?: 'left' | 'right'
-  variant?: 'sidebar' | 'floating' | 'inset'
+  variant?: string
   collapsible?: 'offcanvas' | 'icon' | 'none'
   disableOverlay?: boolean
 }) => {

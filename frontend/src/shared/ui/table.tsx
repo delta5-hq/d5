@@ -108,7 +108,7 @@ const TablePagination = React.forwardRef<HTMLDivElement, TablePaginationProps>(
         </div>
 
         <div className="flex items-center space-x-2">
-          <Button disabled={page === 0} onClick={() => onPageChange(Math.max(0, page - 1))} size="sm" variant="outline">
+          <Button disabled={page === 0} onClick={() => onPageChange(Math.max(0, page - 1))} size="sm" variant="ghost">
             Prev
           </Button>
           <span>
@@ -118,7 +118,7 @@ const TablePagination = React.forwardRef<HTMLDivElement, TablePaginationProps>(
             disabled={page >= totalPages - 1}
             onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}
             size="sm"
-            variant="outline"
+            variant="ghost"
           >
             Next
           </Button>

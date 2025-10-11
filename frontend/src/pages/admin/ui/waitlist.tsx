@@ -12,7 +12,8 @@ const Waitlist = () => {
 
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(25)
-  const { users, total, isLoading, refresh } = useWaitlist(page, limit)
+  const [search, setSearch] = useState('')
+  const { users, total, isLoading, refresh } = useWaitlist({ page, limit, search })
   const { formatMessage } = useIntl()
 
   const { isAdmin } = useAuthContext()
@@ -23,7 +24,8 @@ const Waitlist = () => {
   }
 
   if (isLoading) return <StatusPlaceholder loading />
-  if (!users.length) return <StatusPlaceholder empty message={formatMessage({ id: 'noUsersInWaitlist' })} />
+  if (!users.length && !search.trim())
+    return <StatusPlaceholder empty message={formatMessage({ id: 'noUsersInWaitlist' })} />
 
   return (
     <>
@@ -38,6 +40,7 @@ const Waitlist = () => {
         page={page - 1}
         refresh={refresh}
         rowsPerPage={limit}
+        setSearch={setSearch}
         totalRows={total}
       />
     </>

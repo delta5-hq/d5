@@ -3,13 +3,13 @@ import { queryKeys } from '@shared/config'
 import { useIntl } from 'react-intl'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import type { FullUserStatistics, UserMapStatistics } from '../model'
+import type { FullUserStatistics, UserWorkflowStatistics } from '../model'
 
 export const useUserProfile = (userId: string) => {
   const navigate = useNavigate()
   const { formatMessage } = useIntl()
 
-  const mapsQuery = useApiQuery<UserMapStatistics[]>({
+  const mapsQuery = useApiQuery<UserWorkflowStatistics[]>({
     url: `/statistics/workflow/${userId}`,
     queryKey: queryKeys.userMaps(userId),
   })

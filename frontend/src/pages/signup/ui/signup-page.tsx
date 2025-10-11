@@ -86,15 +86,15 @@ const Signup: React.FC = () => {
           translationKey="signupDialogMessage"
         />
       ) : null}
-      <div className="bg-white shadow-md rounded-xl p-6 w-full max-w-sm sm:max-w-md">
+      <div className="bg-card shadow-md rounded-xl p-6 w-full max-w-sm sm:max-w-md">
         <form className="flex flex-col gap-y-3" noValidate onSubmit={handleSubmit(onSignUp)}>
-          <h2 className="text-xl font-semibold">
+          <h2 className="text-xl card-foreground font-semibold">
             <FormattedMessage id="signupTitle" />
           </h2>
 
           {/* Username */}
           <div>
-            <Label className="block text-sm font-medium text-foreground" htmlFor="username">
+            <Label className="block text-sm font-medium text-card-foreground" htmlFor="username">
               <FormattedMessage id="username" />
             </Label>
             <Input
@@ -116,7 +116,7 @@ const Signup: React.FC = () => {
 
           {/* Email */}
           <div>
-            <Label className="block text-sm font-medium text-foreground" htmlFor="mail">
+            <Label className="block text-sm font-medium text-card-foreground" htmlFor="mail">
               <FormattedMessage id="email" />
             </Label>
             <Input
@@ -135,7 +135,7 @@ const Signup: React.FC = () => {
 
           {/* Password */}
           <div>
-            <Label className="block text-sm font-medium text-foreground" htmlFor="password">
+            <Label className="block text-sm font-medium text-card-foreground" htmlFor="password">
               <FormattedMessage id="password" />
             </Label>
             <Input
@@ -166,18 +166,19 @@ const Signup: React.FC = () => {
           </div>
 
           {/* Version */}
-          <div className="text-center text-xs text-foreground/40">
+          <div className="text-center text-xs text-card-foreground/40">
             Version <Version /> - <Copyright />
           </div>
 
           <div className="flex justify-between">
-            <Button className="px-4 py-2 rounded-md" onClick={() => navigate(-1)} type="button">
+            <Button className="px-4 py-2 rounded-md" onClick={() => navigate(-1)} type="button" variant="default">
               <FormattedMessage id="buttonCancel" />
             </Button>
             <Button
               className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
               disabled={isSubmitting}
               type="submit"
+              variant="accent"
             >
               <FormattedMessage id="createAccount" />
             </Button>

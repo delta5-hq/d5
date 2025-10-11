@@ -4,7 +4,7 @@ import Integration from '../../models/Integration'
 export const createOpenaiIntegration = async userId => {
   let model = INITIAL_OPENAI_MODEL_NAME
   if (!OPENAI_API_KEY) {
-    model = OPENAI_MODELS.GPT_4o_MINI
+    model = OPENAI_MODELS.GPT_4_1_MINI
   }
 
   const openai = {model}

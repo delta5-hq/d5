@@ -64,15 +64,15 @@ export default {
   userProfileName: 'Name',
   userProfileMail: 'Mail',
   userProfileWordpressProfile: 'Wordpress Profile',
-  userProfileMapCount: 'Map Count',
-  userProfileSharedMaps: 'Shared Maps',
+  userProfileWorkflowCount: 'Workflow Count',
+  userProfileSharedWorkflows: 'Shared Workflows',
   userProfileSharedWithCount: 'Shared With Count',
   userProfileNodeCount: 'Node Count',
   userProfileMaxNodeCount: 'Max Node Count',
   userProfileNodeLimit: 'Node Limit',
   userProfileSubscriber: 'Subscriber',
   userProfileCreatedAt: 'Created At',
-  userProfileLastMapChange: 'Last Map Change',
+  userProfileLastWorkflowChange: 'Last Workflow Change',
   userProfileDeleteUser: 'Delete User',
   userProfileDeleteConfirmationTitle: 'User delete confirmation',
   userProfileDeleteConfirmationQuestion:
@@ -110,6 +110,18 @@ export default {
   accountRejected: 'Account rejected',
   approve: 'Approve',
   reject: 'Reject',
+
+  admin: {
+    crm: {
+      userProfile: {
+        commentSaveSuccess: 'Your comment was saved successfully',
+      },
+      waitlist: {
+        ActivateAccountSuccess: 'Account has been activated successfully',
+        ActivateAccountError: 'Failed to activate',
+      },
+    },
+  },
 
   integrationSettings: {
     appsIntegrations: 'Apps & Integrations',
