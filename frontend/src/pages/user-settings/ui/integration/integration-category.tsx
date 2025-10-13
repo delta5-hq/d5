@@ -39,7 +39,13 @@ const IntegrationCard: React.FC<{
   installed?: boolean
   onClick: () => void
 }> = ({ icon, titleId, installedId = 'integration.installed', installed, onClick }) => (
-  <Card className="w-60 m-1 cursor-pointer hover:shadow-md transition-shadow" glassEffect={false} onClick={onClick}>
+  <Card
+    className="w-60 m-1 cursor-pointer hover:shadow-md transition-shadow"
+    data-title-id={titleId}
+    data-type="integration-card"
+    glassEffect={false}
+    onClick={onClick}
+  >
     <div className="flex flex-col h-full">
       <img alt="" className="w-full h-40 object-cover rounded-t-lg" src={icon} />
       <CardContent className="flex flex-col items-center justify-center p-4 space-y-1">
@@ -47,7 +53,7 @@ const IntegrationCard: React.FC<{
           <FormattedMessage id={titleId} />
         </h3>
         {installed ? (
-          <span className="text-sm text-primary text-center">
+          <span className="text-sm text-success text-center">
             <FormattedMessage id={installedId} />
           </span>
         ) : null}

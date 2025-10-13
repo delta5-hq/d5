@@ -20,13 +20,14 @@ const IntegrationPage = () => {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-semibold">
-        <FormattedMessage id="integrationSettings.appsIntegrations" />
-      </h2>
+    <div className="space-y-4 relative">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">
+          <FormattedMessage id="integrationSettings.appsIntegrations" />
+        </h2>
 
-      <div>
         <Button
+          data-type="add-integration"
           onClick={() =>
             showDialog(IntegrationDialog, {
               data,
@@ -34,7 +35,7 @@ const IntegrationPage = () => {
               refresh: redrawPage,
             })
           }
-          variant="link"
+          variant="accent"
         >
           <FormattedMessage id="integrationSettings.addApps" />
         </Button>

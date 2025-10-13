@@ -23,7 +23,7 @@ const UserSettingsButton = () => {
   return (
     <DropdownMenu onOpenChange={() => setIsOpen(prev => !prev)} open={isOpen}>
       <DropdownMenuTrigger asChild data-type="user-settings">
-        <Button variant="outline">
+        <Button variant="ghost">
           <UserIcon />
           {isOpen ? <ChevronUp /> : <ChevronDown />}
         </Button>
@@ -31,7 +31,7 @@ const UserSettingsButton = () => {
       <DropdownMenuContent align="start" className="w-56">
         <div className="flex flex-row justify-between items-center">
           <DropdownMenuLabel>Signed In</DropdownMenuLabel>
-          <p className="color px-2 text-xs text-gray-400">{user?.name}</p>
+          <p className="color px-2 text-xs text-gray-400 truncate max-w-[120px]">{user?.name}</p>
         </div>
         <DropdownMenuItem onClick={() => navigate('/settings')}>Settings</DropdownMenuItem>
         <DropdownMenuItem datatype="logout" onClick={onLogout}>

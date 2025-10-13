@@ -102,10 +102,10 @@ export const PerplexityDialog: React.FC<Props> = ({ data, open, onClose, refresh
 
   return (
     <Dialog onOpenChange={state => !state && onClose?.()} open={open}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" data-dialog-name="perplexity">
         <DialogHeader>
           <DialogTitle>
-            <FormattedMessage id="dialog.integration.title" />
+            <FormattedMessage id="integration.perplexity.title" />
           </DialogTitle>
           <DialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />
@@ -137,7 +137,7 @@ export const PerplexityDialog: React.FC<Props> = ({ data, open, onClose, refresh
             onValueChange={(val: PerplexityModels) => setValue('model', val)}
             value={watch('model')}
           >
-            <SelectTrigger>
+            <SelectTrigger data-select-name="perplexity-model">
               <SelectValue placeholder="Select model" />
             </SelectTrigger>
             <SelectContent>

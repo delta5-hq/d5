@@ -7,7 +7,7 @@ const LoginButton = () => {
   const { showDialog } = useDialog()
 
   return (
-    <Button onClick={() => showDialog(LoginDialog)}>
+    <Button data-type="login" onClick={() => showDialog(LoginDialog)}>
       <FormattedMessage id="loginTitle" />
     </Button>
   )

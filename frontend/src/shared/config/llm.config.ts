@@ -21,16 +21,20 @@ export enum OpenaiModels {
   GPT_4o_MINI = 'gpt-4o-mini',
   GPT_O_1 = 'o1',
   GPT_O_3_MINI = 'o3-mini',
-  GPT_4_5_PREVIEW = 'gpt-4.5-preview',
   GPT_4_1 = 'gpt-4.1',
   GPT_5 = 'gpt-5',
+  GPT_5_MINI = 'gpt-5-mini',
+  GPT_5_NANO = 'gpt-5-nano',
+  GPT_5_CHAT = 'gpt-5-chat-latest',
+  GPT_4_1_MINI = 'gpt-4.1-mini',
+  GPT_4_1_NANO = 'gpt-4.1-nano',
   GPT_o3 = 'o3',
   GPT_o3_PRO = 'o3-pro',
   GPT_o3_DEEP_RESEARCH = 'o3-deep-research',
   GPT_o4_MINI = 'o4-mini',
   GPT_o4_MINI_DEEP_RESEARCH = 'o4-mini-deep-research',
 }
-export const OPENAI_DEFAULT_MODEL = OpenaiModels.GPT_4o
+export const OPENAI_DEFAULT_MODEL = OpenaiModels.GPT_4_1_MINI
 
 export enum YandexGPTModel {
   GPT_LITE_LATEST = 'yandexgpt-lite/latest',
