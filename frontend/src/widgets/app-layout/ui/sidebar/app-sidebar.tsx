@@ -17,6 +17,7 @@ import { AppSearch, HelpButton, LoginButton, UserSettingsButton } from './../hea
 import { useAuthContext } from '@entities/auth'
 import { Link, useLocation } from 'react-router-dom'
 import styles from './app-sidebar.module.scss'
+import { Version } from '@shared/ui/version'
 
 interface AppSidebarProps {
   isResponsive?: boolean
@@ -96,7 +97,7 @@ const AppSidebar: FC<AppSidebarProps> = ({ isResponsive, isDesktop, isMinimized 
         </div>
       ) : null}
 
-      <SidebarContent>
+      <SidebarContent className="flex flex-col justify-between p-2 pb-5">
         <SidebarGroup>
           <SidebarGroupLabel>
             <FormattedMessage id="sidebarMainGroupLabel" />
@@ -121,6 +122,8 @@ const AppSidebar: FC<AppSidebarProps> = ({ isResponsive, isDesktop, isMinimized 
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <Version />
       </SidebarContent>
     </Sidebar>
   )

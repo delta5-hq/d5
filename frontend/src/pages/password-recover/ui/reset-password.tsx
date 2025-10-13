@@ -90,7 +90,7 @@ const ResetPassword = () => {
                 />
               </div>
               <div className="text-center text-foreground/40 text-sm">
-                Version <Version /> - <Copyright />
+                <Version /> <Copyright />
               </div>
             </div>
 
