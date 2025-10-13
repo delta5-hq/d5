@@ -22,11 +22,11 @@ import { toast } from 'sonner'
 import type { ApiError, DialogProps, Openai } from '@shared/base-types'
 import { useApiMutation } from '@shared/composables'
 import { OpenaiModels } from '@shared/config'
+import type { HttpError } from '@shared/lib/error'
 import { createResponseChat } from '@shared/lib/llm'
 import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
-import { z } from 'zod'
-import type { HttpError } from '@shared/lib/error'
 import { X } from 'lucide-react'
+import { z } from 'zod'
 
 export const openaiSchema = z.object({
   apiKey: z.string().optional(),
@@ -71,6 +71,13 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
   } = form
 
   const apiKeyValue = watch('apiKey')
+
+  React.useEffect(() => {
+    if (!apiKeyValue?.trim()) {
+      setValue('model', OpenaiModels.GPT_4_1_MINI)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKeyValue])
 
   const onSubmit = async (values: OpenaiFormValues) => {
     try {
@@ -148,7 +155,7 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
               </SelectTrigger>
               <SelectContent>
                 {!apiKeyValue ? (
-                  <SelectItem value={OpenaiModels.GPT_4o_MINI}>{OpenaiModels.GPT_4o_MINI}</SelectItem>
+                  <SelectItem value={OpenaiModels.GPT_4_1_MINI}>{OpenaiModels.GPT_4_1_MINI}</SelectItem>
                 ) : (
                   Object.values(OpenaiModels).map(m => (
                     <SelectItem key={m} value={m}>

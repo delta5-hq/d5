@@ -8,6 +8,7 @@ const requiredEnv = [
   'E2E_YANDEX_API_KEY',
   'E2E_YANDEX_FOLDER_ID',
   'E2E_CUSTOM_LLM_URL',
+  'E2E_OPEN_API_KEY',
 ] as const
 type EnvKey = (typeof requiredEnv)[number]
 const missing: EnvKey[] = requiredEnv.filter(key => !process.env[key])

@@ -50,6 +50,40 @@ test.describe.serial('Integrations', () => {
 
     await expect(page.locator('[data-dialog-name="openai"]')).toBeVisible()
 
+    const apiKeyInput = page.locator('#apiKey')
+    await apiKeyInput.click()
+    await apiKeyInput.fill(e2eEnv.E2E_OPEN_API_KEY)
+
+    const modelSelect = page.locator('[data-select-name="openai-model"]')
+
+    await modelSelect.click()
+    const options = page.locator('[role="option"]', { hasText: 'gpt-4o' })
+    expect(options).toBeDefined()
+    await options.first().click()
+
+    const submitButton = page.locator('button[type="submit"]')
+    await submitButton.click()
+    await Promise.all([
+      page.waitForResponse(
+        resp =>
+          resp.url().includes('/api/v1/integration/openai/update') && resp.request().method() === 'PUT' && resp.ok(),
+      ),
+      page.waitForResponse(
+        resp => resp.url().includes('/api/v1/integration') && resp.request().method() === 'GET' && resp.ok(),
+      ),
+    ])
+
+    await expect(card).toBeVisible()
+  })
+
+  test('Install openai integration without apiKey', async ({ page }) => {
+    await page.goto('/settings')
+
+    const card = page.locator('[data-type="integration-card"][data-title-id="integration.openai.title"]')
+    card.click()
+
+    await expect(page.locator('[data-dialog-name="openai"]')).toBeVisible()
+
     const modelSelect = page.locator('[data-select-name="openai-model"]')
 
     await modelSelect.click()
