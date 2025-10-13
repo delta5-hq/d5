@@ -48,7 +48,7 @@ import Store from './Store'
  * @param {Object} params.context - The prompt context
  * @param {string} params.prompt - The prompt or query text to be processed
  * @param {Object} params.cell - The cell object containing information like its ID and other relevant data for the command execution
- * @param {Store} params.store - The store object, which likely holds the state, user details, and map information
+ * @param {Store} params.store - The store object, which likely holds the state, user details, and workflow information
  *
  */
 /**

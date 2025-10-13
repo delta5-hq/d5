@@ -74,10 +74,10 @@ const UserWorkflows: React.FC<{ userData: FullUserStatistics; rows: UserWorkflow
         {rows.map(row => (
           <TableRow key={row._id}>
             <TableCell>{row.workflowId}</TableCell>
-            <TableCell>{row.mapNodeCount}</TableCell>
-            <TableCell>{row.mapEdgeCount}</TableCell>
+            <TableCell>{row.nodeCount}</TableCell>
+            <TableCell>{row.edgeCount}</TableCell>
             <TableCell>{row.sharedWithCount}</TableCell>
-            <TableCell>{userData.limitNodes ? userData.limitNodes - row.mapNodeCount : '-'}</TableCell>
+            <TableCell>{userData.limitNodes ? userData.limitNodes - row.nodeCount : '-'}</TableCell>
             <TableCell>{convertDate(row.createdAt)}</TableCell>
             <TableCell>{convertDate(row.updatedAt)}</TableCell>
           </TableRow>
@@ -124,16 +124,16 @@ const UserProfile: React.FC<UserProfileProps> = ({ userData, workflowsData }) =>
               <b>{formatMessage({ id: 'userProfileMail' })}:</b> {userData.mail}
             </p>
             <p>
-              <b>{formatMessage({ id: 'userProfileWorkflowCount' })}:</b> {userData.mapCount}
+              <b>{formatMessage({ id: 'userProfileWorkflowCount' })}:</b> {userData.workflowCount}
             </p>
             <p>
-              <b>{formatMessage({ id: 'userProfileSharedWorkflows' })}:</b> {userData.mapShareCount}
+              <b>{formatMessage({ id: 'userProfileSharedWorkflows' })}:</b> {userData.shareCount}
             </p>
             <p>
               <b>{formatMessage({ id: 'userProfileNodeCount' })}:</b> {userData.nodeCount}
             </p>
             <p>
-              <b>{formatMessage({ id: 'userProfileMaxNodeCount' })}:</b> {userData.biggestMapCount}
+              <b>{formatMessage({ id: 'userProfileMaxNodeCount' })}:</b> {userData.biggestWorkflowCount}
             </p>
             <p>
               <b>{formatMessage({ id: 'userProfileNodeLimit' })}:</b> {userData.limitNodes ?? '-'}
@@ -148,7 +148,8 @@ const UserProfile: React.FC<UserProfileProps> = ({ userData, workflowsData }) =>
               <b>{formatMessage({ id: 'userProfileCreatedAt' })}:</b> {convertDate(userData.createdAt)}
             </p>
             <p>
-              <b>{formatMessage({ id: 'userProfileLastWorkflowChange' })}:</b> {convertDate(userData.lastMapChange)}
+              <b>{formatMessage({ id: 'userProfileLastWorkflowChange' })}:</b>{' '}
+              {convertDate(userData.lastWorkflowChange)}
             </p>
 
             <Button

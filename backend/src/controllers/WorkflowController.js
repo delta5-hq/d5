@@ -12,16 +12,16 @@ import {EXPORT_FILE_SIZE_LIMIT} from '../constants'
 import User from '../models/User'
 import {ACCESS_ROLES, ROLES} from '../shared/config/constants'
 
-const log = debug('delta5:Controller:map')
+const log = debug('delta5:Controller:workflow')
 const logError = log.extend('ERROR', '::')
 
-const loadMapCounter = new Counter({
-  name: 'delta5_rest_map_get_count',
+const loadWorkflowCounter = new Counter({
+  name: 'delta5_rest_workflow_get_count',
   help: 'Number of workflows loads via get rest (read only)',
   labelNames: ['workflowId'],
 })
 
-const MapShareFilters = {
+const WorkflowShareFilters = {
   all: 'all',
   public: 'public',
   hidden: 'hidden',
@@ -32,25 +32,25 @@ const WorkflowController = {
   load: async (ctx, next) => {
     const {workflowId} = ctx.params
 
-    const map = await Workflow.findOne({workflowId})
+    const workflow = await Workflow.findOne({workflowId})
 
-    if (!map) {
+    if (!workflow) {
       ctx.throw(404, 'Workflow not found.')
     }
 
-    ctx.state.map = map
+    ctx.state.workflow = workflow
 
     await next()
   },
   authorization: async (ctx, next) => {
     const {method} = ctx
-    const {userId, map} = ctx.state
+    const {userId, workflow} = ctx.state
 
-    if (!userId && !map.isPublic()) {
+    if (!userId && !workflow.isPublic()) {
       ctx.throw(401, 'Authentication needed.')
     }
 
-    const {access = []} = map.share || {}
+    const {access = []} = workflow.share || {}
 
     const user = User.findOne({id: userId})
 
@@ -63,9 +63,9 @@ const WorkflowController = {
         (subjectType === 'user' && subjectId === userId) || (subjectType === 'mail' && subjectId === user.mail),
     )
 
-    const isOwner = map.userId?.toString() === userId || roleBinding?.role === ACCESS_ROLES.owner
-    const isWriteable = isOwner || roleBinding?.role === ACCESS_ROLES.contributor || map.isPublicWriteable()
-    const isReadable = isWriteable || roleBinding?.role === ACCESS_ROLES.reader || map.isPublic()
+    const isOwner = workflow.userId?.toString() === userId || roleBinding?.role === ACCESS_ROLES.owner
+    const isWriteable = isOwner || roleBinding?.role === ACCESS_ROLES.contributor || workflow.isPublicWriteable()
+    const isReadable = isWriteable || roleBinding?.role === ACCESS_ROLES.reader || workflow.isPublic()
 
     if (method.toUpperCase() === 'GET' && !isReadable) {
       ctx.throw(403, 'Access denied.')
@@ -81,7 +81,7 @@ const WorkflowController = {
     const search = ctx.query.search || ''
     const page = parseInt(ctx.query.page, 10) || 1
     const limit = parseInt(ctx.query.limit, 10) || 10
-    const shareFilter = ctx.query.filter || MapShareFilters.all
+    const shareFilter = ctx.query.filter || WorkflowShareFilters.all
 
     const isPublic = publicString !== 'false'
 
@@ -101,12 +101,12 @@ const WorkflowController = {
         $or: [{userId}, {'share.access.subjectId': userId, 'share.access.subjectType': 'user'}],
       }
 
-      if (shareFilter === MapShareFilters.private) {
+      if (shareFilter === WorkflowShareFilters.private) {
         query['share.public.enabled'] = {$ne: true}
-      } else if (shareFilter === MapShareFilters.public) {
+      } else if (shareFilter === WorkflowShareFilters.public) {
         query['share.public.enabled'] = true
         query['share.public.hidden'] = false
-      } else if (shareFilter === MapShareFilters.hidden) {
+      } else if (shareFilter === WorkflowShareFilters.hidden) {
         query['share.public.enabled'] = true
         query['share.public.hidden'] = true
       }
@@ -134,11 +134,11 @@ const WorkflowController = {
   },
   get: async ctx => {
     const {workflowId} = ctx.params
-    const {map} = ctx.state
+    const {workflow} = ctx.state
 
-    loadMapCounter.labels(workflowId).inc()
+    loadWorkflowCounter.labels(workflowId).inc()
 
-    ctx.body = map
+    ctx.body = workflow
   },
   delete: async ctx => {
     const {workflowId} = ctx.params
@@ -164,15 +164,15 @@ const WorkflowController = {
   },
   create: async ctx => {
     const {userId} = ctx.state
-    const {limitMaps = 0} = ctx.state.auth
+    const {limitWorkflows = 0} = ctx.state.auth
 
-    //workaround org_subscriber with no map limit TODO: do it on wordpress
+    //workaround org_subscriber with no workflow limit TODO: do it on wordpress
     if (
-      limitMaps &&
-      (await Workflow.find({userId}).countDocuments()) >= limitMaps &&
+      limitWorkflows &&
+      (await Workflow.find({userId}).countDocuments()) >= limitWorkflows &&
       !ctx.state.auth.roles.includes(ROLES.org_subscriber)
     ) {
-      ctx.throw(402, `Workflow limit reached (${limitMaps})`)
+      ctx.throw(402, `Workflow limit reached (${limitWorkflows})`)
     }
 
     const workflowId = generateId()
@@ -202,8 +202,8 @@ const WorkflowController = {
       ctx.throw(403, 'Only users with write access can export workflows.')
     }
 
-    const exportMap = {workflowId, title, nodes, edges, root}
-    if (tags) exportMap.tags = tags
+    const exportWorkflow = {workflowId, title, nodes, edges, root}
+    if (tags) exportWorkflow.tags = tags
 
     const imageList = await WorkflowImage.find({
       'metadata.workflowId': workflowId,
@@ -220,7 +220,7 @@ const WorkflowController = {
     const filename = `Workflow-${workflowId}-${title}.json`
     ctx.set('Content-disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`)
 
-    ctx.body = {...exportMap, images, documents}
+    ctx.body = {...exportWorkflow, images, documents}
   },
   exportZip: async ctx => {
     const {workflowId, title, nodes, edges, tags, root} = ctx.state.map.toJSON()
@@ -239,9 +239,9 @@ const WorkflowController = {
       ctx.throw(500, message)
     })
 
-    const exportMap = {workflowId, title, nodes, edges, root}
-    if (tags) exportMap.tags = tags
-    archive.append(JSON.stringify(exportMap), {name: 'mapdata.json'})
+    const exportWorkflow = {workflowId, title, nodes, edges, root}
+    if (tags) exportWorkflow.tags = tags
+    archive.append(JSON.stringify(exportWorkflow), {name: 'workflowdata.json'})
 
     const metaData = {version: 1, images: {}, files: {}}
 
@@ -268,19 +268,19 @@ const WorkflowController = {
     ctx.body = archive
   },
   shareRead: async ctx => {
-    const {map} = ctx.state
+    const {workflow} = ctx.state
 
-    ctx.body = map.share
+    ctx.body = workflow.share
   },
   shareWrite: async ctx => {
     ctx.throw(400, 'This endpoint is obsolete.')
   },
   sharePublicGet: async ctx => {
-    const {map} = ctx.state
-    ctx.body = map.share?.public || {}
+    const {workflow} = ctx.state
+    ctx.body = workflow.share?.public || {}
   },
   sharePublicPost: async ctx => {
-    const {map, auth} = ctx.state
+    const {workflow, auth} = ctx.state
     const payload = await ctx.request.json()
     const {isOwner} = ctx.state.access
 
@@ -292,19 +292,19 @@ const WorkflowController = {
       ctx.throw(403, 'Only administrators can set workflows public writeable')
     }
 
-    if (!map.share) map.share = {}
+    if (!workflow.share) workflow.share = {}
 
-    map.share.public = payload
-    await map.save()
+    workflow.share.public = payload
+    await workflow.save()
 
     ctx.body = {success: true}
   },
   shareAccessGet: async ctx => {
-    const {map} = ctx.state
-    ctx.body = map.share?.access || []
+    const {workflow} = ctx.state
+    ctx.body = workflow.share?.access || []
   },
   shareAccessPost: async ctx => {
-    const {map} = ctx.state
+    const {workflow} = ctx.state
     const payload = await ctx.request.json()
     const {isOwner} = ctx.state.access
 
@@ -314,10 +314,10 @@ const WorkflowController = {
       ctx.throw(400, 'Badly formatted request.')
     }
 
-    if (!map.share) map.share = {}
+    if (!workflow.share) workflow.share = {}
 
-    map.share.access = payload
-    await map.save()
+    workflow.share.access = payload
+    await workflow.save()
 
     ctx.body = {success: true}
   },
@@ -327,7 +327,7 @@ const WorkflowController = {
     ctx.body = {writeable}
   },
   nodeLimit: async ctx => {
-    const {userId} = ctx.state.map
+    const {userId} = ctx.state.workflow
 
     let nodeLimit = false
     const user = await User.findOne({id: userId})
@@ -336,13 +336,13 @@ const WorkflowController = {
     // Workaround for unfinished db TODO: Remove it
     if (ctx.state?.userId === userId && ctx.state?.auth) nodeLimit = ctx.state.auth.limitNodes
 
-    //workaround role org_subscriber with unlimited maps/cards
+    //workaround role org_subscriber with unlimited workflows/cards
     if (user.roles.includes(ROLES.org_subscriber)) nodeLimit = false
 
     ctx.body = {nodeLimit: nodeLimit}
   },
   addCategory: async ctx => {
-    const {map} = ctx.state
+    const {workflow} = ctx.state
     const request = await ctx.request.json()
 
     const {category} = request
@@ -351,8 +351,8 @@ const WorkflowController = {
       ctx.abort(400, 'category has to be string')
     }
 
-    map.category = category
-    await map.save()
+    workflow.category = category
+    await workflow.save()
 
     ctx.body = {success: true}
   },
@@ -364,9 +364,9 @@ const WorkflowController = {
 
     const {name: title, nodes, edges = {}, root} = JSON.parse(JSON.stringify(template))
 
-    const newMapData = {title, nodes, edges, root, workflowId: newWorkflowId, userId}
+    const newWorkflowData = {title, nodes, edges, root, workflowId: newWorkflowId, userId}
 
-    await new Workflow(newMapData).save()
+    await new Workflow(newWorkflowData).save()
 
     ctx.body = {workflowId: newWorkflowId}
   },

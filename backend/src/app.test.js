@@ -147,7 +147,7 @@ describe('workflow life-cycle', () => {
     const response = await subscriberRequest.get('/workflow?public=false')
 
     expect(response.status).toBe(200)
-    expect(JSON.parse(response.res.text).length).toBeGreaterThan(0)
+    expect(JSON.parse(response.res.text).data.length).toBeGreaterThan(0)
   })
 
   it('should not accept unauth requests to delete workflow', async () => {
@@ -202,7 +202,7 @@ describe('public workflow life-cycle', () => {
     const response = await publicRequest.get('/workflow')
 
     expect(response.status).toBe(200)
-    expect(JSON.parse(response.res.text).length).toBeGreaterThan(0)
+    expect(JSON.parse(response.res.text).data.length).toBeGreaterThan(0)
   })
 
   it('should serve the public workflow', async () => {

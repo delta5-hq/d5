@@ -1,12 +1,12 @@
 import type { Share } from '@shared/base-types'
-import { MapShareFilters } from '../model'
+import { WorkflowShareFilters } from '../model'
 
-export function getShareVisibility(share?: Share): MapShareFilters {
+export function getShareVisibility(share?: Share): WorkflowShareFilters {
   if (share?.public?.hidden) {
-    return MapShareFilters.hidden
+    return WorkflowShareFilters.hidden
   } else if (share?.public?.enabled) {
-    return MapShareFilters.public
+    return WorkflowShareFilters.public
   }
 
-  return MapShareFilters.private
+  return WorkflowShareFilters.private
 }

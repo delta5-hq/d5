@@ -134,7 +134,7 @@ describe('StepsCommand', () => {
 
     await command.executePrompts(nodes)
 
-    // New Nodes was created and added to mapNodes
+    // New Nodes was created and added to workflowNodes
     expect(mockStore._nodes['newNode1']).toEqual(newNode1)
     expect(mockStore._nodes['newNode2']).toEqual(newNode2)
 
@@ -674,7 +674,7 @@ describe('StepsCommand', () => {
       children: [swotNode.id],
     }
 
-    // Prepare map nodes
+    // Prepare workflow nodes
     mockStore._nodes = {
       [strengthsRef.id]: strengthsRef,
       [weaknessesRef.id]: weaknessesRef,

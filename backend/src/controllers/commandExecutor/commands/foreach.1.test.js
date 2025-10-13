@@ -4,9 +4,6 @@ import Store from './utils/Store.js'
 
 jest.mock('./utils/runCommand', () => ({
   runCommand: jest.fn(),
-  updateMapNodes: jest.fn().mockImplementation(mapNodes => node => {
-    mapNodes[node.id] = node
-  }),
 }))
 
 jest.mock('./StepsCommand')
@@ -122,7 +119,7 @@ describe('ForeachCommand reference substitution', () => {
         children: [parentNode.id, refsContainer.id],
       }
 
-      // Create mapNodes object for the backend implementation
+      // Create workflowNodes object for the backend implementation
       mockStore._nodes = {
         [dogNameReqNode.id]: dogNameReqNode,
         [dogBreedsReqNode.id]: dogBreedsReqNode,

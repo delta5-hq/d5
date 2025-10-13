@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
 import type { Paginated, PaginationQuery } from '@shared/base-types'
 import { useApiQuery } from '@shared/composables'
-import type { MapShareFilters, WorkflowItem } from '@widgets/workflow'
-import { toast } from 'sonner'
 import { useSearch } from '@shared/context'
+import type { WorkflowItem, WorkflowShareFilters } from '@widgets/workflow'
+import { useEffect, useMemo, useState } from 'react'
+import { toast } from 'sonner'
 
 interface WorkflowsParams extends PaginationQuery {
   isPublic?: boolean
-  filter?: MapShareFilters
+  filter?: WorkflowShareFilters
   debounceMs?: number
 }
 

@@ -166,13 +166,13 @@ describe('OutlineCommand', () => {
         command: '/outline prompt --summarize --parent=2',
       }
 
-      const mapNodes = {
+      const workflowNodes = {
         [command.id]: command,
       }
 
       const replyWithSummarizeSpy = jest.spyOn(command, 'replyWithSummarize')
 
-      await command.run(node, 'prompt', mapNodes, {})
+      await command.run(node, 'prompt', workflowNodes, {})
 
       expect(replyWithSummarizeSpy).toHaveBeenCalledWith(
         expect.anything(),
@@ -198,11 +198,11 @@ describe('OutlineCommand', () => {
         command: '/outline prompt --web --lang=ru',
       }
 
-      const mapNodes = {
+      const workflowNodes = {
         [command.id]: command,
       }
 
-      await command.run(node, 'prompt', mapNodes, {})
+      await command.run(node, 'prompt', workflowNodes, {})
 
       expect(getLLM).toHaveBeenCalledWith(expect.objectContaining({settings, type: Model.YandexGPT}))
     })
@@ -223,11 +223,11 @@ describe('OutlineCommand', () => {
         command: '/outline prompt --web',
       }
 
-      const mapNodes = {
+      const workflowNodes = {
         [command.id]: command,
       }
 
-      await command.run(node, 'prompt', mapNodes, {})
+      await command.run(node, 'prompt', workflowNodes, {})
 
       expect(getLLM).toHaveBeenCalledWith(expect.objectContaining({settings, type: Model.OpenAI}))
     })
@@ -237,9 +237,9 @@ describe('OutlineCommand', () => {
       jest.spyOn(command, 'replyDefault').mockResolvedValue([{id: 'newNode'}])
 
       const node = {id: 'node', title: '/outline create with @@reference'}
-      const mapNodes = {node: node}
+      const workflowNodes = {node: node}
 
-      await command.run(node, null, mapNodes)
+      await command.run(node, null, workflowNodes)
 
       expect(substituteReferencesAndHashrefsChildrenAndSelf).toHaveBeenCalled()
       expect(clearStepsPrefix).not.toHaveBeenCalled()
@@ -249,9 +249,9 @@ describe('OutlineCommand', () => {
       jest.spyOn(command, 'replyDefault').mockResolvedValue([{id: 'newNode'}])
 
       const node = {id: 'node', title: '/outline create without reference'}
-      const mapNodes = {node: node}
+      const workflowNodes = {node: node}
 
-      await command.run(node, null, mapNodes)
+      await command.run(node, null, workflowNodes)
 
       expect(substituteReferencesAndHashrefsChildrenAndSelf).toHaveBeenCalled()
       expect(clearStepsPrefix).not.toHaveBeenCalled()
@@ -262,10 +262,10 @@ describe('OutlineCommand', () => {
       jest.spyOn(command, 'replyDefault').mockResolvedValue([{id: 'newNode'}])
 
       const node = {id: 'node', title: '/outline create without reference'}
-      const mapNodes = {node: node}
+      const workflowNodes = {node: node}
       const originalPrompt = 'original prompt'
 
-      await command.run(node, originalPrompt, mapNodes)
+      await command.run(node, originalPrompt, workflowNodes)
 
       expect(substituteReferencesAndHashrefsChildrenAndSelf).not.toHaveBeenCalled()
       expect(clearStepsPrefix).toHaveBeenCalledWith(originalPrompt)

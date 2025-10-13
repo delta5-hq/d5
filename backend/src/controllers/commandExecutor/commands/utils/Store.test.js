@@ -15,13 +15,13 @@ describe('Store', () => {
 
       const storeWithData = new Store({
         userId: 'test-user-123',
-        workflowId: 'test-map-123',
+        workflowId: 'test-workflow-123',
         nodes,
         edges,
         files,
       })
 
-      expect(storeWithData._workflowId).toBe('test-map-123')
+      expect(storeWithData._workflowId).toBe('test-workflow-123')
       expect(storeWithData._nodes).toEqual(nodes)
       expect(storeWithData._edges).toEqual(edges)
       expect(storeWithData._files).toEqual(files)

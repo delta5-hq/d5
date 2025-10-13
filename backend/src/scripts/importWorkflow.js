@@ -7,7 +7,7 @@ import Workflow from '../models/Workflow'
 import WorkflowImage from '../models/WorkflowImage'
 import WorkflowFile from '../models/WorkflowFile'
 
-const log = debug('delta5:scripts:exportMap')
+const log = debug('delta5:scripts:exportWorkflow')
 
 const args = process.argv.slice(2)
 
@@ -32,12 +32,12 @@ const compact = async () => {
   try {
     await connectDb()
 
-    const {images, documents, ...mapData} = JSON.parse(await fs.readFile(filePath))
+    const {images, documents, ...workflowData} = JSON.parse(await fs.readFile(filePath))
 
     await Promise.all(images.map(image => saveFile(WorkflowImage, image)))
     await Promise.all(documents.map(image => saveFile(WorkflowFile, image)))
 
-    await new Workflow({...mapData, userId}).save()
+    await new Workflow({...workflowData, userId}).save()
   } catch (e) {
     log.extend(':ERROR')('error while exporting workflow', e)
   } finally {

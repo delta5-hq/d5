@@ -29,7 +29,7 @@ export enum WorkflowsView {
   grid = 'grid',
 }
 
-export enum MapShareFilters {
+export enum WorkflowShareFilters {
   all = 'all',
   public = 'public',
   hidden = 'hidden',

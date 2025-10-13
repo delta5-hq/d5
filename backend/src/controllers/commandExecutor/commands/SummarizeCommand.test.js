@@ -464,9 +464,9 @@ describe('SummarizeCommand', () => {
       })
 
       const sumNode = {id: 'n', title: 'title', command: '/summarize prompt'}
-      const mapNodes = {[sumNode.id]: sumNode}
+      const workflowNodes = {[sumNode.id]: sumNode}
 
-      await command.run(sumNode, '', mapNodes, {})
+      await command.run(sumNode, '', workflowNodes, {})
 
       expect(command.runRefinementQAChain).toHaveBeenCalledWith('test prompt', docs, {})
     })
@@ -481,9 +481,9 @@ describe('SummarizeCommand', () => {
       })
 
       const sumNode = {id: 'n', title: 'title', command: '/summarize prompt --xxs'}
-      const mapNodes = {[sumNode.id]: sumNode}
+      const workflowNodes = {[sumNode.id]: sumNode}
 
-      await command.run(sumNode, '', mapNodes, {})
+      await command.run(sumNode, '', workflowNodes, {})
 
       expect(command.runRefinementQAChain).toHaveBeenCalledWith('test prompt', docs, {})
     })
@@ -496,9 +496,9 @@ describe('SummarizeCommand', () => {
       })
 
       const sumNode = {id: 'n', title: 'title', command: '/summarize prompt --embed'}
-      const mapNodes = {[sumNode.id]: sumNode}
+      const workflowNodes = {[sumNode.id]: sumNode}
 
-      await command.run(sumNode, '', mapNodes, {})
+      await command.run(sumNode, '', workflowNodes, {})
 
       expect(command.runAgentExecutor).toHaveBeenCalled()
     })
@@ -514,9 +514,9 @@ describe('SummarizeCommand', () => {
       substituteReferencesAndHashrefsChildrenAndSelf.mockReturnValueOnce('prompt ref_value')
 
       const sumNode = {id: 'n', title: 'title', command: '/summarize prompt @@ref --xxs'}
-      const mapNodes = {[sumNode.id]: sumNode}
+      const workflowNodes = {[sumNode.id]: sumNode}
 
-      await command.run(sumNode, '', mapNodes, {})
+      await command.run(sumNode, '', workflowNodes, {})
 
       expect(command.runRefinementQAChain).toHaveBeenCalledWith('prompt ref_value', [], {})
     })
@@ -525,9 +525,9 @@ describe('SummarizeCommand', () => {
       jest.spyOn(RegExp.prototype, 'test').mockReturnValue(false)
 
       const node = {id: 'node', title: '/summarize text with @@reference'}
-      const mapNodes = {node: node}
+      const workflowNodes = {node: node}
 
-      await command.run(node, null, mapNodes)
+      await command.run(node, null, workflowNodes)
 
       expect(substituteReferencesAndHashrefsChildrenAndSelf).toHaveBeenCalled()
       expect(clearStepsPrefix).not.toHaveBeenCalled()
@@ -535,9 +535,9 @@ describe('SummarizeCommand', () => {
 
     it('should use substituteReferencesAndHashrefsChildrenAndSelf when prompt is falsy', async () => {
       const node = {id: 'node', title: '/summarize text without reference'}
-      const mapNodes = {node: node}
+      const workflowNodes = {node: node}
 
-      await command.run(node, null, mapNodes)
+      await command.run(node, null, workflowNodes)
 
       expect(substituteReferencesAndHashrefsChildrenAndSelf).toHaveBeenCalled()
       expect(clearStepsPrefix).not.toHaveBeenCalled()
@@ -547,10 +547,10 @@ describe('SummarizeCommand', () => {
       jest.spyOn(RegExp.prototype, 'test').mockReturnValue(false)
 
       const node = {id: 'node', title: '/summarize text without reference'}
-      const mapNodes = {node: node}
+      const workflowNodes = {node: node}
       const originalPrompt = 'original prompt'
 
-      await command.run(node, originalPrompt, mapNodes)
+      await command.run(node, originalPrompt, workflowNodes)
 
       expect(substituteReferencesAndHashrefsChildrenAndSelf).not.toHaveBeenCalled()
       expect(clearStepsPrefix).toHaveBeenCalledWith(originalPrompt)

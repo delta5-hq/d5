@@ -143,13 +143,13 @@ describe('StepsNodeTraverser', () => {
     const child2 = {id: 'child2', command: '/chatgpt child2'}
     const node = {id: 'node', command: '/steps', children: [child1.id, child2.id]}
 
-    const mapNodes = {
+    const workflowNodes = {
       [child1.id]: child1,
       [child2.id]: child2,
       [node.id]: node,
     }
 
-    traverser = new StepsNodeTraverser(mapNodes)
+    traverser = new StepsNodeTraverser(workflowNodes)
     traverser.traverse(node)
 
     expect(traverser.nodesByOrder).toEqual({1: [{node: child1, promptString: child1.command}]})
@@ -161,13 +161,13 @@ describe('StepsNodeTraverser', () => {
     const child2 = {id: 'child2', command: '/chatgpt child2'}
     const node = {id: 'node', command: '/steps', children: [child1.id, child2.id]}
 
-    const mapNodes = {
+    const workflowNodes = {
       [child1.id]: child1,
       [child2.id]: child2,
       [node.id]: node,
     }
 
-    traverser = new StepsNodeTraverser(mapNodes)
+    traverser = new StepsNodeTraverser(workflowNodes)
     traverser.traverse(node)
 
     expect(traverser.nodesByOrder).toEqual({1: [{node: child1, promptString: child1.title}]})
@@ -181,7 +181,7 @@ describe('StepsNodeTraverser', () => {
     const child4 = {id: 'child4', command: '#-9999 /chatgpt child4'}
     const node = {id: 'node', command: '/steps', children: [child1.id, child2.id, child3.id, child4.id]}
 
-    const mapNodes = {
+    const workflowNodes = {
       [child1.id]: child1,
       [child2.id]: child2,
       [child3.id]: child3,
@@ -189,7 +189,7 @@ describe('StepsNodeTraverser', () => {
       [node.id]: node,
     }
 
-    traverser = new StepsNodeTraverser(mapNodes)
+    traverser = new StepsNodeTraverser(workflowNodes)
     traverser.traverse(node)
 
     expect(traverser.nodesByOrder).toEqual({
@@ -206,13 +206,13 @@ describe('StepsNodeTraverser', () => {
     const child = {id: 'child', command: '', children: [grandchild.id]}
     const root = {id: 'root', command: '/steps comment', children: [child.id]}
 
-    const mapNodes = {
+    const workflowNodes = {
       [grandchild.id]: grandchild,
       [child.id]: child,
       [root.id]: root,
     }
 
-    traverser = new StepsNodeTraverser(mapNodes)
+    traverser = new StepsNodeTraverser(workflowNodes)
     traverser.traverse(root)
 
     expect(traverser.nodesByOrder).toEqual({})
@@ -228,14 +228,14 @@ describe('StepsNodeTraverser', () => {
     const child = {id: 'child', command: '', children: [grandchild1.id, grandchild2.id]}
     const root = {id: 'root', command: '/steps comment', children: [child.id]}
 
-    const mapNodes = {
+    const workflowNodes = {
       [grandchild1.id]: grandchild1,
       [grandchild2.id]: grandchild2,
       [child.id]: child,
       [root.id]: root,
     }
 
-    traverser = new StepsNodeTraverser(mapNodes)
+    traverser = new StepsNodeTraverser(workflowNodes)
     traverser.traverse(root)
 
     expect(traverser.nodesByOrder).toEqual({
@@ -252,7 +252,7 @@ describe('StepsNodeTraverser', () => {
     const child = {id: 'child', command: '', children: [grandchild1.id, grandchild2.id]}
     const root = {id: 'root', command: '/steps comment', children: [child.id]}
 
-    const mapNodes = {
+    const workflowNodes = {
       [greatGrandchild.id]: greatGrandchild,
       [grandchild1.id]: grandchild1,
       [grandchild2.id]: grandchild2,
@@ -260,7 +260,7 @@ describe('StepsNodeTraverser', () => {
       [root.id]: root,
     }
 
-    traverser = new StepsNodeTraverser(mapNodes)
+    traverser = new StepsNodeTraverser(workflowNodes)
     traverser.traverse(root)
 
     expect(traverser.nodesByOrder).toEqual({
@@ -283,7 +283,7 @@ describe('StepsNodeTraverser', () => {
     const child = {id: 'child', command: '', children: [grandchild.id]}
     const root = {id: 'root', command: '/steps comment', children: [child.id]}
 
-    const mapNodes = {
+    const workflowNodes = {
       [emptyGreatGrandchild.id]: emptyGreatGrandchild,
       [greatGrandchild.id]: greatGrandchild,
       [grandchild.id]: grandchild,
@@ -291,7 +291,7 @@ describe('StepsNodeTraverser', () => {
       [root.id]: root,
     }
 
-    traverser = new StepsNodeTraverser(mapNodes)
+    traverser = new StepsNodeTraverser(workflowNodes)
     traverser.traverse(root)
 
     expect(traverser.nodesByOrder).toEqual({})
@@ -315,7 +315,7 @@ describe('StepsNodeTraverser', () => {
     const child = {id: 'child', command: '', children: [grandchild.id]}
     const root = {id: 'root', command: '/steps comment', children: [child.id]}
 
-    const mapNodes = {
+    const workflowNodes = {
       [greatGrandchild1.id]: greatGrandchild1,
       [greatGrandchild2.id]: greatGrandchild2,
       [grandchild.id]: grandchild,
@@ -323,7 +323,7 @@ describe('StepsNodeTraverser', () => {
       [root.id]: root,
     }
 
-    traverser = new StepsNodeTraverser(mapNodes)
+    traverser = new StepsNodeTraverser(workflowNodes)
     traverser.traverse(root)
 
     expect(traverser.nodesByOrder).toEqual({})
@@ -339,13 +339,13 @@ describe('StepsNodeTraverser', () => {
     const child2 = {id: 'child2', command: '/foreach /chatgpt child2 @@'}
     const node = {id: 'node', command: '/steps', children: [child1.id, child2.id]}
 
-    const mapNodes = {
+    const workflowNodes = {
       [child1.id]: child1,
       [child2.id]: child2,
       [node.id]: node,
     }
 
-    traverser = new StepsNodeTraverser(mapNodes)
+    traverser = new StepsNodeTraverser(workflowNodes)
     traverser.traverse(node)
 
     expect(traverser.nodesByOrder).toEqual({1: [{node: child1, promptString: child1.command}]})
@@ -357,13 +357,13 @@ describe('StepsNodeTraverser', () => {
     const child2 = {id: 'child2', command: '#1 /foreach /chatgpt child2 @@'}
     const node = {id: 'node', command: '/steps', children: [child1.id, child2.id]}
 
-    const mapNodes = {
+    const workflowNodes = {
       [child1.id]: child1,
       [child2.id]: child2,
       [node.id]: node,
     }
 
-    traverser = new StepsNodeTraverser(mapNodes)
+    traverser = new StepsNodeTraverser(workflowNodes)
     traverser.traverse(node)
 
     expect(traverser.nodesByOrder).toEqual({1: [{node: child1, promptString: child1.command}]})
@@ -375,13 +375,13 @@ describe('StepsNodeTraverser', () => {
     const child2 = {id: 'child2', command: '#2 /summarize child2'}
     const node = {id: 'node', command: '/steps', children: [child1.id, child2.id]}
 
-    const mapNodes = {
+    const workflowNodes = {
       [child1.id]: child1,
       [child2.id]: child2,
       [node.id]: node,
     }
 
-    traverser = new StepsNodeTraverser(mapNodes)
+    traverser = new StepsNodeTraverser(workflowNodes)
     traverser.traverse(node)
 
     expect(traverser.nodesByOrder).toEqual({
@@ -395,13 +395,13 @@ describe('StepsNodeTraverser', () => {
     const child2 = {id: 'child2', command: '#2 /outline --summarize=xxl child2'}
     const node = {id: 'node', command: '/steps', children: [child1.id, child2.id]}
 
-    const mapNodes = {
+    const workflowNodes = {
       [child1.id]: child1,
       [child2.id]: child2,
       [node.id]: node,
     }
 
-    traverser = new StepsNodeTraverser(mapNodes)
+    traverser = new StepsNodeTraverser(workflowNodes)
     traverser.traverse(node)
 
     expect(traverser.nodesByOrder).toEqual({
@@ -424,7 +424,7 @@ describe('StepsNodeTraverser', () => {
 
     const node = {id: 'node', command: '/steps', children: [child1.id, child2.id]}
 
-    const mapNodes = {
+    const workflowNodes = {
       [subChild1.id]: subChild1,
       [subChild2.id]: subChild2,
       [child1.id]: child1,
@@ -432,7 +432,7 @@ describe('StepsNodeTraverser', () => {
       [node.id]: node,
     }
 
-    traverser = new StepsNodeTraverser(mapNodes)
+    traverser = new StepsNodeTraverser(workflowNodes)
     traverser.traverse(node)
 
     expect(traverser.nodesByOrder).toEqual({1: [{node: child1, promptString: child1.command}]})
@@ -444,13 +444,13 @@ describe('StepsNodeTraverser', () => {
     const child1 = {id: 'child1', command: '#1 /switch child1', children: [caseNode.id]}
     const node = {id: 'node', command: '/steps', children: [child1.id]}
 
-    const mapNodes = {
+    const workflowNodes = {
       [caseNode.id]: caseNode,
       [child1.id]: child1,
       [node.id]: node,
     }
 
-    traverser = new StepsNodeTraverser(mapNodes)
+    traverser = new StepsNodeTraverser(workflowNodes)
     traverser.traverse(node)
 
     expect(traverser.nodesByOrder).toEqual({1: [{node: child1, promptString: child1.command}]})
@@ -465,13 +465,13 @@ describe('StepsNodeTraverser', () => {
     const child2 = {id: 'child2', command: '/chatgpt child2'}
     const node = {id: 'node', command: '/steps', children: [child1.id, child2.id]}
 
-    const mapNodes = {
+    const workflowNodes = {
       [child1.id]: child1,
       [child2.id]: child2,
       [node.id]: node,
     }
 
-    traverser = new StepsNodeTraverser(mapNodes)
+    traverser = new StepsNodeTraverser(workflowNodes)
     traverser.traverse(node)
 
     const result = {
@@ -496,13 +496,13 @@ describe('StepsNodeTraverser', () => {
 
     const node = {id: 'node', command: '/steps', children: [child1.id]}
 
-    const mapNodes = {
+    const workflowNodes = {
       [child1.id]: child1,
       [child2.id]: child2,
       [node.id]: node,
     }
 
-    traverser = new StepsNodeTraverser(mapNodes)
+    traverser = new StepsNodeTraverser(workflowNodes)
     traverser.traverse(node)
 
     // Despite the cycle, it should still correctly identify child1 as a command node
@@ -524,7 +524,7 @@ describe('StepsNodeTraverser', () => {
 
     const node = {id: 'node', command: '/steps', children: [child1.id]}
 
-    const mapNodes = {
+    const workflowNodes = {
       [child1.id]: child1,
       [child2.id]: child2,
       [child3.id]: child3,
@@ -532,7 +532,7 @@ describe('StepsNodeTraverser', () => {
       [node.id]: node,
     }
 
-    traverser = new StepsNodeTraverser(mapNodes)
+    traverser = new StepsNodeTraverser(workflowNodes)
 
     // This should not throw due to stack overflow
     expect(() => traverser.traverse(node)).not.toThrow()

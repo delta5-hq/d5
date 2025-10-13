@@ -74,8 +74,6 @@ export type RectangleData = Dimensions & {
   y: number
 }
 
-export type MapId = string
-
 export type NodeId = string
 
 export type EdgeId = string
@@ -135,5 +133,5 @@ export interface Macro {
   keywords: string[]
   cell: NodeData
   queryType: QUERY_TYPE
-  mapNodes: Record<string, NodeData>
+  workflowNodes: Record<string, NodeData>
 }

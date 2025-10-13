@@ -5,7 +5,7 @@ export function includesAny(keywords, title) {
   return !keywords.find(s => title.toLocaleLowerCase().includes(s.toLocaleLowerCase()))
 }
 
-export function createContextForMap(node, allNodes, filterFunc, parentContext = '') {
+export function createContextForWorkflow(node, allNodes, filterFunc, parentContext = '') {
   const nodeStrings = []
 
   node.children
@@ -20,7 +20,7 @@ export function createContextForMap(node, allNodes, filterFunc, parentContext = 
           })
         } else {
           const newParentContext = parentContext ? `${childNode.title}, ${parentContext}` : childNode.title
-          nodeStrings.push(...createContextForMap(childNode, allNodes, filterFunc, newParentContext))
+          nodeStrings.push(...createContextForWorkflow(childNode, allNodes, filterFunc, newParentContext))
         }
       }
     })

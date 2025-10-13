@@ -1,16 +1,16 @@
+import { useIsMobile } from '@shared/composables'
 import { Button } from '@shared/ui/button'
+import { WorkflowShareFilters, WorkflowsView } from '@widgets/workflow/model'
 import { Grid, List } from 'lucide-react'
 import type React from 'react'
 import { FormattedMessage } from 'react-intl'
 import { FilteringTags } from './filtering-tags'
-import { MapShareFilters, WorkflowsView } from '@widgets/workflow/model'
-import { useIsMobile } from '@shared/composables'
 
 interface ControlButtonsProps {
   view: WorkflowsView
   setView: (view: WorkflowsView) => void
-  shareFilter: MapShareFilters
-  setShareFilter: (filter: MapShareFilters) => void
+  shareFilter: WorkflowShareFilters
+  setShareFilter: (filter: WorkflowShareFilters) => void
   isPublic: boolean
   disabled?: boolean
 }

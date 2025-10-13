@@ -1,25 +1,25 @@
 import { useAuthContext } from '@entities/auth'
 import { useIsMobile } from '@shared/composables'
 import { Card } from '@shared/ui/card'
+import { HelmetTitle } from '@shared/ui/helmet'
 import { StatusPlaceholder } from '@shared/ui/status-placeholder'
 import { AppLayout } from '@widgets/app-layout'
 import {
   CallToRegister,
   ControlButtons,
+  WorkflowCard,
+  WorkflowShareFilters,
+  WorkflowsPagination,
   WorkflowsView,
   WorkflowTable,
-  WorkflowCard,
   WorkflowTemplates,
-  MapShareFilters,
-  WorkflowsPagination,
 } from '@widgets/workflow'
 import { useEffect, useState } from 'react'
-import { useMatch, useNavigate } from 'react-router-dom'
-import { useWorkflows } from '../api'
-import { useLocalStorage } from 'react-use'
-import { WORKFLOWS_PAGE_LIMIT } from '../config'
 import { useIntl } from 'react-intl'
-import { HelmetTitle } from '@shared/ui/helmet'
+import { useMatch, useNavigate } from 'react-router-dom'
+import { useLocalStorage } from 'react-use'
+import { useWorkflows } from '../api'
+import { WORKFLOWS_PAGE_LIMIT } from '../config'
 
 export const WorkflowsListPage = () => {
   const navigate = useNavigate()
@@ -30,7 +30,10 @@ export const WorkflowsListPage = () => {
   const { formatMessage } = useIntl()
 
   const [view, setView] = useLocalStorage<WorkflowsView>('workflowsView', WorkflowsView.grid)
-  const [shareFilter, setShareFilter] = useLocalStorage<MapShareFilters>('workflowsShareFilter', MapShareFilters.all)
+  const [shareFilter, setShareFilter] = useLocalStorage<WorkflowShareFilters>(
+    'workflowsShareFilter',
+    WorkflowShareFilters.all,
+  )
   const [page, setPage] = useState(1)
 
   const {
@@ -69,7 +72,7 @@ export const WorkflowsListPage = () => {
             isPublic={isPublic}
             setShareFilter={setShareFilter}
             setView={setView}
-            shareFilter={shareFilter || MapShareFilters.all}
+            shareFilter={shareFilter || WorkflowShareFilters.all}
             view={view || WorkflowsView.grid}
           />
 

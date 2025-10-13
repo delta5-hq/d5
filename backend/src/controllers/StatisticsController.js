@@ -1,22 +1,22 @@
-import {ROLES} from '../shared/config/constants'
-import Workflow from '../models/Workflow'
+import {emailer} from '../email'
 import User from '../models/User'
 import Waitlist from '../models/Waitlist'
-import {emailer} from '../email'
+import Workflow from '../models/Workflow'
+import {ROLES} from '../shared/config/constants'
 import {createOpenaiIntegration} from './utils/createOpenaiIntegration'
 
 const toCsv = arrayOfArrays =>
   arrayOfArrays.map(array => array.map(field => String(field).replace([';', '\n', '\r'], '')).join(';')).join('\n')
 
-export const userStatisticsAllMaps = async (userId = null) => {
-  const mapNodeCount = {$size: {$ifNull: [{$objectToArray: '$nodes'}, []]}}
-  const mapEdgeCount = {$size: {$ifNull: [{$objectToArray: '$edges'}, []]}}
-  const mapSharedWith = {
+export const userStatisticsAllWorkflows = async (userId = null) => {
+  const nodeCount = {$size: {$ifNull: [{$objectToArray: '$nodes'}, []]}}
+  const edgeCount = {$size: {$ifNull: [{$objectToArray: '$edges'}, []]}}
+  const sharedWith = {
     $ifNull: ['$share.access.subjectId', []],
   }
-  const biggestMapCount = {$size: {$ifNull: [{$objectToArray: '$nodes'}, []]}}
+  const biggestWorkflowCount = {$size: {$ifNull: [{$objectToArray: '$nodes'}, []]}}
   const sharedWithCount = {$size: {$ifNull: ['$share.access', []]}}
-  const lastMapChange = {$max: '$updatedAt'}
+  const lastWorkflowChange = {$max: '$updatedAt'}
 
   const pipeline = [
     {
@@ -25,57 +25,57 @@ export const userStatisticsAllMaps = async (userId = null) => {
         workflowId: 1,
         createdAt: 1,
         updatedAt: 1,
-        mapNodeCount,
-        mapEdgeCount,
-        mapSharedWith,
+        nodeCount,
+        edgeCount,
+        sharedWith,
         title: 1,
-        biggestMapCount,
+        biggestWorkflowCount,
         sharedWithCount,
       },
     },
     {
       $facet: {
-        categorizedBySharedMap: [
+        categorizedBySharedWorkflow: [
           {
-            $unwind: '$mapSharedWith',
+            $unwind: '$sharedWith',
           },
           {
             $group: {
-              _id: '$mapSharedWith',
-              mapShareCount: {$sum: 1},
+              _id: '$sharedWith',
+              shareCount: {$sum: 1},
             },
           },
         ],
-        categorizedByOwnMap: [
+        categorizedByOwnWorkflow: [
           {
             $group: {
               _id: '$userId',
               workflowId: {$addToSet: '$workflowId'},
-              mapCount: {$sum: 1},
-              nodeCount: {$sum: '$mapNodeCount'},
-              edgeCount: {$sum: '$mapEdgeCount'},
-              biggestMapCount: {$max: '$biggestMapCount'},
+              workflowCount: {$sum: 1},
+              nodeCount: {$sum: '$nodeCount'},
+              edgeCount: {$sum: '$edgeCount'},
+              biggestWorkflowCount: {$max: '$biggestWorkflowCount'},
               sharedWithCount: {$sum: '$sharedWithCount'},
-              lastMapChange,
+              lastWorkflowChange,
             },
           },
         ],
       },
     },
-    {$project: {result: {$concatArrays: ['$categorizedBySharedMap', '$categorizedByOwnMap']}}},
+    {$project: {result: {$concatArrays: ['$categorizedBySharedWorkflow', '$categorizedByOwnWorkflow']}}},
     {$unwind: {path: '$result'}},
     {$replaceRoot: {newRoot: '$result'}},
     {
       $group: {
         _id: '$_id',
-        mapCount: {$sum: '$mapCount'},
-        mapShareCount: {$sum: '$mapShareCount'},
+        workflowCount: {$sum: '$workflowCount'},
+        shareCount: {$sum: '$shareCount'},
         nodeCount: {$sum: '$nodeCount'},
         edgeCount: {$sum: '$edgeCount'},
         workflowIds: {$addToSet: '$workflowId'},
         sharedWithCount: {$sum: '$sharedWithCount'},
-        biggestMapCount: {$max: '$biggestMapCount'},
-        lastMapChange: {$max: '$lastMapChange'},
+        biggestWorkflowCount: {$max: '$biggestWorkflowCount'},
+        lastWorkflowChange: {$max: '$lastWorkflowChange'},
       },
     },
   ]
@@ -127,12 +127,12 @@ const StatisticsController = {
     ctx.body = lines
   },
   workflowCsv: async ctx => {
-    ctx.set('Content-disposition', "attachment; filename*=UTF-8''maps.csv")
+    ctx.set('Content-disposition', "attachment; filename*=UTF-8''workflows.csv")
     ctx.type = 'text/csv'
     ctx.body = toCsv(ctx.state.lines)
   },
   userActivity: async ctx => {
-    ctx.body = await userStatisticsAllMaps()
+    ctx.body = await userStatisticsAllWorkflows()
   },
   userList: async ctx => {
     const page = Math.max(parseInt(ctx.query.page) || 1, 1)
@@ -150,7 +150,7 @@ const StatisticsController = {
         {id: {$regex: search, $options: 'i'}},
       ]
     }
-    const statsByUser = Object.fromEntries((await userStatisticsAllMaps()).map(data => [data._id, data]))
+    const statsByUser = Object.fromEntries((await userStatisticsAllWorkflows()).map(data => [data._id, data]))
 
     const total = await User.countDocuments(query)
 
@@ -167,15 +167,15 @@ const StatisticsController = {
         roles: user.roles || [],
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
-        limitMaps: user.limitMaps || null,
+        limitWorkflows: user.limitWorkflows || null,
         limitNodes: user.limitNodes || null,
-        lastMapChange: statistics.lastMapChange || null,
-        biggestMapCount: statistics.biggestMapCount || null,
-        mapCount: statistics.mapCount || 0,
-        mapShareCount: statistics.mapShareCount || 0,
+        lastWorkflowChange: statistics.lastWorkflowChange || null,
+        biggestWorkflowCount: statistics.biggestWorkflowCount || null,
+        workflowCount: statistics.workflowCount || 0,
+        shareCount: statistics.shareCount || 0,
         sharedWithCount: statistics.sharedWithCount || 0,
         workflowIds: statistics.workflowIds || null,
-        sharedMaps: statistics.sharedMaps || 0,
+        sharedWorkflows: statistics.sharedWorkflows || 0,
         nodeCount: statistics.nodeCount || 0,
         edgeCount: statistics.edgeCount || 0,
         meta: user.meta || {},
@@ -195,7 +195,7 @@ const StatisticsController = {
     if (!statisticsUser) ctx.throw(404, 'User not found.')
 
     const {id} = statisticsUser
-    const statistics = await userStatisticsAllMaps(id)
+    const statistics = await userStatisticsAllWorkflows(id)
 
     ctx.body = {
       id: statisticsUser.id,
@@ -205,12 +205,12 @@ const StatisticsController = {
       comment: statisticsUser.comment,
       createdAt: statisticsUser.createdAt,
       updatedAt: statisticsUser.updatedAt,
-      lastMapChange: statistics?.lastMapChange || null,
-      limitMaps: statisticsUser.limitMaps || null,
+      lastWorkflowChange: statistics?.lastWorkflowChange || null,
+      limitWorkflows: statisticsUser.limitWorkflows || null,
       limitNodes: statisticsUser.limitNodes || null,
-      biggestMapCount: statistics?.biggestMapCount || 0,
-      mapCount: statistics?.mapCount || 0,
-      mapShareCount: statistics?.mapShareCount || 0,
+      biggestWorkflowCount: statistics?.biggestWorkflowCount || 0,
+      workflowCount: statistics?.workflowCount || 0,
+      shareCount: statistics?.shareCount || 0,
       sharedWithCount: statistics?.sharedWithCount || 0,
       workflowIds: statistics?.workflowIds || null,
       nodeCount: statistics?.nodeCount || 0,
@@ -232,8 +232,8 @@ const StatisticsController = {
     const userId = statisticsUser.id
     const filterUser = {$match: {$or: [{userId}, {'share.access.subjectId': userId}]}}
 
-    const mapNodeCount = {$size: {$ifNull: [{$objectToArray: '$nodes'}, []]}}
-    const mapEdgeCount = {$size: {$ifNull: [{$objectToArray: '$edges'}, []]}}
+    const nodeCount = {$size: {$ifNull: [{$objectToArray: '$nodes'}, []]}}
+    const edgeCount = {$size: {$ifNull: [{$objectToArray: '$edges'}, []]}}
     const sharedWithCount = {$size: {$ifNull: ['$share.access', []]}}
     const role = {
       $ifNull: [
@@ -254,21 +254,21 @@ const StatisticsController = {
       ],
     }
 
-    const publicMap = {$ifNull: ['$share.public.enabled', false]}
-    const hiddenMap = {$ifNull: ['$share.public.hidden', true]}
+    const publicWorkflow = {$ifNull: ['$share.public.enabled', false]}
+    const hiddenWorkflow = {$ifNull: ['$share.public.hidden', true]}
     const exportData = {
       $project: {
         userId: 1,
         workflowId: 1,
         createdAt: 1,
         updatedAt: 1,
-        mapNodeCount,
-        mapEdgeCount,
+        nodeCount,
+        edgeCount,
         title: 1,
         role: role,
         sharedWithCount,
-        public: publicMap,
-        hidden: hiddenMap,
+        public: publicWorkflow,
+        hidden: hiddenWorkflow,
       },
     }
 
@@ -282,8 +282,8 @@ const StatisticsController = {
         workflowId: 1,
         createdAt: 1,
         updatedAt: 1,
-        mapNodeCount: 1,
-        mapEdgeCount: 1,
+        nodeCount: 1,
+        edgeCount: 1,
         title: titleCondition,
         sharedWithCount: 1,
         public: 1,

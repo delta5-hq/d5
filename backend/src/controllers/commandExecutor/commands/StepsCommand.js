@@ -16,7 +16,7 @@ export class StepsCommand {
   /**
    * Creates an instance of StepsCommand
    * @param {string} userId - The unique identifier for the user
-   * @param {string} workflowId - The unique identifier for the map (optional)
+   * @param {string} workflowId - The unique identifier for the workflow (optional)
    * @param {Store} store - The store object
    * @param {ProgressReporter}
    */

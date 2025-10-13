@@ -9,7 +9,7 @@ const MacroSchema = createSchema({
   keywords: [String],
   queryType: {type: String, required: true},
   cell: {type: Node, required: true},
-  mapNodes: {type: Map, of: Node, required: true},
+  workflowNodes: {type: Map, of: Node, required: true},
 })
 
 const Macro = mongoose.model('Macro', MacroSchema)

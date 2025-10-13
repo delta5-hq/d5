@@ -5,7 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 
 const UserProfile = () => {
   const { id } = useParams()
-  const { isUserFetched, userData, mapsData } = useUserProfile(id as string)
+  const { isUserFetched, userData, worfklowsData } = useUserProfile(id as string)
 
   const navigate = useNavigate()
   const { isAdmin, isLoggedIn } = useAuthContext()
@@ -15,9 +15,9 @@ const UserProfile = () => {
     return null
   }
 
-  if (!isUserFetched || !id || !userData || !mapsData) return null
+  if (!isUserFetched || !id || !userData || !worfklowsData) return null
 
-  return <UserProfileDashboard userData={userData} workflowsData={mapsData} />
+  return <UserProfileDashboard userData={userData} workflowsData={worfklowsData} />
 }
 
 export default UserProfile

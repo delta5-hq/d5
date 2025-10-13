@@ -42,7 +42,7 @@ class Store {
   /** @type {string} User identifier */
   _userId
 
-  /** @type {string|undefined} Map identifier */
+  /** @type {string|undefined} Workflow identifier */
   _workflowId
 
   /** @type {Record<string, NodeData>} Node map */
@@ -78,7 +78,7 @@ class Store {
   /**
    * @param {Object} params - Initialization parameters
    * @param {string} params.userId - Required user ID
-   * @param {string} [params.workflowId] - Optional map ID
+   * @param {string} [params.workflowId] - Optional workflow ID
    * @param {Record<string, NodeData>} params.nodes - Node map
    * @param {Record<string, EdgeData>} params.nodes - Edge map
    * @param {Record<string, string>} params.files - File map

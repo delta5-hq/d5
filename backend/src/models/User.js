@@ -16,7 +16,7 @@ const UserSchema = createSchema({
   roles: [String],
   comment: {type: String},
   limitNodes: Number,
-  limitMaps: Number,
+  limitWorkflows: Number,
   pwdResetToken: {type: String, index: {unique: true, sparse: true}, required: false},
   meta: {
     store: {

@@ -33,7 +33,7 @@ export class ForeachCommand {
   /**
    * Creates an instance of WebCommand
    * @param {string} userId - The unique identifier for the user
-   * @param {string} workflowId - The unique identifier for the map (optional)
+   * @param {string} workflowId - The unique identifier for the workflow (optional)
    * @param {Store} store - The store object
    * @param {ProgressReporter} progress
    * @param {object} params - Foreach params
@@ -180,7 +180,7 @@ export class ForeachCommand {
             const queryType = getQueryType(promptString)
 
             if (queryType) {
-              // update previous node in mapNodes
+              // update previous node in workflowNodes
               this.store.editNode({...node, command: promptString})
 
               await runCommand(
@@ -212,7 +212,7 @@ export class ForeachCommand {
           const {node, promptString} = nodes[i]
 
           const queryType = getQueryType(promptString)
-          // update previous node in mapNodes
+          // update previous node in workflowNodes
           this.store.editNode({...node, command: promptString})
 
           if (queryType) {

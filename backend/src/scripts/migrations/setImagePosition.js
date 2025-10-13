@@ -8,11 +8,11 @@ const run = async () => {
 
   const cursor = Workflow.find({imagePosition: null}).cursor()
 
-  for (let map = await cursor.next(); map !== null; map = await cursor.next()) {
-    console.log(`Workflow ID: ${map._id}`)
+  for (let workflow = await cursor.next(); workflow !== null; workflow = await cursor.next()) {
+    console.log(`Workflow ID: ${workflow._id}`)
     let changed = false
-    if (map.nodes) {
-      map.nodes.forEach(node => {
+    if (workflow.nodes) {
+      workflow.nodes.forEach(node => {
         console.log(`node and image ID: ${node.id} ${node.image}`)
         if (node.image) {
           changed = true
@@ -26,7 +26,7 @@ const run = async () => {
     }
 
     if (changed) {
-      await map.save()
+      await workflow.save()
     }
   }
 

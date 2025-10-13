@@ -5,7 +5,7 @@ export const queryKeys = {
   waitlist: ['waitlist'],
 
   userProfile: (userId: string) => ['users', userId],
-  userMaps: (userId: string) => ['maps', userId],
+  userWorkflows: (userId: string) => ['workflows', userId],
 
   integration: ['settings', 'integration'],
   openai: ['settings', 'integration', 'openai'],

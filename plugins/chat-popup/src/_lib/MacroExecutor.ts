@@ -39,7 +39,7 @@ export class MacroExecutor {
         const childNode: NodeData = { id: 'inputChild', title: input }
         const inputNode: NodeData = { id: 'inputRef', title: '@input', children: [childNode.id] }
 
-        return { ...macro, mapNodes: { ...macro.mapNodes, [childNode.id]: childNode, [inputNode.id]: inputNode } }
+        return { ...macro, workflowNodes: { ...macro.workflowNodes, [childNode.id]: childNode, [inputNode.id]: inputNode } }
     }
 
     execute = async ({ signal, ...params }: IExecute, retry = 3) => {
@@ -71,10 +71,10 @@ export class MacroExecutor {
         let nodesToRender: NodeData[] = []
         const renderIds: Record<string, string> = {}
 
-        const mapNodes = Object.entries(macro.mapNodes)
+        const workflowNodes = Object.entries(macro.workflowNodes)
 
-        for (let i = 0; i < mapNodes.length; i += 1) {
-            const [id, data] = mapNodes[i]
+        for (let i = 0; i < workflowNodes.length; i += 1) {
+            const [id, data] = workflowNodes[i]
 
             if (data.command?.match(outputRefRegex)) {
                 const outputNodes = nodes.filter(n => n.parent === id)

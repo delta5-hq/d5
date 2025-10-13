@@ -48,7 +48,7 @@ const WorkflowVisibilityDialog: React.FC<VisibilityDialogProps> = ({ workflowId,
     enabled: open,
   })
 
-  const { mutateAsync: setMapVisibility, isPending: isLoading } = useApiMutation<
+  const { mutateAsync: setWorkflowVisibility, isPending: isLoading } = useApiMutation<
     { success: boolean },
     Error,
     Partial<PublicShare>
@@ -92,7 +92,7 @@ const WorkflowVisibilityDialog: React.FC<VisibilityDialogProps> = ({ workflowId,
             description={<FormattedMessage id="buttonUnshareMessage" />}
             disabled={isLoading}
             icon={<Home className="h-6 w-6" />}
-            onClick={() => setMapVisibility({ enabled: false })}
+            onClick={() => setWorkflowVisibility({ enabled: false })}
             title={<FormattedMessage id="buttonUnshare" />}
           />
 
@@ -103,7 +103,7 @@ const WorkflowVisibilityDialog: React.FC<VisibilityDialogProps> = ({ workflowId,
             description={<FormattedMessage id="buttonShareHiddenMessage" />}
             disabled={isLoading}
             icon={<Users className="h-6 w-6" />}
-            onClick={() => setMapVisibility({ enabled: true, hidden: true })}
+            onClick={() => setWorkflowVisibility({ enabled: true, hidden: true })}
             title={<FormattedMessage id="buttonShareHidden" />}
           />
 
@@ -114,7 +114,7 @@ const WorkflowVisibilityDialog: React.FC<VisibilityDialogProps> = ({ workflowId,
             description={<FormattedMessage id="buttonShareMessage" />}
             disabled={isLoading}
             icon={<Globe className="h-6 w-6" />}
-            onClick={() => setMapVisibility({ enabled: true, hidden: false })}
+            onClick={() => setWorkflowVisibility({ enabled: true, hidden: false })}
             title={<FormattedMessage id="buttonShare" />}
           />
 
@@ -125,7 +125,7 @@ const WorkflowVisibilityDialog: React.FC<VisibilityDialogProps> = ({ workflowId,
             description={<FormattedMessage id="buttonShareWritableHiddenMessage" />}
             disabled={isLoading}
             icon={<Pencil className="h-6 w-6" />}
-            onClick={() => setMapVisibility({ enabled: true, hidden: true, writeable: true })}
+            onClick={() => setWorkflowVisibility({ enabled: true, hidden: true, writeable: true })}
             title={<FormattedMessage id="buttonShareWritableHidden" />}
           />
 
@@ -137,7 +137,7 @@ const WorkflowVisibilityDialog: React.FC<VisibilityDialogProps> = ({ workflowId,
             description={<FormattedMessage id="buttonShareWritableMessage" />}
             disabled={isLoading}
             icon={<Pencil className="h-6 w-6" />}
-            onClick={() => setMapVisibility({ enabled: true, hidden: false, writeable: true })}
+            onClick={() => setWorkflowVisibility({ enabled: true, hidden: false, writeable: true })}
             title={<FormattedMessage id="buttonShareWritable" />}
           />
         </div>

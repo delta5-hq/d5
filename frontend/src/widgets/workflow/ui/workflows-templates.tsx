@@ -95,7 +95,7 @@ export const WorkflowTemplates = () => {
 
   return (
     <div className="w-full p-4" ref={containerRef}>
-      <h1 className="text-foreground text-2xl font-semibold mb-4">Create a New Map</h1>
+      <h1 className="text-foreground text-2xl font-semibold mb-4">Create a New Workflow</h1>
       <Card className="p-4 shadow-lg rounded-lg" glassEffect={false}>
         <div className="flex flex-row gap-x-2">
           <Card
@@ -105,7 +105,7 @@ export const WorkflowTemplates = () => {
           >
             <CardContent className="flex justify-center items-center flex-col ">
               <Plus className="w-8 h-8" />
-              <p className="text-left text-base">Empty Map</p>
+              <p className="text-left text-base">Empty Workflow</p>
             </CardContent>
           </Card>
           {data.slice(0, shownCards).map(template => (

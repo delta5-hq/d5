@@ -22,7 +22,7 @@ export class DownloadCommand {
   /**
    * Creates an instance of DownloadCommand
    * @param {string} userId - The unique identifier for the user
-   * @param {string} workflowId - The unique identifier for the map (optional)
+   * @param {string} workflowId - The unique identifier for the workflow (optional)
    * @param {Store} store - The store object
    */
   constructor(userId, workflowId, store) {
@@ -75,7 +75,7 @@ export class DownloadCommand {
     )
   }
 
-  async insertFileToMap(node, data) {
+  async saveFile(node, data) {
     const {content, filename} = data
 
     const buffer = Buffer.isBuffer(content) ? content : Buffer.from(content, 'utf-8')
@@ -161,9 +161,9 @@ export class DownloadCommand {
 
   getNodeFiles(node) {
     return Object.values(this.store._nodes)
-      .filter(mapNode => mapNode.parent === node.id)
-      .reduce((acc, mapNode) => {
-        if (mapNode.file) acc[mapNode.file] = mapNode.title
+      .filter(n => n.parent === node.id)
+      .reduce((acc, n) => {
+        if (n.file) acc[n.file] = n.title
         return acc
       }, {})
   }
@@ -223,7 +223,7 @@ export class DownloadCommand {
     })
 
     if (newFilesData.length) {
-      await Promise.allSettled(newFilesData.map(data => this.insertFileToMap(node, data)))
+      await Promise.allSettled(newFilesData.map(data => this.saveFile(node, data)))
     }
 
     // eslint-disable-next-line

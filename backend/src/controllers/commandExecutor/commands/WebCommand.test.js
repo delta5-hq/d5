@@ -106,11 +106,11 @@ describe('WebCommand', () => {
         command: '/web prompt --lang=ru',
       }
 
-      const mapNodes = {
+      const workflowNodes = {
         [command.id]: command,
       }
 
-      await command.run(node, 'prompt', mapNodes, {})
+      await command.run(node, 'prompt', workflowNodes, {})
 
       expect(getLLM).toHaveBeenCalledWith(expect.objectContaining({settings, type: Model.YandexGPT}))
     })

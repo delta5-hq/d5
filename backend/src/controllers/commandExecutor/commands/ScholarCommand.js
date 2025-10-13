@@ -26,7 +26,7 @@ export class ScholarCommand {
   /**
    * Creates an instance of ScholarCommand
    * @param {string} userId - The unique identifier for the user
-   * @param {string} workflowId - The unique identifier for the map (optional)
+   * @param {string} workflowId - The unique identifier for the workflow (optional)
    * @param {Store} store - The store object
    */
   constructor(userId, workflowId, store) {
