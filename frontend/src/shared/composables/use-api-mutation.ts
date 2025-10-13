@@ -9,7 +9,7 @@ interface ExtraMutationParams {
 type ExtendedMutationOptions<TData, TError, TVariables> = UseMutationOptions<TData, TError, TVariables> &
   ExtraMutationParams
 
-export const useApiMutation = <TData = unknown, TError = unknown, TVariables = unknown>(
+export const useApiMutation = <TData = unknown, TError = Error, TVariables = unknown>(
   options: ExtendedMutationOptions<TData, TError, TVariables>,
 ) => {
   const { url, method = 'POST', ...rest } = options

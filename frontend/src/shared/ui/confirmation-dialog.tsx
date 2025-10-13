@@ -45,7 +45,7 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
           <DialogDescription className="mt-2 text-sm text-muted-foreground">{question}</DialogDescription>
         ) : null}
         <DialogFooter className="mt-4 flex justify-end gap-2">
-          <Button onClick={onNotConfirm} variant="outline">
+          <Button onClick={onNotConfirm} variant="default">
             <FormattedMessage id={noTextId} />
           </Button>
           <Button onClick={onConfirm} variant="default">

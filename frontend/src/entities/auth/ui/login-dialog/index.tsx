@@ -1,5 +1,5 @@
 import { useForm } from 'react-hook-form'
-import { z } from 'zod/v3'
+import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { FormattedMessage } from 'react-intl'
 import { Link } from 'react-router-dom'
@@ -102,11 +102,18 @@ export const LoginDialog = ({ open, onClose }: LoginDialogProps) => {
 
           {/* Actions */}
           <div className="flex justify-end gap-2">
-            <Button className="px-4 py-2 rounded border" onClick={() => onClose?.()} type="button" variant="default">
+            <Button
+              className="px-4 py-2 rounded border"
+              data-type="cancel"
+              onClick={() => onClose?.()}
+              type="button"
+              variant="default"
+            >
               <FormattedMessage id="buttonCancel" />
             </Button>
             <Button
               className="px-4 py-2 rounded text-white disabled:opacity-50"
+              data-type="confirm-login"
               disabled={isSubmitting}
               type="submit"
               variant="accent"
