@@ -5,8 +5,8 @@
   "gitVersion": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "npm run genversion && vite",
+    "build": "npm run genversion && tsc -b && vite build",
     "lint": "steiger ./src; eslint src",
     "format": "steiger ./src; eslint --fix src",
     "preview": "vite preview",
