@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "test:e2e": "playwright test",
     "test:e2e:firefox": "playwright test --project=firefox",
+    "test:e2e:chromium": "playwright test --project=chromium",
     "test:e2e:ci": "CI=true playwright test",
     "genversion": "genversion src/version.ts --es6"
   },

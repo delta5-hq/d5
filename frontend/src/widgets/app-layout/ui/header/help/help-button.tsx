@@ -16,7 +16,7 @@ const HelpButton = () => {
   return (
     <DropdownMenu onOpenChange={() => setIsOpen(prev => !prev)} open={isOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline">
+        <Button variant="ghost">
           <HelpCircleIcon />
           {isOpen ? <ChevronUp /> : <ChevronDown />}
         </Button>

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { FormattedMessage } from 'react-intl'
+import { FormattedMessage, useIntl } from 'react-intl'
 import { toast } from 'sonner'
 
 import { useAuthContext } from '@entities/auth'
@@ -29,12 +29,9 @@ const modelMapping: Record<string, Model> = {
 const UserSettingsPage: React.FC = () => {
   const { user } = useAuthContext()
   const { showDialog } = useDialog()
+  const { formatMessage } = useIntl()
 
-  const {
-    data: integration,
-    isLoading: isSettingsLoading,
-    refetch,
-  } = useApiQuery<IntegrationSettings>({
+  const { data: integration, isLoading: isSettingsLoading } = useApiQuery<IntegrationSettings>({
     queryKey: queryKeys.integration,
     url: '/integration',
   })
@@ -57,15 +54,24 @@ const UserSettingsPage: React.FC = () => {
   const { mutateAsync: changeUserModel, isPending: isModelSaving } = useApiMutation({
     url: '/integration/model',
     method: 'POST',
+    onSuccess: () => toast.success(formatMessage({ id: 'modelSaveSuccessfully' })),
+    onError: err => toast.error(err.message),
   })
   const { mutateAsync: changeUserLang, isPending: isLangSaving } = useApiMutation({
     url: '/integration/language',
     method: 'POST',
+    onSuccess: () => toast.success(formatMessage({ id: 'langSaveSuccessfully' })),
+    onError: err => toast.error(err.message),
   })
 
   const [model, setModel] = useState('')
   const [lang, setLang] = useState(USER_DEFAULT_LANGUAGE)
   const [openLangBox, setOpenLangBox] = useState(false)
+
+  const onModelChange = async (model: string) => {
+    setModel(model)
+    await changeUserModel({ model })
+  }
 
   useEffect(() => {
     if (integration?.model) {
@@ -78,29 +84,9 @@ const UserSettingsPage: React.FC = () => {
     }
   }, [integration, enabledIntegrations])
 
-  const handleSave = async () => {
-    try {
-      let refetchFlag = false
-      if (integration?.model !== model) {
-        refetchFlag = true
-        await changeUserModel({ model })
-      }
-      if (integration?.lang !== lang) {
-        refetchFlag = true
-        await changeUserLang({ lang })
-      }
-
-      if (!refetchFlag) return
-
-      await refetch()
-      toast.success('Saved successfully')
-    } catch (e: unknown) {
-      toast.error((e as Error)?.message || 'Request failed')
-    }
-  }
-
-  const onLangChange = (newLang: string) => () => {
+  const onLangChange = (newLang: string) => async () => {
     setLang(newLang)
+    await changeUserLang({ lang: newLang })
     setOpenLangBox(false)
   }
 
@@ -137,7 +123,7 @@ const UserSettingsPage: React.FC = () => {
               </Label>
 
               <Popover onOpenChange={setOpenLangBox} open={openLangBox}>
-                <PopoverTrigger id="lang">
+                <PopoverTrigger disabled={isLangSaving} id="lang">
                   {languages.find(l => l.code === lang)?.name || <FormattedMessage id="defaultLang" />}
                   <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </PopoverTrigger>
@@ -172,7 +158,7 @@ const UserSettingsPage: React.FC = () => {
             </Label>
 
             <div>
-              <Select onValueChange={setModel} value={model}>
+              <Select disabled={isModelSaving} onValueChange={onModelChange} value={model}>
                 <SelectTrigger aria-label="Model select" className="w-full">
                   <SelectValue placeholder="Select model" />
                 </SelectTrigger>
@@ -201,12 +187,6 @@ const UserSettingsPage: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <Button className="px-4 py-2" disabled={isModelSaving || isLangSaving} onClick={handleSave}>
-              <FormattedMessage id="save" />
-            </Button>
           </div>
         </div>
       )}

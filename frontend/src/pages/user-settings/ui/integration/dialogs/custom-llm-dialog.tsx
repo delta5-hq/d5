@@ -110,10 +110,10 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
 
   return (
     <Dialog onOpenChange={onClose} open={open}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" data-dialog-name="custom_llm">
         <DialogHeader>
           <DialogTitle>
-            <FormattedMessage id="dialog.integration.title" />
+            <FormattedMessage id="integration.custom_llm.title" />
           </DialogTitle>
           <DialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />
@@ -133,7 +133,7 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
             onValueChange={(val: CustomLLMApiType) => setValue('apiType', val)}
             value={watch('apiType')}
           >
-            <SelectTrigger>
+            <SelectTrigger data-select-name="custom_llm-model">
               <SelectValue placeholder="Select API Type" />
             </SelectTrigger>
             <SelectContent>

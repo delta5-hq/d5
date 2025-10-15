@@ -191,7 +191,7 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
       </div>
 
       <div className="overflow-x-auto">
-        <Table className="bg-card rounded-xl p-2">
+        <Table className="bg-card rounded-xl p-2" id="waitlist-table">
           <TableHeader>
             <TableRow>
               <TableHead onClick={toggleSelectAll}>

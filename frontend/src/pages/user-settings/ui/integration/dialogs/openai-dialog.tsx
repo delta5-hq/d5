@@ -20,13 +20,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner'
 
 import type { ApiError, DialogProps, Openai } from '@shared/base-types'
-import { useApiMutation, useApiQuery } from '@shared/composables'
-import { OpenaiModels, queryKeys } from '@shared/config'
+import { useApiMutation } from '@shared/composables'
+import { OpenaiModels } from '@shared/config'
+import type { HttpError } from '@shared/lib/error'
 import { createResponseChat } from '@shared/lib/llm'
 import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
-import { z } from 'zod'
-import type { HttpError } from '@shared/lib/error'
 import { X } from 'lucide-react'
+import { z } from 'zod'
 
 export const openaiSchema = z.object({
   apiKey: z.string().optional(),
@@ -54,11 +54,6 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
     },
   })
 
-  const { data: apiStatus } = useApiQuery<{ success: boolean }>({
-    queryKey: queryKeys.openaiStatus,
-    url: '/integration/openai_api_key',
-  })
-
   const form = useForm<OpenaiFormValues>({
     resolver: zodResolver(openaiSchema),
     defaultValues: {
@@ -76,6 +71,13 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
   } = form
 
   const apiKeyValue = watch('apiKey')
+
+  React.useEffect(() => {
+    if (!apiKeyValue?.trim()) {
+      setValue('model', OpenaiModels.GPT_4_1_MINI)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKeyValue])
 
   const onSubmit = async (values: OpenaiFormValues) => {
     try {
@@ -111,10 +113,10 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
 
   return (
     <Dialog onOpenChange={onClose} open={open}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" data-dialog-name="openai">
         <DialogHeader>
           <DialogTitle>
-            <FormattedMessage id="dialog.integration.title" />
+            <FormattedMessage id="integration.openai.title" />
           </DialogTitle>
           <DialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />
@@ -148,12 +150,12 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
               onValueChange={(val: OpenaiModels) => setValue('model', val)}
               value={watch('model')}
             >
-              <SelectTrigger>
+              <SelectTrigger data-select-name="openai-model">
                 <SelectValue placeholder="Select model" />
               </SelectTrigger>
               <SelectContent>
-                {!apiStatus?.success || !apiKeyValue ? (
-                  <SelectItem value={OpenaiModels.GPT_4o_MINI}>{OpenaiModels.GPT_4o_MINI}</SelectItem>
+                {!apiKeyValue ? (
+                  <SelectItem value={OpenaiModels.GPT_4_1_MINI}>{OpenaiModels.GPT_4_1_MINI}</SelectItem>
                 ) : (
                   Object.values(OpenaiModels).map(m => (
                     <SelectItem key={m} value={m}>
