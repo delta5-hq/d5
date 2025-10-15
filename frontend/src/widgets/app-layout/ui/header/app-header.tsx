@@ -24,7 +24,7 @@ const Header = ({ breakpoint }: HeaderProps) => {
         {!isMobile ? <AppSearch className="h-9 w-64 lg:w-80" /> : null}
       </div>
 
-      <div className="flex flex-row items-center justify-between">
+      <div className="flex flex-row items-center justify-between gap-x-2">
         <ThemeSwitcher />
         {!isMobile ? (
           <div className="flex items-center gap-2">

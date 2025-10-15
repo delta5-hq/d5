@@ -2,13 +2,15 @@ import { Sun, Moon, Laptop } from 'lucide-react'
 
 import { Popover, PopoverContent, PopoverTrigger } from '@shared/ui/popover'
 import { Button } from '@shared/ui/button'
-import { RadioGroup, RadioGroupItem } from '@shared/ui/radio-group'
-import { Label } from '@shared/ui/label'
 import { useTheme, type Theme } from '@shared/lib/theme-provider'
 import { FormattedMessage } from 'react-intl'
 
 export const ThemeSwitcher = () => {
   const { theme, setTheme } = useTheme()
+
+  const handleClick = (value: Theme) => () => {
+    if (theme !== value) setTheme(value)
+  }
 
   return (
     <Popover>
@@ -24,27 +26,34 @@ export const ThemeSwitcher = () => {
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="p-5">
-        <RadioGroup className="flex flex-col space-y-2" onValueChange={(value: Theme) => setTheme(value)} value={theme}>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem id="light" value="light" />
-            <Label className="flex items-center gap-2" htmlFor="light">
-              <Sun className="h-4 w-4" /> <FormattedMessage id="themeLight" />
-            </Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem id="dark" value="dark" />
-            <Label className="flex items-center gap-2" htmlFor="dark">
-              <Moon className="h-4 w-4" /> <FormattedMessage id="themeDark" />
-            </Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem id="system" value="system" />
-            <Label className="flex items-center gap-2" htmlFor="system">
-              <Laptop className="h-4 w-4" /> <FormattedMessage id="themeSystem" />
-            </Label>
-          </div>
-        </RadioGroup>
+      <PopoverContent className="p-4 w-[220px] flex flex-col items-center space-y-1">
+        <Button
+          className="w-full text-sm"
+          onClick={handleClick('system')}
+          variant={theme === 'system' ? 'accent' : 'default'}
+        >
+          <FormattedMessage id="themeSystem" />
+        </Button>
+
+        <div className="flex w-full justify-between space-x-2">
+          <Button
+            className="flex-1 flex items-center justify-center gap-2"
+            onClick={handleClick('light')}
+            variant={theme === 'light' ? 'accent' : 'default'}
+          >
+            <Sun className="h-4 w-4" />
+            <FormattedMessage id="themeLight" />
+          </Button>
+
+          <Button
+            className="flex-1 flex items-center justify-center gap-2"
+            onClick={handleClick('dark')}
+            variant={theme === 'dark' ? 'accent' : 'default'}
+          >
+            <Moon className="h-4 w-4" />
+            <FormattedMessage id="themeDark" />
+          </Button>
+        </div>
       </PopoverContent>
     </Popover>
   )

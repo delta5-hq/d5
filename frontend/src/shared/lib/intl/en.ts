@@ -210,7 +210,7 @@ export default {
   langSaveSuccessfully: 'Language saved successfully',
   modelSaveSuccessfully: 'Model saved successfully',
 
-  themeLight: 'Light',
-  themeDark: 'Dark',
-  themeSystem: 'System',
+  themeLight: 'Day',
+  themeDark: 'Night',
+  themeSystem: 'Auto based on OS',
 }
