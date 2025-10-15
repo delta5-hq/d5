@@ -1,4 +1,3 @@
-import { miscMapPicture } from '@shared/assets'
 import type { Template } from '@shared/base-types'
 import { useApiQuery } from '@shared/composables'
 import { FORMATTED_TEMPLATE_LIST, queryKeys, type FormattedTemplate } from '@shared/config'
@@ -28,7 +27,6 @@ const extractTemplates = (array: Template[]): TemplateItem[] =>
     return {
       ...baseTemplate,
       properties: {},
-      ...(!baseTemplate.backgroundImage && { picture: miscMapPicture }),
     }
   })
 

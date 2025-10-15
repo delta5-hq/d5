@@ -18,17 +18,17 @@ export const WorkflowsPagination: React.FC<PaginationProps> = ({ page, limit, to
   return (
     <Pagination className="flex items-center justify-center gap-2">
       <PaginationContent>
-        <Button disabled={page <= 1} onClick={() => onPageChange(page - 1)} size="sm" variant="outline">
+        <Button disabled={page <= 1} onClick={() => onPageChange(page - 1)} size="sm" variant="ghost">
           Previous
         </Button>
 
         {pages.map(p => (
-          <Button key={p} onClick={() => onPageChange(p)} size="sm" variant={p === page ? 'default' : 'outline'}>
+          <Button key={p} onClick={() => onPageChange(p)} size="sm" variant={p === page ? 'default' : 'ghost'}>
             {p}
           </Button>
         ))}
 
-        <Button disabled={page >= totalPages} onClick={() => onPageChange(page + 1)} size="sm" variant="outline">
+        <Button disabled={page >= totalPages} onClick={() => onPageChange(page + 1)} size="sm" variant="ghost">
           Next
         </Button>
       </PaginationContent>

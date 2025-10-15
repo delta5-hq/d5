@@ -1,7 +1,6 @@
 import { useResponsive } from '@shared/composables'
 import { SidebarTrigger, useSidebar } from '@shared/ui/sidebar'
 import { HelpButton, LoginButton } from './help'
-import MenuButton from './menu-button/menu-button'
 import { AppSearch } from './search'
 import { UserSettingsButton } from './user-settings'
 import { useAuthContext } from '@entities/auth'
@@ -15,7 +14,7 @@ interface HeaderProps {
 }
 
 const Header = ({ breakpoint, searchPlaceholder }: HeaderProps) => {
-  const { openMobile: sidebarOpened, toggleSidebar, isMobile } = useSidebar()
+  const { isMobile } = useSidebar()
   const { isResponsive } = useResponsive({ breakpoint })
   const { isLoggedIn } = useAuthContext()
   const { query, setQuery } = useSearch()
@@ -47,7 +46,7 @@ const Header = ({ breakpoint, searchPlaceholder }: HeaderProps) => {
           )}
         </div>
       ) : (
-        <MenuButton opened={sidebarOpened} toggleButton={toggleSidebar} />
+        <CreateWorkflow />
       )}
     </header>
   )

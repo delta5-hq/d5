@@ -219,7 +219,7 @@ export default {
   tabAll: 'All',
   tabPrivate: 'Private',
   tabPublic: 'Public',
-  tabPublicUnlisted: 'Public Unlisted',
+  tabPublicUnlisted: 'Unlisted',
 
   workflowTitle: 'Name',
   workflowShared: 'Shared',
@@ -233,6 +233,7 @@ export default {
   menuExportWorkflow: 'Export',
   menuVisibility: 'Set Visibility',
   workflowAddCategoryLabel: 'Add Category',
+  workflowAddDashboardLabel: 'Add Dashboard',
 
   dialogWorkflowPrivacyOpenerTitle: 'Change Privacy',
   dialogWorkflowPrivacyMessage: 'Choose here how your workflow can be found, viewed or edited by others:',
@@ -261,7 +262,7 @@ export default {
   created: 'Created',
   workflowIsHidden: 'Public Unlisted',
   workflowIsPrivate: 'Private',
-  searchWorkflow: 'Search Workflow',
+  searchWorkflow: 'Search workflow',
   workflowsPublic: 'Public Workflows',
   workflowsPrivate: 'My Workflows',
 }

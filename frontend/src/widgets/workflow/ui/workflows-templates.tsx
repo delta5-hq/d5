@@ -97,9 +97,9 @@ export const WorkflowTemplates = () => {
     <div className="w-full p-4" ref={containerRef}>
       <h1 className="text-foreground text-2xl font-semibold mb-4">Create a New Workflow</h1>
       <Card className="p-4 shadow-lg rounded-lg" glassEffect={false}>
-        <div className="flex flex-row gap-x-2">
+        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-8 auto-rows-fr">
           <Card
-            className="flex justify-center items-center bg-card rounded-lg border p-0 cursor-pointer transform transition duration-300 hover:scale-101 hover:shadow-lg"
+            className="aspect-square flex justify-center items-center bg-card rounded-lg border p-0 cursor-pointer transform transition duration-300 hover:scale-101 hover:shadow-lg"
             glassEffect={false}
             onClick={onCreateEmpty}
           >

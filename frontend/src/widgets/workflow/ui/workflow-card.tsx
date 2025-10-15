@@ -9,9 +9,9 @@ import { Badge } from '@shared/ui/badge'
 import WorkflowCardTitle from './workflow-card/workflow-card-title'
 import { Visibility } from './workflow-card/visibility'
 import { MorePopover } from './workflow-card/more-popover'
-import { WorkflowCategory } from './workflow-card/workflow-category'
 import { Inbox } from 'lucide-react'
 import { FormattedMessage } from 'react-intl'
+import { WorkflowAddDashboard } from './workflow-card/add-dashboard'
 
 interface WorkflowCardSkeletonProps {
   count?: number
@@ -108,7 +108,7 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({ workflows, isPublic,
                 <AvatarFallback>{item.userId.slice(0, 1).toUpperCase()}</AvatarFallback>
               </Avatar>
               <div className="flex flex-col">
-                <p>@{item.userId}</p>
+                <p>{item.userId}</p>
                 <UpdatedTime updatedAt={item.updatedAt} />
               </div>
             </div>
@@ -137,7 +137,7 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({ workflows, isPublic,
                 <Badge variant="default">{item.category}</Badge>
               ) : null
             ) : (
-              <WorkflowCategory workflow={item} />
+              <WorkflowAddDashboard />
             )}
           </CardFooter>
         </Card>

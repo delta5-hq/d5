@@ -7,5 +7,3 @@ export { default as PerplexityLogo } from './perplexity.webp'
 export { default as QwenLogo } from './qwen.webp'
 export { default as YandexGPTLogo } from './yandex_gpt.webp'
 export { default as GoogleDriveLogo } from './google_drive.webp'
-
-export * from './templatePictures'

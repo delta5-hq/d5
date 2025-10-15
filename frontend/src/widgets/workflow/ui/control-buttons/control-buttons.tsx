@@ -43,7 +43,7 @@ export const ControlButtons: React.FC<ControlButtonsProps> = ({
             className="px-3 py-2"
             disabled={disabled}
             onClick={() => setView(WorkflowsView.grid)}
-            variant={view === WorkflowsView.grid ? 'default' : 'outline'}
+            variant={view === WorkflowsView.grid ? 'default' : 'ghost'}
           >
             <Grid className="w-5 h-5" />
           </Button>
@@ -52,7 +52,7 @@ export const ControlButtons: React.FC<ControlButtonsProps> = ({
             className="px-3 py-2"
             disabled={disabled}
             onClick={() => setView(WorkflowsView.list)}
-            variant={view === WorkflowsView.list ? 'default' : 'outline'}
+            variant={view === WorkflowsView.list ? 'default' : 'ghost'}
           >
             <List className="w-5 h-5" />
           </Button>

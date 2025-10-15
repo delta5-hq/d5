@@ -8,13 +8,13 @@ import { useApiMutation } from '@shared/composables'
 import type { WorkflowItem } from '@widgets/workflow/model'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import type { DialogProps } from '@shared/base-types'
 
-interface WorkflowCategoryProps {
+interface WorkflowCategoryDialogProps extends DialogProps {
   workflow: WorkflowItem
 }
 
-export const WorkflowCategory: React.FC<WorkflowCategoryProps> = ({ workflow }) => {
-  const [open, setOpen] = useState(false)
+export const WorkflowCategoryDialog: React.FC<WorkflowCategoryDialogProps> = ({ workflow, open, onClose }) => {
   const [category, setCategory] = useState(workflow.category || '')
   const queryClient = useQueryClient()
   const { formatMessage } = useIntl()
@@ -22,21 +22,12 @@ export const WorkflowCategory: React.FC<WorkflowCategoryProps> = ({ workflow }) 
   const { mutateAsync: saveCategory } = useApiMutation<{ success: boolean }, Error, { category: string | null }>({
     url: `/workflow/${workflow.workflowId}/category`,
     onSuccess: () => {
-      queryClient.refetchQueries({
-        queryKey: ['workflows'],
-        type: 'active',
-        exact: false,
-      })
-      setOpen(false)
+      queryClient.refetchQueries({ queryKey: ['workflows'], type: 'active', exact: false })
+      onClose?.()
       toast.success(formatMessage({ id: 'categoryCreatedSuccesfully' }))
     },
     onError: error => toast.error(error.message),
   })
-
-  const onDelete = useCallback(async () => {
-    await saveCategory({ category: null })
-    setCategory('')
-  }, [saveCategory])
 
   const onSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -47,44 +38,59 @@ export const WorkflowCategory: React.FC<WorkflowCategoryProps> = ({ workflow }) 
   )
 
   return (
+    <Dialog onOpenChange={onClose} open={open}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            <FormattedMessage id="workflowAddCategoryLabel" />
+          </DialogTitle>
+        </DialogHeader>
+
+        <form className="space-y-4 mt-4" onSubmit={onSubmit}>
+          <Input autoFocus onChange={e => setCategory(e.target.value)} placeholder="Category" value={category} />
+          <DialogFooter className="flex justify-end gap-2">
+            <Button onClick={onClose} type="button" variant="default">
+              <FormattedMessage id="cancel" />
+            </Button>
+            <Button type="submit">
+              <FormattedMessage id="save" />
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+interface WorkflowCategoryButtonProps {
+  workflow: WorkflowItem
+}
+
+export const WorkflowCategoryButton: React.FC<WorkflowCategoryButtonProps> = ({ workflow }) => {
+  const [open, setOpen] = useState(false)
+  const { mutateAsync: saveCategory } = useApiMutation<{ success: boolean }, Error, { category: string | null }>({
+    url: `/workflow/${workflow.workflowId}/category`,
+  })
+
+  const onDelete = useCallback(async () => {
+    await saveCategory({ category: null })
+  }, [saveCategory])
+
+  return (
     <>
       {workflow.category ? (
         <Button onClick={() => setOpen(true)} size="sm" variant="default">
           {workflow.category}
-
-          <X className="h-4 w-4" onClick={onDelete} />
+          <X className="h-4 w-4 ml-1" onClick={onDelete} />
         </Button>
       ) : (
-        <Button onClick={() => setOpen(true)} size="sm" variant="outline">
+        <Button onClick={() => setOpen(true)} size="sm" variant="default">
           <span className="mr-1">+</span>
           <FormattedMessage id="workflowAddCategoryLabel" />
         </Button>
       )}
 
-      <Dialog onOpenChange={setOpen} open={open}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              <FormattedMessage id="workflowAddCategoryLabel" />
-            </DialogTitle>
-            <Button className="absolute right-4 top-4" onClick={() => setOpen(false)}>
-              <X className="h-5 w-5" />
-            </Button>
-          </DialogHeader>
-
-          <form className="space-y-4 mt-4" onSubmit={onSubmit}>
-            <Input autoFocus onChange={e => setCategory(e.target.value)} placeholder="Category" value={category} />
-            <DialogFooter className="flex justify-end gap-2">
-              <Button onClick={() => setOpen(false)} type="button" variant="outline">
-                <FormattedMessage id="cancel" />
-              </Button>
-              <Button type="submit">
-                <FormattedMessage id="save" />
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <WorkflowCategoryDialog onClose={() => setOpen(false)} open={open} workflow={workflow} />
     </>
   )
 }

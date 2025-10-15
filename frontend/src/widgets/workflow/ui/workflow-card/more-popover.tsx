@@ -1,13 +1,14 @@
 import React, { useState } from 'react'
 import { Popover, PopoverTrigger, PopoverContent } from '@shared/ui/popover'
 import { Button } from '@shared/ui/button'
-import { MoreHorizontal, Eye, Download, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Eye, Download, Trash2, FolderPlus } from 'lucide-react'
 import { FormattedMessage } from 'react-intl'
 import { useDialog } from '@entities/dialog'
 import WorkflowVisibilityDialog from './workflow-visibility-dialog'
 import { API_BASE_PATH } from '@shared/config'
 import DeleteWorkflowDialog from './delete-workflow-dialog'
 import type { WorkflowItem } from '@widgets/workflow/model'
+import { WorkflowCategoryDialog } from './workflow-category'
 
 interface MorePopoverProps {
   workflow: WorkflowItem
@@ -34,6 +35,13 @@ export const MorePopover: React.FC<MorePopoverProps> = ({ workflow }) => {
       labelId: 'menuDeleteWorkflow',
       onClick: () => {
         showDialog(DeleteWorkflowDialog, { id: workflow.workflowId, title: workflow.title })
+      },
+    },
+    {
+      icon: <FolderPlus className="h-5 w-5" />,
+      labelId: 'workflowAddCategoryLabel',
+      onClick: () => {
+        showDialog(WorkflowCategoryDialog, { workflow })
       },
     },
   ]
