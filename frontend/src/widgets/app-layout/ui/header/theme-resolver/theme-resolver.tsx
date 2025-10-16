@@ -1,12 +1,23 @@
-import { Sun, Moon, Laptop } from 'lucide-react'
+import { Sun, Moon } from 'lucide-react'
 
 import { Popover, PopoverContent, PopoverTrigger } from '@shared/ui/popover'
 import { Button } from '@shared/ui/button'
 import { useTheme, type Theme } from '@shared/lib/theme-provider'
 import { FormattedMessage } from 'react-intl'
+import { useEffect, useState } from 'react'
 
 export const ThemeSwitcher = () => {
   const { theme, setTheme } = useTheme()
+  const [osTheme, setOsTheme] = useState<'light' | 'dark'>('light')
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    setOsTheme(mediaQuery.matches ? 'dark' : 'light')
+
+    const handler = (e: MediaQueryListEvent) => setOsTheme(e.matches ? 'dark' : 'light')
+    mediaQuery.addEventListener('change', handler)
+    return () => mediaQuery.removeEventListener('change', handler)
+  }, [])
 
   const handleClick = (value: Theme) => () => {
     if (theme !== value) setTheme(value)
@@ -16,12 +27,10 @@ export const ThemeSwitcher = () => {
     <Popover>
       <PopoverTrigger asChild>
         <Button className="relative" size="icon" variant="ghost">
-          {theme === 'dark' ? (
+          {theme === 'dark' || (theme === 'system' && osTheme === 'dark') ? (
             <Moon className="h-[1.2rem] w-[1.2rem]" />
-          ) : theme === 'light' ? (
-            <Sun className="h-[1.2rem] w-[1.2rem]" />
           ) : (
-            <Laptop className="h-[1.2rem] w-[1.2rem]" />
+            <Sun className="h-[1.2rem] w-[1.2rem]" />
           )}
         </Button>
       </PopoverTrigger>
