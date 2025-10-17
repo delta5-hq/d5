@@ -210,6 +210,10 @@ export default {
   langSaveSuccessfully: 'Language saved successfully',
   modelSaveSuccessfully: 'Model saved successfully',
 
+  themeLight: 'Day',
+  themeDark: 'Night',
+  themeSystem: 'Auto based on OS',
+
   createWorkflow: 'Create Workflow',
   callToRegisterTitle: 'Create your own Workflows',
   buttonRegister: 'Signup For Free',

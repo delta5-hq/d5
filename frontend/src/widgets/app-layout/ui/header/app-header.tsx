@@ -5,6 +5,7 @@ import { AppSearch } from './search'
 import { UserSettingsButton } from './user-settings'
 import { useAuthContext } from '@entities/auth'
 import { Logo } from '@shared/ui/logo'
+import { ThemeSwitcher } from './theme-resolver'
 import { CreateWorkflow } from './create-workflow/create-workflow'
 import { useSearch } from '@shared/context'
 
@@ -33,21 +34,25 @@ const Header = ({ breakpoint, searchPlaceholder }: HeaderProps) => {
           />
         ) : null}
       </div>
-      {!isMobile ? (
-        <div className="flex items-center gap-2">
-          {isLoggedIn ? (
-            <>
-              <CreateWorkflow />
+
+      <div className="flex flex-row items-center justify-between gap-x-2">
+        <ThemeSwitcher />
+        {!isMobile ? (
+          <div className="flex items-center gap-2">
+            {isLoggedIn ? (
+              <>
+                <CreateWorkflow />
               <HelpButton />
-              <UserSettingsButton />
-            </>
-          ) : (
-            <LoginButton />
-          )}
-        </div>
-      ) : (
-        <CreateWorkflow />
-      )}
+                <UserSettingsButton />
+              </>
+            ) : (
+              <LoginButton />
+            )}
+          </div>
+        ) : (
+          <CreateWorkflow />
+        )}
+      </div>
     </header>
   )
 }
