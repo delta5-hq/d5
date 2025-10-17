@@ -42,7 +42,7 @@ const Header = ({ breakpoint, searchPlaceholder }: HeaderProps) => {
             {isLoggedIn ? (
               <>
                 <CreateWorkflow />
-              <HelpButton />
+                <HelpButton />
                 <UserSettingsButton />
               </>
             ) : (

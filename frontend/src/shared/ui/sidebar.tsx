@@ -486,7 +486,8 @@ const SidebarMenuButton = ({
     <Comp
       className={cn(
         sidebarMenuButtonVariants({ variant, size }),
-        state === 'expanded' && 'active-animated rounded-none',
+        state === 'expanded' && 'active-animated',
+        'rounded-sm hover:[background:linear-gradient(to_right,var(--primary)_10%,var(--primary-gradient-end))] hover:rounded-l-none',
         className,
       )}
       data-active={isActive}

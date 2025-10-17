@@ -84,17 +84,12 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({ workflows, isPublic,
 
   if (!workflows.length) {
     return (
-      <Card
-        className="flex flex-col items-center justify-center p-8 text-center border-dashed border-2 border-muted"
-        glassEffect={false}
-      >
-        <CardContent className="flex flex-col items-center gap-4">
-          <Inbox className="w-12 h-12 text-card-foreground" />
-          <p className="text-card-foreground">
-            <FormattedMessage id="noWorkflowsYet" />
-          </p>
-        </CardContent>
-      </Card>
+      <CardContent className="flex flex-col items-center gap-4 p-12">
+        <Inbox className="w-12 h-12 text-card-foreground" />
+        <p className="text-card-foreground">
+          <FormattedMessage id="noWorkflowsYet" />
+        </p>
+      </CardContent>
     )
   }
 
