@@ -7,6 +7,7 @@ import { Card } from '@shared/ui/card'
 import { Input } from '@shared/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TablePagination, TableRow } from '@shared/ui/table'
 import React, { useMemo, useRef, useState } from 'react'
+import { FormattedMessage } from 'react-intl'
 import { useNavigate } from 'react-router-dom'
 
 interface Row {
@@ -154,7 +155,9 @@ const AdminTable: React.FC<AdminTableProps> = ({
     <Card className="p-2">
       <div className="mb-2 flex justify-between items-center">
         <Input className="w-[250px]" onChange={handleChangeSearch} placeholder="Search" value={localSearch} />
-        <Button onClick={() => toCsv(filteredRows)}>Download CSV</Button>
+        <Button onClick={() => toCsv(filteredRows)}>
+          <FormattedMessage id="downloadCSV" />
+        </Button>
       </div>
 
       <div className="overflow-x-auto">

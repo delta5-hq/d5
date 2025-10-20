@@ -13,6 +13,7 @@ import {
 } from '@shared/config'
 import { useWorkflowManage } from '@entities/workflow'
 import { useNavigate } from 'react-router-dom'
+import { FormattedMessage } from 'react-intl'
 
 const calcCardCounter = (width: number) => Math.min(Math.round(width / MIN_CARD_SIZE), MAX_CARDS)
 
@@ -95,7 +96,9 @@ export const WorkflowTemplates = () => {
 
   return (
     <div className="w-full p-4" ref={containerRef}>
-      <h1 className="text-foreground text-2xl font-semibold mb-4">Create a New Workflow</h1>
+      <h1 className="text-foreground text-2xl font-semibold mb-4">
+        <FormattedMessage id="createNewWorkflow" />
+      </h1>
       <Card className="p-4 shadow-lg rounded-lg" glassEffect={false}>
         <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-8 auto-rows-fr">
           <Card
@@ -105,7 +108,9 @@ export const WorkflowTemplates = () => {
           >
             <CardContent className="flex justify-center items-center flex-col ">
               <Plus className="w-8 h-8" />
-              <p className="text-left text-base">Empty Workflow</p>
+              <p className="text-left text-base">
+                <FormattedMessage id="emptyWorkflow" />
+              </p>
             </CardContent>
           </Card>
           {data.slice(0, shownCards).map(template => (

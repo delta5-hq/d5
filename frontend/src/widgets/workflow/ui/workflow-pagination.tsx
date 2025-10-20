@@ -1,6 +1,7 @@
 import { Button } from '@shared/ui/button'
 import { Pagination, PaginationContent } from '@shared/ui/pagination'
 import type React from 'react'
+import { FormattedMessage } from 'react-intl'
 
 interface PaginationProps {
   page: number
@@ -19,7 +20,7 @@ export const WorkflowsPagination: React.FC<PaginationProps> = ({ page, limit, to
     <Pagination className="flex items-center justify-center gap-2">
       <PaginationContent>
         <Button disabled={page <= 1} onClick={() => onPageChange(page - 1)} size="sm" variant="ghost">
-          Previous
+          <FormattedMessage id="prev" />
         </Button>
 
         {pages.map(p => (
@@ -29,7 +30,7 @@ export const WorkflowsPagination: React.FC<PaginationProps> = ({ page, limit, to
         ))}
 
         <Button disabled={page >= totalPages} onClick={() => onPageChange(page + 1)} size="sm" variant="ghost">
-          Next
+          <FormattedMessage id="next" />
         </Button>
       </PaginationContent>
     </Pagination>

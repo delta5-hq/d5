@@ -11,6 +11,7 @@ import { Separator } from '@shared/ui/separator'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@shared/ui/sheet'
 import { Skeleton } from '@shared/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@shared/ui/tooltip'
+import { FormattedMessage } from 'react-intl'
 
 // const SIDEBAR_COOKIE_NAME = "sidebar_state"
 // const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
@@ -199,7 +200,9 @@ const Sidebar = ({
           }
         >
           <SheetHeader className="sr-only">
+            {/* eslint-disable-next-line react/jsx-no-literals */}
             <SheetTitle>Sidebar</SheetTitle>
+            {/* eslint-disable-next-line react/jsx-no-literals */}
             <SheetDescription>Displays the mobile sidebar.</SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>
@@ -273,7 +276,9 @@ const SidebarTrigger = ({ className, onClick, ...props }: React.ComponentProps<t
       {...props}
     >
       <Menu />
-      <span className="sr-only">Toggle Sidebar</span>
+      <span className="sr-only">
+        <FormattedMessage id="toggleSidebar" />
+      </span>
     </Button>
   )
 }

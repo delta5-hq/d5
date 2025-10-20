@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shared/ui/tabs'
 import React from 'react'
 import IntegrationsPage from './integration/integrations-page'
 import UserSettingsPage from './user-settings'
+import { FormattedMessage } from 'react-intl'
 
 const ProfileSettings: React.FC = () => <UserSettingsPage />
 const IntegrationsSettings: React.FC = () => <IntegrationsPage />
@@ -17,8 +18,12 @@ const SettingsPage: React.FC = () => {
         <CardContent className="w-full h-full overflow-y-auto">
           <Tabs className="w-full" defaultValue="profile">
             <TabsList className="mb-4">
-              <TabsTrigger value="profile">Profile</TabsTrigger>
-              <TabsTrigger value="integrations">Integrations</TabsTrigger>
+              <TabsTrigger value="profile">
+                <FormattedMessage id="settingsPageProfile" />
+              </TabsTrigger>
+              <TabsTrigger value="integrations">
+                <FormattedMessage id="settingsPageIntegrations" />
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="profile">
               <ProfileSettings />

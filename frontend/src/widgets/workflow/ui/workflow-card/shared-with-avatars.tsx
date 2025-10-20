@@ -36,6 +36,7 @@ const SmallUserAccount: React.FC<SmallUserAccountProps> = ({ role }) => {
             )}
           </Avatar>
         </TooltipTrigger>
+        {/* eslint-disable-next-line react/jsx-no-literals */}
         <TooltipContent>{name ? name : <em>anonymous</em>}</TooltipContent>
       </Tooltip>
     </TooltipProvider>

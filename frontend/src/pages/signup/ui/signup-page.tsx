@@ -168,7 +168,7 @@ const Signup: React.FC = () => {
 
           {/* Version */}
           <div className="text-center text-xs text-card-foreground/40">
-            Version <Version /> - <Copyright />
+            <FormattedMessage id="version" /> <Version /> - <Copyright />
           </div>
 
           <div className="flex justify-between">

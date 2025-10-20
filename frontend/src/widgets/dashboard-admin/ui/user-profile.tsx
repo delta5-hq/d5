@@ -39,7 +39,9 @@ const SurveyContainer: React.FC<{ userData: FullUserStatistics }> = ({ userData 
   return (
     <Card className="mb-4">
       <CardContent>
-        <h3 className="text-gray-500 font-semibold mb-2">Survey Data</h3>
+        <h3 className="text-gray-500 font-semibold mb-2">
+          <FormattedMessage id="surveyData" />
+        </h3>
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         {Object.entries(surveyData).map(([key, value]: [string, any]) => (
           <p className="mb-1" key={key}>
@@ -61,13 +63,27 @@ const UserWorkflows: React.FC<{ userData: FullUserStatistics; rows: UserWorkflow
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Workflow (Id)</TableHead>
-          <TableHead>Node Count</TableHead>
-          <TableHead>Edge Count</TableHead>
-          <TableHead>Shared With</TableHead>
-          <TableHead>Free Nodes</TableHead>
-          <TableHead>Created At</TableHead>
-          <TableHead>Updated At</TableHead>
+          <TableHead>
+            <FormattedMessage id="workflowId" />
+          </TableHead>
+          <TableHead>
+            <FormattedMessage id="userProfileNodeCount" />
+          </TableHead>
+          <TableHead>
+            <FormattedMessage id="userProfileEdgeCount" />
+          </TableHead>
+          <TableHead>
+            <FormattedMessage id="userProfileSharedWithCount" />
+          </TableHead>
+          <TableHead>
+            <FormattedMessage id="userProfileFreeNodes" />
+          </TableHead>
+          <TableHead>
+            <FormattedMessage id="userProfileCreatedAt" />
+          </TableHead>
+          <TableHead>
+            <FormattedMessage id="userProfileLastWorkflowChange" />
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>

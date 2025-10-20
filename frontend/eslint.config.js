@@ -87,6 +87,7 @@ export default tseslint.config([
       'react/react-in-jsx-scope': 'off',
       'react/jsx-one-expression-per-line': 'off',
       'react/prop-types': 'off',
+      'react/jsx-no-literals': ['warn', { noStrings: true, ignoreProps: true, allowedStrings: ['.', '-', '+', ':', '/'] }],
     },
   },
 ])
