@@ -4,6 +4,8 @@ go 1.25.3
 
 require (
 	github.com/gofiber/fiber/v2 v2.52.9
+	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/joho/godotenv v1.5.1
 	github.com/qiniu/qmgo v1.1.10
 )
 

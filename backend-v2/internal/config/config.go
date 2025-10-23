@@ -2,42 +2,47 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
-type Config struct {
+var (
 	Port          string
 	MongoUsername string
 	MongoPassword string
 	MongoDatabase string
 	MongoHost     string
 	MongoPort     string
+	JwtSecret     string
 	MongoURI      string
-}
+)
 
-func Load() *Config {
-	cfg := &Config{
-		Port:          getEnv("PORT", "8080"),
-		MongoUsername: getEnv("MONGO_USERNAME", "delta5"),
-		MongoPassword: getEnv("MONGO_PASSWORD", ""),
-		MongoDatabase: getEnv("MONGO_DATABASE", "delta5"),
-		MongoHost:     getEnv("MONGO_HOST", "localhost"),
-		MongoPort:     getEnv("MONGO_PORT", "27017"),
+func init() {
+	godotenv.Load(".env")
+
+	Port = getEnv("PORT", "8080")
+	MongoUsername = getEnv("MONGO_USERNAME", "delta5")
+	MongoPassword = getEnv("MONGO_PASSWORD", "")
+	MongoDatabase = getEnv("MONGO_DATABASE", "delta5")
+	MongoHost = getEnv("MONGO_HOST", "localhost")
+	MongoPort = getEnv("MONGO_PORT", "27017")
+	JwtSecret = getEnv("JWT_SECRET", "GrFYK5ftZDtCg7ZGwxZ1JpSxyyJ9bc8uJijvBD1DYiMoS64ZpnBSrFxsNuybN1iO")
+
+	auth := ""
+	if MongoPassword != "" {
+		auth = fmt.Sprintf("%s:%s@", MongoUsername, MongoPassword)
 	}
+	MongoURI = fmt.Sprintf("mongodb://%s%s:%s", auth, MongoHost, MongoPort)
 
-	var mongoAuth string
-	if cfg.MongoPassword != "" {
-		mongoAuth = fmt.Sprintf("%s:%s@", cfg.MongoUsername, cfg.MongoPassword)
-	} else {
-		mongoAuth = ""
-	}
-
-	cfg.MongoURI = fmt.Sprintf(
-		"mongodb://%s%s:%s",
-		mongoAuth, cfg.MongoHost, cfg.MongoPort,
-	)
-
-	return cfg
+	log.Printf("CONFIGURATION:\n")
+	log.Printf("PORT=%s", Port)
+	log.Printf("MONGO_USERNAME=%s", MongoUsername)
+	log.Printf("MONGO_DATABASE=%s", MongoDatabase)
+	log.Printf("MONGO_HOST=%s", MongoHost)
+	log.Printf("MONGO_PORT=%s", MongoPort)
+	log.Printf("MONGO_URI=%s", MongoURI)
 }
 
 func getEnv(key, fallback string) string {

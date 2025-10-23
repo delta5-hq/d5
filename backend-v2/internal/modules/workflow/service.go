@@ -18,12 +18,27 @@ func NewService(db *qmgo.Database) *WorkflowService {
 	}
 }
 
-func (s *WorkflowService) GetByMapID(ctx context.Context, workflowId string) (*models.Workflow, error) {
+func (s *WorkflowService) GetByWorkflowID(ctx context.Context, workflowId string) (*models.Workflow, error) {
 	var wf models.Workflow
-	err := s.Collection.Find(ctx, map[string]interface{}{"workflowId": workflowId}).One(&wf)
+	err := s.Collection.Find(ctx, map[string]string{"workflowId": workflowId}).One(&wf)
 
 	if err != nil {
 		return nil, err
 	}
 	return &wf, nil
+}
+
+func (s *WorkflowService) UpdateWorkflow(ctx context.Context, workflowId string, update *models.Workflow) error {
+	filter := map[string]string{"workflowId": workflowId}
+
+	updateDoc := map[string]*models.Workflow{
+		"$set": update,
+	}
+
+	err := s.Collection.UpdateOne(ctx, filter, updateDoc)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
