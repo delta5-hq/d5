@@ -35,7 +35,7 @@ export default defineConfig(({ mode }) => {
                 splitStrings: true,
                 stringArrayThreshold: 1,
                 deadCodeInjection: true,
-                debugProtection: true,
+                debugProtection: false,
               },
             }),
           ]
