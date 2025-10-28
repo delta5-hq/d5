@@ -13,7 +13,7 @@ export default defineConfig([
     // Allow cross-imports between widgets
     files: ['src/widgets/**'],
     rules: {
-      'fsd/no-cross-imports': 'off',
+      'fsd/forbidden-imports': 'off',
     },
   },
   {

@@ -10,7 +10,7 @@ const Button = ({
   asChild = false,
   ...props
 }: React.ComponentProps<'button'> & {
-  variant?: string
+  variant?: 'accent' | 'warning' | 'danger' | 'default' | 'info' | 'ghost' | 'link'
   size?: 'default' | 'sm' | 'lg' | 'icon'
   asChild?: boolean
 }) => {

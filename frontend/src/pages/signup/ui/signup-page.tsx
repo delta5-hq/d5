@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react'
 import { FormattedMessage } from 'react-intl'
 import { useForm } from 'react-hook-form'
-import { z } from 'zod/v3'
+import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useAuthContext, validateUsernameOrEmail, isValidPassword, LoginDialog } from '@entities/auth'
 import { useNavigate } from 'react-router-dom'
@@ -159,6 +159,7 @@ const Signup: React.FC = () => {
             <FormattedMessage id="alreadyExistAccount" />{' '}
             <span
               className="cursor-pointer hover:underline hover:text-link-hover text-link"
+              data-type="login"
               onClick={() => showDialog(LoginDialog)}
             >
               <FormattedMessage id="loginTitle" />

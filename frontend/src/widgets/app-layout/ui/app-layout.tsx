@@ -33,10 +33,10 @@ const AppLayoutContent = ({ children, breakpoint }: AppLayoutProps) => {
         <AppSidebar isDesktop={isDesktop} isMinimized={isMinimized} isResponsive={isResponsive} />
 
         <BackgroundContainer>
-          <div className="relative min-h-full">
+          <div className="relative h-full overflow-y-auto">
             {/* Background component that grows with content */}
             <Background />
-            <div className="relative z-10 p-5 min-h-full">{children}</div>
+            <div className="h-full z-10 p-5">{children}</div>
           </div>
         </BackgroundContainer>
       </div>

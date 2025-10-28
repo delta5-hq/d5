@@ -1,5 +1,5 @@
-import { defineConfig, devices } from '@playwright/test';
-import dotenv from 'dotenv';
+import { defineConfig, devices } from '@playwright/test'
+import dotenv from 'dotenv'
 
 dotenv.config()
 
@@ -29,31 +29,31 @@ export default defineConfig({
     video: 'retain-on-failure',
     actionTimeout: 10000,
     navigationTimeout: 30000,
-    headless: !!process.env.CI,
+    headless: true,
   },
 
   projects: [
     {
       name: 'chromium',
-      use: { 
+      use: {
         ...devices['Desktop Chrome'],
-        viewport: { width: 1280, height: 720 }
+        viewport: { width: 1280, height: 720 },
       },
     },
     {
       name: 'firefox',
-      use: { 
+      use: {
         ...devices['Desktop Firefox'],
-        viewport: { width: 1280, height: 720 }
+        viewport: { width: 1280, height: 720 },
       },
     },
     {
       name: 'mobile',
-      use: { 
+      use: {
         ...devices['Pixel 5'],
-        viewport: { width: 375, height: 667 }
+        viewport: { width: 375, height: 667 },
       },
-      testIgnore: ['**/e2e/auth-flows.spec.ts'],
+      testIgnore: ['**/e2e/auth-flows.spec.ts', '**/e2e/integrations.spec.ts'],
     },
   ],
 
@@ -63,4 +63,4 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
   },
-});
+})

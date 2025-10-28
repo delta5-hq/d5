@@ -15,6 +15,15 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       svgr(),
+      // Remove crossorigin attribute for Safari compatibility
+      // Safari has stricter CORS enforcement even for same-origin when crossorigin is present
+      // See: https://github.com/vitejs/vite/issues/6648
+      {
+        name: 'remove-crossorigin',
+        transformIndexHtml(html) {
+          return html.replace(/ crossorigin/g, '');
+        },
+      },
       ...(mode === 'production'
         ? [
             obfuscatorPlugin({
@@ -26,7 +35,7 @@ export default defineConfig(({ mode }) => {
                 splitStrings: true,
                 stringArrayThreshold: 1,
                 deadCodeInjection: true,
-                debugProtection: true,
+                debugProtection: false,
               },
             }),
           ]
