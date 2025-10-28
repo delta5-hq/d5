@@ -1,6 +1,6 @@
 .menuLinkButton {
   position: relative;
-  color: var(--primary);
+  color: var(--accent);
 
   &::before {
     position: absolute;
@@ -8,11 +8,11 @@
     height: 100%;
 
     left: 0;
-    background-color: var(--primary);
+    background-color: var(--accent);
     content: "";
   }
 }
 
 .menuLinkText {
-  color: var(--primary);
+  color: var(--accent);
 }
