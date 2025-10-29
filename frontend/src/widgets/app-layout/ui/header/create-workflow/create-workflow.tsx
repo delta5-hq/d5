@@ -10,7 +10,7 @@ export const CreateWorkflow = () => {
 
   const onCreate = async () => {
     const { workflowId } = await createEmpty()
-    navigate(`/workflows/${workflowId}`)
+    navigate(`/workflow/${workflowId}`)
   }
 
   return (
