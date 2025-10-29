@@ -1,5 +1,6 @@
 import { Loader2, Inbox } from 'lucide-react'
 import type React from 'react'
+import { FormattedMessage } from 'react-intl'
 
 interface StatusPlaceholderProps {
   loading?: boolean
@@ -12,7 +13,9 @@ const StatusPlaceholder: React.FC<StatusPlaceholderProps> = ({ loading, empty, m
     return (
       <div className="flex flex-col items-center justify-center py-16 w-full h-full">
         <Loader2 className="animate-spin w-8 h-8 text-primary mb-3" />
-        <span className="text-primary text-lg font-medium">Loading...</span>
+        <span className="text-primary text-lg font-medium">
+          <FormattedMessage id="loadingPlaceholder" />
+        </span>
       </div>
     )
   }

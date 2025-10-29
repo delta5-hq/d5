@@ -7,6 +7,7 @@ import { Card } from '@shared/ui/card'
 import { Input } from '@shared/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TablePagination, TableRow } from '@shared/ui/table'
 import React, { useMemo, useRef, useState } from 'react'
+import { FormattedMessage } from 'react-intl'
 import { useNavigate } from 'react-router-dom'
 
 interface Row {
@@ -15,15 +16,15 @@ interface Row {
   mail: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   fieldsOfWork?: any
-  mapCount?: number
-  mapShareCount?: number
+  workflowCount?: number
+  shareCount?: number
   sharedWithCount?: number
   nodeCount?: number
-  biggestMapCount?: number
+  biggestWorkflowCount?: number
   nodeLimit?: number
   subscriber?: boolean
   createdAt?: string
-  lastMapChange?: string
+  lastWorkflowChange?: string
   comment?: string
 }
 
@@ -78,15 +79,15 @@ const AdminTable: React.FC<AdminTableProps> = ({
         name: user.name,
         mail: user.mail,
         fieldsOfWork: user.meta?.store?.fieldsOfWork ?? {},
-        mapCount: user.mapCount ?? 0,
-        mapShareCount: user.mapShareCount ?? 0,
+        workflowCount: user.workflowCount ?? 0,
+        shareCount: user.shareCount ?? 0,
         sharedWithCount: user.sharedWithCount ?? 0,
         nodeCount: user.nodeCount ?? 0,
-        biggestMapCount: user.biggestMapCount ?? 0,
+        biggestWorkflowCount: user.biggestWorkflowCount ?? 0,
         nodeLimit: user.limitNodes ?? 0,
         subscriber: user.roles?.includes(ROLES.subscriber) || user.roles?.includes(ROLES.org_subscriber) || false,
         createdAt: user.createdAt,
-        lastMapChange: user.lastMapChange,
+        lastWorkflowChange: user.lastWorkflowChange,
         comment: user.comment ?? '',
       })),
     [users],
@@ -97,15 +98,15 @@ const AdminTable: React.FC<AdminTableProps> = ({
     { id: 'name', label: 'Username', Cell: StringCell },
     { id: 'mail', label: 'Email', Cell: StringCell },
     { id: 'fieldsOfWork', label: 'Fields of Work', Cell: FieldsOfWorkCell },
-    { id: 'mapCount', label: 'Own Workflow', Cell: NumberCell },
-    { id: 'mapShareCount', label: 'Shared Workflows', Cell: NumberCell },
+    { id: 'workflowCount', label: 'Own Workflow', Cell: NumberCell },
+    { id: 'shareCount', label: 'Shared Workflows', Cell: NumberCell },
     { id: 'sharedWithCount', label: 'Shared With', Cell: NumberCell },
     { id: 'nodeCount', label: 'Total Nodes', Cell: NumberCell },
-    { id: 'biggestMapCount', label: 'Most Nodes', Cell: NumberCell },
+    { id: 'biggestWorkflowCount', label: 'Most Nodes', Cell: NumberCell },
     { id: 'nodeLimit', label: 'Nodes Limit', Cell: NumberCell },
     { id: 'subscriber', label: 'Paid', Cell: RoleCell },
     { id: 'createdAt', label: 'Signed Up', Cell: DateCell },
-    { id: 'lastMapChange', label: 'Last Change', Cell: DateCell },
+    { id: 'lastWorkflowChange', label: 'Last Change', Cell: DateCell },
   ]
 
   const descendingComparator = <T,>(a: T, b: T, orderByComp: keyof T): number => {
@@ -154,7 +155,9 @@ const AdminTable: React.FC<AdminTableProps> = ({
     <Card className="p-2">
       <div className="mb-2 flex justify-between items-center">
         <Input className="w-[250px]" onChange={handleChangeSearch} placeholder="Search" value={localSearch} />
-        <Button onClick={() => toCsv(filteredRows)}>Download CSV</Button>
+        <Button onClick={() => toCsv(filteredRows)}>
+          <FormattedMessage id="downloadCSV" />
+        </Button>
       </div>
 
       <div className="overflow-x-auto">

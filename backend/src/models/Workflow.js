@@ -106,7 +106,7 @@ const Share = createSchema(
 //     },
 
 const WorkflowSchema = createSchema({
-  mapId: {type: String, index: true, default: generateId},
+  workflowId: {type: String, index: true, default: generateId},
   userId: {type: String, required: true, index: true},
   title: String,
   nodes: {type: Map, of: Node},

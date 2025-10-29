@@ -27,15 +27,15 @@ const deleteUser = async () => {
 
     await connectDb()
 
-    const mapIds = (await Workflow.find({userId}, {mapId: 1})).map(({mapId}) => mapId)
+    const workflowIds = (await Workflow.find({userId}, {workflowId: 1})).map(({workflowId}) => workflowId)
 
-    if (mapIds) {
-      // use map controller to delete map related stuff
+    if (workflowIds) {
+      // use workflow controller to delete workflow related stuff
       await Promise.all(
-        mapIds.map(mapId => {
-          const ctx = {params: {mapId}, state: {access: {isOwner: true}}}
+        workflowIds.map(workflowId => {
+          const ctx = {params: {workflowId}, state: {access: {isOwner: true}}}
 
-          log('deleting workflow', mapId)
+          log('deleting workflow', workflowId)
 
           return WorkflowController.delete(ctx)
         }),

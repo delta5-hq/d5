@@ -51,7 +51,7 @@ export interface FullUser {
   roles?: string[]
   comment?: string
   limitNodes?: number
-  limitMaps?: number
+  limitWorkflows?: number
   pwdResetToken?: string
   meta?: UserMeta
   createdAt: string

@@ -83,7 +83,9 @@ const GoogleDialog: React.FC<Props> = ({ data, open, onClose, refresh }) => {
           </DialogTitle>
           <DialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">
+              <FormattedMessage id="close" />
+            </span>
           </DialogClose>
         </DialogHeader>
 

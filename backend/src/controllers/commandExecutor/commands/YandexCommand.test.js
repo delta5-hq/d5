@@ -36,13 +36,13 @@ jest.mock('./references/substitution')
 
 describe('YandexCommand', () => {
   const userId = 'userId'
-  const mapId = 'mapId'
+  const workflowId = 'workflowId'
   const mockStore = new Store({
     userId,
-    mapId,
+    workflowId,
     nodes: {},
   })
-  const command = new YandexCommand(userId, mapId, mockStore)
+  const command = new YandexCommand(userId, workflowId, mockStore)
 
   beforeEach(() => {
     jest.clearAllMocks()
@@ -93,10 +93,10 @@ describe('YandexCommand', () => {
       referencePatterns.withAssignmentPrefix().test.mockReturnValue(true)
 
       const node = {id: 'node', title: '/yandexgpt prompt with @@reference'}
-      const mapNodes = {node: node}
+      const workflowNodes = {node: node}
       const store = new Store({
         userId,
-        nodes: mapNodes,
+        nodes: workflowNodes,
       })
 
       command.store = store
@@ -108,10 +108,10 @@ describe('YandexCommand', () => {
 
     it('should use substituteReferencesAndHashrefsChildrenAndSelf when prompt is falsy', async () => {
       const node = {id: 'node', title: '/yandexgpt prompt without reference'}
-      const mapNodes = {node: node}
+      const workflowNodes = {node: node}
       const store = new Store({
         userId,
-        nodes: mapNodes,
+        nodes: workflowNodes,
       })
 
       command.store = store
@@ -126,11 +126,11 @@ describe('YandexCommand', () => {
       referencePatterns.withAssignmentPrefix().test.mockReturnValue(false)
 
       const node = {id: 'node', title: '/yandexgpt prompt without reference'}
-      const mapNodes = {node: node}
+      const workflowNodes = {node: node}
       const originalPrompt = 'original prompt'
       const store = new Store({
         userId,
-        nodes: mapNodes,
+        nodes: workflowNodes,
       })
 
       command.store = store
@@ -181,14 +181,14 @@ describe('YandexCommand', () => {
         children: [child.id],
       }
 
-      const mapNodes = {
+      const workflowNodes = {
         [subChild.id]: subChild,
         [child.id]: child,
         [parent.id]: parent,
       }
       const store = new Store({
         userId,
-        nodes: mapNodes,
+        nodes: workflowNodes,
       })
 
       command.store = store

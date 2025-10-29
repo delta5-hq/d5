@@ -8,9 +8,10 @@ import { Background, BackgroundContainer } from './background'
 interface AppLayoutProps {
   children: React.ReactNode
   breakpoint?: number
+  searchPlaceholder?: string
 }
 
-const AppLayoutContent = ({ children, breakpoint }: AppLayoutProps) => {
+const AppLayoutContent = ({ children, breakpoint, searchPlaceholder }: AppLayoutProps) => {
   const { isResponsive, isDesktop, isMinimized } = useResponsive({ breakpoint })
   const { openMobile, setOpenMobile, isMobile } = useSidebar()
 
@@ -27,10 +28,15 @@ const AppLayoutContent = ({ children, breakpoint }: AppLayoutProps) => {
 
   return (
     <>
-      <AppHeader breakpoint={breakpoint} />
+      <AppHeader breakpoint={breakpoint} searchPlaceholder={searchPlaceholder} />
 
       <div className="flex flex-1 overflow-hidden">
-        <AppSidebar isDesktop={isDesktop} isMinimized={isMinimized} isResponsive={isResponsive} />
+        <AppSidebar
+          isDesktop={isDesktop}
+          isMinimized={isMinimized}
+          isResponsive={isResponsive}
+          searchPlaceholder={searchPlaceholder}
+        />
 
         <BackgroundContainer>
           <div className="relative h-full overflow-y-auto">
@@ -44,8 +50,10 @@ const AppLayoutContent = ({ children, breakpoint }: AppLayoutProps) => {
   )
 }
 
-export const AppLayout = ({ children, breakpoint }: AppLayoutProps) => (
+export const AppLayout = ({ children, breakpoint, searchPlaceholder }: AppLayoutProps) => (
   <SidebarProvider className="flex flex-col h-screen">
-    <AppLayoutContent breakpoint={breakpoint}>{children}</AppLayoutContent>
+    <AppLayoutContent breakpoint={breakpoint} searchPlaceholder={searchPlaceholder}>
+      {children}
+    </AppLayoutContent>
   </SidebarProvider>
 )

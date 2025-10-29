@@ -1,19 +1,19 @@
-import React, { useCallback, useState } from 'react'
-import { FormattedMessage } from 'react-intl'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useAuthContext, validateUsernameOrEmail, isValidPassword, LoginDialog } from '@entities/auth'
-import { useNavigate } from 'react-router-dom'
-import { Button } from '@shared/ui/button'
-import { Input } from '@shared/ui/input'
-import AlertDialog from '@shared/ui/alert-dialog'
-import { isEmail } from '@shared/lib/email'
-import { Version } from '@shared/ui/version'
-import { Copyright } from '@shared/ui/copyright'
-import { Logo } from '@shared/ui/logo'
-import { Label } from '@shared/ui/label'
+import { isValidPassword, LoginDialog, useAuthContext, validateUsernameOrEmail } from '@entities/auth'
 import { useDialog } from '@entities/dialog'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { isEmail } from '@shared/lib/email'
+import CustomAlertDialog from '@shared/ui/alert-dialog'
+import { Button } from '@shared/ui/button'
+import { Copyright } from '@shared/ui/copyright'
+import { Input } from '@shared/ui/input'
+import { Label } from '@shared/ui/label'
+import { Logo } from '@shared/ui/logo'
+import { Version } from '@shared/ui/version'
+import React, { useCallback, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { FormattedMessage } from 'react-intl'
+import { useNavigate } from 'react-router-dom'
+import { z } from 'zod'
 
 const signupSchema = z.object({
   username: z
@@ -78,7 +78,7 @@ const Signup: React.FC = () => {
         <Logo />
       </div>
       {showAlertDialog ? (
-        <AlertDialog
+        <CustomAlertDialog
           onClose={onClose}
           onConfirm={onClose}
           open
@@ -168,7 +168,7 @@ const Signup: React.FC = () => {
 
           {/* Version */}
           <div className="text-center text-xs text-card-foreground/40">
-            <Version /> <Copyright />
+            <FormattedMessage id="version" /> <Version /> - <Copyright />
           </div>
 
           <div className="flex justify-between">

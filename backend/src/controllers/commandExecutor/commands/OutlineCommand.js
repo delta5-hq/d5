@@ -1,11 +1,13 @@
 import debug from 'debug'
-import {CITATIONS_STRING, calculateMaxChunksFromSize, readCitationParam, readLangParam} from '../constants'
-import {clearStepsPrefix} from '../constants/steps'
-import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
-import {getEmbeddings, getIntegrationSettings, determineLLMType, getLLM} from './utils/langchain/getLLM'
-import {createOutlineAgentExecutor} from './utils/langchain/getAgentExecutor'
-import {JSKnowledgeMapWebScholarSearch} from './utils/langchain/JSKnowledgeMapWebScholarSearch'
-import {JSKnowledgeMapSearch} from './utils/langchain/JSKnowledgeMapSearch'
+import {
+  CITATIONS_STRING,
+  calculateMaxChunksFromSize,
+  clearCommandsWithParams,
+  readCitationParam,
+  readLangParam,
+} from '../constants'
+import {readExtContextParam} from '../constants/ext'
+import {UNKNOWN_STRING} from '../constants/localizedPrompts/JSOutliningAgentContants'
 import {
   DEBUG_LEVEL,
   LEVELS,
@@ -19,22 +21,25 @@ import {
   readSummarizeParam,
   readWebParam,
 } from '../constants/outline'
-import {tolerantArrayParsing} from './utils/tolerantArrayParsing'
-import {createTree} from './utils/createTree'
-import {conditionallyTranslate} from './utils/translate'
-import {UNKNOWN_STRING} from '../constants/localizedPrompts/JSOutliningAgentContants'
-import {createContextForMap, includesAny} from './utils/createContextForMap'
-import {WebVectorStore} from './utils/langchain/vectorStore/WebVectorStore'
-import {SummarizeCommand} from './SummarizeCommand'
-import {JSKnowledgeRetryTool} from './utils/langchain/JSKnowledgeRetryTool'
-import {isOutlineSummarize} from './utils/isCommand'
+import {clearStepsPrefix} from '../constants/steps'
 import {readEmbedParam} from '../constants/summarize'
+import {HASHREF_DEF_PREFIX, REF_DEF_PREFIX} from './references/referenceConstants'
+import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import {referencePatterns} from './references/utils/referencePatterns'
 import {clearReferences} from './references/utils/referenceUtils' // Direct import
-import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
-import {clearCommandsWithParams} from '../constants'
+import {SummarizeCommand} from './SummarizeCommand'
+import {createContextForWorkflow, includesAny} from './utils/createContextForWorkflow'
+import {createTree} from './utils/createTree'
+import {isOutlineSummarize} from './utils/isCommand'
+import {createOutlineAgentExecutor} from './utils/langchain/getAgentExecutor'
+import {determineLLMType, getEmbeddings, getIntegrationSettings, getLLM} from './utils/langchain/getLLM'
+import {JSKnowledgeMapSearch} from './utils/langchain/JSKnowledgeMapSearch'
+import {JSKnowledgeMapWebScholarSearch} from './utils/langchain/JSKnowledgeMapWebScholarSearch'
+import {JSKnowledgeRetryTool} from './utils/langchain/JSKnowledgeRetryTool'
 import {ExtVectorStore} from './utils/langchain/vectorStore/ExtVectorStore'
-import {readExtContextParam} from '../constants/ext'
+import {WebVectorStore} from './utils/langchain/vectorStore/WebVectorStore'
+import {tolerantArrayParsing} from './utils/tolerantArrayParsing'
+import {conditionallyTranslate} from './utils/translate'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 
@@ -49,16 +54,16 @@ export class OutlineCommand {
   /**
    * Creates an instance of OutlineCommand
    * @param {string} userId - The unique identifier for the user
-   * @param {string} mapId - The unique identifier for the map (optional)
+   * @param {string} workflowId - The unique identifier for the workflow (optional)
    * @param {Store} store - The store object
    */
-  constructor(userId, mapId, store) {
+  constructor(userId, workflowId, store) {
     this.store = store
     this.userId = userId
-    this.mapId = mapId
+    this.workflowId = workflowId
     this.log = log.extend(userId, '/')
-    if (this.mapId) {
-      this.log = this.log.extend(mapId, '#')
+    if (this.workflowId) {
+      this.log = this.log.extend(workflowId, '#')
     }
     this.logError = this.log.extend('ERROR*', '::')
   }
@@ -199,11 +204,11 @@ export class OutlineCommand {
   }
 
   replySecondDebugLevelOutline = async (node, params) => {
-    const mapContexts = createContextForMap(node, this.store._nodes, childNode =>
+    const workflowContexts = createContextForWorkflow(node, this.store._nodes, childNode =>
       includesAny(exclusionStrings, childNode?.title),
     )
 
-    await Promise.all(mapContexts.map(({context, node: lastNode}) => this.replyDefault(lastNode, context, params)))
+    await Promise.all(workflowContexts.map(({context, node: lastNode}) => this.replyDefault(lastNode, context, params)))
   }
 
   replySecondLevelsOutline = async (node, prompt, params) => {
@@ -218,7 +223,7 @@ export class OutlineCommand {
   }
 
   async replyWithSummarize(node, command, prompt, params) {
-    const summarizeExecutor = new SummarizeCommand(this.userId, this.mapId, this.store)
+    const summarizeExecutor = new SummarizeCommand(this.userId, this.workflowId, this.store)
 
     const answer = await summarizeExecutor.replyDefault(node, command, prompt, {
       ...params,

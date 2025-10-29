@@ -36,7 +36,7 @@ describe('ExecutorController', () => {
 
   // it('should return json with substituted command execution №1', async () => {
   //   // Setup:
-  //   // Unnamed Map (root)
+  //   // Unnamed Workflow (root)
   //   //   /chatgpt hello
 
   //   const root = {
@@ -62,16 +62,16 @@ describe('ExecutorController', () => {
   //     title: '/chatgpt hello',
   //   }
   //   const body = {
-  //     mapId: 'n3F4HRqbJpD',
+  //     workflowId: 'n3F4HRqbJpD',
   //     cell: {...cell},
   //     context: 'Context:\n```\n```\n',
   //     prompt: 'hello',
   //     queryType: 'chat',
-  //     mapNodes: {
+  //     workflowNodes: {
   //       [root.id]: root,
   //       [cell.id]: {...cell},
   //     },
-  //     mapFiles: {},
+  //     workflowFiles: {},
   //   }
 
   //   const helloResId = 'newId'
@@ -80,17 +80,17 @@ describe('ExecutorController', () => {
   //   modelCallSpy.mockReturnValueOnce({content: helloResponse})
 
   //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(JSON.stringify(body))
-  //   const {mapNodes} = responseBody
+  //   const {workflowNodes} = responseBody
 
-  //   expect(Object.keys(mapNodes).length).toBe(3)
-  //   expect(mapNodes[helloResId].title).toBe(helloResponse)
-  //   expect(mapNodes[helloResId].parent).toBe(cell.id)
-  //   expect(mapNodes[cell.id].children).toEqual([helloResId])
-  //   expect(mapNodes[cell.id].prompts).toEqual([helloResId])
+  //   expect(Object.keys(workflowNodes).length).toBe(3)
+  //   expect(workflowNodes[helloResId].title).toBe(helloResponse)
+  //   expect(workflowNodes[helloResId].parent).toBe(cell.id)
+  //   expect(workflowNodes[cell.id].children).toEqual([helloResId])
+  //   expect(workflowNodes[cell.id].prompts).toEqual([helloResId])
   //   expect(responseBody.cell).toEqual({...cell, children: [helloResId], prompts: [helloResId]})
 
   //   // other properties should not change
-  //   expect(responseBody.mapId).toBe(body.mapId)
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.context).toBe(body.context)
   //   expect(responseBody.prompt).toBe(body.prompt)
   //   expect(responseBody.queryType).toBe(body.queryType)
@@ -98,7 +98,7 @@ describe('ExecutorController', () => {
 
   // it('should return json with substituted command execution №2', async () => {
   //   // Setup
-  //   // Unnamed Map (root)
+  //   // Unnamed Workflow (root)
   //   //   /chatgpt hello
   //   //     user text
   //   const cell = {
@@ -137,17 +137,17 @@ describe('ExecutorController', () => {
   //     children: ['HtB8mPBrJbH'],
   //   }
   //   const body = {
-  //     mapId: 'n3F4HRqbJpD',
+  //     workflowId: 'n3F4HRqbJpD',
   //     cell: {...cell},
   //     context: 'Context:\n```\n```\n',
   //     prompt: 'hello\n  user text',
   //     queryType: 'chat',
-  //     mapNodes: {
+  //     workflowNodes: {
   //       [root.id]: root,
   //       [cell.id]: {...cell},
   //       [userNode.id]: [userNode.id],
   //     },
-  //     mapFiles: {},
+  //     workflowFiles: {},
   //   }
 
   //   const helloResId = 'newId'
@@ -156,17 +156,17 @@ describe('ExecutorController', () => {
   //   modelCallSpy.mockReturnValueOnce({content: helloResponse})
 
   //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(JSON.stringify(body))
-  //   const {mapNodes} = responseBody
+  //   const {workflowNodes} = responseBody
 
-  //   expect(Object.keys(mapNodes).length).toBe(4)
-  //   expect(mapNodes[helloResId].title).toBe(helloResponse)
-  //   expect(mapNodes[helloResId].parent).toBe(cell.id)
-  //   expect(mapNodes[cell.id].children).toEqual([userNode.id, helloResId])
-  //   expect(mapNodes[cell.id].prompts).toEqual([helloResId])
+  //   expect(Object.keys(workflowNodes).length).toBe(4)
+  //   expect(workflowNodes[helloResId].title).toBe(helloResponse)
+  //   expect(workflowNodes[helloResId].parent).toBe(cell.id)
+  //   expect(workflowNodes[cell.id].children).toEqual([userNode.id, helloResId])
+  //   expect(workflowNodes[cell.id].prompts).toEqual([helloResId])
   //   expect(responseBody.cell).toEqual({...cell, children: [userNode.id, helloResId], prompts: [helloResId]})
 
   //   // other properties should not change
-  //   expect(responseBody.mapId).toBe(body.mapId)
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.context).toBe(body.context)
   //   expect(responseBody.prompt).toBe(body.prompt)
   //   expect(responseBody.queryType).toBe(body.queryType)
@@ -174,7 +174,7 @@ describe('ExecutorController', () => {
 
   // it('should return json with substituted command execution and post process', async () => {
   //   // Setup
-  //   // Unnamed Map (root)
+  //   // Unnamed Workflow (root)
   //   //   /chatgpt write one cat name
   //   //     /foreach /chatgpt say hello to @@
   //   const cell = {
@@ -213,17 +213,17 @@ describe('ExecutorController', () => {
   //     title: '/foreach /chatgpt say hello to @@',
   //   }
   //   const body = {
-  //     mapId: 'n3F4HRqbJpD',
+  //     workflowId: 'n3F4HRqbJpD',
   //     cell: {...cell},
   //     context: 'Context:\n```\n```\n',
   //     prompt: 'write one cat name',
   //     queryType: 'chat',
-  //     mapNodes: {
+  //     workflowNodes: {
   //       [root.id]: root,
   //       [cell.id]: {...cell},
   //       [foreach.id]: foreach,
   //     },
-  //     mapFiles: {},
+  //     workflowFiles: {},
   //   }
 
   //   const sharikId = 'sharikId'
@@ -237,26 +237,26 @@ describe('ExecutorController', () => {
   //   modelCallSpy.mockReturnValueOnce({content: helloTitle})
 
   //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(JSON.stringify(body))
-  //   const {mapNodes} = responseBody
+  //   const {workflowNodes} = responseBody
 
-  //   expect(Object.keys(mapNodes).length).toBe(5)
+  //   expect(Object.keys(workflowNodes).length).toBe(5)
   //   // Check first generated node
-  //   expect(mapNodes[sharikId].title).toBe(sharikTitle)
-  //   expect(mapNodes[sharikId].parent).toBe(cell.id)
-  //   expect(mapNodes[sharikId].command).toBe('/chatgpt say hello to Sharik')
-  //   expect(mapNodes[sharikId].prompts).toEqual([helloId])
+  //   expect(workflowNodes[sharikId].title).toBe(sharikTitle)
+  //   expect(workflowNodes[sharikId].parent).toBe(cell.id)
+  //   expect(workflowNodes[sharikId].command).toBe('/chatgpt say hello to Sharik')
+  //   expect(workflowNodes[sharikId].prompts).toEqual([helloId])
 
   //   // Check post process generated node
-  //   expect(mapNodes[helloId].title).toBe(helloTitle)
-  //   expect(mapNodes[helloId].parent).toBe(sharikId)
+  //   expect(workflowNodes[helloId].title).toBe(helloTitle)
+  //   expect(workflowNodes[helloId].parent).toBe(sharikId)
 
   //   // Check parent
-  //   expect(mapNodes[cell.id].children).toEqual([foreach.id, sharikId])
-  //   expect(mapNodes[cell.id].prompts).toEqual([sharikId])
+  //   expect(workflowNodes[cell.id].children).toEqual([foreach.id, sharikId])
+  //   expect(workflowNodes[cell.id].prompts).toEqual([sharikId])
   //   expect(responseBody.cell).toEqual({...cell, children: [foreach.id, sharikId], prompts: [sharikId]})
 
   //   // other properties should not change
-  //   expect(responseBody.mapId).toBe(body.mapId)
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.context).toBe(body.context)
   //   expect(responseBody.prompt).toBe(body.prompt)
   //   expect(responseBody.queryType).toBe(body.queryType)
@@ -264,7 +264,7 @@ describe('ExecutorController', () => {
 
   // it('should return json with substituted command execution and reference', async () => {
   //   // Setup
-  //   // Unnamed Map (root)
+  //   // Unnamed Workflow (root)
   //   //   /steps
   //   //     #0 /chatgpt write one cat name @cat
   //   //       /foreach /chatgpt say hello to @@
@@ -330,17 +330,17 @@ describe('ExecutorController', () => {
   //     title: '#1 /chatgpt what is text about? @@cat',
   //   }
   //   const body = {
-  //     mapId: 'n3F4HRqbJpD',
+  //     workflowId: 'n3F4HRqbJpD',
   //     cell: {...cell},
   //     queryType: 'steps',
-  //     mapNodes: {
+  //     workflowNodes: {
   //       [root.id]: root,
   //       [cell.id]: {...cell},
   //       [step1.id]: step1,
   //       [foreach.id]: foreach,
   //       [step2.id]: step2,
   //     },
-  //     mapFiles: {},
+  //     workflowFiles: {},
   //   }
 
   //   const sharikId = 'sharikId'
@@ -358,36 +358,36 @@ describe('ExecutorController', () => {
   //   modelCallSpy.mockReturnValueOnce({content: summaryTitle})
 
   //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(JSON.stringify(body))
-  //   const {mapNodes} = responseBody
+  //   const {workflowNodes} = responseBody
 
-  //   expect(Object.keys(mapNodes).length).toBe(8)
+  //   expect(Object.keys(workflowNodes).length).toBe(8)
   //   // Check first step generated node
-  //   expect(mapNodes[sharikId].title).toBe(sharikTitle)
-  //   expect(mapNodes[sharikId].parent).toBe(step1.id)
-  //   expect(mapNodes[sharikId].command).toBe('/chatgpt say hello to Sharik')
-  //   expect(mapNodes[sharikId].prompts).toEqual([helloId])
+  //   expect(workflowNodes[sharikId].title).toBe(sharikTitle)
+  //   expect(workflowNodes[sharikId].parent).toBe(step1.id)
+  //   expect(workflowNodes[sharikId].command).toBe('/chatgpt say hello to Sharik')
+  //   expect(workflowNodes[sharikId].prompts).toEqual([helloId])
 
   //   // Check post process generated node
-  //   expect(mapNodes[helloId].title).toBe(helloTitle)
-  //   expect(mapNodes[helloId].parent).toBe(sharikId)
+  //   expect(workflowNodes[helloId].title).toBe(helloTitle)
+  //   expect(workflowNodes[helloId].parent).toBe(sharikId)
 
   //   // Check parent
-  //   expect(mapNodes[step1.id].children).toEqual([foreach.id, sharikId])
-  //   expect(mapNodes[step1.id].prompts).toEqual([sharikId])
+  //   expect(workflowNodes[step1.id].children).toEqual([foreach.id, sharikId])
+  //   expect(workflowNodes[step1.id].prompts).toEqual([sharikId])
 
   //   // Check second step generated node
-  //   expect(mapNodes[summaryId].title).toBe(summaryTitle)
-  //   expect(mapNodes[summaryId].parent).toBe(step2.id)
+  //   expect(workflowNodes[summaryId].title).toBe(summaryTitle)
+  //   expect(workflowNodes[summaryId].parent).toBe(step2.id)
 
   //   // Check parent
-  //   expect(mapNodes[step2.id].children).toEqual([summaryId])
-  //   expect(mapNodes[step2.id].prompts).toEqual([summaryId])
+  //   expect(workflowNodes[step2.id].children).toEqual([summaryId])
+  //   expect(workflowNodes[step2.id].prompts).toEqual([summaryId])
 
   //   // Cell doesn't changed in this case
   //   expect(responseBody.cell).toEqual(cell)
 
   //   // other properties should not change
-  //   expect(responseBody.mapId).toBe(body.mapId)
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.context).toBe(body.context)
   //   expect(responseBody.prompt).toBe(body.prompt)
   //   expect(responseBody.queryType).toBe(body.queryType)
@@ -395,7 +395,7 @@ describe('ExecutorController', () => {
 
   // it('should return json with substituted foreach execution', async () => {
   //   // Setup
-  //   // Unnamed Map (root)
+  //   // Unnamed Workflow (root)
   //   //   Cats
   //   //     Barsik
   //   //     Sam
@@ -469,17 +469,17 @@ describe('ExecutorController', () => {
   //     title: '/foreach /chatgpt say hello to @@',
   //   }
   //   const body = {
-  //     mapId: 'n3F4HRqbJpD',
+  //     workflowId: 'n3F4HRqbJpD',
   //     cell: {...cell},
   //     queryType: 'foreach',
-  //     mapNodes: {
+  //     workflowNodes: {
   //       [root.id]: root,
   //       [parent.id]: parent,
   //       [child1.id]: child1,
   //       [child2.id]: child2,
   //       [foreach.id]: foreach,
   //     },
-  //     mapFiles: {},
+  //     workflowFiles: {},
   //   }
 
   //   const newChild_1_id = 'newChild1'
@@ -493,32 +493,32 @@ describe('ExecutorController', () => {
   //   modelCallSpy.mockReturnValueOnce({content: samTitle})
 
   //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(JSON.stringify(body))
-  //   const {mapNodes} = responseBody
+  //   const {workflowNodes} = responseBody
 
-  //   expect(Object.keys(mapNodes).length).toBe(7)
+  //   expect(Object.keys(workflowNodes).length).toBe(7)
   //   // Check first created child node
-  //   expect(mapNodes[newChild_1_id].title).toBe(barsikTitle)
-  //   expect(mapNodes[newChild_1_id].parent).toBe(child1.id)
-  //   expect(mapNodes[child1.id].command).toBe('/chatgpt say hello to Barsik')
+  //   expect(workflowNodes[newChild_1_id].title).toBe(barsikTitle)
+  //   expect(workflowNodes[newChild_1_id].parent).toBe(child1.id)
+  //   expect(workflowNodes[child1.id].command).toBe('/chatgpt say hello to Barsik')
 
   //   // Check second created child node
-  //   expect(mapNodes[newChild_2_id].title).toBe(samTitle)
-  //   expect(mapNodes[newChild_2_id].parent).toBe(child2.id)
-  //   expect(mapNodes[child2.id].command).toBe('/chatgpt say hello to Sam')
+  //   expect(workflowNodes[newChild_2_id].title).toBe(samTitle)
+  //   expect(workflowNodes[newChild_2_id].parent).toBe(child2.id)
+  //   expect(workflowNodes[child2.id].command).toBe('/chatgpt say hello to Sam')
 
   //   // Check child1
-  //   expect(mapNodes[child1.id].children).toEqual([newChild_1_id])
-  //   expect(mapNodes[child1.id].prompts).toEqual([newChild_1_id])
+  //   expect(workflowNodes[child1.id].children).toEqual([newChild_1_id])
+  //   expect(workflowNodes[child1.id].prompts).toEqual([newChild_1_id])
 
   //   // Check child2
-  //   expect(mapNodes[child2.id].children).toEqual([newChild_2_id])
-  //   expect(mapNodes[child2.id].prompts).toEqual([newChild_2_id])
+  //   expect(workflowNodes[child2.id].children).toEqual([newChild_2_id])
+  //   expect(workflowNodes[child2.id].prompts).toEqual([newChild_2_id])
 
   //   // Cell doesn't changed in this case
   //   expect(responseBody.cell).toEqual(cell)
 
   //   // other properties should not change
-  //   expect(responseBody.mapId).toBe(body.mapId)
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.context).toBe(body.context)
   //   expect(responseBody.prompt).toBe(body.prompt)
   //   expect(responseBody.queryType).toBe(body.queryType)
@@ -526,7 +526,7 @@ describe('ExecutorController', () => {
 
   // it('should return json with nested foreach execution', async () => {
   //   // Setup
-  //   // Unnamed Map (root)
+  //   // Unnamed Workflow (root)
   //   //   Cats
   //   //     Barsik
   //   //       Hello, Barsik!
@@ -618,10 +618,10 @@ describe('ExecutorController', () => {
   //     parent: 'F36jb28Tgm3',
   //   }
   //   const body = {
-  //     mapId: 'n3F4HRqbJpD',
+  //     workflowId: 'n3F4HRqbJpD',
   //     cell: {...cell},
   //     queryType: 'foreach',
-  //     mapNodes: {
+  //     workflowNodes: {
   //       [root.id]: root,
   //       [parent.id]: parent,
   //       [child1.id]: child1,
@@ -630,7 +630,7 @@ describe('ExecutorController', () => {
   //       [newChild1.id]: newChild1,
   //       [newChild2.id]: newChild2,
   //     },
-  //     mapFiles: {},
+  //     workflowFiles: {},
   //   }
 
   //   const nested1 = 'nested1'
@@ -644,32 +644,32 @@ describe('ExecutorController', () => {
   //   modelCallSpy.mockReturnValueOnce({content: samTitle})
 
   //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(JSON.stringify(body))
-  //   const {mapNodes} = responseBody
+  //   const {workflowNodes} = responseBody
 
-  //   expect(Object.keys(mapNodes).length).toBe(9)
+  //   expect(Object.keys(workflowNodes).length).toBe(9)
   //   // Check first created child node
-  //   expect(mapNodes[nested1].title).toBe(barsikTitle)
-  //   expect(mapNodes[nested1].parent).toBe(newChild1.id)
-  //   expect(mapNodes[newChild1.id].command).toBe('/chatgpt say hello to Hello, Barsik!')
+  //   expect(workflowNodes[nested1].title).toBe(barsikTitle)
+  //   expect(workflowNodes[nested1].parent).toBe(newChild1.id)
+  //   expect(workflowNodes[newChild1.id].command).toBe('/chatgpt say hello to Hello, Barsik!')
 
   //   // Check second created child node
-  //   expect(mapNodes[nested2].title).toBe(samTitle)
-  //   expect(mapNodes[nested2].parent).toBe(newChild2.id)
-  //   expect(mapNodes[newChild2.id].command).toBe('/chatgpt say hello to Hello, Sam!')
+  //   expect(workflowNodes[nested2].title).toBe(samTitle)
+  //   expect(workflowNodes[nested2].parent).toBe(newChild2.id)
+  //   expect(workflowNodes[newChild2.id].command).toBe('/chatgpt say hello to Hello, Sam!')
 
   //   // Check child1
-  //   expect(mapNodes[newChild1.id].children).toEqual([nested1])
-  //   expect(mapNodes[newChild1.id].prompts).toEqual([nested1])
+  //   expect(workflowNodes[newChild1.id].children).toEqual([nested1])
+  //   expect(workflowNodes[newChild1.id].prompts).toEqual([nested1])
 
   //   // Check child2
-  //   expect(mapNodes[newChild2.id].children).toEqual([nested2])
-  //   expect(mapNodes[newChild2.id].prompts).toEqual([nested2])
+  //   expect(workflowNodes[newChild2.id].children).toEqual([nested2])
+  //   expect(workflowNodes[newChild2.id].prompts).toEqual([nested2])
 
   //   // Cell doesn't changed in this case
   //   expect(responseBody.cell).toEqual(cell)
 
   //   // other properties should not change
-  //   expect(responseBody.mapId).toBe(body.mapId)
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.context).toBe(body.context)
   //   expect(responseBody.prompt).toBe(body.prompt)
   //   expect(responseBody.queryType).toBe(body.queryType)
@@ -677,7 +677,7 @@ describe('ExecutorController', () => {
 
   // it('should update node IDs when re-executing a command', async () => {
   //   // Setup:
-  //   // Unnamed Map (root)
+  //   // Unnamed Workflow (root)
   //   //  hi
   //   //   Hello! How can I assist you today?
   //   //  new node
@@ -719,18 +719,18 @@ describe('ExecutorController', () => {
   //     id: 'jg7JrBgL23r',
   //   }
   //   const body = {
-  //     mapId: 'qdb4dFjg4Hm',
+  //     workflowId: 'qdb4dFjg4Hm',
   //     cell: {...cell},
   //     context: 'Context:\n```\n```\n',
   //     prompt: 'hi',
   //     queryType: 'chat',
-  //     mapNodes: {
+  //     workflowNodes: {
   //       [root.id]: root,
   //       [cell.id]: {...cell},
   //       [anotherNode.id]: anotherNode,
   //       [existingResponse.id]: existingResponse,
   //     },
-  //     mapFiles: {},
+  //     workflowFiles: {},
   //     userId: 'admin',
   //   }
 
@@ -740,17 +740,17 @@ describe('ExecutorController', () => {
   //   modelCallSpy.mockReturnValueOnce({content: helloResponse})
 
   //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(JSON.stringify(body))
-  //   const {mapNodes} = responseBody
+  //   const {workflowNodes} = responseBody
 
-  //   expect(Object.keys(mapNodes).length).toBe(4)
-  //   expect(mapNodes[helloResId].title).toBe(helloResponse)
-  //   expect(mapNodes[helloResId].parent).toBe(cell.id)
-  //   expect(mapNodes[cell.id].children).toEqual([helloResId])
-  //   expect(mapNodes[cell.id].prompts).toEqual([helloResId])
+  //   expect(Object.keys(workflowNodes).length).toBe(4)
+  //   expect(workflowNodes[helloResId].title).toBe(helloResponse)
+  //   expect(workflowNodes[helloResId].parent).toBe(cell.id)
+  //   expect(workflowNodes[cell.id].children).toEqual([helloResId])
+  //   expect(workflowNodes[cell.id].prompts).toEqual([helloResId])
   //   expect(responseBody.cell).toEqual({...cell, children: [helloResId], prompts: [helloResId]})
 
   //   // other properties should not change
-  //   expect(responseBody.mapId).toBe(body.mapId)
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.context).toBe(body.context)
   //   expect(responseBody.prompt).toBe(body.prompt)
   //   expect(responseBody.queryType).toBe(body.queryType)
@@ -788,8 +788,8 @@ describe('ExecutorController', () => {
   //       prompts: ['G3nqbfp47rL', 'mg7GqDHbGpM'],
   //     },
   //     userId: 'admin',
-  //     mapId: 'qdb4dFjg4Hm',
-  //     mapNodes: {
+  //     workflowId: 'qdb4dFjg4Hm',
+  //     workflowNodes: {
   //       r7N6TRJttHd: {
   //         id: 'r7N6TRJttHd',
   //         x: 0,
@@ -827,7 +827,7 @@ describe('ExecutorController', () => {
   //         parent: 'tjbT7M4n2nD',
   //       },
   //     },
-  //     mapFiles: {},
+  //     workflowFiles: {},
   //   }
 
   //   generateNodeId.mockReturnValueOnce('DTNJLhPGbjG')
@@ -853,18 +853,18 @@ describe('ExecutorController', () => {
   //   ])
   //   expect(responseBody.cell.children).toEqual(['DTNJLhPGbjG', 'PtTgj6t8bTb'])
   //   expect(responseBody.cell.prompts).toEqual(['DTNJLhPGbjG', 'PtTgj6t8bTb'])
-  //   expect(Object.keys(responseBody.mapNodes)).toHaveLength(4)
-  //   expect(responseBody.mapNodes).toHaveProperty('DTNJLhPGbjG')
-  //   expect(responseBody.mapNodes).toHaveProperty('PtTgj6t8bTb')
-  //   expect(responseBody.mapNodes).not.toHaveProperty('G3nqbfp47rL')
-  //   expect(responseBody.mapNodes).not.toHaveProperty('mg7GqDHbGpM')
-  //   expect(responseBody.mapId).toBe(body.mapId)
+  //   expect(Object.keys(responseBody.workflowNodes)).toHaveLength(4)
+  //   expect(responseBody.workflowNodes).toHaveProperty('DTNJLhPGbjG')
+  //   expect(responseBody.workflowNodes).toHaveProperty('PtTgj6t8bTb')
+  //   expect(responseBody.workflowNodes).not.toHaveProperty('G3nqbfp47rL')
+  //   expect(responseBody.workflowNodes).not.toHaveProperty('mg7GqDHbGpM')
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.queryType).toBe('refine')
   // })
 
   it('should maintain output structure when executing steps feedback loop', async () => {
     const body = {
-      mapId: 'qdb4dFjg4Hm',
+      workflowId: 'qdb4dFjg4Hm',
       cell: {
         id: 'LQffD2r83pf',
         title: '/steps Feedback Loop',
@@ -882,7 +882,7 @@ describe('ExecutorController', () => {
         y: 140.39999999999998,
       },
       queryType: 'steps',
-      mapNodes: {
+      workflowNodes: {
         r7N6TRJttHd: {
           id: 'r7N6TRJttHd',
           x: 0,
@@ -989,7 +989,7 @@ describe('ExecutorController', () => {
           parent: 'QDNRrJTmRQB',
         },
       },
-      mapFiles: {},
+      workflowFiles: {},
     }
     generateNodeId.mockReturnValueOnce('g26fG76b39g')
     generateNodeId.mockReturnValueOnce('fr6nT3mpbMG')
@@ -1069,13 +1069,13 @@ describe('ExecutorController', () => {
       },
     ])
     expect(responseBody.cell.children).toEqual(expect.arrayContaining(['9d66n9242PR', 'LqgRnG28nqf']))
-    expect(responseBody.mapNodes.QDNRrJTmRQB.prompts).toContain('g26fG76b39g')
-    expect(responseBody.mapNodes['84hqFJb4htM'].prompts).toContain('fr6nT3mpbMG')
-    expect(responseBody.mapNodes).toHaveProperty('g26fG76b39g')
-    expect(responseBody.mapNodes).toHaveProperty('fr6nT3mpbMG')
-    expect(responseBody.mapNodes).not.toHaveProperty('GH68GpRFMfP')
-    expect(responseBody.mapNodes).not.toHaveProperty('hBQMG8rTH7T')
-    expect(responseBody.mapId).toBe(body.mapId)
+    expect(responseBody.workflowNodes.QDNRrJTmRQB.prompts).toContain('g26fG76b39g')
+    expect(responseBody.workflowNodes['84hqFJb4htM'].prompts).toContain('fr6nT3mpbMG')
+    expect(responseBody.workflowNodes).toHaveProperty('g26fG76b39g')
+    expect(responseBody.workflowNodes).toHaveProperty('fr6nT3mpbMG')
+    expect(responseBody.workflowNodes).not.toHaveProperty('GH68GpRFMfP')
+    expect(responseBody.workflowNodes).not.toHaveProperty('hBQMG8rTH7T')
+    expect(responseBody.workflowId).toBe(body.workflowId)
     expect(responseBody.queryType).toBe('steps')
   })
 })

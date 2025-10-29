@@ -9,7 +9,7 @@ import {generateNodeId} from '../../../../shared/utils/generateId'
  */
 export function createDeepClone(copyNode, parentId, allNodes) {
   const clonedNodes = []
-  const nodeIdMap = new Map() // Maps old node IDs to new
+  const nodeIdMap = new Map() // Workflows old node IDs to new
 
   function deepClone(node, parent) {
     if (!nodeIdMap.has(node.id)) {

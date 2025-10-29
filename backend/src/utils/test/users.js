@@ -7,7 +7,7 @@ export const subscriber = {
   mail: 'subscriber@example.com',
   password: 'unused',
   roles: [ROLES.subscriber],
-  limitMaps: 10,
+  limitWorkflows: 10,
   limitNodes: 300,
   confirmed: true,
 }
@@ -18,7 +18,7 @@ export const org_subscriber = {
   mail: 'org_subscriber@example.com',
   password: 'unused',
   roles: [ROLES.org_subscriber],
-  limitMaps: 0,
+  limitWorkflows: 0,
   limitNodes: 0,
 }
 
@@ -35,7 +35,7 @@ export const customer = {
   mail: 'customer@example.com',
   password: 'unused',
   roles: [ROLES.customer],
-  limitMaps: 10,
+  limitWorkflows: 10,
   limitNodes: 1500,
 }
 
@@ -45,7 +45,7 @@ export const administrator = {
   mail: 'administrator@example.com',
   password: 'unused',
   roles: [ROLES.subscriber, ROLES.administrator],
-  limitMaps: 0,
+  limitWorkflows: 0,
   limitNodes: 0,
 }
 

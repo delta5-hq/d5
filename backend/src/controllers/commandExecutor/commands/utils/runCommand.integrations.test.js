@@ -72,7 +72,7 @@ jest.mock('../../ProgressReporter', () => {
 })
 
 const userId = 'userId'
-const mapId = 'mapId'
+const workflowId = 'workflowId'
 const settings = {
   openai: {
     apiKey: 'key',
@@ -114,12 +114,12 @@ beforeEach(() => {
 describe('ChatCommand run test', () => {
   it('should succesfully create nodes and return output', async () => {
     const chatNode = {id: 'chatNode', title: '/chatgpt write one pet name', command: '/chatgpt write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -150,12 +150,12 @@ describe('ChatCommand run test', () => {
 
   it('should handle error chat request', async () => {
     const chatNode = {id: 'chatNode', title: '/chatgpt write one pet name', command: '/chatgpt write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -181,12 +181,12 @@ describe('ChatCommand run test', () => {
 describe('YandexCommand run test', () => {
   it('should succesfully create nodes and return output', async () => {
     const chatNode = {id: 'chatNode', title: '/yandexgpt write one pet name', command: '/yandexgpt write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -217,12 +217,12 @@ describe('YandexCommand run test', () => {
 
   it('should handle error yandex request', async () => {
     const chatNode = {id: 'chatNode', title: '/yandexgpt write one pet name', command: '/yandexgpt write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -251,12 +251,12 @@ describe('YandexCommand run test', () => {
 describe('DeepseekCommand run test', () => {
   it('should succesfully create nodes and return output', async () => {
     const chatNode = {id: 'chatNode', title: '/deepseek write one pet name', command: '/deepseek write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -287,12 +287,12 @@ describe('DeepseekCommand run test', () => {
 
   it('should handle error deepseek request', async () => {
     const chatNode = {id: 'chatNode', title: '/deepseek write one pet name', command: '/deepseek write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -318,12 +318,12 @@ describe('DeepseekCommand run test', () => {
 describe('ClaudeCommand run test', () => {
   it('should succesfully create nodes and return output', async () => {
     const chatNode = {id: 'chatNode', title: '/claude write one pet name', command: '/claude write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -354,12 +354,12 @@ describe('ClaudeCommand run test', () => {
 
   it('should handle error claude request', async () => {
     const chatNode = {id: 'chatNode', title: '/claude write one pet name', command: '/claude write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -385,12 +385,12 @@ describe('ClaudeCommand run test', () => {
 describe('QwenCommand run test', () => {
   it('should succesfully create nodes and return output', async () => {
     const chatNode = {id: 'chatNode', title: '/qwen write one pet name', command: '/qwen write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -421,12 +421,12 @@ describe('QwenCommand run test', () => {
 
   it('should handle error qwen request', async () => {
     const chatNode = {id: 'chatNode', title: '/qwen write one pet name', command: '/qwen write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -457,12 +457,12 @@ describe('PerplexityCommand run test', () => {
       title: '/perplexity write one pet name',
       command: '/perplexity write one pet name',
     }
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -497,12 +497,12 @@ describe('PerplexityCommand run test', () => {
       title: '/perplexity write one pet name',
       command: '/perplexity write one pet name',
     }
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -539,12 +539,12 @@ describe('CustomLLMCommand run test', () => {
 
   it('should succesfully create nodes and return output', async () => {
     const chatNode = {id: 'chatNode', title: '/chat write one pet name', command: '/chat write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -575,12 +575,12 @@ describe('CustomLLMCommand run test', () => {
 
   it('should handle error custom llm request', async () => {
     const chatNode = {id: 'chatNode', title: '/chat write one pet name', command: '/chat write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -606,12 +606,12 @@ describe('CustomLLMCommand run test', () => {
 describe('WebCommand run test', () => {
   it('should succesfully create nodes and return output', async () => {
     const chatNode = {id: 'chatNode', title: '/web write one pet name', command: '/web write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -642,12 +642,12 @@ describe('WebCommand run test', () => {
 
   it('should handle error web request', async () => {
     const chatNode = {id: 'chatNode', title: '/web write one pet name', command: '/web write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -673,12 +673,12 @@ describe('WebCommand run test', () => {
 describe('ScholarCommand run test', () => {
   it('should succesfully create nodes and return output', async () => {
     const chatNode = {id: 'chatNode', title: '/scholar write one pet name', command: '/scholar write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -709,12 +709,12 @@ describe('ScholarCommand run test', () => {
 
   it('should handle error scholar request', async () => {
     const chatNode = {id: 'chatNode', title: '/scholar write one pet name', command: '/scholar write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -740,12 +740,12 @@ describe('ScholarCommand run test', () => {
 describe('OutlineCommand run test', () => {
   it('should succesfully create nodes and return output', async () => {
     const chatNode = {id: 'chatNode', title: '/outline write one pet name', command: '/outline write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -776,12 +776,12 @@ describe('OutlineCommand run test', () => {
 
   it('should handle error outline request', async () => {
     const chatNode = {id: 'chatNode', title: '/outline write one pet name', command: '/outline write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -807,12 +807,12 @@ describe('OutlineCommand run test', () => {
 describe('ExtCommand run test', () => {
   it('should succesfully create nodes and return output', async () => {
     const chatNode = {id: 'chatNode', title: '/ext write one pet name', command: '/ext write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -843,12 +843,12 @@ describe('ExtCommand run test', () => {
 
   it('should handle error ext request', async () => {
     const chatNode = {id: 'chatNode', title: '/ext write one pet name', command: '/ext write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Map', children: [chatNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
     chatNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         chatNode,
         rootNode,
@@ -889,12 +889,12 @@ describe('DownloadCommand run test', () => {
       title: '/download https://example.com',
       command: '/download https://example.com',
     }
-    const rootNode = {id: 'rootNode', title: 'Map', children: [downloadNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [downloadNode.id]}
     downloadNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         downloadNode,
         rootNode,
@@ -943,12 +943,12 @@ describe('DownloadCommand run test', () => {
       title: '/download https://example.com',
       command: '/download https://example.com',
     }
-    const rootNode = {id: 'rootNode', title: 'Map', children: [downloadNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [downloadNode.id]}
     downloadNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         downloadNode,
         rootNode,
@@ -998,12 +998,12 @@ describe('RefineCommand run test', () => {
     }
     childNode.parent = refineNode.id
 
-    const rootNode = {id: 'rootNode', title: 'Map', children: [refineNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [refineNode.id]}
     refineNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         refineNode,
         childNode,
@@ -1045,12 +1045,12 @@ describe('RefineCommand run test', () => {
     }
     childNode.parent = refineNode.id
 
-    const rootNode = {id: 'rootNode', title: 'Map', children: [refineNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [refineNode.id]}
     refineNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         refineNode,
         childNode,
@@ -1092,12 +1092,12 @@ describe('SwitchCommand run test', () => {
     }
     caseNode.parent = switchNode.id
 
-    const rootNode = {id: 'rootNode', title: 'Map', children: [switchNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [switchNode.id]}
     switchNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         switchNode,
         caseNode,
@@ -1144,12 +1144,12 @@ describe('SwitchCommand run test', () => {
     }
     caseNode.parent = switchNode.id
 
-    const rootNode = {id: 'rootNode', title: 'Map', children: [switchNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [switchNode.id]}
     switchNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         switchNode,
         caseNode,
@@ -1192,12 +1192,12 @@ describe('SummarizeCommand run test', () => {
     }
     contentNode.parent = summarizeNode.id
 
-    const rootNode = {id: 'rootNode', title: 'Map', children: [summarizeNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [summarizeNode.id]}
     summarizeNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         summarizeNode,
         contentNode,
@@ -1245,7 +1245,7 @@ describe('SummarizeCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         summarizeNode,
         contentNode,
@@ -1286,7 +1286,7 @@ describe('StepsCommand run test', () => {
       children: [chatNode1.id, chatNode2.id, chatNode3.id],
     }
 
-    const rootNode = {id: 'rootNode', title: 'Map', children: [stepsNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [stepsNode.id]}
     stepsNode.parent = rootNode.id
     chatNode1.parent = stepsNode.id
     chatNode2.parent = stepsNode.id
@@ -1294,7 +1294,7 @@ describe('StepsCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         stepsNode,
         chatNode1,
@@ -1354,7 +1354,7 @@ describe('StepsCommand run test', () => {
       children: [chatNode1.id, chatNode2.id, chatNode3.id],
     }
 
-    const rootNode = {id: 'rootNode', title: 'Map', children: [stepsNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [stepsNode.id]}
     stepsNode.parent = rootNode.id
     chatNode1.parent = stepsNode.id
     chatNode2.parent = stepsNode.id
@@ -1362,7 +1362,7 @@ describe('StepsCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         stepsNode,
         chatNode1,
@@ -1421,7 +1421,7 @@ describe('ForeachCommand run test', () => {
     //       leaf2
     const rootNode = {
       id: 'root',
-      title: 'Map',
+      title: 'Workflow',
       children: ['chatNode'],
     }
 
@@ -1462,7 +1462,7 @@ describe('ForeachCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         root: rootNode,
         chatNode: chatNode,
@@ -1515,7 +1515,7 @@ describe('ForeachCommand run test', () => {
   it('should execute 2-level foreach with steps', async () => {
     const rootNode = {
       id: 'root',
-      title: 'Map',
+      title: 'Workflow',
       children: ['foreachNode', 'dogNode', 'catNode'],
     }
 
@@ -1567,7 +1567,7 @@ describe('ForeachCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         root: rootNode,
         foreachNode: foreachNode,
@@ -1623,7 +1623,7 @@ describe('ForeachCommand run test', () => {
     //       leaf2
     const rootNode = {
       id: 'root',
-      title: 'Map',
+      title: 'Workflow',
       children: ['chatNode'],
     }
 
@@ -1664,7 +1664,7 @@ describe('ForeachCommand run test', () => {
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         root: rootNode,
         chatNode: chatNode,
@@ -1724,12 +1724,12 @@ describe('CompletionCommand run test', () => {
       title: '/chat write a story',
       command: '/chat write a story',
     }
-    const rootNode = {id: 'rootNode', title: 'Map', children: [completionNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [completionNode.id]}
     completionNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         completionNode,
         rootNode,
@@ -1788,12 +1788,12 @@ describe('MemorizeCommand run test', () => {
     }
     parentNode.children.push(childNode.id)
 
-    const rootNode = {id: 'rootNode', title: 'Map', children: [parentNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [parentNode.id]}
     parentNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         memorizeNode,
         parentNode,
@@ -1855,12 +1855,12 @@ describe('MemorizeCommand run test', () => {
     }
     parentNode.children.push(childNode1.id, childNode2.id)
 
-    const rootNode = {id: 'rootNode', title: 'Map', children: [parentNode.id]}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [parentNode.id]}
     parentNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
-      mapId,
+      workflowId,
       nodes: {
         memorizeNode,
         parentNode,

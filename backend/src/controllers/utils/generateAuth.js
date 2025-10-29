@@ -6,7 +6,7 @@ const generateAuth = user => {
     {
       sub: user.name,
       roles: user.roles || [],
-      limitMaps: user.limitMaps || 999999999,
+      limitWorkflows: user.limitWorkflows || 999999999,
       limitNodes: user.limitNodes || 999999999,
     },
     JWT_SECRET,

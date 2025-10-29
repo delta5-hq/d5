@@ -245,10 +245,10 @@ export const createNodes = async (text, parentNodeId) => {
   for (const line of lines) {
     const {text, gridOptions} = BlockLexer.lex(line)
 
-    const mapDatas = await plugin.transform(text)
+    const workflowDatas = await plugin.transform(text)
     const newNodes = []
 
-    mapDatas.forEach(({root, nodes}) => addNodeTree(nodes, root, parentNodeId, newNodes))
+    workflowDatas.forEach(({root, nodes}) => addNodeTree(nodes, root, parentNodeId, newNodes))
 
     if (gridOptions) {
       const node = newNodes[newNodes.length - 1]

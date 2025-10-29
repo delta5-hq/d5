@@ -19,8 +19,8 @@ const PathController = {
   },
 
   list: async ctx => {
-    const {mapId} = ctx.params
-    ctx.body = await WorkflowPath.find({mapId})
+    const {workflowId} = ctx.params
+    ctx.body = await WorkflowPath.find({workflowId})
   },
 
   get: async ctx => {
@@ -31,11 +31,11 @@ const PathController = {
 
   create: async ctx => {
     const request = await ctx.request.json()
-    const {mapId, _id, nodes, title} = request
+    const {workflowId, _id, nodes, title} = request
 
-    log('create new path', {mapId, _id})
+    log('create new path', {workflowId, _id})
 
-    const path = _id ? await WorkflowPath.findOne({_id}) : new WorkflowPath({_id, mapId, nodes, title})
+    const path = _id ? await WorkflowPath.findOne({_id}) : new WorkflowPath({_id, workflowId, nodes, title})
 
     path.nodes = nodes
 

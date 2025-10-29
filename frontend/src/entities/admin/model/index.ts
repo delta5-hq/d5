@@ -2,12 +2,12 @@ import type { FullUser } from '@shared/base-types'
 
 export interface UserWorkflowStatistics {
   _id: string
-  mapId: string
+  workflowId: string
   userId: string
   createdAt: string
   updatedAt: string
-  mapNodeCount: number
-  mapEdgeCount: number
+  nodeCount: number
+  edgeCount: number
   role: 'owner' | 'editor' | 'viewer' | string
   sharedWithCount: number
   public: boolean
@@ -15,13 +15,13 @@ export interface UserWorkflowStatistics {
 }
 
 export interface FullUserStatistics extends FullUser {
-  lastMapChange?: string
-  biggestMapCount?: number | null
-  mapCount: number
-  mapShareCount: number
+  lastWorkflowChange?: string
+  biggestWorkflowCount?: number | null
+  workflowCount: number
+  shareCount: number
   sharedWithCount: number
-  mapIds?: string[] | null
-  sharedMaps?: number
+  workflowIds?: string[] | null
+  sharedWorkflows?: number
   nodeCount: number
   edgeCount: number
 }

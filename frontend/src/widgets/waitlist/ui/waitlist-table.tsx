@@ -209,7 +209,9 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
                   ) : null}
                 </TableHead>
               ))}
-              <TableHead>Actions</TableHead>
+              <TableHead>
+                <FormattedMessage id="actions" />
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
