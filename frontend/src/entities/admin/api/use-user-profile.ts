@@ -9,9 +9,9 @@ export const useUserProfile = (userId: string) => {
   const navigate = useNavigate()
   const { formatMessage } = useIntl()
 
-  const mapsQuery = useApiQuery<UserWorkflowStatistics[]>({
+  const workflowsQuery = useApiQuery<UserWorkflowStatistics[]>({
     url: `/statistics/workflow/${userId}`,
-    queryKey: queryKeys.userMaps(userId),
+    queryKey: queryKeys.userWorkflows(userId),
   })
 
   const userQuery = useApiQuery<FullUserStatistics>({
@@ -54,13 +54,13 @@ export const useUserProfile = (userId: string) => {
 
   return {
     userData: userQuery.data,
-    mapsData: mapsQuery.data,
+    worfklowsData: workflowsQuery.data,
 
     isUserFetched: userQuery.isFetched,
     refetchUser: userQuery.refetch,
     deleteUser: deleteUserMutation.mutate,
     updateComment: updateCommentMutation.mutate,
-    mapsQuery,
+    workflowsQuery,
     userQuery,
     deleteUserMutation,
     updateCommentMutation,

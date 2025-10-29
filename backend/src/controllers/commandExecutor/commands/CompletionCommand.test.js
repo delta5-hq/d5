@@ -15,12 +15,12 @@ jest.mock('./utils/langchain/getLLM')
 jest.mock('./utils/runCommand')
 
 const mockCell = {id: 'cell1'}
-const mockMapNodes = {}
-const mockMapFiles = {}
+const mockNodes = {}
+const mockFiles = {}
 
 describe('CompletionCommand', () => {
   const userId = 'user123'
-  const mapId = 'map456'
+  const workflowId = 'workflow456'
 
   beforeEach(() => {
     jest.clearAllMocks()
@@ -29,8 +29,8 @@ describe('CompletionCommand', () => {
 
   it('should throw error when no integration settings found', async () => {
     getIntegrationSettings.mockResolvedValue(null)
-    const command = new CompletionCommand(userId, mapId)
-    await expect(command.run(mockCell, mockMapNodes, mockMapFiles)).rejects.toThrow('No integration enabled')
+    const command = new CompletionCommand(userId, workflowId)
+    await expect(command.run(mockCell, mockNodes, mockFiles)).rejects.toThrow('No integration enabled')
   })
 
   it('should use CUSTOM_LLM_CHAT_QUERY_TYPE when model is default and custom_llm is enabled', async () => {
@@ -39,8 +39,8 @@ describe('CompletionCommand', () => {
       custom_llm: true,
     })
 
-    const command = new CompletionCommand(userId, mapId)
-    await command.run(mockCell, mockMapNodes, mockMapFiles)
+    const command = new CompletionCommand(userId, workflowId)
+    await command.run(mockCell, mockNodes, mockFiles)
 
     const callArgs = runCommand.mock.calls[0][0]
     expect(callArgs).toEqual(expect.objectContaining({queryType: CUSTOM_LLM_CHAT_QUERY_TYPE}))
@@ -53,8 +53,8 @@ describe('CompletionCommand', () => {
       yandex: true,
     })
 
-    const command = new CompletionCommand(userId, mapId)
-    await command.run(mockCell, mockMapNodes, mockMapFiles)
+    const command = new CompletionCommand(userId, workflowId)
+    await command.run(mockCell, mockNodes, mockFiles)
 
     const callArgs = runCommand.mock.calls[0][0]
     expect(callArgs).toEqual(expect.objectContaining({queryType: YANDEX_QUERY_TYPE}))
@@ -66,8 +66,8 @@ describe('CompletionCommand', () => {
       openai: true,
     })
 
-    const command = new CompletionCommand(userId, mapId)
-    await command.run(mockCell, mockMapNodes, mockMapFiles)
+    const command = new CompletionCommand(userId, workflowId)
+    await command.run(mockCell, mockNodes, mockFiles)
 
     const callArgs = runCommand.mock.calls[0][0]
     expect(callArgs).toEqual(expect.objectContaining({queryType: CHAT_QUERY_TYPE}))
@@ -79,8 +79,8 @@ describe('CompletionCommand', () => {
       claude: true,
     })
 
-    const command = new CompletionCommand(userId, mapId)
-    await command.run(mockCell, mockMapNodes, mockMapFiles)
+    const command = new CompletionCommand(userId, workflowId)
+    await command.run(mockCell, mockNodes, mockFiles)
 
     const callArgs = runCommand.mock.calls[0][0]
     expect(callArgs).toEqual(expect.objectContaining({queryType: CLAUDE_QUERY_TYPE}))
@@ -92,8 +92,8 @@ describe('CompletionCommand', () => {
       deepseek: true,
     })
 
-    const command = new CompletionCommand(userId, mapId)
-    await command.run(mockCell, mockMapNodes, mockMapFiles)
+    const command = new CompletionCommand(userId, workflowId)
+    await command.run(mockCell, mockNodes, mockFiles)
 
     const callArgs = runCommand.mock.calls[0][0]
     expect(callArgs).toEqual(expect.objectContaining({queryType: DEEPSEEK_QUERY_TYPE}))
@@ -105,8 +105,8 @@ describe('CompletionCommand', () => {
       qwen: true,
     })
 
-    const command = new CompletionCommand(userId, mapId)
-    await command.run(mockCell, mockMapNodes, mockMapFiles)
+    const command = new CompletionCommand(userId, workflowId)
+    await command.run(mockCell, mockNodes, mockFiles)
 
     const callArgs = runCommand.mock.calls[0][0]
     expect(callArgs).toEqual(expect.objectContaining({queryType: QWEN_QUERY_TYPE}))
@@ -117,8 +117,8 @@ describe('CompletionCommand', () => {
       model: 'unknown-model',
     })
 
-    const command = new CompletionCommand(userId, mapId)
-    await command.run(mockCell, mockMapNodes, mockMapFiles)
+    const command = new CompletionCommand(userId, workflowId)
+    await command.run(mockCell, mockNodes, mockFiles)
 
     expect(runCommand).not.toHaveBeenCalled()
   })
@@ -129,8 +129,8 @@ describe('CompletionCommand', () => {
       openai: true,
     })
 
-    const command = new CompletionCommand(userId, mapId)
-    await command.run(mockCell, mockMapNodes, mockMapFiles)
+    const command = new CompletionCommand(userId, workflowId)
+    await command.run(mockCell, mockNodes, mockFiles)
 
     const callArgs = runCommand.mock.calls[0][0]
     expect(callArgs).toEqual(

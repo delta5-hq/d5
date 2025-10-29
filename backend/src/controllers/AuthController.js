@@ -54,7 +54,6 @@ const AuthController = {
     if (refresh_token)
       ctx.cookies.set('refresh_token', refresh_token, {maxAge: auth.expires_in * 1000, domain: getDomain(ctx)})
 
-    // @TODO: remove access token from response, currently still used to detect reconnects of the mapstore
     ctx.body = {tokenHash: shaHash(access_token), ...restAuth}
   },
   externalAuth: async ctx => {
@@ -124,7 +123,7 @@ const AuthController = {
       expiresAt: payload.exp * 1000, // set value in ms as most stuff is based on ms
       userId: payload.sub,
       roles: payload.roles,
-      limitMaps: payload.limitMaps,
+      limitWorkflows: payload.limitWorkflows,
       limitNodes: payload.limitNodes,
       name: auth?.wp_user?.data?.display_name,
     }
@@ -161,7 +160,7 @@ const AuthController = {
       expiresAt: payload.exp * 1000, // set value in ms as most stuff is based on ms
       userId: payload.sub,
       roles: payload.roles,
-      limitMaps: payload.limitMaps,
+      limitWorkflows: payload.limitWorkflows,
       limitNodes: payload.limitNodes,
       name: auth?.wp_user?.data?.display_name,
     }

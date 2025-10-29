@@ -28,11 +28,11 @@ describe('runCommand', () => {
     const chatRunSpy = jest.spyOn(ChatCommand.prototype, 'run').mockReturnValue({nodes: []})
     const outlineRunSpy = jest.spyOn(OutlineCommand.prototype, 'run').mockReturnValue({nodes: []})
 
-    const {mapNodes, mapFiles, ...data} = executeExample1
+    const {workflowNodes, workflowFiles, ...data} = executeExample1
     const mockStore = new Store({
       userId: 'userId',
-      nodes: mapNodes,
-      files: mapFiles,
+      nodes: workflowNodes,
+      files: workflowFiles,
     })
     await runCommand({...data, store: mockStore})
 
@@ -47,11 +47,11 @@ describe('runCommand', () => {
     const chatRunSpy = jest.spyOn(ChatCommand.prototype, 'run').mockReturnValue({nodes: []})
     const outlineSummarizeSpy = jest.spyOn(OutlineCommand.prototype, 'replyWithSummarize').mockReturnValue([])
 
-    const {mapNodes, mapFiles, ...data} = executeExample1
+    const {workflowNodes, workflowFiles, ...data} = executeExample1
     const mockStore = new Store({
       userId: 'userId',
-      nodes: mapNodes,
-      files: mapFiles,
+      nodes: workflowNodes,
+      files: workflowFiles,
     })
     await runCommand({...data, store: mockStore})
 
@@ -111,13 +111,13 @@ describe('runCommand', () => {
     const root = {id: 'root', parent: 'root', command: '/chatgpt prompt', children: ['c']}
     const child = {id: 'c', parent: root.id, title: 'child'}
 
-    const mapNodes = {
+    const workflowNodes = {
       [root.id]: root,
       [child.id]: child,
     }
     const mockStore = new Store({
       userId: 'userId',
-      nodes: mapNodes,
+      nodes: workflowNodes,
     })
 
     const rootProgress = new ProgressReporter({title: 'root'})
@@ -149,13 +149,13 @@ describe('runCommand', () => {
     const root = {id: 'root', parent: 'root', command: '/chatgpt prompt', children: ['c']}
     const child = {id: 'c', parent: root.id, title: 'runCommand'}
 
-    const mapNodes = {
+    const workflowNodes = {
       [root.id]: root,
       [child.id]: child,
     }
     const mockStore = new Store({
       userId: 'userId',
-      nodes: mapNodes,
+      nodes: workflowNodes,
     })
 
     const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
@@ -177,14 +177,14 @@ describe('runCommand', () => {
     const child = {id: 'c', parent: root.id, title: 'child'}
     const foreach = {id: 'for', parent: root.id, command: '/foreach /chatgpt @@'}
 
-    const mapNodes = {
+    const workflowNodes = {
       [root.id]: root,
       [child.id]: child,
       [foreach.id]: foreach,
     }
     const mockStore = new Store({
       userId: 'userId',
-      nodes: mapNodes,
+      nodes: workflowNodes,
     })
 
     const rootProgress = new ProgressReporter({title: 'root'})

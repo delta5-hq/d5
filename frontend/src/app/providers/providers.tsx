@@ -6,6 +6,7 @@ import { Toaster } from '@shared/ui/sonner'
 import { DialogProvider } from '@entities/dialog'
 import { Outlet } from 'react-router-dom'
 import { AuthProvider } from '@entities/auth'
+import { SearchProvider } from '@shared/context'
 
 const queryClient = new QueryClient()
 
@@ -14,9 +15,11 @@ const Providers = () => (
     <IntlProvider locale="en" messages={messages.en}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <DialogProvider>
-            <Outlet />
-          </DialogProvider>
+          <SearchProvider>
+            <DialogProvider>
+              <Outlet />
+            </DialogProvider>
+          </SearchProvider>
         </AuthProvider>
       </QueryClientProvider>
       <Toaster position="bottom-left" />

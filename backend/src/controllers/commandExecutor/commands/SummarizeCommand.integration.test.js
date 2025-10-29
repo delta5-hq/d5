@@ -1,8 +1,8 @@
 import {BaseChain} from 'langchain/chains'
+import {COMPLETION_QUERY_TYPE} from '../constants/completion'
 import {ChatCommand} from './ChatCommand'
 import {SummarizeCommand} from './SummarizeCommand'
 import {runCommand} from './utils/runCommand'
-import {COMPLETION_QUERY_TYPE} from '../constants/completion'
 import Store from './utils/Store'
 
 jest.mock('./utils/langchain/getLLM', () => ({
@@ -48,7 +48,7 @@ describe('SummarizeCommand integration', () => {
 
     const store = new Store({
       userId: 'userId',
-      mapId: 'mapId',
+      workflowId: 'workflowId',
       files: {},
       nodes: {
         chatNode,
@@ -110,7 +110,7 @@ describe('SummarizeCommand integration', () => {
 
     const store = new Store({
       userId: 'userId',
-      mapId: 'mapId',
+      workflowId: 'workflowId',
       files: {},
       nodes: {
         chatNode,

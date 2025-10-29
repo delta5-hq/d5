@@ -31,13 +31,13 @@ const sourceRunCommand = jest.requireActual('./utils/runCommand').runCommand
 
 describe('StepsCommand', () => {
   const userId = 'userId'
-  const mapId = 'mapId'
+  const workflowId = 'workflowId'
   const mockStore = new Store({
     userId,
-    mapId,
+    workflowId,
     nodes: {},
   })
-  const command = new StepsCommand(userId, mapId, mockStore)
+  const command = new StepsCommand(userId, workflowId, mockStore)
 
   beforeEach(() => {
     jest.clearAllMocks()
@@ -134,7 +134,7 @@ describe('StepsCommand', () => {
 
     await command.executePrompts(nodes)
 
-    // New Nodes was created and added to mapNodes
+    // New Nodes was created and added to workflowNodes
     expect(mockStore._nodes['newNode1']).toEqual(newNode1)
     expect(mockStore._nodes['newNode2']).toEqual(newNode2)
 
@@ -674,7 +674,7 @@ describe('StepsCommand', () => {
       children: [swotNode.id],
     }
 
-    // Prepare map nodes
+    // Prepare workflow nodes
     mockStore._nodes = {
       [strengthsRef.id]: strengthsRef,
       [weaknessesRef.id]: weaknessesRef,
@@ -758,7 +758,7 @@ describe('StepsCommand', () => {
     })
     const childProgress = new ProgressReporter({title: 'root'})
 
-    const command = new StepsCommand(userId, mapId, mockStore, childProgress)
+    const command = new StepsCommand(userId, workflowId, mockStore, childProgress)
     await command.executePrompts(nodes)
 
     const callArgs1 = runCommand.mock.calls[0]

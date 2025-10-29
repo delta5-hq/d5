@@ -3,6 +3,7 @@ import * as React from 'react'
 import { cn } from '@shared/lib/utils'
 import { Button } from './button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select'
+import { FormattedMessage } from 'react-intl'
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
@@ -94,25 +95,27 @@ const TablePagination = React.forwardRef<HTMLDivElement, TablePaginationProps>(
         ref={ref}
       >
         <div className="flex items-center space-x-2">
-          <span>Rows per page:</span>
+          <span>
+            <FormattedMessage id="rowsPerPage" />:
+          </span>
           <Select onValueChange={value => onRowsPerPageChange(Number(value))} value={rowsPerPage.toString()}>
             <SelectTrigger className="w-[80px] text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="25">25</SelectItem>
-              <SelectItem value="50">50</SelectItem>
-              <SelectItem value="100">100</SelectItem>
+              <SelectItem value="25">{25}</SelectItem>
+              <SelectItem value="50">{50}</SelectItem>
+              <SelectItem value="100">{100}</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div className="flex items-center space-x-2">
           <Button disabled={page === 0} onClick={() => onPageChange(Math.max(0, page - 1))} size="sm" variant="ghost">
-            Prev
+            <FormattedMessage id="prev" />
           </Button>
           <span>
-            Page {page + 1} of {totalPages}
+            <FormattedMessage id="page" /> {page + 1} / {totalPages}
           </span>
           <Button
             disabled={page >= totalPages - 1}
@@ -120,7 +123,7 @@ const TablePagination = React.forwardRef<HTMLDivElement, TablePaginationProps>(
             size="sm"
             variant="ghost"
           >
-            Next
+            <FormattedMessage id="next" />
           </Button>
         </div>
       </div>

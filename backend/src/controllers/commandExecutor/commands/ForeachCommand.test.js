@@ -52,16 +52,16 @@ const sourceRunCommand = jest.requireActual('./utils/runCommand').runCommand
 
 describe('ForeachCommand', () => {
   const userId = 'userId'
-  const mapId = 'mapId'
+  const workflowId = 'workflowId'
   const mockStore = new Store({
     userId,
-    mapId,
+    workflowId,
     nodes: {},
   })
   let command
 
   beforeEach(() => {
-    command = new ForeachCommand(userId, mapId, mockStore)
+    command = new ForeachCommand(userId, workflowId, mockStore)
 
     command.logError = jest.fn().mockImplementation(e => {
       throw e
@@ -2854,7 +2854,7 @@ describe('ForeachCommand', () => {
       runCommand.mockResolvedValueOnce({nodes: [{id: 'node1', command: '/chatgpt prompt'}]})
       const childProgress = new ProgressReporter({title: 'root'})
 
-      const command = new ForeachCommand(userId, mapId, mockStore, childProgress)
+      const command = new ForeachCommand(userId, workflowId, mockStore, childProgress)
       await command.run(child2)
 
       const callArgs1 = runCommand.mock.calls[0]
@@ -2875,7 +2875,7 @@ describe('ForeachCommand', () => {
       runCommand.mockResolvedValueOnce({nodes: [{id: 'node1', command: '/chatgpt prompt'}]})
       const childProgress = new ProgressReporter({title: 'root'})
 
-      const command = new ForeachCommand(userId, mapId, mockStore, childProgress)
+      const command = new ForeachCommand(userId, workflowId, mockStore, childProgress)
       await command.run(child2)
 
       const callArgs1 = runCommand.mock.calls[0]

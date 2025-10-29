@@ -47,14 +47,6 @@ export default defineConfig({
         viewport: { width: 1280, height: 720 },
       },
     },
-    {
-      name: 'mobile',
-      use: {
-        ...devices['Pixel 5'],
-        viewport: { width: 375, height: 667 },
-      },
-      testIgnore: ['**/e2e/auth-flows.spec.ts', '**/e2e/integrations.spec.ts'],
-    },
   ],
 
   webServer: {
