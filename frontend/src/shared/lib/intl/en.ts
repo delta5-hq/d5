@@ -14,6 +14,7 @@ export default {
   sidebarMyWorkflowsLabel: 'My Workflows',
   sidebarSearchLabel: 'Search',
   sidebarSettingsLabel: 'Settings',
+  sidebarBuild: 'build',
 
   buttonCancel: 'Cancel',
   cancel: 'Cancel',
