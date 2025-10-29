@@ -1,18 +1,18 @@
-import { useEffect, useCallback } from 'react'
-import { useForm } from 'react-hook-form'
+import { isValidPassword, LoginDialog, useAuthContext, usePasswordRecovery, useResetTokenCheck } from '@entities/auth'
+import { useDialog } from '@entities/dialog'
 import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
+import { Button } from '@shared/ui/button'
+import { Copyright } from '@shared/ui/copyright'
+import { Input } from '@shared/ui/input'
+import { Label } from '@shared/ui/label'
+import { Logo } from '@shared/ui/logo'
+import { Spinner } from '@shared/ui/spinner'
+import { Version } from '@shared/ui/version'
+import { useCallback, useEffect } from 'react'
+import { useForm } from 'react-hook-form'
 import { FormattedMessage } from 'react-intl'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Button } from '@shared/ui/button'
-import { Input } from '@shared/ui/input'
-import { isValidPassword, LoginDialog, useAuthContext, usePasswordRecovery, useResetTokenCheck } from '@entities/auth'
-import { Logo } from '@shared/ui/logo'
-import { Version } from '@shared/ui/version'
-import { Label } from '@shared/ui/label'
-import { Spinner } from '@shared/ui/spinner'
-import { Copyright } from '@shared/ui/copyright'
-import { useDialog } from '@entities/dialog'
+import * as z from 'zod'
 
 const resetPasswordSchema = z.object({
   password: z
@@ -90,7 +90,7 @@ const ResetPassword = () => {
                 />
               </div>
               <div className="text-center text-foreground/40 text-sm">
-                <FormattedMessage id="version" /> <Version /> - <Copyright />
+                <FormattedMessage id="version" /> <Version /> <Copyright />
               </div>
             </div>
 

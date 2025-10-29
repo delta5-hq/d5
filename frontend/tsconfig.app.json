@@ -36,5 +36,5 @@
       "@/*": ["*"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "genversion.js"]
 }

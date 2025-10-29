@@ -14,6 +14,7 @@ export default {
   sidebarMyWorkflowsLabel: 'My Workflows',
   sidebarSearchLabel: 'Search',
   sidebarSettingsLabel: 'Settings',
+  sidebarBuild: 'build',
 
   buttonCancel: 'Cancel',
   cancel: 'Cancel',
@@ -290,4 +291,7 @@ export default {
   toggleSidebar: 'Toggle Sidebar',
   rowsPerPage: 'Rows per page',
   page: 'Page',
+
+  copy: 'Copy',
+  copied: 'Copied!',
 }

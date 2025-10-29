@@ -3,7 +3,7 @@ import type React from 'react'
 import { FormattedMessage } from 'react-intl'
 
 export const WorkflowAddDashboard: React.FC = () => (
-  <Button size="sm" variant="default" data-type="add-dashboard">
+  <Button data-type="add-dashboard" size="sm" variant="default">
     <span className="mr-1">+</span>
     <FormattedMessage id="workflowAddDashboardLabel" />
   </Button>

@@ -1,3 +1,5 @@
+import { useAuthContext } from '@entities/auth'
+import { useSearch } from '@shared/context'
 import { cn } from '@shared/lib/utils'
 import {
   Sidebar,
@@ -10,14 +12,13 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@shared/ui/sidebar'
+import { Version } from '@shared/ui/version'
 import { BriefcaseBusiness, School, Settings, Workflow } from 'lucide-react'
 import { useEffect, type FC } from 'react'
 import { FormattedMessage } from 'react-intl'
-import { AppSearch, HelpButton, LoginButton, UserSettingsButton } from './../header'
-import { useAuthContext } from '@entities/auth'
 import { Link, useLocation } from 'react-router-dom'
+import { AppSearch, HelpButton, LoginButton, UserSettingsButton } from './../header'
 import styles from './app-sidebar.module.scss'
-import { useSearch } from '@shared/context'
 
 interface AppSidebarProps {
   isResponsive?: boolean
@@ -90,7 +91,7 @@ const AppSidebar: FC<AppSidebarProps> = ({ isResponsive, isDesktop, isMinimized,
         </div>
       ) : null}
 
-      <SidebarContent>
+      <SidebarContent className="flex flex-col justify-between p-2 pb-5">
         <SidebarGroup>
           <SidebarGroupLabel>
             <FormattedMessage id="sidebarMainGroupLabel" />
@@ -115,6 +116,8 @@ const AppSidebar: FC<AppSidebarProps> = ({ isResponsive, isDesktop, isMinimized,
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <Version />
       </SidebarContent>
     </Sidebar>
   )

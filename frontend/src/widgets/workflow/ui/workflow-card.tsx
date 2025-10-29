@@ -96,7 +96,12 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({ workflows, isPublic,
   return (
     <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
       {workflows.map(item => (
-        <Card className="flex flex-col justify-between" glassEffect={false} key={item.workflowId} data-key={item.workflowId}>
+        <Card
+          className="flex flex-col justify-between"
+          data-key={item.workflowId}
+          glassEffect={false}
+          key={item.workflowId}
+        >
           <CardHeader className="flex flex-row items-cemter justify-between space-y-0 p-2 pb-4">
             <div className="flex items-center gap-2">
               <Avatar>

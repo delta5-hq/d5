@@ -162,11 +162,11 @@ build-frontend:
   script:
     - |
       if [[ "${CI_COMMIT_REF_NAME}" != "${CI_COMMIT_REF_NAME/deploy/}" ]] ; then
-        VERSION="0.0.0-${CI_COMMIT_SHORT_SHA}+$(date '+%Y%m%d%H%M')"
+        VERSION="${CI_COMMIT_SHORT_SHA}"
       else
-        VERSION=${CI_COMMIT_TAG:-0.0.0-${CI_COMMIT_SHORT_SHA}+$(date '+%Y%m%d%H%M')}
+        VERSION=${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}
       fi
-    - 'sed "s/\"version\":[^,]*/\"version\": \"${VERSION}\"/" -i package.json'
+    - 'sed "s/\"gitVersion\":[^,]*/\"gitVersion\": \"${VERSION}\"/" -i package.json'
     - pnpm install --frozen-lockfile
     # disable the source maps, to hide our code, see https://create-react-app.dev/docs/advanced-configuration/
     - GENERATE_SOURCEMAP=false npm run build
