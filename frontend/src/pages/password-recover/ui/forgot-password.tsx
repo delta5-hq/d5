@@ -86,7 +86,7 @@ const ForgotPassword = () => {
             </div>
 
             <div className="text-center text-foreground/40 text-sm">
-              <FormattedMessage id="version" /> <Version /> - <Copyright />
+              <FormattedMessage id="version" /> <Version /> <Copyright />
             </div>
           </div>
 
