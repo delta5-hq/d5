@@ -1,6 +1,6 @@
 const {env} = process
 
-export const API_BASE_PATH = '/api/v1'
+export const API_BASE_PATH = env.API_BASE_PATH || '/api/v1'
 
 export const PERPLEXITY_API_URL = 'https://api.perplexity.ai'
 

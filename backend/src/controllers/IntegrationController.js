@@ -225,6 +225,14 @@ const IntegrationController = {
       console.error('Unable to scrape:', e.message)
     }
   },
+  deleteIntegration: async ctx => {
+    const {userId} = ctx.state
+
+    await Integration.deleteOne({userId})
+
+    ctx.status = 204
+    ctx.body = null
+  },
 }
 
 export default IntegrationController
