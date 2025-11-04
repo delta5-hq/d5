@@ -18,5 +18,5 @@ func RegisterRoutes(app *fiber.App, db *qmgo.Database) {
 
 	workflowService := workflow.NewService(db)
 	workflowHandler := workflow.NewHandler(workflowService)
-	workflow.RegisterRoutes(v1, workflowHandler)
+	workflow.RegisterRoutes(v1, workflowHandler, db)
 }

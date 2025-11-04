@@ -1,7 +1,12 @@
 package workflow
 
 import (
+	"backend-v2/internal/common/constants"
+	"backend-v2/internal/common/dto"
+	"backend-v2/internal/common/utils"
 	"backend-v2/internal/models"
+
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -16,16 +21,9 @@ func NewHandler(service *WorkflowService) *WorkflowController {
 
 // GET /workflows/:workflowId
 func (h *WorkflowController) GetWorkflow(c *fiber.Ctx) error {
-	workflowId := c.Params("workflowId")
+	workflow := c.Locals("workflow").(*models.Workflow)
 
-	wf, err := h.Service.GetByWorkflowID(c.Context(), workflowId)
-	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-
-	return c.JSON(wf)
+	return c.JSON(workflow)
 }
 
 // PUT /workflows/:workflowId
@@ -49,4 +47,185 @@ func (h *WorkflowController) UpdateWorkflow(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "workflow updated successfully",
 	})
+}
+
+// GET /workflows
+func (h *WorkflowController) GetWorkflows(c *fiber.Ctx) error {
+	userID := c.Locals(constants.ContextUserIDKey).(string)
+
+	var search string
+	if s := c.Query(constants.QuerySearchKey); s != "" {
+		search = s
+	}
+
+	var page int
+	if s := c.Query(constants.QueryPageKey); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			page = v
+		}
+	}
+
+	var limit int
+	if s := c.Query(constants.QueryLimitKey); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			limit = v
+		}
+	}
+
+	shareFilterStr := c.Query(QueryFilterKey)
+	shareFilter := ConvertShare(shareFilterStr)
+
+	publicString := c.Query(QueryWorkflowsPublicKey)
+	isPublic := publicString != "false"
+
+	query := GetWorkflowsQuery{
+		PaginationDto: dto.PaginationDto{
+			Search: &search,
+			Page:   &page,
+			Limit:  &limit,
+		},
+		UserID:      userID,
+		IsPublic:    isPublic,
+		ShareFilter: shareFilter,
+	}
+
+	workflows, count, err := h.Service.GetWorkflows(c.Context(), query)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data":  workflows,
+		"total": count,
+		"page":  page,
+		"limit": limit,
+	})
+}
+
+// POST /workflows
+func (h *WorkflowController) CreateWorkflow(c *fiber.Ctx) error {
+	userID := c.Locals(constants.ContextUserIDKey).(string)
+	auth, err := utils.GetJwtPayload(c)
+
+	if err != nil {
+		c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	workflow, createErr := h.Service.CreateWorkflow(c.Context(), CreateWorkflowDto{
+		UserID: userID,
+		Auth:   auth,
+	})
+
+	if createErr != nil {
+		c.Status(createErr.Status).JSON(fiber.Map{
+			"error": createErr.Message,
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(workflow)
+}
+
+// DELETE /workflows/:workflowId
+func (h *WorkflowController) DeleteWorkflow(c *fiber.Ctx) error {
+	workflowId := c.Params("workflowId")
+	access := c.Locals("access").(WorkflowAccess)
+
+	err := h.Service.DeleteWorkflow(c.Context(), workflowId, access)
+	if err != nil {
+		c.Status(err.Status).JSON(fiber.Map{
+			"error": err.Message,
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+	})
+}
+
+// GET /workflows/:workflowId/share
+func (h *WorkflowController) GetShare(c *fiber.Ctx) error {
+	workflow := c.Locals("workflow").(*models.Workflow)
+
+	return c.Status(fiber.StatusOK).JSON(workflow.Share)
+}
+
+// GET /workflows/:workflowId/share/access
+func (h *WorkflowController) GetShareAccess(c *fiber.Ctx) error {
+	workflow := c.Locals("workflow").(*models.Workflow)
+
+	return c.Status(fiber.StatusOK).JSON(workflow.Share.Access)
+}
+
+// POST /workflows/:workflowId/share/access
+func (h *WorkflowController) SetShareAccess(c *fiber.Ctx) error {
+	workflow := c.Locals("workflow").(*models.Workflow)
+	access := c.Locals("access").(WorkflowAccess)
+
+	var update []*models.RoleBinding
+	if err := c.BodyParser(&update); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid request body",
+		})
+	}
+
+	err := h.Service.SetShareAccess(c.Context(), workflow, access, update)
+	if err != nil {
+		c.Status(err.Status).JSON(fiber.Map{
+			"error": err.Message,
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+	})
+}
+
+// GET /workflows/:workflowId/share/public
+func (h *WorkflowController) GetSharePublic(c *fiber.Ctx) error {
+	workflow := c.Locals("workflow").(*models.Workflow)
+
+	return c.Status(fiber.StatusOK).JSON(workflow.Share.Public)
+}
+
+// POST /workflows/:workflowId/share/public
+func (h *WorkflowController) SetSharePublic(c *fiber.Ctx) error {
+	workflow := c.Locals("workflow").(*models.Workflow)
+	access := c.Locals("access").(WorkflowAccess)
+
+	var update *models.WorkflowState
+	if err := c.BodyParser(&update); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid request body",
+		})
+	}
+
+	err := h.Service.SetSharePublic(c.Context(), workflow, access, update)
+	if err != nil {
+		c.Status(err.Status).JSON(fiber.Map{
+			"error": err.Message,
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+	})
+}
+
+// POST /workflows/from/template/:templateId
+func (h *WorkflowController) CreateWorkflowFromTemplate(c *fiber.Ctx) error {
+	template := c.Locals("template").(*models.WorkflowTemplate)
+	userID := c.Locals(constants.ContextUserIDKey).(string)
+
+	workflow, createErr := h.Service.CreateWorkflowFromTemplate(c.Context(), template, userID)
+
+	if createErr != nil {
+		c.Status(createErr.Status).JSON(fiber.Map{
+			"error": createErr.Message,
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(workflow)
 }

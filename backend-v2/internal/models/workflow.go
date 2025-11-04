@@ -1,5 +1,9 @@
 package models
 
+import (
+	"backend-v2/internal/common/constants"
+)
+
 type MediaPosition string
 
 const (
@@ -38,10 +42,36 @@ type Edge struct {
 	Color string `json:"color" bson:"color"`
 }
 
+type RoleBinding struct {
+	SubjectID   string                `json:"subjectId" bson:"subjectId"`
+	SubjectType constants.SubjectType `json:"subjectType" bson:"subjectType"`
+	Role        constants.AccessRole  `json:"role" bson:"role"`
+}
+
+type WorkflowState struct {
+	Enabled   bool `json:"enabled" bson:"enabled"`
+	Hidden    bool `json:"hidden" bson:"hidden"`
+	Writeable bool `json:"writeable" bson:"writeable"`
+}
+
+type Share struct {
+	Public WorkflowState `json:"public" bson:"public"`
+	Access []RoleBinding `json:"access" bson:"access"`
+}
+
 type Workflow struct {
 	UserID     string            `json:"userId" bson:"userId"`
 	WorkflowID string            `json:"workflowId" bson:"workflowId"`
 	Nodes      map[string]Node   `json:"nodes" bson:"nodes"`
 	Edges      map[string]Edge   `json:"edges" bson:"edges"`
 	Files      map[string]string `json:"files" bson:"files"`
+	Share      Share             `json:"share" bson:"share"`
+}
+
+func (w Workflow) IsPublic () bool {
+	return  w.Share.Public.Enabled
+}
+
+func (w Workflow) IsPublicWriteable () bool {
+	return  w.Share.Public.Enabled && w.Share.Public.Writeable
 }
