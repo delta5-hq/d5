@@ -22,7 +22,7 @@ export const {
 const mongoUrl = `${MONGO_HOST}:${MONGO_PORT}/${MONGO_DATABASE}`
 const mongoAuth = MONGO_PASSWORD ? `${MONGO_USERNAME}:${MONGO_PASSWORD}@` : ''
 
-export const MONGO_URI = env.MONGO_URI || `mongodb://${mongoAuth}${mongoUrl}`
+export const MONGO_URI = env.E2E_MONGO_URI || env.MONGO_URI || `mongodb://${mongoAuth}${mongoUrl}`
 
 export const IMPORT_JSON_SIZE_LIMIT = env.IMPORT_JSON_SIZE_LIMIT || '300mb'
 
