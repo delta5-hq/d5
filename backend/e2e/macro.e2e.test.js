@@ -90,6 +90,12 @@ describe('Macro E2E', () => {
       })
     })
 
+    it('rejects unauthenticated requests to list macros', async () => {
+      const res = await publicRequest.get('/macro')
+      expect(res.status).toBe(401)
+      expect(res.body).toHaveProperty('message')
+    })
+
     it('does not list other users macros', async () => {
       if (isHttpMode()) {
         // In HTTP mode, just test that the endpoint works
@@ -157,9 +163,9 @@ describe('Macro E2E', () => {
       expect(data.name).toBe('get-test-macro')
     })
 
-    it('allows access to any macro by id - no ownership check', async () => {
+    it('rejects access to macros not owned by user', async () => {
       if (isHttpMode()) {
-        // In HTTP mode, just test the endpoint works
+        // In HTTP mode, test with fake ID to ensure proper error handling
         const fakeId = '507f1f77bcf86cd799439011'
         const res = await subscriberRequest.get(`/macro/${fakeId}`)
         expect(res.status).toBe(404)
@@ -175,15 +181,27 @@ describe('Macro E2E', () => {
       })
 
       const res = await subscriberRequest.get(`/macro/${customerMacro._id}`)
-      expect(res.status).toBe(200)
-      const data = JSON.parse(res.text)
-      expect(data).toHaveProperty('name', 'customer-macro-access')
+      expect(res.status).toBe(403)
+      expect(res.body).toHaveProperty('message')
     })
 
     it('returns 404 for nonexistent macro', async () => {
       const fakeId = '507f1f77bcf86cd799439011'
       const res = await subscriberRequest.get(`/macro/${fakeId}`)
       expect(res.status).toBe(404)
+      expect(res.body).toHaveProperty('message')
+    })
+
+    it('rejects unauthenticated requests to get macro', async () => {
+      if (isHttpMode()) {
+        const fakeId = '507f1f77bcf86cd799439011'
+        const res = await publicRequest.get(`/macro/${fakeId}`)
+        expect(res.status).toBe(401)
+        return
+      }
+      
+      const res = await publicRequest.get(`/macro/${macroId}`)
+      expect(res.status).toBe(401)
       expect(res.body).toHaveProperty('message')
     })
   })
@@ -291,9 +309,9 @@ describe('Macro E2E', () => {
       expect(macro).toBeNull()
     })
 
-    it('allows deletion of any macro - no ownership check', async () => {
+    it('rejects deletion of macros not owned by user', async () => {
       if (isHttpMode()) {
-        // In HTTP mode, just test error handling
+        // In HTTP mode, test with fake ID to ensure proper error handling
         const fakeId = '507f1f77bcf86cd799439011'
         const res = await subscriberRequest.delete(`/macro/${fakeId}`)
         expect(res.status).toBe(404)
@@ -309,16 +327,30 @@ describe('Macro E2E', () => {
       })
 
       const res = await subscriberRequest.delete(`/macro/${customerMacro._id}`)
-      expect(res.status).toBe(200)
+      expect(res.status).toBe(403)
+      expect(res.body).toHaveProperty('message')
 
       const macro = await Macro.findById(customerMacro._id)
-      expect(macro).toBeNull()
+      expect(macro).not.toBeNull()
     })
 
     it('returns error for nonexistent macro', async () => {
       const fakeId = '507f1f77bcf86cd799439011'
       const res = await subscriberRequest.delete(`/macro/${fakeId}`)
       expect(res.status).toBe(404)
+      expect(res.body).toHaveProperty('message')
+    })
+
+    it('rejects unauthenticated requests to delete macro', async () => {
+      if (isHttpMode()) {
+        const fakeId = '507f1f77bcf86cd799439011'
+        const res = await publicRequest.delete(`/macro/${fakeId}`)
+        expect(res.status).toBe(401)
+        return
+      }
+      
+      const res = await publicRequest.delete(`/macro/${macroId}`)
+      expect(res.status).toBe(401)
       expect(res.body).toHaveProperty('message')
     })
   })
