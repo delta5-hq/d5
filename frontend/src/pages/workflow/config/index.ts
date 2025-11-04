@@ -1,0 +1,1 @@
+export const WORKFLOWS_PAGE_LIMIT = 24

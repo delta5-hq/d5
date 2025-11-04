@@ -1,3 +1,4 @@
+/* eslint-disable react/jsx-no-literals */
 import { Link } from 'react-router-dom'
 
 const Copyright = () => (

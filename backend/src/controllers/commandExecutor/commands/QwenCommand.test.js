@@ -23,13 +23,13 @@ jest.mock('../constants', () => {
 
 describe('QwenCommand', () => {
   const userId = 'userId'
-  const mapId = 'mapId'
+  const workflowId = 'workflowId'
   const mockStore = new Store({
     userId,
-    mapId,
+    workflowId,
     nodes: {},
   })
-  const command = new QwenCommand(userId, mapId, mockStore)
+  const command = new QwenCommand(userId, workflowId, mockStore)
 
   beforeEach(() => {
     jest.clearAllMocks()

@@ -9,6 +9,7 @@ import {
 } from '@shared/ui/dropdown-menu'
 import { UserIcon, ChevronDown, ChevronUp } from 'lucide-react'
 import { useState } from 'react'
+import { FormattedMessage } from 'react-intl'
 import { useNavigate } from 'react-router-dom'
 
 const UserSettingsButton = () => {
@@ -30,12 +31,16 @@ const UserSettingsButton = () => {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
         <div className="flex flex-row justify-between items-center">
-          <DropdownMenuLabel>Signed In</DropdownMenuLabel>
+          <DropdownMenuLabel>
+            <FormattedMessage id="userSettingsMenuSignedIn" />
+          </DropdownMenuLabel>
           <p className="color px-2 text-xs text-gray-400 truncate max-w-[120px]">{user?.name}</p>
         </div>
-        <DropdownMenuItem onClick={() => navigate('/settings')}>Settings</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => navigate('/settings')}>
+          <FormattedMessage id="sidebarSettingsLabel" />
+        </DropdownMenuItem>
         <DropdownMenuItem datatype="logout" onClick={onLogout}>
-          Log out
+          <FormattedMessage id="logout" />
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

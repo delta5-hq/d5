@@ -50,13 +50,13 @@ jest.mock('./utils/langchain/getLLM', () => ({
 
 describe('SwitchCommand', () => {
   const userId = 'userId'
-  const mapId = 'mapId'
+  const workflowId = 'workflowId'
   const mockStore = new Store({
     userId,
-    mapId,
+    workflowId,
     nodes: {},
   })
-  const command = new SwitchCommand(userId, mapId, mockStore)
+  const command = new SwitchCommand(userId, workflowId, mockStore)
 
   const baseLLM = {
     call: jest.fn(),

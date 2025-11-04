@@ -1,14 +1,10 @@
 import { useEffect } from 'react'
-import type { Paginated } from '@shared/base-types'
+import type { Paginated, PaginationQuery } from '@shared/base-types'
 import { useApiQuery } from '@shared/composables'
 import { queryKeys } from '@shared/config'
 import type { FullUserStatistics } from '../model'
 
-interface UseAdminUsersProps {
-  page?: number
-  limit?: number
-  search?: string
-}
+interface UseAdminUsersProps extends PaginationQuery {}
 
 export const useAdminUsers = ({ page = 1, limit = 25, search = '' }: UseAdminUsersProps) => {
   const { data, isLoading, error, refetch } = useApiQuery<Paginated<FullUserStatistics>>({

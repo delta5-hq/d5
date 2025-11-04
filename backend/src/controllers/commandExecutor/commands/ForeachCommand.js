@@ -33,22 +33,22 @@ export class ForeachCommand {
   /**
    * Creates an instance of WebCommand
    * @param {string} userId - The unique identifier for the user
-   * @param {string} mapId - The unique identifier for the map (optional)
+   * @param {string} workflowId - The unique identifier for the workflow (optional)
    * @param {Store} store - The store object
    * @param {ProgressReporter} progress
    * @param {object} params - Foreach params
    */
-  constructor(userId, mapId, store, progress, params) {
+  constructor(userId, workflowId, store, progress, params) {
     this.userId = userId
-    this.mapId = mapId
+    this.workflowId = workflowId
     this.store = store
     this.progress = progress
     this.params = {
       usePrompts: params?.usePrompts || false,
     }
     this.log = log.extend(userId, '/')
-    if (this.mapId) {
-      this.log = this.log.extend(mapId, '#')
+    if (this.workflowId) {
+      this.log = this.log.extend(workflowId, '#')
     }
     this.logError = this.log.extend('ERROR*', '::')
   }
@@ -180,7 +180,7 @@ export class ForeachCommand {
             const queryType = getQueryType(promptString)
 
             if (queryType) {
-              // update previous node in mapNodes
+              // update previous node in workflowNodes
               this.store.editNode({...node, command: promptString})
 
               await runCommand(
@@ -212,7 +212,7 @@ export class ForeachCommand {
           const {node, promptString} = nodes[i]
 
           const queryType = getQueryType(promptString)
-          // update previous node in mapNodes
+          // update previous node in workflowNodes
           this.store.editNode({...node, command: promptString})
 
           if (queryType) {
@@ -220,7 +220,7 @@ export class ForeachCommand {
               {
                 queryType,
                 cell: this.store.getNode(node.id),
-                mapId: this.mapId,
+                workflowId: this.workflowId,
                 userId: this.userId,
                 store: this.store,
               },
@@ -277,7 +277,7 @@ export class ForeachCommand {
   }
 
   runSteps = async (node, params) => {
-    const stepsCommand = new StepsCommand(this.userId, this.mapId, this.store)
+    const stepsCommand = new StepsCommand(this.userId, this.workflowId, this.store)
     const {nodesByOrder, nodesWithoutOrder} = stepsCommand.findMatchingNodes(node)
 
     const matchingNodes = [

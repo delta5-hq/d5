@@ -52,10 +52,10 @@ class ImportHandler {
    * @returns {Array<{root: string, nodes: Record<string, NodeData>}>} Parsed node structures
    */
   runImport(text, parentId) {
-    const mapDatas = this.plugin.transform(text)
-    mapDatas.forEach(({root, nodes}) => this.addNodeTree(nodes, root, parentId))
+    const workflowDatas = this.plugin.transform(text)
+    workflowDatas.forEach(({root, nodes}) => this.addNodeTree(nodes, root, parentId))
 
-    return mapDatas
+    return workflowDatas
   }
 
   /**
@@ -73,9 +73,9 @@ class ImportHandler {
     for (const line of lines) {
       const {text: lineText} = BlockLexer.lex(line)
 
-      const mapData = this.runImport(lineText, parentId)
+      const workflowData = this.runImport(lineText, parentId)
 
-      mapData.forEach(({root}) => newIds.push(root))
+      workflowData.forEach(({root}) => newIds.push(root))
     }
 
     this.store.addPromptsToNode(parentId, newIds)

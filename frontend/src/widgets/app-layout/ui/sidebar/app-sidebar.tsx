@@ -1,3 +1,5 @@
+import { useAuthContext } from '@entities/auth'
+import { useSearch } from '@shared/context'
 import { cn } from '@shared/lib/utils'
 import {
   Sidebar,
@@ -10,39 +12,39 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@shared/ui/sidebar'
-import { BriefcaseBusiness, Calendar, Home, Inbox, School, Search, Settings } from 'lucide-react'
+import { Version } from '@shared/ui/version'
+import { BriefcaseBusiness, School, Settings, Workflow } from 'lucide-react'
 import { useEffect, type FC } from 'react'
 import { FormattedMessage } from 'react-intl'
-import { AppSearch, HelpButton, LoginButton, UserSettingsButton } from './../header'
-import { useAuthContext } from '@entities/auth'
 import { Link, useLocation } from 'react-router-dom'
+import { AppSearch, HelpButton, LoginButton, UserSettingsButton } from './../header'
 import styles from './app-sidebar.module.scss'
 
 interface AppSidebarProps {
   isResponsive?: boolean
   isDesktop?: boolean
   isMinimized?: boolean
+  searchPlaceholder?: string
 }
 
-const NAV_ITEMS = [
-  { titleId: 'sidebarHomeLabel', url: '/', icon: Home },
-  { titleId: 'sidebarInboxLabel', url: '/inbox', icon: Inbox },
-  { titleId: 'sidebarCalendarLabel', url: '/calendar', icon: Calendar },
-  { titleId: 'sidebarSearchLabel', url: '/search', icon: Search },
-  { titleId: 'sidebarSettingsLabel', url: '/settings', icon: Settings },
-]
+const NAV_ITEMS = [{ titleId: 'sidebarPublicWorkflowsLabel', url: '/workflows/public', icon: Workflow }]
 
 const ADMIN_ITEMS = [
   { titleId: 'adminWaitlist', url: '/admin/waitlist', icon: BriefcaseBusiness },
   { titleId: 'adminList', url: '/admin/users', icon: BriefcaseBusiness },
 ]
 
-const LOGGED_IN_ITEMS = [{ titleId: 'menuItemTraining', url: '/training', icon: School }]
+const LOGGED_IN_ITEMS = [
+  { titleId: 'sidebarMyWorkflowsLabel', url: '/workflows', icon: Workflow },
+  { titleId: 'sidebarSettingsLabel', url: '/settings', icon: Settings },
+  { titleId: 'menuItemTraining', url: '/training', icon: School },
+]
 
-const AppSidebar: FC<AppSidebarProps> = ({ isResponsive, isDesktop, isMinimized }) => {
+const AppSidebar: FC<AppSidebarProps> = ({ isResponsive, isDesktop, isMinimized, searchPlaceholder }) => {
   const { isMobile, open, toggleSidebar } = useSidebar()
   const location = useLocation()
   const { isLoggedIn, isAdmin } = useAuthContext()
+  const { query, setQuery } = useSearch()
 
   useEffect(() => {
     if (!open && !isResponsive && isDesktop) toggleSidebar()
@@ -55,15 +57,8 @@ const AppSidebar: FC<AppSidebarProps> = ({ isResponsive, isDesktop, isMinimized 
       <SidebarMenuItem className={cn(isActive && styles.menuLinkButton)} key={titleId}>
         <SidebarMenuButton asChild>
           <Link className="flex items-center gap-2" to={url}>
-            {Icon ? (
-              <Icon
-                className={cn(
-                  'w-5 h-5 text-muted-foreground group-active/menu-item:text-active',
-                  isActive && styles.menuLinkText,
-                )}
-              />
-            ) : null}
-            <span className={cn('text-sm', isActive && styles.menuLinkText)}>
+            {Icon ? <Icon className="w-5 h-5" /> : null}
+            <span className="text-sm">
               <FormattedMessage id={titleId} />
             </span>
           </Link>
@@ -82,7 +77,7 @@ const AppSidebar: FC<AppSidebarProps> = ({ isResponsive, isDesktop, isMinimized 
     >
       {isMobile ? (
         <div className="flex flex-col gap-4 p-2">
-          <AppSearch />
+          <AppSearch onChange={e => setQuery(e.target.value)} placeholder={searchPlaceholder} value={query} />
           <div className="flex items-center gap-2">
             {isLoggedIn ? (
               <>
@@ -96,7 +91,7 @@ const AppSidebar: FC<AppSidebarProps> = ({ isResponsive, isDesktop, isMinimized 
         </div>
       ) : null}
 
-      <SidebarContent>
+      <SidebarContent className="flex flex-col justify-between p-2 pb-5">
         <SidebarGroup>
           <SidebarGroupLabel>
             <FormattedMessage id="sidebarMainGroupLabel" />
@@ -121,6 +116,8 @@ const AppSidebar: FC<AppSidebarProps> = ({ isResponsive, isDesktop, isMinimized 
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <Version />
       </SidebarContent>
     </Sidebar>
   )

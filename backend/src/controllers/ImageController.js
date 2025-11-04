@@ -18,10 +18,10 @@ const ImageController = {
     await next()
   },
   authorization: async (ctx, next) => {
-    const {mapId} = ctx.params
+    const {workflowId} = ctx.params
     const {userId, template, image} = ctx.state
 
-    if (!image.metadata.templateId && image.metadata.mapId !== mapId) {
+    if (!image.metadata.templateId && image.metadata.workflowId !== workflowId) {
       ctx.throw(403, 'Access denied. Image is not associated with this workflow.')
     } else if (image.metadata.templateId && image.metadata.userId?.toString() !== userId) {
       const accessTemplate = template || (await Template.findOne({_id: image.metadata.templateId}))
@@ -38,11 +38,11 @@ const ImageController = {
   },
 
   list: async ctx => {
-    const {mapId} = ctx.params
+    const {workflowId} = ctx.params
     const {templateId} = ctx.params
 
-    ctx.body = mapId
-      ? await WorkflowImage.find({'metadata.mapId': mapId})
+    ctx.body = workflowId
+      ? await WorkflowImage.find({'metadata.workflowId': workflowId})
       : await WorkflowImage.find({'metadata.templateId': templateId})
   },
 
@@ -59,16 +59,16 @@ const ImageController = {
     const {
       request: {query: {filename = 'no-file-name-given', filetype = 'unknown'} = {}},
       headers: {'content-type': contentType},
-      params: {mapId, templateId},
+      params: {workflowId, templateId},
       state: {userId},
     } = ctx
     if (filetype == 'uml') {
-      const metadata = {mapId, contentType: 'image/svg+xml', userId}
+      const metadata = {workflowId, contentType: 'image/svg+xml', userId}
       const file = await createUMLFile(ctx.req.read(), filename, metadata)
       ctx.body = {_id: file._id}
     } else {
       const metadata = {
-        [mapId ? 'mapId' : 'templateId']: mapId || templateId,
+        [workflowId ? 'workflowId' : 'templateId']: workflowId || templateId,
         contentType,
         userId,
       }

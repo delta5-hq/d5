@@ -168,12 +168,7 @@
 
 @layer components {
   .active-animated:active {
-    @apply text-active;
-  }
-
-  .active-animated:active::before {
-    @apply absolute w-[2px] h-full left-0 bg-active;
-    content: '';
+    filter: brightness(0.8);
   }
 }
 

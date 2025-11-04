@@ -21,7 +21,7 @@
         "prompts": []
     },
     "queryType": "steps",
-    "mapNodes": {
+    "workflowNodes": {
         "BjHPHd9BqbT": {
             "id": "BjHPHd9BqbT",
             "children": [
@@ -193,5 +193,5 @@
             "id": "LRpD3jBT7mJ"
         }
     },
-    "mapFiles": {}
+    "workflowFiles": {}
 }

@@ -3,7 +3,7 @@ import debug from 'debug'
 
 import {MONGO_URI, MONGO_DATABASE} from '../../constants'
 
-const log = debug('delta5:scripts:exportMap')
+const log = debug('delta5:scripts:exportWorkflow')
 
 const client = new MongoClient(MONGO_URI)
 

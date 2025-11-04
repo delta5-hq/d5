@@ -6,6 +6,7 @@ import {DEEPSEEK_QUERY_TYPE} from '../../constants/deepseek'
 import {DOWNLOAD_QUERY_TYPE} from '../../constants/download'
 import {EXT_QUERY_TYPE} from '../../constants/ext'
 import {FOREACH_QUERY, FOREACH_QUERY_TYPE} from '../../constants/foreach'
+import {MEMORIZE_QUERY, MEMORIZE_QUERY_TYPE} from '../../constants/memorize'
 import {OUTLINE_QUERY, OUTLINE_QUERY_TYPE, readSummarizeParam} from '../../constants/outline'
 import {PERPLEXITY_QUERY_TYPE} from '../../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../../constants/qwen'
@@ -25,6 +26,7 @@ import {DeepseekCommand} from '../DeepseekCommand'
 import {DownloadCommand} from '../DownloadCommand'
 import {ExtCommand} from '../ExtCommand'
 import {ForeachCommand} from '../ForeachCommand'
+import {MemorizeCommand} from '../MemorizeCommand'
 import {OutlineCommand} from '../OutlineCommand'
 import {PerplexityCommand} from '../PerplexityCommand'
 import {QwenCommand} from '../QwenCommand'
@@ -35,8 +37,6 @@ import {SummarizeCommand} from '../SummarizeCommand'
 import {SwitchCommand} from '../SwitchCommand'
 import {WebCommand} from '../WebCommand'
 import {YandexCommand} from '../YandexCommand'
-import {MemorizeCommand} from '../MemorizeCommand'
-import {MEMORIZE_QUERY, MEMORIZE_QUERY_TYPE} from '../../constants/memorize'
 // eslint-disable-next-line no-unused-vars
 import Store from './Store'
 
@@ -48,7 +48,7 @@ import Store from './Store'
  * @param {Object} params.context - The prompt context
  * @param {string} params.prompt - The prompt or query text to be processed
  * @param {Object} params.cell - The cell object containing information like its ID and other relevant data for the command execution
- * @param {Store} params.store - The store object, which likely holds the state, user details, and map information
+ * @param {Store} params.store - The store object, which likely holds the state, user details, and workflow information
  *
  */
 /**
@@ -102,7 +102,7 @@ export const runCommand = async ({queryType, context, prompt, cell, store, preve
         if (query?.startsWith(FOREACH_QUERY)) {
           const command = new ForeachCommand(
             store._userId,
-            store._mapId,
+            store._workflowId,
             store,
 
             postProcessProgress,
@@ -112,21 +112,21 @@ export const runCommand = async ({queryType, context, prompt, cell, store, preve
           postProcessTracker = await postProcessProgress.add('ForeachCommand.run')
           await command.run(childNode)
         } else if (query?.startsWith(SUMMARIZE_QUERY)) {
-          const command = new SummarizeCommand(store._userId, store._mapId, store)
+          const command = new SummarizeCommand(store._userId, store._workflowId, store)
 
           postProcessTracker = await postProcessProgress.add('SummarizeCommand.run')
           await command.run(childNode, undefined)
 
           flag = true
         } else if (query?.startsWith(MEMORIZE_QUERY)) {
-          const command = new MemorizeCommand(store._userId, store._mapId, store)
+          const command = new MemorizeCommand(store._userId, store._workflowId, store)
 
           postProcessTracker = await postProcessProgress.add('MemorizeCommand.run')
           await command.run(childNode)
 
           flag = true
         } else if (query?.startsWith(OUTLINE_QUERY) && readSummarizeParam(query)) {
-          const command = new OutlineCommand(store._userId, store._mapId, store)
+          const command = new OutlineCommand(store._userId, store._workflowId, store)
 
           postProcessTracker = await postProcessProgress.add('OutlineCommand.run')
           flag = await command.run(childNode, undefined)
@@ -149,98 +149,98 @@ export const runCommand = async ({queryType, context, prompt, cell, store, preve
   let runCommandTracker
 
   if (queryType === YANDEX_QUERY_TYPE) {
-    const command = new YandexCommand(store._userId, store._mapId, store)
+    const command = new YandexCommand(store._userId, store._workflowId, store)
 
     runCommandTracker = await runCommandProgress.add('YandexCommand.run')
     await command.run(cell, context, prompt)
   } else if (queryType === WEB_QUERY_TYPE) {
-    const command = new WebCommand(store._userId, store._mapId, store)
+    const command = new WebCommand(store._userId, store._workflowId, store)
 
     runCommandTracker = await runCommandProgress.add('WebCommand.run')
     await command.run(cell, prompt)
   } else if (queryType === SCHOLAR_QUERY_TYPE) {
-    const command = new ScholarCommand(store._userId, store._mapId, store)
+    const command = new ScholarCommand(store._userId, store._workflowId, store)
 
     runCommandTracker = await runCommandProgress.add('ScholarCommand.run')
     await command.run(cell, prompt)
   } else if (queryType === OUTLINE_QUERY_TYPE) {
-    const command = new OutlineCommand(store._userId, store._mapId, store)
+    const command = new OutlineCommand(store._userId, store._workflowId, store)
 
     runCommandTracker = await runCommandProgress.add('OutlineCommand.run')
     await command.run(cell, prompt)
   } else if (queryType === STEPS_QUERY_TYPE) {
-    const command = new StepsCommand(store._userId, store._mapId, store, runCommandProgress)
+    const command = new StepsCommand(store._userId, store._workflowId, store, runCommandProgress)
 
     runCommandTracker = await runCommandProgress.add('StepsCommand.run')
     await command.run(cell)
     runPostProccess = false // `/steps` command must never trigger postProcessNode, see #226, #227
   } else if (queryType === CHAT_QUERY_TYPE) {
-    const command = new ChatCommand(store._userId, store._mapId, store)
+    const command = new ChatCommand(store._userId, store._workflowId, store)
 
     runCommandTracker = await runCommandProgress.add('ChatCommand.run')
     await command.run(cell, context, prompt)
   } else if (queryType === SUMMARIZE_QUERY_TYPE) {
-    const command = new SummarizeCommand(store._userId, store._mapId, store)
+    const command = new SummarizeCommand(store._userId, store._workflowId, store)
 
     runCommandTracker = await runCommandProgress.add('SummarizeCommand.run')
     await command.run(cell, prompt)
   } else if (queryType === FOREACH_QUERY_TYPE) {
-    const command = new ForeachCommand(store._userId, store._mapId, store, runCommandProgress)
+    const command = new ForeachCommand(store._userId, store._workflowId, store, runCommandProgress)
 
     runCommandTracker = await runCommandProgress.add('ForeachCommand.run')
     await command.run(cell)
   } else if (queryType === SWITCH_QUERY_TYPE) {
-    const command = new SwitchCommand(store._userId, store._mapId, store, runCommandProgress)
+    const command = new SwitchCommand(store._userId, store._workflowId, store, runCommandProgress)
 
     runCommandTracker = await runCommandProgress.add('SwitchCommand.run')
     await command.run(cell, prompt)
   } else if (queryType === CLAUDE_QUERY_TYPE) {
-    const command = new ClaudeCommand(store._userId, store._mapId, store)
+    const command = new ClaudeCommand(store._userId, store._workflowId, store)
 
     runCommandTracker = await runCommandProgress.add('ClaudeCommand.run')
     await command.run(cell, context, prompt)
   } else if (queryType === PERPLEXITY_QUERY_TYPE) {
-    const command = new PerplexityCommand(store._userId, store._mapId, store)
+    const command = new PerplexityCommand(store._userId, store._workflowId, store)
 
     runCommandTracker = await runCommandProgress.add('PerplexityCommand.run')
     await command.run(cell, context, prompt)
   } else if (queryType === QWEN_QUERY_TYPE) {
-    const command = new QwenCommand(store._userId, store._mapId, store)
+    const command = new QwenCommand(store._userId, store._workflowId, store)
 
     runCommandTracker = await runCommandProgress.add('QwenCommand.run')
     await command.run(cell, context, prompt)
   } else if (queryType === DEEPSEEK_QUERY_TYPE) {
-    const command = new DeepseekCommand(store._userId, store._mapId, store)
+    const command = new DeepseekCommand(store._userId, store._workflowId, store)
 
     runCommandTracker = await runCommandProgress.add('DeepseekCommand.run')
     await command.run(cell, context, prompt)
   } else if (queryType === DOWNLOAD_QUERY_TYPE) {
-    const command = new DownloadCommand(store._userId, store._mapId, store)
+    const command = new DownloadCommand(store._userId, store._workflowId, store)
 
     runCommandTracker = await runCommandProgress.add('DownloadCommand.run')
     await command.run(cell, prompt)
   } else if (queryType === CUSTOM_LLM_CHAT_QUERY_TYPE) {
-    const command = new CustomLLMChatCommand(store._userId, store._mapId, store)
+    const command = new CustomLLMChatCommand(store._userId, store._workflowId, store)
 
     runCommandTracker = await runCommandProgress.add('CustomLLMChatCommand.run')
     await command.run(cell, context, prompt)
   } else if (queryType === REFINE_QUERY_TYPE) {
-    const command = new RefineCommand(store._userId, store._mapId, store)
+    const command = new RefineCommand(store._userId, store._workflowId, store)
 
     runCommandTracker = await runCommandProgress.add('RefineCommand.run')
     await command.run(cell)
   } else if (queryType === EXT_QUERY_TYPE) {
-    const command = new ExtCommand(store._userId, store._mapId, store)
+    const command = new ExtCommand(store._userId, store._workflowId, store)
 
     runCommandTracker = await runCommandProgress.add('ExtCommand.run')
     await command.run(cell, prompt)
   } else if (queryType === COMPLETION_QUERY_TYPE) {
-    const command = new CompletionCommand(store._userId, store._mapId, store)
+    const command = new CompletionCommand(store._userId, store._workflowId, store)
 
     runCommandTracker = await runCommandProgress.add('CompletionCommand.run')
     await command.run(cell)
   } else if (queryType === MEMORIZE_QUERY_TYPE) {
-    const command = new MemorizeCommand(store._userId, store._mapId, store, runCommandProgress)
+    const command = new MemorizeCommand(store._userId, store._workflowId, store, runCommandProgress)
 
     runCommandTracker = await runCommandProgress.add('MemorizeCommand.run')
     await command.run(cell)

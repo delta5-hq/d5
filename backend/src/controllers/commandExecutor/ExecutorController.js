@@ -1,5 +1,5 @@
 import debug from 'debug'
-import {getMapData} from './commands/utils/getMapData'
+import {getWorkflowData} from './commands/utils/getWorkflowData'
 import {runCommand} from './commands/utils/runCommand'
 import Store from './commands/utils/Store'
 import {allowedCommands} from './constants'
@@ -22,17 +22,20 @@ const ExecutorController = {
     const log = debug('delta5:app:ProgressReporter').extend(userId, '/')
     const progress = new ProgressReporter({title: 'root', log, outputInterval: 60000})
     try {
-      // queryType, context, prompt, cell, userId, mapId, mapNodes, mapFiles
-      let {mapNodes, mapEdges, mapId, mapFiles, ...otherData} = body
+      // queryType, context, prompt, cell, userId, workflowId, workflowNodes, workflowFiles
+      let {workflowNodes, workflowEdges, workflowId, workflowFiles, ...otherData} = body
 
-      if (!mapNodes && mapId) {
-        const {nodes, edges} = await getMapData(mapId)
+      if (!workflowNodes && workflowId) {
+        const {nodes, edges} = await getWorkflowData(workflowId)
 
-        if (!mapNodes) mapNodes = nodes
-        if (!mapEdges) mapEdges = edges
+        if (!workflowNodes) workflowNodes = nodes
+        if (!workflowEdges) workflowEdges = edges
       }
 
-      const store = new Store({...body, userId, nodes: mapNodes, edges: mapEdges, files: mapFiles}, progress)
+      const store = new Store(
+        {...body, userId, nodes: workflowNodes, edges: workflowEdges, files: workflowFiles},
+        progress,
+      )
       await runCommand({...otherData, store}, progress)
 
       const {nodes: nodesChanged, edges: edgesChanged} = store.getOutput()
@@ -40,11 +43,11 @@ const ExecutorController = {
         ...otherData,
         nodesChanged,
         edgesChanged,
-        mapId,
+        workflowId,
         cell: store.getNode(otherData.cell.id),
-        mapNodes: store._nodes,
-        mapFiles: store._files,
-        mapEdges: store._edges,
+        workflowNodes: store._nodes,
+        workflowFiles: store._files,
+        workflowEdges: store._edges,
       }
     } catch (e) {
       console.error(e)

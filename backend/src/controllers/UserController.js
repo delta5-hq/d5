@@ -1,14 +1,14 @@
+import Integration from '../models/Integration'
+import Template from '../models/Template'
+import Thumbnail from '../models/Thumbnail'
 import User from '../models/User'
 import Workflow from '../models/Workflow'
-import escapeRegexString from './utils/escapeRegexString'
-import {userStatisticsAllMaps} from './StatisticsController'
-import Integration from '../models/Integration'
 import WorkflowFile from '../models/WorkflowFile'
 import WorkflowImage from '../models/WorkflowImage'
 import WorkflowPath from '../models/WorkflowPath'
-import Template from '../models/Template'
-import Thumbnail from '../models/Thumbnail'
 import {ROLES} from '../shared/config/constants'
+import {userStatisticsAllWorkflows} from './StatisticsController'
+import escapeRegexString from './utils/escapeRegexString'
 
 const UserController = {
   authorization: async (ctx, next) => {
@@ -40,7 +40,7 @@ const UserController = {
 
     const user = await User.findOne({id: userId})
 
-    const statistics = await userStatisticsAllMaps(userId)
+    const statistics = await userStatisticsAllWorkflows(userId)
 
     ctx.body = {
       id: user.id,
@@ -49,11 +49,11 @@ const UserController = {
       roles: user.roles,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
-      lastMapChange: statistics?.lastMapChange || null,
-      limitMaps: user.limitMaps || null,
+      lastWorkflowChange: statistics?.lastWorkflowChange || null,
+      limitWorkflows: user.limitWorkflows || null,
       limitNodes: user.limitNodes || null,
-      mapCount: statistics?.mapCount || 0,
-      mapShareCount: statistics?.mapShareCount || 0,
+      workflowCount: statistics?.workflowCount || 0,
+      shareCount: statistics?.shareCount || 0,
       nodeCount: statistics?.nodeCount || 0,
       edgeCount: statistics?.edgeCount || 0,
       fieldsOfWork: user.meta.store.fieldsOfWork || null,
@@ -133,8 +133,8 @@ const UserController = {
     }
 
     try {
-      const relatedMapsIds = (await Workflow.find({userId})).map(map => map.mapId)
-      await WorkflowPath.deleteMany({mapId: {$in: relatedMapsIds}})
+      const relatedWorkflowsIds = (await Workflow.find({userId})).map(workflow => workflow.workflowId)
+      await WorkflowPath.deleteMany({workflowId: {$in: relatedWorkflowsIds}})
       await Workflow.deleteMany({userId})
       await Integration.deleteOne({userId})
       await WorkflowFile.deleteMany({'metadata.userId': userId})

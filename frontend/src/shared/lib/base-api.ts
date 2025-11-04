@@ -49,5 +49,15 @@ export const apiFetch = async <T = unknown>(url: string, options: ApiFetchOption
     throw new Error(errorMessage)
   }
 
-  return res.json() as Promise<T>
+  const contentType = res.headers.get('Content-Type') || ''
+
+  if (contentType.includes('application/json')) {
+    return res.json() as Promise<T>
+  }
+
+  if (contentType.startsWith('text/')) {
+    return res.text() as unknown as Promise<T>
+  }
+
+  return res.blob() as unknown as Promise<T>
 }
