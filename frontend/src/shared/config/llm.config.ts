@@ -66,16 +66,12 @@ export const GOOGLE_API_KEY = IS_PROD ? PROD_GOOGLE_API_KEY : DEV_GOOGLE_API_KEY
 export const GOOGLE_CLIENT_ID = IS_PROD ? PROD_GOOGLE_CLIENT_ID : DEV_GOOGLE_CLIENT_ID
 
 export enum ClaudeModels {
-  CLAUDE_3_5_SONNET = 'claude-3-5-sonnet-latest',
-  CLAUDE_3_5_HAIKU = 'claude-3-5-haiku-latest',
-  CLAUDE_3_OPUS = 'claude-3-opus-latest',
-  CLAUDE_3_HAIKU = 'claude-3-haiku-20240307',
-  CLAUDE_3_7_SONNET = 'claude-3-7-sonnet-latest',
-  CLAUDE_SONNET_4 = 'claude-sonnet-4',
-  CLAUDE_OPUS_4_1 = 'claude-opus-4.1',
+  CLAUDE_SONNET_4_5 = 'claude-sonnet-4-5',
+  CLAUDE_HAIKU_4_5 = 'claude-haiku-4-5',
+  CLAUDE_OPUS_4_1 = 'claude-opus-4-1',
 }
 
-export const CLAUDE_DEFAULT_MODEL = ClaudeModels.CLAUDE_3_HAIKU
+export const CLAUDE_DEFAULT_MODEL = ClaudeModels.CLAUDE_HAIKU_4_5
 
 export enum PerplexityModels {
   SONAR = 'sonar',
