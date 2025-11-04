@@ -1,5 +1,6 @@
 import {setupDb, teardownDb, isHttpMode} from './setup'
 import {subscriberRequest, publicRequest} from './shared/requests'
+import {testUserFilter} from './shared/test-constants'
 import LLMVector from '../src/models/LLMVector'
 import {subscriber} from '../src/utils/test/users'
 
@@ -15,7 +16,7 @@ describe('LLM Vector E2E', () => {
   beforeEach(async () => {
     /* Only skip database operations in HTTP mode - keep test execution */
     if (!isHttpMode()) {
-      await LLMVector.deleteMany({userId})
+      await LLMVector.deleteMany(testUserFilter())
     }
   })
 
@@ -296,7 +297,7 @@ describe('LLM Vector E2E - Subscriber Tests', () => {
         keep: false,
       })
     } else {
-      await LLMVector.deleteMany({userId: subscriberUserId, name: contextName})
+      await LLMVector.deleteMany(testUserFilter())
       const storeMap = new Map()
       const textMap = new Map()
       textMap.set('0', {content: 'subscriber test', embedding: [0.1, 0.2], metadata: {}})
@@ -313,7 +314,7 @@ describe('LLM Vector E2E - Subscriber Tests', () => {
 
   afterEach(async () => {
     if (!isHttpMode()) {
-      await LLMVector.deleteMany({userId: subscriberUserId, name: contextName})
+      await LLMVector.deleteMany(testUserFilter())
     }
   })
 

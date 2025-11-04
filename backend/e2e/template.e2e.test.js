@@ -1,6 +1,7 @@
 import {describe, beforeEach, afterAll, it, expect} from '@jest/globals'
 import {setupDb, teardownDb, isHttpMode} from './setup'
 import {subscriberRequest, publicRequest, customerRequest, administratorRequest} from './shared/requests'
+import {testHybridFilter} from './shared/test-constants'
 import Template from '../src/models/Template'
 import {subscriber} from '../src/utils/test/users'
 
@@ -35,13 +36,13 @@ describe('Template Router', () => {
     
     /* Only skip database operations in HTTP mode - keep test execution */
     if (!isHttpMode()) {
-      await Template.deleteMany({})
+      await Template.deleteMany(testHybridFilter('userId', 'name'))
     }
   })
 
   afterAll(async () => {
     if (!isHttpMode()) {
-      await Template.deleteMany({})
+      await Template.deleteMany(testHybridFilter('userId', 'name'))
     }
     await teardownDb()
   })

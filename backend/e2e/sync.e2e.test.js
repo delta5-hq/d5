@@ -1,6 +1,7 @@
 import {describe, beforeEach, afterAll, it, expect} from '@jest/globals'
 import {setupDb, teardownDb, isHttpMode} from './setup'
 import {syncRequest, subscriberRequest} from './shared/requests'
+import {testIdFilter} from './shared/test-constants'
 import User from '../src/models/User'
 
 describe('Sync Router', () => {
@@ -9,13 +10,13 @@ describe('Sync Router', () => {
     
     /* Only skip database operations in HTTP mode - keep test execution */
     if (!isHttpMode()) {
-      await User.deleteMany({})
+      await User.deleteMany(testIdFilter())
     }
   })
 
   afterAll(async () => {
     if (!isHttpMode()) {
-      await User.deleteMany({})
+      await User.deleteMany(testIdFilter())
     }
     await teardownDb()
   })

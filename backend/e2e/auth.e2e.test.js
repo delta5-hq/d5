@@ -2,6 +2,7 @@ import {describe, beforeEach, afterAll, it, expect} from '@jest/globals'
 import {setupDb, teardownDb, isHttpMode} from './setup'
 import {publicRequest, subscriberRequest} from './shared/requests'
 import {httpMode} from './shared/http-mode-helpers'
+import {testIdFilter, testPrefixFilter} from './shared/test-constants'
 import User from '../src/models/User'
 import Waitlist from '../src/models/Waitlist'
 
@@ -17,16 +18,16 @@ describe('Authentication Router', () => {
       /* HTTP mode: Use API calls for test data setup */
       await httpMode.clearUsers()
     } else {
-      /* Direct database mode: Use mongoose operations */
-      await User.deleteMany({})
-      await Waitlist.deleteMany({})
+      /* Direct database mode: Scoped deletion - only test users */
+      await User.deleteMany(testIdFilter())
+      await Waitlist.deleteMany(testPrefixFilter('mail'))
     }
   })
 
   afterAll(async () => {
     if (!isHttpMode()) {
-      await User.deleteMany({})
-      await Waitlist.deleteMany({})
+      await User.deleteMany(testIdFilter())
+      await Waitlist.deleteMany(testPrefixFilter('mail'))
     }
     await teardownDb()
   })

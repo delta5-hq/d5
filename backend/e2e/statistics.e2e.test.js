@@ -1,5 +1,6 @@
 import {setupDb, teardownDb, isHttpMode} from './setup'
 import {administratorRequest, subscriberRequest, publicRequest} from './shared/requests'
+import {testIdFilter, testUserFilter, testPrefixFilter} from './shared/test-constants'
 import User from '../src/models/User'
 import Workflow from '../src/models/Workflow'
 import Waitlist from '../src/models/Waitlist'
@@ -31,9 +32,9 @@ describe('Statistics E2E', () => {
       return
     }
     
-    await User.deleteMany({})
-    await Workflow.deleteMany({})
-    await Waitlist.deleteMany({})
+    await User.deleteMany(testIdFilter())
+    await Workflow.deleteMany(testUserFilter())
+    await Waitlist.deleteMany(testPrefixFilter('mail'))
     testUser = await User.create({
       id: userId,
       name: 'Test User',
@@ -45,9 +46,9 @@ describe('Statistics E2E', () => {
 
   afterAll(async () => {
     if (!isHttpMode()) {
-      await User.deleteMany({})
-      await Workflow.deleteMany({})
-      await Waitlist.deleteMany({})
+      await User.deleteMany(testIdFilter())
+      await Workflow.deleteMany(testUserFilter())
+      await Waitlist.deleteMany(testPrefixFilter('mail'))
     }
     await teardownDb()
   })
@@ -71,7 +72,7 @@ describe('Statistics E2E', () => {
         console.log('HTTP mode: Testing workflow statistics with existing data')
       } else {
         /* Direct database mode: Create test workflow data */
-        await Workflow.deleteMany({userId})
+        await Workflow.deleteMany(testUserFilter())
         const workflow = new Workflow({userId, ...workflowData})
         await workflow.save()
       }
@@ -167,7 +168,7 @@ describe('Statistics E2E', () => {
         }
       } else {
         /* Direct database mode: Create waitlist user directly */
-        await Waitlist.deleteMany({})
+        await Waitlist.deleteMany(testPrefixFilter('mail'))
         const waitUser = new Waitlist({
           id: 'waituser_approval',
           name: 'waitlistuser',
@@ -186,7 +187,7 @@ describe('Statistics E2E', () => {
         console.log('HTTP mode: Waitlist cleanup not required')
       } else {
         /* Direct database mode: Clean up test data */
-        await Waitlist.deleteMany({})
+        await Waitlist.deleteMany(testPrefixFilter('mail'))
         await User.deleteOne({id: 'waituser_approval'})
       }
     })

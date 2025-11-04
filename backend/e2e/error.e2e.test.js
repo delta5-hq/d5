@@ -1,6 +1,7 @@
 import {describe, beforeAll, afterAll, it, expect} from '@jest/globals'
 import {setupDb, teardownDb, isHttpMode} from './setup'
 import {subscriberRequest, publicRequest} from './shared/requests'
+import {testPrefixFilter} from './shared/test-constants'
 import ClientError from '../src/models/ClientError'
 
 describe('Error Router', () => {
@@ -9,13 +10,13 @@ describe('Error Router', () => {
     
     /* Only skip database operations in HTTP mode - keep test execution */
     if (!isHttpMode()) {
-      await ClientError.deleteMany({})
+      await ClientError.deleteMany(testPrefixFilter('userId'))
     }
   })
 
   afterAll(async () => {
     if (!isHttpMode()) {
-      await ClientError.deleteMany({})
+      await ClientError.deleteMany(testPrefixFilter('userId'))
     }
     await teardownDb()
   })
