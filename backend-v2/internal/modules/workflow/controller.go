@@ -6,6 +6,7 @@ import (
 	"backend-v2/internal/common/utils"
 	"backend-v2/internal/models"
 
+	"encoding/json"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -51,7 +52,7 @@ func (h *WorkflowController) UpdateWorkflow(c *fiber.Ctx) error {
 
 // GET /workflows
 func (h *WorkflowController) GetWorkflows(c *fiber.Ctx) error {
-	userID := c.Locals(constants.ContextUserIDKey).(string)
+	userID, _ := c.Locals(constants.ContextUserIDKey).(string)
 
 	var search string
 	if s := c.Query(constants.QuerySearchKey); s != "" {
@@ -105,27 +106,35 @@ func (h *WorkflowController) GetWorkflows(c *fiber.Ctx) error {
 
 // POST /workflows
 func (h *WorkflowController) CreateWorkflow(c *fiber.Ctx) error {
-	userID := c.Locals(constants.ContextUserIDKey).(string)
+	userID := c.Locals(constants.ContextUserIDKey)
+	
+	if userID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required",
+		})
+	}
+
+	userIDStr := userID.(string)
 	auth, err := utils.GetJwtPayload(c)
 
 	if err != nil {
-		c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
 
 	workflow, createErr := h.Service.CreateWorkflow(c.Context(), CreateWorkflowDto{
-		UserID: userID,
+		UserID: userIDStr,
 		Auth:   auth,
 	})
 
 	if createErr != nil {
-		c.Status(createErr.Status).JSON(fiber.Map{
+		return c.Status(createErr.Status).JSON(fiber.Map{
 			"error": createErr.Message,
 		})
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(workflow)
+	return c.Status(fiber.StatusOK).JSON(workflow)
 }
 
 // DELETE /workflows/:workflowId
@@ -195,16 +204,35 @@ func (h *WorkflowController) SetSharePublic(c *fiber.Ctx) error {
 	workflow := c.Locals("workflow").(*models.Workflow)
 	access := c.Locals("access").(WorkflowAccess)
 
-	var update *models.WorkflowState
+	var update map[string]interface{}
 	if err := c.BodyParser(&update); err != nil {
+		if jsonErr := json.Unmarshal(c.Body(), &update); jsonErr != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "invalid request body",
+			})
+		}
+	}
+
+	enabled, hasEnabled := update["enabled"].(bool)
+	if !hasEnabled {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "invalid request body",
+			"error": "Badly formatted request.",
 		})
 	}
 
-	err := h.Service.SetSharePublic(c.Context(), workflow, access, update)
+	publicState := workflow.Share.Public
+	publicState.Enabled = enabled
+	
+	if hidden, ok := update["hidden"].(bool); ok {
+		publicState.Hidden = hidden
+	}
+	if writeable, ok := update["writeable"].(bool); ok {
+		publicState.Writeable = writeable
+	}
+
+	err := h.Service.SetSharePublic(c.Context(), workflow, access, &publicState)
 	if err != nil {
-		c.Status(err.Status).JSON(fiber.Map{
+		return c.Status(err.Status).JSON(fiber.Map{
 			"error": err.Message,
 		})
 	}

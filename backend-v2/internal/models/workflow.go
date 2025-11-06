@@ -66,6 +66,7 @@ type Workflow struct {
 	Edges      map[string]Edge   `json:"edges" bson:"edges"`
 	Files      map[string]string `json:"files" bson:"files"`
 	Share      Share             `json:"share" bson:"share"`
+	Category   *string           `json:"category" bson:"category"`
 }
 
 func (w Workflow) IsPublic () bool {

@@ -10,6 +10,7 @@
     "test": "cross-env DEBUG=${DEBUG:-''} NODE_ENV=test jest --verbose --coverage --reporters=default --reporters=jest-junit --runInBand",
     "test:e2e": "cross-env DEBUG=${DEBUG:-''} NODE_ENV=test jest e2e/ --verbose --maxWorkers=2",
     "test:e2e:http": "cross-env E2E_SERVER_URL=${E2E_SERVER_URL:-http://localhost:3001} E2E_API_BASE_PATH=${E2E_API_BASE_PATH:-/api/v1} E2E_MONGO_URI=${E2E_MONGO_URI:-mongodb://localhost:27017/delta5} jest e2e/ --verbose --maxWorkers=2",
+    "test:e2e:v2": "cross-env E2E_SERVER_URL=http://localhost:8081 E2E_API_BASE_PATH=/api/v1 E2E_MONGO_URI=mongodb://localhost:27017/delta5 jest e2e/workflow.e2e.test.js --verbose --maxWorkers=1",
     "format": "npx eslint src --fix",
     "lint": "npx eslint src",
     "user": "npx babel-node --presets @babel/preset-env scripts/createUser.js"

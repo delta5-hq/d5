@@ -15,6 +15,21 @@ func Authorization(c *fiber.Ctx) error {
 
 	userID := c.Locals(constants.ContextUserIDKey)
 
+	if method == "GET" && workflow.IsPublic() && userID == nil {
+		c.Locals("access", WorkflowAccess{
+			IsOwner:     false,
+			IsWriteable: false,
+			IsReadable:  true,
+		})
+		return c.Next()
+	}
+
+	if userID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required",
+		})
+	}
+
 	var roleBinding *models.RoleBinding
 
 	accessList := workflow.Share.Access

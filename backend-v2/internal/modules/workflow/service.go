@@ -211,7 +211,7 @@ func (s *WorkflowService) SetSharePublic(
 		return errors.NewHTTPError(403, "You are not an owner of this workflow.")
 	}
 
-	if !access.IsWriteable {
+	if update.Writeable && !update.Hidden {
 		return errors.NewHTTPError(403, "Only administrators can set workflows public writeable")
 	}
 
