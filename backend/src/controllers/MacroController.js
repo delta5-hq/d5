@@ -5,6 +5,15 @@ import Macro from '../models/Macro'
 const log = debug('delta5:Macro:Controller')
 
 const MacroController = {
+  authorization: async (ctx, next) => {
+    const {userId} = ctx.state
+
+    if (!userId) {
+      ctx.throw(401, 'Authentication needed.')
+    }
+
+    await next()
+  },
   create: async ctx => {
     const {userId} = ctx.state
     const macroData = await ctx.request.json()
@@ -76,16 +85,29 @@ const MacroController = {
   },
   load: async (ctx, next) => {
     const {macroId} = ctx.params
+    const {userId} = ctx.state
 
-    const macro = await Macro.findOne({_id: macroId})
+    try {
+      const macro = await Macro.findOne({_id: macroId})
 
-    if (!macro) {
-      ctx.throw(404, 'Macro not found.')
+      if (!macro) {
+        const err = new Error('Macro not found.')
+        err.code = 404
+        throw err
+      }
+
+      if (userId !== macro.userId) {
+        const err = new Error('Permissions denied.')
+        err.code = 403
+        throw err
+      }
+
+      ctx.state.macro = macro
+
+      await next()
+    } catch (err) {
+      ctx.throw(err.code || 500, err.message || 'Failed to load macro.')
     }
-
-    ctx.state.macro = macro
-
-    await next()
   },
 }
 

@@ -46,4 +46,8 @@ integrationRouter
   .get('/:service', IntegrationController.getService)
   .put('/:service/update', IntegrationController.updateService)
 
+if (process.env.NODE_ENV !== 'production') {
+  integrationRouter.use(IntegrationController.authorization).delete('/', IntegrationController.deleteIntegration)
+}
+
 export default integrationRouter
