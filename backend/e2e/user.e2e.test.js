@@ -49,7 +49,7 @@ describe('User Router', () => {
         expect(user).toBeTruthy()
         expect(user).toMatchObject(userData)
       }
-    }, 10000)
+    })
 
     it('updates existing user in database', async () => {
       await syncRequest.post('/sync/users').send(userData)
@@ -66,7 +66,7 @@ describe('User Router', () => {
         expect(user).toBeTruthy()
         expect(user).toMatchObject(userData2)
       }
-    }, 10000)
+    })
 
     it('rejects incomplete user data', async () => {
       const response = await syncRequest.post('/sync/users').send({name})

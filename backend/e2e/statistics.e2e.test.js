@@ -168,7 +168,7 @@ describe('Statistics E2E', () => {
         }
       } else {
         /* Direct database mode: Create waitlist user directly */
-        await Waitlist.deleteMany(testPrefixFilter('mail'))
+        await Waitlist.deleteMany({$or: [testPrefixFilter('mail'), {id: 'waituser_approval'}, {name: 'waitlistuser'}]})
         const waitUser = new Waitlist({
           id: 'waituser_approval',
           name: 'waitlistuser',
@@ -187,7 +187,7 @@ describe('Statistics E2E', () => {
         console.log('HTTP mode: Waitlist cleanup not required')
       } else {
         /* Direct database mode: Clean up test data */
-        await Waitlist.deleteMany(testPrefixFilter('mail'))
+        await Waitlist.deleteMany({$or: [testPrefixFilter('mail'), {id: 'waituser_approval'}, {name: 'waitlistuser'}]})
         await User.deleteOne({id: 'waituser_approval'})
       }
     })
@@ -207,6 +207,7 @@ describe('Statistics E2E', () => {
         return
       }
       
+      await Waitlist.deleteOne({$or: [{id: 'waituser2'}, {name: 'waitlistuser2'}, {mail: 'waitlist2@example.com'}]})
       const waitUser2 = new Waitlist({
         id: 'waituser2',
         name: 'waitlistuser2',
@@ -229,6 +230,7 @@ describe('Statistics E2E', () => {
         return
       }
       
+      await Waitlist.deleteOne({$or: [{id: 'waituser3'}, {name: 'waitlistuser3'}, {mail: 'waitlist3@example.com'}]})
       const waitUser3 = new Waitlist({
         id: 'waituser3',
         name: 'waitlistuser3',
@@ -253,6 +255,7 @@ describe('Statistics E2E', () => {
         return
       }
       
+      await Waitlist.deleteOne({$or: [{id: 'waituser4'}, {name: 'waitlistuser4'}, {mail: 'waitlist4@example.com'}]})
       const waitUser4 = new Waitlist({
         id: 'waituser4',
         name: 'waitlistuser4',
@@ -275,7 +278,7 @@ describe('Statistics E2E', () => {
         return
       }
       
-      // Re-create waitlist user since it was deleted in beforeAll by other tests
+      await Waitlist.deleteOne({$or: [{id: 'waituser_approval_single'}, {name: 'waitlistuser_single'}, {mail: 'waitlist_single@example.com'}]})
       const waitUser = new Waitlist({
         id: 'waituser_approval_single',
         name: 'waitlistuser_single',

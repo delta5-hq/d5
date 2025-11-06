@@ -140,14 +140,14 @@ describe('LLM Vector E2E', () => {
       const data = JSON.parse(res.text)
       expect(data).toHaveProperty('openai')
       expect(data.openai).toHaveProperty('example-source')
-    }, 10000)
+    })
 
     it('retrieves specific type', async () => {
       const res = await subscriberRequest.get('/vector?name=get-test&type=openai')
       expect(res.status).toBe(200)
       const data = JSON.parse(res.text)
       expect(data).toHaveProperty('example-source')
-    }, 10000)
+    })
 
     it('retrieves specific source', async () => {
       const res = await subscriberRequest.get('/vector?name=get-test&type=openai&source=example-source')
@@ -155,22 +155,22 @@ describe('LLM Vector E2E', () => {
       const data = JSON.parse(res.text)
       expect(data).toHaveProperty('example-source')
       expect(Array.isArray(data['example-source'])).toBe(true)
-    }, 10000)
+    })
 
     it('returns 404 for missing context', async () => {
       const res = await subscriberRequest.get('/vector?name=nonexistent')
       expect(res.status).toBe(404)
-    }, 10000)
+    })
 
     it('returns 404 for missing type', async () => {
       const res = await subscriberRequest.get('/vector?name=get-test&type=nonexistent')
       expect(res.status).toBe(404)
-    }, 10000)
+    })
 
     it('returns 404 for missing source', async () => {
       const res = await subscriberRequest.get('/vector?name=get-test&type=openai&source=nonexistent')
       expect(res.status).toBe(404)
-    }, 10000)
+    })
   })
 
   describe('GET /vector/all', () => {
@@ -202,7 +202,7 @@ describe('LLM Vector E2E', () => {
       const data = JSON.parse(res.text)
       expect(Array.isArray(data)).toBe(true)
       expect(data.length).toBeGreaterThanOrEqual(2)
-    }, 10000)
+    })
   })
 
   describe('DELETE /vector', () => {
@@ -236,12 +236,12 @@ describe('LLM Vector E2E', () => {
         const context = await LLMVector.findOne({name: 'delete-test', userId})
         expect(context).toBeNull()
       }
-    }, 10000)
+    })
 
     it('returns 404 for missing context', async () => {
       const res = await subscriberRequest.delete('/vector').send({contextName: 'nonexistent'})
       expect(res.status).toBe(404)
-    }, 10000)
+    })
   })
 
   describe('GET /vector/overview', () => {
@@ -271,7 +271,7 @@ describe('LLM Vector E2E', () => {
       const data = JSON.parse(res.text)
       expect(typeof data).toBe('object')
       expect(data).toHaveProperty('overview-test')
-    }, 10000)
+    })
   })
 })
 

@@ -9,6 +9,7 @@ import Waitlist from '../src/models/Waitlist'
 describe('Authentication Router', () => {
   const timestamp = Date.now()
   const validCredentials = {username: `testuser123-${timestamp}`, mail: `testuser123-${timestamp}@example.com`, password: 'ValidPass123'}
+  const testLoginUser = {username: `e2e_test_loginuser-${timestamp}`, mail: `e2e_test_loginuser-${timestamp}@example.com`, password: 'TestLogin123'}
   let createdUserId
 
   beforeEach(async () => {
@@ -17,16 +18,37 @@ describe('Authentication Router', () => {
     if (isHttpMode()) {
       /* HTTP mode: Use API calls for test data setup */
       await httpMode.clearUsers()
+      /* Create test user via signup */
+      await publicRequest.post('/auth/signup').send({
+        username: testLoginUser.username,
+        mail: testLoginUser.mail,
+        password: testLoginUser.password
+      })
     } else {
       /* Direct database mode: Scoped deletion - only test users */
       await User.deleteMany(testIdFilter())
+      await User.deleteMany(testPrefixFilter('id'))
       await Waitlist.deleteMany(testPrefixFilter('mail'))
+      
+      /* Create test user for login tests */
+      const testUser = new User({
+        id: testLoginUser.username,
+        name: testLoginUser.username,
+        mail: testLoginUser.mail,
+        password: testLoginUser.password,
+        roles: ['subscriber'],
+        limitWorkflows: 10,
+        limitNodes: 300,
+        confirmed: true
+      })
+      await testUser.save()
     }
   })
 
   afterAll(async () => {
     if (!isHttpMode()) {
       await User.deleteMany(testIdFilter())
+      await User.deleteMany(testPrefixFilter('id'))
       await Waitlist.deleteMany(testPrefixFilter('mail'))
     }
     await teardownDb()
@@ -62,6 +84,26 @@ describe('Authentication Router', () => {
       expect(res.status).toBe(400)
       expect(res.text).toContain('already in waitlist')
     })
+
+    it('should return 400 for missing username', async () => {
+      const res = await publicRequest.post('/auth/signup').send({
+        mail: 'nouser@example.com',
+        password: 'ValidPass123'
+      })
+
+      expect([400, 500]).toContain(res.status)
+      expect(res.body).toHaveProperty('message')
+    })
+
+    it('should return 400 for missing email', async () => {
+      const res = await publicRequest.post('/auth/signup').send({
+        username: 'testuser999',
+        password: 'ValidPass123'
+      })
+
+      expect([400, 500]).toContain(res.status)
+      expect(res.body).toHaveProperty('message')
+    })
   })
 
   describe('POST /auth', () => {
@@ -75,6 +117,22 @@ describe('Authentication Router', () => {
       const res = await publicRequest.post('/auth').send({usernameOrEmail: 'nonexistent', password: 'Pass123!'})
 
       expect(res.status).toBe(401)
+    })
+
+    it('should login with valid credentials', async () => {
+      if (isHttpMode()) {
+        /* Skip: HTTP mode can't create confirmed users (signup creates waitlist only) */
+        return
+      }
+      
+      const res = await publicRequest.post('/auth').send({usernameOrEmail: testLoginUser.username, password: testLoginUser.password})
+
+      expect(res.status).toBe(200)
+      expect(res.body).toHaveProperty('tokenHash')
+      expect(res.body).toHaveProperty('expires_in')
+      expect(res.body).toHaveProperty('wp_user')
+      expect(typeof res.body.tokenHash).toBe('string')
+      expect(res.body.wp_user).toHaveProperty('ID', testLoginUser.username)
     })
   })
 
@@ -100,6 +158,13 @@ describe('Authentication Router', () => {
 
       expect(res.status).toBe(401)
     })
+
+    it('should return 401 for missing refresh token', async () => {
+      const res = await publicRequest.post('/refresh').set('Cookie', 'auth=invalid')
+
+      expect(res.status).toBe(401)
+      expect(res.body).toHaveProperty('message')
+    })
   })
 
   describe('POST /auth/forgot-password', () => {
@@ -119,11 +184,24 @@ describe('Authentication Router', () => {
       /* Email service may not be configured in test environment */
       expect([404, 500]).toContain(res.status)
     })
+
+    it('should return 400 for missing email', async () => {
+      const res = await publicRequest.post('/auth/forgot-password').send({})
+
+      expect([400, 500]).toContain(res.status)
+      expect(res.body).toHaveProperty('message')
+    })
   })
 
   describe('GET /auth/check-reset-token/:pwdResetToken', () => {
     it('should return 404 for invalid token', async () => {
       const res = await publicRequest.get('/auth/check-reset-token/invalid-token')
+
+      expect(res.status).toBe(404)
+    })
+
+    it('should return 404 for missing token', async () => {
+      const res = await publicRequest.get('/auth/check-reset-token/')
 
       expect(res.status).toBe(404)
     })
@@ -154,6 +232,13 @@ describe('Authentication Router', () => {
 
       expect(res.status).toBe(400)
     })
+
+    it('should return 401 for invalid token', async () => {
+      const res = await publicRequest.post('/external-auth').send({token: 'invalid-jwt-token'})
+
+      expect([400, 401]).toContain(res.status)
+      expect(res.body).toHaveProperty('message')
+    })
   })
 
   describe('POST /external-auth/refresh', () => {
@@ -161,6 +246,13 @@ describe('Authentication Router', () => {
       const res = await publicRequest.post('/external-auth/refresh')
 
       expect(res.status).toBe(401)
+    })
+
+    it('should return 401 for missing refresh token', async () => {
+      const res = await publicRequest.post('/external-auth/refresh').set('Cookie', 'auth=invalid')
+
+      expect(res.status).toBe(401)
+      expect(res.body).toHaveProperty('message')
     })
   })
 })

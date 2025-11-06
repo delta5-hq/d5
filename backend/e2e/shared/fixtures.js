@@ -32,7 +32,7 @@ export const workflowData = {
     },
   },
   edges: {rootId_childId: {id: 'rootId_childId', start: 'rootId', end: 'childId', title: 'relation'}},
-  share: {public: {enabled: false}},
+  share: {public: {enabled: false, hidden: false, writeable: false}, access: []},
   title: 'test title',
   root: 'rootId',
 }
