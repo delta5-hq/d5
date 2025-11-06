@@ -67,43 +67,27 @@ export const createResponseClaude = async (
   return result as CreateMessageResponse
 }
 
-const CLAUDE_3_5_MAX_OUTPUT = 8192
-const CLAUDE_3_MAX_OUTPUT = 4096
-const CLAUDE_3_7_MAX_OUTPUT = 8192
-const CLAUDE_SONNET_4_MAX_OUTPUT = 8192
-const CLAUDE_OPUS_4_1_MAX_OUTPUT = 8192
+const CLAUDE_4_5_MAX_OUTPUT = 64000
+const CLAUDE_4_1_MAX_OUTPUT = 32000
 
 export function getClaudeMaxOutput(model: string) {
-  if (model.startsWith('claude-3-5')) return CLAUDE_3_5_MAX_OUTPUT
-  if (model.startsWith('claude-3-7')) return CLAUDE_3_7_MAX_OUTPUT
-  if (model === 'claude-sonnet-4') return CLAUDE_SONNET_4_MAX_OUTPUT
-  if (model === 'claude-opus-4.1') return CLAUDE_OPUS_4_1_MAX_OUTPUT
-  return CLAUDE_3_MAX_OUTPUT
+  if (model.includes('opus-4')) return CLAUDE_4_1_MAX_OUTPUT
+  return CLAUDE_4_5_MAX_OUTPUT
 }
 
-const CLAUDE_3_5_SONNET_MAX_TOKENS = 200000
-const CLAUDE_3_5_HAIKU_MAX_TOKENS = 200000
-const CLAUDE_3_OPUS_MAX_TOKENS = 200000
-const CLAUDE_3_HAIKU_MAX_TOKENS = 200000
-const CLAUDE_3_7_SONNET_MAX_TOKENS = 200000
-const CLAUDE_SONNET_4_MAX_TOKENS = 200000
-const CLAUDE_OPUS_4_1_MAX_TOKENS = 200000
+const CLAUDE_4_SONNET_MAX_TOKENS = 200000
+const CLAUDE_4_HAIKU_MAX_TOKENS = 200000
+const CLAUDE_4_OPUS_MAX_TOKENS = 200000
 
 export function getClaudeMaxTokens(model: string) {
   switch (model) {
-    case ClaudeModels.CLAUDE_3_5_SONNET:
-      return CLAUDE_3_5_SONNET_MAX_TOKENS - CLAUDE_3_5_MAX_OUTPUT
-    case ClaudeModels.CLAUDE_3_5_HAIKU:
-      return CLAUDE_3_5_HAIKU_MAX_TOKENS - CLAUDE_3_5_MAX_OUTPUT
-    case ClaudeModels.CLAUDE_3_OPUS:
-      return CLAUDE_3_OPUS_MAX_TOKENS - CLAUDE_3_MAX_OUTPUT
-    case ClaudeModels.CLAUDE_3_7_SONNET:
-      return CLAUDE_3_7_SONNET_MAX_TOKENS - CLAUDE_3_5_MAX_OUTPUT
+    case ClaudeModels.CLAUDE_SONNET_4_5:
+      return CLAUDE_4_SONNET_MAX_TOKENS - CLAUDE_4_5_MAX_OUTPUT
+    case ClaudeModels.CLAUDE_HAIKU_4_5:
+      return CLAUDE_4_HAIKU_MAX_TOKENS - CLAUDE_4_5_MAX_OUTPUT
     case ClaudeModels.CLAUDE_OPUS_4_1:
-      return CLAUDE_OPUS_4_1_MAX_TOKENS - CLAUDE_OPUS_4_1_MAX_OUTPUT
-    case ClaudeModels.CLAUDE_SONNET_4:
-      return CLAUDE_SONNET_4_MAX_TOKENS - CLAUDE_SONNET_4_MAX_OUTPUT
+      return CLAUDE_4_OPUS_MAX_TOKENS - CLAUDE_4_1_MAX_OUTPUT
     default:
-      return CLAUDE_3_HAIKU_MAX_TOKENS - CLAUDE_3_MAX_OUTPUT
+      return CLAUDE_4_HAIKU_MAX_TOKENS - CLAUDE_4_5_MAX_OUTPUT
   }
 }
