@@ -17,6 +17,7 @@ var (
 	MongoPort     string
 	JwtSecret     string
 	MongoURI      string
+	SyncUserID    string
 )
 
 func init() {
@@ -29,6 +30,7 @@ func init() {
 	MongoHost = getEnv("MONGO_HOST", "localhost")
 	MongoPort = getEnv("MONGO_PORT", "27017")
 	JwtSecret = getEnv("JWT_SECRET", "GrFYK5ftZDtCg7ZGwxZ1JpSxyyJ9bc8uJijvBD1DYiMoS64ZpnBSrFxsNuybN1iO")
+	SyncUserID = getEnv("SYNC_USER_ID", "wp-sync-user")
 
 	auth := ""
 	if MongoPassword != "" {

@@ -25,6 +25,11 @@ func main() {
 	// add routes
 	router.RegisterRoutes(app, db)
 
+	// Custom 404 handler
+	app.Use(func(c *fiber.Ctx) error {
+		return c.Status(fiber.StatusNotFound).SendString("Not Found")
+	})
+
 	// start server
 	log.Fatal(app.Listen(":" + config.Port))
 }

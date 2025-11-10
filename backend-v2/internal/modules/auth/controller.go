@@ -1,0 +1,262 @@
+package auth
+
+import (
+	"regexp"
+	"strings"
+
+	"github.com/gofiber/fiber/v2"
+)
+
+type Controller struct {
+	service *Service
+}
+
+func NewController(service *Service) *Controller {
+	return &Controller{service: service}
+}
+
+/* POST /auth/signup - Add user to waitlist */
+func (c *Controller) Signup(ctx *fiber.Ctx) error {
+	var payload struct {
+		Username string `json:"username"`
+		Mail     string `json:"mail"`
+		Password string `json:"password"`
+	}
+
+	if err := ctx.BodyParser(&payload); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid payload"})
+	}
+
+	// Validate inputs
+	if payload.Username == "" || payload.Mail == "" || payload.Password == "" || len(payload.Password) < 7 {
+		return ctx.Status(fiber.StatusBadRequest).SendString("Username, email and password required.")
+	}
+
+	// Validate email format
+	if !isValidEmail(payload.Mail) {
+		return ctx.Status(fiber.StatusUnauthorized).SendString("Invalid username or email")
+	}
+
+	// Validate username
+	if !isValidUsername(payload.Username) {
+		return ctx.Status(fiber.StatusUnauthorized).SendString("Invalid username or email")
+	}
+
+	err := c.service.Signup(ctx.Context(), payload.Username, payload.Mail, payload.Password)
+	if err != nil {
+		if err.Error() == "Username already exists." {
+			return ctx.Status(fiber.StatusBadRequest).SendString("Username already exists.")
+		}
+		if err.Error() == "Email already in waitlist." {
+			return ctx.Status(fiber.StatusBadRequest).SendString("Email already in waitlist.")
+		}
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return ctx.JSON(fiber.Map{"success": true})
+}
+
+/* POST /auth - Authenticate user */
+func (c *Controller) Auth(ctx *fiber.Ctx) error {
+	var payload struct {
+		UsernameOrEmail string `json:"usernameOrEmail"`
+		Password        string `json:"password"`
+	}
+
+	if err := ctx.BodyParser(&payload); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).SendString("Username and password required.")
+	}
+
+	if payload.UsernameOrEmail == "" || payload.Password == "" {
+		return ctx.Status(fiber.StatusBadRequest).SendString("Username and password required.")
+	}
+
+	user, err := c.service.Authenticate(ctx.Context(), payload.UsernameOrEmail, payload.Password)
+	if err != nil {
+		if err.Error() == "User not found." || err.Error() == "Wrong password." {
+			return ctx.Status(fiber.StatusUnauthorized).SendString(err.Error())
+		}
+		if err.Error() == "Error: Account pending activation" {
+			return ctx.Status(fiber.StatusForbidden).SendString(err.Error())
+		}
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// For now, just return success - JWT generation would go here
+	return ctx.JSON(fiber.Map{
+		"userId": user.ID,
+		"name":   user.Name,
+	})
+}
+
+/* GET /auth/login - Return login page metadata */
+func (c *Controller) Login(ctx *fiber.Ctx) error {
+	return ctx.JSON(fiber.Map{"redirect": false})
+}
+
+/* POST /auth/logout - Logout user */
+func (c *Controller) Logout(ctx *fiber.Ctx) error {
+	// Clear cookies
+	ctx.Cookie(&fiber.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		MaxAge:   -1,
+		HTTPOnly: true,
+	})
+	ctx.Cookie(&fiber.Cookie{
+		Name:     "auth",
+		Value:    "",
+		MaxAge:   -1,
+		HTTPOnly: true,
+	})
+
+	return ctx.JSON(fiber.Map{"success": true})
+}
+
+/* POST /auth/forgot-password - Request password reset */
+func (c *Controller) ForgotPassword(ctx *fiber.Ctx) error {
+	var payload struct {
+		Mail            string `json:"mail"`
+		UsernameOrEmail string `json:"usernameOrEmail"`
+	}
+
+	if err := ctx.BodyParser(&payload); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).SendString("Username or Email required.")
+	}
+
+	// Support both 'mail' and 'usernameOrEmail' fields
+	usernameOrEmail := payload.Mail
+	if usernameOrEmail == "" {
+		usernameOrEmail = payload.UsernameOrEmail
+	}
+
+	if usernameOrEmail == "" {
+		return ctx.Status(fiber.StatusBadRequest).SendString("Username or Email required.")
+	}
+
+	token, err := c.service.ForgotPassword(ctx.Context(), usernameOrEmail)
+	if err != nil {
+		if err.Error() == "User not found." {
+			return ctx.Status(fiber.StatusNotFound).SendString("User not found")
+		}
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// In production, email would be sent here with the reset link
+	// For now, just return success
+	_ = token // Would be used in email
+	
+	return ctx.JSON(fiber.Map{"success": true})
+}
+
+/* GET /auth/check-reset-token/:pwdResetToken - Verify reset token */
+func (c *Controller) CheckResetToken(ctx *fiber.Ctx) error {
+	token := ctx.Params("pwdResetToken")
+
+	if token == "" {
+		return ctx.Status(fiber.StatusBadRequest).SendString("Token required.")
+	}
+
+	exists, err := c.service.CheckResetToken(ctx.Context(), token)
+	if err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	if !exists {
+		return ctx.Status(fiber.StatusNotFound).SendString("User not found")
+	}
+
+	return ctx.JSON(fiber.Map{"success": true})
+}
+
+/* POST /auth/reset-password/:pwdResetToken - Reset password */
+func (c *Controller) ResetPassword(ctx *fiber.Ctx) error {
+	token := ctx.Params("pwdResetToken")
+
+	var payload struct {
+		Password string `json:"password"`
+	}
+
+	if err := ctx.BodyParser(&payload); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).SendString("Password required.")
+	}
+
+	if token == "" {
+		return ctx.Status(fiber.StatusBadRequest).SendString("Token required.")
+	}
+
+	if payload.Password == "" {
+		return ctx.Status(fiber.StatusBadRequest).SendString("Password required.")
+	}
+
+	err := c.service.ResetPassword(ctx.Context(), token, payload.Password)
+	if err != nil {
+		if err.Error() == "User not found." {
+			return ctx.Status(fiber.StatusNotFound).SendString("User not found")
+		}
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return ctx.JSON(fiber.Map{"success": true})
+}
+
+/* POST /refresh - Refresh access token */
+func (c *Controller) Refresh(ctx *fiber.Ctx) error {
+	// Check for refresh token in cookie
+	refreshToken := ctx.Cookies("refresh_token")
+	if refreshToken == "" {
+		return ctx.Status(fiber.StatusUnauthorized).SendString("No refresh token found.")
+	}
+
+	// In production, validate JWT and generate new token
+	return ctx.Status(fiber.StatusUnauthorized).SendString("Refresh JWT invalid.")
+}
+
+/* POST /external-auth - External authentication */
+func (c *Controller) ExternalAuth(ctx *fiber.Ctx) error {
+	var payload struct {
+		UsernameOrEmail string `json:"usernameOrEmail"`
+		Password        string `json:"password"`
+	}
+
+	if err := ctx.BodyParser(&payload); err != nil || payload.UsernameOrEmail == "" || payload.Password == "" {
+		return ctx.Status(fiber.StatusBadRequest).SendString("No token received.")
+	}
+
+	user, err := c.service.Authenticate(ctx.Context(), payload.UsernameOrEmail, payload.Password)
+	if err != nil {
+		if err.Error() == "User not found." || err.Error() == "Wrong password." {
+			return ctx.Status(fiber.StatusUnauthorized).SendString(err.Error())
+		}
+		if err.Error() == "Error: Account pending activation" {
+			return ctx.Status(fiber.StatusForbidden).SendString(err.Error())
+		}
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return ctx.JSON(fiber.Map{
+		"userId": user.ID,
+		"name":   user.Name,
+	})
+}
+
+/* POST /external-auth/refresh - External refresh */
+func (c *Controller) ExternalRefresh(ctx *fiber.Ctx) error {
+	refreshToken := ctx.Cookies("refresh_token")
+	if refreshToken == "" {
+		return ctx.Status(fiber.StatusUnauthorized).SendString("No refresh token found.")
+	}
+
+	return ctx.Status(fiber.StatusUnauthorized).SendString("Refresh JWT invalid.")
+}
+
+/* Validation helpers */
+func isValidEmail(email string) bool {
+	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+	return emailRegex.MatchString(email)
+}
+
+func isValidUsername(username string) bool {
+	// Username should not be empty and not contain @ (to distinguish from email)
+	return username != "" && !strings.Contains(username, "@")
+}
