@@ -1,6 +1,8 @@
 package router
 
 import (
+	"os"
+
 	"backend-v2/internal/middlewares"
 	"backend-v2/internal/modules/auth"
 	"backend-v2/internal/modules/clienterror"
@@ -14,18 +16,27 @@ import (
 	"backend-v2/internal/modules/urlthumbnail"
 	"backend-v2/internal/modules/user"
 	"backend-v2/internal/modules/workflow"
+	"backend-v2/internal/services/email"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/qiniu/qmgo"
 )
 
 func RegisterRoutes(app *fiber.App, db *qmgo.Database) {
+	/* Create email service - use noop for E2E testing, SMTP for production */
+	var emailService email.Service
+	if os.Getenv("E2E_MODE") == "true" {
+		emailService = email.NewNoopService()
+	} else {
+		emailService = email.NewSMTPService()
+	}
+
 	unauthHandler := unauth.NewController()
 	unauth.RegisterRoutes(app, unauthHandler)
 
 	// Register auth routes before JWT middleware (public routes)
 	apiPublic := app.Group("/api/v1")
-	auth.RegisterRoutes(apiPublic, db)
+	auth.RegisterRoutes(apiPublic, db, emailService)
 
 	api := app.Group("/api")
 	api.Use(middlewares.JWTMiddleware)

@@ -11,6 +11,9 @@ RUN go mod download -x
 # Copy the code into the container.
 COPY . .
 
+# Tidy dependencies before build
+RUN go mod tidy
+
 # Build the API server.
 RUN go build -ldflags="-s -w" -o service .
 

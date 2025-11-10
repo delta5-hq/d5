@@ -1,16 +1,18 @@
 package auth
 
 import (
+	"backend-v2/internal/services/email"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/qiniu/qmgo"
 )
 
-func RegisterRoutes(router fiber.Router, db *qmgo.Database) {
+func RegisterRoutes(router fiber.Router, db *qmgo.Database, emailService email.Service) {
 	usersCollection := db.Collection("users")
 	waitlistCollection := db.Collection("waitlists")
 	
 	service := NewService(usersCollection, waitlistCollection)
-	controller := NewController(service)
+	controller := NewController(service, emailService)
 
 	// Public routes (no middleware)
 	router.Post("/auth/signup", controller.Signup)
