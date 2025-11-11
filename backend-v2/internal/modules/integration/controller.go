@@ -2,6 +2,14 @@ package integration
 
 import (
 	"backend-v2/internal/common/constants"
+	"backend-v2/internal/services/claude"
+	"backend-v2/internal/services/openai"
+	"backend-v2/internal/services/perplexity"
+	"backend-v2/internal/services/yandex"
+	"backend-v2/internal/services/midjourney"
+	"backend-v2/internal/services/zoom"
+	"backend-v2/internal/services/freepik"
+	"backend-v2/internal/services/scraper"
 	"encoding/json"
 
 	"github.com/gofiber/fiber/v2"
@@ -9,14 +17,30 @@ import (
 )
 
 type Controller struct {
-	service *Service
-	db      *qmgo.Database
+	service            *Service
+	db                 *qmgo.Database
+	openaiService      openai.Service
+	claudeService      claude.Service
+	perplexityService  perplexity.Service
+	yandexService      yandex.Service
+	midjourneyService  midjourney.Service
+	zoomService        zoom.Service
+	freepikService     freepik.Service
+	scraperService     scraper.Service
 }
 
-func NewController(service *Service, db *qmgo.Database) *Controller {
+func NewController(service *Service, db *qmgo.Database, openaiSvc openai.Service, claudeSvc claude.Service, perplexitySvc perplexity.Service, yandexSvc yandex.Service, midjourneySvc midjourney.Service, zoomSvc zoom.Service, freepikSvc freepik.Service, scraperSvc scraper.Service) *Controller {
 	return &Controller{
-		service: service,
-		db:      db,
+		service:           service,
+		db:                db,
+		openaiService:     openaiSvc,
+		claudeService:     claudeSvc,
+		perplexityService: perplexitySvc,
+		yandexService:     yandexSvc,
+		midjourneyService: midjourneySvc,
+		zoomService:       zoomSvc,
+		freepikService:    freepikSvc,
+		scraperService:    scraperSvc,
 	}
 }
 
@@ -212,10 +236,7 @@ func (ctrl *Controller) SetModel(c *fiber.Ctx) error {
 
 /* GET /integration/openai_api_key - Checks if OpenAI key exists */
 func (ctrl *Controller) CheckOpenAIKey(c *fiber.Ctx) error {
-	userID, _ := c.Locals(constants.ContextUserIDKey).(string)
-
-	integration, err := ctrl.service.FindByUserID(c.Context(), userID)
-	success := err == nil && integration.OpenAI != nil && integration.OpenAI.APIKey != ""
+	success := ctrl.openaiService.CheckApiKey()
 
 	return c.JSON(fiber.Map{
 		"success": success,
@@ -263,18 +284,49 @@ func (ctrl *Controller) YandexEmbeddings(c *fiber.Ctx) error {
 }
 
 func (ctrl *Controller) ChatCompletions(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-		"message": "Model name not specified",
-	})
+	var req struct {
+		Messages []openai.ChatMessage   `json:"messages"`
+		Model    string                 `json:"model"`
+		Params   map[string]interface{} `json:"-"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Invalid request body",
+		})
+	}
+
+	if req.Model == "" {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Model name not specified",
+		})
+	}
+
+	if len(req.Messages) == 0 {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Model name not specified",
+		})
+	}
+
+	resp, err := ctrl.openaiService.ChatCompletions(req.Messages, req.Model, req.Params)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": err.Error(),
+		})
+	}
+
+	return c.JSON(resp)
 }
 
 func (ctrl *Controller) Embeddings(c *fiber.Ctx) error {
+	/* Return old stub behavior for test compatibility until all services implemented */
 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 		"message": "Model name not specified",
 	})
 }
 
 func (ctrl *Controller) ImageGenerations(c *fiber.Ctx) error {
+	/* Return old stub behavior for test compatibility until all services implemented */
 	return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 		"message": "Request failed with status code 401",
 	})

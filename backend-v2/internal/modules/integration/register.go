@@ -1,13 +1,22 @@
 package integration
 
 import (
+	"backend-v2/internal/services/claude"
+	"backend-v2/internal/services/openai"
+	"backend-v2/internal/services/perplexity"
+	"backend-v2/internal/services/yandex"
+	"backend-v2/internal/services/midjourney"
+	"backend-v2/internal/services/zoom"
+	"backend-v2/internal/services/freepik"
+	"backend-v2/internal/services/scraper"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/qiniu/qmgo"
 )
 
-func Register(router fiber.Router, db *qmgo.Database) {
+func Register(router fiber.Router, db *qmgo.Database, openaiService openai.Service, claudeService claude.Service, perplexityService perplexity.Service, yandexService yandex.Service, midjourneyService midjourney.Service, zoomService zoom.Service, freepikService freepik.Service, scraperService scraper.Service) {
 	service := NewService(db)
-	controller := NewController(service, db)
+	controller := NewController(service, db, openaiService, claudeService, perplexityService, yandexService, midjourneyService, zoomService, freepikService, scraperService)
 
 	integrationGroup := router.Group("/integration")
 

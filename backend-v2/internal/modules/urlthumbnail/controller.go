@@ -1,13 +1,19 @@
 package urlthumbnail
 
 import (
+	"backend-v2/internal/services/thumbnail"
+
 	"github.com/gofiber/fiber/v2"
 )
 
-type Controller struct{}
+type Controller struct {
+	thumbnailService thumbnail.Service
+}
 
-func NewController() *Controller {
-	return &Controller{}
+func NewController(thumbnailSvc thumbnail.Service) *Controller {
+	return &Controller{
+		thumbnailService: thumbnailSvc,
+	}
 }
 
 /* GET /url/thumbnail - External service stub */
