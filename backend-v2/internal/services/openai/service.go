@@ -32,8 +32,8 @@ type ImageGenerationResponse struct {
 }
 
 type Service interface {
-	ChatCompletions(messages []ChatMessage, model string, params map[string]interface{}) (*ChatCompletionResponse, error)
-	Embeddings(input []string, model string) (*EmbeddingResponse, error)
-	DalleGenerations(prompt string, n int, size string, responseFormat string) (*ImageGenerationResponse, error)
+	ChatCompletions(apiKey string, messages []ChatMessage, model string, params map[string]interface{}) (*ChatCompletionResponse, error)
+	Embeddings(apiKey string, input []string, model string) (*EmbeddingResponse, error)
+	DalleGenerations(apiKey string, prompt string, n int, size string, responseFormat string) (*ImageGenerationResponse, error)
 	CheckApiKey() bool
 }

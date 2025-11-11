@@ -1,8 +1,6 @@
 import {describe, beforeEach, afterAll, it, expect} from '@jest/globals'
-import {setupDb, teardownDb, isHttpMode} from './setup'
 import {subscriberRequest, publicRequest, customerRequest, administratorRequest} from './shared/requests'
-import {testHybridFilter} from './shared/test-constants'
-import Template from '../src/models/Template'
+import {testDataFactory, httpSetup} from './shared/test-data-factory'
 import {subscriber} from '../src/utils/test/users'
 
 const subscriberUserId = subscriber.name
@@ -32,19 +30,12 @@ describe('Template Router', () => {
   const timestamp = Date.now()
   
   beforeEach(async () => {
-    await setupDb()
-    
-    /* Only skip database operations in HTTP mode - keep test execution */
-    if (!isHttpMode()) {
-      await Template.deleteMany(testHybridFilter('userId', 'name'))
-    }
+    await httpSetup.setupDb()
+    /* Universal HTTP mode: Test data managed via API */
   })
 
   afterAll(async () => {
-    if (!isHttpMode()) {
-      await Template.deleteMany(testHybridFilter('userId', 'name'))
-    }
-    await teardownDb()
+    await httpSetup.teardownDb()
   })
 
   describe('POST /templates (private)', () => {
@@ -318,45 +309,22 @@ describe('Template Router - Subscriber Tests', () => {
   let subscriberTemplateId
 
   beforeAll(async () => {
-    await setupDb()
+    await httpSetup.setupDb()
 
-    if (isHttpMode()) {
-      /* Create template via API */
-      const timestamp = Date.now()
-      const res = await subscriberRequest.post('/templates').send({
-        name: `subscriber-template-${timestamp}`,
-        title: `subscriber-template-${timestamp}`,
-        nodes: {},
-        edges: {},
-        root: 'root',
-        share: {public: false},
-      })
-      if (res.status === 200) {
-        const body = JSON.parse(res.text)
-        subscriberTemplateId = body.templateId || body._id
-      }
-    } else {
-      /* Create template in database */
-      const timestamp = Date.now()
-      const subTemplate = new Template({
-        userId: subscriberUserId,
-        name: `subscriber-template-${timestamp}`,
-        title: `subscriber-template-${timestamp}`,
-        isPublic: false,
-        nodes: {},
-        edges: {},
-        root: 'root',
-      })
-      await subTemplate.save()
-      subscriberTemplateId = subTemplate._id.toString()
-    }
+    /* Universal HTTP mode: Create template via API */
+    const template = await testDataFactory.createTemplate({
+      name: `subscriber-template-${Date.now()}`,
+      title: `subscriber-template-${Date.now()}`,
+      nodes: {},
+      edges: {},
+      root: 'root',
+      share: {public: false},
+    })
+    subscriberTemplateId = template.templateId
   })
 
   afterAll(async () => {
-    if (!isHttpMode() && subscriberTemplateId) {
-      await Template.deleteOne({_id: subscriberTemplateId})
-    }
-    await teardownDb()
+    await httpSetup.teardownDb()
   })
 
   describe('POST /templates (subscriber)', () => {

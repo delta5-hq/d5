@@ -10,14 +10,22 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/qiniu/qmgo"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type WorkflowController struct {
-	Service *WorkflowService
+	Service     *WorkflowService
+	db          *qmgo.Database
+	mongoClient *mongo.Client
 }
 
-func NewHandler(service *WorkflowService) *WorkflowController {
-	return &WorkflowController{Service: service}
+func NewHandler(service *WorkflowService, db *qmgo.Database, mongoClient *mongo.Client) *WorkflowController {
+	return &WorkflowController{
+		Service:     service,
+		db:          db,
+		mongoClient: mongoClient,
+	}
 }
 
 // GET /workflows/:workflowId

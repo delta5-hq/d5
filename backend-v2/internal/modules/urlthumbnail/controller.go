@@ -37,6 +37,19 @@ func (h *Controller) GetThumbnail(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).SendString("Wrong size given (" + size + ")")
 	}
 
-	/* External service not available - return 500 */
-	return c.Status(fiber.StatusInternalServerError).SendString("Service unavailable")
+	/* Use thumbnail service (factory pattern) */
+	resp, err := h.thumbnailService.Generate(thumbnail.GenerateRequest{
+		URL:  url,
+		Size: size,
+	})
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": err.Error(),
+		})
+	}
+
+	/* Return PNG image from base64 thumbnail */
+	c.Set("Content-Type", "image/png")
+	return c.SendString(resp.Thumbnail)
 }

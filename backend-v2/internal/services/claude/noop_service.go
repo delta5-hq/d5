@@ -1,14 +1,17 @@
 package claude
 
+import "github.com/qiniu/qmgo"
+
 type noopService struct{}
 
 func NewNoopService() Service {
 	return &noopService{}
 }
 
-func (s *noopService) Messages(messages []Message, model string, maxTokens int) (*MessagesResponse, error) {
+/* Messages returns mock Claude response for E2E tests */
+func (s *noopService) Messages(db *qmgo.Database, userId string, messages []Message, model string, maxTokens int) (*MessagesResponse, error) {
 	return &MessagesResponse{
-		ID:   "msg-mock",
+		ID:   "mock-claude-response-id",
 		Type: "message",
 		Role: "assistant",
 		Content: []struct {
@@ -17,7 +20,7 @@ func (s *noopService) Messages(messages []Message, model string, maxTokens int) 
 		}{
 			{
 				Type: "text",
-				Text: "Mock response from E2E noop Claude service",
+				Text: "This is a mock response from Claude for E2E testing.",
 			},
 		},
 		Model:      model,
@@ -31,3 +34,4 @@ func (s *noopService) Messages(messages []Message, model string, maxTokens int) 
 		},
 	}, nil
 }
+

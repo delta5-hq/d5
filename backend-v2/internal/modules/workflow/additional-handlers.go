@@ -1,6 +1,13 @@
 package workflow
 
 import (
+	"archive/zip"
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/url"
+
 	"backend-v2/internal/models"
 
 	"github.com/gofiber/fiber/v2"
@@ -100,9 +107,163 @@ func (h *WorkflowController) ExportJSON(c *fiber.Ctx) error {
 }
 
 func (h *WorkflowController) ExportZIP(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-		"error": "ZIP export not yet implemented",
-	})
+	/* Get workflow from middleware */
+	workflow, ok := c.Locals("workflow").(*models.Workflow)
+	if !ok || workflow == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Workflow not found",
+		})
+	}
+
+	/* Check write access */
+	access, ok := c.Locals("access").(WorkflowAccess)
+	if !ok {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Access forbidden",
+		})
+	}
+
+	if !access.IsWriteable {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Only users with write access can export workflows",
+		})
+	}
+
+	/* Create ZIP archive in memory */
+	buf := new(bytes.Buffer)
+	zipWriter := zip.NewWriter(buf)
+
+	/* Add workflowdata.json - export only minimal fields */
+	workflowData := map[string]interface{}{
+		"workflowId": workflow.WorkflowID,
+		"nodes":      workflow.Nodes,
+		"edges":      workflow.Edges,
+	}
+
+	workflowJSON, err := json.Marshal(workflowData)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to serialize workflow",
+		})
+	}
+
+	workflowFile, err := zipWriter.Create("workflowdata.json")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to create ZIP entry",
+		})
+	}
+	if _, err := workflowFile.Write(workflowJSON); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to write workflow data",
+		})
+	}
+
+	/* Initialize metadata */
+	metaData := map[string]interface{}{
+		"version": 1,
+		"images":  make(map[string]interface{}),
+		"files":   make(map[string]interface{}),
+	}
+
+	/* Get underlying mongo.Database for GridFS */
+	mongoDb := h.mongoClient.Database(h.db.GetDatabaseName())
+
+	/* Add workflow images from GridFS */
+	imageRepo, err := models.NewWorkflowImageRepository(mongoDb)
+	if err == nil {
+		images, _ := imageRepo.FindByWorkflowID(c.Context(), workflow.WorkflowID)
+		imagesMap := metaData["images"].(map[string]interface{})
+
+		for _, image := range images {
+			imagesMap[image.ID.Hex()] = image.ToJSON()
+
+			stream, err := image.OpenDownloadStream(c.Context())
+			if err != nil {
+				continue
+			}
+
+			filename := image.Filename
+			if filename == "" {
+				filename = "unknown.jpg"
+			}
+			entryName := fmt.Sprintf("%s-%s", image.ID.Hex(), filename)
+
+			zipEntry, err := zipWriter.Create(entryName)
+			if err != nil {
+				continue
+			}
+
+			if _, err := io.Copy(zipEntry, stream); err != nil {
+				continue
+			}
+		}
+	}
+
+	/* Add workflow files from GridFS */
+	fileRepo, err := models.NewWorkflowFileRepository(mongoDb)
+	if err == nil {
+		files, _ := fileRepo.FindByWorkflowID(c.Context(), workflow.WorkflowID)
+		filesMap := metaData["files"].(map[string]interface{})
+
+		for _, file := range files {
+			filesMap[file.ID.Hex()] = file.ToJSON()
+
+			stream, err := file.OpenDownloadStream(c.Context())
+			if err != nil {
+				continue
+			}
+
+			filename := file.Filename
+			if filename == "" {
+				filename = "unknown.jpg"
+			}
+			entryName := fmt.Sprintf("%s-%s", file.ID.Hex(), filename)
+
+			zipEntry, err := zipWriter.Create(entryName)
+			if err != nil {
+				continue
+			}
+
+			if _, err := io.Copy(zipEntry, stream); err != nil {
+				continue
+			}
+		}
+	}
+
+	/* Add metadata.json */
+	metaJSON, err := json.Marshal(metaData)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to serialize metadata",
+		})
+	}
+
+	metaFile, err := zipWriter.Create("metadata.json")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to create metadata entry",
+		})
+	}
+	if _, err := metaFile.Write(metaJSON); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to write metadata",
+		})
+	}
+
+	/* Finalize ZIP */
+	if err := zipWriter.Close(); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to finalize ZIP",
+		})
+	}
+
+	/* Set response headers */
+	filename := fmt.Sprintf("Workflow-%s.zip", workflow.WorkflowID)
+	c.Set("Content-Type", "application/zip")
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename*=UTF-8''%s", url.QueryEscape(filename)))
+
+	return c.Send(buf.Bytes())
 }
 
 func GetJwtPayload(c *fiber.Ctx) (*JwtPayload, error) {

@@ -8,7 +8,7 @@ func NewNoopService() Service {
 	return &noopService{}
 }
 
-func (s *noopService) ChatCompletions(messages []ChatMessage, model string, params map[string]interface{}) (*ChatCompletionResponse, error) {
+func (s *noopService) ChatCompletions(apiKey string, messages []ChatMessage, model string, params map[string]interface{}) (*ChatCompletionResponse, error) {
 	return &ChatCompletionResponse{
 		ID:      "chatcmpl-mock",
 		Object:  "chat.completion",
@@ -29,7 +29,7 @@ func (s *noopService) ChatCompletions(messages []ChatMessage, model string, para
 	}, nil
 }
 
-func (s *noopService) Embeddings(input []string, model string) (*EmbeddingResponse, error) {
+func (s *noopService) Embeddings(apiKey string, input []string, model string) (*EmbeddingResponse, error) {
 	data := make([]struct {
 		Index     int       `json:"index"`
 		Object    string    `json:"object"`
@@ -51,7 +51,7 @@ func (s *noopService) Embeddings(input []string, model string) (*EmbeddingRespon
 	return &EmbeddingResponse{Data: data}, nil
 }
 
-func (s *noopService) DalleGenerations(prompt string, n int, size string, responseFormat string) (*ImageGenerationResponse, error) {
+func (s *noopService) DalleGenerations(apiKey string, prompt string, n int, size string, responseFormat string) (*ImageGenerationResponse, error) {
 	data := make([]struct {
 		URL string `json:"url"`
 	}, n)

@@ -1,10 +1,6 @@
 import {describe, beforeEach, afterAll, it, expect} from '@jest/globals'
-import {setupDb, teardownDb, isHttpMode} from './setup'
-import {publicRequest, subscriberRequest} from './shared/requests'
-import {httpMode} from './shared/http-mode-helpers'
-import {testIdFilter, testPrefixFilter} from './shared/test-constants'
-import User from '../src/models/User'
-import Waitlist from '../src/models/Waitlist'
+import {publicRequest, subscriberRequest, syncRequest} from './shared/requests'
+import {testDataFactory, httpSetup} from './shared/test-data-factory'
 
 describe('Authentication Router', () => {
   const timestamp = Date.now()
@@ -12,24 +8,12 @@ describe('Authentication Router', () => {
   let createdUserId
 
   beforeEach(async () => {
-    await setupDb()
-    
-    if (isHttpMode()) {
-      /* HTTP mode: Use API calls for test data setup */
-      await httpMode.clearUsers()
-    } else {
-      /* Direct database mode: Scoped deletion - only test users */
-      await User.deleteMany(testIdFilter())
-      await Waitlist.deleteMany(testPrefixFilter('mail'))
-    }
+    await httpSetup.setupDb()
+    /* Universal HTTP mode: Test data managed via API */
   })
 
   afterAll(async () => {
-    if (!isHttpMode()) {
-      await User.deleteMany(testIdFilter())
-      await Waitlist.deleteMany(testPrefixFilter('mail'))
-    }
-    await teardownDb()
+    await httpSetup.teardownDb()
   })
 
   describe('POST /auth/signup', () => {
@@ -104,20 +88,28 @@ describe('Authentication Router', () => {
 
   describe('POST /auth/forgot-password', () => {
     it('should process password reset request', async () => {
-      const res = await publicRequest.post('/auth/forgot-password').send({mail: 'subscriber@example.com'})
+      const testMail = `forgot-pwd-${Date.now()}@example.com`
+      const testUser = `forgot-pwd-${Date.now()}`
+      
+      /* Create confirmed user via API */
+      await testDataFactory.createUser({
+        id: testUser,
+        name: testUser,
+        mail: testMail,
+        password: 'testpass123',
+        confirmed: true,
+      })
+      
+      const res = await publicRequest.post('/auth/forgot-password').send({usernameOrEmail: testMail})
 
-      /* HTTP mode: user may not exist in database, email service may not be configured */
-      expect([200, 404, 500]).toContain(res.status)
-      if (res.status === 200) {
-        expect(res.body).toHaveProperty('success', true)
-      }
+      expect(res.status).toBe(200)
+      expect(res.body).toHaveProperty('success', true)
     })
 
     it('should handle non-existent email', async () => {
-      const res = await publicRequest.post('/auth/forgot-password').send({mail: 'nonexistent@example.com'})
+      const res = await publicRequest.post('/auth/forgot-password').send({usernameOrEmail: 'nonexistent@example.com'})
 
-      /* Email service may not be configured in test environment */
-      expect([404, 500]).toContain(res.status)
+      expect(res.status).toBe(404)
     })
   })
 
@@ -138,13 +130,11 @@ describe('Authentication Router', () => {
     })
 
     it('should validate password strength', async () => {
-      const res = await publicRequest.post('/auth/reset-password/valid-token').send({password: '123'})
+      const res = await publicRequest.post('/auth/reset-password/invalid-token').send({password: '123'})
 
-      /* Invalid token returns 404 before password validation */
-      expect([400, 404]).toContain(res.status)
-      if (res.status === 400) {
-        expect(res.text).toContain('password')
-      }
+      /* Invalid token returns 404 */
+      expect(res.status).toBe(404)
+      expect(res.text).toContain('not found')
     })
   })
 
@@ -162,16 +152,24 @@ describe('Authentication Router', () => {
 
       expect(res.status).toBe(401)
     })
+
+    it('should validate password strength with valid token', async () => {
+      /* Test with valid token would require actual token generation flow */
+      /* This test validates the deterministic password validation behavior */
+      const res = await publicRequest.post('/auth/reset-password/valid-token-here').send({password: '123'})
+      expect(res.status).toBe(400)
+      expect(res.text).toContain('password')
+    })
   })
 })
 
 describe('Authentication Router - Subscriber Tests', () => {
   beforeAll(async () => {
-    await setupDb()
+    await httpSetup.setupDb()
   })
 
   afterAll(async () => {
-    await teardownDb()
+    await httpSetup.teardownDb()
   })
 
   describe('POST /auth/logout (subscriber)', () => {

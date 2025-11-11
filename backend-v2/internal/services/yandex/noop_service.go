@@ -1,12 +1,15 @@
 package yandex
 
+import "github.com/qiniu/qmgo"
+
 type noopService struct{}
 
 func NewNoopService() Service {
 	return &noopService{}
 }
 
-func (s *noopService) Completion(messages []Message, model string, folderId string, params map[string]interface{}) (*CompletionResponse, error) {
+/* Completion returns mock Yandex completion response for E2E tests */
+func (s *noopService) Completion(db *qmgo.Database, userId string, messages []Message, model string, params map[string]interface{}) (*CompletionResponse, error) {
 	response := &CompletionResponse{}
 	response.Result.Alternatives = []struct {
 		Message struct {
@@ -34,14 +37,12 @@ func (s *noopService) Completion(messages []Message, model string, folderId stri
 	return response, nil
 }
 
-func (s *noopService) Embeddings(texts []string, model string, folderId string) (*EmbeddingResponse, error) {
-	embeddings := make([][]float64, len(texts))
-	for i := range texts {
-		embeddings[i] = make([]float64, 256) // Yandex typically uses 256-dim vectors
-	}
+/* Embeddings returns mock Yandex embeddings for E2E tests */
+func (s *noopService) Embeddings(db *qmgo.Database, userId string, text string, modelUri string) (*EmbeddingResponse, error) {
+	embedding := make([]float64, 256) // Yandex typically uses 256-dim vectors
 
 	return &EmbeddingResponse{
-		Embeddings:   embeddings,
-		ModelVersion: model,
+		Embeddings:   [][]float64{embedding},
+		ModelVersion: modelUri,
 	}, nil
 }

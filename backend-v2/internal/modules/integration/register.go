@@ -1,54 +1,68 @@
 package integration
 
 import (
-	"backend-v2/internal/services/claude"
-	"backend-v2/internal/services/openai"
-	"backend-v2/internal/services/perplexity"
-	"backend-v2/internal/services/yandex"
-	"backend-v2/internal/services/midjourney"
-	"backend-v2/internal/services/zoom"
-	"backend-v2/internal/services/freepik"
-	"backend-v2/internal/services/scraper"
+	"backend-v2/internal/services/container"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/qiniu/qmgo"
 )
 
-func Register(router fiber.Router, db *qmgo.Database, openaiService openai.Service, claudeService claude.Service, perplexityService perplexity.Service, yandexService yandex.Service, midjourneyService midjourney.Service, zoomService zoom.Service, freepikService freepik.Service, scraperService scraper.Service) {
+func Register(router fiber.Router, db *qmgo.Database, services *container.ServiceContainer) {
 	service := NewService(db)
-	controller := NewController(service, db, openaiService, claudeService, perplexityService, yandexService, midjourneyService, zoomService, freepikService, scraperService)
+	
+	/* Core integration CRUD controller */
+	baseCtrl := NewController(service, db)
+	
+	/* Service-specific controllers */
+	openaiCtrl := NewOpenAIController(services.OpenAI)
+	claudeCtrl := NewClaudeController(services.Claude, db)
+	perplexityCtrl := NewPerplexityController(services.Perplexity, db)
+	yandexCtrl := NewYandexController(services.Yandex, db)
+	midjourneyCtrl := NewMidjourneyController(services.Midjourney)
+	zoomCtrl := NewZoomController(services.Zoom)
+	freepikCtrl := NewFreepikController(services.Freepik)
 
 	integrationGroup := router.Group("/integration")
 
-	/* Public endpoints - no auth */
-	integrationGroup.Post("/scrape_v2", controller.ScrapeV2)
-	integrationGroup.Post("/scrape_files", controller.ScrapeFiles)
-	integrationGroup.Post("/translate", controller.Translate)
-
 	/* Protected endpoints - require auth */
-	integrationGroup.Use(controller.Authorization)
+	integrationGroup.Use(baseCtrl.Authorization)
 	
-	integrationGroup.Get("/search", controller.Search)
-	integrationGroup.Get("/", controller.GetAll)
-	integrationGroup.Delete("/", controller.Delete)
-	integrationGroup.Get("/languages", controller.GetLanguages)
-	integrationGroup.Post("/language", controller.SetLanguage)
-	integrationGroup.Post("/model", controller.SetModel)
-	integrationGroup.Get("/openai_api_key", controller.CheckOpenAIKey)
-	integrationGroup.Get("/:service", controller.GetService)
-	integrationGroup.Put("/:service/update", controller.UpdateService)
-	integrationGroup.Post("/downloadImage", controller.DownloadImage)
-	integrationGroup.Post("/yandex/completion", controller.YandexCompletion)
-	integrationGroup.Post("/yandex/embeddings", controller.YandexEmbeddings)
-	integrationGroup.Post("/chat/completions", controller.ChatCompletions)
-	integrationGroup.Post("/embeddings", controller.Embeddings)
-	integrationGroup.Post("/images/generations", controller.ImageGenerations)
-	integrationGroup.Get("/icons/freepik", controller.FreepikIcons)
-	integrationGroup.Post("/icons/download", controller.DownloadIcon)
-	integrationGroup.Post("/midjourney/create", controller.MidjourneyCreate)
-	integrationGroup.Post("/midjourney/upscale", controller.MidjourneyUpscale)
-	integrationGroup.Post("/zoom/auth", controller.ZoomAuth)
-	integrationGroup.Get("/zoom/meetings/:id/recordings", controller.ZoomRecordings)
-	integrationGroup.Post("/claude/messages", controller.ClaudeMessages)
-	integrationGroup.Post("/perplexity/chat/completions", controller.PerplexityChatCompletions)
+	/* Core integration management */
+	integrationGroup.Get("/", baseCtrl.GetAll)
+	integrationGroup.Delete("/", baseCtrl.Delete)
+	integrationGroup.Get("/languages", baseCtrl.GetLanguages)
+	integrationGroup.Post("/language", baseCtrl.SetLanguage)
+	integrationGroup.Post("/model", baseCtrl.SetModel)
+	
+	/* OpenAI endpoints - BEFORE /:service to avoid param capture */
+	integrationGroup.Get("/openai_api_key", openaiCtrl.CheckApiKey)
+	integrationGroup.Post("/chat/completions", openaiCtrl.ChatCompletions)
+	integrationGroup.Post("/embeddings", openaiCtrl.Embeddings)
+	integrationGroup.Post("/images/generations", openaiCtrl.ImageGenerations)
+	
+	/* Claude endpoints */
+	integrationGroup.Post("/claude/messages", claudeCtrl.Messages)
+	
+	/* Perplexity endpoints */
+	integrationGroup.Post("/perplexity/chat/completions", perplexityCtrl.ChatCompletions)
+	
+	/* Yandex endpoints */
+	integrationGroup.Post("/yandex/completion", yandexCtrl.Completion)
+	integrationGroup.Post("/yandex/embeddings", yandexCtrl.Embeddings)
+	
+	/* Midjourney endpoints */
+	integrationGroup.Post("/midjourney/create", midjourneyCtrl.Create)
+	integrationGroup.Post("/midjourney/upscale", midjourneyCtrl.Upscale)
+	
+	/* Zoom endpoints */
+	integrationGroup.Post("/zoom/auth", zoomCtrl.Auth)
+	integrationGroup.Get("/zoom/meetings/:id/recordings", zoomCtrl.Recordings)
+	
+	/* Freepik endpoints */
+	integrationGroup.Get("/icons/freepik", freepikCtrl.Icons)
+	integrationGroup.Post("/icons/download", freepikCtrl.DownloadIcon)
+	
+	/* Parameterized routes LAST - catches remaining requests */
+	integrationGroup.Get("/:service", baseCtrl.GetService)
+	integrationGroup.Put("/:service/update", baseCtrl.UpdateService)
 }

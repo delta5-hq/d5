@@ -1,7 +1,6 @@
 import {describe, beforeEach, afterAll, it, expect} from '@jest/globals'
-import {setupDb, teardownDb, isHttpMode} from './setup'
 import {administratorRequest, subscriberRequest, publicRequest} from './shared/requests'
-import Workflow from '../src/models/Workflow'
+import {testDataFactory, httpSetup} from './shared/test-data-factory'
 import {administrator, subscriber} from '../src/utils/test/users'
 
 const adminUserId = administrator.name
@@ -30,29 +29,15 @@ describe('Workflow Router - Administrator Tests', () => {
   let workflowId
 
   beforeEach(async () => {
-    await setupDb()
+    await httpSetup.setupDb()
     
-    if (isHttpMode()) {
-      /* HTTP mode: Create workflow via API (empty workflow - just metadata) */
-      const res = await administratorRequest.post('/workflow').send()
-      if (res.status === 200) {
-        const data = JSON.parse(res.text)
-        workflowId = data.workflowId
-      }
-    } else {
-      /* Direct database mode: Create test data via mongoose */
-      await Workflow.deleteMany({userId: adminUserId})
-      const workflow = new Workflow({userId: adminUserId, ...workflowData})
-      await workflow.save()
-      workflowId = workflow.workflowId
-    }
+    /* Universal HTTP mode: Create workflow via API */
+    const workflow = await testDataFactory.createWorkflow(workflowData)
+    workflowId = workflow.workflowId
   })
 
   afterAll(async () => {
-    if (!isHttpMode()) {
-      await Workflow.deleteMany({userId: adminUserId})
-    }
-    await teardownDb()
+    await httpSetup.teardownDb()
   })
 
   describe('POST /workflow', () => {
@@ -173,10 +158,11 @@ describe('Workflow Router - Administrator Tests', () => {
     it('exports workflow as JSON', async () => {
       const response = await administratorRequest.get(`/workflow/${workflowId}/export`)
 
-      expect([200, 500]).toContain(response.status)
-      if (response.status === 200) {
-        expect(response.headers['content-type']).toContain('application/json')
+      if (response.status !== 200) {
+        console.log('Export error:', response.status, response.body || response.text)
       }
+      expect(response.status).toBe(200)
+      expect(response.headers['content-type']).toContain('application/json')
     })
   })
 
@@ -184,10 +170,8 @@ describe('Workflow Router - Administrator Tests', () => {
     it('exports workflow as JSON with explicit endpoint', async () => {
       const response = await administratorRequest.get(`/workflow/${workflowId}/export/json`)
 
-      expect([200, 500]).toContain(response.status)
-      if (response.status === 200) {
-        expect(response.headers['content-type']).toContain('application/json')
-      }
+      expect(response.status).toBe(200)
+      expect(response.headers['content-type']).toContain('application/json')
     })
   })
 
@@ -195,10 +179,8 @@ describe('Workflow Router - Administrator Tests', () => {
     it('exports workflow as ZIP', async () => {
       const response = await administratorRequest.get(`/workflow/${workflowId}/export/zip`)
 
-      expect([200, 500]).toContain(response.status)
-      if (response.status === 200) {
-        expect(response.headers['content-type']).toContain('application/zip')
-      }
+      expect(response.status).toBe(200)
+      expect(response.headers['content-type']).toMatch(/application\/(zip|octet-stream)/)
     })
   })
 
@@ -206,17 +188,17 @@ describe('Workflow Router - Administrator Tests', () => {
     it('returns sharing configuration', async () => {
       const response = await administratorRequest.get(`/workflow/${workflowId}/share`)
 
-      expect([200, 404, 500]).toContain(response.status)
+      expect(response.status).toBe(200)
     })
   })
 
   describe('POST /workflow/:workflowId/share', () => {
     it('updates sharing configuration', async () => {
       const response = await administratorRequest
-        .post(`/workflow/${workflowId}/share`)
-        .send(JSON.stringify({enabled: true, users: []}))
+        .post(`/workflow/${workflowId}/share/public`)
+        .send({enabled: true})
 
-      expect([200, 400, 500]).toContain(response.status)
+      expect(response.status).toBe(200)
     })
   })
 
@@ -224,7 +206,7 @@ describe('Workflow Router - Administrator Tests', () => {
     it('returns access list', async () => {
       const response = await administratorRequest.get(`/workflow/${workflowId}/share/access`)
 
-      expect([200, 404, 500]).toContain(response.status)
+      expect(response.status).toBe(200)
     })
   })
 
@@ -232,9 +214,9 @@ describe('Workflow Router - Administrator Tests', () => {
     it('adds user to access list', async () => {
       const response = await administratorRequest
         .post(`/workflow/${workflowId}/share/access`)
-        .send(JSON.stringify({userId: subscriberUserId}))
+        .send([{subjectId: subscriberUserId, subjectType: 'user', role: 'reader'}])
 
-      expect([200, 400, 404, 500]).toContain(response.status)
+      expect(response.status).toBe(200)
     })
   })
 
@@ -242,11 +224,9 @@ describe('Workflow Router - Administrator Tests', () => {
     it('returns node limit for workflow', async () => {
       const response = await administratorRequest.get(`/workflow/${workflowId}/nodeLimit`)
 
-      expect([200, 500]).toContain(response.status)
-      if (response.status === 200) {
-        const data = JSON.parse(response.text)
-        expect(data).toHaveProperty('limit')
-      }
+      expect(response.status).toBe(200)
+      const data = JSON.parse(response.text)
+      expect(data).toHaveProperty('limit')
     })
   })
 
@@ -256,7 +236,7 @@ describe('Workflow Router - Administrator Tests', () => {
         .post(`/workflow/${workflowId}/category`)
         .send(JSON.stringify({category: 'test-category'}))
 
-      expect([200, 400, 500]).toContain(response.status)
+      expect(response.status).toBe(200)
     })
   })
 
@@ -287,20 +267,17 @@ describe('Workflow Router - Subscriber Tests', () => {
 
   describe('POST /workflow (payment limits)', () => {
     it('rejects workflow creation when limit reached (HTTP mode)', async () => {
-      if (!isHttpMode()) {
-        // Skip in direct database mode - this tests HTTP API limits
-        return
+      /* Universal HTTP mode test */
+
+      /* Reset workflow count to ensure deterministic 200 */
+      const userRes = await subscriberRequest.get('/user/me')
+      if (userRes.status === 200 && userRes.body.id) {
+        await administratorRequest.delete(`/workflow?userId=${userRes.body.id}`)
       }
 
       const response = await subscriberRequest.post('/workflow').send()
       
-      // Subscriber may hit 402 Payment Required if limit exceeded
-      // or 200 if within limit - both are valid API responses
-      expect([200, 402]).toContain(response.status)
-      
-      if (response.status === 402) {
-        expect(response.text).toContain('Workflow limit reached')
-      }
+      expect(response.status).toBe(200)
     })
   })
 

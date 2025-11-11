@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -15,8 +16,13 @@ type prodService struct {
 }
 
 func NewProdService() Service {
+	apiKey := os.Getenv("GOAPI_API_KEY")
+	if apiKey == "" {
+		return &noopService{}
+	}
+
 	return &prodService{
-		apiKey:  "", // Will be set from integration config
+		apiKey:  apiKey,
 		baseURL: "https://api.midjourney.com/v1", // Example base URL
 		client: &http.Client{
 			Timeout: 60 * time.Second,

@@ -3,7 +3,9 @@ import path from 'path'
 import send from 'koa-send'
 import Thumbnail from '../models/Thumbnail'
 import {DOCS_SERVICE_URL, PDF_SERVICE_URL} from '../constants'
-import getThumbnail from '../utils/getThumbnail'
+import {container} from '../services/container'
+
+const thumbnailService = container.get('thumbnailService')
 
 const DOC_MIME_TYPES = [
   'application/vnd.oasis.opendocument.text',
@@ -106,7 +108,7 @@ const FileThumbnailController = {
           'Content-Type': file.metadata?.contentType || 'application/octet-stream',
         },
       }
-      ctx.state.thumbnail = await getThumbnail(filter, url, options)
+      ctx.state.thumbnail = await thumbnailService.generate(filter, url, options)
     }
 
     await next()

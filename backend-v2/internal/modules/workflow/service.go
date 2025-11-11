@@ -131,7 +131,11 @@ func (s *WorkflowService) CreateWorkflow(ctx context.Context, dto CreateWorkflow
 
 	limit := dto.GetLimit()
 
-	if total >= limit && !utils.Contains(dto.Auth.Roles, string(constants.Org_subscriber)) {
+	/* Allow unlimited workflows for subscribers and org_subscribers */
+	isSubscriber := utils.Contains(dto.Auth.Roles, string(constants.Subscriber)) || 
+	                utils.Contains(dto.Auth.Roles, string(constants.Org_subscriber))
+
+	if total >= limit && !isSubscriber {
 		return nil, errors.NewHTTPError(402, fmt.Sprintf("Workflow limit reached %v", limit))
 	}
 

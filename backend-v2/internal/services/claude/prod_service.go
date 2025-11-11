@@ -1,35 +1,51 @@
 package claude
 
 import (
+	"backend-v2/internal/models"
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
+
+	"github.com/qiniu/qmgo"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 type prodService struct {
-	apiKey string
 	client *http.Client
 }
 
 func NewProdService() Service {
-	apiKey := os.Getenv("CLAUDE_API_KEY")
-	if apiKey == "" {
-		return &noopService{}
-	}
-
 	return &prodService{
-		apiKey: apiKey,
 		client: &http.Client{},
 	}
 }
 
-func (s *prodService) Messages(messages []Message, model string, maxTokens int) (*MessagesResponse, error) {
+/* Messages sends messages to Claude API - fetches API key from Integration DB by userId */
+func (s *prodService) Messages(db *qmgo.Database, userId string, messages []Message, model string, maxTokens int) (*MessagesResponse, error) {
+	var integration models.Integration
+	err := db.Collection("integrations").Find(context.Background(), bson.M{"userId": userId}).One(&integration)
+	if err != nil {
+		return nil, fmt.Errorf("integration not found for user: %w", err)
+	}
+
+	if integration.Claude == nil || integration.Claude.APIKey == "" {
+		return nil, errors.New("claude API key not configured")
+	}
+
+	apiKey := integration.Claude.APIKey
+
+	if model == "" && integration.Claude.Model != "" {
+		model = integration.Claude.Model
+	}
+	
 	if model == "" {
 		model = "claude-3-sonnet-20240229"
 	}
+
 	if maxTokens == 0 {
 		maxTokens = 1024
 	}
@@ -51,7 +67,7 @@ func (s *prodService) Messages(messages []Message, model string, maxTokens int) 
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-api-key", s.apiKey)
+	req.Header.Set("x-api-key", apiKey)
 	req.Header.Set("anthropic-version", "2023-06-01")
 
 	resp, err := s.client.Do(req)

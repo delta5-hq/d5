@@ -9,23 +9,29 @@ import (
 )
 
 type prodService struct {
-	client *openai.Client
 	apiKey string
 }
 
 func NewProdService() Service {
 	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		return &noopService{}
-	}
-
+	
 	return &prodService{
-		client: openai.NewClient(apiKey),
 		apiKey: apiKey,
 	}
 }
 
-func (s *prodService) ChatCompletions(messages []ChatMessage, model string, params map[string]interface{}) (*ChatCompletionResponse, error) {
+func (s *prodService) ChatCompletions(apiKey string, messages []ChatMessage, model string, params map[string]interface{}) (*ChatCompletionResponse, error) {
+	effectiveKey := apiKey
+	if effectiveKey == "" || effectiveKey == "EMPTY" {
+		effectiveKey = s.apiKey
+	}
+
+	if effectiveKey == "" {
+		return nil, fmt.Errorf("OpenAI api key not found")
+	}
+
+	client := openai.NewClient(effectiveKey)
+
 	if model == "" {
 		model = openai.GPT3Dot5Turbo
 	}
@@ -42,7 +48,7 @@ func (s *prodService) ChatCompletions(messages []ChatMessage, model string, para
 		}
 	}
 
-	resp, err := s.client.CreateChatCompletion(context.Background(), req)
+	resp, err := client.CreateChatCompletion(context.Background(), req)
 	if err != nil {
 		return nil, fmt.Errorf("OpenAI chat completion failed: %w", err)
 	}
@@ -74,7 +80,18 @@ func (s *prodService) ChatCompletions(messages []ChatMessage, model string, para
 	return response, nil
 }
 
-func (s *prodService) Embeddings(input []string, model string) (*EmbeddingResponse, error) {
+func (s *prodService) Embeddings(apiKey string, input []string, model string) (*EmbeddingResponse, error) {
+	effectiveKey := apiKey
+	if effectiveKey == "" || effectiveKey == "EMPTY" {
+		effectiveKey = s.apiKey
+	}
+
+	if effectiveKey == "" {
+		return nil, fmt.Errorf("OpenAI api key not found")
+	}
+
+	client := openai.NewClient(effectiveKey)
+
 	if model == "" {
 		model = string(openai.AdaEmbeddingV2)
 	}
@@ -84,7 +101,7 @@ func (s *prodService) Embeddings(input []string, model string) (*EmbeddingRespon
 		Model: openai.EmbeddingModel(model),
 	}
 
-	resp, err := s.client.CreateEmbeddings(context.Background(), req)
+	resp, err := client.CreateEmbeddings(context.Background(), req)
 	if err != nil {
 		return nil, fmt.Errorf("OpenAI embeddings failed: %w", err)
 	}
@@ -98,7 +115,6 @@ func (s *prodService) Embeddings(input []string, model string) (*EmbeddingRespon
 	}
 
 	for i, emb := range resp.Data {
-		/* Convert []float32 to []float64 */
 		embedding64 := make([]float64, len(emb.Embedding))
 		for j, v := range emb.Embedding {
 			embedding64[j] = float64(v)
@@ -118,7 +134,18 @@ func (s *prodService) Embeddings(input []string, model string) (*EmbeddingRespon
 	return response, nil
 }
 
-func (s *prodService) DalleGenerations(prompt string, n int, size string, responseFormat string) (*ImageGenerationResponse, error) {
+func (s *prodService) DalleGenerations(apiKey string, prompt string, n int, size string, responseFormat string) (*ImageGenerationResponse, error) {
+	effectiveKey := apiKey
+	if effectiveKey == "" || effectiveKey == "EMPTY" {
+		effectiveKey = s.apiKey
+	}
+
+	if effectiveKey == "" {
+		return nil, fmt.Errorf("OpenAI api key not found")
+	}
+
+	client := openai.NewClient(effectiveKey)
+
 	if size == "" {
 		size = openai.CreateImageSize1024x1024
 	}
@@ -133,7 +160,7 @@ func (s *prodService) DalleGenerations(prompt string, n int, size string, respon
 		ResponseFormat: responseFormat,
 	}
 
-	resp, err := s.client.CreateImage(context.Background(), req)
+	resp, err := client.CreateImage(context.Background(), req)
 	if err != nil {
 		return nil, fmt.Errorf("DALL-E generation failed: %w", err)
 	}

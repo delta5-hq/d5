@@ -1,5 +1,7 @@
 package claude
 
+import "github.com/qiniu/qmgo"
+
 type Message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
@@ -23,5 +25,6 @@ type MessagesResponse struct {
 }
 
 type Service interface {
-	Messages(messages []Message, model string, maxTokens int) (*MessagesResponse, error)
+	/* Messages sends messages to Claude API - fetches API key from Integration DB by userId */
+	Messages(db *qmgo.Database, userId string, messages []Message, model string, maxTokens int) (*MessagesResponse, error)
 }

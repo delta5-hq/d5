@@ -2,46 +2,20 @@ package integration
 
 import (
 	"backend-v2/internal/common/constants"
-	"backend-v2/internal/services/claude"
-	"backend-v2/internal/services/openai"
-	"backend-v2/internal/services/perplexity"
-	"backend-v2/internal/services/yandex"
-	"backend-v2/internal/services/midjourney"
-	"backend-v2/internal/services/zoom"
-	"backend-v2/internal/services/freepik"
-	"backend-v2/internal/services/scraper"
 	"encoding/json"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/qiniu/qmgo"
 )
 
+/* Controller handles core integration CRUD and configuration */
 type Controller struct {
-	service            *Service
-	db                 *qmgo.Database
-	openaiService      openai.Service
-	claudeService      claude.Service
-	perplexityService  perplexity.Service
-	yandexService      yandex.Service
-	midjourneyService  midjourney.Service
-	zoomService        zoom.Service
-	freepikService     freepik.Service
-	scraperService     scraper.Service
+	service *Service
+	db      *qmgo.Database
 }
 
-func NewController(service *Service, db *qmgo.Database, openaiSvc openai.Service, claudeSvc claude.Service, perplexitySvc perplexity.Service, yandexSvc yandex.Service, midjourneySvc midjourney.Service, zoomSvc zoom.Service, freepikSvc freepik.Service, scraperSvc scraper.Service) *Controller {
-	return &Controller{
-		service:           service,
-		db:                db,
-		openaiService:     openaiSvc,
-		claudeService:     claudeSvc,
-		perplexityService: perplexitySvc,
-		yandexService:     yandexSvc,
-		midjourneyService: midjourneySvc,
-		zoomService:       zoomSvc,
-		freepikService:    freepikSvc,
-		scraperService:    scraperSvc,
-	}
+func NewController(service *Service, db *qmgo.Database) *Controller {
+	return &Controller{service: service, db: db}
 }
 
 func (ctrl *Controller) Authorization(c *fiber.Ctx) error {
@@ -234,144 +208,19 @@ func (ctrl *Controller) SetModel(c *fiber.Ctx) error {
 	})
 }
 
-/* GET /integration/openai_api_key - Checks if OpenAI key exists */
-func (ctrl *Controller) CheckOpenAIKey(c *fiber.Ctx) error {
-	success := ctrl.openaiService.CheckApiKey()
+/* Shared helper functions used by service controllers */
 
-	return c.JSON(fiber.Map{
-		"success": success,
-	})
-}
-
-/* Stub endpoints that return errors for external API calls */
-
-func (ctrl *Controller) ScrapeV2(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-		"message": "Endpoint not implemented",
-	})
-}
-
-func (ctrl *Controller) ScrapeFiles(c *fiber.Ctx) error {
-	return c.JSON([]interface{}{})
-}
-
-func (ctrl *Controller) Translate(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-		"message": "text is required",
-	})
-}
-
-func (ctrl *Controller) Search(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-		"message": "Search service unavailable",
-	})
-}
-
-func (ctrl *Controller) DownloadImage(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-		"message": "Image download service unavailable",
-	})
-}
-
-func (ctrl *Controller) YandexCompletion(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-		"message": "Yandex completion service unavailable",
-	})
-}
-
-func (ctrl *Controller) YandexEmbeddings(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusBadRequest).SendString("Yandex embeddings service unavailable")
-}
-
-func (ctrl *Controller) ChatCompletions(c *fiber.Ctx) error {
-	var req struct {
-		Messages []openai.ChatMessage   `json:"messages"`
-		Model    string                 `json:"model"`
-		Params   map[string]interface{} `json:"-"`
+func getUserID(c *fiber.Ctx) (string, error) {
+	userID, ok := c.Locals(constants.ContextUserIDKey).(string)
+	if !ok || userID == "" {
+		return "", fiber.NewError(fiber.StatusUnauthorized, "Unauthorized")
 	}
+	return userID, nil
+}
 
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Invalid request body",
-		})
+func parseBody(c *fiber.Ctx, v interface{}) error {
+	if err := c.BodyParser(v); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
 	}
-
-	if req.Model == "" {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Model name not specified",
-		})
-	}
-
-	if len(req.Messages) == 0 {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Model name not specified",
-		})
-	}
-
-	resp, err := ctrl.openaiService.ChatCompletions(req.Messages, req.Model, req.Params)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
-	}
-
-	return c.JSON(resp)
-}
-
-func (ctrl *Controller) Embeddings(c *fiber.Ctx) error {
-	/* Return old stub behavior for test compatibility until all services implemented */
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-		"message": "Model name not specified",
-	})
-}
-
-func (ctrl *Controller) ImageGenerations(c *fiber.Ctx) error {
-	/* Return old stub behavior for test compatibility until all services implemented */
-	return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-		"message": "Request failed with status code 401",
-	})
-}
-
-func (ctrl *Controller) FreepikIcons(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-		"message": "Icon search service unavailable",
-	})
-}
-
-func (ctrl *Controller) DownloadIcon(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-		"message": "Icon download service unavailable",
-	})
-}
-
-func (ctrl *Controller) MidjourneyCreate(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-		"message": "Midjourney service unavailable",
-	})
-}
-
-func (ctrl *Controller) MidjourneyUpscale(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-		"message": "Midjourney upscale service unavailable",
-	})
-}
-
-func (ctrl *Controller) ZoomAuth(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-		"message": "Zoom authorization service unavailable",
-	})
-}
-
-func (ctrl *Controller) ZoomRecordings(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusInternalServerError).SendString("Zoom recordings service unavailable")
-}
-
-func (ctrl *Controller) ClaudeMessages(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusBadRequest).SendString("Claude service unavailable")
-}
-
-func (ctrl *Controller) PerplexityChatCompletions(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-		"message": "Messages are required",
-	})
+	return nil
 }

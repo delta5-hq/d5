@@ -24,7 +24,6 @@ func ExtractUserID(c *fiber.Ctx) error {
 			} else if userId, ok := claims["userId"].(string); ok {
 				c.Locals("userId", userId)
 			}
-			/* Extract roles array from JWT claims */
 			if roles, ok := claims["roles"].([]interface{}); ok {
 				roleStrs := make([]string, len(roles))
 				for i, r := range roles {

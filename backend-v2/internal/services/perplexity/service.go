@@ -1,7 +1,10 @@
 package perplexity
 
+import "github.com/qiniu/qmgo"
+
 type Service interface {
-	ChatCompletions(messages []Message, model string, params map[string]interface{}) (*ChatCompletionResponse, error)
+	/* ChatCompletions sends chat completion request - fetches API key from Integration DB by userId */
+	ChatCompletions(db *qmgo.Database, userId string, messages []Message, model string, params map[string]interface{}) (*ChatCompletionResponse, error)
 }
 
 type Message struct {

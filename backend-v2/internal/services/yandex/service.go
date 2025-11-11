@@ -1,8 +1,12 @@
 package yandex
 
+import "github.com/qiniu/qmgo"
+
 type Service interface {
-	Completion(messages []Message, model string, folderId string, params map[string]interface{}) (*CompletionResponse, error)
-	Embeddings(texts []string, model string, folderId string) (*EmbeddingResponse, error)
+	/* Completion sends completion request - fetches apiKey + folder_id from Integration DB by userId */
+	Completion(db *qmgo.Database, userId string, messages []Message, model string, params map[string]interface{}) (*CompletionResponse, error)
+	/* Embeddings generates embeddings - fetches apiKey + folder_id from Integration DB by userId */
+	Embeddings(db *qmgo.Database, userId string, text string, modelUri string) (*EmbeddingResponse, error)
 }
 
 type Message struct {

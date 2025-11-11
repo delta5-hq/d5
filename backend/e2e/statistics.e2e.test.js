@@ -1,9 +1,5 @@
-import {setupDb, teardownDb, isHttpMode} from './setup'
 import {administratorRequest, subscriberRequest, publicRequest} from './shared/requests'
-import {testIdFilter, testUserFilter, testPrefixFilter} from './shared/test-constants'
-import User from '../src/models/User'
-import Workflow from '../src/models/Workflow'
-import Waitlist from '../src/models/Waitlist'
+import {testDataFactory, httpSetup} from './shared/test-data-factory'
 import {workflowData} from './shared/fixtures'
 import {subscriber} from '../src/utils/test/users'
 
@@ -13,29 +9,10 @@ describe('Statistics E2E', () => {
   let testUser
 
   beforeAll(async () => {
-    await setupDb()
+    await httpSetup.setupDb()
     
-    if (isHttpMode()) {
-      // In HTTP mode, get real user from server database
-      try {
-        const res = await administratorRequest.get('/statistics/users?page=1&limit=1')
-        if (res.status === 200 && res.body.data && res.body.data.length > 0) {
-          testUser = {id: res.body.data[0].id}
-        } else {
-          // Fallback to default user ID if no users found
-          testUser = {id: 'administrator_user'}
-        }
-      } catch (e) {
-        // Fallback if API call fails
-        testUser = {id: 'administrator_user'}
-      }
-      return
-    }
-    
-    await User.deleteMany(testIdFilter())
-    await Workflow.deleteMany(testUserFilter())
-    await Waitlist.deleteMany(testPrefixFilter('mail'))
-    testUser = await User.create({
+    /* Universal HTTP mode: Create test user via API */
+    testUser = await testDataFactory.createUser({
       id: userId,
       name: 'Test User',
       mail: 'test@example.com',
@@ -45,12 +22,7 @@ describe('Statistics E2E', () => {
   })
 
   afterAll(async () => {
-    if (!isHttpMode()) {
-      await User.deleteMany(testIdFilter())
-      await Workflow.deleteMany(testUserFilter())
-      await Waitlist.deleteMany(testPrefixFilter('mail'))
-    }
-    await teardownDb()
+    await httpSetup.teardownDb()
   })
 
   describe('Authorization', () => {
@@ -67,15 +39,9 @@ describe('Statistics E2E', () => {
 
   describe('GET /statistics/workflow', () => {
     beforeAll(async () => {
-      if (isHttpMode()) {
-        /* HTTP mode: Workflow data managed via API, endpoint tests available */
-        console.log('HTTP mode: Testing workflow statistics with existing data')
-      } else {
-        /* Direct database mode: Create test workflow data */
-        await Workflow.deleteMany(testUserFilter())
-        const workflow = new Workflow({userId, ...workflowData})
-        await workflow.save()
-      }
+      /* Universal HTTP mode: Create test workflows via API */
+      await testDataFactory.createWorkflow({...workflowData, title: 'Test Workflow 1'})
+      await testDataFactory.createWorkflow({...workflowData, title: 'Test Workflow 2'})
     })
 
     it('returns workflow statistics for admin', async () => {
@@ -153,13 +119,14 @@ describe('Statistics E2E', () => {
 
   describe('Waitlist Management', () => {
     let waitUserId
+    const timestamp = Date.now()
 
     beforeAll(async () => {
       if (isHttpMode()) {
         /* HTTP mode: Waitlist managed via signup API */
         const waitlistUser = {
-          username: 'waitlistuser',
-          mail: 'waitlist@example.com',
+          username: `waitlistuser-${timestamp}`,
+          mail: `waitlist-${timestamp}@example.com`,
           password: 'WaitPass123!'
         }
         const res = await publicRequest.post('/auth/signup').send(waitlistUser)
@@ -170,10 +137,10 @@ describe('Statistics E2E', () => {
         /* Direct database mode: Create waitlist user directly */
         await Waitlist.deleteMany(testPrefixFilter('mail'))
         const waitUser = new Waitlist({
-          id: 'waituser_approval',
-          name: 'waitlistuser',
+          id: `waituser_approval_${timestamp}`,
+          name: `waitlistuser-${timestamp}`,
           password: 'testpass',
-          mail: 'waitlist@example.com',
+          mail: `waitlist-${timestamp}@example.com`,
           status: 'pending',
         })
         await waitUser.save()
@@ -188,7 +155,7 @@ describe('Statistics E2E', () => {
       } else {
         /* Direct database mode: Clean up test data */
         await Waitlist.deleteMany(testPrefixFilter('mail'))
-        await User.deleteOne({id: 'waituser_approval'})
+        await User.deleteOne({id: `waituser_approval_${timestamp}`})
       }
     })
 
@@ -207,20 +174,21 @@ describe('Statistics E2E', () => {
         return
       }
       
+      const timestamp2 = Date.now() + 1
       const waitUser2 = new Waitlist({
-        id: 'waituser2',
-        name: 'waitlistuser2',
+        id: `waituser2_${timestamp2}`,
+        name: `waitlistuser2-${timestamp2}`,
         password: 'testpass',
-        mail: 'waitlist2@example.com',
+        mail: `waitlist2-${timestamp2}@example.com`,
         status: 'pending',
       })
       await waitUser2.save()
 
-      const res = await administratorRequest.get(`/statistics/waitlist/reject/waituser2`)
+      const res = await administratorRequest.get(`/statistics/waitlist/reject/waituser2_${timestamp2}`)
       expect(res.status).toBe(200)
       expect(JSON.parse(res.text).success).toBe(true)
       
-      await User.deleteOne({id: 'waituser2'})
+      await User.deleteOne({id: `waituser2_${timestamp2}`})
     })
 
     it('POST /statistics/waitlist/confirm/all approves batch', async () => {
@@ -229,22 +197,23 @@ describe('Statistics E2E', () => {
         return
       }
       
+      const timestamp3 = Date.now() + 2
       const waitUser3 = new Waitlist({
-        id: 'waituser3',
-        name: 'waitlistuser3',
+        id: `waituser3_${timestamp3}`,
+        name: `waitlistuser3-${timestamp3}`,
         password: 'testpass',
-        mail: 'waitlist3@example.com',
+        mail: `waitlist3-${timestamp3}@example.com`,
         status: 'pending',
       })
       await waitUser3.save()
 
-      const res = await administratorRequest.post('/statistics/waitlist/confirm/all').send({ids: ['waituser3']})
+      const res = await administratorRequest.post('/statistics/waitlist/confirm/all').send({ids: [`waituser3_${timestamp3}`]})
       expect(res.status).toBe(200)
       const body = JSON.parse(res.text)
       expect(body).toHaveProperty('results')
       expect(Array.isArray(body.results)).toBe(true)
 
-      await User.deleteOne({id: 'waituser3'})
+      await User.deleteOne({id: `waituser3_${timestamp3}`})
     })
 
     it('POST /statistics/waitlist/reject/all rejects batch', async () => {
@@ -253,16 +222,17 @@ describe('Statistics E2E', () => {
         return
       }
       
+      const timestamp4 = Date.now() + 3
       const waitUser4 = new Waitlist({
-        id: 'waituser4',
-        name: 'waitlistuser4',
+        id: `waituser4_${timestamp4}`,
+        name: `waitlistuser4-${timestamp4}`,
         password: 'testpass',
-        mail: 'waitlist4@example.com',
+        mail: `waitlist4-${timestamp4}@example.com`,
         status: 'pending',
       })
       await waitUser4.save()
 
-      const res = await administratorRequest.post('/statistics/waitlist/reject/all').send({ids: ['waituser4']})
+      const res = await administratorRequest.post('/statistics/waitlist/reject/all').send({ids: [`waituser4_${timestamp4}`]})
       expect(res.status).toBe(200)
       const body = JSON.parse(res.text)
       expect(body).toHaveProperty('results')
@@ -275,21 +245,22 @@ describe('Statistics E2E', () => {
         return
       }
       
+      const timestamp5 = Date.now() + 4
       // Re-create waitlist user since it was deleted in beforeAll by other tests
       const waitUser = new Waitlist({
-        id: 'waituser_approval_single',
-        name: 'waitlistuser_single',
+        id: `waituser_approval_single_${timestamp5}`,
+        name: `waitlistuser_single-${timestamp5}`,
         password: 'testpass',
-        mail: 'waitlist_single@example.com',
+        mail: `waitlist_single-${timestamp5}@example.com`,
         status: 'pending',
       })
       await waitUser.save()
 
-      const res = await administratorRequest.get(`/statistics/waitlist/confirm/waituser_approval_single`)
+      const res = await administratorRequest.get(`/statistics/waitlist/confirm/waituser_approval_single_${timestamp5}`)
       expect(res.status).toBe(200)
       expect(JSON.parse(res.text).success).toBe(true)
 
-      await User.deleteOne({id: 'waituser_approval_single'})
+      await User.deleteOne({id: `waituser_approval_single_${timestamp5}`})
     })
   })
 })

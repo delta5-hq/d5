@@ -1,9 +1,10 @@
 import crypto from 'crypto'
 import Thumbnail from '../models/Thumbnail'
 import {HTML_SERVICE_URL} from '../constants'
-import getThumbnail from '../utils/getThumbnail'
+import {container} from '../services/container'
 
 const md5 = payload => crypto.createHash('md5').update(payload).digest('hex')
+const thumbnailService = container.get('thumbnailService')
 
 const UrlThumbnailController = {
   get: async ctx => {
@@ -21,7 +22,7 @@ const UrlThumbnailController = {
     const filter = {metadata: {hash, size}, filename: hash}
 
     try {
-      const thumbnail = await getThumbnail(filter, HTML_SERVICE_URL, {body: JSON.stringify({url})})
+      const thumbnail = await thumbnailService.generate(filter, HTML_SERVICE_URL, {body: JSON.stringify({url})})
 
       ctx.body = thumbnail.read()
       ctx.type = 'image/png'

@@ -1,6 +1,5 @@
-import {setupDb, teardownDb, isHttpMode} from './setup'
 import {subscriberRequest, customerRequest, administratorRequest, publicRequest} from './shared/requests'
-import Macro from '../src/models/Macro'
+import {testDataFactory, httpSetup} from './shared/test-data-factory'
 import {subscriber, customer, administrator} from '../src/utils/test/users'
 
 const userId = subscriber.name
@@ -9,17 +8,15 @@ const customerUserId = customer.name
 const adminUserId = administrator.name
 
 describe('Macro E2E', () => {
-  beforeAll(setupDb, 60000)
-  afterAll(teardownDb)
+  beforeAll(async () => {
+    await httpSetup.setupDb()
+  }, 60000)
+  afterAll(async () => {
+    await httpSetup.teardownDb()
+  })
 
   beforeEach(async () => {
-    if (isHttpMode()) {
-      /* HTTP mode: Skip database operations - macros will be created via API in tests */
-      console.log('HTTP mode: Using API for macro test data')
-    } else {
-      /* Direct database mode: Use mongoose operations */
-      await Macro.deleteMany({userId: {$in: [userId, customerUserId]}})
-    }
+    /* Universal HTTP mode: Test data managed via API */
   })
 
   describe('POST /macro', () => {
