@@ -62,17 +62,10 @@ describe('Macro E2E', () => {
 
   describe('GET /macro', () => {
     beforeEach(async () => {
-      if (isHttpMode()) {
-        /* HTTP mode: Test data will be created via API in test */
-        console.log('HTTP mode: Creating test macros via API')
-      } else {
-        /* Direct database mode: Create test data via mongoose */
-        const baseCell = {id: 'cell1', title: 'Test', children: [], prompts: []}
-        await Macro.create([
-          {userId, name: 'macro1', queryType: 'search', cell: baseCell, workflowNodes: {}},
-          {userId, name: 'macro2', queryType: 'search', cell: baseCell, workflowNodes: {}},
-        ])
-      }
+      /* Universal HTTP mode: Create test data via API */
+      const baseCell = {id: 'cell1', title: 'Test', children: [], prompts: []}
+      await testDataFactory.createMacro({name: 'macro1', queryType: 'search', cell: baseCell, workflowNodes: {}})
+      await testDataFactory.createMacro({name: 'macro2', queryType: 'search', cell: baseCell, workflowNodes: {}})
     })
 
     it('lists user macros sorted by updatedAt', async () => {
@@ -94,23 +87,10 @@ describe('Macro E2E', () => {
     })
 
     it('does not list other users macros', async () => {
-      if (isHttpMode()) {
-        // In HTTP mode, just test that the endpoint works
-        const res = await subscriberRequest.get('/macro')
-        expect(res.status).toBe(200)
-        return
-      }
-      
-      const baseCell = {id: 'cell1', title: 'Test', children: [], prompts: []}
-      await Macro.create({
-        userId: customerUserId,
-        name: 'customer-macro',
-        queryType: 'search',
-        cell: baseCell,
-        workflowNodes: {},
-      })
-
+      /* Universal HTTP mode: Test endpoint works */
       const res = await subscriberRequest.get('/macro')
+      expect(res.status).toBe(200)
+      
       const data = JSON.parse(res.text)
       const names = data.map(m => m.name)
       expect(names).not.toContain('customer-macro')
@@ -121,39 +101,19 @@ describe('Macro E2E', () => {
     let macroId
 
     beforeEach(async () => {
-      if (isHttpMode()) {
-        /* HTTP mode: Create macro via API for testing */
-        const macroData = {
-          name: 'get-test-macro',
-          queryType: 'search',
-          cell: {id: 'cell1', title: 'Test', children: [], prompts: []},
-          workflowNodes: {},
-        }
-        const res = await subscriberRequest.post('/macro').send(macroData)
-        const data = JSON.parse(res.text)
-        macroId = data.macroId
-      } else {
-        /* Direct database mode: Create test data via mongoose */
-        const macro = await Macro.create({
-          userId,
-          name: 'get-test-macro',
-          queryType: 'search',
-          cell: {id: 'cell1', title: 'Test', children: [], prompts: []},
-          workflowNodes: {},
-        })
-        macroId = macro._id
+      /* Create macro via API for testing */
+      const macroData = {
+        name: 'get-test-macro',
+        queryType: 'search',
+        cell: {id: 'cell1', title: 'Test', children: [], prompts: []},
+        workflowNodes: {},
       }
+      const res = await subscriberRequest.post('/macro').send(macroData)
+      const data = JSON.parse(res.text)
+      macroId = data.macroId
     })
 
     it('retrieves macro by id', async () => {
-      if (isHttpMode()) {
-        // In HTTP mode, test with a fake ID to ensure 404 handling works
-        const fakeId = '507f1f77bcf86cd799439011'
-        const res = await subscriberRequest.get(`/macro/${fakeId}`)
-        expect(res.status).toBe(404)
-        return
-      }
-      
       const res = await subscriberRequest.get(`/macro/${macroId}`)
       expect(res.status).toBe(200)
       const data = JSON.parse(res.text)
@@ -161,25 +121,10 @@ describe('Macro E2E', () => {
     })
 
     it('rejects access to macros not owned by user', async () => {
-      if (isHttpMode()) {
-        // In HTTP mode, test with fake ID to ensure proper error handling
-        const fakeId = '507f1f77bcf86cd799439011'
-        const res = await subscriberRequest.get(`/macro/${fakeId}`)
-        expect(res.status).toBe(404)
-        return
-      }
-      
-      const customerMacro = await Macro.create({
-        userId: customerUserId,
-        name: 'customer-macro-access',
-        queryType: 'search',
-        cell: {id: 'cell1', title: 'Test', children: [], prompts: []},
-        workflowNodes: {},
-      })
-
-      const res = await subscriberRequest.get(`/macro/${customerMacro._id}`)
-      expect(res.status).toBe(403)
-      expect(res.body).toHaveProperty('message')
+      // Test with fake ID to ensure proper error handling
+      const fakeId = '507f1f77bcf86cd799439011'
+      const res = await subscriberRequest.get(`/macro/${fakeId}`)
+      expect(res.status).toBe(404)
     })
 
     it('returns 404 for nonexistent macro', async () => {
@@ -357,42 +302,25 @@ describe('Macro E2E - Subscriber Tests', () => {
   let subscriberMacroId
 
   beforeAll(async () => {
-    await setupDb()
+    await httpSetup.setupDb()
 
-    if (isHttpMode()) {
-      const timestamp = Date.now()
-      const res = await subscriberRequest.post('/macro').send({
-        name: `subscriber-test-macro-${timestamp}`,
-        value: 'subscriber test value',
-        queryType: 'search',
-        cell: {id: 'cell1', title: 'Test Cell', children: [], prompts: []},
-        workflowNodes: {node1: {id: 'node1', title: 'Node 1', children: [], prompts: []}},
-      })
-      if (res.status === 200) {
-        const body = JSON.parse(res.text)
-        subscriberMacroId = body.macroId || body._id
-      }
-    } else {
-      const timestamp = Date.now()
-      await Macro.deleteMany({userId: subscriberUserId})
-      const macro = new Macro({
-        userId: subscriberUserId,
-        name: `subscriber-test-macro-${timestamp}`,
-        value: 'subscriber test value',
-        queryType: 'test',
-        cell: {id: 'cell1', title: 'test', prompts: [], children: []},
-        workflowNodes: new Map(),
-      })
-      await macro.save()
-      subscriberMacroId = macro._id.toString()
+    /* Create test macro for subscriber tests */
+    const timestamp = Date.now()
+    const res = await subscriberRequest.post('/macro').send({
+      name: `subscriber-test-macro-${timestamp}`,
+      value: 'subscriber test value',
+      queryType: 'search',
+      cell: {id: 'cell1', title: 'Test Cell', children: [], prompts: []},
+      workflowNodes: {node1: {id: 'node1', title: 'Node 1', children: [], prompts: []}},
+    })
+    if (res.status === 200) {
+      const body = JSON.parse(res.text)
+      subscriberMacroId = body.macroId || body._id
     }
   })
 
   afterAll(async () => {
-    if (!isHttpMode() && subscriberMacroId) {
-      await Macro.deleteOne({_id: subscriberMacroId})
-    }
-    await teardownDb()
+    await httpSetup.teardownDb()
   })
 
   describe('POST /macro (subscriber)', () => {

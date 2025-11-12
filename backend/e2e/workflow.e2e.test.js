@@ -258,11 +258,11 @@ describe('Workflow Router - Administrator Tests', () => {
 
 describe('Workflow Router - Subscriber Tests', () => {
   beforeEach(async () => {
-    await setupDb()
+    await httpSetup.setupDb()
   })
 
   afterAll(async () => {
-    await teardownDb()
+    await httpSetup.teardownDb()
   })
 
   describe('POST /workflow (payment limits)', () => {

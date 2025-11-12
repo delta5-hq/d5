@@ -81,10 +81,7 @@ describe('Statistics E2E', () => {
 
   describe('GET /statistics/workflow/:userId', () => {
     it('returns per-user workflow statistics', async () => {
-      if (isHttpMode()) {
-        // Skip user-specific tests in HTTP mode - user may not exist
-        return
-      }
+      /* Universal HTTP mode: Test with created user */
       const res = await administratorRequest.get(`/statistics/workflow/${testUser.id}`)
       expect(res.status).toBe(200)
       expect(Array.isArray(JSON.parse(res.text))).toBe(true)
@@ -93,10 +90,7 @@ describe('Statistics E2E', () => {
 
   describe('GET /statistics/users/:userId', () => {
     it('returns user statistics', async () => {
-      if (isHttpMode()) {
-        // Skip user-specific tests in HTTP mode - user may not exist
-        return
-      }
+      /* Universal HTTP mode: Test with created user */
       const res = await administratorRequest.get(`/statistics/users/${testUser.id}`)
       expect(res.status).toBe(200)
       const body = JSON.parse(res.text)
@@ -107,10 +101,7 @@ describe('Statistics E2E', () => {
 
   describe('POST /statistics/users/:userId/comment', () => {
     it('adds comment to user', async () => {
-      if (isHttpMode()) {
-        // Skip user-specific tests in HTTP mode - user may not exist
-        return
-      }
+      /* Universal HTTP mode: Test with created user */
       const res = await administratorRequest.post(`/statistics/users/${testUser.id}/comment`).send({data: 'Test comment'})
       expect(res.status).toBe(200)
       expect(JSON.parse(res.text).success).toBe(true)
@@ -122,41 +113,17 @@ describe('Statistics E2E', () => {
     const timestamp = Date.now()
 
     beforeAll(async () => {
-      if (isHttpMode()) {
-        /* HTTP mode: Waitlist managed via signup API */
-        const waitlistUser = {
-          username: `waitlistuser-${timestamp}`,
-          mail: `waitlist-${timestamp}@example.com`,
-          password: 'WaitPass123!'
-        }
-        const res = await publicRequest.post('/auth/signup').send(waitlistUser)
-        if (res.body && res.body.waitUserId) {
-          waitUserId = res.body.waitUserId
-        }
-      } else {
-        /* Direct database mode: Create waitlist user directly */
-        await Waitlist.deleteMany(testPrefixFilter('mail'))
-        const waitUser = new Waitlist({
-          id: `waituser_approval_${timestamp}`,
-          name: `waitlistuser-${timestamp}`,
-          password: 'testpass',
-          mail: `waitlist-${timestamp}@example.com`,
-          status: 'pending',
-        })
-        await waitUser.save()
-        waitUserId = waitUser._id
-      }
+      /* Universal HTTP mode: Create waitlist user via API */
+      const waitlistUser = await testDataFactory.createWaitlistUser({
+        username: `waitlistuser-${timestamp}`,
+        mail: `waitlist-${timestamp}@example.com`,
+        password: 'WaitPass123!'
+      })
+      waitUserId = waitlistUser.mail
     })
 
     afterAll(async () => {
-      if (isHttpMode()) {
-        /* HTTP mode: Cleanup managed via API or not needed */
-        console.log('HTTP mode: Waitlist cleanup not required')
-      } else {
-        /* Direct database mode: Clean up test data */
-        await Waitlist.deleteMany(testPrefixFilter('mail'))
-        await User.deleteOne({id: `waituser_approval_${timestamp}`})
-      }
+      /* Universal HTTP mode: Cleanup managed via testDataFactory */
     })
 
     it('GET /statistics/waitlist returns pending users', async () => {
@@ -267,11 +234,11 @@ describe('Statistics E2E', () => {
 
 describe('Statistics E2E - Subscriber Tests', () => {
   beforeAll(async () => {
-    await setupDb()
+    await httpSetup.setupDb()
   })
 
   afterAll(async () => {
-    await teardownDb()
+    await httpSetup.teardownDb()
   })
 
   describe('Subscriber Authorization', () => {
