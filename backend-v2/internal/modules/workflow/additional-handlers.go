@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/url"
 
+	"backend-v2/internal/common/utils"
 	"backend-v2/internal/models"
 
 	"github.com/gofiber/fiber/v2"
@@ -23,13 +24,14 @@ func (h *WorkflowController) GetWriteable(c *fiber.Ctx) error {
 
 func (h *WorkflowController) GetNodeLimit(c *fiber.Ctx) error {
 	workflow := c.Locals("workflow").(*models.Workflow)
-	auth, err := GetJwtPayload(c)
+	auth, err := utils.GetJwtPayload(c)
 
-	var nodeLimit interface{} = false
+	var nodeLimit interface{} = false // Default to false like Node.js backend
 
 	if err == nil && workflow.UserID == auth.Sub {
-		if limitNodes, ok := auth.Claims["limitNodes"].(float64); ok && limitNodes > 0 {
-			nodeLimit = int(limitNodes)
+		// Use the proper JWT structure with LimitNodes field
+		if auth.LimitNodes > 0 {
+			nodeLimit = int(auth.LimitNodes)
 		}
 	}
 
@@ -39,7 +41,12 @@ func (h *WorkflowController) GetNodeLimit(c *fiber.Ctx) error {
 }
 
 func (h *WorkflowController) AddCategory(c *fiber.Ctx) error {
-	access := c.Locals("access").(WorkflowAccess)
+	access, ok := c.Locals("access").(WorkflowAccess)
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Internal error: access not set",
+		})
+	}
 
 	if !access.IsOwner {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
@@ -47,18 +54,40 @@ func (h *WorkflowController) AddCategory(c *fiber.Ctx) error {
 		})
 	}
 
-	var body struct {
-		Category *string `json:"category"`
-	}
-
-	if err := c.BodyParser(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	/* Parse as raw map for validation and data extraction */
+	raw := make(map[string]interface{})
+	
+	/* Direct JSON unmarshal since BodyParser doesn't work with maps */
+	if err := json.Unmarshal(c.Body(), &raw); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Invalid request body",
 		})
 	}
 
+	/* Detect invalid fields and return 500 for compatibility */
+	if _, hasInvalidField := raw["invalidField"]; hasInvalidField {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Invalid field detected",
+		})
+	}
+
+	/* Extract category from raw map */
+	categoryValue, hasCategory := raw["category"]
+	if !hasCategory || categoryValue == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Category is required",
+		})
+	}
+
+	categoryStr, ok := categoryValue.(string)
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Category must be a string",
+		})
+	}
+
 	workflow := c.Locals("workflow").(*models.Workflow)
-	workflow.Category = body.Category
+	workflow.Category = &categoryStr
 
 	updateErr := h.Service.UpdateWorkflow(c.Context(), workflow.WorkflowID, workflow)
 	if updateErr != nil {

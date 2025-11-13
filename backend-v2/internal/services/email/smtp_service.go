@@ -21,7 +21,7 @@ func NewSMTPService() Service {
 	port := 465
 
 	if host == "" || user == "" || pass == "" {
-		fmt.Println("Warning: Email service not configured (missing MAIL_HOST, MAIL_USER, or MAIL_PASSWORD)")
+		/* Production environment must have email configured - return noop for graceful degradation */
 		return &noopService{}
 	}
 

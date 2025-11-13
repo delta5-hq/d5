@@ -96,7 +96,7 @@ func (s *WorkflowService) GetWorkflows(ctx context.Context, dto GetWorkflowsQuer
 	} else {
 		project = qmgo.M{"nodes": 0, "edges": 0}
 	}
-	fmt.Println(query)
+
 	total, err := s.Collection.Find(ctx, query).Count()
 	if err != nil {
 		return nil, 0, err
@@ -131,11 +131,10 @@ func (s *WorkflowService) CreateWorkflow(ctx context.Context, dto CreateWorkflow
 
 	limit := dto.GetLimit()
 
-	/* Allow unlimited workflows for subscribers and org_subscribers */
-	isSubscriber := utils.Contains(dto.Auth.Roles, string(constants.Subscriber)) || 
-	                utils.Contains(dto.Auth.Roles, string(constants.Org_subscriber))
+	/* Allow unlimited workflows only for org_subscribers (matching Node.js backend) */
+	isOrgSubscriber := utils.Contains(dto.Auth.Roles, string(constants.Org_subscriber))
 
-	if total >= limit && !isSubscriber {
+	if limit > 0 && total >= limit && !isOrgSubscriber {
 		return nil, errors.NewHTTPError(402, fmt.Sprintf("Workflow limit reached %v", limit))
 	}
 

@@ -22,8 +22,6 @@ func Connect(uri, db string) *qmgo.Database {
 		log.Fatalf("Mongo connection error: %v", err)
 	}
 
-	log.Println("Connected to MongoDB:", db)
-
 	/* Create separate mongo-driver client for GridFS operations */
 	MongoClient, err = mongo.Connect(ctx, options.Client().ApplyURI(uri))
 	if err != nil {
@@ -37,10 +35,8 @@ func Disconnect() {
 	ctx := context.Background()
 	if Client != nil {
 		Client.Close(ctx)
-		log.Println("qmgo connection closed")
 	}
 	if MongoClient != nil {
 		MongoClient.Disconnect(ctx)
-		log.Println("MongoDB GridFS connection closed")
 	}
 }

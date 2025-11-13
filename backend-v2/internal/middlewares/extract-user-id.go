@@ -1,8 +1,6 @@
 package middlewares
 
 import (
-	"log"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -12,7 +10,6 @@ func ExtractUserID(c *fiber.Ctx) error {
 	auth := c.Locals("auth")
 
 	if jwtErr != nil {
-		log.Println("jwt not valid:", jwtErr)
 		c.Locals("userId", nil)
 		return c.Next()
 	}

@@ -62,22 +62,22 @@ func (h *WorkflowController) UpdateWorkflow(c *fiber.Ctx) error {
 func (h *WorkflowController) GetWorkflows(c *fiber.Ctx) error {
 	userID, _ := c.Locals(constants.ContextUserIDKey).(string)
 
-	var search string
+	var search *string
 	if s := c.Query(constants.QuerySearchKey); s != "" {
-		search = s
+		search = &s
 	}
 
-	var page int
+	var page *int
 	if s := c.Query(constants.QueryPageKey); s != "" {
 		if v, err := strconv.Atoi(s); err == nil {
-			page = v
+			page = &v
 		}
 	}
 
-	var limit int
+	var limit *int
 	if s := c.Query(constants.QueryLimitKey); s != "" {
 		if v, err := strconv.Atoi(s); err == nil {
-			limit = v
+			limit = &v
 		}
 	}
 
@@ -85,13 +85,18 @@ func (h *WorkflowController) GetWorkflows(c *fiber.Ctx) error {
 	shareFilter := ConvertShare(shareFilterStr)
 
 	publicString := c.Query(QueryWorkflowsPublicKey)
-	isPublic := publicString != "false"
+	isPublic := publicString == "true"
+	
+	/* If no authentication and no explicit public param, default to public workflows */
+	if userID == "" && publicString == "" {
+		isPublic = true
+	}
 
 	query := GetWorkflowsQuery{
 		PaginationDto: dto.PaginationDto{
-			Search: &search,
-			Page:   &page,
-			Limit:  &limit,
+			Search: search,
+			Page:   page,
+			Limit:  limit,
 		},
 		UserID:      userID,
 		IsPublic:    isPublic,

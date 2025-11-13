@@ -299,9 +299,9 @@ describe('Workflow Router - Subscriber Tests', () => {
       const testData = JSON.parse(testResponse.text)
       createdWorkflows.push(testData.workflowId)
       
-      /* Create exactly 8 more workflows (9 total = limit-1) */
-      console.log('Creating 8 more workflows to reach limit-1 state')
-      for (let i = 0; i < 8; i++) {
+      /* Create exactly 9 more workflows (10 total = limit) */
+      console.log('Creating 9 more workflows to reach limit state')
+      for (let i = 0; i < 9; i++) {
         const response = await subscriberRequest.post('/workflow').send({
           ...workflowData,
           title: `Setup Workflow ${i + 2}`,
@@ -311,7 +311,7 @@ describe('Workflow Router - Subscriber Tests', () => {
         createdWorkflows.push(data.workflowId)
       }
       
-      console.log(`Deterministic state: subscriber has exactly 9 workflows (limit-1)`)
+      console.log(`Deterministic state: subscriber has exactly 10 workflows (at limit)`)
     }
 
     beforeAll(async () => {

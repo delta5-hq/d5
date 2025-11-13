@@ -32,11 +32,15 @@ func init() {
 	JwtSecret = getEnv("JWT_SECRET", "GrFYK5ftZDtCg7ZGwxZ1JpSxyyJ9bc8uJijvBD1DYiMoS64ZpnBSrFxsNuybN1iO")
 	SyncUserID = getEnv("SYNC_USER_ID", "wp-sync-user")
 
-	auth := ""
-	if MongoPassword != "" {
-		auth = fmt.Sprintf("%s:%s@", MongoUsername, MongoPassword)
+	if envMongoURI := os.Getenv("MONGO_URI"); envMongoURI != "" {
+		MongoURI = envMongoURI
+	} else {
+		auth := ""
+		if MongoPassword != "" {
+			auth = fmt.Sprintf("%s:%s@", MongoUsername, MongoPassword)
+		}
+		MongoURI = fmt.Sprintf("mongodb://%s%s:%s", auth, MongoHost, MongoPort)
 	}
-	MongoURI = fmt.Sprintf("mongodb://%s%s:%s", auth, MongoHost, MongoPort)
 
 	log.Printf("CONFIGURATION:\n")
 	log.Printf("PORT=%s", Port)
