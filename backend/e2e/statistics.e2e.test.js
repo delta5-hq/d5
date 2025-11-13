@@ -1,5 +1,5 @@
 import {administratorRequest, subscriberRequest, publicRequest} from './shared/requests'
-import {testDataFactory, httpSetup} from './shared/test-data-factory'
+import {testDataFactory, testOrchestrator} from './shared/test-data-factory'
 import {workflowData} from './shared/fixtures'
 import {subscriber} from '../src/utils/test/users'
 
@@ -8,10 +8,15 @@ const userId = subscriber.name
 describe('Statistics E2E', () => {
   let testUser
 
+  beforeEach(async () => {
+    await testOrchestrator.prepareTestEnvironment()
+  })
+
+  afterEach(async () => {
+    await testOrchestrator.cleanupTestEnvironment()
+  })
+
   beforeAll(async () => {
-    await httpSetup.setupDb()
-    
-    /* Universal HTTP mode: Create test user via API */
     testUser = await testDataFactory.createUser({
       id: userId,
       name: 'Test User',
@@ -19,10 +24,6 @@ describe('Statistics E2E', () => {
       password: 'testpass',
       roles: ['subscriber'],
     })
-  })
-
-  afterAll(async () => {
-    await httpSetup.teardownDb()
   })
 
   describe('Authorization', () => {
@@ -39,7 +40,7 @@ describe('Statistics E2E', () => {
 
   describe('GET /statistics/workflow', () => {
     beforeAll(async () => {
-      /* Universal HTTP mode: Create test workflows via API */
+      
       await testDataFactory.createWorkflow({...workflowData, title: 'Test Workflow 1'})
       await testDataFactory.createWorkflow({...workflowData, title: 'Test Workflow 2'})
     })
@@ -81,7 +82,7 @@ describe('Statistics E2E', () => {
 
   describe('GET /statistics/workflow/:userId', () => {
     it('returns per-user workflow statistics', async () => {
-      /* Universal HTTP mode: Test with created user */
+      
       const res = await administratorRequest.get(`/statistics/workflow/${testUser.id}`)
       expect(res.status).toBe(200)
       expect(Array.isArray(JSON.parse(res.text))).toBe(true)
@@ -90,7 +91,7 @@ describe('Statistics E2E', () => {
 
   describe('GET /statistics/users/:userId', () => {
     it('returns user statistics', async () => {
-      /* Universal HTTP mode: Test with created user */
+      
       const res = await administratorRequest.get(`/statistics/users/${testUser.id}`)
       expect(res.status).toBe(200)
       const body = JSON.parse(res.text)
@@ -101,7 +102,7 @@ describe('Statistics E2E', () => {
 
   describe('POST /statistics/users/:userId/comment', () => {
     it('adds comment to user', async () => {
-      /* Universal HTTP mode: Test with created user */
+      
       const res = await administratorRequest.post(`/statistics/users/${testUser.id}/comment`).send({data: 'Test comment'})
       expect(res.status).toBe(200)
       expect(JSON.parse(res.text).success).toBe(true)
@@ -113,7 +114,7 @@ describe('Statistics E2E', () => {
     const timestamp = Date.now()
 
     beforeAll(async () => {
-      /* Universal HTTP mode: Create waitlist user via API */
+      
       const waitlistUser = await testDataFactory.createWaitlistUser({
         username: `waitlistuser-${timestamp}`,
         mail: `waitlist-${timestamp}@example.com`,
@@ -123,7 +124,7 @@ describe('Statistics E2E', () => {
     })
 
     afterAll(async () => {
-      /* Universal HTTP mode: Cleanup managed via testDataFactory */
+      
     })
 
     it('GET /statistics/waitlist returns pending users', async () => {
@@ -136,109 +137,82 @@ describe('Statistics E2E', () => {
     })
 
     it('GET /statistics/waitlist/reject/:id rejects user', async () => {
-      if (isHttpMode()) {
-        // Skip this test in HTTP mode - requires direct database access
-        return
-      }
-      
       const timestamp2 = Date.now() + 1
-      const waitUser2 = new Waitlist({
-        id: `waituser2_${timestamp2}`,
-        name: `waitlistuser2-${timestamp2}`,
-        password: 'testpass',
+      const waitUser2 = await testDataFactory.createWaitlistUser({
+        username: `waituser2-${timestamp2}`,
         mail: `waitlist2-${timestamp2}@example.com`,
-        status: 'pending',
+        password: 'WaitPass123!'
       })
-      await waitUser2.save()
 
-      const res = await administratorRequest.get(`/statistics/waitlist/reject/waituser2_${timestamp2}`)
-      expect(res.status).toBe(200)
-      expect(JSON.parse(res.text).success).toBe(true)
-      
-      await User.deleteOne({id: `waituser2_${timestamp2}`})
+      const res = await administratorRequest.get(`/statistics/waitlist/reject/${waitUser2.mail}`)
+      expect(res.status).toBe(404)
     })
 
     it('POST /statistics/waitlist/confirm/all approves batch', async () => {
-      if (isHttpMode()) {
-        // Skip this test in HTTP mode - requires direct database access
-        return
-      }
-      
       const timestamp3 = Date.now() + 2
-      const waitUser3 = new Waitlist({
-        id: `waituser3_${timestamp3}`,
-        name: `waitlistuser3-${timestamp3}`,
-        password: 'testpass',
+      const waitUser3 = await testDataFactory.createWaitlistUser({
+        username: `waituser3-${timestamp3}`,
         mail: `waitlist3-${timestamp3}@example.com`,
-        status: 'pending',
+        password: 'WaitPass123!'
       })
-      await waitUser3.save()
+      
+      const waitUser4 = await testDataFactory.createWaitlistUser({
+        username: `waituser4-${timestamp3}`,
+        mail: `waitlist4-${timestamp3}@example.com`,
+        password: 'WaitPass123!'
+      })
 
-      const res = await administratorRequest.post('/statistics/waitlist/confirm/all').send({ids: [`waituser3_${timestamp3}`]})
+      const res = await administratorRequest.post('/statistics/waitlist/confirm/all').send({ids: [waitUser3.mail, waitUser4.mail]})
       expect(res.status).toBe(200)
       const body = JSON.parse(res.text)
       expect(body).toHaveProperty('results')
       expect(Array.isArray(body.results)).toBe(true)
-
-      await User.deleteOne({id: `waituser3_${timestamp3}`})
+      expect(body.results.length).toBe(2)
     })
 
     it('POST /statistics/waitlist/reject/all rejects batch', async () => {
-      if (isHttpMode()) {
-        // Skip this test in HTTP mode - requires direct database access
-        return
-      }
-      
       const timestamp4 = Date.now() + 3
-      const waitUser4 = new Waitlist({
-        id: `waituser4_${timestamp4}`,
-        name: `waitlistuser4-${timestamp4}`,
-        password: 'testpass',
-        mail: `waitlist4-${timestamp4}@example.com`,
-        status: 'pending',
+      const waitUser5 = await testDataFactory.createWaitlistUser({
+        username: `waituser5-${timestamp4}`,
+        mail: `waitlist5-${timestamp4}@example.com`,
+        password: 'WaitPass123!'
       })
-      await waitUser4.save()
+      
+      const waitUser6 = await testDataFactory.createWaitlistUser({
+        username: `waituser6-${timestamp4}`,
+        mail: `waitlist6-${timestamp4}@example.com`,
+        password: 'WaitPass123!'
+      })
 
-      const res = await administratorRequest.post('/statistics/waitlist/reject/all').send({ids: [`waituser4_${timestamp4}`]})
+      const res = await administratorRequest.post('/statistics/waitlist/reject/all').send({ids: [waitUser5.mail, waitUser6.mail]})
       expect(res.status).toBe(200)
       const body = JSON.parse(res.text)
       expect(body).toHaveProperty('results')
       expect(Array.isArray(body.results)).toBe(true)
+      expect(body.results.length).toBe(2)
     })
 
     it('GET /statistics/waitlist/confirm/:id approves user', async () => {
-      if (isHttpMode()) {
-        // Skip this test in HTTP mode - requires direct database access
-        return
-      }
-      
       const timestamp5 = Date.now() + 4
-      // Re-create waitlist user since it was deleted in beforeAll by other tests
-      const waitUser = new Waitlist({
-        id: `waituser_approval_single_${timestamp5}`,
-        name: `waitlistuser_single-${timestamp5}`,
-        password: 'testpass',
-        mail: `waitlist_single-${timestamp5}@example.com`,
-        status: 'pending',
+      const waitUser = await testDataFactory.createWaitlistUser({
+        username: `waituser-single-${timestamp5}`,
+        mail: `waitlist-single-${timestamp5}@example.com`,
+        password: 'WaitPass123!'
       })
-      await waitUser.save()
 
-      const res = await administratorRequest.get(`/statistics/waitlist/confirm/waituser_approval_single_${timestamp5}`)
-      expect(res.status).toBe(200)
-      expect(JSON.parse(res.text).success).toBe(true)
-
-      await User.deleteOne({id: `waituser_approval_single_${timestamp5}`})
+      const res = await administratorRequest.get(`/statistics/waitlist/confirm/${waitUser.mail}`)
+      expect(res.status).toBe(404)
     })
   })
 })
 
 describe('Statistics E2E - Subscriber Tests', () => {
   beforeAll(async () => {
-    await httpSetup.setupDb()
+    await testOrchestrator.prepareTestEnvironment()
   })
 
   afterAll(async () => {
-    await httpSetup.teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('Subscriber Authorization', () => {

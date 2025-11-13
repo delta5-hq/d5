@@ -1,10 +1,10 @@
 import {describe, beforeEach, afterAll, it, expect, jest} from '@jest/globals'
-import {setupDb, teardownDb} from './setup'
+import {testOrchestrator} from './shared/test-data-factory'
 import {subscriberRequest, administratorRequest, customerRequest} from './shared/requests'
 
 describe('Integration Router', () => {
   beforeEach(async () => {
-    await setupDb()
+    await testOrchestrator.prepareTestEnvironment()
     
     await subscriberRequest.delete('/integration')
     await administratorRequest.delete('/integration')
@@ -19,7 +19,7 @@ describe('Integration Router', () => {
     await subscriberRequest.delete('/integration')
     await administratorRequest.delete('/integration')
     await customerRequest.delete('/integration')
-    await teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('GET /integration', () => {
@@ -242,7 +242,7 @@ describe('Integration Router', () => {
 
 describe('Integration Router - Administrator Tests', () => {
   beforeEach(async () => {
-    await setupDb()
+    await testOrchestrator.prepareTestEnvironment()
     
     await administratorRequest.delete('/integration')
     await administratorRequest.put('/integration/openai/update').send({apiKey: 'admin-test-key'})
@@ -250,7 +250,7 @@ describe('Integration Router - Administrator Tests', () => {
 
   afterAll(async () => {
     await administratorRequest.delete('/integration')
-    await teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('Administrator API Access', () => {
@@ -279,7 +279,7 @@ describe('Integration Router - Administrator Tests', () => {
 
 describe('Integration Router - Customer Tests', () => {
   beforeEach(async () => {
-    await setupDb()
+    await testOrchestrator.prepareTestEnvironment()
     
     await customerRequest.delete('/integration')
     await customerRequest.put('/integration/openai/update').send({apiKey: 'customer-test-key'})
@@ -287,7 +287,7 @@ describe('Integration Router - Customer Tests', () => {
 
   afterAll(async () => {
     await customerRequest.delete('/integration')
-    await teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('Customer API Access', () => {

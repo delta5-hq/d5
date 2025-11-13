@@ -1,6 +1,6 @@
 import {describe, beforeEach, afterAll, it, expect} from '@jest/globals'
 import {subscriberRequest, syncRequest, administratorRequest} from './shared/requests'
-import {testDataFactory, httpSetup} from './shared/test-data-factory'
+import {testDataFactory, testOrchestrator} from './shared/test-data-factory'
 
 describe('User Router', () => {
   const timestamp = Date.now()
@@ -12,12 +12,12 @@ describe('User Router', () => {
   const otherUserData = {id: `otherimporttestuser-${timestamp}`, name: `otherimporttestuser-${timestamp}`, mail: `other-${timestamp}@example.com`}
 
   beforeEach(async () => {
-    await httpSetup.setupDb()
-    /* Universal HTTP mode: Test data managed via API */
+    await testOrchestrator.prepareTestEnvironment()
+    
   })
 
   afterAll(async () => {
-    await httpSetup.teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('POST /sync/users', () => {

@@ -1,15 +1,15 @@
 import {describe, beforeAll, afterAll, it, expect} from '@jest/globals'
 import {subscriberRequest, publicRequest} from './shared/requests'
-import {testDataFactory, httpSetup} from './shared/test-data-factory'
+import {testDataFactory, testOrchestrator} from './shared/test-data-factory'
 
 describe('Error Router', () => {
   beforeEach(async () => {
-    await httpSetup.setupDb()
-    /* Universal HTTP mode: Test data managed via API */
+    await testOrchestrator.prepareTestEnvironment()
+    
   })
 
   afterAll(async () => {
-    await httpSetup.teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('POST /errors', () => {

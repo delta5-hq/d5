@@ -1,10 +1,10 @@
-import {setupDb, teardownDb} from './setup'
+import {testOrchestrator} from './shared/test-data-factory'
 import {subscriberRequest, publicRequest} from './shared/requests'
 import Thumbnail from '../src/models/Thumbnail'
 
 describe('URL Thumbnail E2E', () => {
-  beforeAll(setupDb, 60000)
-  afterAll(teardownDb)
+  beforeAll(() => testOrchestrator.prepareTestEnvironment(), 60000)
+  afterAll(testOrchestrator.cleanupTestEnvironment)
 
   describe('GET /url/thumbnail', () => {
     it('generates thumbnail from URL', async () => {
@@ -51,11 +51,11 @@ describe('URL Thumbnail E2E', () => {
 
 describe('URL Thumbnail E2E - Subscriber Tests', () => {
   beforeAll(async () => {
-    await setupDb()
+    await testOrchestrator.prepareTestEnvironment()
   })
 
   afterAll(async () => {
-    await teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('GET /url/thumbnail (subscriber)', () => {

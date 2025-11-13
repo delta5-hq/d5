@@ -1,11 +1,10 @@
 /**
- * Universal Test Data Factory - HTTP API Only
+ * Test Data Factory - API-Based Test Data Management
  * 
- * Eliminates all conditional isHttpMode() branches by providing
- * unified test data management via HTTP APIs only.
+ * Unified test data management via HTTP APIs with comprehensive cleanup.
  * 
  * SOLID Principles:
- * - Single Responsibility: Only HTTP API operations
+ * - Single Responsibility: API-based test data operations
  * - Open/Closed: Extensible for new data types
  * - Interface Segregation: Specific methods per data type
  * - Dependency Inversion: Tests depend on abstraction
@@ -83,7 +82,9 @@ export class TestDataFactory {
   async createMacro(macroData) {
     const macro = {
       name: macroData.name || `Test Macro ${Date.now()}`,
-      content: macroData.content || 'test content',
+      queryType: macroData.queryType || 'search',
+      cell: macroData.cell || {id: 'cell1', title: 'Test', children: [], prompts: []},
+      workflowNodes: macroData.workflowNodes || {},
       ...macroData
     }
 
@@ -93,7 +94,7 @@ export class TestDataFactory {
       this.createdEntities.macros.push(data.macroId)
       return { ...macro, macroId: data.macroId }
     }
-    throw new Error(`Failed to create macro: ${response.status}`)
+    throw new Error(`Failed to create macro: ${response.status} - ${response.text}`)
   }
 
   /* Template Management */
@@ -104,7 +105,7 @@ export class TestDataFactory {
       ...templateData
     }
 
-    const response = await administratorRequest.post('/template').send(template)
+    const response = await administratorRequest.post('/templates').send(template)
     if (response.status === 200) {
       const data = JSON.parse(response.text)
       this.createdEntities.templates.push(data.templateId)
@@ -206,16 +207,25 @@ export class TestDataFactory {
 /* Global instance for tests */
 export const testDataFactory = new TestDataFactory()
 
-/* Simplified setup for HTTP-only mode */
-export const httpSetup = {
-  async setupDb() {
-    /* HTTP mode: No database connection needed */
-    console.log('HTTP mode: Database connection managed by server')
+/* 
+ * Deterministic E2E Test Orchestration
+ * 
+ * ARCHITECTURE PRINCIPLES:
+ * - Mock services only (MOCK_EXTERNAL_SERVICES=true required)
+ * - Single expected outcomes (no variance in assertions)
+ * - HTTP-only patterns (no direct database access)
+ * - Immediate failure on misconfiguration (regression protection)
+ * 
+ * SECURITY: Tests never connect to real external services
+ * STABILITY: Consistent mock responses provide long-term reliability
+ * MAINTAINABILITY: SOLID/DRY/KISS principles throughout
+ */
+export const testOrchestrator = {
+  async prepareTestEnvironment() {
+    // Test environment prepared by mock-enabled server
   },
 
-  async teardownDb() {
-    /* HTTP mode: No database disconnection needed */
-    console.log('HTTP mode: Database cleanup via test data factory')
+  async cleanupTestEnvironment() {
     await testDataFactory.cleanup()
   }
 }

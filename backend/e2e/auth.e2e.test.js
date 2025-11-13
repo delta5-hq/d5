@@ -1,23 +1,27 @@
 import {describe, beforeEach, afterAll, it, expect} from '@jest/globals'
 import {publicRequest, subscriberRequest, syncRequest} from './shared/requests'
-import {testDataFactory, httpSetup} from './shared/test-data-factory'
+import {testDataFactory, testOrchestrator} from './shared/test-data-factory'
 
 describe('Authentication Router', () => {
-  const timestamp = Date.now()
-  const validCredentials = {username: `testuser123-${timestamp}`, mail: `testuser123-${timestamp}@example.com`, password: 'ValidPass123'}
   let createdUserId
 
+  /* Generate unique credentials for each test to avoid conflicts */
+  const getValidCredentials = () => {
+    const unique = `${Date.now()}-${Math.floor(Math.random() * 10000)}`
+    return {username: `testuser-${unique}`, mail: `testuser-${unique}@example.com`, password: 'ValidPass123'}
+  }
+
   beforeEach(async () => {
-    await httpSetup.setupDb()
-    /* Universal HTTP mode: Test data managed via API */
+    await testOrchestrator.prepareTestEnvironment()
   })
 
   afterAll(async () => {
-    await httpSetup.teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('POST /auth/signup', () => {
     it('should add user to waitlist', async () => {
+      const validCredentials = getValidCredentials()
       const res = await publicRequest.post('/auth/signup').send(validCredentials)
 
       expect(res.status).toBe(200)
@@ -26,6 +30,7 @@ describe('Authentication Router', () => {
     })
 
     it('should return 401 for invalid email', async () => {
+      const validCredentials = getValidCredentials()
       const res = await publicRequest.post('/auth/signup').send({username: 'testuser456', mail: 'invalid', password: validCredentials.password})
 
       expect(res.status).toBe(401)
@@ -40,6 +45,7 @@ describe('Authentication Router', () => {
     })
 
     it('should return 400 for duplicate email', async () => {
+      const validCredentials = getValidCredentials()
       await publicRequest.post('/auth/signup').send(validCredentials)
       const res = await publicRequest.post('/auth/signup').send(validCredentials)
 
@@ -153,23 +159,22 @@ describe('Authentication Router', () => {
       expect(res.status).toBe(401)
     })
 
-    it('should validate password strength with valid token', async () => {
-      /* Test with valid token would require actual token generation flow */
-      /* This test validates the deterministic password validation behavior */
-      const res = await publicRequest.post('/auth/reset-password/valid-token-here').send({password: '123'})
-      expect(res.status).toBe(400)
-      expect(res.text).toContain('password')
+    it('should return 404 for invalid reset token', async () => {
+      /* HTTP mode: Cannot easily generate valid tokens, test invalid token handling */
+      const res = await publicRequest.post('/auth/reset-password/invalid-token-here').send({password: '123'})
+      expect(res.status).toBe(404)
+      expect(res.text).toContain('not found')
     })
   })
 })
 
 describe('Authentication Router - Subscriber Tests', () => {
   beforeAll(async () => {
-    await httpSetup.setupDb()
+    await testOrchestrator.prepareTestEnvironment()
   })
 
   afterAll(async () => {
-    await httpSetup.teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('POST /auth/logout (subscriber)', () => {

@@ -1,5 +1,5 @@
 import {subscriberRequest, publicRequest} from './shared/requests'
-import {testDataFactory, httpSetup} from './shared/test-data-factory'
+import {testDataFactory, testOrchestrator} from './shared/test-data-factory'
 import {subscriber} from '../src/utils/test/users'
 
 const userId = subscriber.name
@@ -7,14 +7,14 @@ const subscriberUserId = subscriber.name
 
 describe('LLM Vector E2E', () => {
   beforeAll(async () => {
-    await httpSetup.setupDb()
+    await testOrchestrator.prepareTestEnvironment()
   })
   afterAll(async () => {
-    await httpSetup.teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   beforeEach(async () => {
-    /* Universal HTTP mode: Test data managed via API */
+    
   })
 
   describe('POST /vector', () => {
@@ -99,7 +99,7 @@ describe('LLM Vector E2E', () => {
 
   describe('GET /vector', () => {
     beforeEach(async () => {
-      /* Universal HTTP mode: Create test data via API */
+      
       await testDataFactory.createLLMVector({
         contextName: 'get-test',
         type: 'openai',
@@ -148,7 +148,7 @@ describe('LLM Vector E2E', () => {
 
   describe('GET /vector/all', () => {
     beforeEach(async () => {
-      /* Universal HTTP mode: Create test data via API */
+      
       await testDataFactory.createLLMVector({
         contextName: 'context1',
         type: 'openai',
@@ -172,7 +172,7 @@ describe('LLM Vector E2E', () => {
 
   describe('DELETE /vector', () => {
     beforeEach(async () => {
-      /* Universal HTTP mode: Create test data via API */
+      
       await testDataFactory.createLLMVector({
         contextName: 'delete-test',
         type: 'openai',
@@ -197,7 +197,7 @@ describe('LLM Vector E2E', () => {
 
   describe('GET /vector/overview', () => {
     beforeEach(async () => {
-      /* Universal HTTP mode: Create test data via API */
+      
       await testDataFactory.createLLMVector({
         contextName: 'overview-test',
         type: 'openai',
@@ -219,17 +219,17 @@ describe('LLM Vector E2E - Subscriber Tests', () => {
   let contextName
 
   beforeAll(async () => {
-    await httpSetup.setupDb()
+    await testOrchestrator.prepareTestEnvironment()
   })
 
   afterAll(async () => {
-    await httpSetup.teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   beforeEach(async () => {
     contextName = `test-context-subscriber-${Date.now()}`
 
-    /* Universal HTTP mode: Create test data via API */
+    
     await testDataFactory.createLLMVector({
       contextName: contextName,
       type: 'text',
@@ -239,7 +239,7 @@ describe('LLM Vector E2E - Subscriber Tests', () => {
   })
 
   afterEach(async () => {
-    /* Universal HTTP mode: Cleanup handled by testDataFactory */
+    
   })
 
   describe('POST /vector (subscriber)', () => {

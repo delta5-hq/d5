@@ -1,6 +1,6 @@
 import {describe, beforeEach, afterAll, it, expect} from '@jest/globals'
 import {subscriberRequest, publicRequest, customerRequest, administratorRequest} from './shared/requests'
-import {testDataFactory, httpSetup} from './shared/test-data-factory'
+import {testDataFactory, testOrchestrator} from './shared/test-data-factory'
 import {subscriber} from '../src/utils/test/users'
 
 const subscriberUserId = subscriber.name
@@ -30,12 +30,12 @@ describe('Template Router', () => {
   const timestamp = Date.now()
   
   beforeEach(async () => {
-    await httpSetup.setupDb()
-    /* Universal HTTP mode: Test data managed via API */
+    await testOrchestrator.prepareTestEnvironment()
+    
   })
 
   afterAll(async () => {
-    await httpSetup.teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('POST /templates (private)', () => {
@@ -309,22 +309,28 @@ describe('Template Router - Subscriber Tests', () => {
   let subscriberTemplateId
 
   beforeAll(async () => {
-    await httpSetup.setupDb()
+    await testOrchestrator.prepareTestEnvironment()
 
-    /* Universal HTTP mode: Create template via API */
-    const template = await testDataFactory.createTemplate({
+    
+    const templateData = {
       name: `subscriber-template-${Date.now()}`,
       title: `subscriber-template-${Date.now()}`,
       nodes: {},
       edges: {},
       root: 'root',
       share: {public: false},
-    })
-    subscriberTemplateId = template.templateId
+    }
+    const response = await subscriberRequest.post('/templates').send(templateData)
+    if (response.status === 200) {
+      const data = JSON.parse(response.text)
+      subscriberTemplateId = data.templateId
+    } else {
+      throw new Error(`Failed to create subscriber template: ${response.status}`)
+    }
   })
 
   afterAll(async () => {
-    await httpSetup.teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('POST /templates (subscriber)', () => {
