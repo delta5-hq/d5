@@ -9,13 +9,13 @@ interface ExtraMutationParams {
 
 type ExtendedMutationOptions<TData, TError, TVariables> = UseMutationOptions<TData, TError, TVariables> &
   ExtraMutationParams & {
-    version: ApiVersion
+    version?: ApiVersion
   }
 
 export const useApiMutation = <TData = unknown, TError = Error, TVariables = unknown>(
   options: ExtendedMutationOptions<TData, TError, TVariables>,
 ) => {
-  const { url, method = 'POST', ...rest } = options
+  const { url, method = 'POST', version = 'v1', ...rest } = options
 
   return useMutation<TData, TError, TVariables>({
     mutationFn: async (body?: TVariables) => {
@@ -40,7 +40,7 @@ export const useApiMutation = <TData = unknown, TError = Error, TVariables = unk
         method,
         body: processedBody,
         headers,
-        version: options.version,
+        version,
       })
     },
     ...rest,
