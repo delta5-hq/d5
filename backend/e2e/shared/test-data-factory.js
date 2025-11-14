@@ -10,7 +10,7 @@
  * - Dependency Inversion: Tests depend on abstraction
  */
 
-import { syncRequest, administratorRequest, publicRequest, subscriberRequest } from './requests'
+import { syncRequest, administratorRequest, publicRequest, subscriberRequest, customerRequest } from './requests'
 
 export class TestDataFactory {
   constructor() {
@@ -63,13 +63,25 @@ export class TestDataFactory {
   }
 
   /* Workflow Management */
-  async createWorkflow(workflowData) {
+  async createWorkflow(workflowData, request = null) {
     const workflow = {
       title: workflowData.title || `Test Workflow ${Date.now()}`,
       ...workflowData
     }
+    
+    /* Select request based on userId parameter or use provided request */
+    let selectedRequest = request || administratorRequest
+    if (!request && workflowData.userId) {
+      /* Map userId to appropriate authenticated request */
+      const userIdToRequest = {
+        'subscriber_user': subscriberRequest,
+        'customer_user': customerRequest,
+        'administrator_user': administratorRequest
+      }
+      selectedRequest = userIdToRequest[workflowData.userId] || administratorRequest
+    }
 
-    const response = await administratorRequest.post('/workflow').send(workflow)
+    const response = await selectedRequest.post('/workflow').send(workflow)
     if (response.status === 200) {
       const data = JSON.parse(response.text)
       this.createdEntities.workflows.push(data.workflowId)
@@ -222,7 +234,8 @@ export const testDataFactory = new TestDataFactory()
  */
 export const testOrchestrator = {
   async prepareTestEnvironment() {
-    // Test environment prepared by mock-enabled server
+    /* No automatic cleanup - tests clean up their own data in afterAll/afterEach */
+    /* Database cleanup should be done manually between test suite runs if needed */
   },
 
   async cleanupTestEnvironment() {

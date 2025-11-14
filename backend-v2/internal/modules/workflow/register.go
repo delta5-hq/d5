@@ -25,7 +25,7 @@ func RegisterRoutes(app fiber.Router, handler *WorkflowController, db *qmgo.Data
 
 	workflowRoutes.Get("/:workflowId/writeable", middlewares.RequireAuth, handler.GetWriteable)
 	workflowRoutes.Get("/:workflowId/nodeLimit", handler.GetNodeLimit)
-	workflowRoutes.Post("/:workflowId/category", handler.AddCategory)
+	workflowRoutes.Post("/:workflowId/category", middlewares.RequireAuth, handler.AddCategory)
 
 	workflowRoutes.Get("/:workflowId/export", handler.ExportJSON)
 	workflowRoutes.Get("/:workflowId/export/json", handler.ExportJSON)

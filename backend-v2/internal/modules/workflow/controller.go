@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/qiniu/qmgo"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -60,6 +61,17 @@ func (h *WorkflowController) UpdateWorkflow(c *fiber.Ctx) error {
 
 // GET /workflows
 func (h *WorkflowController) GetWorkflows(c *fiber.Ctx) error {
+	/* Reject malformed JWT tokens if auth was attempted */
+	/* Check if Authorization header or auth cookie was provided */
+	hasAuthHeader := c.Get("Authorization") != ""
+	hasAuthCookie := c.Cookies("auth") != ""
+	
+	if (hasAuthHeader || hasAuthCookie) && c.Locals("jwtOriginalError") != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication failed",
+		})
+	}
+
 	userID, _ := c.Locals(constants.ContextUserIDKey).(string)
 
 	var search *string
@@ -136,9 +148,25 @@ func (h *WorkflowController) CreateWorkflow(c *fiber.Ctx) error {
 		})
 	}
 
+	/* Parse request body for optional fields like share */
+	var requestBody map[string]interface{}
+	var share *models.Share
+	
+	if err := c.BodyParser(&requestBody); err == nil {
+		if shareData, exists := requestBody["share"]; exists {
+			/* Convert map to Share struct */
+			shareBytes, _ := json.Marshal(shareData)
+			var parsedShare models.Share
+			if json.Unmarshal(shareBytes, &parsedShare) == nil {
+				share = &parsedShare
+			}
+		}
+	}
+
 	workflow, createErr := h.Service.CreateWorkflow(c.Context(), CreateWorkflowDto{
 		UserID: userIDStr,
 		Auth:   auth,
+		Share:  share,
 	})
 
 	if createErr != nil {
@@ -157,7 +185,7 @@ func (h *WorkflowController) DeleteWorkflow(c *fiber.Ctx) error {
 
 	err := h.Service.DeleteWorkflow(c.Context(), workflowId, access)
 	if err != nil {
-		c.Status(err.Status).JSON(fiber.Map{
+		return c.Status(err.Status).JSON(fiber.Map{
 			"error": err.Message,
 		})
 	}
@@ -195,7 +223,7 @@ func (h *WorkflowController) SetShareAccess(c *fiber.Ctx) error {
 
 	err := h.Service.SetShareAccess(c.Context(), workflow, access, update)
 	if err != nil {
-		c.Status(err.Status).JSON(fiber.Map{
+		return c.Status(err.Status).JSON(fiber.Map{
 			"error": err.Message,
 		})
 	}
@@ -216,6 +244,22 @@ func (h *WorkflowController) GetSharePublic(c *fiber.Ctx) error {
 func (h *WorkflowController) SetSharePublic(c *fiber.Ctx) error {
 	workflow := c.Locals("workflow").(*models.Workflow)
 	access := c.Locals("access").(WorkflowAccess)
+
+	/* Extract user roles from JWT claims */
+	var userRoles []string
+	if auth := c.Locals("auth"); auth != nil {
+		if claims, ok := auth.(jwt.MapClaims); ok {
+			if rolesRaw, exists := claims["roles"]; exists {
+				if roles, ok := rolesRaw.([]interface{}); ok {
+					for _, r := range roles {
+						if roleStr, ok := r.(string); ok {
+							userRoles = append(userRoles, roleStr)
+						}
+					}
+				}
+			}
+		}
+	}
 
 	var update map[string]interface{}
 	if err := c.BodyParser(&update); err != nil {
@@ -243,7 +287,7 @@ func (h *WorkflowController) SetSharePublic(c *fiber.Ctx) error {
 		publicState.Writeable = writeable
 	}
 
-	err := h.Service.SetSharePublic(c.Context(), workflow, access, &publicState)
+	err := h.Service.SetSharePublic(c.Context(), workflow, access, &publicState, userRoles)
 	if err != nil {
 		return c.Status(err.Status).JSON(fiber.Map{
 			"error": err.Message,

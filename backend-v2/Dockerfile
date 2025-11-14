@@ -24,6 +24,6 @@ RUN apk add --no-cache ca-certificates
 WORKDIR /root/
 COPY --from=builder /build/service .
 
-EXPOSE 8080
+EXPOSE 3002
 
 ENTRYPOINT ["./service"]

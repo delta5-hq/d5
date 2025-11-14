@@ -10,6 +10,12 @@ func ExtractUserID(c *fiber.Ctx) error {
 	auth := c.Locals("auth")
 
 	if jwtErr != nil {
+		errMsg, _ := jwtErr.(string)
+		if errMsg != "" && errMsg != "jwt must be provided" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"message": errMsg,
+			})
+		}
 		c.Locals("userId", nil)
 		return c.Next()
 	}

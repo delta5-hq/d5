@@ -12,6 +12,36 @@ func NewController(service *Service) *Controller {
 	return &Controller{Service: service}
 }
 
+/* GET /user - Administrator-only endpoint for RBAC testing */
+func (h *Controller) AdminOnly(c *fiber.Ctx) error {
+	/* Extract roles from JWT */
+	roles, ok := c.Locals("roles").([]string)
+	if !ok {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "This endpoint is only available for administrators.",
+		})
+	}
+
+	/* Check for administrator role */
+	isAdmin := false
+	for _, role := range roles {
+		if role == "administrator" {
+			isAdmin = true
+			break
+		}
+	}
+
+	if !isAdmin {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "This endpoint is only available for administrators.",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Administrator access granted",
+	})
+}
+
 /* GET /users/search - Search users by username */
 func (h *Controller) Search(c *fiber.Ctx) error {
 	query := c.Query("query")

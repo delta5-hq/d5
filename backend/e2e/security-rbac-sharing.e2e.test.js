@@ -23,7 +23,7 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
   const administratorUserId = 'administrator_user'
 
   beforeAll(async () => {
-    orchestrator = await testOrchestrator()
+    await testOrchestrator.prepareTestEnvironment()
 
     const adminWorkflow = await testDataFactory.createWorkflow({title: 'Admin Test Workflow'})
     workflowId = adminWorkflow.workflowId
@@ -61,7 +61,7 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
   })
 
   afterAll(async () => {
-    await orchestrator?.cleanup()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('Owner-Only Operations - Share Configuration', () => {

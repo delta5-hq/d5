@@ -5,6 +5,7 @@ import (
 	"backend-v2/internal/models"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/qiniu/qmgo"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -30,24 +31,68 @@ func Authorization(c *fiber.Ctx) error {
 		})
 	}
 
+	userIDStr := userID.(string)
+
+	/* Check for administrator role - administrators bypass all access controls */
+	if roles := c.Locals("roles"); roles != nil {
+		if rolesSlice, ok := roles.([]string); ok {
+			for _, role := range rolesSlice {
+				if role == string(constants.Administrator) {
+					c.Locals("access", WorkflowAccess{
+						IsOwner:     true,
+						IsWriteable: true,
+						IsReadable:  true,
+					})
+					return c.Next()
+				}
+			}
+		}
+	}
+
+	/* Extract mail claim from JWT if present */
+	var userMail string
+	if auth := c.Locals("auth"); auth != nil {
+		if claims, ok := auth.(jwt.MapClaims); ok {
+			if mail, exists := claims["mail"]; exists {
+				if mailStr, ok := mail.(string); ok {
+					userMail = mailStr
+				}
+			}
+		}
+	}
+
 	var roleBinding *models.RoleBinding
 
 	accessList := workflow.Share.Access
 	for i := range workflow.Share.Access {
 		a := &accessList[i]
 
-		if (a.SubjectType == "user" && a.SubjectID == string(constants.User)) ||
-			(a.SubjectType == "mail" && a.SubjectID == string(constants.Mail)) {
+		/* Match by user ID */
+		if a.SubjectType == "user" && a.SubjectID == userIDStr {
+			roleBinding = a
+			break
+		}
+
+		/* Match by mail claim in JWT */
+		if a.SubjectType == "mail" && userMail != "" && a.SubjectID == userMail {
 			roleBinding = a
 			break
 		}
 	}
 
-	isOwner := workflow.UserID == userID || (roleBinding != nil && roleBinding.Role == constants.Owner)
+	isOwner := workflow.UserID == userIDStr || (roleBinding != nil && roleBinding.Role == constants.Owner)
 	isWriteable := isOwner || (roleBinding != nil && roleBinding.Role == constants.Contributor) || workflow.IsPublicWriteable()
 	isReadable := isWriteable || (roleBinding != nil && roleBinding.Role == constants.Reader) || workflow.IsPublic()
 
-	if method == "GET" && !isReadable {
+	/* Cross-user workflow leakage prevention: Return 401 instead of 403 when user has no relationship to workflow */
+	if (method == "GET" || method == "DELETE") && !isReadable {
+		/* If user is not owner and not in access list and workflow not public, return 401 to hide existence */
+		if workflow.UserID != userIDStr && roleBinding == nil && !workflow.IsPublic() {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Authentication needed.",
+			})
+		}
+		/* Otherwise return 403 (user has some relationship but insufficient permissions) */
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"error": "Access denied.",
 		})

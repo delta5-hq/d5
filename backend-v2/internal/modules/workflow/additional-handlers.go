@@ -12,6 +12,7 @@ import (
 	"backend-v2/internal/models"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func (h *WorkflowController) GetWriteable(c *fiber.Ctx) error {
@@ -48,9 +49,9 @@ func (h *WorkflowController) AddCategory(c *fiber.Ctx) error {
 		})
 	}
 
-	if !access.IsOwner {
+	if !access.IsWriteable {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "You are not the owner of this workflow.",
+			"error": "You do not have write access to this workflow.",
 		})
 	}
 
@@ -301,7 +302,7 @@ func GetJwtPayload(c *fiber.Ctx) (*JwtPayload, error) {
 		return nil, fiber.NewError(fiber.StatusUnauthorized, "No auth token")
 	}
 
-	claims, ok := auth.(map[string]interface{})
+	claims, ok := auth.(jwt.MapClaims)
 	if !ok {
 		return nil, fiber.NewError(fiber.StatusInternalServerError, "Invalid token claims")
 	}
@@ -316,5 +317,5 @@ func GetJwtPayload(c *fiber.Ctx) (*JwtPayload, error) {
 
 type JwtPayload struct {
 	Sub    string
-	Claims map[string]interface{}
+	Claims jwt.MapClaims
 }

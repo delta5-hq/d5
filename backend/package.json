@@ -9,7 +9,7 @@
     "dev": "cross-env DEBUG=${DEBUG:-'delta5:*'} nodemon src/index.js",
     "test": "cross-env DEBUG=${DEBUG:-''} NODE_ENV=test jest --verbose --coverage --reporters=default --reporters=jest-junit --runInBand",
     "test:e2e": "cross-env MOCK_EXTERNAL_SERVICES=true E2E_SERVER_URL=${E2E_SERVER_URL:-http://localhost:3001} E2E_API_BASE_PATH=${E2E_API_BASE_PATH:-/api/v1} E2E_MONGO_URI=${E2E_MONGO_URI:-mongodb://localhost:27017/delta5} jest e2e/ --verbose --maxWorkers=2",
-    "test:e2e:v2": "cross-env E2E_SERVER_URL=http://localhost:8080 E2E_API_BASE_PATH=/api/v1 E2E_MONGO_URI=mongodb://localhost:27017/delta5 jest e2e/ --verbose --maxWorkers=2",
+    "test:e2e:v2": "cross-env E2E_SERVER_URL=http://localhost:3002 E2E_API_BASE_PATH=/api/v1 E2E_MONGO_URI=mongodb://localhost:27017/delta5 jest e2e/ --verbose --maxWorkers=1",
     "test:e2e:server": "cross-env MOCK_EXTERNAL_SERVICES=true npm start",
     "format": "eslint src --fix",
     "lint": "eslint src",

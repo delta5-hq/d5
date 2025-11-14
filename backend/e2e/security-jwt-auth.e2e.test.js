@@ -4,14 +4,12 @@ import {publicRequest, rawRequest} from './shared/requests'
 import {testOrchestrator} from './shared/test-data-factory'
 
 describe('JWT Security - Authentication Attack Vectors', () => {
-  let orchestrator
-
   beforeAll(async () => {
-    orchestrator = await testOrchestrator()
+    await testOrchestrator.prepareTestEnvironment()
   })
 
   afterAll(async () => {
-    await orchestrator?.cleanup()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('Algorithm Confusion Attacks', () => {

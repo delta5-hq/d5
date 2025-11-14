@@ -3,3 +3,4 @@
 junit.xml
 /build
 /coverage
+*.log

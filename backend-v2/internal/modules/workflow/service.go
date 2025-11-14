@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"backend-v2/internal/common/constants"
 	"backend-v2/internal/common/errors"
@@ -140,17 +141,24 @@ func (s *WorkflowService) CreateWorkflow(ctx context.Context, dto CreateWorkflow
 
 	workflowId := utils.GenerateID()
 
+	/* Use provided share data or default to empty */
+	share := models.Share{
+		Public: models.WorkflowState{
+			Enabled:   false,
+			Writeable: false,
+			Hidden:    false,
+		},
+		Access: make([]models.RoleBinding, 0),
+	}
+	
+	if dto.Share != nil {
+		share = *dto.Share
+	}
+
 	data := models.Workflow{
 		UserID:     dto.UserID,
 		WorkflowID: workflowId,
-		Share: models.Share{
-			Public: models.WorkflowState{
-				Enabled:   false,
-				Writeable: false,
-				Hidden:    false,
-			},
-			Access: make([]models.RoleBinding, 0),
-		},
+		Share:      share,
 	}
 
 	_, err = s.Collection.InsertOne(ctx, data)
@@ -188,6 +196,60 @@ func (s *WorkflowService) SetShareAccess(
 		return errors.NewHTTPError(403, "You are not an owner of this workflow.")
 	}
 
+	/* Validate access list entries */
+	validRoles := map[constants.AccessRole]bool{
+		constants.Owner:       true,
+		constants.Contributor: true,
+		constants.Reader:      true,
+	}
+
+	validSubjectTypes := map[constants.SubjectType]bool{
+		"user":  true,
+		"mail":  true,
+		"group": true,
+	}
+
+	hasValidEntry := len(update) == 0 /* Empty list is valid */
+
+	for _, binding := range update {
+		/* Validate role */
+		if binding.Role == "" || !validRoles[binding.Role] {
+			return errors.NewHTTPError(400, "Invalid or missing role in access list")
+		}
+
+		/* Validate subjectType */
+		if binding.SubjectType == "" || !validSubjectTypes[binding.SubjectType] {
+			return errors.NewHTTPError(400, "Invalid or missing subject type in access list")
+		}
+
+		/* Validate subjectID */
+		if binding.SubjectID == "" {
+			continue /* Skip empty subjectID for now, will validate below */
+		}
+
+		/* Reject SQL injection attempts */
+		if strings.Contains(binding.SubjectID, "'") || strings.Contains(binding.SubjectID, "\"") || 
+		   strings.Contains(binding.SubjectID, "--") || strings.Contains(binding.SubjectID, ";") {
+			return errors.NewHTTPError(400, "Invalid subject ID")
+		}
+
+		/* Reject XSS attempts */
+		if strings.Contains(binding.SubjectID, "<") || strings.Contains(binding.SubjectID, ">") {
+			return errors.NewHTTPError(400, "Invalid subject ID")
+		}
+
+		hasValidEntry = true
+	}
+
+	/* If all entries have empty subjectID, reject */
+	if !hasValidEntry {
+		for _, binding := range update {
+			if binding.SubjectID == "" {
+				return errors.NewHTTPError(400, "Invalid or missing subject ID in access list")
+			}
+		}
+	}
+
 	filter := map[string]string{"workflowId": workflow.WorkflowID}
 
 	updateDoc := map[string]any{
@@ -209,13 +271,24 @@ func (s *WorkflowService) SetSharePublic(
 	workflow *models.Workflow,
 	access WorkflowAccess,
 	update *models.WorkflowState,
+	userRoles []string,
 ) *errors.HTTPError {
+	/* Only administrators can set public writeable workflows */
+	if update.Writeable && !update.Hidden {
+		isAdmin := false
+		for _, role := range userRoles {
+			if role == string(constants.Administrator) {
+				isAdmin = true
+				break
+			}
+		}
+		if !isAdmin {
+			return errors.NewHTTPError(403, "Only administrators can set workflows public writeable")
+		}
+	}
+	
 	if !access.IsOwner {
 		return errors.NewHTTPError(403, "You are not an owner of this workflow.")
-	}
-
-	if update.Writeable && !update.Hidden {
-		return errors.NewHTTPError(403, "Only administrators can set workflows public writeable")
 	}
 
 	filter := map[string]string{"workflowId": workflow.WorkflowID}
