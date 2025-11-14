@@ -1,8 +1,6 @@
 import {describe, beforeEach, afterAll, it, expect} from '@jest/globals'
-import {setupDb, teardownDb, isHttpMode} from './setup'
 import {subscriberRequest, publicRequest, customerRequest, administratorRequest} from './shared/requests'
-import {testHybridFilter} from './shared/test-constants'
-import Template from '../src/models/Template'
+import {testDataFactory, testOrchestrator} from './shared/test-data-factory'
 import {subscriber} from '../src/utils/test/users'
 
 const subscriberUserId = subscriber.name
@@ -32,19 +30,12 @@ describe('Template Router', () => {
   const timestamp = Date.now()
   
   beforeEach(async () => {
-    await setupDb()
+    await testOrchestrator.prepareTestEnvironment()
     
-    /* Only skip database operations in HTTP mode - keep test execution */
-    if (!isHttpMode()) {
-      await Template.deleteMany(testHybridFilter('userId', 'name'))
-    }
   })
 
   afterAll(async () => {
-    if (!isHttpMode()) {
-      await Template.deleteMany(testHybridFilter('userId', 'name'))
-    }
-    await teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('POST /templates (private)', () => {
@@ -318,45 +309,28 @@ describe('Template Router - Subscriber Tests', () => {
   let subscriberTemplateId
 
   beforeAll(async () => {
-    await setupDb()
+    await testOrchestrator.prepareTestEnvironment()
 
-    if (isHttpMode()) {
-      /* Create template via API */
-      const timestamp = Date.now()
-      const res = await subscriberRequest.post('/templates').send({
-        name: `subscriber-template-${timestamp}`,
-        title: `subscriber-template-${timestamp}`,
-        nodes: {},
-        edges: {},
-        root: 'root',
-        share: {public: false},
-      })
-      if (res.status === 200) {
-        const body = JSON.parse(res.text)
-        subscriberTemplateId = body.templateId || body._id
-      }
+    
+    const templateData = {
+      name: `subscriber-template-${Date.now()}`,
+      title: `subscriber-template-${Date.now()}`,
+      nodes: {},
+      edges: {},
+      root: 'root',
+      share: {public: false},
+    }
+    const response = await subscriberRequest.post('/templates').send(templateData)
+    if (response.status === 200) {
+      const data = JSON.parse(response.text)
+      subscriberTemplateId = data.templateId
     } else {
-      /* Create template in database */
-      const timestamp = Date.now()
-      const subTemplate = new Template({
-        userId: subscriberUserId,
-        name: `subscriber-template-${timestamp}`,
-        title: `subscriber-template-${timestamp}`,
-        isPublic: false,
-        nodes: {},
-        edges: {},
-        root: 'root',
-      })
-      await subTemplate.save()
-      subscriberTemplateId = subTemplate._id.toString()
+      throw new Error(`Failed to create subscriber template: ${response.status}`)
     }
   })
 
   afterAll(async () => {
-    if (!isHttpMode() && subscriberTemplateId) {
-      await Template.deleteOne({_id: subscriberTemplateId})
-    }
-    await teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('POST /templates (subscriber)', () => {

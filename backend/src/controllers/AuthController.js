@@ -6,11 +6,13 @@ import generateAuth from './utils/generateAuth'
 import Waitlist from '../models/Waitlist'
 
 import {createHash} from 'crypto'
-import {emailer} from '../email'
+import {container} from '../services/container'
 import {sanitizeUsernameOrEmail} from './utils/sanitizeUsernameOrEmail'
 import {isInvalidUsernameOrEmail, isValidEmail} from './utils/validateUsernameOrEmail'
 import {generateRandomString} from './utils/generateRandomString'
 import bcryptjs from 'bcryptjs'
+
+const emailService = container.get('emailService')
 
 const shaHash = str => {
   const shasum = createHash('sha1')
@@ -228,7 +230,7 @@ const AuthController = {
 
     await waitlistRecord.save()
 
-    emailer.notifyUserForSignup(serializedMail, serializedUsername)
+    await emailService.notifyUserForSignup(serializedMail, serializedUsername)
 
     ctx.status = 200
     ctx.body = {success: true}
@@ -276,7 +278,7 @@ const AuthController = {
     const host = ctx.headers.host
     const origin = `${protocol}://${host}/reset-password/${resetToken}`
 
-    emailer.sendResetEmail(user.mail, user.name, origin)
+    await emailService.sendResetEmail(user.mail, user.name, origin)
 
     ctx.body = {success: true}
   },

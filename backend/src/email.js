@@ -73,4 +73,33 @@ export class Emailer {
   }
 }
 
-export const emailer = new Emailer()
+/* Noop implementation for E2E testing - returns success without external SMTP calls */
+export class NoopEmailer {
+  async notifyUserForSignup(email, username) {
+    log('NOOP: notifyUserForSignup', email, username)
+    return {success: true}
+  }
+
+  async notifyUserOfApproval(email) {
+    log('NOOP: notifyUserOfApproval', email)
+    return {success: true}
+  }
+
+  async sendResetEmail(email, username, link) {
+    log('NOOP: sendResetEmail', email, username, link)
+    return {success: true}
+  }
+
+  async notifyUserOfRejection(email) {
+    log('NOOP: notifyUserOfRejection', email)
+    return {success: true}
+  }
+
+  async _sendMail(to, subject) {
+    log('NOOP: _sendMail', to, subject)
+    return {success: true}
+  }
+}
+
+/* Module-level decision: Mock external services in test environments */
+export const emailer = process.env.MOCK_EXTERNAL_SERVICES === 'true' ? new NoopEmailer() : new Emailer()

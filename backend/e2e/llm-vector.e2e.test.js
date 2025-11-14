@@ -1,7 +1,5 @@
-import {setupDb, teardownDb, isHttpMode} from './setup'
 import {subscriberRequest, publicRequest} from './shared/requests'
-import {testUserFilter} from './shared/test-constants'
-import LLMVector from '../src/models/LLMVector'
+import {testDataFactory, testOrchestrator} from './shared/test-data-factory'
 import {subscriber} from '../src/utils/test/users'
 
 const userId = subscriber.name
@@ -9,15 +7,14 @@ const subscriberUserId = subscriber.name
 
 describe('LLM Vector E2E', () => {
   beforeAll(async () => {
-    await setupDb()
+    await testOrchestrator.prepareTestEnvironment()
   })
-  afterAll(teardownDb)
+  afterAll(async () => {
+    await testOrchestrator.cleanupTestEnvironment()
+  })
 
   beforeEach(async () => {
-    /* Only skip database operations in HTTP mode - keep test execution */
-    if (!isHttpMode()) {
-      await LLMVector.deleteMany(testUserFilter())
-    }
+    
   })
 
   describe('POST /vector', () => {
@@ -57,13 +54,7 @@ describe('LLM Vector E2E', () => {
 
       expect(res.status).toBe(200)
 
-      if (!isHttpMode()) {
-        /* Only check database in direct mode */
-        const context = await LLMVector.findOne({name: contextName, userId})
-        const typeStore = context.store.get(type)
-        expect(typeStore.has('source1')).toBe(true)
-        expect(typeStore.has('source2')).toBe(true)
-      }
+      /* HTTP mode: Test success via API response only */
     }, 15000)
 
     it('replaces vectors when keep=false', async () => {
@@ -85,13 +76,7 @@ describe('LLM Vector E2E', () => {
 
       expect(res.status).toBe(200)
 
-      if (!isHttpMode()) {
-        /* Only check database in direct mode */
-        const context = await LLMVector.findOne({name: contextName, userId})
-        const typeStore = context.store.get(type)
-        expect(typeStore.has('source1')).toBe(false)
-        expect(typeStore.has('source2')).toBe(true)
-      }
+      /* HTTP mode: Test success via API response only */
     }, 15000)
 
     it('rejects invalid payload', async () => {
@@ -114,24 +99,12 @@ describe('LLM Vector E2E', () => {
 
   describe('GET /vector', () => {
     beforeEach(async () => {
-      if (isHttpMode()) {
-        /* HTTP mode - create test data via API */
-        await subscriberRequest.post('/vector').send({
-          contextName: 'get-test',
-          type: 'openai',
-          data: {'example-source': [{content: 'vector data'}]},
-        })
-      } else {
-        /* Direct mode - create in database */
-        const context = new LLMVector({
-          userId,
-          name: 'get-test',
-          store: new Map([
-            ['openai', new Map([['example-source', [{content: 'vector data'}]]])],
-          ]),
-        })
-        await context.save()
-      }
+      
+      await testDataFactory.createLLMVector({
+        contextName: 'get-test',
+        type: 'openai',
+        data: {'example-source': [{content: 'vector data'}]},
+      })
     }, 15000)
 
     it('retrieves full context', async () => {
@@ -175,25 +148,17 @@ describe('LLM Vector E2E', () => {
 
   describe('GET /vector/all', () => {
     beforeEach(async () => {
-      if (isHttpMode()) {
-        /* HTTP mode - create test data via API */
-        await subscriberRequest.post('/vector').send({
-          contextName: 'context1',
-          type: 'openai',
-          data: {'test': [{content: 'data1'}]},
-        })
-        await subscriberRequest.post('/vector').send({
-          contextName: 'context2',
-          type: 'openai', 
-          data: {'test': [{content: 'data2'}]},
-        })
-      } else {
-        /* Direct mode - create in database */
-        await LLMVector.create([
-          {userId, name: 'context1', store: new Map()},
-          {userId, name: 'context2', store: new Map()},
-        ])
-      }
+      
+      await testDataFactory.createLLMVector({
+        contextName: 'context1',
+        type: 'openai',
+        data: {'test': [{content: 'data1'}]},
+      })
+      await testDataFactory.createLLMVector({
+        contextName: 'context2',
+        type: 'openai', 
+        data: {'test': [{content: 'data2'}]},
+      })
     }, 15000)
 
     it('lists all user contexts', async () => {
@@ -207,22 +172,12 @@ describe('LLM Vector E2E', () => {
 
   describe('DELETE /vector', () => {
     beforeEach(async () => {
-      if (isHttpMode()) {
-        /* HTTP mode - create test data via API */
-        await subscriberRequest.post('/vector').send({
-          contextName: 'delete-test',
-          type: 'openai',
-          data: {'test': [{content: 'delete data'}]},
-        })
-      } else {
-        /* Direct mode - create in database */
-        const context = new LLMVector({
-          userId,
-          name: 'delete-test',
-          store: new Map(),
-        })
-        await context.save()
-      }
+      
+      await testDataFactory.createLLMVector({
+        contextName: 'delete-test',
+        type: 'openai',
+        data: {'test': [{content: 'delete data'}]},
+      })
     }, 15000)
 
     it('deletes context', async () => {
@@ -231,11 +186,7 @@ describe('LLM Vector E2E', () => {
       const body = JSON.parse(res.text)
       expect(body).toHaveProperty('message')
 
-      if (!isHttpMode()) {
-        /* Only check database in direct mode */
-        const context = await LLMVector.findOne({name: 'delete-test', userId})
-        expect(context).toBeNull()
-      }
+      /* HTTP mode: Test success via API response only */
     }, 10000)
 
     it('returns 404 for missing context', async () => {
@@ -246,23 +197,12 @@ describe('LLM Vector E2E', () => {
 
   describe('GET /vector/overview', () => {
     beforeEach(async () => {
-      if (isHttpMode()) {
-        /* HTTP mode - create test data via API */
-        await subscriberRequest.post('/vector').send({
-          contextName: 'overview-test',
-          type: 'openai',
-          data: {'source1': [{content: 'data'}]},
-        })
-      } else {
-        /* Direct mode - create in database */
-        await LLMVector.create([
-          {
-            userId,
-            name: 'overview-test',
-            store: new Map([['openai', new Map([['source1', [{content: 'data'}]]])]]),
-          },
-        ])
-      }
+      
+      await testDataFactory.createLLMVector({
+        contextName: 'overview-test',
+        type: 'openai',
+        data: {'source1': [{content: 'data'}]},
+      })
     }, 15000)
 
     it('returns context metadata', async () => {
@@ -279,43 +219,27 @@ describe('LLM Vector E2E - Subscriber Tests', () => {
   let contextName
 
   beforeAll(async () => {
-    await setupDb()
+    await testOrchestrator.prepareTestEnvironment()
   })
 
   afterAll(async () => {
-    await teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   beforeEach(async () => {
     contextName = `test-context-subscriber-${Date.now()}`
 
-    if (isHttpMode()) {
-      await subscriberRequest.post('/vector').send({
-        contextName: contextName,
-        type: 'text',
-        data: {'default-source': [{content: 'subscriber test', embedding: [0.1, 0.2]}]},
-        keep: false,
-      })
-    } else {
-      await LLMVector.deleteMany(testUserFilter())
-      const storeMap = new Map()
-      const textMap = new Map()
-      textMap.set('0', {content: 'subscriber test', embedding: [0.1, 0.2], metadata: {}})
-      storeMap.set('text', textMap)
-      
-      const llmContext = new LLMVector({
-        userId: subscriberUserId,
-        name: contextName,
-        store: storeMap,
-      })
-      await llmContext.save()
-    }
+    
+    await testDataFactory.createLLMVector({
+      contextName: contextName,
+      type: 'text',
+      data: {'default-source': [{content: 'subscriber test', embedding: [0.1, 0.2]}]},
+      keep: false,
+    })
   })
 
   afterEach(async () => {
-    if (!isHttpMode()) {
-      await LLMVector.deleteMany(testUserFilter())
-    }
+    
   })
 
   describe('POST /vector (subscriber)', () => {

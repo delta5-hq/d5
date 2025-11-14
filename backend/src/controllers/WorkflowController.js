@@ -44,7 +44,7 @@ const WorkflowController = {
   },
   authorization: async (ctx, next) => {
     const {method} = ctx
-    const {userId, workflow} = ctx.state
+    const {userId, workflow, auth} = ctx.state
 
     if (!userId && !workflow.isPublic()) {
       ctx.throw(401, 'Authentication needed.')
@@ -52,16 +52,14 @@ const WorkflowController = {
 
     const {access = []} = workflow.share || {}
 
-    const user = User.findOne({id: userId})
+    const user = await User.findOne({id: userId})
 
-    if (!user) {
-      ctx.throw(401, 'User not found.')
-    }
-
-    const roleBinding = access.find(
-      ({subjectId, subjectType}) =>
-        (subjectType === 'user' && subjectId === userId) || (subjectType === 'mail' && subjectId === user.mail),
-    )
+    const roleBinding = access.find(({subjectId, subjectType}) => {
+      if (subjectType === 'user' && subjectId === userId) return true
+      if (subjectType === 'mail' && user?.mail && subjectId === user.mail) return true
+      if (subjectType === 'mail' && auth?.mail && subjectId === auth.mail) return true
+      return false
+    })
 
     const isOwner = workflow.userId?.toString() === userId || roleBinding?.role === ACCESS_ROLES.owner
     const isWriteable = isOwner || roleBinding?.role === ACCESS_ROLES.contributor || workflow.isPublicWriteable()
@@ -195,7 +193,7 @@ const WorkflowController = {
     ctx.body = {workflowId}
   },
   exportJson: async ctx => {
-    const {workflowId, title, nodes, edges, tags, root} = ctx.state.map.toJSON()
+    const {workflowId, title, nodes, edges, tags, root} = ctx.state.workflow.toJSON()
     const {isWriteable} = ctx.state.access
 
     if (!isWriteable) {
@@ -223,7 +221,7 @@ const WorkflowController = {
     ctx.body = {...exportWorkflow, images, documents}
   },
   exportZip: async ctx => {
-    const {workflowId, title, nodes, edges, tags, root} = ctx.state.map.toJSON()
+    const {workflowId, title, nodes, edges, tags, root} = ctx.state.workflow.toJSON()
     const {isWriteable} = ctx.state.access
 
     if (!isWriteable) {
@@ -337,9 +335,9 @@ const WorkflowController = {
     if (ctx.state?.userId === userId && ctx.state?.auth) nodeLimit = ctx.state.auth.limitNodes
 
     //workaround role org_subscriber with unlimited workflows/cards
-    if (user.roles.includes(ROLES.org_subscriber)) nodeLimit = false
+    if (user?.roles.includes(ROLES.org_subscriber)) nodeLimit = false
 
-    ctx.body = {nodeLimit: nodeLimit}
+    ctx.body = {limit: nodeLimit}
   },
   addCategory: async ctx => {
     const {workflow} = ctx.state

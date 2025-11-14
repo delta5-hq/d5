@@ -1,9 +1,11 @@
-import {emailer} from '../email'
+import {container} from '../services/container'
 import User from '../models/User'
 import Waitlist from '../models/Waitlist'
 import Workflow from '../models/Workflow'
 import {ROLES} from '../shared/config/constants'
 import {createOpenaiIntegration} from './utils/createOpenaiIntegration'
+
+const emailService = container.get('emailService')
 
 const toCsv = arrayOfArrays =>
   arrayOfArrays.map(array => array.map(field => String(field).replace([';', '\n', '\r'], '')).join(';')).join('\n')
@@ -356,7 +358,7 @@ const StatisticsController = {
         await Waitlist.deleteOne({id: userId})
         await createOpenaiIntegration(userId)
 
-        emailer.notifyUserOfApproval(waitlistRecord.mail)
+        emailService.notifyUserOfApproval(waitlistRecord.mail)
         results.push({id: userId, success: true})
       } catch (err) {
         results.push({id: userId, success: false, error: err.message})
@@ -379,7 +381,7 @@ const StatisticsController = {
         if (!waitlistRecord) throw new Error('Waitlist record not found')
 
         await Waitlist.deleteOne({id: userId})
-        emailer.notifyUserOfRejection(waitlistRecord.mail)
+        emailService.notifyUserOfRejection(waitlistRecord.mail)
 
         results.push({id: userId, success: true})
       } catch (err) {
@@ -416,7 +418,7 @@ const StatisticsController = {
     await Waitlist.deleteOne({id: waitUserId})
     await createOpenaiIntegration(waitUserId)
 
-    emailer.notifyUserOfApproval(waitlistRecord.mail)
+    emailService.notifyUserOfApproval(waitlistRecord.mail)
 
     ctx.body = {success: true}
   },
@@ -429,7 +431,7 @@ const StatisticsController = {
     }
 
     await Waitlist.deleteOne({id: waitUserId})
-    emailer.notifyUserOfRejection(waitlistRecord.mail)
+    emailService.notifyUserOfRejection(waitlistRecord.mail)
 
     ctx.body = {success: true}
   },

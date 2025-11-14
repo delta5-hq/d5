@@ -1,6 +1,7 @@
 import { useQuery, type UseQueryOptions } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { apiFetch } from '@shared/lib/base-api'
+import type { ApiVersion } from '@shared/base-types'
 
 interface ExtraQueryParams<TData = unknown, TError = unknown> {
   url?: string
@@ -14,7 +15,9 @@ type ExtendedOptions<TQueryFnData, TError, TData, TQueryKey extends readonly unk
   TData,
   TQueryKey
 > &
-  ExtraQueryParams<TData, TError>
+  ExtraQueryParams<TData, TError> & {
+    version?: ApiVersion
+  }
 
 export const useApiQuery = <
   TData = unknown,
@@ -29,7 +32,7 @@ export const useApiQuery = <
   const query = useQuery<TQueryFnData, TError, TData, TQueryKey>({
     queryFn: async () => {
       if (!url) throw new Error('Url is required')
-      return apiFetch(url)
+      return apiFetch(url, { version: options.version })
     },
     retry: 0,
     ...rest,

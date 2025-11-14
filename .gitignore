@@ -1,2 +1,4 @@
 .vscode
 .github
+.github/docs/TODO.md
+*.log
