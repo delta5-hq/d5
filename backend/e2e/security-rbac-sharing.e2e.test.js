@@ -89,7 +89,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('prevents contributor from updating public sharing', async () => {
-      await administratorRequest.post(`/workflow/${workflowId}/share/access`).send([
+      const testWorkflow = await testDataFactory.createWorkflow({title: 'Contributor Test'})
+      
+      await administratorRequest.post(`/workflow/${testWorkflow.workflowId}/share/access`).send([
         {
           subjectId: subscriberUserId,
           subjectType: 'user',
@@ -97,7 +99,7 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
         },
       ])
 
-      const response = await subscriberRequest.post(`/workflow/${workflowId}/share/public`).send({
+      const response = await subscriberRequest.post(`/workflow/${testWorkflow.workflowId}/share/public`).send({
         enabled: true,
       })
 
@@ -105,7 +107,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('prevents reader from updating public sharing', async () => {
-      await administratorRequest.post(`/workflow/${workflowId}/share/access`).send([
+      const testWorkflow = await testDataFactory.createWorkflow({title: 'Reader Test'})
+      
+      await administratorRequest.post(`/workflow/${testWorkflow.workflowId}/share/access`).send([
         {
           subjectId: subscriberUserId,
           subjectType: 'user',
@@ -113,7 +117,7 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
         },
       ])
 
-      const response = await subscriberRequest.post(`/workflow/${workflowId}/share/public`).send({
+      const response = await subscriberRequest.post(`/workflow/${testWorkflow.workflowId}/share/public`).send({
         enabled: true,
       })
 
@@ -121,7 +125,13 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('allows owner role in access list to update sharing', async () => {
-      await administratorRequest.post(`/workflow/${subscriberWorkflowId}/share/access`).send([
+      /* Create dedicated workflow to avoid polluting subscriberWorkflowId */
+      const testWorkflow = await testDataFactory.createWorkflow({
+        title: 'Owner Role Test Workflow',
+        userId: subscriberUserId,
+      })
+
+      await administratorRequest.post(`/workflow/${testWorkflow.workflowId}/share/access`).send([
         {
           subjectId: customerUserId,
           subjectType: 'user',
@@ -129,7 +139,7 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
         },
       ])
 
-      const response = await customerRequest.post(`/workflow/${subscriberWorkflowId}/share/public`).send({
+      const response = await customerRequest.post(`/workflow/${testWorkflow.workflowId}/share/public`).send({
         enabled: true,
         hidden: true,
       })
@@ -650,8 +660,11 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
 
       expect(response.status).toBe(200)
       const workflows = JSON.parse(response.text)
-      const otherUserWorkflows = workflows.data.filter(w => w.userId !== subscriberUserId)
-      expect(otherUserWorkflows.length).toBe(0)
+      
+      /* Subscriber should only see: their own workflows + workflows they have access to */
+      /* customerWorkflowId should NOT appear (no access granted) */
+      const hasCustomerWorkflow = workflows.data.some(w => w.workflowId === customerWorkflowId)
+      expect(hasCustomerWorkflow).toBe(false)
     })
 
     it('prevents workflow ID enumeration attack', async () => {

@@ -1,9 +1,12 @@
 package auth
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"regexp"
 	"strings"
 
+	"backend-v2/internal/common"
 	"backend-v2/internal/services/email"
 
 	"github.com/gofiber/fiber/v2"
@@ -91,10 +94,31 @@ func (c *Controller) Auth(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// For now, just return success - JWT generation would go here
+	/* Generate JWT tokens */
+	auth, err := common.GenerateAuth(user)
+	if err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate token"})
+	}
+
+	/* Set refresh_token cookie (matches Node.js behavior) */
+	ctx.Cookie(&fiber.Cookie{
+		Name:     "refresh_token",
+		Value:    auth.RefreshToken,
+		MaxAge:   int(auth.ExpiresIn),
+		HTTPOnly: true,
+		SameSite: "Lax",
+	})
+
+	/* Compute SHA1 hash of access token (matches Node.js) */
+	hasher := sha1.New()
+	hasher.Write([]byte(auth.AccessToken))
+	tokenHash := hex.EncodeToString(hasher.Sum(nil))
+
+	/* Return response without refresh_token (it's in cookie) */
 	return ctx.JSON(fiber.Map{
-		"userId": user.ID,
-		"name":   user.Name,
+		"wp_user":    auth.WpUser,
+		"tokenHash":  tokenHash,
+		"expires_in": auth.ExpiresIn,
 	})
 }
 
@@ -216,14 +240,49 @@ func (c *Controller) ResetPassword(ctx *fiber.Ctx) error {
 
 /* POST /refresh - Refresh access token */
 func (c *Controller) Refresh(ctx *fiber.Ctx) error {
-	// Check for refresh token in cookie
 	refreshToken := ctx.Cookies("refresh_token")
 	if refreshToken == "" {
 		return ctx.Status(fiber.StatusUnauthorized).SendString("No refresh token found.")
 	}
 
-	// In production, validate JWT and generate new token
-	return ctx.Status(fiber.StatusUnauthorized).SendString("Refresh JWT invalid.")
+	/* Validate refresh token and extract username */
+	user, err := c.service.ValidateRefreshToken(ctx.Context(), refreshToken)
+	if err != nil {
+		return ctx.Status(fiber.StatusUnauthorized).SendString("Refresh JWT invalid.")
+	}
+
+	/* Generate new JWT tokens */
+	auth, err := common.GenerateAuth(user)
+	if err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate token"})
+	}
+
+	/* Set auth cookie with access token (matches Node.js) */
+	ctx.Cookie(&fiber.Cookie{
+		Name:     "auth",
+		Value:    auth.AccessToken,
+		MaxAge:   int(auth.ExpiresIn),
+		HTTPOnly: true,
+		SameSite: "Lax",
+	})
+
+	/* Compute SHA1 hash of access token */
+	hasher := sha1.New()
+	hasher.Write([]byte(auth.AccessToken))
+	tokenHash := hex.EncodeToString(hasher.Sum(nil))
+
+	/* Return enriched response (matches Node.js) */
+	return ctx.JSON(fiber.Map{
+		"wp_user":         auth.WpUser,
+		"tokenHash":       tokenHash,
+		"expires_in":      auth.ExpiresIn,
+		"expiresAt":       (auth.ExpiresIn + 0) * 1000, // in ms
+		"userId":          user.Name,
+		"roles":           user.Roles,
+		"limitWorkflows":  user.LimitWorkflows,
+		"limitNodes":      user.LimitNodes,
+		"name":            user.Name,
+	})
 }
 
 /* POST /external-auth - External authentication */
@@ -248,10 +307,14 @@ func (c *Controller) ExternalAuth(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return ctx.JSON(fiber.Map{
-		"userId": user.ID,
-		"name":   user.Name,
-	})
+	/* Generate JWT tokens */
+	auth, err := common.GenerateAuth(user)
+	if err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate token"})
+	}
+
+	/* ExternalAuth returns full auth object including refresh_token (no cookie) */
+	return ctx.JSON(auth)
 }
 
 /* POST /external-auth/refresh - External refresh */

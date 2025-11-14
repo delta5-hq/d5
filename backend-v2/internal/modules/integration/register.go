@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"backend-v2/internal/middlewares"
 	"backend-v2/internal/services/container"
 
 	"github.com/gofiber/fiber/v2"
@@ -25,7 +26,7 @@ func Register(router fiber.Router, db *qmgo.Database, services *container.Servic
 	integrationGroup := router.Group("/integration")
 
 	/* Protected endpoints - require auth */
-	integrationGroup.Use(baseCtrl.Authorization)
+	integrationGroup.Use(middlewares.RequireAuth)
 	
 	/* Core integration management */
 	integrationGroup.Get("/", baseCtrl.GetAll)

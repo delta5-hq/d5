@@ -81,3 +81,27 @@ func (h *Controller) SearchMail(c *fiber.Ctx) error {
 
 	return c.JSON(user)
 }
+
+/* GET /users/me - Get current authenticated user */
+func (h *Controller) Me(c *fiber.Ctx) error {
+	userId, ok := c.Locals("userId").(string)
+	if !ok || userId == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required.",
+		})
+	}
+
+	user, err := h.Service.GetUserByID(c.Context(), userId)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).SendString("User not found.")
+	}
+
+	return c.JSON(fiber.Map{
+		"id":        user.ID,
+		"name":      user.Name,
+		"mail":      user.Mail,
+		"roles":     user.Roles,
+		"createdAt": user.CreatedAt,
+		"updatedAt": user.UpdatedAt,
+	})
+}

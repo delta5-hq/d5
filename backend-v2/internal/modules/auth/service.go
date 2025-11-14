@@ -1,12 +1,15 @@
 package auth
 
 import (
+	"backend-v2/internal/config"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/qiniu/qmgo"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -170,6 +173,44 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	filter = bson.M{"id": user.ID}
 	err = s.usersCollection.UpdateOne(ctx, filter, update)
 	return err
+}
+
+/* ValidateRefreshToken - Validate JWT refresh token and return user */
+func (s *Service) ValidateRefreshToken(ctx context.Context, tokenString string) (*models.User, error) {
+	/* Parse and validate JWT token */
+	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
+		/* Enforce HS256 algorithm */
+		if t.Method.Alg() != "HS256" {
+			return nil, errors.New("unexpected signing method")
+		}
+		return []byte(config.JwtSecret), nil
+	})
+
+	if err != nil || !token.Valid {
+		return nil, errors.New("invalid token")
+	}
+
+	/* Extract claims */
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, errors.New("invalid token claims")
+	}
+
+	/* Get username from subject */
+	sub, ok := claims["sub"].(string)
+	if !ok || sub == "" {
+		return nil, errors.New("invalid token subject")
+	}
+
+	/* Find user by username */
+	filter := bson.M{"name": sub}
+	var user models.User
+	err = s.usersCollection.Find(ctx, filter).One(&user)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	return &user, nil
 }
 
 func generateRandomString(length int) string {

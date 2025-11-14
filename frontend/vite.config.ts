@@ -66,8 +66,8 @@ export default defineConfig(({ mode }) => {
       },
     },
     define: {
-      'import.meta.env.API_BASE_PATH': JSON.stringify(process.env.VITE_API_BASE_PATH || '/api/v1'),
-      'import.meta.env.API_V2_BASE_PATH': JSON.stringify(process.env.VITE_API_BASE_PATH || '/api/v2'),
+      'import.meta.env.API_BASE_PATH': JSON.stringify(process.env.VITE_API_BASE_PATH || '/api/v2'),
+      'import.meta.env.API_V2_BASE_PATH': JSON.stringify(process.env.VITE_API_V2_BASE_PATH || '/api/v2'),
     },
     server: {
       proxy: {
@@ -76,7 +76,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
         },
         '/api/v2': {
-          target: env.VITE_V2_API_URL || 'http://localhost:8080',
+          target: env.VITE_V2_API_URL || 'http://localhost:3002',
           changeOrigin: true,
           rewrite: path => path.replace(/^\/api\/v2/, '/api/v1'),
         },

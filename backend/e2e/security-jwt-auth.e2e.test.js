@@ -414,10 +414,12 @@ describe('JWT Security - Authentication Attack Vectors', () => {
       expect(response.status).toBe(401)
     })
 
-    it('rejects cookie with URL encoding', async () => {
+    it('rejects cookie with embedded semicolon', async () => {
       const validToken = createValidToken()
-      const encodedToken = encodeURIComponent(validToken)
-      const response = await rawRequest.get('/api/v1/workflow').set('Cookie', `auth=${encodedToken}`)
+      /* Inject semicolon within JWT value to break parsing */
+      const parts = validToken.split('.')
+      const maliciousToken = parts[0] + ';malicious.' + parts.slice(1).join('.')
+      const response = await rawRequest.get('/api/v1/workflow').set('Cookie', `auth=${maliciousToken}`)
 
       expect(response.status).toBe(401)
     })
@@ -470,7 +472,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
       expect(response3.status).toBe(200)
     })
 
-    it('accepts token with same payload but different signature', async () => {
+    it('accepts tokens with same payload signed at different times', async () => {
       const token1 = jwt.sign(
         {
           sub: 'subscriber_user',
@@ -480,7 +482,8 @@ describe('JWT Security - Authentication Attack Vectors', () => {
         {expiresIn: 86400},
       )
 
-      await new Promise(resolve => setTimeout(resolve, 10))
+      /* Wait 1100ms to ensure iat changes (Unix epoch second precision) */
+      await new Promise(resolve => setTimeout(resolve, 1100))
 
       const token2 = jwt.sign(
         {
@@ -534,7 +537,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
       expect(response.status).toBe(401)
     })
 
-    it('rejects URL encoded token', async () => {
+    it('rejects token with URL-encodable injection', async () => {
       const validToken = jwt.sign(
         {
           sub: 'subscriber_user',
@@ -544,8 +547,9 @@ describe('JWT Security - Authentication Attack Vectors', () => {
         {expiresIn: 86400},
       )
 
-      const urlEncodedToken = encodeURIComponent(validToken)
-      const response = await rawRequest.get('/api/v1/workflow').set('Authorization', `Bearer ${urlEncodedToken}`)
+      /* Inject characters that WOULD be URL-encoded (&, =, space) */
+      const maliciousToken = validToken + '&admin=true'
+      const response = await rawRequest.get('/api/v1/workflow').set('Authorization', `Bearer ${maliciousToken}`)
 
       expect(response.status).toBe(401)
     })

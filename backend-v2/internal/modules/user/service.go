@@ -94,3 +94,20 @@ func (s *Service) Upsert(ctx context.Context, user *models.User) error {
 
 	return s.collection.UpdateOne(ctx, filter, update)
 }
+
+/* Get user by ID */
+func (s *Service) GetUserByID(ctx context.Context, userId string) (*models.User, error) {
+	var user models.User
+
+	filter := bson.M{"id": userId}
+
+	err := s.collection.Find(ctx, filter).
+		Select(bson.M{"id": 1, "name": 1, "mail": 1, "roles": 1, "createdAt": 1, "updatedAt": 1, "_id": 0}).
+		One(&user)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
