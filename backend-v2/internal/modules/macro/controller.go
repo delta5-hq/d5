@@ -1,6 +1,7 @@
 package macro
 
 import (
+	"backend-v2/internal/common/response"
 	"backend-v2/internal/models"
 	"fmt"
 
@@ -23,25 +24,19 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 
 	var macro models.Macro
 	if err := c.BodyParser(&macro); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Invalid request body",
-		})
+		return response.BadRequest(c, "Invalid request body")
 	}
 
 	existingMacro, err := h.service.FindByName(c.Context(), macro.Name)
 	if err == nil && existingMacro != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Macro already exists",
-		})
+		return response.InternalError(c, "Macro already exists")
 	}
 
 	macro.UserID = userID
 
 	macroID, err := h.service.Create(c.Context(), &macro)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(fiber.Map{
@@ -54,9 +49,7 @@ func (h *Controller) List(c *fiber.Ctx) error {
 
 	macros, err := h.service.FindByUserID(c.Context(), userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(macros)
@@ -75,9 +68,7 @@ func (ctrl *Controller) GetByName(c *fiber.Ctx) error {
 		if err == qmgo.ErrNoSuchDocuments {
 			return c.SendStatus(fiber.StatusNoContent)
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(macro)
@@ -88,9 +79,7 @@ func (ctrl *Controller) Delete(c *fiber.Ctx) error {
 
 	err := ctrl.service.Delete(c.Context(), macroID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": fmt.Sprintf("Cannot delete macro: %v", err),
-		})
+		return response.InternalError(c, fmt.Sprintf("Cannot delete macro: %v", err))
 	}
 
 	return c.JSON(fiber.Map{

@@ -3,6 +3,7 @@ package workflow
 import (
 	"backend-v2/internal/common/constants"
 	"backend-v2/internal/common/dto"
+	"backend-v2/internal/common/response"
 	"backend-v2/internal/common/utils"
 	"backend-v2/internal/models"
 
@@ -42,16 +43,12 @@ func (h *WorkflowController) UpdateWorkflow(c *fiber.Ctx) error {
 
 	var update models.Workflow
 	if err := c.BodyParser(&update); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "invalid request body",
-		})
+		return response.BadRequest(c, "invalid request body")
 	}
 
 	err := h.Service.UpdateWorkflow(c.Context(), workflowId, &update)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
@@ -67,9 +64,7 @@ func (h *WorkflowController) GetWorkflows(c *fiber.Ctx) error {
 	hasAuthCookie := c.Cookies("auth") != ""
 	
 	if (hasAuthHeader || hasAuthCookie) && c.Locals("jwtOriginalError") != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Authentication failed",
-		})
+		return response.Unauthorized(c, "Authentication failed")
 	}
 
 	userID, _ := c.Locals(constants.ContextUserIDKey).(string)
@@ -117,9 +112,7 @@ func (h *WorkflowController) GetWorkflows(c *fiber.Ctx) error {
 
 	workflows, count, err := h.Service.GetWorkflows(c.Context(), query)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"data":  workflows,
@@ -134,18 +127,14 @@ func (h *WorkflowController) CreateWorkflow(c *fiber.Ctx) error {
 	userID := c.Locals(constants.ContextUserIDKey)
 	
 	if userID == nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Authentication required",
-		})
+		return response.Unauthorized(c, "Authentication required")
 	}
 
 	userIDStr := userID.(string)
 	auth, err := utils.GetJwtPayload(c)
 
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	/* Parse request body for optional fields like share */
@@ -216,9 +205,7 @@ func (h *WorkflowController) SetShareAccess(c *fiber.Ctx) error {
 
 	var update []*models.RoleBinding
 	if err := c.BodyParser(&update); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "invalid request body",
-		})
+		return response.BadRequest(c, "invalid request body")
 	}
 
 	err := h.Service.SetShareAccess(c.Context(), workflow, access, update)
@@ -264,17 +251,13 @@ func (h *WorkflowController) SetSharePublic(c *fiber.Ctx) error {
 	var update map[string]interface{}
 	if err := c.BodyParser(&update); err != nil {
 		if jsonErr := json.Unmarshal(c.Body(), &update); jsonErr != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "invalid request body",
-			})
+			return response.BadRequest(c, "invalid request body")
 		}
 	}
 
 	enabled, hasEnabled := update["enabled"].(bool)
 	if !hasEnabled {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Badly formatted request.",
-		})
+		return response.BadRequest(c, "Badly formatted request.")
 	}
 
 	publicState := workflow.Share.Public

@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"backend-v2/internal/common/response"
 	"backend-v2/internal/services/zoom"
 
 	"github.com/gofiber/fiber/v2"
@@ -30,9 +31,7 @@ func (ctrl *ZoomController) Auth(c *fiber.Ctx) error {
 	/* Use injected service (noop or prod) */
 	result, err := ctrl.service.Auth(code, redirectUri)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(result)
@@ -43,9 +42,7 @@ func (ctrl *ZoomController) Recordings(c *fiber.Ctx) error {
 	authHeader := c.Get("Authorization")
 
 	if authHeader == "" {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"message": "Zoom Api Key is required",
-		})
+		return response.NotFound(c, "Zoom Api Key is required")
 	}
 
 	/* Extract token from "Bearer <token>" */
@@ -57,9 +54,7 @@ func (ctrl *ZoomController) Recordings(c *fiber.Ctx) error {
 	/* Use injected service (noop or prod) */
 	result, err := ctrl.service.GetRecordings(meetingID, accessToken)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	/* Extract transcripts from recordings (match Node.js behavior) */

@@ -2,6 +2,7 @@ package integration
 
 import (
 	"backend-v2/internal/common/constants"
+	"backend-v2/internal/common/response"
 	"encoding/json"
 
 	"github.com/gofiber/fiber/v2"
@@ -22,9 +23,7 @@ func (ctrl *Controller) Authorization(c *fiber.Ctx) error {
 	userID := c.Locals(constants.ContextUserIDKey)
 
 	if userID == nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"message": "Authentication needed.",
-		})
+		return response.Unauthorized(c, "Authentication needed.")
 	}
 
 	return c.Next()
@@ -37,13 +36,9 @@ func (ctrl *Controller) GetAll(c *fiber.Ctx) error {
 	integration, err := ctrl.service.FindByUserID(c.Context(), userID)
 	if err != nil {
 		if err == qmgo.ErrNoSuchDocuments {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"message": "Integration not found",
-			})
+			return response.NotFound(c, "Integration not found")
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(integration)
@@ -57,24 +52,20 @@ func (ctrl *Controller) GetService(c *fiber.Ctx) error {
 	integration, err := ctrl.service.FindByUserID(c.Context(), userID)
 	if err != nil {
 		if err == qmgo.ErrNoSuchDocuments {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"message": "Integration for the called application was not found",
-			})
+			return response.NotFound(c, "Integration for the called application was not found")
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	integrationBytes, _ := json.Marshal(integration)
 	var integrationMap map[string]interface{}
 	json.Unmarshal(integrationBytes, &integrationMap)
 
-	response := map[string]interface{}{
+	responseMap := map[string]interface{}{
 		service: integrationMap[service],
 	}
 
-	return c.JSON(response)
+	return c.JSON(responseMap)
 }
 
 /* PUT /integration/:service/update - Updates service API keys */
@@ -84,16 +75,12 @@ func (ctrl *Controller) UpdateService(c *fiber.Ctx) error {
 
 	var serviceConfig map[string]interface{}
 	if err := c.BodyParser(&serviceConfig); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Something is wrong with the provided data",
-		})
+		return response.BadRequest(c, "Something is wrong with the provided data")
 	}
 
 	vectors, err := ctrl.service.CreateLLMVector(c.Context(), ctrl.db, userID, service)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	update := map[string]interface{}{
@@ -102,9 +89,7 @@ func (ctrl *Controller) UpdateService(c *fiber.Ctx) error {
 
 	err = ctrl.service.Upsert(c.Context(), userID, update)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(fiber.Map{
@@ -118,9 +103,7 @@ func (ctrl *Controller) Delete(c *fiber.Ctx) error {
 
 	err := ctrl.service.Delete(c.Context(), userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
@@ -145,17 +128,13 @@ func (ctrl *Controller) SetLanguage(c *fiber.Ctx) error {
 
 	var body map[string]interface{}
 	if err := c.BodyParser(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Invalid request body",
-		})
+		return response.BadRequest(c, "Invalid request body")
 	}
 
 	/* Node.js reads 'lang' but test sends 'language' - field mismatch causes 500 */
 	lang, ok := body["lang"].(string)
 	if !ok {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Lang not specified",
-		})
+		return response.InternalError(c, "Lang not specified")
 	}
 
 	update := map[string]interface{}{
@@ -164,9 +143,7 @@ func (ctrl *Controller) SetLanguage(c *fiber.Ctx) error {
 
 	err := ctrl.service.Upsert(c.Context(), userID, update)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(fiber.Map{
@@ -180,16 +157,12 @@ func (ctrl *Controller) SetModel(c *fiber.Ctx) error {
 
 	var body map[string]interface{}
 	if err := c.BodyParser(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Invalid request body",
-		})
+		return response.BadRequest(c, "Invalid request body")
 	}
 
 	model, ok := body["model"].(string)
 	if !ok {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Model not specified",
-		})
+		return response.InternalError(c, "Model not specified")
 	}
 
 	update := map[string]interface{}{
@@ -198,9 +171,7 @@ func (ctrl *Controller) SetModel(c *fiber.Ctx) error {
 
 	err := ctrl.service.Upsert(c.Context(), userID, update)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(fiber.Map{

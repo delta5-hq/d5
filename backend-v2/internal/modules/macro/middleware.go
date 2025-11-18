@@ -1,6 +1,8 @@
 package macro
 
 import (
+	"backend-v2/internal/common/response"
+
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -8,9 +10,7 @@ func Authorization(c *fiber.Ctx) error {
 	userID := c.Locals("userId")
 
 	if userID == nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"message": "Authentication needed.",
-		})
+		return response.Unauthorized(c, "Authentication needed.")
 	}
 
 	return c.Next()
@@ -23,15 +23,11 @@ func Load(service *Service) fiber.Handler {
 
 		macro, err := service.FindByID(c.Context(), macroID)
 		if err != nil {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"message": "Macro not found.",
-			})
+			return response.NotFound(c, "Macro not found.")
 		}
 
 		if userID != macro.UserID {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"message": "Permissions denied.",
-			})
+			return response.Forbidden(c, "Permissions denied.")
 		}
 
 		c.Locals("macro", macro)

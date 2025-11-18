@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"backend-v2/internal/common/response"
 	"backend-v2/internal/services/claude"
 	"fmt"
 
@@ -51,16 +52,12 @@ func (ctrl *ClaudeController) Messages(c *fiber.Ctx) error {
 	}
 
 	if err := req.Validate(); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.BadRequest(c, err.Error())
 	}
 
 	result, err := ctrl.service.Messages(ctrl.db, userID, req.Messages, req.Model, req.MaxTokens)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(result)

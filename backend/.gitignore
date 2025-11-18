@@ -1,6 +1,12 @@
-.env
-/node_modules
+# Node.js dependencies
+node_modules/
+
+# Build outputs
+build/
+coverage/
+
+# Test outputs
 junit.xml
-/build
-/coverage
-*.log
+
+# Environment (redundant with root but explicit)
+.env

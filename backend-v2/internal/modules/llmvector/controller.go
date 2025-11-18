@@ -1,9 +1,10 @@
 package llmvector
 
 import (
-	"github.com/gofiber/fiber/v2"
-
+	"backend-v2/internal/common/response"
 	"backend-v2/internal/models"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 type Controller struct {
@@ -18,7 +19,7 @@ func NewController(service *Service) *Controller {
 func (c *Controller) Save(ctx *fiber.Ctx) error {
 	userID, ok := ctx.Locals("userId").(string)
 	if !ok {
-		return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+		return response.Unauthorized(ctx, "Unauthorized")
 	}
 
 	var payload struct {
@@ -29,34 +30,28 @@ func (c *Controller) Save(ctx *fiber.Ctx) error {
 	}
 
 	if err := ctx.BodyParser(&payload); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Invalid payload"})
+		return response.BadRequest(ctx, "Invalid payload")
 	}
 
 	if payload.Type == "" || payload.Data == nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Invalid payload: \"type\" and \"data\" are required, and \"data\" should be an object with key-value(source - vectors[]) pairs",
-		})
+		return response.BadRequest(ctx, "Invalid payload: \"type\" and \"data\" are required, and \"data\" should be an object with key-value(source - vectors[]) pairs")
 	}
 
 	// Validate data structure
 	for source, vectors := range payload.Data {
 		if source == "" {
-			return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"message": "Invalid source key",
-			})
+			return response.BadRequest(ctx, "Invalid source key")
 		}
 		for _, vector := range vectors {
 			if vector.Content == "" && len(vector.Embedding) == 0 {
-				return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-					"message": "Invalid value for '" + source + "'",
-				})
+				return response.BadRequest(ctx, "Invalid value for '" + source + "'")
 			}
 		}
 	}
 
 	context, err := c.service.SaveContext(ctx.Context(), payload.ContextName, userID, payload.Type, payload.Data, payload.Keep)
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return response.InternalError(ctx, err.Error())
 	}
 
 	return ctx.JSON(context)
@@ -66,7 +61,7 @@ func (c *Controller) Save(ctx *fiber.Ctx) error {
 func (c *Controller) Get(ctx *fiber.Ctx) error {
 	userID, ok := ctx.Locals("userId").(string)
 	if !ok {
-		return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+		return response.Unauthorized(ctx, "Unauthorized")
 	}
 
 	name := ctx.Query("name")
@@ -80,7 +75,7 @@ func (c *Controller) Get(ctx *fiber.Ctx) error {
 
 	context, err := c.service.GetContext(ctx.Context(), namePtr, userID)
 	if err != nil {
-		return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Context not found"})
+		return response.NotFound(ctx, "Context not found")
 	}
 
 	// Return full store if no type specified
@@ -91,18 +86,14 @@ func (c *Controller) Get(ctx *fiber.Ctx) error {
 	// Return specific type
 	typeStore, ok := context.Store[contextType]
 	if !ok {
-		return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Type '" + contextType + "' not found",
-		})
+		return response.NotFound(ctx, "Type '" + contextType + "' not found")
 	}
 
 	// Return specific source within type
 	if source != "" {
 		sourceData, ok := typeStore[source]
 		if !ok {
-			return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error": "'" + source + "' not found in type \"" + contextType + "'",
-			})
+			return response.NotFound(ctx, "'" + source + "' not found in type \"" + contextType + "'")
 		}
 		return ctx.JSON(fiber.Map{source: sourceData})
 	}
@@ -115,12 +106,12 @@ func (c *Controller) Get(ctx *fiber.Ctx) error {
 func (c *Controller) GetAll(ctx *fiber.Ctx) error {
 	userID, ok := ctx.Locals("userId").(string)
 	if !ok {
-		return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+		return response.Unauthorized(ctx, "Unauthorized")
 	}
 
 	contexts, err := c.service.GetAllContexts(ctx.Context(), userID)
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return response.InternalError(ctx, err.Error())
 	}
 
 	if contexts == nil {
@@ -134,7 +125,7 @@ func (c *Controller) GetAll(ctx *fiber.Ctx) error {
 func (c *Controller) Delete(ctx *fiber.Ctx) error {
 	userID, ok := ctx.Locals("userId").(string)
 	if !ok {
-		return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+		return response.Unauthorized(ctx, "Unauthorized")
 	}
 
 	var payload struct {
@@ -144,12 +135,12 @@ func (c *Controller) Delete(ctx *fiber.Ctx) error {
 	}
 
 	if err := ctx.BodyParser(&payload); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid payload"})
+		return response.BadRequest(ctx, "Invalid payload")
 	}
 
 	err := c.service.DeleteContext(ctx.Context(), payload.ContextName, userID, payload.Type, payload.Sources)
 	if err != nil {
-		return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Context not found"})
+		return response.NotFound(ctx, "Context not found")
 	}
 
 	// Build response message
@@ -179,7 +170,7 @@ func (c *Controller) Delete(ctx *fiber.Ctx) error {
 func (c *Controller) Overview(ctx *fiber.Ctx) error {
 	userID, ok := ctx.Locals("userId").(string)
 	if !ok {
-		return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+		return response.Unauthorized(ctx, "Unauthorized")
 	}
 
 	filterType := ctx.Query("type")
@@ -190,7 +181,7 @@ func (c *Controller) Overview(ctx *fiber.Ctx) error {
 
 	overview, err := c.service.GetOverview(ctx.Context(), userID, filterTypePtr)
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return response.InternalError(ctx, err.Error())
 	}
 
 	return ctx.JSON(overview)

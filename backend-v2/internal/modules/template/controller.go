@@ -2,6 +2,7 @@ package template
 
 import (
 	"backend-v2/internal/common/constants"
+	"backend-v2/internal/common/response"
 	"backend-v2/internal/models"
 	"encoding/json"
 	"time"
@@ -24,9 +25,7 @@ func (h *Controller) List(c *fiber.Ctx) error {
 
 	templates, err := h.Service.List(c.Context(), userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(templates)
@@ -38,24 +37,18 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 	roles, _ := c.Locals("roles").([]string)
 
 	if userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Authentication needed.",
-		})
+		return response.Unauthorized(c, "Authentication needed.")
 	}
 
 	/* Parse request body as raw JSON first to extract _id */
 	var rawData map[string]interface{}
 	if err := json.Unmarshal(c.Body(), &rawData); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "invalid request body",
-		})
+		return response.BadRequest(c, "invalid request body")
 	}
 
 	var templateData models.WorkflowTemplate
 	if err := json.Unmarshal(c.Body(), &templateData); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "invalid request body parse",
-		})
+		return response.BadRequest(c, "invalid request body parse")
 	}
 
 	/* Parse _id from raw JSON if present */
@@ -67,9 +60,7 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 
 	/* Non-admin cannot create public templates */
 	if templateData.Share.Public && !containsRole(roles, constants.Administrator) {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Your are not allowed to create a public template.",
-		})
+		return response.Forbidden(c, "Your are not allowed to create a public template.")
 	}
 
 	templateData.UserID = userID
@@ -78,9 +69,7 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 	if !templateData.TemplateID.IsZero() {
 		templateData.UpdatedAt = time.Now()
 		if err := h.Service.Update(c.Context(), templateData.TemplateID.Hex(), &templateData); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": err.Error(),
-			})
+			return response.InternalError(c, err.Error())
 		}
 
 		return c.JSON(fiber.Map{
@@ -92,9 +81,7 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 	templateData.CreatedAt = time.Now()
 	templateData.UpdatedAt = time.Now()
 	if err := h.Service.Create(c.Context(), &templateData); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(fiber.Map{
@@ -113,9 +100,7 @@ func (h *Controller) Delete(c *fiber.Ctx) error {
 	templateID := c.Params("templateId")
 
 	if err := h.Service.Delete(c.Context(), templateID); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(fiber.Map{
@@ -133,17 +118,13 @@ func (h *Controller) UpdateBackgroundImage(c *fiber.Ctx) error {
 
 	if err := c.BodyParser(&data); err != nil {
 		if jsonErr := json.Unmarshal(c.Body(), &data); jsonErr != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "invalid request body",
-			})
+			return response.BadRequest(c, "invalid request body")
 		}
 	}
 
 	template, err := h.Service.UpdateBackgroundImage(c.Context(), templateID, data.ImageID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(fiber.Map{

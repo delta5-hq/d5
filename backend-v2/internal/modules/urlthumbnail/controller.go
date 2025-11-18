@@ -1,6 +1,7 @@
 package urlthumbnail
 
 import (
+	"backend-v2/internal/common/response"
 	"backend-v2/internal/services/thumbnail"
 
 	"github.com/gofiber/fiber/v2"
@@ -23,7 +24,7 @@ func (h *Controller) GetThumbnail(c *fiber.Ctx) error {
 
 	/* Validate required url parameter */
 	if url == "" {
-		return c.Status(fiber.StatusBadRequest).SendString("Url is required query parameter")
+		return response.BadRequest(c, "Url is required query parameter")
 	}
 
 	/* Validate size parameter */
@@ -34,7 +35,7 @@ func (h *Controller) GetThumbnail(c *fiber.Ctx) error {
 	}
 
 	if !validSizes[size] {
-		return c.Status(fiber.StatusBadRequest).SendString("Wrong size given (" + size + ")")
+		return response.BadRequest(c, "Wrong size given ("+size+")")
 	}
 
 	/* Use thumbnail service (factory pattern) */
@@ -44,9 +45,7 @@ func (h *Controller) GetThumbnail(c *fiber.Ctx) error {
 	})
 
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	/* Return PNG image from base64 thumbnail */

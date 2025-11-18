@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"backend-v2/internal/common"
+	"backend-v2/internal/common/response"
 	"backend-v2/internal/services/email"
 
 	"github.com/gofiber/fiber/v2"
@@ -33,33 +34,33 @@ func (c *Controller) Signup(ctx *fiber.Ctx) error {
 	}
 
 	if err := ctx.BodyParser(&payload); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid payload"})
+		return response.BadRequest(ctx, "Invalid payload")
 	}
 
 	// Validate inputs
 	if payload.Username == "" || payload.Mail == "" || payload.Password == "" || len(payload.Password) < 7 {
-		return ctx.Status(fiber.StatusBadRequest).SendString("Username, email and password required.")
+		return response.BadRequest(ctx, "Username, email and password required.")
 	}
 
 	// Validate email format
 	if !isValidEmail(payload.Mail) {
-		return ctx.Status(fiber.StatusUnauthorized).SendString("Invalid username or email")
+		return response.Unauthorized(ctx, "Invalid username or email")
 	}
 
 	// Validate username
 	if !isValidUsername(payload.Username) {
-		return ctx.Status(fiber.StatusUnauthorized).SendString("Invalid username or email")
+		return response.Unauthorized(ctx, "Invalid username or email")
 	}
 
 	err := c.service.Signup(ctx.Context(), payload.Username, payload.Mail, payload.Password)
 	if err != nil {
 		if err.Error() == "Username already exists." {
-			return ctx.Status(fiber.StatusBadRequest).SendString("Username already exists.")
+			return response.BadRequest(ctx, "Username already exists.")
 		}
 		if err.Error() == "Email already in waitlist." {
-			return ctx.Status(fiber.StatusBadRequest).SendString("Email already in waitlist.")
+			return response.BadRequest(ctx, "Email already in waitlist.")
 		}
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return response.InternalError(ctx, err.Error())
 	}
 
 	/* Send signup notification email */
@@ -76,28 +77,31 @@ func (c *Controller) Auth(ctx *fiber.Ctx) error {
 	}
 
 	if err := ctx.BodyParser(&payload); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).SendString("Username and password required.")
+		return response.BadRequest(ctx, "Username and password required.")
 	}
 
 	if payload.UsernameOrEmail == "" || payload.Password == "" {
-		return ctx.Status(fiber.StatusBadRequest).SendString("Username and password required.")
+		return response.BadRequest(ctx, "Username and password required.")
 	}
 
 	user, err := c.service.Authenticate(ctx.Context(), payload.UsernameOrEmail, payload.Password)
 	if err != nil {
-		if err.Error() == "User not found." || err.Error() == "Wrong password." {
-			return ctx.Status(fiber.StatusUnauthorized).SendString(err.Error())
+		if err.Error() == "User not found." {
+			return response.Unauthorized(ctx, "User not found")
+		}
+		if err.Error() == "Wrong password." {
+			return response.Unauthorized(ctx, "Wrong password")
 		}
 		if err.Error() == "Error: Account pending activation" {
-			return ctx.Status(fiber.StatusForbidden).SendString(err.Error())
+			return response.Forbidden(ctx, err.Error())
 		}
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return response.InternalError(ctx, err.Error())
 	}
 
 	/* Generate JWT tokens */
 	auth, err := common.GenerateAuth(user)
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate token"})
+		return response.InternalError(ctx, "Failed to generate token")
 	}
 
 	/* Set refresh_token cookie (matches Node.js behavior) */
@@ -154,7 +158,7 @@ func (c *Controller) ForgotPassword(ctx *fiber.Ctx) error {
 	}
 
 	if err := ctx.BodyParser(&payload); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).SendString("Username or Email required.")
+		return response.BadRequest(ctx, "Username or Email required.")
 	}
 
 	// Support both 'mail' and 'usernameOrEmail' fields
@@ -164,15 +168,15 @@ func (c *Controller) ForgotPassword(ctx *fiber.Ctx) error {
 	}
 
 	if usernameOrEmail == "" {
-		return ctx.Status(fiber.StatusBadRequest).SendString("Username or Email required.")
+		return response.BadRequest(ctx, "Username or Email required.")
 	}
 
 	token, err := c.service.ForgotPassword(ctx.Context(), usernameOrEmail)
 	if err != nil {
 		if err.Error() == "User not found." {
-			return ctx.Status(fiber.StatusNotFound).SendString("User not found")
+			return response.NotFound(ctx, "User not found")
 		}
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return response.InternalError(ctx, err.Error())
 	}
 
 	/* Send password reset email */
@@ -192,16 +196,16 @@ func (c *Controller) CheckResetToken(ctx *fiber.Ctx) error {
 	token := ctx.Params("pwdResetToken")
 
 	if token == "" {
-		return ctx.Status(fiber.StatusBadRequest).SendString("Token required.")
+		return response.BadRequest(ctx, "Token required.")
 	}
 
 	exists, err := c.service.CheckResetToken(ctx.Context(), token)
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return response.InternalError(ctx, err.Error())
 	}
 
 	if !exists {
-		return ctx.Status(fiber.StatusNotFound).SendString("User not found")
+		return response.NotFound(ctx, "User not found")
 	}
 
 	return ctx.JSON(fiber.Map{"success": true})
@@ -216,23 +220,23 @@ func (c *Controller) ResetPassword(ctx *fiber.Ctx) error {
 	}
 
 	if err := ctx.BodyParser(&payload); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).SendString("Password required.")
+		return response.BadRequest(ctx, "Password required.")
 	}
 
 	if token == "" {
-		return ctx.Status(fiber.StatusBadRequest).SendString("Token required.")
+		return response.BadRequest(ctx, "Token required.")
 	}
 
 	if payload.Password == "" {
-		return ctx.Status(fiber.StatusBadRequest).SendString("Password required.")
+		return response.BadRequest(ctx, "Password required.")
 	}
 
 	err := c.service.ResetPassword(ctx.Context(), token, payload.Password)
 	if err != nil {
 		if err.Error() == "User not found." {
-			return ctx.Status(fiber.StatusNotFound).SendString("User not found")
+			return response.NotFound(ctx, "User not found")
 		}
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return response.InternalError(ctx, err.Error())
 	}
 
 	return ctx.JSON(fiber.Map{"success": true})
@@ -242,19 +246,19 @@ func (c *Controller) ResetPassword(ctx *fiber.Ctx) error {
 func (c *Controller) Refresh(ctx *fiber.Ctx) error {
 	refreshToken := ctx.Cookies("refresh_token")
 	if refreshToken == "" {
-		return ctx.Status(fiber.StatusUnauthorized).SendString("No refresh token found.")
+		return response.Unauthorized(ctx, "No refresh token found.")
 	}
 
 	/* Validate refresh token and extract username */
 	user, err := c.service.ValidateRefreshToken(ctx.Context(), refreshToken)
 	if err != nil {
-		return ctx.Status(fiber.StatusUnauthorized).SendString("Refresh JWT invalid.")
+		return response.Unauthorized(ctx, "Refresh JWT invalid.")
 	}
 
 	/* Generate new JWT tokens */
 	auth, err := common.GenerateAuth(user)
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate token"})
+		return response.InternalError(ctx, "Failed to generate token")
 	}
 
 	/* Set auth cookie with access token (matches Node.js) */
@@ -293,24 +297,24 @@ func (c *Controller) ExternalAuth(ctx *fiber.Ctx) error {
 	}
 
 	if err := ctx.BodyParser(&payload); err != nil || payload.UsernameOrEmail == "" || payload.Password == "" {
-		return ctx.Status(fiber.StatusBadRequest).SendString("No token received.")
+		return response.BadRequest(ctx, "No token received.")
 	}
 
 	user, err := c.service.Authenticate(ctx.Context(), payload.UsernameOrEmail, payload.Password)
 	if err != nil {
 		if err.Error() == "User not found." || err.Error() == "Wrong password." {
-			return ctx.Status(fiber.StatusUnauthorized).SendString(err.Error())
+			return response.Unauthorized(ctx, err.Error())
 		}
 		if err.Error() == "Error: Account pending activation" {
-			return ctx.Status(fiber.StatusForbidden).SendString(err.Error())
+			return response.Forbidden(ctx, err.Error())
 		}
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return response.InternalError(ctx, err.Error())
 	}
 
 	/* Generate JWT tokens */
 	auth, err := common.GenerateAuth(user)
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate token"})
+		return response.InternalError(ctx, "Failed to generate token")
 	}
 
 	/* ExternalAuth returns full auth object including refresh_token (no cookie) */
@@ -321,10 +325,10 @@ func (c *Controller) ExternalAuth(ctx *fiber.Ctx) error {
 func (c *Controller) ExternalRefresh(ctx *fiber.Ctx) error {
 	refreshToken := ctx.Cookies("refresh_token")
 	if refreshToken == "" {
-		return ctx.Status(fiber.StatusUnauthorized).SendString("No refresh token found.")
+		return response.Unauthorized(ctx, "No refresh token found.")
 	}
 
-	return ctx.Status(fiber.StatusUnauthorized).SendString("Refresh JWT invalid.")
+	return response.Unauthorized(ctx, "Refresh JWT invalid.")
 }
 
 /* Validation helpers */

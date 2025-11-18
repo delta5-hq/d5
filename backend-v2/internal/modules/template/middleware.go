@@ -1,6 +1,7 @@
 package template
 
 import (
+	"backend-v2/internal/common/response"
 	"backend-v2/internal/models"
 
 	"github.com/gofiber/fiber/v2"
@@ -13,9 +14,7 @@ func Load(service *Service) fiber.Handler {
 
 		template, err := service.GetByID(c.Context(), templateID)
 		if err != nil {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error": "Template not found.",
-			})
+			return response.NotFound(c, "Template not found.")
 		}
 
 		c.Locals("template", template)
@@ -29,9 +28,7 @@ func Authorization(c *fiber.Ctx) error {
 	template := c.Locals("template").(*models.WorkflowTemplate)
 
 	if userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Authentication needed.",
-		})
+		return response.Unauthorized(c, "Authentication needed.")
 	}
 
 	/* Allow GET for public templates */
@@ -44,9 +41,7 @@ func Authorization(c *fiber.Ctx) error {
 		return c.Next()
 	}
 
-	return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-		"error": "Access denied.",
-	})
+	return response.Forbidden(c, "Access denied.")
 }
 
 /* Read-only authorization (allows public GET) */
@@ -55,9 +50,7 @@ func AuthorizationRead(c *fiber.Ctx) error {
 	template := c.Locals("template").(*models.WorkflowTemplate)
 
 	if userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Authentication needed.",
-		})
+		return response.Unauthorized(c, "Authentication needed.")
 	}
 
 	/* Owner or public template */
@@ -65,7 +58,5 @@ func AuthorizationRead(c *fiber.Ctx) error {
 		return c.Next()
 	}
 
-	return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-		"error": "Access denied.",
-	})
+	return response.Forbidden(c, "Access denied.")
 }

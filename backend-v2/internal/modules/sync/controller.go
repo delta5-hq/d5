@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"backend-v2/internal/common/response"
 	"backend-v2/internal/config"
 	"backend-v2/internal/models"
 	"backend-v2/internal/modules/user"
@@ -23,15 +24,11 @@ func Authorization(c *fiber.Ctx) error {
 	userID, _ := c.Locals("userId").(string)
 
 	if config.SyncUserID == "" {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Not configured.",
-		})
+		return response.InternalError(c, "Not configured.")
 	}
 
 	if userID != config.SyncUserID {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"message": "Access denied.",
-		})
+		return response.Forbidden(c, "Access denied.")
 	}
 
 	return c.Next()
@@ -41,9 +38,7 @@ func Authorization(c *fiber.Ctx) error {
 func (h *Controller) AllUser(c *fiber.Ctx) error {
 	var rawData interface{}
 	if err := json.Unmarshal(c.Body(), &rawData); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "invalid request body",
-		})
+		return response.BadRequest(c, "invalid request body")
 	}
 
 	/* Support single object or array */
@@ -53,22 +48,16 @@ func (h *Controller) AllUser(c *fiber.Ctx) error {
 		/* Single user object */
 		var userData models.User
 		if err := json.Unmarshal(c.Body(), &userData); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"message": "invalid user data",
-			})
+			return response.BadRequest(c, "invalid user data")
 		}
 		userDataList = []models.User{userData}
 	case []interface{}:
 		/* Array of users */
 		if err := json.Unmarshal(c.Body(), &userDataList); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"message": "invalid user array",
-			})
+			return response.BadRequest(c, "invalid user array")
 		}
 	default:
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "invalid request format",
-		})
+		return response.BadRequest(c, "invalid request format")
 	}
 
 	/* Validate and upsert users */
@@ -95,9 +84,7 @@ func (h *Controller) AllUser(c *fiber.Ctx) error {
 		for i, err := range errors {
 			errorMsg += fmt.Sprintf("index %d: %s, ", i, err)
 		}
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": errorMsg,
-		})
+		return response.BadRequest(c, errorMsg)
 	}
 
 	return c.JSON(fiber.Map{
@@ -109,9 +96,7 @@ func (h *Controller) AllUser(c *fiber.Ctx) error {
 func (h *Controller) AllUserMetaData(c *fiber.Ctx) error {
 	var rawData interface{}
 	if err := json.Unmarshal(c.Body(), &rawData); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "invalid request body",
-		})
+		return response.BadRequest(c, "invalid request body")
 	}
 
 	/* Support single object or array */
@@ -126,9 +111,7 @@ func (h *Controller) AllUserMetaData(c *fiber.Ctx) error {
 			}
 		}
 	default:
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "invalid request format",
-		})
+		return response.BadRequest(c, "invalid request format")
 	}
 
 	/* Validate - require id field */
@@ -144,9 +127,7 @@ func (h *Controller) AllUserMetaData(c *fiber.Ctx) error {
 		for i, err := range errors {
 			errorMsg += fmt.Sprintf("index %d: %s, ", i, err)
 		}
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": errorMsg,
-		})
+		return response.BadRequest(c, errorMsg)
 	}
 
 	/* Real implementation would update user metadata here */

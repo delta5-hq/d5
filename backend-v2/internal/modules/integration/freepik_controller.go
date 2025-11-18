@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"backend-v2/internal/common/response"
 	"backend-v2/internal/services/freepik"
 	"strconv"
 
@@ -26,9 +27,7 @@ func (ctrl *FreepikController) Icons(c *fiber.Ctx) error {
 	/* Use injected service (noop or prod) */
 	result, err := ctrl.service.SearchIcons(query, limit)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(result)
@@ -48,9 +47,7 @@ func (ctrl *FreepikController) DownloadIcon(c *fiber.Ctx) error {
 	/* Use injected service (noop or prod) */
 	result, err := ctrl.service.DownloadIcon(req.ID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(result)

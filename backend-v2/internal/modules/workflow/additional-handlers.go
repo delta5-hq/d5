@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/url"
 
+	"backend-v2/internal/common/response"
 	"backend-v2/internal/common/utils"
 	"backend-v2/internal/models"
 
@@ -44,15 +45,11 @@ func (h *WorkflowController) GetNodeLimit(c *fiber.Ctx) error {
 func (h *WorkflowController) AddCategory(c *fiber.Ctx) error {
 	access, ok := c.Locals("access").(WorkflowAccess)
 	if !ok {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Internal error: access not set",
-		})
+		return response.InternalError(c, "Internal error: access not set")
 	}
 
 	if !access.IsWriteable {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "You do not have write access to this workflow.",
-		})
+		return response.Forbidden(c, "You do not have write access to this workflow.")
 	}
 
 	/* Parse as raw map for validation and data extraction */
@@ -60,31 +57,23 @@ func (h *WorkflowController) AddCategory(c *fiber.Ctx) error {
 	
 	/* Direct JSON unmarshal since BodyParser doesn't work with maps */
 	if err := json.Unmarshal(c.Body(), &raw); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Invalid request body",
-		})
+		return response.InternalError(c, "Invalid request body")
 	}
 
 	/* Detect invalid fields and return 500 for compatibility */
 	if _, hasInvalidField := raw["invalidField"]; hasInvalidField {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Invalid field detected",
-		})
+		return response.InternalError(c, "Invalid field detected")
 	}
 
 	/* Extract category from raw map */
 	categoryValue, hasCategory := raw["category"]
 	if !hasCategory || categoryValue == nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Category is required",
-		})
+		return response.InternalError(c, "Category is required")
 	}
 
 	categoryStr, ok := categoryValue.(string)
 	if !ok {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Category must be a string",
-		})
+		return response.InternalError(c, "Category must be a string")
 	}
 
 	workflow := c.Locals("workflow").(*models.Workflow)
@@ -92,9 +81,7 @@ func (h *WorkflowController) AddCategory(c *fiber.Ctx) error {
 
 	updateErr := h.Service.UpdateWorkflow(c.Context(), workflow.WorkflowID, workflow)
 	if updateErr != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": updateErr.Error(),
-		})
+		return response.InternalError(c, updateErr.Error())
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
@@ -106,9 +93,7 @@ func (h *WorkflowController) UpdateShare(c *fiber.Ctx) error {
 	access := c.Locals("access").(WorkflowAccess)
 
 	if !access.IsOwner {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "You are not the owner of this workflow.",
-		})
+		return response.Forbidden(c, "You are not the owner of this workflow.")
 	}
 
 	var body struct {
@@ -117,9 +102,7 @@ func (h *WorkflowController) UpdateShare(c *fiber.Ctx) error {
 	}
 
 	if err := c.BodyParser(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
-		})
+		return response.BadRequest(c, "Invalid request body")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
@@ -140,23 +123,17 @@ func (h *WorkflowController) ExportZIP(c *fiber.Ctx) error {
 	/* Get workflow from middleware */
 	workflow, ok := c.Locals("workflow").(*models.Workflow)
 	if !ok || workflow == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Workflow not found",
-		})
+		return response.NotFound(c, "Workflow not found")
 	}
 
 	/* Check write access */
 	access, ok := c.Locals("access").(WorkflowAccess)
 	if !ok {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Access forbidden",
-		})
+		return response.Forbidden(c, "Access forbidden")
 	}
 
 	if !access.IsWriteable {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Only users with write access can export workflows",
-		})
+		return response.Forbidden(c, "Only users with write access can export workflows")
 	}
 
 	/* Create ZIP archive in memory */
@@ -172,21 +149,15 @@ func (h *WorkflowController) ExportZIP(c *fiber.Ctx) error {
 
 	workflowJSON, err := json.Marshal(workflowData)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to serialize workflow",
-		})
+		return response.InternalError(c, "Failed to serialize workflow")
 	}
 
 	workflowFile, err := zipWriter.Create("workflowdata.json")
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to create ZIP entry",
-		})
+		return response.InternalError(c, "Failed to create ZIP entry")
 	}
 	if _, err := workflowFile.Write(workflowJSON); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to write workflow data",
-		})
+		return response.InternalError(c, "Failed to write workflow data")
 	}
 
 	/* Initialize metadata */
@@ -264,28 +235,20 @@ func (h *WorkflowController) ExportZIP(c *fiber.Ctx) error {
 	/* Add metadata.json */
 	metaJSON, err := json.Marshal(metaData)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to serialize metadata",
-		})
+		return response.InternalError(c, "Failed to serialize metadata")
 	}
 
 	metaFile, err := zipWriter.Create("metadata.json")
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to create metadata entry",
-		})
+		return response.InternalError(c, "Failed to create metadata entry")
 	}
 	if _, err := metaFile.Write(metaJSON); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to write metadata",
-		})
+		return response.InternalError(c, "Failed to write metadata")
 	}
 
 	/* Finalize ZIP */
 	if err := zipWriter.Close(); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to finalize ZIP",
-		})
+		return response.InternalError(c, "Failed to finalize ZIP")
 	}
 
 	/* Set response headers */

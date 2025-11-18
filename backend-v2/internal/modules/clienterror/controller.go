@@ -1,6 +1,8 @@
 package clienterror
 
 import (
+	"backend-v2/internal/common/response"
+
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -16,7 +18,7 @@ func NewController(service *Service) *Controller {
 func (c *Controller) Create(ctx *fiber.Ctx) error {
 	userID, ok := ctx.Locals("userId").(string)
 	if !ok {
-		return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+		return response.Unauthorized(ctx, "Unauthorized")
 	}
 
 	var payload struct {
@@ -28,7 +30,7 @@ func (c *Controller) Create(ctx *fiber.Ctx) error {
 	}
 
 	if err := ctx.BodyParser(&payload); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid payload"})
+		return response.BadRequest(ctx, "Invalid payload")
 	}
 
 	// Build additions map with any extra fields
@@ -42,7 +44,7 @@ func (c *Controller) Create(ctx *fiber.Ctx) error {
 
 	err := c.service.Create(ctx.Context(), userID, payload.Path, payload.Backtrace, additions)
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return response.InternalError(ctx, err.Error())
 	}
 
 	return ctx.JSON(fiber.Map{"success": true})
@@ -52,12 +54,12 @@ func (c *Controller) Create(ctx *fiber.Ctx) error {
 func (c *Controller) List(ctx *fiber.Ctx) error {
 	auth, ok := ctx.Locals("auth").(map[string]interface{})
 	if !ok {
-		return ctx.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "This endpoint is only available for administrators."})
+		return response.Forbidden(ctx, "This endpoint is only available for administrators.")
 	}
 
 	roles, ok := auth["roles"].([]interface{})
 	if !ok {
-		return ctx.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "This endpoint is only available for administrators."})
+		return response.Forbidden(ctx, "This endpoint is only available for administrators.")
 	}
 
 	isAdmin := false
@@ -69,12 +71,12 @@ func (c *Controller) List(ctx *fiber.Ctx) error {
 	}
 
 	if !isAdmin {
-		return ctx.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "This endpoint is only available for administrators."})
+		return response.Forbidden(ctx, "This endpoint is only available for administrators.")
 	}
 
 	errors, err := c.service.List(ctx.Context())
 	if err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return response.InternalError(ctx, err.Error())
 	}
 
 	return ctx.JSON(errors)

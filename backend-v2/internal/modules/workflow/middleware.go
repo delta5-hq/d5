@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"backend-v2/internal/common/constants"
+	"backend-v2/internal/common/response"
 	"backend-v2/internal/models"
 
 	"github.com/gofiber/fiber/v2"
@@ -26,9 +27,7 @@ func Authorization(c *fiber.Ctx) error {
 	}
 
 	if userID == nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Authentication required",
-		})
+		return response.Unauthorized(c, "Authentication required")
 	}
 
 	userIDStr := userID.(string)
@@ -88,14 +87,10 @@ func Authorization(c *fiber.Ctx) error {
 	if (method == "GET" || method == "DELETE") && !isReadable {
 		/* If user is not owner and not in access list and workflow not public, return 401 to hide existence */
 		if workflow.UserID != userIDStr && roleBinding == nil && !workflow.IsPublic() {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Authentication needed.",
-			})
+			return response.Unauthorized(c, "Authentication needed.")
 		}
 		/* Otherwise return 403 (user has some relationship but insufficient permissions) */
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Access denied.",
-		})
+		return response.Forbidden(c, "Access denied.")
 	}
 
 	c.Locals("access", WorkflowAccess{
@@ -115,9 +110,7 @@ func Load(db *qmgo.Database) fiber.Handler {
 		var wf models.Workflow
 		err := collection.Find(c.Context(), map[string]string{"workflowId": workflowId}).One(&wf)
 		if err != nil {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error": "Workflow not found",
-			})
+			return response.NotFound(c, "Workflow not found")
 		}
 
 		c.Locals("workflow", &wf)
@@ -133,17 +126,13 @@ func LoadTemplate(db *qmgo.Database) fiber.Handler {
 
 		objID, err := primitive.ObjectIDFromHex(templateId)
 		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "Invalid template ID",
-			})
+			return response.BadRequest(c, "Invalid template ID")
 		}
 
 		var template models.WorkflowTemplate
 		findErr := collection.Find(c.Context(), qmgo.M{"_id": objID}).One(&template)
 		if findErr != nil {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error": "Template not found",
-			})
+			return response.NotFound(c, "Template not found")
 		}
 
 		c.Locals("template", &template)
@@ -159,9 +148,7 @@ func AuthTemplate(c *fiber.Ctx) error {
 	userID := c.Locals(constants.ContextUserIDKey)
 
 	if method == "GET" && template.UserID != userID && !template.IsPublic() {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Access denied.",
-		})
+		return response.Forbidden(c, "Access denied.")
 	}
 
 	return c.Next()

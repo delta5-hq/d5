@@ -1,6 +1,8 @@
 package user
 
 import (
+	"backend-v2/internal/common/response"
+
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -17,9 +19,7 @@ func (h *Controller) AdminOnly(c *fiber.Ctx) error {
 	/* Extract roles from JWT */
 	roles, ok := c.Locals("roles").([]string)
 	if !ok {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "This endpoint is only available for administrators.",
-		})
+		return response.Forbidden(c, "This endpoint is only available for administrators.")
 	}
 
 	/* Check for administrator role */
@@ -32,9 +32,7 @@ func (h *Controller) AdminOnly(c *fiber.Ctx) error {
 	}
 
 	if !isAdmin {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "This endpoint is only available for administrators.",
-		})
+		return response.Forbidden(c, "This endpoint is only available for administrators.")
 	}
 
 	return c.JSON(fiber.Map{
@@ -47,16 +45,12 @@ func (h *Controller) Search(c *fiber.Ctx) error {
 	query := c.Query("query")
 
 	if query == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "No query given.",
-		})
+		return response.BadRequest(c, "No query given.")
 	}
 
 	users, err := h.Service.SearchByName(c.Context(), query, 50)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(users)
@@ -67,16 +61,12 @@ func (h *Controller) SearchMail(c *fiber.Ctx) error {
 	query := c.Query("query")
 
 	if query == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "No query given.",
-		})
+		return response.BadRequest(c, "No query given.")
 	}
 
 	user, err := h.Service.SearchByMail(c.Context(), query)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "No user found.",
-		})
+		return response.NotFound(c, "No user found.")
 	}
 
 	return c.JSON(user)
@@ -86,14 +76,12 @@ func (h *Controller) SearchMail(c *fiber.Ctx) error {
 func (h *Controller) Me(c *fiber.Ctx) error {
 	userId, ok := c.Locals("userId").(string)
 	if !ok || userId == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Authentication required.",
-		})
+		return response.Unauthorized(c, "Authentication required.")
 	}
 
 	user, err := h.Service.GetUserByID(c.Context(), userId)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).SendString("User not found.")
+		return response.NotFound(c, "User not found.")
 	}
 
 	return c.JSON(fiber.Map{

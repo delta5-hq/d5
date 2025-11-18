@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"backend-v2/internal/common/response"
 	"backend-v2/internal/services/yandex"
 	"fmt"
 
@@ -60,16 +61,12 @@ func (ctrl *YandexController) Completion(c *fiber.Ctx) error {
 	}
 
 	if err := req.Validate(); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	result, err := ctrl.service.Completion(ctrl.db, userID, req.Messages, req.Model, nil)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(result)
@@ -88,16 +85,12 @@ func (ctrl *YandexController) Embeddings(c *fiber.Ctx) error {
 	}
 
 	if err := req.Validate(); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.BadRequest(c, err.Error())
 	}
 
 	result, err := ctrl.service.Embeddings(ctrl.db, userID, req.Text, req.ModelUri)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(result)

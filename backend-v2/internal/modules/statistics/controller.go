@@ -1,6 +1,7 @@
 package statistics
 
 import (
+	"backend-v2/internal/common/response"
 	"encoding/json"
 
 	"github.com/gofiber/fiber/v2"
@@ -20,9 +21,7 @@ func NewController(db *qmgo.Database) *Controller {
 func (ctrl *Controller) Authorization(c *fiber.Ctx) error {
 	roles, ok := c.Locals("roles").([]string)
 	if !ok {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"message": "This endpoint is only available for administrators.",
-		})
+		return response.Forbidden(c, "This endpoint is only available for administrators.")
 	}
 
 	isAdmin := false
@@ -34,9 +33,7 @@ func (ctrl *Controller) Authorization(c *fiber.Ctx) error {
 	}
 
 	if !isAdmin {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"message": "This endpoint is only available for administrators.",
-		})
+		return response.Forbidden(c, "This endpoint is only available for administrators.")
 	}
 
 	return c.Next()
@@ -90,9 +87,7 @@ func (ctrl *Controller) WorkflowServe(c *fiber.Ctx) error {
 
 /* GET /statistics/workflow/download - CSV export (stub) */
 func (ctrl *Controller) WorkflowCsv(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-		"message": "Requires ctx.state.lines from workflowServe middleware",
-	})
+	return response.InternalError(c, "Requires ctx.state.lines from workflowServe middleware")
 }
 
 /* GET /statistics/users - user list with pagination */
@@ -111,17 +106,13 @@ func (ctrl *Controller) UserList(c *fiber.Ctx) error {
 	
 	total, err := users.Find(c.Context(), qmgo.M{}).Count()
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	var userList []map[string]interface{}
 	err = users.Find(c.Context(), qmgo.M{}).Sort("-createdAt").Skip(int64(skip)).Limit(int64(limit)).All(&userList)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(fiber.Map{
@@ -142,7 +133,7 @@ func (ctrl *Controller) UserActivity(c *fiber.Ctx) error {
 func (ctrl *Controller) UserWorkflowStatistics(c *fiber.Ctx) error {
 	userId := c.Params("userId")
 	if userId == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "User ID required"})
+		return response.BadRequest(c, "User ID required")
 	}
 
 	/* userId is a string field, not ObjectID */
@@ -203,7 +194,7 @@ func (ctrl *Controller) UserWorkflowStatistics(c *fiber.Ctx) error {
 
 	results := []bson.M{}  // Initialize to empty slice, not nil
 	if err := cursor.All(&results); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(results)
@@ -213,7 +204,7 @@ func (ctrl *Controller) UserWorkflowStatistics(c *fiber.Ctx) error {
 func (ctrl *Controller) UserStatistics(c *fiber.Ctx) error {
 	userId := c.Params("userId")
 	if userId == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "User ID required"})
+		return response.BadRequest(c, "User ID required")
 	}
 
 	/* userId is a string field (id), not ObjectID */
@@ -221,7 +212,7 @@ func (ctrl *Controller) UserStatistics(c *fiber.Ctx) error {
 	var user bson.M
 	userColl := ctrl.db.Collection("users")
 	if err := userColl.Find(c.Context(), bson.M{"id": userId}).One(&user); err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "User not found"})
+		return response.NotFound(c, "User not found")
 	}
 
 	// Get workflow statistics
@@ -288,7 +279,7 @@ func (ctrl *Controller) UserStatistics(c *fiber.Ctx) error {
 
 	var statistics []bson.M
 	if err := cursor.All(&statistics); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return response.InternalError(c, err.Error())
 	}
 
 	var stats bson.M
@@ -327,7 +318,7 @@ func (ctrl *Controller) UserStatistics(c *fiber.Ctx) error {
 func (ctrl *Controller) UserComment(c *fiber.Ctx) error {
 	userId := c.Params("userId")
 	if userId == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "User ID required"})
+		return response.BadRequest(c, "User ID required")
 	}
 
 	/* userId is a string field (id), not ObjectID */
@@ -335,13 +326,13 @@ func (ctrl *Controller) UserComment(c *fiber.Ctx) error {
 		Data string `json:"data"`
 	}
 	if err := json.Unmarshal(c.Body(), &payload); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON"})
+		return response.BadRequest(c, "Invalid JSON")
 	}
 
 	userColl := ctrl.db.Collection("users")
 	err := userColl.UpdateOne(c.Context(), bson.M{"id": userId}, bson.M{"$set": bson.M{"comment": payload.Data}})
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(fiber.Map{"success": true})
@@ -361,7 +352,7 @@ func (ctrl *Controller) UserWaitlist(c *fiber.Ctx) error {
 func (ctrl *Controller) ApproveWaitlistUser(c *fiber.Ctx) error {
 	waitUserId := c.Params("waitUserId")
 	if waitUserId == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "Waitlist user ID required"})
+		return response.BadRequest(c, "Waitlist user ID required")
 	}
 	
 	/* Check if waitlist user exists */
@@ -369,7 +360,7 @@ func (ctrl *Controller) ApproveWaitlistUser(c *fiber.Ctx) error {
 	var waitlistUser bson.M
 	err := waitlistColl.Find(c.Context(), bson.M{"id": waitUserId}).One(&waitlistUser)
 	if err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "Waitlist record not found"})
+		return response.NotFound(c, "Waitlist record not found")
 	}
 	
 	return c.JSON(fiber.Map{"success": true})
@@ -379,7 +370,7 @@ func (ctrl *Controller) ApproveWaitlistUser(c *fiber.Ctx) error {
 func (ctrl *Controller) RejectWaitlistUser(c *fiber.Ctx) error {
 	waitUserId := c.Params("waitUserId")
 	if waitUserId == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "Waitlist user ID required"})
+		return response.BadRequest(c, "Waitlist user ID required")
 	}
 	
 	/* Check if waitlist user exists */
@@ -387,7 +378,7 @@ func (ctrl *Controller) RejectWaitlistUser(c *fiber.Ctx) error {
 	var waitlistUser bson.M
 	err := waitlistColl.Find(c.Context(), bson.M{"id": waitUserId}).One(&waitlistUser)
 	if err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "Waitlist record not found"})
+		return response.NotFound(c, "Waitlist record not found")
 	}
 	
 	return c.JSON(fiber.Map{"success": true})
@@ -399,10 +390,10 @@ func (ctrl *Controller) ActivateUsersBatch(c *fiber.Ctx) error {
 		Ids []string `json:"ids"`
 	}
 	if err := json.Unmarshal(c.Body(), &payload); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON"})
+		return response.BadRequest(c, "Invalid JSON")
 	}
 	if len(payload.Ids) == 0 {
-		return c.Status(400).JSON(fiber.Map{"error": "No user IDs provided"})
+		return response.BadRequest(c, "No user IDs provided")
 	}
 	
 	/* Return results array matching Node.js format */
@@ -423,10 +414,10 @@ func (ctrl *Controller) RejectUsersBatch(c *fiber.Ctx) error {
 		Ids []string `json:"ids"`
 	}
 	if err := json.Unmarshal(c.Body(), &payload); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON"})
+		return response.BadRequest(c, "Invalid JSON")
 	}
 	if len(payload.Ids) == 0 {
-		return c.Status(400).JSON(fiber.Map{"error": "No user IDs provided"})
+		return response.BadRequest(c, "No user IDs provided")
 	}
 	
 	/* Return results array matching Node.js format */

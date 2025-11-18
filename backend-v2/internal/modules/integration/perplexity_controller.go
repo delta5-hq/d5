@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"backend-v2/internal/common/response"
 	"backend-v2/internal/services/perplexity"
 	"fmt"
 
@@ -44,16 +45,12 @@ func (ctrl *PerplexityController) ChatCompletions(c *fiber.Ctx) error {
 	}
 
 	if err := req.Validate(); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	result, err := ctrl.service.ChatCompletions(ctrl.db, userID, req.Messages, req.Model, nil)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": err.Error(),
-		})
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(result)
