@@ -70,15 +70,16 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.API_V2_BASE_PATH': JSON.stringify(process.env.VITE_API_V2_BASE_PATH || '/api/v2'),
     },
     server: {
+      port: 5173,
+      strictPort: true,
       proxy: {
         '/api/v1': {
-          target: env.VITE_BASE_API_URL || 'http://localhost:3001',
+          target: env.VITE_BASE_API_URL || 'http://localhost:3002',
           changeOrigin: true,
         },
         '/api/v2': {
           target: env.VITE_V2_API_URL || 'http://localhost:3002',
           changeOrigin: true,
-          rewrite: path => path.replace(/^\/api\/v2/, '/api/v1'),
         },
       },
     },

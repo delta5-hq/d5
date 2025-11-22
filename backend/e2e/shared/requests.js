@@ -28,7 +28,15 @@ const publicHandler = {
 export const publicRequest = new Proxy(createAppRequest(), publicHandler)
 
 const rawHandler = {
-  get: (obj, prop) => url => obj[prop](url),
+  get: (obj, prop) => url => {
+    if (!url || !url.startsWith('/')) {
+      return obj[prop](url)
+    }
+    const rewrittenUrl = url.startsWith('/api/') 
+      ? url.replace(/^\/api\/v1/, API_BASE_PATH)
+      : `${API_BASE_PATH}${url}`
+    return obj[prop](rewrittenUrl)
+  },
 }
 
 export const rawRequest = new Proxy(createAppRequest(), rawHandler)

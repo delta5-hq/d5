@@ -74,9 +74,9 @@ export class TestDataFactory {
     if (!request && workflowData.userId) {
       /* Map userId to appropriate authenticated request */
       const userIdToRequest = {
-        'subscriber_user': subscriberRequest,
-        'customer_user': customerRequest,
-        'administrator_user': administratorRequest
+        'subscriber': subscriberRequest,
+        'customer': customerRequest,
+        'admin': administratorRequest
       }
       selectedRequest = userIdToRequest[workflowData.userId] || administratorRequest
     }

@@ -18,9 +18,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
   let publicWorkflowId
   let publicWriteableWorkflowId
 
-  const subscriberUserId = 'subscriber_user'
-  const customerUserId = 'customer_user'
-  const administratorUserId = 'administrator_user'
+  const subscriberUserId = 'subscriber'
+  const customerUserId = 'customer'
+  const administratorUserId = 'admin'
 
   beforeAll(async () => {
     await testOrchestrator.prepareTestEnvironment()

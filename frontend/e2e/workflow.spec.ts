@@ -8,7 +8,7 @@ let createdWorkflowId = ''
 
 test.beforeAll(async ({ browser }) => {
   const page = await browser.newPage()
-  page.goto('/')
+  await page.goto('/')
 
   await adminLogin(page)
   // Create workflow

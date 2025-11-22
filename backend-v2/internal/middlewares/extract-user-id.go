@@ -1,6 +1,8 @@
 package middlewares
 
 import (
+	"backend-v2/internal/common/response"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -12,9 +14,7 @@ func ExtractUserID(c *fiber.Ctx) error {
 	if jwtErr != nil {
 		errMsg, _ := jwtErr.(string)
 		if errMsg != "" && errMsg != "jwt must be provided" {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"message": errMsg,
-			})
+			return response.Unauthorized(c, errMsg)
 		}
 		c.Locals("userId", nil)
 		return c.Next()

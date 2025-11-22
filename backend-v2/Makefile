@@ -34,6 +34,7 @@ help:
 
 build:
 	@echo "→ Building Go binary via Docker..."
+	@mkdir -p $(LOG_DIR)
 	@docker build --target builder -t $(DOCKER_IMAGE)-builder . > /tmp/d5-go-build.log 2>&1 || \
 		(tail -30 /tmp/d5-go-build.log && exit 1)
 	@docker create --name temp-$(BINARY_NAME) $(DOCKER_IMAGE)-builder
@@ -54,7 +55,7 @@ start: build
 	fi
 	@mkdir -p $(LOG_DIR)
 	@echo "→ Starting backend on port $(PORT)..."
-	@JWT_SECRET='$(JWT_SECRET)' \
+	@env JWT_SECRET='$(JWT_SECRET)' \
 	 MONGO_URI='$(MONGO_URI)' \
 	 PORT=$(PORT) \
 	 nohup ./$(BINARY_NAME) > $(LOG_DIR)/backend.log 2>&1 & \
@@ -166,7 +167,7 @@ e2e:
 	@echo "→ Running E2E tests with mocked external services..."
 	@$(MAKE) stop
 	@mkdir -p $(LOG_DIR)
-	@echo "→ Starting backend in E2E mode..."
+	@echo "→ Starting backend in E2E mode (mocked external services)..."
 	@JWT_SECRET='$(JWT_SECRET)' \
 	 MONGO_URI='$(MONGO_URI)' \
 	 PORT=$(PORT) \
@@ -179,7 +180,7 @@ e2e:
 		tail -20 $(LOG_DIR)/backend-e2e.log; \
 		exit 1; \
 	fi
-	@echo "✓ Backend started (PID $$(cat $(LOG_DIR)/backend-e2e.pid))"
+	@echo "✓ Backend started in E2E mode with MOCK_EXTERNAL_SERVICES=true (PID $$(cat $(LOG_DIR)/backend-e2e.pid))"
 	@echo "→ Running E2E test suite..."
 	@cd ../backend && \
 	 E2E_SERVER_URL=http://localhost:$(PORT) \

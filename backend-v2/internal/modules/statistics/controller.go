@@ -3,6 +3,8 @@ package statistics
 import (
 	"backend-v2/internal/common/response"
 	"encoding/json"
+	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/qiniu/qmgo"
@@ -340,27 +342,96 @@ func (ctrl *Controller) UserComment(c *fiber.Ctx) error {
 
 /* GET /statistics/waitlist - Returns pending users */
 func (ctrl *Controller) UserWaitlist(c *fiber.Ctx) error {
+	page := c.QueryInt("page", 1)
+	if page < 1 {
+		page = 1
+	}
+	limit := c.QueryInt("limit", 10)
+	if limit < 1 {
+		limit = 10
+	}
+	skip := (page - 1) * limit
+	search := strings.TrimSpace(c.Query("search", ""))
+
+	waitlistColl := ctrl.db.Collection("waitlists")
+	
+	filter := bson.M{}
+	if search != "" {
+		filter = bson.M{
+			"$or": []bson.M{
+				{"id": bson.M{"$regex": search, "$options": "i"}},
+				{"name": bson.M{"$regex": search, "$options": "i"}},
+				{"mail": bson.M{"$regex": search, "$options": "i"}},
+			},
+		}
+	}
+
+	total, err := waitlistColl.Find(c.Context(), bson.M{}).Count()
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to count waitlist users"})
+	}
+
+	var users []bson.M
+	err = waitlistColl.Find(c.Context(), filter).
+		Skip(int64(skip)).
+		Limit(int64(limit)).
+		All(&users)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch waitlist users"})
+	}
+
 	return c.JSON(fiber.Map{
-		"total": 0,
-		"page":  1,
-		"limit": 10,
-		"data":  []interface{}{},
+		"total": total,
+		"page":  page,
+		"limit": limit,
+		"data":  users,
 	})
 }
 
-/* GET /statistics/waitlist/confirm/:waitUserId - approve waitlist user */
 func (ctrl *Controller) ApproveWaitlistUser(c *fiber.Ctx) error {
 	waitUserId := c.Params("waitUserId")
 	if waitUserId == "" {
 		return response.BadRequest(c, "Waitlist user ID required")
 	}
 	
-	/* Check if waitlist user exists */
 	waitlistColl := ctrl.db.Collection("waitlists")
+	usersColl := ctrl.db.Collection("users")
+	
 	var waitlistUser bson.M
 	err := waitlistColl.Find(c.Context(), bson.M{"id": waitUserId}).One(&waitlistUser)
 	if err != nil {
 		return response.NotFound(c, "Waitlist record not found")
+	}
+	
+	userCount, err := usersColl.Find(c.Context(), bson.M{"id": waitUserId}).Count()
+	if err == nil && userCount > 0 {
+		return response.BadRequest(c, "User already exists")
+	}
+	
+	now := time.Now()
+	newUser := bson.M{
+		"id":             waitlistUser["id"],
+		"name":           waitlistUser["name"],
+		"mail":           waitlistUser["mail"],
+		"password":       waitlistUser["password"],
+		"roles":          []string{"subscriber"},
+		"confirmed":      true,
+		"rejected":       false,
+		"meta":           waitlistUser["meta"],
+		"limitNodes":     300,
+		"limitWorkflows": 10,
+		"createdAt":      now,
+		"updatedAt":      now,
+	}
+	
+	_, err = usersColl.InsertOne(c.Context(), newUser)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to create user"})
+	}
+	
+	err = waitlistColl.Remove(c.Context(), bson.M{"id": waitUserId})
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to remove waitlist record"})
 	}
 	
 	return c.JSON(fiber.Map{"success": true})
@@ -373,12 +444,17 @@ func (ctrl *Controller) RejectWaitlistUser(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Waitlist user ID required")
 	}
 	
-	/* Check if waitlist user exists */
 	waitlistColl := ctrl.db.Collection("waitlists")
+	
 	var waitlistUser bson.M
 	err := waitlistColl.Find(c.Context(), bson.M{"id": waitUserId}).One(&waitlistUser)
 	if err != nil {
 		return response.NotFound(c, "Waitlist record not found")
+	}
+	
+	err = waitlistColl.Remove(c.Context(), bson.M{"id": waitUserId})
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete waitlist record"})
 	}
 	
 	return c.JSON(fiber.Map{"success": true})
@@ -396,13 +472,53 @@ func (ctrl *Controller) ActivateUsersBatch(c *fiber.Ctx) error {
 		return response.BadRequest(c, "No user IDs provided")
 	}
 	
-	/* Return results array matching Node.js format */
+	waitlistColl := ctrl.db.Collection("waitlists")
+	usersColl := ctrl.db.Collection("users")
 	results := make([]fiber.Map, 0, len(payload.Ids))
+	
 	for _, userId := range payload.Ids {
-		results = append(results, fiber.Map{
-			"id":      userId,
-			"success": true,
-		})
+		var waitlistUser bson.M
+		err := waitlistColl.Find(c.Context(), bson.M{"id": userId}).One(&waitlistUser)
+		if err != nil {
+			results = append(results, fiber.Map{"id": userId, "success": false, "error": "Waitlist record not found"})
+			continue
+		}
+		
+		userCount, err := usersColl.Find(c.Context(), bson.M{"id": userId}).Count()
+		if err == nil && userCount > 0 {
+			results = append(results, fiber.Map{"id": userId, "success": false, "error": "User already exists"})
+			continue
+		}
+		
+		now := time.Now()
+		newUser := bson.M{
+			"id":             waitlistUser["id"],
+			"name":           waitlistUser["name"],
+			"mail":           waitlistUser["mail"],
+			"password":       waitlistUser["password"],
+			"roles":          []string{"subscriber"},
+			"confirmed":      true,
+			"rejected":       false,
+			"meta":           waitlistUser["meta"],
+			"limitNodes":     300,
+			"limitWorkflows": 10,
+			"createdAt":      now,
+			"updatedAt":      now,
+		}
+		
+		_, err = usersColl.InsertOne(c.Context(), newUser)
+		if err != nil {
+			results = append(results, fiber.Map{"id": userId, "success": false, "error": "Failed to create user"})
+			continue
+		}
+		
+		err = waitlistColl.Remove(c.Context(), bson.M{"id": userId})
+		if err != nil {
+			results = append(results, fiber.Map{"id": userId, "success": false, "error": "Failed to remove waitlist record"})
+			continue
+		}
+		
+		results = append(results, fiber.Map{"id": userId, "success": true})
 	}
 	
 	return c.JSON(fiber.Map{"results": results})
@@ -420,13 +536,24 @@ func (ctrl *Controller) RejectUsersBatch(c *fiber.Ctx) error {
 		return response.BadRequest(c, "No user IDs provided")
 	}
 	
-	/* Return results array matching Node.js format */
+	waitlistColl := ctrl.db.Collection("waitlists")
 	results := make([]fiber.Map, 0, len(payload.Ids))
+	
 	for _, userId := range payload.Ids {
-		results = append(results, fiber.Map{
-			"id":      userId,
-			"success": true,
-		})
+		var waitlistUser bson.M
+		err := waitlistColl.Find(c.Context(), bson.M{"id": userId}).One(&waitlistUser)
+		if err != nil {
+			results = append(results, fiber.Map{"id": userId, "success": false, "error": "Waitlist record not found"})
+			continue
+		}
+		
+		err = waitlistColl.Remove(c.Context(), bson.M{"id": userId})
+		if err != nil {
+			results = append(results, fiber.Map{"id": userId, "success": false, "error": "Failed to delete waitlist record"})
+			continue
+		}
+		
+		results = append(results, fiber.Map{"id": userId, "success": true})
 	}
 	
 	return c.JSON(fiber.Map{"results": results})

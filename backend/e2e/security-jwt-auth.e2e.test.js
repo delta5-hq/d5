@@ -114,7 +114,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
 
     it('rejects token with modified payload', async () => {
       const validToken = createValidToken({
-        sub: 'subscriber_user',
+        sub: 'subscriber',
         roles: ['subscriber'],
       })
 
@@ -131,7 +131,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
 
     it('rejects token with modified header', async () => {
       const validToken = createValidToken({
-        sub: 'subscriber_user',
+        sub: 'subscriber',
         roles: ['subscriber'],
       })
 
@@ -146,7 +146,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
 
     it('rejects token with missing signature', async () => {
       const validToken = createValidToken({
-        sub: 'subscriber_user',
+        sub: 'subscriber',
         roles: ['subscriber'],
       })
 
@@ -181,7 +181,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
     it('rejects expired token', async () => {
       const expiredToken = jwt.sign(
         {
-          sub: 'subscriber_user',
+          sub: 'subscriber',
           roles: ['subscriber'],
         },
         JWT_SECRET,
@@ -196,7 +196,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
     it('rejects token with future issued at time', async () => {
       const futureIssuedToken = jwt.sign(
         {
-          sub: 'subscriber_user',
+          sub: 'subscriber',
           roles: ['subscriber'],
           iat: Math.floor(Date.now() / 1000) + 3600,
         },
@@ -212,7 +212,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
     it('rejects token with excessively long expiration', async () => {
       const longLivedToken = jwt.sign(
         {
-          sub: 'subscriber_user',
+          sub: 'subscriber',
           roles: ['subscriber'],
         },
         JWT_SECRET,
@@ -227,7 +227,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
     it('rejects token with missing expiration claim', async () => {
       const noExpirationToken = jwt.sign(
         {
-          sub: 'subscriber_user',
+          sub: 'subscriber',
           roles: ['subscriber'],
         },
         JWT_SECRET,
@@ -247,7 +247,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
 
     it('rejects token with non-existent role', async () => {
       const invalidRoleToken = createValidToken({
-        sub: 'subscriber_user',
+        sub: 'subscriber',
         roles: ['super_administrator', 'root', 'god_mode'],
       })
 
@@ -258,7 +258,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
 
     it('rejects token with roles as string instead of array', async () => {
       const invalidRoleFormatToken = createValidToken({
-        sub: 'subscriber_user',
+        sub: 'subscriber',
         roles: 'administrator',
       })
 
@@ -269,7 +269,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
 
     it('rejects token with negative limit values', async () => {
       const negativeLimitToken = createValidToken({
-        sub: 'subscriber_user',
+        sub: 'subscriber',
         roles: ['subscriber'],
         limitWorkflows: -1,
         limitNodes: -999999,
@@ -341,7 +341,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
     const createValidToken = () => {
       return jwt.sign(
         {
-          sub: 'subscriber_user',
+          sub: 'subscriber',
           roles: ['subscriber'],
         },
         JWT_SECRET,
@@ -392,7 +392,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
     const createValidToken = () => {
       return jwt.sign(
         {
-          sub: 'subscriber_user',
+          sub: 'subscriber',
           roles: ['subscriber'],
         },
         JWT_SECRET,
@@ -427,7 +427,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
     it('prefers cookie over authorization header when both present', async () => {
       const cookieToken = jwt.sign(
         {
-          sub: 'subscriber_user',
+          sub: 'subscriber',
           roles: ['subscriber'],
         },
         JWT_SECRET,
@@ -436,7 +436,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
 
       const headerToken = jwt.sign(
         {
-          sub: 'administrator_user',
+          sub: 'admin',
           roles: ['administrator'],
         },
         JWT_SECRET,
@@ -456,7 +456,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
     it('allows same token to be used multiple times within expiry', async () => {
       const validToken = jwt.sign(
         {
-          sub: 'subscriber_user',
+          sub: 'subscriber',
           roles: ['subscriber'],
         },
         JWT_SECRET,
@@ -475,7 +475,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
     it('accepts tokens with same payload signed at different times', async () => {
       const token1 = jwt.sign(
         {
-          sub: 'subscriber_user',
+          sub: 'subscriber',
           roles: ['subscriber'],
         },
         JWT_SECRET,
@@ -487,7 +487,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
 
       const token2 = jwt.sign(
         {
-          sub: 'subscriber_user',
+          sub: 'subscriber',
           roles: ['subscriber'],
         },
         JWT_SECRET,
@@ -508,7 +508,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
     it('rejects base64 encoded token', async () => {
       const validToken = jwt.sign(
         {
-          sub: 'subscriber_user',
+          sub: 'subscriber',
           roles: ['subscriber'],
         },
         JWT_SECRET,
@@ -524,7 +524,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
     it('rejects hex encoded token', async () => {
       const validToken = jwt.sign(
         {
-          sub: 'subscriber_user',
+          sub: 'subscriber',
           roles: ['subscriber'],
         },
         JWT_SECRET,
@@ -540,7 +540,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
     it('rejects token with URL-encodable injection', async () => {
       const validToken = jwt.sign(
         {
-          sub: 'subscriber_user',
+          sub: 'subscriber',
           roles: ['subscriber'],
         },
         JWT_SECRET,
@@ -557,7 +557,7 @@ describe('JWT Security - Authentication Attack Vectors', () => {
     it('rejects double encoded token', async () => {
       const validToken = jwt.sign(
         {
-          sub: 'subscriber_user',
+          sub: 'subscriber',
           roles: ['subscriber'],
         },
         JWT_SECRET,

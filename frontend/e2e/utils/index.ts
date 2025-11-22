@@ -19,22 +19,42 @@ async function openLoginDialogFromSignup(page: Page) {
 }
 
 async function login(page: Page, usernameOrEmail: string, password: string, valid = true, fromSignUp = false) {
+  /* Navigate to /register which has login button for all users */
   if (!fromSignUp) {
-    await page.locator('[data-type="login"]').click()
+    await page.goto('/register')
+    await page.waitForLoadState('networkidle')
+    await page.locator('span[data-type="login"]').click()
   } else {
     await openLoginDialogFromSignup(page)
   }
-  await page.getByPlaceholder('Username or Email').fill(usernameOrEmail)
-  await page.getByPlaceholder('Password').fill(password)
+  
+  await page.getByPlaceholder(/username.*email/i).fill(usernameOrEmail)
+  await page.getByPlaceholder(/password/i).fill(password)
 
-  await page.locator('[data-type="confirm-login"]').click()
+  /* Use data attribute instead of text to avoid i18n issues */
+  const confirmButton = page.locator('button[data-type="confirm-login"]')
+  await confirmButton.waitFor({ state: 'visible', timeout: 5000 })
+  
+  /* Monitor auth requests for debugging */
+  const authPromise = page.waitForResponse(
+    resp => resp.url().includes('/api/v2/auth')
+         && !resp.url().includes('/refresh')
+         && resp.request().method() === 'POST',
+    { timeout: 15000 }
+  )
+  
+  await confirmButton.click()
 
   if (valid) {
+    const authResp = await authPromise
+    if (!authResp.ok()) {
+      throw new Error(`Auth failed: ${authResp.status()} ${await authResp.text()}`)
+    }
+    
     await page.waitForResponse(
-      resp => resp.url().includes('/api/v1/auth') && resp.request().method() === 'POST' && resp.ok(),
-    )
-    await page.waitForResponse(
-      resp => resp.url().includes('/api/v1/auth/refresh') && resp.request().method() === 'POST' && resp.ok(),
+      resp => resp.url().includes('/api/v2/auth/refresh')
+           && resp.request().method() === 'POST' 
+           && resp.ok(),
     )
   }
 }
@@ -44,7 +64,9 @@ async function rejectUser(page: Page, username: string) {
     await page.goto('/admin/waitlist', { waitUntil: 'networkidle' })
   }
 
-  await page.getByPlaceholder('Search').fill(username)
+  const searchBox = page.getByPlaceholder('Search')
+  await expect(searchBox).toBeVisible({ timeout: 5000 })
+  await searchBox.fill(username)
 
   const row = page.locator('table tbody tr', { hasText: username }).first()
   await expect(row).toBeVisible()
@@ -53,7 +75,7 @@ async function rejectUser(page: Page, username: string) {
   await Promise.all([
     page.waitForResponse(
       resp =>
-        resp.url().includes('/api/v1/statistics/waitlist/reject') && resp.request().method() === 'POST' && resp.ok(),
+        resp.url().includes('/api/v2/statistics/waitlist/reject') && resp.request().method() === 'POST' && resp.ok(),
     ),
     page.getByRole('button', { name: 'Reject' }).first().click(),
   ])
@@ -67,16 +89,16 @@ async function approveUser(page: Page, username: string) {
     await page.goto('/admin/waitlist', { waitUntil: 'networkidle' })
   }
 
-  await page.getByPlaceholder('Search').fill(username)
-
+  await page.waitForLoadState('networkidle')
+  
   const row = page.locator('table tbody tr', { hasText: username }).first()
-  await expect(row).toBeVisible()
+  await expect(row).toBeVisible({ timeout: 10000 })
   await row.click()
 
   await Promise.all([
     page.waitForResponse(
       resp =>
-        resp.url().includes('/api/v1/statistics/waitlist/confirm') && resp.request().method() === 'POST' && resp.ok(),
+        resp.url().includes('/api/v2/statistics/waitlist/confirm') && resp.request().method() === 'POST' && resp.ok(),
     ),
     page.getByRole('button', { name: 'Approve', exact: true }).first().click(),
   ])
@@ -88,7 +110,9 @@ async function logout(page: Page) {
   await page.locator('[data-type="user-settings"]').click()
   await Promise.all([
     page.waitForResponse(
-      resp => resp.url().includes('/api/v1/auth/logout') && resp.request().method() === 'POST' && resp.ok(),
+      resp => resp.url().includes('/api/v2/auth/logout')
+           && resp.request().method() === 'POST' 
+           && resp.ok(),
     ),
     page.getByRole('menuitem', { name: 'Log out' }).click(),
   ])

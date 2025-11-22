@@ -1,19 +1,15 @@
 import { test, expect } from '@playwright/test'
+import { adminLogin } from './utils'
 
 test.describe('Main navigation (desktop)', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 })
-    await page.route('**/api/v1/auth/refresh', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }),
-    )
-    await page.route('**/api/v1/users/me', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ id: 'e2e-user', name: 'E2E User', mail: 'e2e@example.com', roles: [] }),
-      })
-    })
     await page.goto('/')
+    /* Use real authentication instead of mocking - proper E2E testing */
+    await adminLogin(page)
+    /* After login, navigate to home to see authenticated UI */
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
   })
 
   test('sees at least one main menu item', async ({ page }) => {

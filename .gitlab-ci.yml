@@ -73,6 +73,16 @@ stages:
     paths:
       - /root/.local/share/pnpm/**/*
 
+.backend-e2e-base:
+  extends: .backend-npm
+  services:
+    - name: "mongo:4.2.8"
+      alias: mongo
+  variables:
+    MONGO_HOST: "mongo"
+    MONGO_PORT: "27017"
+    E2E_MONGO_URI: "mongodb://mongo:27017/delta5"
+
 lint-docker-frontend:
   extends: .frontend
   stage: lint
@@ -115,26 +125,6 @@ lint-backend:
     changes:
       - backend/**/*
 
-# test-frontend:
-#   extends: .frontend-playwright
-#   stage: test
-#   script:
-#     # install backend too, as jest uses the backend node_modules directory to resolve modules from the shared folder
-#     - cd ../backend
-#     - npm ci
-#     - cd ../frontend
-#     - pnpm install --frozen-lockfile
-#     - pnpm run genversion
-#     - DEBUG="app:*" pnpm run test:e2e:ci
-#   artifacts:
-#     reports:
-#       junit: ./frontend/junit.xml
-#   coverage: /All\sfiles.*?\s+(\d+.\d+)/
-#   needs: []
-#   only:
-#     changes:
-#       - frontend/**/*
-
 test-backend:
   extends: .backend-npm
   stage: test
@@ -168,9 +158,7 @@ build-frontend:
       fi
     - 'sed "s/\"gitVersion\":[^,]*/\"gitVersion\": \"${VERSION}\"/" -i package.json'
     - pnpm install --frozen-lockfile
-    # disable the source maps, to hide our code, see https://create-react-app.dev/docs/advanced-configuration/
     - GENERATE_SOURCEMAP=false npm run build
-    # make sure the build was successful and all files have been created
     - ls dist/index.html
   artifacts:
     paths:
@@ -197,6 +185,26 @@ build-backend:
     expire_in: 1 day
   needs: []
 
+build-backend-v2:
+  stage: build
+  image: "golang:1.25-alpine"
+  before_script:
+    - cd backend-v2
+  script:
+    - apk add --no-cache git
+    - go mod download
+    - go mod tidy
+    - go build -ldflags="-s -w" -o backend-v2 .
+    - chmod +x backend-v2
+  artifacts:
+    paths:
+      - backend-v2/backend-v2
+    expire_in: 1 day
+  needs: []
+  only:
+    changes:
+      - backend-v2/**/*
+
 build-chatpopup:
   extends: .chatpopup-pnpm
   stage: build
@@ -209,15 +217,85 @@ build-chatpopup:
       fi
     - 'sed "s/\"version\":[^,]*/\"version\": \"${VERSION}\"/" -i package.json'
     - pnpm install --frozen-lockfile
-    # disable the source maps, to hide our code, see https://create-react-app.dev/docs/advanced-configuration/
     - GENERATE_SOURCEMAP=false pnpm run build
-    # make sure the build was successful and all files have been created
     - ls dist/index.html
   artifacts:
     paths:
       - plugins/chat-popup/dist
     expire_in: 1 day
   needs: []
+
+e2e-backend:
+  extends: .backend-e2e-base
+  stage: e2e
+  script:
+    - npm ci
+    - cd ../backend-v2
+    - apk add --no-cache bash curl
+    - bash seed-e2e-users.sh
+    - JWT_SECRET='GrFYK5ftZDtCg7ZGwxZ1JpSxyyJ9bc8uJijvBD1DYiMoS64ZpnBSrFxsNuybN1iO' MONGO_URI='mongodb://mongo:27017/delta5' PORT=3002 API_ROOT='/api/v2' MOCK_EXTERNAL_SERVICES=true nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
+    - sleep 5
+    - if ! kill -0 $(cat backend-e2e.pid); then echo "Backend failed to start"; cat backend-e2e.log; exit 1; fi
+    - curl -f http://localhost:3002/api/v2/health || (cat backend-e2e.log; exit 1)
+    - cd ../backend
+    - E2E_SERVER_URL=http://localhost:3002 E2E_API_BASE_PATH=/api/v2 npm run test:e2e || (kill $(cat ../backend-v2/backend-e2e.pid); exit 1)
+    - kill $(cat ../backend-v2/backend-e2e.pid)
+  artifacts:
+    reports:
+      junit: ./backend/junit.xml
+    paths:
+      - backend-v2/backend-e2e.log
+    when: always
+  needs:
+    - build-backend-v2
+  only:
+    changes:
+      - backend/**/*
+      - backend-v2/**/*
+
+e2e-frontend:
+  extends: .frontend-playwright
+  stage: e2e
+  services:
+    - name: "mongo:4.2.8"
+      alias: mongo
+  variables:
+    MONGO_HOST: "mongo"
+    MONGO_PORT: "27017"
+    E2E_MONGO_URI: "mongodb://mongo:27017/delta5"
+  script:
+    - apt-get update && apt-get install -y curl
+    - cd ../backend-v2
+    - bash seed-e2e-users.sh
+    - JWT_SECRET='GrFYK5ftZDtCg7ZGwxZ1JpSxyyJ9bc8uJijvBD1DYiMoS64ZpnBSrFxsNuybN1iO' MONGO_URI='mongodb://mongo:27017/delta5' PORT=3002 API_ROOT='/api/v2' MOCK_EXTERNAL_SERVICES=true nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
+    - sleep 5
+    - if ! kill -0 $(cat backend-e2e.pid); then echo "Backend failed to start"; cat backend-e2e.log; exit 1; fi
+    - curl -f http://localhost:3002/api/v2/health || (cat backend-e2e.log; exit 1)
+    - cd ../frontend
+    - pnpm install --frozen-lockfile
+    - pnpm run genversion
+    - nohup pnpm dev > vite-e2e.log 2>&1 & echo $! > vite-e2e.pid
+    - sleep 10
+    - curl -f http://localhost:5173 || (cat vite-e2e.log; kill $(cat ../backend-v2/backend-e2e.pid); exit 1)
+    - E2E_ADMIN_USER=admin E2E_ADMIN_PASS='P@ssw0rd!' CI=true pnpm run test:e2e:ci || TEST_EXIT=$?
+    - kill $(cat vite-e2e.pid) || true
+    - kill $(cat ../backend-v2/backend-e2e.pid) || true
+    - exit ${TEST_EXIT:-0}
+  artifacts:
+    reports:
+      junit: ./frontend/junit.xml
+    paths:
+      - frontend/playwright-report
+      - frontend/test-results
+      - frontend/vite-e2e.log
+      - backend-v2/backend-e2e.log
+    when: always
+  needs:
+    - build-backend-v2
+  only:
+    changes:
+      - frontend/**/*
+      - backend-v2/**/*
 
 package-frontend:
   extends: .frontend

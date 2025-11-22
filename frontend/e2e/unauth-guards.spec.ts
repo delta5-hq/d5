@@ -20,7 +20,7 @@ test.describe('Unauthenticated Guards', () => {
 
   test('redirects unauthenticated user away from workflow page', async ({ page }) => {
     // Use the workflow created in beforeAll
-    page.goto('/')
+    await page.goto('/')
 
     await adminLogin(page)
     // Create workflow

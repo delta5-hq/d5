@@ -18,6 +18,7 @@ var (
 	JwtSecret     string
 	MongoURI      string
 	SyncUserID    string
+	ApiRoot       string
 )
 
 func init() {
@@ -31,6 +32,7 @@ func init() {
 	MongoPort = getEnv("MONGO_PORT", "27017")
 	JwtSecret = getEnv("JWT_SECRET", "GrFYK5ftZDtCg7ZGwxZ1JpSxyyJ9bc8uJijvBD1DYiMoS64ZpnBSrFxsNuybN1iO")
 	SyncUserID = getEnv("SYNC_USER_ID", "wp-sync-user")
+	ApiRoot = getEnv("API_ROOT", "/")
 
 	if envMongoURI := os.Getenv("MONGO_URI"); envMongoURI != "" {
 		MongoURI = envMongoURI
@@ -44,6 +46,7 @@ func init() {
 
 	log.Printf("CONFIGURATION:\n")
 	log.Printf("PORT=%s", Port)
+	log.Printf("API_ROOT=%s", ApiRoot)
 	log.Printf("MONGO_USERNAME=%s", MongoUsername)
 	log.Printf("MONGO_DATABASE=%s", MongoDatabase)
 	log.Printf("MONGO_HOST=%s", MongoHost)

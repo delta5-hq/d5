@@ -29,7 +29,7 @@ describe('Integration Router', () => {
       expect(res.status).toBe(200)
       expect(typeof res.body).toBe('object')
       expect(res.body).toHaveProperty('_id')
-      expect(res.body).toHaveProperty('userId', 'subscriber_user')
+      expect(res.body).toHaveProperty('userId', 'subscriber')
       expect(res.body).toHaveProperty('openai')
       expect(typeof res.body.openai).toBe('object')
       expect(res.body.openai).toHaveProperty('apiKey')
@@ -259,7 +259,7 @@ describe('Integration Router - Administrator Tests', () => {
       
       expect(res.status).toBe(200)
       expect(typeof res.body).toBe('object')
-      expect(res.body).toHaveProperty('userId', 'administrator_user')
+      expect(res.body).toHaveProperty('userId', 'admin')
       expect(res.body).toHaveProperty('openai')
       expect(res.body.openai).toHaveProperty('apiKey')
       expect(res.body.openai.apiKey).toBe('admin-test-key')
@@ -296,7 +296,7 @@ describe('Integration Router - Customer Tests', () => {
       
       expect(res.status).toBe(200)
       expect(typeof res.body).toBe('object')
-      expect(res.body).toHaveProperty('userId', 'customer_user')
+      expect(res.body).toHaveProperty('userId', 'customer')
       expect(res.body).toHaveProperty('openai')
       expect(res.body.openai).toHaveProperty('apiKey')
       expect(res.body.openai.apiKey).toBe('customer-test-key')

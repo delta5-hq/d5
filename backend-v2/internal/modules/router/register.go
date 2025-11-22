@@ -1,6 +1,7 @@
 package router
 
 import (
+	"backend-v2/internal/config"
 	"backend-v2/internal/database"
 	"backend-v2/internal/middlewares"
 	"backend-v2/internal/modules/auth"
@@ -22,34 +23,32 @@ import (
 )
 
 func RegisterRoutes(app *fiber.App, db *qmgo.Database, services *container.ServiceContainer) {
+	apiRoot := app.Group(config.ApiRoot)
+
 	unauthHandler := unauth.NewController()
-	unauth.RegisterRoutes(app, unauthHandler)
+	unauth.RegisterRoutes(apiRoot, unauthHandler)
 
-	// Register auth routes before JWT middleware (public routes)
-	apiPublic := app.Group("/api/v1")
-	auth.RegisterRoutes(apiPublic, db, services.Email)
+	auth.RegisterRoutes(apiRoot, db, services.Email)
 
-	api := app.Group("/api")
+	api := apiRoot.Group("/")
 	api.Use(middlewares.JWTMiddleware)
 	api.Use(middlewares.ExtractUserID)
 
-	v1 := api.Group("/v1")
-
 	workflowService := workflow.NewService(db)
 	workflowHandler := workflow.NewHandler(workflowService, db, database.MongoClient)
-	v1.Get("/workflow", workflowHandler.GetWorkflows)
+	api.Get("/workflow", workflowHandler.GetWorkflows)
 
 	templateService := template.NewService(db)
 	templateController := template.NewController(templateService)
-	template.RegisterRoutes(v1, templateController, templateService)
+	template.RegisterRoutes(api, templateController, templateService)
 
-	workflow.RegisterRoutes(v1, workflowHandler, db)
-	macro.Register(v1, db)
-	integration.Register(v1, db, services)
-	user.RegisterRoutes(v1, db)
-	sync.RegisterRoutes(v1, db)
-	llmvector.RegisterRoutes(v1, db)
-	clienterror.RegisterRoutes(v1, db)
-	statistics.Register(v1, db)
-	urlthumbnail.RegisterRoutes(v1, services.Thumbnail)
+	workflow.RegisterRoutes(api, workflowHandler, db)
+	macro.Register(api, db)
+	integration.Register(api, db, services)
+	user.RegisterRoutes(api, db)
+	sync.RegisterRoutes(api, db)
+	llmvector.RegisterRoutes(api, db)
+	clienterror.RegisterRoutes(api, db)
+	statistics.Register(api, db)
+	urlthumbnail.RegisterRoutes(api, services.Thumbnail)
 }

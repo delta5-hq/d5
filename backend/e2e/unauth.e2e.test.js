@@ -1,10 +1,6 @@
 import {describe, beforeEach, afterAll, it, expect} from '@jest/globals'
 import {testOrchestrator} from './shared/test-data-factory'
-import {publicRequest} from './shared/requests'
-import Request from 'supertest'
-
-
-const rawRequest = new Request(process.env.E2E_SERVER_URL)
+import {publicRequest, rawRequest} from './shared/requests'
 
 describe('Unauth Router', () => {
   beforeEach(async () => {
