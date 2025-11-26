@@ -6,7 +6,14 @@ async function signup(page: Page, username: string, mail: string, password: stri
   await page.getByLabel('Username').fill(username)
   await page.getByLabel('Email').fill(mail)
   await page.getByLabel('Password').fill(password)
-  await page.getByRole('button', { name: 'Create Account' }).click()
+  
+  await Promise.all([
+    page.waitForResponse(
+      resp => resp.url().includes('/api/v2/auth/signup') && resp.request().method() === 'POST' && resp.ok(),
+      { timeout: 10000 }
+    ),
+    page.getByRole('button', { name: 'Create Account' }).click(),
+  ])
 
   await page.goto('/')
 }
@@ -85,14 +92,29 @@ async function rejectUser(page: Page, username: string) {
 }
 
 async function approveUser(page: Page, username: string) {
-  if (!page.url().endsWith('/admin/waitlist')) {
-    await page.goto('/admin/waitlist', { waitUntil: 'networkidle' })
-  }
-
+  await page.goto('/admin/waitlist', { waitUntil: 'networkidle' })
   await page.waitForLoadState('networkidle')
   
+  /* Wait for table to render */
+  await page.locator('table tbody tr').first().waitFor({ state: 'visible', timeout: 10000 })
+  
+  /* Check if user visible in current page, if not, search for them */
   const row = page.locator('table tbody tr', { hasText: username }).first()
-  await expect(row).toBeVisible({ timeout: 10000 })
+  const isVisible = await row.isVisible().catch(() => false)
+  
+  if (!isVisible) {
+    /* User not in first page - use search to find them */
+    const searchInput = page.getByPlaceholder(/search/i).or(page.locator('input[type="search"]')).or(page.locator('input[placeholder*="Search"]'))
+    if (await searchInput.count() > 0) {
+      await searchInput.first().fill(username)
+      await page.waitForTimeout(1000) /* Wait for search debounce */
+      await row.waitFor({ state: 'visible', timeout: 10000 })
+    } else {
+      /* No search input - user must be in table */
+      await expect(row).toBeVisible({ timeout: 10000 })
+    }
+  }
+  
   await row.click()
 
   await Promise.all([

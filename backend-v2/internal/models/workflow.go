@@ -62,6 +62,8 @@ type Share struct {
 type Workflow struct {
 	UserID     string            `json:"userId" bson:"userId"`
 	WorkflowID string            `json:"workflowId" bson:"workflowId"`
+	Title      string            `json:"title" bson:"title"`
+	UpdatedAt  int64             `json:"updatedAt" bson:"updatedAt"`
 	Nodes      map[string]Node   `json:"nodes" bson:"nodes"`
 	Edges      map[string]Edge   `json:"edges" bson:"edges"`
 	Files      map[string]string `json:"files" bson:"files"`

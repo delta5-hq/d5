@@ -11,10 +11,10 @@ import {PerplexityController} from '../controllers/integrations/PerplexityContro
 const integrationRouter = new Router({prefix: '/integration'})
 
 integrationRouter
+  .use(IntegrationController.authorization)
   .post('/scrape_v2', IntegrationController.scrapeV2)
   .post('/scrape_files', IntegrationController.scrapeFiles)
   .post('/translate', IntegrationController.translate)
-  .use(IntegrationController.authorization)
   .get('/search', IntegrationController.search)
   .get('/', IntegrationController.getAll)
   .post('/downloadImage', IntegrationController.downloadImage)

@@ -1,4 +1,4 @@
-import {describe, beforeEach, afterAll, it, expect, jest} from '@jest/globals'
+import {describe, beforeEach, afterAll, it, expect} from '@jest/globals'
 import {testOrchestrator} from './shared/test-data-factory'
 import {subscriberRequest, administratorRequest, customerRequest} from './shared/requests'
 
@@ -6,19 +6,22 @@ describe('Integration Router', () => {
   beforeEach(async () => {
     await testOrchestrator.prepareTestEnvironment()
     
-    await subscriberRequest.delete('/integration')
-    await administratorRequest.delete('/integration')
-    await customerRequest.delete('/integration')
+    /* Setup test data - wait for upsert to complete */
+    const setupResults = await Promise.all([
+      subscriberRequest.put('/integration/openai/update').send({apiKey: 'test-key'}),
+      administratorRequest.put('/integration/openai/update').send({apiKey: 'admin-test-key'}),
+      customerRequest.put('/integration/openai/update').send({apiKey: 'customer-test-key'})
+    ])
     
-    await subscriberRequest.put('/integration/openai/update').send({apiKey: 'test-key'})
-    await administratorRequest.put('/integration/openai/update').send({apiKey: 'admin-test-key'})
-    await customerRequest.put('/integration/openai/update').send({apiKey: 'customer-test-key'})
+    /* Verify all setups succeeded */
+    setupResults.forEach((res, idx) => {
+      if (res.status !== 200) {
+        throw new Error(`Integration setup failed for user ${idx}: ${res.status}`)
+      }
+    })
   })
 
   afterAll(async () => {
-    await subscriberRequest.delete('/integration')
-    await administratorRequest.delete('/integration')
-    await customerRequest.delete('/integration')
     await testOrchestrator.cleanupTestEnvironment()
   })
 
@@ -237,6 +240,67 @@ describe('Integration Router', () => {
       expect(res.body.vectors).toHaveProperty('store')
       expect(typeof res.body.vectors.store).toBe('object')
     })
+
+    it('creates new llmvectors document for deepseek when none exists', async () => {
+      /* prepareTestEnvironment already cleaned MongoDB - guaranteed clean slate */
+      
+      /* First deepseek integration update - triggers insert path in ensureServiceStoreExists */
+      const res = await subscriberRequest.put('/integration/deepseek/update').send({
+        apiKey: 'sk-deepseek-test-key',
+        model: 'deepseek-chat'
+      })
+      
+      expect(res.status).toBe(200)
+      expect(res.body).toHaveProperty('vectors')
+      expect(res.body.vectors).toHaveProperty('store')
+      expect(res.body.vectors.store).toHaveProperty('deepseek')
+      expect(typeof res.body.vectors.store.deepseek).toBe('object')
+    })
+
+    it('updates existing llmvectors document when adding new service', async () => {
+      /* Setup: Create openai integration first */
+      await subscriberRequest.put('/integration/openai/update').send({apiKey: 'openai-key'})
+      
+      /* Add deepseek to existing llmvectors doc - triggers update path */
+      const res = await subscriberRequest.put('/integration/deepseek/update').send({
+        apiKey: 'sk-deepseek-key',
+        model: 'deepseek-chat'
+      })
+      
+      expect(res.status).toBe(200)
+      expect(res.body.vectors.store).toHaveProperty('openai')
+      expect(res.body.vectors.store).toHaveProperty('deepseek')
+    })
+
+    it('handles multiple services without store isolation violations', async () => {
+      /* Test store.{service} isolation: deepseek, openai, claude */
+      await subscriberRequest.put('/integration/deepseek/update').send({apiKey: 'deepseek-key'})
+      await subscriberRequest.put('/integration/openai/update').send({apiKey: 'openai-key'})
+      await subscriberRequest.put('/integration/claude/update').send({apiKey: 'claude-key'})
+      
+      const res = await subscriberRequest.get('/integration')
+      expect(res.status).toBe(200)
+      expect(res.body).toHaveProperty('deepseek')
+      expect(res.body).toHaveProperty('openai')
+      expect(res.body).toHaveProperty('claude')
+    })
+
+    it('preserves existing service stores when adding new service', async () => {
+      /* Create openai with vectors */
+      await subscriberRequest.put('/integration/openai/update').send({apiKey: 'openai-key'})
+      const firstRes = await subscriberRequest.get('/integration')
+      expect(firstRes.status).toBe(200)
+      expect(firstRes.body).toBeTruthy()
+      expect(firstRes.body).toHaveProperty('openai')
+      
+      /* Add deepseek - should NOT delete openai store */
+      await subscriberRequest.put('/integration/deepseek/update').send({apiKey: 'deepseek-key'})
+      
+      const res = await subscriberRequest.get('/integration')
+      expect(res.status).toBe(200)
+      expect(res.body).toHaveProperty('openai')
+      expect(res.body).toHaveProperty('deepseek')
+    })
   })
 })
 
@@ -244,12 +308,10 @@ describe('Integration Router - Administrator Tests', () => {
   beforeEach(async () => {
     await testOrchestrator.prepareTestEnvironment()
     
-    await administratorRequest.delete('/integration')
     await administratorRequest.put('/integration/openai/update').send({apiKey: 'admin-test-key'})
   })
 
   afterAll(async () => {
-    await administratorRequest.delete('/integration')
     await testOrchestrator.cleanupTestEnvironment()
   })
 
@@ -281,12 +343,10 @@ describe('Integration Router - Customer Tests', () => {
   beforeEach(async () => {
     await testOrchestrator.prepareTestEnvironment()
     
-    await customerRequest.delete('/integration')
     await customerRequest.put('/integration/openai/update').send({apiKey: 'customer-test-key'})
   })
 
   afterAll(async () => {
-    await customerRequest.delete('/integration')
     await testOrchestrator.cleanupTestEnvironment()
   })
 

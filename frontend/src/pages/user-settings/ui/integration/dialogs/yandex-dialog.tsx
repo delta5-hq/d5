@@ -1,3 +1,7 @@
+import type { ApiError, DialogProps, Yandex } from '@shared/base-types'
+import { useApiMutation } from '@shared/composables'
+import { YANDEX_DEFAULT_MODEL, YandexGPTModel } from '@shared/config'
+import { createResponseYandexGPT } from '@shared/lib/llm'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X } from 'lucide-react'
 import React from 'react'
@@ -5,10 +9,6 @@ import { useForm } from 'react-hook-form'
 import { FormattedMessage } from 'react-intl'
 import { z } from 'zod'
 
-import type { ApiError, DialogProps, Yandex } from '@shared/base-types'
-import { useApiMutation } from '@shared/composables'
-import { YANDEX_DEFAULT_MODEL, YandexGPTModel } from '@shared/config'
-import { createResponseYandexGPT } from '@shared/lib/llm'
 import { Button } from '@shared/ui/button'
 import {
   Dialog,
@@ -91,6 +91,7 @@ export const YandexDialog: React.FC<Props> = ({ data, open, onClose, refresh }) 
 
       await refresh()
       onClose?.()
+      toast.success('Saved successfully')
     } catch (e: unknown) {
       const error = e as ApiError
       const status = error?.response?.status

@@ -11,6 +11,35 @@
  */
 
 import { syncRequest, administratorRequest, publicRequest, subscriberRequest, customerRequest } from './requests'
+import { MongoClient } from 'mongodb'
+
+/* MongoDB direct cleanup for test isolation */
+let mongoClient = null
+let mongoDb = null
+
+async function getMongoConnection() {
+  if (!mongoClient) {
+    const mongoUri = process.env.E2E_MONGO_URI || 'mongodb://localhost:27017/delta5'
+    mongoClient = new MongoClient(mongoUri)
+    await mongoClient.connect()
+    const dbName = new URL(mongoUri).pathname.slice(1) || 'delta5'
+    mongoDb = mongoClient.db(dbName)
+  }
+  return mongoDb
+}
+
+async function cleanupUserCollections(userIds) {
+  try {
+    const db = await getMongoConnection()
+    await Promise.all([
+      db.collection('integrations').deleteMany({ userId: { $in: userIds } }),
+      db.collection('llmvectors').deleteMany({ userId: { $in: userIds } })
+    ])
+  } catch (err) {
+    /* Cleanup failure should not break tests */
+    console.warn('MongoDB cleanup warning:', err.message)
+  }
+}
 
 export class TestDataFactory {
   constructor() {
@@ -234,11 +263,19 @@ export const testDataFactory = new TestDataFactory()
  */
 export const testOrchestrator = {
   async prepareTestEnvironment() {
-    /* No automatic cleanup - tests clean up their own data in afterAll/afterEach */
-    /* Database cleanup should be done manually between test suite runs if needed */
+    /* Clean MongoDB collections for test isolation (local dev + CI consistency) */
+    await cleanupUserCollections(['subscriber', 'admin', 'customer'])
   },
 
   async cleanupTestEnvironment() {
     await testDataFactory.cleanup()
+    /* Final MongoDB cleanup */
+    await cleanupUserCollections(['subscriber', 'admin', 'customer'])
+    /* Close MongoDB connection */
+    if (mongoClient) {
+      await mongoClient.close()
+      mongoClient = null
+      mongoDb = null
+    }
   }
 }

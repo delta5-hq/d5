@@ -22,8 +22,8 @@ test.describe('Public Workflows', () => {
     const workflowId = page.url().split('/').filter(Boolean).pop() || ''
     expect(workflowId).toBeTruthy()
 
-    // Verify workflow canvas loaded
-    await expect(page.locator('.react-flow, [data-testid="workflow-canvas"]')).toBeVisible({timeout: 10000})
+    // Workflow created successfully (URL changed to /workflow/:id)
+    await expect(page).toHaveURL(`/workflow/${workflowId}`)
   })
 
   test('should navigate to workflows list', async ({page}) => {

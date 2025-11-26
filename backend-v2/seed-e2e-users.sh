@@ -1,10 +1,20 @@
 #!/bin/bash
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/../backend"
+
+# Default to port 27017 if not specified
+MONGO_PORT=${MONGO_PORT:-27017}
+# Use delta5-dev for dev (port 27017), delta5 for E2E (port 27018)
+MONGO_DB=${MONGO_DB:-"delta5"}
+if [ "$MONGO_PORT" = "27017" ]; then
+  MONGO_DB="delta5-dev"
+fi
+MONGO_URI="mongodb://localhost:${MONGO_PORT}/${MONGO_DB}"
+
 node -e "
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const MONGO_URI = process.env.MONGO_URI || process.env.E2E_MONGO_URI || 'mongodb://localhost:27017/delta5';
+const MONGO_URI = process.env.MONGO_URI || '${MONGO_URI}';
 const baseUsers = [
   {
     _id: 'admin',
@@ -56,7 +66,8 @@ const baseUsers = [
       await db.collection('users').deleteMany({\$or: [{id: user.id}, {mail: user.mail}]});
       await db.collection('users').insertOne(user);
     }
-    console.log('E2E base users seeded: admin, subscriber, customer');
+    const portInfo = MONGO_URI.includes('27018') ? ' (E2E)' : ' (dev)';
+    console.log('E2E base users seeded: admin, subscriber, customer' + portInfo);
     await mongoose.disconnect();
     process.exit(0);
   } catch (error) {

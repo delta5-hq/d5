@@ -1,10 +1,12 @@
 .PHONY: help build build-docker start stop restart dev e2e logs logs-follow clean status test
 
-# Configuration
+# Configuration (allow override from environment)
 BINARY_NAME := backend-v2
-PORT := 3002
-MONGO_URI := mongodb://localhost:27017/delta5
-JWT_SECRET := GrFYK5ftZDtCg7ZGwxZ1JpSxyyJ9bc8uJijvBD1DYiMoS64ZpnBSrFxsNuybN1iO
+PORT ?= 3002
+MONGO_URI ?= mongodb://localhost:27017/delta5
+JWT_SECRET ?= GrFYK5ftZDtCg7ZGwxZ1JpSxyyJ9bc8uJijvBD1DYiMoS64ZpnBSrFxsNuybN1iO
+API_ROOT ?= /api/v2
+MOCK_EXTERNAL_SERVICES ?= false
 DOCKER_IMAGE := d5-backend-v2
 DOCKER_TAG := latest
 LOG_DIR := logs
@@ -55,9 +57,11 @@ start: build
 	fi
 	@mkdir -p $(LOG_DIR)
 	@echo "→ Starting backend on port $(PORT)..."
-	@env JWT_SECRET='$(JWT_SECRET)' \
+	@JWT_SECRET='$(JWT_SECRET)' \
 	 MONGO_URI='$(MONGO_URI)' \
 	 PORT=$(PORT) \
+	 API_ROOT='$(API_ROOT)' \
+	 MOCK_EXTERNAL_SERVICES='$(MOCK_EXTERNAL_SERVICES)' \
 	 nohup ./$(BINARY_NAME) > $(LOG_DIR)/backend.log 2>&1 & \
 	 echo $$! > $(LOG_DIR)/backend.pid
 	@sleep 1
@@ -80,6 +84,8 @@ dev: build
 	@JWT_SECRET='$(JWT_SECRET)' \
 	 MONGO_URI='$(MONGO_URI)' \
 	 PORT=$(PORT) \
+	 API_ROOT='$(API_ROOT)' \
+	 MOCK_EXTERNAL_SERVICES='$(MOCK_EXTERNAL_SERVICES)' \
 	 nohup ./$(BINARY_NAME) > $(LOG_DIR)/backend-dev.log 2>&1 & \
 	 echo $$! > $(LOG_DIR)/backend-dev.pid
 	@sleep 1
@@ -171,6 +177,7 @@ e2e:
 	@JWT_SECRET='$(JWT_SECRET)' \
 	 MONGO_URI='$(MONGO_URI)' \
 	 PORT=$(PORT) \
+	 API_ROOT='/api/v2' \
 	 MOCK_EXTERNAL_SERVICES=true \
 	 nohup ./$(BINARY_NAME) > $(LOG_DIR)/backend-e2e.log 2>&1 & \
 	 echo $$! > $(LOG_DIR)/backend-e2e.pid
@@ -184,7 +191,7 @@ e2e:
 	@echo "→ Running E2E test suite..."
 	@cd ../backend && \
 	 E2E_SERVER_URL=http://localhost:$(PORT) \
-	 E2E_API_BASE_PATH=/api/v1 \
+	 E2E_API_BASE_PATH=/api/v2 \
 	 E2E_MONGO_URI=$(MONGO_URI) \
 	 npm run test:e2e -- --maxWorkers=1 --forceExit; \
 	 TEST_EXIT=$$?; \

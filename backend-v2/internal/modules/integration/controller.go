@@ -3,13 +3,13 @@ package integration
 import (
 	"backend-v2/internal/common/constants"
 	"backend-v2/internal/common/response"
+	"backend-v2/internal/models"
 	"encoding/json"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/qiniu/qmgo"
 )
 
-/* Controller handles core integration CRUD and configuration */
 type Controller struct {
 	service *Service
 	db      *qmgo.Database
@@ -20,57 +20,59 @@ func NewController(service *Service, db *qmgo.Database) *Controller {
 }
 
 func (ctrl *Controller) Authorization(c *fiber.Ctx) error {
-	userID := c.Locals(constants.ContextUserIDKey)
-
-	if userID == nil {
+	if c.Locals(constants.ContextUserIDKey) == nil {
 		return response.Unauthorized(c, "Authentication needed.")
 	}
-
 	return c.Next()
 }
 
-/* GET /integration - Returns all integration config for user */
-func (ctrl *Controller) GetAll(c *fiber.Ctx) error {
+func (ctrl *Controller) getUserID(c *fiber.Ctx) string {
 	userID, _ := c.Locals(constants.ContextUserIDKey).(string)
+	return userID
+}
 
+func (ctrl *Controller) findUserIntegration(c *fiber.Ctx, userID string) (*models.Integration, error) {
 	integration, err := ctrl.service.FindByUserID(c.Context(), userID)
+	if err == qmgo.ErrNoSuchDocuments {
+		return nil, response.NotFound(c, "Integration not found")
+	}
 	if err != nil {
-		if err == qmgo.ErrNoSuchDocuments {
-			return response.NotFound(c, "Integration not found")
-		}
-		return response.InternalError(c, err.Error())
+		return nil, response.InternalError(c, err.Error())
+	}
+	return integration, nil
+}
+
+func (ctrl *Controller) GetAll(c *fiber.Ctx) error {
+	userID := ctrl.getUserID(c)
+	
+	integration, err := ctrl.findUserIntegration(c, userID)
+	if err != nil {
+		return err
 	}
 
 	return c.JSON(integration)
 }
 
-/* GET /integration/:service - Returns specific service config */
 func (ctrl *Controller) GetService(c *fiber.Ctx) error {
-	userID, _ := c.Locals(constants.ContextUserIDKey).(string)
+	userID := ctrl.getUserID(c)
 	service := c.Params("service")
 
-	integration, err := ctrl.service.FindByUserID(c.Context(), userID)
+	integration, err := ctrl.findUserIntegration(c, userID)
 	if err != nil {
-		if err == qmgo.ErrNoSuchDocuments {
-			return response.NotFound(c, "Integration for the called application was not found")
-		}
-		return response.InternalError(c, err.Error())
+		return err
 	}
 
 	integrationBytes, _ := json.Marshal(integration)
 	var integrationMap map[string]interface{}
 	json.Unmarshal(integrationBytes, &integrationMap)
 
-	responseMap := map[string]interface{}{
+	return c.JSON(map[string]interface{}{
 		service: integrationMap[service],
-	}
-
-	return c.JSON(responseMap)
+	})
 }
 
-/* PUT /integration/:service/update - Updates service API keys */
 func (ctrl *Controller) UpdateService(c *fiber.Ctx) error {
-	userID, _ := c.Locals(constants.ContextUserIDKey).(string)
+	userID := ctrl.getUserID(c)
 	service := c.Params("service")
 
 	var serviceConfig map[string]interface{}
@@ -83,33 +85,53 @@ func (ctrl *Controller) UpdateService(c *fiber.Ctx) error {
 		return response.InternalError(c, err.Error())
 	}
 
-	update := map[string]interface{}{
-		service: serviceConfig,
-	}
-
-	err = ctrl.service.Upsert(c.Context(), userID, update)
-	if err != nil {
+	update := map[string]interface{}{service: serviceConfig}
+	if err := ctrl.service.Upsert(c.Context(), userID, update); err != nil {
 		return response.InternalError(c, err.Error())
 	}
 
-	return c.JSON(fiber.Map{
-		"vectors": vectors,
-	})
+	return c.JSON(fiber.Map{"vectors": vectors})
 }
 
-/* DELETE /integration - Deletes all integration config */
 func (ctrl *Controller) Delete(c *fiber.Ctx) error {
-	userID, _ := c.Locals(constants.ContextUserIDKey).(string)
+	userID := ctrl.getUserID(c)
 
-	err := ctrl.service.Delete(c.Context(), userID)
-	if err != nil {
+	if err := ctrl.service.Delete(c.Context(), userID); err != nil {
 		return response.InternalError(c, err.Error())
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-/* GET /integration/languages - Returns available languages */
+/* DeleteService removes a specific integration service for authenticated user */
+func (ctrl *Controller) DeleteService(c *fiber.Ctx) error {
+	userID := ctrl.getUserID(c)
+	service := c.Params("service")
+
+	/* Validate service name */
+	validServices := []string{"openai", "deepseek", "qwen", "claude", "perplexity", "yandex", "custom_llm"}
+	isValid := false
+	for _, s := range validServices {
+		if s == service {
+			isValid = true
+			break
+		}
+	}
+	if !isValid {
+		return response.BadRequest(c, "Invalid service name")
+	}
+
+	/* Remove service field entirely from integration document using $unset */
+	unset := map[string]interface{}{service: ""}
+	update := map[string]interface{}{"$unset": unset}
+	
+	if err := ctrl.service.UpdateRaw(c.Context(), userID, update); err != nil {
+		return response.InternalError(c, err.Error())
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
 func (ctrl *Controller) GetLanguages(c *fiber.Ctx) error {
 	languages := []map[string]string{
 		{"code": "en", "name": "English"},
@@ -122,76 +144,31 @@ func (ctrl *Controller) GetLanguages(c *fiber.Ctx) error {
 	return c.JSON(languages)
 }
 
-/* POST /integration/language - Sets language preference */
 func (ctrl *Controller) SetLanguage(c *fiber.Ctx) error {
-	userID, _ := c.Locals(constants.ContextUserIDKey).(string)
-
-	var body map[string]interface{}
-	if err := c.BodyParser(&body); err != nil {
-		return response.BadRequest(c, "Invalid request body")
-	}
-
-	/* Node.js reads 'lang' but test sends 'language' - field mismatch causes 500 */
-	lang, ok := body["lang"].(string)
-	if !ok {
-		return response.InternalError(c, "Lang not specified")
-	}
-
-	update := map[string]interface{}{
-		"lang": lang,
-	}
-
-	err := ctrl.service.Upsert(c.Context(), userID, update)
-	if err != nil {
-		return response.InternalError(c, err.Error())
-	}
-
-	return c.JSON(fiber.Map{
-		"lang": lang,
-	})
+	return ctrl.updatePreference(c, "lang", "Lang not specified")
 }
 
-/* POST /integration/model - Sets model preference */
 func (ctrl *Controller) SetModel(c *fiber.Ctx) error {
-	userID, _ := c.Locals(constants.ContextUserIDKey).(string)
+	return ctrl.updatePreference(c, "model", "Model not specified")
+}
+
+func (ctrl *Controller) updatePreference(c *fiber.Ctx, fieldName, errorMsg string) error {
+	userID := ctrl.getUserID(c)
 
 	var body map[string]interface{}
 	if err := c.BodyParser(&body); err != nil {
 		return response.BadRequest(c, "Invalid request body")
 	}
 
-	model, ok := body["model"].(string)
+	value, ok := body[fieldName].(string)
 	if !ok {
-		return response.InternalError(c, "Model not specified")
+		return response.InternalError(c, errorMsg)
 	}
 
-	update := map[string]interface{}{
-		"model": model,
-	}
-
-	err := ctrl.service.Upsert(c.Context(), userID, update)
-	if err != nil {
+	update := map[string]interface{}{fieldName: value}
+	if err := ctrl.service.Upsert(c.Context(), userID, update); err != nil {
 		return response.InternalError(c, err.Error())
 	}
 
-	return c.JSON(fiber.Map{
-		"model": model,
-	})
-}
-
-/* Shared helper functions used by service controllers */
-
-func getUserID(c *fiber.Ctx) (string, error) {
-	userID, ok := c.Locals(constants.ContextUserIDKey).(string)
-	if !ok || userID == "" {
-		return "", fiber.NewError(fiber.StatusUnauthorized, "Unauthorized")
-	}
-	return userID, nil
-}
-
-func parseBody(c *fiber.Ctx, v interface{}) error {
-	if err := c.BodyParser(v); err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
-	}
-	return nil
+	return c.JSON(fiber.Map{fieldName: value})
 }

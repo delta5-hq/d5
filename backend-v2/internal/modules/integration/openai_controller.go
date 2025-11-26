@@ -23,8 +23,9 @@ func (ctrl *OpenAIController) CheckApiKey(c *fiber.Ctx) error {
 }
 
 func (ctrl *OpenAIController) ChatCompletions(c *fiber.Ctx) error {
-	authHeader := c.Get("Authorization")
+	/* Extract API key from Authorization header OR request body */
 	var userApiKey string
+	authHeader := c.Get("Authorization")
 	if authHeader != "" {
 		parts := strings.Split(authHeader, " ")
 		if len(parts) == 2 {
@@ -33,6 +34,7 @@ func (ctrl *OpenAIController) ChatCompletions(c *fiber.Ctx) error {
 	}
 
 	var req struct {
+		ApiKey   string                 `json:"apiKey"`
 		Messages []openai.ChatMessage   `json:"messages"`
 		Model    string                 `json:"model"`
 		Params   map[string]interface{} `json:"-"`
@@ -40,6 +42,11 @@ func (ctrl *OpenAIController) ChatCompletions(c *fiber.Ctx) error {
 
 	if err := parseBody(c, &req); err != nil {
 		return err
+	}
+	
+	/* Prefer apiKey from body over Authorization header */
+	if req.ApiKey != "" {
+		userApiKey = req.ApiKey
 	}
 
 	if req.Model == "" {

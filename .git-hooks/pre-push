@@ -1,0 +1,15 @@
+#!/bin/sh
+# Pre-push hook - comprehensive checks before pushing to remote
+
+echo "🔍 Running pre-push validation..."
+
+make ci-full
+
+if [ $? -ne 0 ]; then
+    echo "❌ Pre-push validation failed. Push aborted."
+    echo "   Fix errors and try again, or use 'git push --no-verify' to skip."
+    exit 1
+fi
+
+echo "✅ Pre-push validation passed"
+exit 0

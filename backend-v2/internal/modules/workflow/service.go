@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"backend-v2/internal/common/constants"
 	"backend-v2/internal/common/errors"
@@ -36,6 +37,9 @@ func (s *WorkflowService) GetByWorkflowID(ctx context.Context, workflowId string
 
 func (s *WorkflowService) UpdateWorkflow(ctx context.Context, workflowId string, update *models.Workflow) error {
 	filter := map[string]string{"workflowId": workflowId}
+
+	/* Always update timestamp */
+	update.UpdatedAt = time.Now().Unix() * 1000
 
 	updateDoc := map[string]*models.Workflow{
 		"$set": update,
@@ -158,6 +162,8 @@ func (s *WorkflowService) CreateWorkflow(ctx context.Context, dto CreateWorkflow
 	data := models.Workflow{
 		UserID:     dto.UserID,
 		WorkflowID: workflowId,
+		Title:      "",
+		UpdatedAt:  time.Now().Unix() * 1000, // Milliseconds timestamp for frontend compatibility
 		Share:      share,
 	}
 

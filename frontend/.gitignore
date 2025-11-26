@@ -8,6 +8,10 @@ dist-ssr/
 # Generated files
 src/version.ts
 
+# Test reports
+junit.xml
+e2e.log
+
 # Environment (local overrides)
 .env.local
 .env.*.local

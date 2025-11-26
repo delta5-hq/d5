@@ -120,9 +120,10 @@ func (c *Controller) Auth(ctx *fiber.Ctx) error {
 
 	/* Return response without refresh_token (it's in cookie) */
 	return ctx.JSON(fiber.Map{
-		"wp_user":    auth.WpUser,
-		"tokenHash":  tokenHash,
-		"expires_in": auth.ExpiresIn,
+		"wp_user":      auth.WpUser,
+		"access_token": auth.AccessToken,
+		"tokenHash":    tokenHash,
+		"expires_in":   auth.ExpiresIn,
 	})
 }
 
@@ -278,6 +279,7 @@ func (c *Controller) Refresh(ctx *fiber.Ctx) error {
 	/* Return enriched response (matches Node.js) */
 	return ctx.JSON(fiber.Map{
 		"wp_user":         auth.WpUser,
+		"access_token":    auth.AccessToken,
 		"tokenHash":       tokenHash,
 		"expires_in":      auth.ExpiresIn,
 		"expiresAt":       (auth.ExpiresIn + 0) * 1000, // in ms
