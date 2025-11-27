@@ -1,7 +1,9 @@
-import fetch from 'node-fetch'
 import debug from 'debug'
+import {container} from '../../services/container'
 
-const log = debug('delta5:Integration:Perplexity')
+debug('delta5:Integration:Perplexity')
+
+const perplexityService = container.get('perplexityService')
 
 export const PerplexityController = {
   completions: async ctx => {
@@ -18,26 +20,13 @@ export const PerplexityController = {
         ctx.throw(401, 'Perplexity API key not provided')
       }
 
-      const response = await fetch('https://api.perplexity.ai/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          messages,
-          maxTokens: maxTokens || 150,
-          ...otherParams,
-        }),
+      /* E2E_MODE uses noop service, production uses real API */
+      const data = await perplexityService.completions({
+        messages,
+        maxTokens: maxTokens || 150,
+        ...otherParams,
       })
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        log('Perplexity API error', {status: response.status, text: errorText})
-        ctx.throw(response.status, errorText)
-      }
-
-      const data = await response.json()
       ctx.body = data
     } catch (error) {
       const statusCode = error.response?.status || 500

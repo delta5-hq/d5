@@ -1,31 +1,22 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# Node.js dependencies
+node_modules/
 
-node_modules
-dist
-dist-ssr
-*.local
-.env
+# Build outputs
+dist/
+dist-ssr/
+
+# Generated files
 src/version.ts
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+# Test reports
+junit.xml
+e2e.log
 
-# Playwright
+# Environment (local overrides)
+.env.local
+.env.*.local
+
+# Playwright (frontend-specific)
 /test-results/
 /playwright-report/
 /blob-report/

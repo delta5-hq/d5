@@ -43,6 +43,7 @@ export class CustomLLMChatCommand {
       const llm = new CustomLLMChat({
         apiRootUrl: custom_llm.apiRootUrl,
         apiType: custom_llm.apiType,
+        apiKey: custom_llm.apiKey,
       })
 
       const result = await llm.call(

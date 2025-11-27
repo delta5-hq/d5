@@ -1,39 +1,27 @@
 import {describe, beforeEach, afterAll, it, expect} from '@jest/globals'
-import {setupDb, teardownDb, isHttpMode} from './setup'
-import {publicRequest, subscriberRequest} from './shared/requests'
-import {httpMode} from './shared/http-mode-helpers'
-import {testIdFilter, testPrefixFilter} from './shared/test-constants'
-import User from '../src/models/User'
-import Waitlist from '../src/models/Waitlist'
+import {publicRequest, subscriberRequest, syncRequest} from './shared/requests'
+import {testDataFactory, testOrchestrator} from './shared/test-data-factory'
 
 describe('Authentication Router', () => {
-  const timestamp = Date.now()
-  const validCredentials = {username: `testuser123-${timestamp}`, mail: `testuser123-${timestamp}@example.com`, password: 'ValidPass123'}
   let createdUserId
 
+  /* Generate unique credentials for each test to avoid conflicts */
+  const getValidCredentials = () => {
+    const unique = `${Date.now()}-${Math.floor(Math.random() * 10000)}`
+    return {username: `testuser-${unique}`, mail: `testuser-${unique}@example.com`, password: 'ValidPass123'}
+  }
+
   beforeEach(async () => {
-    await setupDb()
-    
-    if (isHttpMode()) {
-      /* HTTP mode: Use API calls for test data setup */
-      await httpMode.clearUsers()
-    } else {
-      /* Direct database mode: Scoped deletion - only test users */
-      await User.deleteMany(testIdFilter())
-      await Waitlist.deleteMany(testPrefixFilter('mail'))
-    }
+    await testOrchestrator.prepareTestEnvironment()
   })
 
   afterAll(async () => {
-    if (!isHttpMode()) {
-      await User.deleteMany(testIdFilter())
-      await Waitlist.deleteMany(testPrefixFilter('mail'))
-    }
-    await teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('POST /auth/signup', () => {
     it('should add user to waitlist', async () => {
+      const validCredentials = getValidCredentials()
       const res = await publicRequest.post('/auth/signup').send(validCredentials)
 
       expect(res.status).toBe(200)
@@ -42,6 +30,7 @@ describe('Authentication Router', () => {
     })
 
     it('should return 401 for invalid email', async () => {
+      const validCredentials = getValidCredentials()
       const res = await publicRequest.post('/auth/signup').send({username: 'testuser456', mail: 'invalid', password: validCredentials.password})
 
       expect(res.status).toBe(401)
@@ -56,6 +45,7 @@ describe('Authentication Router', () => {
     })
 
     it('should return 400 for duplicate email', async () => {
+      const validCredentials = getValidCredentials()
       await publicRequest.post('/auth/signup').send(validCredentials)
       const res = await publicRequest.post('/auth/signup').send(validCredentials)
 
@@ -104,20 +94,28 @@ describe('Authentication Router', () => {
 
   describe('POST /auth/forgot-password', () => {
     it('should process password reset request', async () => {
-      const res = await publicRequest.post('/auth/forgot-password').send({mail: 'subscriber@example.com'})
+      const testMail = `forgot-pwd-${Date.now()}@example.com`
+      const testUser = `forgot-pwd-${Date.now()}`
+      
+      /* Create confirmed user via API */
+      await testDataFactory.createUser({
+        id: testUser,
+        name: testUser,
+        mail: testMail,
+        password: 'testpass123',
+        confirmed: true,
+      })
+      
+      const res = await publicRequest.post('/auth/forgot-password').send({usernameOrEmail: testMail})
 
-      /* Email service may not be configured in test environment */
-      expect([200, 500]).toContain(res.status)
-      if (res.status === 200) {
-        expect(res.body).toHaveProperty('success', true)
-      }
+      expect(res.status).toBe(200)
+      expect(res.body).toHaveProperty('success', true)
     })
 
     it('should handle non-existent email', async () => {
-      const res = await publicRequest.post('/auth/forgot-password').send({mail: 'nonexistent@example.com'})
+      const res = await publicRequest.post('/auth/forgot-password').send({usernameOrEmail: 'nonexistent@example.com'})
 
-      /* Email service may not be configured in test environment */
-      expect([404, 500]).toContain(res.status)
+      expect(res.status).toBe(404)
     })
   })
 
@@ -138,13 +136,11 @@ describe('Authentication Router', () => {
     })
 
     it('should validate password strength', async () => {
-      const res = await publicRequest.post('/auth/reset-password/valid-token').send({password: '123'})
+      const res = await publicRequest.post('/auth/reset-password/invalid-token').send({password: '123'})
 
-      /* Invalid token returns 404 before password validation */
-      expect([400, 404]).toContain(res.status)
-      if (res.status === 400) {
-        expect(res.text).toContain('password')
-      }
+      /* Invalid token returns 404 */
+      expect(res.status).toBe(404)
+      expect(res.text).toContain('not found')
     })
   })
 
@@ -162,16 +158,23 @@ describe('Authentication Router', () => {
 
       expect(res.status).toBe(401)
     })
+
+    it('should return 404 for invalid reset token', async () => {
+      /* HTTP mode: Cannot easily generate valid tokens, test invalid token handling */
+      const res = await publicRequest.post('/auth/reset-password/invalid-token-here').send({password: '123'})
+      expect(res.status).toBe(404)
+      expect(res.text).toContain('not found')
+    })
   })
 })
 
 describe('Authentication Router - Subscriber Tests', () => {
   beforeAll(async () => {
-    await setupDb()
+    await testOrchestrator.prepareTestEnvironment()
   })
 
   afterAll(async () => {
-    await teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('POST /auth/logout (subscriber)', () => {

@@ -2,9 +2,9 @@ import {ROLES} from '../../shared/config/constants'
 import {SYNC_USER_ID} from '../../constants'
 
 export const subscriber = {
-  name: 'subscriber_user',
-  id: 'subscriber_user',
-  mail: 'subscriber@example.com',
+  name: 'subscriber',
+  id: 'subscriber',
+  mail: 'subscriber@dreaktor.com',
   password: 'unused',
   roles: [ROLES.subscriber],
   limitWorkflows: 10,
@@ -13,9 +13,9 @@ export const subscriber = {
 }
 
 export const org_subscriber = {
-  name: 'org_subscriber_user',
-  id: 'org_subscriber_user',
-  mail: 'org_subscriber@example.com',
+  name: 'org_subscriber',
+  id: 'org_subscriber',
+  mail: 'org_subscriber@dreaktor.com',
   password: 'unused',
   roles: [ROLES.org_subscriber],
   limitWorkflows: 0,
@@ -24,15 +24,15 @@ export const org_subscriber = {
 
 export const subscriberSocket = {
   ...subscriber,
-  mail: 'subscriber_user_socket@example.com',
-  id: 'subscriber_user_socket',
-  name: 'subscriber_user_socket',
+  mail: 'subscriber_socket@dreaktor.com',
+  id: 'subscriber_socket',
+  name: 'subscriber_socket',
 }
 
 export const customer = {
-  id: 'customer_user',
-  name: 'customer_user',
-  mail: 'customer@example.com',
+  id: 'customer',
+  name: 'customer',
+  mail: 'customer@dreaktor.com',
   password: 'unused',
   roles: [ROLES.customer],
   limitWorkflows: 10,
@@ -40,9 +40,9 @@ export const customer = {
 }
 
 export const administrator = {
-  id: 'administrator_user',
-  name: 'administrator_user',
-  mail: 'administrator@example.com',
+  id: 'admin',
+  name: 'admin',
+  mail: 'admin@dreaktor.com',
   password: 'unused',
   roles: [ROLES.subscriber, ROLES.administrator],
   limitWorkflows: 0,
@@ -52,5 +52,5 @@ export const administrator = {
 export const syncuser = {
   id: SYNC_USER_ID,
   name: SYNC_USER_ID,
-  mail: 'sync@example.com',
+  mail: 'sync@dreaktor.com',
 }

@@ -1,4 +1,4 @@
-import { API_BASE_PATH, IS_PROD } from './api'
+import { API_BASE_PATH } from './api'
 
 export const OPENAI_COMPLETION_BASE_PATH = `${window.location.origin}${API_BASE_PATH}/integration`
 export const OPENAI_API_KEY_EMPTY = 'EMPTY'
@@ -8,6 +8,7 @@ export const CLAUDE_MESSAGES_BASE_PATH = `${API_BASE_PATH}/integration/claude/me
 export const YANDEX_GPT_COMPLETION_PATH = `${API_BASE_PATH}/integration/yandex/completion`
 export const YANDEX_GPT_EMBEDDINGS_PATH = `${API_BASE_PATH}/integration/yandex/embeddings`
 export const PERPLEXITY_API_URL = `${window.location.origin}${API_BASE_PATH}/integration/perplexity`
+export const CUSTOM_LLM_CHAT_COMPLETIONS_PATH = `${API_BASE_PATH}/integration/custom_llm/chat/completions`
 
 export const QWEN_API_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1'
 
@@ -54,16 +55,6 @@ export const YANDEX_DEFAULT_MODEL = YandexGPTModel.GPT_PRO_LATEST
 export const YANDEX_4_GEN_MAX_TOKENS = 32000
 export const LLAMA_8B_MAX_TOKENS = 8192
 export const LLAMA_70B_GEN_MAX_TOKENS = 8192
-
-const PROD_GOOGLE_API_KEY = ''
-const PROD_GOOGLE_CLIENT_ID = ''
-const DEV_GOOGLE_API_KEY = ''
-const DEV_GOOGLE_CLIENT_ID = ''
-export const GOOGLE_DRIVE_DISCOVERY_DOCS = ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
-export const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'
-
-export const GOOGLE_API_KEY = IS_PROD ? PROD_GOOGLE_API_KEY : DEV_GOOGLE_API_KEY
-export const GOOGLE_CLIENT_ID = IS_PROD ? PROD_GOOGLE_CLIENT_ID : DEV_GOOGLE_CLIENT_ID
 
 export enum ClaudeModels {
   CLAUDE_SONNET_4_5 = 'claude-sonnet-4-5',

@@ -22,12 +22,10 @@ import { Button } from '@shared/ui/button'
 import { useApiMutation } from '@shared/composables'
 import type { CustomLLM, DialogProps } from '@shared/base-types'
 import type { HttpError } from '@shared/lib/error'
-import { CustomLLMApiType, OPENAI_API_KEY_EMPTY } from '@shared/config'
+import { CustomLLMApiType, CUSTOM_LLM_CHAT_COMPLETIONS_PATH } from '@shared/config'
 import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
 
 import isUrl from '@shared/lib/isUrl'
-import { OpenAI } from '@langchain/openai'
-import { HumanMessage } from '@langchain/core/messages'
 import { X } from 'lucide-react'
 
 const customLLMSchema = z.object({
@@ -78,14 +76,30 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
       const apiKeyChanged = values.apiKey !== data?.apiKey
 
       if (urlChanged || apiKeyChanged) {
-        const client = new OpenAI({
-          openAIApiKey: values.apiKey || OPENAI_API_KEY_EMPTY,
-          configuration: {
-            baseURL: values.apiRootUrl,
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 5000)
+
+        const response = await fetch(CUSTOM_LLM_CHAT_COMPLETIONS_PATH, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(values.apiKey && { Authorization: `Bearer ${values.apiKey}` }),
           },
+          body: JSON.stringify({
+            url: values.apiRootUrl,
+            model: 'test',
+            messages: [{ role: 'user', content: 'Hello!' }],
+            max_tokens: 10,
+          }),
+          signal: controller.signal,
         })
 
-        await client.invoke([new HumanMessage('Hello!')])
+        clearTimeout(timeoutId)
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => response.statusText)
+          throw new Error(errorText || `Validation failed: ${response.status}`)
+        }
 
         await save(values)
       } else if (!objectsAreEqual(values, data || {})) {

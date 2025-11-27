@@ -1,6 +1,5 @@
-import {OpenAIEmbeddings} from 'langchain/embeddings/openai'
-import {Configuration, OpenAIApi, OpenAIApi as OpenAIClient} from 'openai'
-import {DEFAULT_OPENAI_MODEL_NAME, OPENAI_API_KEY, OPENAI_API_KEY_EMPTY} from '../../constants'
+import {container} from '../../services/container'
+import {DEFAULT_OPENAI_MODEL_NAME, OPENAI_API_KEY_EMPTY} from '../../constants'
 import debug from 'debug'
 
 const log = debug('delta5:Integration:OpenAI')
@@ -10,12 +9,14 @@ const OpenAIController = {
     const {messages, model: userModelName, ...openAIParams} = await ctx.request.json('infinity')
 
     try {
+      const openaiService = container.get('openaiService')
       const userApiKey = ctx.headers.authorization.split(' ')[1]
-      const openAIApiKey = userApiKey && userApiKey !== OPENAI_API_KEY_EMPTY ? userApiKey : OPENAI_API_KEY
       const modelName = userModelName || DEFAULT_OPENAI_MODEL_NAME
 
-      if (!openAIApiKey) {
-        ctx.throw(401, 'OpenAI api key not found')
+      if (!userApiKey || userApiKey === OPENAI_API_KEY_EMPTY) {
+        if (!openaiService.checkApiKey()) {
+          ctx.throw(401, 'OpenAI api key not found')
+        }
       }
 
       if (!modelName) {
@@ -28,15 +29,7 @@ const OpenAIController = {
 
       log('Request to OpenAI', {messages, modelName: userModelName})
 
-      const {data} = await new OpenAIApi(
-        new Configuration({
-          apiKey: openAIApiKey,
-        }),
-      ).createChatCompletion({
-        model: modelName,
-        messages,
-        ...openAIParams,
-      })
+      const data = await openaiService.chatCompletion(messages, modelName, openAIParams)
 
       log('Response from OpenAI', {messages: data.choices.map(n => n.message)})
 
@@ -47,18 +40,21 @@ const OpenAIController = {
     }
   },
   checkOpenaiApiKey: ctx => {
-    ctx.body = {success: !!OPENAI_API_KEY}
+    const openaiService = container.get('openaiService')
+    ctx.body = {success: openaiService.checkApiKey()}
   },
   embeddings: async ctx => {
     const {input, model: userModelName} = await ctx.request.json('infinity')
 
     try {
+      const openaiService = container.get('openaiService')
       const userApiKey = ctx.headers.authorization.split(' ')[1]
-      const openAIApiKey = userApiKey && userApiKey !== OPENAI_API_KEY_EMPTY ? userApiKey : OPENAI_API_KEY
       const modelName = userModelName || DEFAULT_OPENAI_MODEL_NAME
 
-      if (!openAIApiKey) {
-        ctx.throw(401, 'OpenAI api key not found')
+      if (!userApiKey || userApiKey === OPENAI_API_KEY_EMPTY) {
+        if (!openaiService.checkApiKey()) {
+          ctx.throw(401, 'OpenAI api key not found')
+        }
       }
 
       if (!modelName) {
@@ -69,19 +65,7 @@ const OpenAIController = {
         ctx.throw(400, 'Input not specified')
       }
 
-      const embeddings = new OpenAIEmbeddings({
-        openAIApiKey: openAIApiKey,
-      })
-
-      const embeddingResults = await embeddings.embedDocuments(!Array.isArray(input) ? [input] : input)
-
-      const response = {
-        data: embeddingResults.map((embedding, index) => ({
-          index,
-          object: 'embedding',
-          embedding,
-        })),
-      }
+      const response = await openaiService.embeddings(input, modelName)
 
       ctx.body = response
     } catch (error) {
@@ -91,11 +75,13 @@ const OpenAIController = {
   },
   dalleGenerations: async ctx => {
     const {n, prompt, response_format, size} = await ctx.request.json()
+    const openaiService = container.get('openaiService')
     const userApiKey = ctx.headers.authorization.split(' ')[1]
-    const openAIApiKey = userApiKey && userApiKey !== OPENAI_API_KEY_EMPTY ? userApiKey : OPENAI_API_KEY
 
-    if (!openAIApiKey) {
-      ctx.throw(401, 'OpenAI api key not found')
+    if (!userApiKey || userApiKey === OPENAI_API_KEY_EMPTY) {
+      if (!openaiService.checkApiKey()) {
+        ctx.throw(401, 'OpenAI api key not found')
+      }
     }
 
     if (!prompt) {
@@ -103,22 +89,9 @@ const OpenAIController = {
     }
 
     try {
-      const clientConfig = {
-        apiKey: openAIApiKey,
-      }
-      const client = new OpenAIClient(new Configuration(clientConfig))
+      const response = await openaiService.dalleGenerations(prompt, n, size, response_format)
 
-      const response = await client.createImage({
-        prompt,
-        n,
-        size,
-        response_format,
-      })
-
-      if (response.status !== 200) {
-        ctx.throw(response.status, response.statusText)
-      }
-      ctx.body = response.data
+      ctx.body = response
     } catch (error) {
       const statusCode = error.response ? error.response.status : 500
       ctx.throw(statusCode, error.message)

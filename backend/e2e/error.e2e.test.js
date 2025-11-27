@@ -1,24 +1,15 @@
 import {describe, beforeAll, afterAll, it, expect} from '@jest/globals'
-import {setupDb, teardownDb, isHttpMode} from './setup'
 import {subscriberRequest, publicRequest} from './shared/requests'
-import {testPrefixFilter} from './shared/test-constants'
-import ClientError from '../src/models/ClientError'
+import {testDataFactory, testOrchestrator} from './shared/test-data-factory'
 
 describe('Error Router', () => {
   beforeEach(async () => {
-    await setupDb()
+    await testOrchestrator.prepareTestEnvironment()
     
-    /* Only skip database operations in HTTP mode - keep test execution */
-    if (!isHttpMode()) {
-      await ClientError.deleteMany(testPrefixFilter('userId'))
-    }
   })
 
   afterAll(async () => {
-    if (!isHttpMode()) {
-      await ClientError.deleteMany(testPrefixFilter('userId'))
-    }
-    await teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('POST /errors', () => {

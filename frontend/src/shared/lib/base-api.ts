@@ -1,8 +1,10 @@
-import { API_BASE_PATH } from '@shared/config/api'
+import type { ApiVersion } from '@shared/base-types'
+import { API_BASE_PATH, API_V2_BASE_PATH } from '@shared/config/api'
 import logger from './logger'
 
 interface ApiFetchOptions extends RequestInit {
   retry?: boolean
+  version?: ApiVersion
 }
 
 let refreshPromise: Promise<Response> | null = null
@@ -21,7 +23,8 @@ async function refreshToken() {
 }
 
 export const apiFetch = async <T = unknown>(url: string, options: ApiFetchOptions = {}): Promise<T> => {
-  const res = await fetch(`${API_BASE_PATH}${url}`, options)
+  const basePath = options.version === 'v2' ? API_V2_BASE_PATH : API_BASE_PATH
+  const res = await fetch(`${basePath}${url}`, options)
 
   if (res.status === 401 && !url.startsWith('/auth') && !options.retry) {
     const refreshRes = await refreshToken()

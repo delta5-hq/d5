@@ -707,15 +707,31 @@ export class ChatYandexGPT extends BaseChatModel {
 export const createResponseYandexGPT = async (
   text: string,
   settings?: Partial<Yandex>,
-  options?: Partial<YandexGPTInputs>,
+  _options?: Partial<YandexGPTInputs>,
   abortSignal?: AbortSignal,
 ) => {
-  const response = await new YandexGPT({
-    apiKey: settings?.apiKey,
-    modelURI: `gpt://${settings?.folder_id}/${settings?.model || YANDEX_DEFAULT_MODEL}`,
-    signal: abortSignal,
-    ...options,
-  }).call(text)
+  const modelURI = `gpt://${settings?.folder_id}/${settings?.model || YANDEX_DEFAULT_MODEL}`
 
-  return response
+  const response = await fetch(YANDEX_GPT_COMPLETION_PATH, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(settings?.apiKey && { Authorization: `Bearer ${settings.apiKey}` }),
+    },
+    body: JSON.stringify({
+      modelUri: modelURI,
+      messages: [{ role: 'user', text }],
+      model: settings?.model || YANDEX_DEFAULT_MODEL,
+    }),
+    signal: abortSignal,
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: response.statusText }))
+    throw new Error(errorData.message || `Yandex API error: ${response.status}`)
+  }
+
+  const data = await response.json()
+  return data.result.alternatives[0].message.text.replaceAll('**', '').trim()
 }

@@ -1,6 +1,7 @@
-import { expect, test as base } from '@playwright/test'
+import { expect, test as base, type Page } from '@playwright/test'
 import { e2eEnv } from './utils/e2e-env-vars'
 import { adminLogin, approveUser, login, logout, signup } from './utils'
+import { IntegrationSettingsPage } from './pages/IntegrationSettingsPage'
 import { randomUUID } from 'crypto'
 import path from 'path'
 import * as fs from 'fs'
@@ -19,18 +20,8 @@ const test = base.extend<{}, { workerStorageState: string }>({
         baseURL: workerInfo.project.use.baseURL,
       })
 
-      const user_suffix = randomUUID()
-      const user = {
-        name: `user_${user_suffix}`,
-        mail: `user_${user_suffix}@example.com`,
-        password: 'Password1!',
-      }
-
-      await signup(page, user.name, user.mail, user.password)
+      /* Use admin user directly - avoids waitlist approval complexity */
       await adminLogin(page)
-      await approveUser(page, user.name)
-      await logout(page)
-      await login(page, user.name, user.password, true)
 
       await page.context().storageState({ path: fileName })
       await page.close()
@@ -42,294 +33,197 @@ const test = base.extend<{}, { workerStorageState: string }>({
 })
 
 test.describe.serial('Integrations', () => {
+  /* Clean up integrations before each test to ensure isolation */
+  test.beforeEach(async ({ page }) => {
+    /* Mock external LLM API calls to prevent real network requests */
+    await page.route('**/api.deepseek.com/**', route => {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'mock-deepseek',
+          object: 'chat.completion',
+          model: 'deepseek-chat',
+          choices: [{ index: 0, message: { role: 'assistant', content: 'Mock response' } }],
+        }),
+      })
+    })
+    
+    await page.route('**/dashscope.aliyuncs.com/**', route => {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'mock-qwen',
+          object: 'chat.completion',
+          model: 'qwen-turbo',
+          choices: [{ index: 0, message: { role: 'assistant', content: 'Mock response' } }],
+        }),
+      })
+    })
+    
+    await page.route('**/api.anthropic.com/**', route => {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'mock-claude',
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Mock response' }],
+          model: 'claude-3-5-sonnet-20241022',
+          stop_reason: 'end_turn',
+          usage: { input_tokens: 10, output_tokens: 20 },
+        }),
+      })
+    })
+    
+    await page.route('**/api.perplexity.ai/**', route => {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'mock-perplexity',
+          model: 'llama-3.1-sonar-small-128k-online',
+          choices: [{ index: 0, message: { role: 'assistant', content: 'Mock response' } }],
+        }),
+      })
+    })
+    
+    await page.route('**/llm.api.cloud.yandex.net/**', route => {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          result: {
+            alternatives: [{ message: { role: 'assistant', text: 'Mock response' }, status: 'ALTERNATIVE_STATUS_FINAL' }],
+            usage: { inputTextTokens: '10', completionTokens: '20', totalTokens: '30' },
+            modelVersion: '1.0',
+          },
+        }),
+      })
+    })
+    
+    /* Mock Custom LLM - matches any external URL with /v1/chat/completions pattern */
+    await page.route('**/v1/chat/completions', route => {
+      /* Only mock external URLs, not our backend */
+      if (!route.request().url().includes('localhost')) {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: 'mock-custom-llm',
+            object: 'chat.completion',
+            model: 'custom-model',
+            choices: [{ index: 0, message: { role: 'assistant', content: 'Mock response' } }],
+          }),
+        })
+      } else {
+        route.continue()
+      }
+    })
+    
+    const integrationPage = new IntegrationSettingsPage(page)
+    await integrationPage.deleteAllInstalledIntegrations()
+  })
+
   test('Install openai integration', async ({ page }) => {
-    await page.goto('/settings')
-
-    const card = page.locator('[data-type="integration-card"][data-title-id="integration.openai.title"]')
-    card.click()
-
-    await expect(page.locator('[data-dialog-name="openai"]')).toBeVisible()
-
-    const apiKeyInput = page.locator('#apiKey')
-    await apiKeyInput.click()
-    await apiKeyInput.fill(e2eEnv.E2E_OPEN_API_KEY)
-
-    const modelSelect = page.locator('[data-select-name="openai-model"]')
-
-    await modelSelect.click()
-    const options = page.locator('[role="option"]', { hasText: 'gpt-4o' })
-    expect(options).toBeDefined()
-    await options.first().click()
-
-    const submitButton = page.locator('button[type="submit"]')
-    await submitButton.click()
-    await Promise.all([
-      page.waitForResponse(
-        resp =>
-          resp.url().includes('/api/v1/integration/openai/update') && resp.request().method() === 'PUT' && resp.ok(),
-      ),
-      page.waitForResponse(
-        resp => resp.url().includes('/api/v1/integration') && resp.request().method() === 'GET' && resp.ok(),
-      ),
-    ])
-
-    await expect(card).toBeVisible()
+    const integrationPage = new IntegrationSettingsPage(page)
+    
+    await integrationPage.installIntegration(
+      'integration.openai.title',
+      'openai',
+      {
+        apiKey: e2eEnv.E2E_OPEN_API_KEY,
+        modelText: 'gpt-4o',
+      }
+    )
   })
 
   test('Install openai integration without apiKey', async ({ page }) => {
-    await page.goto('/settings')
-
-    const card = page.locator('[data-type="integration-card"][data-title-id="integration.openai.title"]')
-    card.click()
-
-    await expect(page.locator('[data-dialog-name="openai"]')).toBeVisible()
-
-    const modelSelect = page.locator('[data-select-name="openai-model"]')
-
-    await modelSelect.click()
-    const options = page.locator('[role="option"]', { hasText: 'gpt-4o-mini' })
-    await expect(options).toHaveCount(1)
-    await options.first().click()
-
-    const submitButton = page.locator('button[type="submit"]')
-    await submitButton.click()
-    await Promise.all([
-      page.waitForResponse(
-        resp =>
-          resp.url().includes('/api/v1/integration/openai/update') && resp.request().method() === 'PUT' && resp.ok(),
-      ),
-      page.waitForResponse(
-        resp => resp.url().includes('/api/v1/integration') && resp.request().method() === 'GET' && resp.ok(),
-      ),
-    ])
-
-    await expect(card).toBeVisible()
+    const integrationPage = new IntegrationSettingsPage(page)
+    
+    await integrationPage.installIntegration(
+      'integration.openai.title',
+      'openai',
+      {
+        modelText: 'gpt-4.1-mini',
+      }
+    )
   })
 
   test('Install deepseek integration', async ({ page }) => {
-    await page.goto('/settings')
-
-    const addIntegrationButton = page.locator('[data-type="add-integration"]')
-    await addIntegrationButton.click()
-
-    const card = page.locator('[data-type="integration-card"][data-title-id="integration.deepseek.title"]')
-    card.click()
-
-    await expect(page.locator('[data-dialog-name="deepseek"]')).toBeVisible()
-
-    const modelSelect = page.locator('[data-select-name="deepseek-model"]')
-    await modelSelect.click()
-    const options = page.locator('[role="option"]')
-    options.first().click()
-
-    const apiKeyInput = page.locator('#apiKey')
-    await apiKeyInput.click()
-    await apiKeyInput.fill(e2eEnv.E2E_DEEPSEEK_API_KEY)
-
-    const submitButton = page.locator('button[type="submit"]')
-    await submitButton.click()
-
-    await Promise.all([
-      page.waitForResponse(
-        resp =>
-          resp.url().includes('/api/v1/integration/deepseek/update') && resp.request().method() === 'PUT' && resp.ok(),
-      ),
-      page.waitForResponse(
-        resp => resp.url().includes('/api/v1/integration') && resp.request().method() === 'GET' && resp.ok(),
-      ),
-    ])
-
-    await expect(card).toBeVisible()
+    const integrationPage = new IntegrationSettingsPage(page)
+    
+    await integrationPage.installIntegration(
+      'integration.deepseek.title',
+      'deepseek',
+      {
+        apiKey: e2eEnv.E2E_DEEPSEEK_API_KEY,
+      },
+    )
   })
 
   test('Install qwen integration', async ({ page }) => {
-    await page.goto('/settings')
-
-    const addIntegrationButton = page.locator('[data-type="add-integration"]')
-    await addIntegrationButton.click()
-
-    const card = page.locator('[data-type="integration-card"][data-title-id="integration.qwen.title"]')
-    card.click()
-
-    await expect(page.locator('[data-dialog-name="qwen"]')).toBeVisible()
-
-    const modelSelect = page.locator('[data-select-name="qwen-model"]')
-    await modelSelect.click()
-
-    const option = page.locator('[role="option"]', { hasText: 'qwen-turbo' })
-    await option.click()
-
-    const apiKeyInput = page.locator('#apiKey')
-    await apiKeyInput.click()
-    await apiKeyInput.fill(e2eEnv.E2E_QWEN_API_KEY)
-
-    const submitButton = page.locator('button[type="submit"]')
-    await submitButton.click()
-
-    await Promise.all([
-      page.waitForResponse(
-        resp =>
-          resp.url().includes('/api/v1/integration/qwen/update') && resp.request().method() === 'PUT' && resp.ok(),
-      ),
-      page.waitForResponse(
-        resp => resp.url().includes('/api/v1/integration') && resp.request().method() === 'GET' && resp.ok(),
-      ),
-    ])
-
-    await expect(card).toBeVisible()
+    const integrationPage = new IntegrationSettingsPage(page)
+    
+    await integrationPage.installIntegration(
+      'integration.qwen.title',
+      'qwen',
+      {
+        apiKey: e2eEnv.E2E_QWEN_API_KEY,
+      },
+    )
   })
 
   test('Install claude integration', async ({ page }) => {
-    await page.goto('/settings')
-
-    const addIntegrationButton = page.locator('[data-type="add-integration"]')
-    await addIntegrationButton.click()
-
-    const card = page.locator('[data-type="integration-card"][data-title-id="integration.claude.title"]')
-    card.click()
-
-    await expect(page.locator('[data-dialog-name="claude"]')).toBeVisible()
-
-    const modelSelect = page.locator('[data-select-name="claude-model"]')
-    await modelSelect.click()
-    const options = page.locator('[role="option"]')
-    options.first().click()
-
-    const apiKeyInput = page.locator('#apiKey')
-    await apiKeyInput.click()
-    await apiKeyInput.fill(e2eEnv.E2E_CLAUDE_API_KEY)
-
-    const submitButton = page.locator('button[type="submit"]')
-    await submitButton.click()
-
-    await Promise.all([
-      page.waitForResponse(
-        resp =>
-          resp.url().includes('/api/v1/integration/claude/update') && resp.request().method() === 'PUT' && resp.ok(),
-      ),
-      page.waitForResponse(
-        resp => resp.url().includes('/api/v1/integration') && resp.request().method() === 'GET' && resp.ok(),
-      ),
-    ])
-
-    await expect(card).toBeVisible()
+    const integrationPage = new IntegrationSettingsPage(page)
+    
+    await integrationPage.installIntegration(
+      'integration.claude.title',
+      'claude',
+      {
+        apiKey: e2eEnv.E2E_CLAUDE_API_KEY,
+      },
+    )
   })
 
   test('Install perplexity integration', async ({ page }) => {
-    await page.goto('/settings')
-
-    const addIntegrationButton = page.locator('[data-type="add-integration"]')
-    await addIntegrationButton.click()
-
-    const card = page.locator('[data-type="integration-card"][data-title-id="integration.perplexity.title"]')
-    card.click()
-
-    await expect(page.locator('[data-dialog-name="perplexity"]')).toBeVisible()
-
-    const modelSelect = page.locator('[data-select-name="perplexity-model"]')
-    await modelSelect.click()
-    const options = page.locator('[role="option"]')
-    options.first().click()
-
-    const apiKeyInput = page.locator('#apiKey')
-    await apiKeyInput.click()
-    await apiKeyInput.fill(e2eEnv.E2E_PERPLEXITY_API_KEY)
-
-    const submitButton = page.locator('button[type="submit"]')
-    await submitButton.click()
-
-    await Promise.all([
-      page.waitForResponse(
-        resp =>
-          resp.url().includes('/api/v1/integration/perplexity/update') &&
-          resp.request().method() === 'PUT' &&
-          resp.ok(),
-        { timeout: 30000 },
-      ),
-      page.waitForResponse(
-        resp => resp.url().includes('/api/v1/integration') && resp.request().method() === 'GET' && resp.ok(),
-        { timeout: 30000 },
-      ),
-    ])
-
-    await expect(card).toBeVisible()
+    const integrationPage = new IntegrationSettingsPage(page)
+    
+    await integrationPage.installIntegration(
+      'integration.perplexity.title',
+      'perplexity',
+      {
+        apiKey: e2eEnv.E2E_PERPLEXITY_API_KEY,
+      },
+    )
   })
 
   test('Install yandex integration', async ({ page }) => {
-    await page.goto('/settings')
-
-    const addIntegrationButton = page.locator('[data-type="add-integration"]')
-    await addIntegrationButton.click()
-
-    const card = page.locator('[data-type="integration-card"][data-title-id="integration.yandex.title"]')
-    card.click()
-
-    await expect(page.locator('[data-dialog-name="yandex"]')).toBeVisible()
-
-    const modelSelect = page.locator('[data-select-name="yandex-model"]')
-    await modelSelect.click()
-    const options = page.locator('[role="option"]')
-    options.first().click()
-
-    const apiKeyInput = page.locator('#apiKey')
-    await apiKeyInput.click()
-    await apiKeyInput.fill(e2eEnv.E2E_YANDEX_API_KEY)
-
-    const folderIdInput = page.locator('#folder_id')
-    await folderIdInput.click()
-    await folderIdInput.fill(e2eEnv.E2E_YANDEX_FOLDER_ID)
-
-    const submitButton = page.locator('button[type="submit"]')
-    await submitButton.click()
-
-    await Promise.all([
-      page.waitForResponse(
-        resp =>
-          resp.url().includes('/api/v1/integration/yandex/update') && resp.request().method() === 'PUT' && resp.ok(),
-      ),
-      page.waitForResponse(
-        resp => resp.url().includes('/api/v1/integration') && resp.request().method() === 'GET' && resp.ok(),
-      ),
-    ])
-
-    await expect(card).toBeVisible()
+    const integrationPage = new IntegrationSettingsPage(page)
+    
+    await integrationPage.installIntegration(
+      'integration.yandex.title',
+      'yandex',
+      {
+        apiKey: e2eEnv.E2E_YANDEX_API_KEY,
+        folderId: e2eEnv.E2E_YANDEX_FOLDER_ID,
+        modelText: 'yandexgpt',
+      },
+    )
   })
 
   test('Install custom_llm integration', async ({ page }) => {
-    await page.goto('/settings')
-
-    const addIntegrationButton = page.locator('[data-type="add-integration"]')
-    await addIntegrationButton.click()
-
-    const card = page.locator('[data-type="integration-card"][data-title-id="integration.custom_llm.title"]')
-    card.click()
-
-    await expect(page.locator('[data-dialog-name="custom_llm"]')).toBeVisible()
-
-    const modelSelect = page.locator('[data-select-name="custom_llm-model"]')
-    await modelSelect.click()
-    const options = page.locator('[role="option"]')
-    options.first().click()
-
-    const apiRootInput = page.locator('#apiRootUrl')
-    await apiRootInput.click()
-    await apiRootInput.fill(e2eEnv.E2E_CUSTOM_LLM_URL)
-
-    const submitButton = page.locator('button[type="submit"]')
-    await submitButton.click()
-
-    await Promise.all([
-      page.waitForResponse(
-        resp =>
-          resp.url().includes('/api/v1/integration/custom_llm/update') &&
-          resp.request().method() === 'PUT' &&
-          resp.ok(),
-      ),
-      page.waitForResponse(
-        resp => resp.url().includes('/api/v1/integration') && resp.request().method() === 'GET' && resp.ok(),
-      ),
-    ])
-
-    await expect(card).toBeVisible()
+    const integrationPage = new IntegrationSettingsPage(page)
+    
+    await integrationPage.installIntegration(
+      'integration.custom_llm.title',
+      'custom_llm',
+      {
+        apiRootUrl: e2eEnv.E2E_CUSTOM_LLM_URL,
+        modelText: undefined,
+      }
+    )
   })
 })

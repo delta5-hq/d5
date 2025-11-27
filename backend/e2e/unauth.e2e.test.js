@@ -1,20 +1,14 @@
 import {describe, beforeEach, afterAll, it, expect} from '@jest/globals'
-import {setupDb, teardownDb, isHttpMode} from './setup'
-import {publicRequest} from './shared/requests'
-import Request from 'supertest'
-import app from '../src/app'
-
-const rawRequest = isHttpMode() 
-  ? new Request(process.env.E2E_SERVER_URL) 
-  : new Request(app.callback())
+import {testOrchestrator} from './shared/test-data-factory'
+import {publicRequest, rawRequest} from './shared/requests'
 
 describe('Unauth Router', () => {
   beforeEach(async () => {
-    await setupDb()
+    await testOrchestrator.prepareTestEnvironment()
   })
 
   afterAll(async () => {
-    await teardownDb()
+    await testOrchestrator.cleanupTestEnvironment()
   })
 
   describe('GET /healthz', () => {

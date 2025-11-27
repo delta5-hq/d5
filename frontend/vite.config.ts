@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
       {
         name: 'remove-crossorigin',
         transformIndexHtml(html) {
-          return html.replace(/ crossorigin/g, '');
+          return html.replace(/ crossorigin/g, '')
         },
       },
       ...(mode === 'production'
@@ -66,13 +66,19 @@ export default defineConfig(({ mode }) => {
       },
     },
     define: {
-      'import.meta.env.API_URL': JSON.stringify(process.env.VITE_API_URL || 'http://localhost:3001'),
-      'import.meta.env.API_BASE_PATH': JSON.stringify(process.env.VITE_API_BASE_PATH || '/api/v1'),
+      'import.meta.env.API_BASE_PATH': JSON.stringify(process.env.VITE_API_BASE_PATH || '/api/v2'),
+      'import.meta.env.API_V2_BASE_PATH': JSON.stringify(process.env.VITE_API_V2_BASE_PATH || '/api/v2'),
     },
     server: {
+      port: 5173,
+      strictPort: true,
       proxy: {
         '/api/v1': {
-          target: env.VITE_API_URL || 'http://localhost:3001',
+          target: env.VITE_BASE_API_URL || 'http://localhost:3002',
+          changeOrigin: true,
+        },
+        '/api/v2': {
+          target: env.VITE_V2_API_URL || 'http://localhost:3002',
           changeOrigin: true,
         },
       },

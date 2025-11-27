@@ -1,2 +1,45 @@
-.vscode
+# ============================================
+# ROOT .gitignore - Global patterns only
+# ============================================
+
+# Project metadata (workspace-specific)
 .github
+.github/docs/TODO.md
+
+# Editor/IDE (global for all subdirs)
+.vscode
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.vim-arsync
+
+# Logs (global pattern)
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+nohup.out
+
+# Environment files (global)
+.env
+.env.local
+.env.*.local
+
+# MongoDB data directories (dev and E2E)
+data/
+
+# Test artifacts (if running from root)
+test-results/
+playwright-report/
+blob-report/
+*.last-run.json
+junit.xml
+*-e2e-output.log
+frontend-e2e-output.log
+backend-e2e-output.log

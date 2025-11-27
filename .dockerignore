@@ -1,0 +1,38 @@
+# Build artifacts
+**/backend-v2
+**/node_modules
+**/.next
+**/dist
+**/build
+
+# Logs
+**/logs
+**/*.log
+**/*.pid
+**/nohup.out
+
+# Test coverage
+**/coverage
+**/test-results
+**/playwright-report
+
+# Data directories
+**/data/mongodb-*
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose*.yml
+
+# Temp files
+**/tmp
+**/.cache

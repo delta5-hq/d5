@@ -136,14 +136,6 @@ export default {
       title: 'OpenAI ChatGPT',
       installed: 'Installed',
     },
-    google: {
-      title: 'Google Drive',
-      installed: 'Installed',
-      enable: 'Enable Google Drive',
-      disable: 'Disable Google Drive',
-      error: 'Something went wrong',
-      loading: 'Loading...',
-    },
     yandex: {
       title: 'Yandex GPT',
       installed: 'Installed',

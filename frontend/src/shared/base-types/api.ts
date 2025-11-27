@@ -21,3 +21,5 @@ export interface ApiError<T = unknown> extends Error {
     headers?: Record<string, string>
   }
 }
+
+export type ApiVersion = 'v1' | 'v2'

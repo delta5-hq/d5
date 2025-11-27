@@ -1,3 +1,4 @@
+import type { ApiVersion } from '@shared/base-types'
 import { apiFetch } from '@shared/lib/base-api'
 import { useMutation, type UseMutationOptions } from '@tanstack/react-query'
 
@@ -7,12 +8,14 @@ interface ExtraMutationParams {
 }
 
 type ExtendedMutationOptions<TData, TError, TVariables> = UseMutationOptions<TData, TError, TVariables> &
-  ExtraMutationParams
+  ExtraMutationParams & {
+    version?: ApiVersion
+  }
 
 export const useApiMutation = <TData = unknown, TError = Error, TVariables = unknown>(
   options: ExtendedMutationOptions<TData, TError, TVariables>,
 ) => {
-  const { url, method = 'POST', ...rest } = options
+  const { url, method = 'POST', version = 'v1', ...rest } = options
 
   return useMutation<TData, TError, TVariables>({
     mutationFn: async (body?: TVariables) => {
@@ -37,6 +40,7 @@ export const useApiMutation = <TData = unknown, TError = Error, TVariables = unk
         method,
         body: processedBody,
         headers,
+        version,
       })
     },
     ...rest,

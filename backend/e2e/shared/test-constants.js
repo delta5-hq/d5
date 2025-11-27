@@ -1,10 +1,10 @@
 /* Reserved E2E test user identifiers - NEVER use in production */
 export const E2E_TEST_USERS = [
-  'subscriber_user',
-  'customer_user',
-  'administrator_user',
-  'org_subscriber_user',
-  'subscriber_user_socket',
+  'subscriber',
+  'customer',
+  'admin',
+  'org_subscriber',
+  'subscriber_socket',
 ]
 
 /* Reserved E2E test name prefix */
