@@ -2,7 +2,6 @@ package auth_test
 
 import (
 	"backend-v2/internal/modules/auth"
-	"backend-v2/internal/services/email"
 	"testing"
 
 	"github.com/qiniu/qmgo"
@@ -59,9 +58,8 @@ func TestControllerWithMockedEmail(t *testing.T) {
 	// assert mockEmail.signupCalled == true
 }
 
-/* Example: Production setup uses real email service */
+/* Example: Production setup uses real email service
 func ExampleProductionSetup() {
-	/* Production creates real SMTP service */
 	emailService := email.NewSMTPService()
 
 	var usersCollection *qmgo.Collection
@@ -69,15 +67,14 @@ func ExampleProductionSetup() {
 	
 	service := auth.NewService(usersCollection, waitlistCollection)
 	
-	/* Controller uses real email service */
 	controller := auth.NewController(service, emailService)
 	
 	_ = controller
 }
+*/
 
-/* Example: E2E test setup uses noop service */
+/* Example: E2E test setup uses noop service
 func ExampleE2ESetup() {
-	/* E2E tests use noop service (no external SMTP) */
 	emailService := email.NewNoopService()
 
 	var usersCollection *qmgo.Collection
@@ -85,8 +82,8 @@ func ExampleE2ESetup() {
 	
 	service := auth.NewService(usersCollection, waitlistCollection)
 	
-	/* Controller with noop email - E2E tests hit HTTP without external dependencies */
 	controller := auth.NewController(service, emailService)
 	
 	_ = controller
 }
+*/

@@ -24,26 +24,41 @@ This will:
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:3002/api/v2
 
-📖 **Full setup guide:** See [DEVELOPMENT-SETUP.md](./DEVELOPMENT-SETUP.md)
-
 ## 📋 Architecture
+
+### Dual Backend
 
 ```
 ┌─────────────────────────────────────────────────┐
 │ Frontend (React + Vite)                         │
 │ Port: 5173 (dev)                                │
+│ API: /api/v2/* (unified entry point)            │
 └─────────────────────────────────────────────────┘
                       ↓ HTTP
 ┌─────────────────────────────────────────────────┐
 │ Backend-v2 (Go)                                 │
 │ Port: 3002                                      │
 │ API: /api/v2                                    │
+│                                                 │
+│ Direct Handlers:                                │
+│ • /auth, /user, /workflow, /template           │
+│ • /macro, /sync, /statistics                   │
+│                                                 │
+│ Proxy to Node.js:                               │
+│ • /execute (langchain)                          │
+│ • /integration/scrape_* (cheerio, pdf-parse)   │
+│ • /integration/*/completions (LLM SDKs)        │
 └─────────────────────────────────────────────────┘
-                      ↓
+                      ↓ proxy
 ┌─────────────────────────────────────────────────┐
-│ Backend (Node.js) - Legacy                      │
-│ Port: 3000                                      │
+│ Backend (Node.js)                               │
+│ Port: 3001                                      │
 │ API: /api/v1                                    │
+│                                                 │
+│ Purpose: External API orchestration             │
+│ • Workflow execution (langchain)                │
+│ • Web scraping (cheerio)                        │
+│ • LLM proxy (OpenAI, Claude, Yandex, etc.)     │
 └─────────────────────────────────────────────────┘
                       ↓
 ┌─────────────────────────────────────────────────┐
@@ -228,6 +243,45 @@ See [DEVELOPMENT-SETUP.md](./DEVELOPMENT-SETUP.md#troubleshooting) for more trou
 - JWT authentication with configurable secrets
 - RBAC (Role-Based Access Control)
 - MongoDB authentication
+
+## 🗺️ API Routing Reference
+
+Frontend connects to single API: `/api/v2/*`
+
+### Go Backend (Direct Handlers)
+
+| Route | Handler | Purpose |
+|-------|---------|---------|
+| `/api/v2/auth/*` | Go | Authentication, signup, login |
+| `/api/v2/user/*` | Go | User management |
+| `/api/v2/workflow/*` | Go | Workflow CRUD |
+| `/api/v2/template/*` | Go | Template CRUD |
+| `/api/v2/macro/*` | Go | Macro CRUD |
+| `/api/v2/sync/*` | Go | Data synchronization |
+| `/api/v2/statistics/*` | Go | Analytics, waitlist |
+| `/api/v2/llmvector/*` | Go | Vector storage |
+| `/api/v2/urlthumbnail/*` | Go | URL thumbnail generation |
+
+### Node.js Backend (Proxied via Go)
+
+| Route | Actual Handler | Purpose | Reason |
+|-------|---------------|---------|--------|
+| `/api/v2/execute` | Node.js `/api/v1/execute` | Workflow execution | `langchain` dependency |
+| `/api/v2/integration/scrape_*` | Node.js `/api/v1/integration/scrape_*` | Web scraping | `cheerio`, `pdf-parse` |
+| `/api/v2/integration/chat/completions` | Node.js `/api/v1/integration/chat/completions` | OpenAI proxy | Node.js SDK mature |
+| `/api/v2/integration/*/completions` | Node.js `/api/v1/integration/*/completions` | LLM proxies | Multiple LLM SDKs |
+| `/api/v2/integration/*/embeddings` | Node.js `/api/v1/integration/*/embeddings` | Embedding proxies | LLM SDKs |
+
+**Why proxy?**
+- Go lacks mature ports of `langchain`, `cheerio`, `pdf-parse`
+- Node.js has established ecosystem for AI/scraping operations
+- Single API surface (`/api/v2`) simplifies frontend
+- Proxy code self-documents which routes require Node.js
+
+**Adding new AI/scraping feature:**
+1. Check `backend-v2/internal/gateway/routes.go` for proxy patterns
+2. Implement in `backend/src/` (Node.js)
+3. Add proxy route to `gateway/routes.go`
 - CORS configuration
 - Input validation & sanitization
 

@@ -6,6 +6,7 @@ import (
 	"backend-v2/internal/middlewares"
 	"backend-v2/internal/modules/auth"
 	"backend-v2/internal/modules/clienterror"
+	"backend-v2/internal/modules/gateway"
 	"backend-v2/internal/modules/integration"
 	"backend-v2/internal/modules/llmvector"
 	"backend-v2/internal/modules/macro"
@@ -24,6 +25,8 @@ import (
 
 func RegisterRoutes(app *fiber.App, db *qmgo.Database, services *container.ServiceContainer) {
 	apiRoot := app.Group(config.ApiRoot)
+
+	gateway.Register(apiRoot)
 
 	unauthHandler := unauth.NewController()
 	unauth.RegisterRoutes(apiRoot, unauthHandler)
