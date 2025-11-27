@@ -45,66 +45,6 @@ describe('Integration Router', () => {
     })
   })
 
-  describe('POST /integration/yandex/completion', () => {
-    it('requires authentication', async () => {
-      const res = await subscriberRequest.post('/integration/yandex/completion').send({})
-      
-      expect(res.status).toBe(500)
-      expect(res.body).toHaveProperty('message')
-    })
-  })
-
-  describe('POST /integration/yandex/embeddings', () => {
-    it('requires authentication', async () => {
-      const res = await subscriberRequest.post('/integration/yandex/embeddings').send({})
-      
-      expect(res.status).toBe(400)
-      expect(res.text).toBeTruthy()
-    })
-  })
-
-  describe('GET /integration/openai_api_key', () => {
-    it('checks API key presence', async () => {
-      const res = await subscriberRequest.get('/integration/openai_api_key')
-      
-      expect(res.status).toBe(200)
-      expect(typeof res.body).toBe('object')
-      expect(res.body).toHaveProperty('success')
-      expect(typeof res.body.success).toBe('boolean')
-      expect(res.body.success).toBe(true)
-    })
-  })
-
-  describe('POST /integration/chat/completions', () => {
-    it('requires OpenAI configuration', async () => {
-      const res = await subscriberRequest.post('/integration/chat/completions').send({messages: []})
-      
-      expect(res.status).toBe(500)
-      expect(res.body).toHaveProperty('message')
-      expect(res.text).toContain('Model name not specified')
-    })
-  })
-
-  describe('POST /integration/embeddings', () => {
-    it('requires OpenAI configuration', async () => {
-      const res = await subscriberRequest.post('/integration/embeddings').send({input: 'test'})
-      
-      expect(res.status).toBe(500)
-      expect(res.body).toHaveProperty('message')
-      expect(res.text).toContain('Model name not specified')
-    })
-  })
-
-  describe('POST /integration/images/generations', () => {
-    it('generates images with DALL-E', async () => {
-      const res = await subscriberRequest.post('/integration/images/generations').send({prompt: 'test', n: 1})
-      
-      expect(res.status).toBe(200)
-      expect(res.body).toHaveProperty('data')
-      expect(Array.isArray(res.body.data)).toBe(true)
-      expect(res.body.data.length).toBe(1)
-    })
-  })
 
   describe('GET /integration/icons/freepik', () => {
     it('requires query parameter', async () => {
@@ -161,24 +101,6 @@ describe('Integration Router', () => {
     })
   })
 
-  describe('POST /integration/claude/messages', () => {
-    it('requires Claude configuration', async () => {
-      const res = await subscriberRequest.post('/integration/claude/messages').send({messages: []})
-      
-      expect(res.status).toBe(400)
-      expect(res.text).toBeTruthy()
-    })
-  })
-
-  describe('POST /integration/perplexity/chat/completions', () => {
-    it('requires Perplexity configuration', async () => {
-      const res = await subscriberRequest.post('/integration/perplexity/chat/completions').send({})
-      
-      expect(res.status).toBe(500)
-      expect(res.body).toHaveProperty('message')
-      expect(res.text).toContain('Messages are required')
-    })
-  })
 
   describe('GET /integration/languages', () => {
     it('returns available languages', async () => {

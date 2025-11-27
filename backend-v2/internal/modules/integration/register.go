@@ -14,11 +14,7 @@ func Register(router fiber.Router, db *qmgo.Database, services *container.Servic
 	/* Core integration CRUD controller */
 	baseCtrl := NewController(service, db)
 	
-	/* Service-specific controllers */
-	openaiCtrl := NewOpenAIController(services.OpenAI)
-	claudeCtrl := NewClaudeController(services.Claude, db)
-	perplexityCtrl := NewPerplexityController(services.Perplexity, db)
-	yandexCtrl := NewYandexController(services.Yandex, db)
+	/* Service-specific controllers (non-LLM only) */
 	midjourneyCtrl := NewMidjourneyController(services.Midjourney)
 	zoomCtrl := NewZoomController(services.Zoom)
 	freepikCtrl := NewFreepikController(services.Freepik)
@@ -28,28 +24,23 @@ func Register(router fiber.Router, db *qmgo.Database, services *container.Servic
 	/* Protected group - JWT auth required for all endpoints */
 	protectedGroup := integrationGroup.Group("", middlewares.RequireAuth)
 	
-	/* Core integration management */
+	/* Core integration management (CRUD only) */
 	protectedGroup.Get("/", baseCtrl.GetAll)
 	protectedGroup.Delete("/", baseCtrl.Delete)
 	protectedGroup.Get("/languages", baseCtrl.GetLanguages)
 	protectedGroup.Post("/language", baseCtrl.SetLanguage)
 	protectedGroup.Post("/model", baseCtrl.SetModel)
 	
-	/* OpenAI endpoints */
-	protectedGroup.Get("/openai_api_key", openaiCtrl.CheckApiKey)
-	protectedGroup.Post("/chat/completions", openaiCtrl.ChatCompletions)
-	protectedGroup.Post("/embeddings", openaiCtrl.Embeddings)
-	protectedGroup.Post("/images/generations", openaiCtrl.ImageGenerations)
-	
-	/* Claude endpoints */
-	protectedGroup.Post("/claude/messages", claudeCtrl.Messages)
-	
-	/* Perplexity endpoints */
-	protectedGroup.Post("/perplexity/chat/completions", perplexityCtrl.ChatCompletions)
-	
-	/* Yandex endpoints */
-	protectedGroup.Post("/yandex/completion", yandexCtrl.Completion)
-	protectedGroup.Post("/yandex/embeddings", yandexCtrl.Embeddings)
+	/* LLM proxy endpoints for API key validation (NOT for production LLM execution) */
+	/* Purpose: Validate user API keys when installing integrations */
+	/* Production LLM execution handled by Node.js backend at /api/v1/integration/* */
+	protectedGroup.Post("/chat/completions", services.LLMProxy.ChatCompletions)
+	protectedGroup.Post("/embeddings", services.LLMProxy.Embeddings)
+	protectedGroup.Post("/perplexity/chat/completions", services.LLMProxy.PerplexityChatCompletions)
+	protectedGroup.Post("/claude/messages", services.LLMProxy.ClaudeMessages)
+	protectedGroup.Post("/yandex/completion", services.LLMProxy.YandexCompletion)
+	protectedGroup.Post("/custom_llm/chat/completions", services.LLMProxy.CustomLLMChatCompletions)
+	protectedGroup.Post("/custom_llm/embeddings", services.LLMProxy.CustomLLMEmbeddings)
 	
 	/* Midjourney endpoints */
 	protectedGroup.Post("/midjourney/create", midjourneyCtrl.Create)

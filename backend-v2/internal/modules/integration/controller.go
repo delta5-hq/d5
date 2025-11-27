@@ -2,6 +2,7 @@ package integration
 
 import (
 	"backend-v2/internal/common/constants"
+	"backend-v2/internal/common/logger"
 	"backend-v2/internal/common/response"
 	"backend-v2/internal/models"
 	"encoding/json"
@@ -9,6 +10,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/qiniu/qmgo"
 )
+
+var log = logger.New("INTEGRATION")
 
 type Controller struct {
 	service *Service
@@ -45,9 +48,13 @@ func (ctrl *Controller) findUserIntegration(c *fiber.Ctx, userID string) (*model
 func (ctrl *Controller) GetAll(c *fiber.Ctx) error {
 	userID := ctrl.getUserID(c)
 	
-	integration, err := ctrl.findUserIntegration(c, userID)
+	integration, err := ctrl.service.FindByUserID(c.Context(), userID)
+	if err == qmgo.ErrNoSuchDocuments {
+		return c.JSON(fiber.Map{})
+	}
 	if err != nil {
-		return err
+		log.Error("GetAll: findUserIntegration failed: %v", err)
+		return response.InternalError(c, err.Error())
 	}
 
 	return c.JSON(integration)

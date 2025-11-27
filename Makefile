@@ -1,4 +1,4 @@
-.PHONY: help dev dev-frontend dev-backend dev-backend-v2 start-mongodb-dev start-mongodb-e2e stop-all ci-local ci-full lint-backend lint-frontend build-backend build-backend-v2 build-frontend test-backend e2e-backend e2e-frontend seed-e2e seed-dev install-hooks test-hook clean-e2e clean-all reset-dev-db clean-dev-db fix-permissions cleanup-old-data
+.PHONY: help dev dev-frontend dev-backend dev-backend-v2 start-mongodb-dev start-mongodb-e2e stop ci-local ci-full lint-backend lint-frontend build-backend build-backend-v2 build-frontend test-backend e2e-backend e2e-frontend seed-e2e seed-dev install-hooks test-hook clean-e2e clean-all reset-dev-db clean-dev-db fix-permissions cleanup-old-data
 
 # Configuration variables (DRY principle)
 JWT_SECRET := GrFYK5ftZDtCg7ZGwxZ1JpSxyyJ9bc8uJijvBD1DYiMoS64ZpnBSrFxsNuybN1iO
@@ -17,7 +17,7 @@ help:
 	@echo "  make dev-backend-v2      - Start backend-v2 in dev mode"
 	@echo "  make start-mongodb-dev   - Start development MongoDB (port 27017, persistent)"
 	@echo "  make start-mongodb-e2e   - Start E2E MongoDB (port 27018, test-only)"
-	@echo "  make stop-all            - Stop all dev services"
+	@echo "  make stop                - Stop all dev services"
 	@echo ""
 	@echo "CI/Testing:"
 	@echo "  make ci-local            - Fast pre-commit checks (lint + build + test)"
@@ -99,16 +99,27 @@ dev: start-mongodb-dev seed-dev
 	@echo "✓ Backend-v2 running on http://localhost:$(BACKEND_PORT)"
 	@echo ""
 	@echo "→ Starting frontend dev server..."
+	@if lsof -ti:$(FRONTEND_PORT) >/dev/null 2>&1; then \
+		echo "  ✗ Port $(FRONTEND_PORT) occupied, cleaning..."; \
+		lsof -ti:$(FRONTEND_PORT) | xargs -r kill -9 2>/dev/null || true; \
+		sleep 1; \
+	fi
 	@echo "✓ Frontend will be available at http://localhost:$(FRONTEND_PORT)"
 	@echo ""
 	@echo "Press Ctrl+C to stop..."
 	@cd frontend && pnpm dev
 
-stop-all:
+stop:
 	@echo "→ Stopping all services..."
 	@cd backend-v2 && $(MAKE) stop 2>/dev/null || true
 	@docker-compose stop mongodb-dev mongodb-e2e 2>/dev/null || true
-	@pkill -f "vite.*5173" 2>/dev/null || true
+	@echo "  → Killing processes on port 5173..."
+	@lsof -ti:5173 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+	@sleep 1
+	@if lsof -ti:5173 >/dev/null 2>&1; then \
+		echo "  ✗ Port 5173 still occupied"; \
+		exit 1; \
+	fi
 	@echo "✓ All services stopped"
 
 ci-local: lint-backend build-backend build-backend-v2 build-frontend lint-frontend test-backend
@@ -202,7 +213,7 @@ test-hook:
 	@rm -f backend-v2/test-invalid.go
 	@echo "✓ Hook validation complete"
 
-reset-dev-db: stop-all
+reset-dev-db: stop
 	@echo "→ Resetting development database..."
 	@docker-compose stop mongodb-dev 2>/dev/null || true
 	@docker rm -f d5-mongodb-dev 2>/dev/null || true
@@ -212,7 +223,7 @@ reset-dev-db: stop-all
 	@$(MAKE) seed-dev
 	@echo "✓ Development database reset to clean state"
 
-clean-dev-db: stop-all
+clean-dev-db: stop
 	@echo "→ Removing development database data..."
 	@docker-compose stop mongodb-dev 2>/dev/null || true
 	@docker rm -f d5-mongodb-dev 2>/dev/null || true

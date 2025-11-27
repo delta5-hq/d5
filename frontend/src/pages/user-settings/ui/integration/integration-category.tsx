@@ -6,7 +6,6 @@ import {
   ClaudeLogo,
   CustomLLMLogo,
   DeepseekLogo,
-  GoogleDriveLogo,
   OpenaiLogo,
   PerplexityLogo,
   QwenLogo,
@@ -17,7 +16,6 @@ import type { ShowDialogFn } from '@entities/dialog'
 import type { IntegrationSettings } from '@shared/base-types'
 
 import OpenaiDialog from './dialogs/openai-dialog'
-import GoogleDialog from './dialogs/google-dialog'
 import { YandexDialog } from './dialogs/yandex-dialog'
 import { ClaudeDialog } from './dialogs/claude-dialog'
 import { PerplexityDialog } from './dialogs/perplexity-dialog'
@@ -71,15 +69,6 @@ const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({ showDialog, d
         installedId="integration.openai.installed"
         onClick={() => showDialog(OpenaiDialog, { refresh, data: data?.openai })}
         titleId="integration.openai.title"
-      />
-    ) : null}
-    {data?.google?.drive || showAll ? (
-      <IntegrationCard
-        icon={GoogleDriveLogo}
-        installed={!!data?.google?.drive}
-        installedId="integration.google.installed"
-        onClick={() => showDialog(GoogleDialog, { refresh, data: data?.google })}
-        titleId="integration.google.title"
       />
     ) : null}
     {data?.yandex || showAll ? (

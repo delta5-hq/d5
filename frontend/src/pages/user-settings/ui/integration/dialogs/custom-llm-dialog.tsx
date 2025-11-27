@@ -22,9 +22,8 @@ import { Button } from '@shared/ui/button'
 import { useApiMutation } from '@shared/composables'
 import type { CustomLLM, DialogProps } from '@shared/base-types'
 import type { HttpError } from '@shared/lib/error'
-import { CustomLLMApiType } from '@shared/config'
+import { CustomLLMApiType, CUSTOM_LLM_CHAT_COMPLETIONS_PATH } from '@shared/config'
 import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
-import logger from '@shared/lib/logger'
 
 import isUrl from '@shared/lib/isUrl'
 import { X } from 'lucide-react'
@@ -77,31 +76,29 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
       const apiKeyChanged = values.apiKey !== data?.apiKey
 
       if (urlChanged || apiKeyChanged) {
-        try {
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 5000)
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 5000)
 
-          const response = await fetch(`${values.apiRootUrl}/v1/chat/completions`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(values.apiKey && { Authorization: `Bearer ${values.apiKey}` }),
-            },
-            body: JSON.stringify({
-              model: 'test',
-              messages: [{ role: 'user', content: 'Hello!' }],
-              max_tokens: 10,
-            }),
-            signal: controller.signal,
-          })
+        const response = await fetch(CUSTOM_LLM_CHAT_COMPLETIONS_PATH, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(values.apiKey && { Authorization: `Bearer ${values.apiKey}` }),
+          },
+          body: JSON.stringify({
+            url: values.apiRootUrl,
+            model: 'test',
+            messages: [{ role: 'user', content: 'Hello!' }],
+            max_tokens: 10,
+          }),
+          signal: controller.signal,
+        })
 
-          clearTimeout(timeoutId)
+        clearTimeout(timeoutId)
 
-          if (!response.ok) {
-            throw new Error(`Validation failed: ${response.status}`)
-          }
-        } catch (error) {
-          logger.warn('Custom LLM validation failed (service may be offline)', error)
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => response.statusText)
+          throw new Error(errorText || `Validation failed: ${response.status}`)
         }
 
         await save(values)

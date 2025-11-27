@@ -1,0 +1,32 @@
+# Build artifacts
+backend-v2
+*.o
+*.a
+
+# Logs
+logs/
+*.log
+*.pid
+nohup.out
+
+# Test files
+*_test.go
+e2e/
+
+# Documentation
+*.md
+!README.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Temp
+tmp/
+.cache/

@@ -11,6 +11,7 @@ import (
 	"backend-v2/internal/common/response"
 	"backend-v2/internal/common/utils"
 	"backend-v2/internal/models"
+	workflowRepo "backend-v2/internal/repositories/workflow"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
@@ -171,7 +172,7 @@ func (h *WorkflowController) ExportZIP(c *fiber.Ctx) error {
 	mongoDb := h.mongoClient.Database(h.db.GetDatabaseName())
 
 	/* Add workflow images from GridFS */
-	imageRepo, err := models.NewWorkflowImageRepository(mongoDb)
+	imageRepo, err := workflowRepo.NewImageRepository(mongoDb)
 	if err == nil {
 		images, _ := imageRepo.FindByWorkflowID(c.Context(), workflow.WorkflowID)
 		imagesMap := metaData["images"].(map[string]interface{})
@@ -202,7 +203,7 @@ func (h *WorkflowController) ExportZIP(c *fiber.Ctx) error {
 	}
 
 	/* Add workflow files from GridFS */
-	fileRepo, err := models.NewWorkflowFileRepository(mongoDb)
+	fileRepo, err := workflowRepo.NewFileRepository(mongoDb)
 	if err == nil {
 		files, _ := fileRepo.FindByWorkflowID(c.Context(), workflow.WorkflowID)
 		filesMap := metaData["files"].(map[string]interface{})

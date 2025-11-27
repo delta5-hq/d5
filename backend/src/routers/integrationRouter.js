@@ -7,6 +7,7 @@ import ZoomController from '../controllers/integrations/ZoomController'
 import YandexController from '../controllers/integrations/yandex/YandexController'
 import ClaudeController from '../controllers/integrations/ClaudeController'
 import {PerplexityController} from '../controllers/integrations/PerplexityController'
+import CustomLLMController from '../controllers/integrations/CustomLLMController'
 
 const integrationRouter = new Router({prefix: '/integration'})
 
@@ -39,6 +40,9 @@ integrationRouter
   .post('/claude/messages', ClaudeController.sendMessages)
   // Perplexity
   .post('/perplexity/chat/completions', PerplexityController.completions)
+  // Custom LLM
+  .post('/custom_llm/chat/completions', CustomLLMController.chatCompletions)
+  .post('/custom_llm/embeddings', CustomLLMController.embeddings)
   // Apps & Integrations
   .get('/languages', IntegrationController.getLanguages)
   .post('/language', IntegrationController.setLanguage)

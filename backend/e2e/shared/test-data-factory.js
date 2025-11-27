@@ -226,7 +226,7 @@ export class TestDataFactory {
     /* Clean vectors */
     for (const contextName of this.createdEntities.vectors) {
       cleanupPromises.push(
-        subscriberRequest.delete(`/vector/${contextName}`).catch(() => {})
+        subscriberRequest.delete(`/vector`).send({ contextName }).catch(() => {})
       )
     }
 

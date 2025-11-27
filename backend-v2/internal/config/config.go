@@ -9,16 +9,16 @@ import (
 )
 
 var (
-	Port          string
-	MongoUsername string
-	MongoPassword string
-	MongoDatabase string
-	MongoHost     string
-	MongoPort     string
-	JwtSecret     string
-	MongoURI      string
-	SyncUserID    string
-	ApiRoot       string
+	Port             string
+	MongoUsername    string
+	MongoPassword    string
+	MongoDatabase    string
+	MongoHost        string
+	MongoPort        string
+	JwtSecret        string
+	MongoURI         string
+	SyncUserID       string
+	ApiRoot          string
 )
 
 func init() {

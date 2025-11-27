@@ -21,7 +21,7 @@ func main() {
 
 	/* Instantiate service container based on environment */
 	useMockServices := os.Getenv("MOCK_EXTERNAL_SERVICES") == "true"
-	serviceContainer := container.NewServiceContainer(useMockServices)
+	serviceContainer := container.NewServiceContainer(useMockServices, db)
 
 	app := fiber.New()
 	// add basic middleware

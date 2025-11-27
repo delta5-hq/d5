@@ -56,6 +56,7 @@ export class CustomLLMChat extends BaseChatModel {
     }
     this.apiType = params.apiType
 
+    this.apiKey = params.apiKey
     this.temperature = params.temperature ?? 1
     this.topP = params.topP ?? 1
     this.maxTokens = params.maxTokens
@@ -102,6 +103,15 @@ export class CustomLLMChat extends BaseChatModel {
     const timeoutSignal = abortSignalTimeout(timeout)
     const signal = options?.signal ? abortSignalAny([timeoutSignal, options.signal]) : timeoutSignal
 
+    const headers = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+
+    if (this.apiKey) {
+      headers.Authorization = `Bearer ${this.apiKey}`
+    }
+
     const response = await fetch(apiUrl, {
       method: 'POST',
       body: JSON.stringify({
@@ -109,10 +119,7 @@ export class CustomLLMChat extends BaseChatModel {
         ...this.invocationParams(options),
       }),
       signal,
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-      },
+      headers,
     })
 
     if (!response.ok) {
@@ -146,6 +153,7 @@ export class CustomEmbeddings extends Embeddings {
     }
 
     this.apiRootUrl = params.apiRootUrl
+    this.apiKey = params.apiKey
     this.batchSize = params.batchSize || 10
     this.stripNewLines = params.stripNewLines !== undefined ? params.stripNewLines : true
     this.params = params
@@ -181,13 +189,19 @@ export class CustomEmbeddings extends Embeddings {
   async embeddingWithRetry(request) {
     return this.caller.call(async () => {
       const timeout = CUSTOM_LLM_TIMEOUT_MS
+      const headers = {
+        'content-type': 'application/json',
+        accept: 'application/json',
+      }
+
+      if (this.apiKey) {
+        headers.Authorization = `Bearer ${this.apiKey}`
+      }
+
       const response = await fetch(`${this.apiRootUrl}/embeddings`, {
         method: 'POST',
         body: JSON.stringify(request),
-        headers: {
-          'content-type': 'application/json',
-          accept: 'application/json',
-        },
+        headers,
         signal: abortSignalTimeout(timeout),
       })
       return response.json()

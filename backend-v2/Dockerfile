@@ -1,27 +1,24 @@
-# dockerfile is use for building an image
+# Multi-stage build optimized for layer caching
 FROM golang:1.25-alpine AS builder
 
-# Move to working directory (/build).
 WORKDIR /build
 
-# Copy and download dependency using go mod.
+# Copy dependency files first (better cache utilization)
 COPY go.mod go.sum ./
-RUN go mod download -x
+RUN go mod download
 
-# Copy the code into the container.
+# Copy source code
 COPY . .
 
-# Tidy dependencies before build
-RUN go mod tidy
+# Build binary
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o service .
 
-# Build the API server.
-RUN go build -ldflags="-s -w" -o service .
-
+# Runtime stage - minimal image
 FROM alpine:latest
 
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates tzdata
 
-WORKDIR /root/
+WORKDIR /app
 COPY --from=builder /build/service .
 
 EXPOSE 3002

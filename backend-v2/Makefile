@@ -39,9 +39,10 @@ build:
 	@mkdir -p $(LOG_DIR)
 	@docker build --target builder -t $(DOCKER_IMAGE)-builder . > /tmp/d5-go-build.log 2>&1 || \
 		(tail -30 /tmp/d5-go-build.log && exit 1)
+	@docker rm -f temp-$(BINARY_NAME) 2>/dev/null || true
 	@docker create --name temp-$(BINARY_NAME) $(DOCKER_IMAGE)-builder
 	@docker cp temp-$(BINARY_NAME):/build/service ./$(BINARY_NAME)
-	@docker rm temp-$(BINARY_NAME)
+	@docker rm -f temp-$(BINARY_NAME)
 	@chmod +x $(BINARY_NAME)
 	@echo "✓ Binary built: $(BINARY_NAME)"
 
