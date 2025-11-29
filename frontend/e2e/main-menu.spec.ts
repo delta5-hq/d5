@@ -37,10 +37,10 @@ test.describe('Main navigation (desktop)', () => {
 test.describe('Sidebar behavior (tablet width)', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 800 })
-    await page.route('**/api/v1/auth/refresh', route =>
+    await page.route('**/api/v2/auth/refresh', route =>
       route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }),
     )
-    await page.route('**/api/v1/users/me', async route => {
+    await page.route('**/api/v2/users/current', async route => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

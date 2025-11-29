@@ -58,11 +58,12 @@ Settle Node.js backend at `/api/v2` side-by-side with Go backend.
    - [x] 8.1. run ci-full with frontend e2e tests, ensuring 100% passrate of `frontend/e2e`
 
 
-- [ ] 9. Addressing tech debt and legacy Node.js backend term coupling of the API of Go backend v2:
-   - [ ] rename `auth` endpoint into `login`
-   - [ ] rename `external_auth` -> `login_jwt`
-   - [ ] rename `me` -> `current`
-   - [ ] Remove leftovers of node.js backend: for "WPUser" every mention and reference replaced with generic "user"
+- [x] 9. Addressing tech debt and legacy Node.js backend term coupling of the API of Go backend v2:
+   - [x] rename `auth` endpoint into `login` (with backward compat alias)
+   - [x] rename `external_auth` -> `login_jwt` (with backward compat alias)
+   - [x] rename `me` -> `current` (with backward compat alias)
+   - [x] Remove leftovers of node.js backend: for "WPUser" every mention and reference replaced with generic "User"
+   - [x] Run frontend E2E tests to verify 100% pass rate
   
 
-Next: #316, #317, then see backlog on gitlab issue board, and roadmap at Delta5
+Next: Complete frontend E2E validation, then #316, #317

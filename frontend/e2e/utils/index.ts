@@ -44,8 +44,7 @@ async function login(page: Page, usernameOrEmail: string, password: string, vali
   
   /* Monitor auth requests for debugging */
   const authPromise = page.waitForResponse(
-    resp => resp.url().includes('/api/v2/auth')
-         && !resp.url().includes('/refresh')
+    resp => resp.url().includes('/api/v2/auth/login')
          && resp.request().method() === 'POST',
     { timeout: 15000 }
   )
