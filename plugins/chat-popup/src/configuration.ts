@@ -22,7 +22,7 @@ export const defaultConfiguration: Configuration = {
 
 export const defaultDelatFiveConfiguration: DeltaFiveConfiguration = {
   token: "",
-  apiVersion: "/api/v1",
+  apiVersion: "/api/v2",
   streamGetAnswer: false,
   sourcePattern: "{ *doc_idx *: *([^}]*)}",
 }
