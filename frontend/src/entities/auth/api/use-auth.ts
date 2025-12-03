@@ -11,11 +11,11 @@ export const useAuth = () => {
 
   const meQuery = useApiQuery<User>({
     queryKey: queryKeys.authMe,
-    url: '/users/me',
+    url: '/users/current',
   })
 
   const loginMutation = useApiMutation<unknown, Error, LoginCredentials>({
-    url: '/auth',
+    url: '/auth/login',
     onError: async (error: Error) => {
       toast.error(error.message)
     },

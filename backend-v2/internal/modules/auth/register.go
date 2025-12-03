@@ -14,16 +14,22 @@ func RegisterRoutes(router fiber.Router, db *qmgo.Database, emailService email.S
 	service := NewService(usersCollection, waitlistCollection)
 	controller := NewController(service, emailService)
 
-	// Public routes (no middleware)
+	/* RESTful auth routes under /auth namespace */
 	router.Post("/auth/signup", controller.Signup)
-	router.Post("/auth", controller.Auth)
-	router.Get("/auth/login", controller.Login)
+	router.Post("/auth/login", controller.Login)
+	router.Post("/auth/login-jwt", controller.LoginJWT)
 	router.Post("/auth/logout", controller.Logout)
+	router.Post("/auth/refresh", controller.Refresh)
 	router.Post("/auth/forgot-password", controller.ForgotPassword)
 	router.Get("/auth/check-reset-token/:pwdResetToken", controller.CheckResetToken)
 	router.Post("/auth/reset-password/:pwdResetToken", controller.ResetPassword)
-	router.Post("/refresh", controller.Refresh)
-	router.Post("/auth/refresh", controller.Refresh)
-	router.Post("/external-auth", controller.ExternalAuth)
-	router.Post("/external-auth/refresh", controller.ExternalRefresh)
+
+	/* Backward compatibility aliases (deprecated) */
+	router.Post("/auth", controller.Login)                  // Legacy: Use /auth/login
+	router.Post("/external-auth", controller.LoginJWT)      // Legacy: Use /auth/login-jwt
+	router.Post("/external-auth/refresh", controller.Refresh) // Legacy: Use /auth/refresh
+	router.Post("/refresh", controller.Refresh)             // Legacy: Use /auth/refresh
+	router.Get("/auth/login", func(c *fiber.Ctx) error {    // Legacy GET handler
+		return c.JSON(fiber.Map{"redirect": false})
+	})
 }

@@ -1,18 +1,14 @@
 package llmproxy
 
 import (
+	"backend-v2/internal/common/http"
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 
 	"github.com/gofiber/fiber/v2"
+	nethttp "net/http"
 )
-
-type HTTPClient interface {
-	Do(*http.Request) (*http.Response, error)
-}
 
 type ProxyRequest struct {
 	TargetURL    string
@@ -22,13 +18,13 @@ type ProxyRequest struct {
 	ExtraHeaders map[string]string
 }
 
-func BuildProxyRequest(req ProxyRequest) (*http.Request, error) {
+func BuildProxyRequest(req ProxyRequest) (*nethttp.Request, error) {
 	bodyBytes, err := json.Marshal(req.Body)
 	if err != nil {
 		return nil, fmt.Errorf("marshal body: %w", err)
 	}
 
-	httpReq, err := http.NewRequest("POST", req.TargetURL, bytes.NewReader(bodyBytes))
+	httpReq, err := nethttp.NewRequest("POST", req.TargetURL, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -48,19 +44,19 @@ func BuildProxyRequest(req ProxyRequest) (*http.Request, error) {
 	return httpReq, nil
 }
 
-func ExecuteProxyRequest(client HTTPClient, req *http.Request) ([]byte, int, error) {
+func ExecuteProxyRequest(client http.Client, req *nethttp.Request) ([]byte, int, error) {
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("execute request: %w", err)
 	}
-	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	reader := http.NewResponseReader()
+	body, status, err := reader.ReadWithStatus(resp)
 	if err != nil {
-		return nil, resp.StatusCode, fmt.Errorf("read response: %w", err)
+		return nil, status, fmt.Errorf("read response: %w", err)
 	}
 
-	return body, resp.StatusCode, nil
+	return body, status, nil
 }
 
 func SendProxyResponse(c *fiber.Ctx, body []byte, statusCode int) error {

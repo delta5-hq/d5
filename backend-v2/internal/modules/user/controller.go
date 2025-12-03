@@ -72,8 +72,8 @@ func (h *Controller) SearchMail(c *fiber.Ctx) error {
 	return c.JSON(user)
 }
 
-/* GET /users/me - Get current authenticated user */
-func (h *Controller) Me(c *fiber.Ctx) error {
+/* GET /users/current - Get current authenticated user */
+func (h *Controller) Current(c *fiber.Ctx) error {
 	userId, ok := c.Locals("userId").(string)
 	if !ok || userId == "" {
 		return response.Unauthorized(c, "Authentication required.")

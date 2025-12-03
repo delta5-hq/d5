@@ -69,8 +69,8 @@ func (c *Controller) Signup(ctx *fiber.Ctx) error {
 	return ctx.JSON(fiber.Map{"success": true})
 }
 
-/* POST /auth - Authenticate user */
-func (c *Controller) Auth(ctx *fiber.Ctx) error {
+/* POST /auth/login - Cookie-based authentication */
+func (c *Controller) Login(ctx *fiber.Ctx) error {
 	var payload struct {
 		UsernameOrEmail string `json:"usernameOrEmail"`
 		Password        string `json:"password"`
@@ -120,16 +120,43 @@ func (c *Controller) Auth(ctx *fiber.Ctx) error {
 
 	/* Return response without refresh_token (it's in cookie) */
 	return ctx.JSON(fiber.Map{
-		"wp_user":      auth.WpUser,
+		"user":         auth.User,
 		"access_token": auth.AccessToken,
 		"tokenHash":    tokenHash,
 		"expires_in":   auth.ExpiresIn,
 	})
 }
 
-/* GET /auth/login - Return login page metadata */
-func (c *Controller) Login(ctx *fiber.Ctx) error {
-	return ctx.JSON(fiber.Map{"redirect": false})
+/* POST /auth/login-jwt - JWT-based authentication (no cookies) */
+func (c *Controller) LoginJWT(ctx *fiber.Ctx) error {
+	var payload struct {
+		UsernameOrEmail string `json:"usernameOrEmail"`
+		Password        string `json:"password"`
+	}
+
+	if err := ctx.BodyParser(&payload); err != nil || payload.UsernameOrEmail == "" || payload.Password == "" {
+		return response.BadRequest(ctx, "Username and password required.")
+	}
+
+	user, err := c.service.Authenticate(ctx.Context(), payload.UsernameOrEmail, payload.Password)
+	if err != nil {
+		if err.Error() == "User not found." || err.Error() == "Wrong password." {
+			return response.Unauthorized(ctx, err.Error())
+		}
+		if err.Error() == "Error: Account pending activation" {
+			return response.Forbidden(ctx, err.Error())
+		}
+		return response.InternalError(ctx, err.Error())
+	}
+
+	/* Generate JWT tokens */
+	auth, err := common.GenerateAuth(user)
+	if err != nil {
+		return response.InternalError(ctx, "Failed to generate token")
+	}
+
+	/* Return full auth response including refresh_token (no cookies) */
+	return ctx.JSON(auth)
 }
 
 /* POST /auth/logout - Logout user */
@@ -276,9 +303,9 @@ func (c *Controller) Refresh(ctx *fiber.Ctx) error {
 	hasher.Write([]byte(auth.AccessToken))
 	tokenHash := hex.EncodeToString(hasher.Sum(nil))
 
-	/* Return enriched response (matches Node.js) */
+	/* Return enriched response */
 	return ctx.JSON(fiber.Map{
-		"wp_user":         auth.WpUser,
+		"user":            auth.User,
 		"access_token":    auth.AccessToken,
 		"tokenHash":       tokenHash,
 		"expires_in":      auth.ExpiresIn,
@@ -289,48 +316,6 @@ func (c *Controller) Refresh(ctx *fiber.Ctx) error {
 		"limitNodes":      user.LimitNodes,
 		"name":            user.Name,
 	})
-}
-
-/* POST /external-auth - External authentication */
-func (c *Controller) ExternalAuth(ctx *fiber.Ctx) error {
-	var payload struct {
-		UsernameOrEmail string `json:"usernameOrEmail"`
-		Password        string `json:"password"`
-	}
-
-	if err := ctx.BodyParser(&payload); err != nil || payload.UsernameOrEmail == "" || payload.Password == "" {
-		return response.BadRequest(ctx, "No token received.")
-	}
-
-	user, err := c.service.Authenticate(ctx.Context(), payload.UsernameOrEmail, payload.Password)
-	if err != nil {
-		if err.Error() == "User not found." || err.Error() == "Wrong password." {
-			return response.Unauthorized(ctx, err.Error())
-		}
-		if err.Error() == "Error: Account pending activation" {
-			return response.Forbidden(ctx, err.Error())
-		}
-		return response.InternalError(ctx, err.Error())
-	}
-
-	/* Generate JWT tokens */
-	auth, err := common.GenerateAuth(user)
-	if err != nil {
-		return response.InternalError(ctx, "Failed to generate token")
-	}
-
-	/* ExternalAuth returns full auth object including refresh_token (no cookie) */
-	return ctx.JSON(auth)
-}
-
-/* POST /external-auth/refresh - External refresh */
-func (c *Controller) ExternalRefresh(ctx *fiber.Ctx) error {
-	refreshToken := ctx.Cookies("refresh_token")
-	if refreshToken == "" {
-		return response.Unauthorized(ctx, "No refresh token found.")
-	}
-
-	return response.Unauthorized(ctx, "Refresh JWT invalid.")
 }
 
 /* Validation helpers */

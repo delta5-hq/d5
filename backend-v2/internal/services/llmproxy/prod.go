@@ -1,22 +1,21 @@
 package llmproxy
 
 import (
+	"backend-v2/internal/common/http"
 	"backend-v2/internal/common/response"
-	"net/http"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 type ProdService struct {
-	httpClient HTTPClient
+	httpClient http.Client
 }
 
 func NewProdService() Service {
+	factory := http.NewClientFactory()
 	return &ProdService{
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		httpClient: factory.Create(30 * time.Second),
 	}
 }
 

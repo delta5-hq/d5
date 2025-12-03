@@ -18,7 +18,7 @@ export interface Configuration {
   autoOpen: boolean
 }
 
-export type ApiVersion = "/api/v1"
+export type ApiVersion = "/api/v2"
 
 export interface DeltaFiveConfiguration {
   token: string

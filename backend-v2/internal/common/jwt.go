@@ -9,28 +9,28 @@ import (
 )
 
 type AuthResponse struct {
-	WpUser       WpUser `json:"wp_user"`
-	AccessToken  string `json:"access_token"`
-	ExpiresIn    int64  `json:"expires_in"`
-	RefreshToken string `json:"refresh_token"`
-	TokenHash    string `json:"tokenHash,omitempty"`
+	User         UserInfo `json:"user"`
+	AccessToken  string   `json:"access_token"`
+	ExpiresIn    int64    `json:"expires_in"`
+	RefreshToken string   `json:"refresh_token"`
+	TokenHash    string   `json:"tokenHash,omitempty"`
 }
 
-type WpUser struct {
-	ID    string   `json:"ID"`
-	Roles []string `json:"roles"`
-	Data  WpUserData `json:"data"`
+type UserInfo struct {
+	ID    string       `json:"id"`
+	Roles []string     `json:"roles"`
+	Data  UserInfoData `json:"data"`
 }
 
-type WpUserData struct {
-	ID          string `json:"ID"`
+type UserInfoData struct {
+	ID          string `json:"id"`
 	DisplayName string `json:"display_name"`
-	UserEmail   string `json:"user_email"`
+	Email       string `json:"email"`
 }
 
-/* GenerateAuth creates JWT tokens and auth response matching Node.js implementation */
+/* GenerateAuth creates JWT tokens and auth response */
 func GenerateAuth(user *models.User) (*AuthResponse, error) {
-	expiresIn := int64(86400) // 24 hours (JWT_TTL from Node.js)
+	expiresIn := int64(86400) // 24 hours
 	
 	claims := jwt.MapClaims{
 		"sub":            user.Name,
@@ -48,13 +48,13 @@ func GenerateAuth(user *models.User) (*AuthResponse, error) {
 	}
 
 	return &AuthResponse{
-		WpUser: WpUser{
+		User: UserInfo{
 			ID:    user.Name,
 			Roles: user.Roles,
-			Data: WpUserData{
+			Data: UserInfoData{
 				ID:          user.Name,
 				DisplayName: user.Name,
-				UserEmail:   user.Mail,
+				Email:       user.Mail,
 			},
 		},
 		AccessToken:  tokenString,
