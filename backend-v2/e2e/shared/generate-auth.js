@@ -1,0 +1,32 @@
+import jwt from 'jsonwebtoken'
+import {JWT_SECRET} from './test-users.js'
+
+const JWT_TTL = 86400
+
+export const generateAuth = user => {
+  const token = jwt.sign(
+    {
+      sub: user.name,
+      roles: user.roles || [],
+      limitWorkflows: user.limitWorkflows || 999999999,
+      limitNodes: user.limitNodes || 999999999,
+    },
+    JWT_SECRET,
+    {expiresIn: JWT_TTL},
+  )
+
+  return {
+    wp_user: {
+      ID: user.name,
+      roles: user.roles || [],
+      data: {
+        ID: user.name,
+        display_name: user.name,
+        user_email: user.mail,
+      },
+    },
+    access_token: token,
+    expires_in: JWT_TTL,
+    refresh_token: token,
+  }
+}

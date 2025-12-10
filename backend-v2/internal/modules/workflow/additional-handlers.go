@@ -55,7 +55,7 @@ func (h *WorkflowController) AddCategory(c *fiber.Ctx) error {
 
 	/* Parse as raw map for validation and data extraction */
 	raw := make(map[string]interface{})
-	
+
 	/* Direct JSON unmarshal since BodyParser doesn't work with maps */
 	if err := json.Unmarshal(c.Body(), &raw); err != nil {
 		return response.InternalError(c, "Invalid request body")
@@ -98,7 +98,7 @@ func (h *WorkflowController) UpdateShare(c *fiber.Ctx) error {
 	}
 
 	var body struct {
-		Enabled bool   `json:"enabled"`
+		Enabled bool     `json:"enabled"`
 		Users   []string `json:"users"`
 	}
 

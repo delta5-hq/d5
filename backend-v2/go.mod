@@ -8,7 +8,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/matoous/go-nanoid/v2 v2.1.0
 	github.com/qiniu/qmgo v1.1.10
-	github.com/sashabaranov/go-openai v1.32.5
+	github.com/valyala/fasthttp v1.51.0
 	go.mongodb.org/mongo-driver v1.17.6
 	golang.org/x/crypto v0.26.0
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
@@ -29,7 +29,6 @@ require (
 	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fasthttp v1.51.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect

@@ -8,7 +8,7 @@ export const BASE_URL = process.env.BASE_URL
 
 export const FRONTEND_PATH = env.FRONTEND_PATH || '../frontend/build'
 
-export const JWT_SECRET = env.JWT_SECRET || 'GrFYK5ftZDtCg7ZGwxZ1JpSxyyJ9bc8uJijvBD1DYiMoS64ZpnBSrFxsNuybN1iO'
+export const JWT_SECRET = env.JWT_SECRET || 'test-jwt-secret-change-in-production'
 
 export let JWT_TTL = Number(env.JWT_TTL || 86400)
 

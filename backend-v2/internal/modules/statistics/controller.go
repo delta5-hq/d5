@@ -44,7 +44,7 @@ func (ctrl *Controller) Authorization(c *fiber.Ctx) error {
 /* GET /statistics/workflow - workflow statistics */
 func (ctrl *Controller) WorkflowServe(c *fiber.Ctx) error {
 	workflows := ctrl.db.Collection("workflows")
-	
+
 	cursor := workflows.Find(c.Context(), qmgo.M{}).Cursor()
 	defer cursor.Close()
 
@@ -105,7 +105,7 @@ func (ctrl *Controller) UserList(c *fiber.Ctx) error {
 	skip := (page - 1) * limit
 
 	users := ctrl.db.Collection("users")
-	
+
 	total, err := users.Find(c.Context(), qmgo.M{}).Count()
 	if err != nil {
 		return response.InternalError(c, err.Error())
@@ -140,61 +140,61 @@ func (ctrl *Controller) UserWorkflowStatistics(c *fiber.Ctx) error {
 
 	/* userId is a string field, not ObjectID */
 	pipeline := bson.A{
-		bson.D{{"$match", bson.D{
-			{"$or", bson.A{
-				bson.D{{"userId", userId}},
-				bson.D{{"share.access.subjectId", userId}},
+		bson.D{{Key: "$match", Value: bson.D{
+			{Key: "$or", Value: bson.A{
+				bson.D{{Key: "userId", Value: userId}},
+				bson.D{{Key: "share.access.subjectId", Value: userId}},
 			}},
 		}}},
-		bson.D{{"$project", bson.D{
-			{"userId", 1},
-			{"workflowId", "$_id"},
-			{"createdAt", 1},
-			{"updatedAt", 1},
-			{"nodeCount", bson.D{{"$size", bson.D{{"$ifNull", bson.A{bson.D{{"$objectToArray", "$nodes"}}, bson.A{}}}}}}},
-			{"edgeCount", bson.D{{"$size", bson.D{{"$ifNull", bson.A{bson.D{{"$objectToArray", "$edges"}}, bson.A{}}}}}}},
-			{"title", 1},
-			{"role", bson.D{
-				{"$ifNull", bson.A{
-					bson.D{{"$reduce", bson.D{
-						{"input", bson.D{{"$filter", bson.D{
-							{"input", "$share.access"},
-							{"as", "shared"},
-							{"cond", bson.D{{"$eq", bson.A{"$$shared.subjectId", userId}}}},
+		bson.D{{Key: "$project", Value: bson.D{
+			{Key: "userId", Value: 1},
+			{Key: "workflowId", Value: "$_id"},
+			{Key: "createdAt", Value: 1},
+			{Key: "updatedAt", Value: 1},
+			{Key: "nodeCount", Value: bson.D{{Key: "$size", Value: bson.D{{Key: "$ifNull", Value: bson.A{bson.D{{Key: "$objectToArray", Value: "$nodes"}}, bson.A{}}}}}}},
+			{Key: "edgeCount", Value: bson.D{{Key: "$size", Value: bson.D{{Key: "$ifNull", Value: bson.A{bson.D{{Key: "$objectToArray", Value: "$edges"}}, bson.A{}}}}}}},
+			{Key: "title", Value: 1},
+			{Key: "role", Value: bson.D{
+				{Key: "$ifNull", Value: bson.A{
+					bson.D{{Key: "$reduce", Value: bson.D{
+						{Key: "input", Value: bson.D{{Key: "$filter", Value: bson.D{
+							{Key: "input", Value: "$share.access"},
+							{Key: "as", Value: "shared"},
+							{Key: "cond", Value: bson.D{{Key: "$eq", Value: bson.A{"$$shared.subjectId", userId}}}},
 						}}}},
-						{"initialValue", nil},
-						{"in", "$$this.role"},
+						{Key: "initialValue", Value: nil},
+						{Key: "in", Value: "$$this.role"},
 					}}},
 					"owner",
 				}},
 			}},
-			{"sharedWithCount", bson.D{{"$size", bson.D{{"$ifNull", bson.A{"$share.access", bson.A{}}}}}}},
-			{"public", bson.D{{"$ifNull", bson.A{"$share.public.enabled", false}}}},
-			{"hidden", bson.D{{"$ifNull", bson.A{"$share.public.hidden", true}}}},
+			{Key: "sharedWithCount", Value: bson.D{{Key: "$size", Value: bson.D{{Key: "$ifNull", Value: bson.A{"$share.access", bson.A{}}}}}}},
+			{Key: "public", Value: bson.D{{Key: "$ifNull", Value: bson.A{"$share.public.enabled", false}}}},
+			{Key: "hidden", Value: bson.D{{Key: "$ifNull", Value: bson.A{"$share.public.hidden", true}}}},
 		}}},
-		bson.D{{"$project", bson.D{
-			{"userId", 1},
-			{"workflowId", 1},
-			{"createdAt", 1},
-			{"updatedAt", 1},
-			{"nodeCount", 1},
-			{"edgeCount", 1},
-			{"title", bson.D{{"$cond", bson.D{
-				{"if", bson.D{{"$eq", bson.A{"$public", true}}}},
-				{"then", "$title"},
-				{"else", nil},
+		bson.D{{Key: "$project", Value: bson.D{
+			{Key: "userId", Value: 1},
+			{Key: "workflowId", Value: 1},
+			{Key: "createdAt", Value: 1},
+			{Key: "updatedAt", Value: 1},
+			{Key: "nodeCount", Value: 1},
+			{Key: "edgeCount", Value: 1},
+			{Key: "title", Value: bson.D{{Key: "$cond", Value: bson.D{
+				{Key: "if", Value: bson.D{{Key: "$eq", Value: bson.A{"$public", true}}}},
+				{Key: "then", Value: "$title"},
+				{Key: "else", Value: nil},
 			}}}},
-			{"sharedWithCount", 1},
-			{"public", 1},
-			{"hidden", 1},
-			{"role", 1},
+			{Key: "sharedWithCount", Value: 1},
+			{Key: "public", Value: 1},
+			{Key: "hidden", Value: 1},
+			{Key: "role", Value: 1},
 		}}},
-		bson.D{{"$sort", bson.D{{"updatedAt", -1}}}},
+		bson.D{{Key: "$sort", Value: bson.D{{Key: "updatedAt", Value: -1}}}},
 	}
 
 	cursor := ctrl.db.Collection("workflows").Aggregate(c.Context(), pipeline)
 
-	results := []bson.M{}  // Initialize to empty slice, not nil
+	results := []bson.M{} // Initialize to empty slice, not nil
 	if err := cursor.All(&results); err != nil {
 		return response.InternalError(c, err.Error())
 	}
@@ -219,62 +219,62 @@ func (ctrl *Controller) UserStatistics(c *fiber.Ctx) error {
 
 	// Get workflow statistics
 	pipeline := bson.A{
-		bson.D{{"$match", bson.D{
-			{"$or", bson.A{
-				bson.D{{"userId", userId}},
-				bson.D{{"share.access.subjectId", userId}},
+		bson.D{{Key: "$match", Value: bson.D{
+			{Key: "$or", Value: bson.A{
+				bson.D{{Key: "userId", Value: userId}},
+				bson.D{{Key: "share.access.subjectId", Value: userId}},
 			}},
 		}}},
-		bson.D{{"$project", bson.D{
-			{"userId", 1},
-			{"workflowId", 1},
-			{"createdAt", 1},
-			{"updatedAt", 1},
-			{"nodeCount", bson.D{{"$size", bson.D{{"$ifNull", bson.A{bson.D{{"$objectToArray", "$nodes"}}, bson.A{}}}}}}},
-			{"edgeCount", bson.D{{"$size", bson.D{{"$ifNull", bson.A{bson.D{{"$objectToArray", "$edges"}}, bson.A{}}}}}}},
-			{"sharedWith", bson.D{{"$ifNull", bson.A{"$share.access.subjectId", bson.A{}}}}},
-			{"title", 1},
-			{"biggestWorkflowCount", bson.D{{"$size", bson.D{{"$ifNull", bson.A{bson.D{{"$objectToArray", "$nodes"}}, bson.A{}}}}}}},
-			{"sharedWithCount", bson.D{{"$size", bson.D{{"$ifNull", bson.A{"$share.access", bson.A{}}}}}}},
+		bson.D{{Key: "$project", Value: bson.D{
+			{Key: "userId", Value: 1},
+			{Key: "workflowId", Value: 1},
+			{Key: "createdAt", Value: 1},
+			{Key: "updatedAt", Value: 1},
+			{Key: "nodeCount", Value: bson.D{{Key: "$size", Value: bson.D{{Key: "$ifNull", Value: bson.A{bson.D{{Key: "$objectToArray", Value: "$nodes"}}, bson.A{}}}}}}},
+			{Key: "edgeCount", Value: bson.D{{Key: "$size", Value: bson.D{{Key: "$ifNull", Value: bson.A{bson.D{{Key: "$objectToArray", Value: "$edges"}}, bson.A{}}}}}}},
+			{Key: "sharedWith", Value: bson.D{{Key: "$ifNull", Value: bson.A{"$share.access.subjectId", bson.A{}}}}},
+			{Key: "title", Value: 1},
+			{Key: "biggestWorkflowCount", Value: bson.D{{Key: "$size", Value: bson.D{{Key: "$ifNull", Value: bson.A{bson.D{{Key: "$objectToArray", Value: "$nodes"}}, bson.A{}}}}}}},
+			{Key: "sharedWithCount", Value: bson.D{{Key: "$size", Value: bson.D{{Key: "$ifNull", Value: bson.A{"$share.access", bson.A{}}}}}}},
 		}}},
-		bson.D{{"$facet", bson.D{
-			{"categorizedBySharedWorkflow", bson.A{
-				bson.D{{"$unwind", "$sharedWith"}},
-				bson.D{{"$group", bson.D{
-					{"_id", "$sharedWith"},
-					{"shareCount", bson.D{{"$sum", 1}}},
+		bson.D{{Key: "$facet", Value: bson.D{
+			{Key: "categorizedBySharedWorkflow", Value: bson.A{
+				bson.D{{Key: "$unwind", Value: "$sharedWith"}},
+				bson.D{{Key: "$group", Value: bson.D{
+					{Key: "_id", Value: "$sharedWith"},
+					{Key: "shareCount", Value: bson.D{{Key: "$sum", Value: 1}}},
 				}}},
 			}},
-			{"categorizedByOwnWorkflow", bson.A{
-				bson.D{{"$group", bson.D{
-					{"_id", "$userId"},
-					{"workflowId", bson.D{{"$addToSet", "$workflowId"}}},
-					{"workflowCount", bson.D{{"$sum", 1}}},
-					{"nodeCount", bson.D{{"$sum", "$nodeCount"}}},
-					{"edgeCount", bson.D{{"$sum", "$edgeCount"}}},
-					{"biggestWorkflowCount", bson.D{{"$max", "$biggestWorkflowCount"}}},
-					{"sharedWithCount", bson.D{{"$sum", "$sharedWithCount"}}},
-					{"lastWorkflowChange", bson.D{{"$max", "$updatedAt"}}},
+			{Key: "categorizedByOwnWorkflow", Value: bson.A{
+				bson.D{{Key: "$group", Value: bson.D{
+					{Key: "_id", Value: "$userId"},
+					{Key: "workflowId", Value: bson.D{{Key: "$addToSet", Value: "$workflowId"}}},
+					{Key: "workflowCount", Value: bson.D{{Key: "$sum", Value: 1}}},
+					{Key: "nodeCount", Value: bson.D{{Key: "$sum", Value: "$nodeCount"}}},
+					{Key: "edgeCount", Value: bson.D{{Key: "$sum", Value: "$edgeCount"}}},
+					{Key: "biggestWorkflowCount", Value: bson.D{{Key: "$max", Value: "$biggestWorkflowCount"}}},
+					{Key: "sharedWithCount", Value: bson.D{{Key: "$sum", Value: "$sharedWithCount"}}},
+					{Key: "lastWorkflowChange", Value: bson.D{{Key: "$max", Value: "$updatedAt"}}},
 				}}},
 			}},
 		}}},
-		bson.D{{"$project", bson.D{
-			{"result", bson.D{{"$concatArrays", bson.A{"$categorizedBySharedWorkflow", "$categorizedByOwnWorkflow"}}}},
+		bson.D{{Key: "$project", Value: bson.D{
+			{Key: "result", Value: bson.D{{Key: "$concatArrays", Value: bson.A{"$categorizedBySharedWorkflow", "$categorizedByOwnWorkflow"}}}},
 		}}},
-		bson.D{{"$unwind", bson.D{{"path", "$result"}}}},
-		bson.D{{"$replaceRoot", bson.D{{"newRoot", "$result"}}}},
-		bson.D{{"$group", bson.D{
-			{"_id", "$_id"},
-			{"workflowCount", bson.D{{"$sum", "$workflowCount"}}},
-			{"shareCount", bson.D{{"$sum", "$shareCount"}}},
-			{"nodeCount", bson.D{{"$sum", "$nodeCount"}}},
-			{"edgeCount", bson.D{{"$sum", "$edgeCount"}}},
-			{"workflowIds", bson.D{{"$addToSet", "$workflowId"}}},
-			{"sharedWithCount", bson.D{{"$sum", "$sharedWithCount"}}},
-			{"biggestWorkflowCount", bson.D{{"$max", "$biggestWorkflowCount"}}},
-			{"lastWorkflowChange", bson.D{{"$max", "$lastWorkflowChange"}}},
+		bson.D{{Key: "$unwind", Value: bson.D{{Key: "path", Value: "$result"}}}},
+		bson.D{{Key: "$replaceRoot", Value: bson.D{{Key: "newRoot", Value: "$result"}}}},
+		bson.D{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$_id"},
+			{Key: "workflowCount", Value: bson.D{{Key: "$sum", Value: "$workflowCount"}}},
+			{Key: "shareCount", Value: bson.D{{Key: "$sum", Value: "$shareCount"}}},
+			{Key: "nodeCount", Value: bson.D{{Key: "$sum", Value: "$nodeCount"}}},
+			{Key: "edgeCount", Value: bson.D{{Key: "$sum", Value: "$edgeCount"}}},
+			{Key: "workflowIds", Value: bson.D{{Key: "$addToSet", Value: "$workflowId"}}},
+			{Key: "sharedWithCount", Value: bson.D{{Key: "$sum", Value: "$sharedWithCount"}}},
+			{Key: "biggestWorkflowCount", Value: bson.D{{Key: "$max", Value: "$biggestWorkflowCount"}}},
+			{Key: "lastWorkflowChange", Value: bson.D{{Key: "$max", Value: "$lastWorkflowChange"}}},
 		}}},
-		bson.D{{"$match", bson.D{{"_id", userId}}}},
+		bson.D{{Key: "$match", Value: bson.D{{Key: "_id", Value: userId}}}},
 	}
 
 	cursor := ctrl.db.Collection("workflows").Aggregate(c.Context(), pipeline)
@@ -354,7 +354,7 @@ func (ctrl *Controller) UserWaitlist(c *fiber.Ctx) error {
 	search := strings.TrimSpace(c.Query("search", ""))
 
 	waitlistColl := ctrl.db.Collection("waitlists")
-	
+
 	filter := bson.M{}
 	if search != "" {
 		filter = bson.M{
@@ -393,21 +393,21 @@ func (ctrl *Controller) ApproveWaitlistUser(c *fiber.Ctx) error {
 	if waitUserId == "" {
 		return response.BadRequest(c, "Waitlist user ID required")
 	}
-	
+
 	waitlistColl := ctrl.db.Collection("waitlists")
 	usersColl := ctrl.db.Collection("users")
-	
+
 	var waitlistUser bson.M
 	err := waitlistColl.Find(c.Context(), bson.M{"id": waitUserId}).One(&waitlistUser)
 	if err != nil {
 		return response.NotFound(c, "Waitlist record not found")
 	}
-	
+
 	userCount, err := usersColl.Find(c.Context(), bson.M{"id": waitUserId}).Count()
 	if err == nil && userCount > 0 {
 		return response.BadRequest(c, "User already exists")
 	}
-	
+
 	now := time.Now()
 	newUser := bson.M{
 		"id":             waitlistUser["id"],
@@ -423,17 +423,17 @@ func (ctrl *Controller) ApproveWaitlistUser(c *fiber.Ctx) error {
 		"createdAt":      now,
 		"updatedAt":      now,
 	}
-	
+
 	_, err = usersColl.InsertOne(c.Context(), newUser)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to create user"})
 	}
-	
+
 	err = waitlistColl.Remove(c.Context(), bson.M{"id": waitUserId})
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to remove waitlist record"})
 	}
-	
+
 	return c.JSON(fiber.Map{"success": true})
 }
 
@@ -443,20 +443,20 @@ func (ctrl *Controller) RejectWaitlistUser(c *fiber.Ctx) error {
 	if waitUserId == "" {
 		return response.BadRequest(c, "Waitlist user ID required")
 	}
-	
+
 	waitlistColl := ctrl.db.Collection("waitlists")
-	
+
 	var waitlistUser bson.M
 	err := waitlistColl.Find(c.Context(), bson.M{"id": waitUserId}).One(&waitlistUser)
 	if err != nil {
 		return response.NotFound(c, "Waitlist record not found")
 	}
-	
+
 	err = waitlistColl.Remove(c.Context(), bson.M{"id": waitUserId})
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete waitlist record"})
 	}
-	
+
 	return c.JSON(fiber.Map{"success": true})
 }
 
@@ -471,11 +471,11 @@ func (ctrl *Controller) ActivateUsersBatch(c *fiber.Ctx) error {
 	if len(payload.Ids) == 0 {
 		return response.BadRequest(c, "No user IDs provided")
 	}
-	
+
 	waitlistColl := ctrl.db.Collection("waitlists")
 	usersColl := ctrl.db.Collection("users")
 	results := make([]fiber.Map, 0, len(payload.Ids))
-	
+
 	for _, userId := range payload.Ids {
 		var waitlistUser bson.M
 		err := waitlistColl.Find(c.Context(), bson.M{"id": userId}).One(&waitlistUser)
@@ -483,13 +483,13 @@ func (ctrl *Controller) ActivateUsersBatch(c *fiber.Ctx) error {
 			results = append(results, fiber.Map{"id": userId, "success": false, "error": "Waitlist record not found"})
 			continue
 		}
-		
+
 		userCount, err := usersColl.Find(c.Context(), bson.M{"id": userId}).Count()
 		if err == nil && userCount > 0 {
 			results = append(results, fiber.Map{"id": userId, "success": false, "error": "User already exists"})
 			continue
 		}
-		
+
 		now := time.Now()
 		newUser := bson.M{
 			"id":             waitlistUser["id"],
@@ -505,22 +505,22 @@ func (ctrl *Controller) ActivateUsersBatch(c *fiber.Ctx) error {
 			"createdAt":      now,
 			"updatedAt":      now,
 		}
-		
+
 		_, err = usersColl.InsertOne(c.Context(), newUser)
 		if err != nil {
 			results = append(results, fiber.Map{"id": userId, "success": false, "error": "Failed to create user"})
 			continue
 		}
-		
+
 		err = waitlistColl.Remove(c.Context(), bson.M{"id": userId})
 		if err != nil {
 			results = append(results, fiber.Map{"id": userId, "success": false, "error": "Failed to remove waitlist record"})
 			continue
 		}
-		
+
 		results = append(results, fiber.Map{"id": userId, "success": true})
 	}
-	
+
 	return c.JSON(fiber.Map{"results": results})
 }
 
@@ -535,10 +535,10 @@ func (ctrl *Controller) RejectUsersBatch(c *fiber.Ctx) error {
 	if len(payload.Ids) == 0 {
 		return response.BadRequest(c, "No user IDs provided")
 	}
-	
+
 	waitlistColl := ctrl.db.Collection("waitlists")
 	results := make([]fiber.Map, 0, len(payload.Ids))
-	
+
 	for _, userId := range payload.Ids {
 		var waitlistUser bson.M
 		err := waitlistColl.Find(c.Context(), bson.M{"id": userId}).One(&waitlistUser)
@@ -546,15 +546,15 @@ func (ctrl *Controller) RejectUsersBatch(c *fiber.Ctx) error {
 			results = append(results, fiber.Map{"id": userId, "success": false, "error": "Waitlist record not found"})
 			continue
 		}
-		
+
 		err = waitlistColl.Remove(c.Context(), bson.M{"id": userId})
 		if err != nil {
 			results = append(results, fiber.Map{"id": userId, "success": false, "error": "Failed to delete waitlist record"})
 			continue
 		}
-		
+
 		results = append(results, fiber.Map{"id": userId, "success": true})
 	}
-	
+
 	return c.JSON(fiber.Map{"results": results})
 }

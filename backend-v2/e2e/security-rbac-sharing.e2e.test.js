@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken'
-import {JWT_SECRET} from '../src/constants'
-import {ROLES, ACCESS_ROLES} from '../src/shared/config/constants'
+import {JWT_SECRET} from './shared/test-users.js'
+import {ROLES, ACCESS_ROLES} from './shared/test-users.js'
 import {
   publicRequest,
   subscriberRequest,

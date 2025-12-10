@@ -62,7 +62,7 @@ func (h *WorkflowController) GetWorkflows(c *fiber.Ctx) error {
 	/* Check if Authorization header or auth cookie was provided */
 	hasAuthHeader := c.Get("Authorization") != ""
 	hasAuthCookie := c.Cookies("auth") != ""
-	
+
 	if (hasAuthHeader || hasAuthCookie) && c.Locals("jwtOriginalError") != nil {
 		return response.Unauthorized(c, "Authentication failed")
 	}
@@ -93,7 +93,7 @@ func (h *WorkflowController) GetWorkflows(c *fiber.Ctx) error {
 
 	publicString := c.Query(QueryWorkflowsPublicKey)
 	isPublic := publicString == "true"
-	
+
 	/* If no authentication and no explicit public param, default to public workflows */
 	if userID == "" && publicString == "" {
 		isPublic = true
@@ -125,7 +125,7 @@ func (h *WorkflowController) GetWorkflows(c *fiber.Ctx) error {
 // POST /workflows
 func (h *WorkflowController) CreateWorkflow(c *fiber.Ctx) error {
 	userID := c.Locals(constants.ContextUserIDKey)
-	
+
 	if userID == nil {
 		return response.Unauthorized(c, "Authentication required")
 	}
@@ -140,7 +140,7 @@ func (h *WorkflowController) CreateWorkflow(c *fiber.Ctx) error {
 	/* Parse request body for optional fields like share */
 	var requestBody map[string]interface{}
 	var share *models.Share
-	
+
 	if err := c.BodyParser(&requestBody); err == nil {
 		if shareData, exists := requestBody["share"]; exists {
 			/* Convert map to Share struct */
@@ -262,7 +262,7 @@ func (h *WorkflowController) SetSharePublic(c *fiber.Ctx) error {
 
 	publicState := workflow.Share.Public
 	publicState.Enabled = enabled
-	
+
 	if hidden, ok := update["hidden"].(bool); ok {
 		publicState.Hidden = hidden
 	}
@@ -290,7 +290,7 @@ func (h *WorkflowController) CreateWorkflowFromTemplate(c *fiber.Ctx) error {
 	workflow, createErr := h.Service.CreateWorkflowFromTemplate(c.Context(), template, userID)
 
 	if createErr != nil {
-		c.Status(createErr.Status).JSON(fiber.Map{
+		return c.Status(createErr.Status).JSON(fiber.Map{
 			"error": createErr.Message,
 		})
 	}

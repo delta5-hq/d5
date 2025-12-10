@@ -31,7 +31,7 @@ type UserInfoData struct {
 /* GenerateAuth creates JWT tokens and auth response */
 func GenerateAuth(user *models.User) (*AuthResponse, error) {
 	expiresIn := int64(86400) // 24 hours
-	
+
 	claims := jwt.MapClaims{
 		"sub":            user.Name,
 		"roles":          user.Roles,

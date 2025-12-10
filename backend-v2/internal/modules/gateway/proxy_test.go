@@ -58,7 +58,9 @@ func TestProxy_Forward_Success(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"success"}`))
+		if _, err := w.Write([]byte(`{"status":"success"}`)); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 	defer backendServer.Close()
 
@@ -102,7 +104,9 @@ func TestProxy_Forward_GET_Request(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`["result1","result2"]`))
+		if _, err := w.Write([]byte(`["result1","result2"]`)); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 	defer backendServer.Close()
 
@@ -141,7 +145,9 @@ func TestProxy_Forward_HeaderForwarding(t *testing.T) {
 		w.Header().Set("X-Custom-Response", "response-value")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		if _, err := w.Write([]byte("ok")); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 	defer backendServer.Close()
 
@@ -217,7 +223,9 @@ func TestProxy_Forward_StatusCodePreservation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			backendServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tt.backendStatus)
-				w.Write([]byte(tt.backendBody))
+				if _, err := w.Write([]byte(tt.backendBody)); err != nil {
+					t.Errorf("Failed to write response: %v", err)
+				}
 			}))
 			defer backendServer.Close()
 
@@ -288,7 +296,9 @@ func TestProxy_Forward_LargePayload(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write(body)
+		if _, err := w.Write(body); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 	defer backendServer.Close()
 
@@ -326,7 +336,9 @@ func TestProxy_Forward_BinaryData(t *testing.T) {
 		body, _ := io.ReadAll(r.Body)
 		w.Header().Set("Content-Type", "image/png")
 		w.WriteHeader(http.StatusOK)
-		w.Write(body)
+		if _, err := w.Write(body); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 	defer backendServer.Close()
 
@@ -361,7 +373,9 @@ func TestProxy_Forward_ConcurrentRequests(t *testing.T) {
 		requestCount++
 		time.Sleep(10 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"ok":true}`))
+		if _, err := w.Write([]byte(`{"ok":true}`)); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 	defer backendServer.Close()
 
@@ -408,7 +422,9 @@ func TestProxy_Forward_EmptyBody(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(""))
+		if _, err := w.Write([]byte("")); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 	defer backendServer.Close()
 

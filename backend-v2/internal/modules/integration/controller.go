@@ -47,7 +47,7 @@ func (ctrl *Controller) findUserIntegration(c *fiber.Ctx, userID string) (*model
 
 func (ctrl *Controller) GetAll(c *fiber.Ctx) error {
 	userID := ctrl.getUserID(c)
-	
+
 	integration, err := ctrl.service.FindByUserID(c.Context(), userID)
 	if err == qmgo.ErrNoSuchDocuments {
 		return c.JSON(fiber.Map{})
@@ -71,7 +71,9 @@ func (ctrl *Controller) GetService(c *fiber.Ctx) error {
 
 	integrationBytes, _ := json.Marshal(integration)
 	var integrationMap map[string]interface{}
-	json.Unmarshal(integrationBytes, &integrationMap)
+	if err := json.Unmarshal(integrationBytes, &integrationMap); err != nil {
+		return response.InternalError(c, "failed to parse integration")
+	}
 
 	return c.JSON(map[string]interface{}{
 		service: integrationMap[service],
@@ -131,7 +133,7 @@ func (ctrl *Controller) DeleteService(c *fiber.Ctx) error {
 	/* Remove service field entirely from integration document using $unset */
 	unset := map[string]interface{}{service: ""}
 	update := map[string]interface{}{"$unset": unset}
-	
+
 	if err := ctrl.service.UpdateRaw(c.Context(), userID, update); err != nil {
 		return response.InternalError(c, err.Error())
 	}

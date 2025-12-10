@@ -1,7 +1,7 @@
 import {administratorRequest, subscriberRequest, publicRequest} from './shared/requests'
 import {testDataFactory, testOrchestrator} from './shared/test-data-factory'
 import {workflowData} from './shared/fixtures'
-import {subscriber} from '../src/utils/test/users'
+import {subscriber} from './shared/test-users.js'
 
 const userId = subscriber.name
 

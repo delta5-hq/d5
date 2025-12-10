@@ -3,6 +3,7 @@ package auth
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"log"
 	"regexp"
 	"strings"
 
@@ -63,8 +64,10 @@ func (c *Controller) Signup(ctx *fiber.Ctx) error {
 		return response.InternalError(ctx, err.Error())
 	}
 
-	/* Send signup notification email */
-	_ = c.emailService.SendSignupNotification(payload.Mail, payload.Username)
+	/* Send signup notification email - non-critical, log failure only */
+	if err := c.emailService.SendSignupNotification(payload.Mail, payload.Username); err != nil {
+		log.Printf("[WARN] Failed to send signup notification email to %s: %v", payload.Mail, err)
+	}
 
 	return ctx.JSON(fiber.Map{"success": true})
 }
@@ -207,14 +210,10 @@ func (c *Controller) ForgotPassword(ctx *fiber.Ctx) error {
 		return response.InternalError(ctx, err.Error())
 	}
 
-	/* Send password reset email */
-	var user struct {
-		Name string
-		Mail string
+	/* Send password reset email - non-critical, log failure only */
+	if err := c.emailService.SendResetEmail(usernameOrEmail, usernameOrEmail, token); err != nil {
+		log.Printf("[WARN] Failed to send password reset email to %s: %v", usernameOrEmail, err)
 	}
-	/* Fetch user details for email - simplified, in production would optimize this */
-	_ = c.emailService.SendResetEmail(usernameOrEmail, usernameOrEmail, token)
-	_ = user
 
 	return ctx.JSON(fiber.Map{"success": true})
 }
@@ -305,16 +304,16 @@ func (c *Controller) Refresh(ctx *fiber.Ctx) error {
 
 	/* Return enriched response */
 	return ctx.JSON(fiber.Map{
-		"user":            auth.User,
-		"access_token":    auth.AccessToken,
-		"tokenHash":       tokenHash,
-		"expires_in":      auth.ExpiresIn,
-		"expiresAt":       (auth.ExpiresIn + 0) * 1000, // in ms
-		"userId":          user.Name,
-		"roles":           user.Roles,
-		"limitWorkflows":  user.LimitWorkflows,
-		"limitNodes":      user.LimitNodes,
-		"name":            user.Name,
+		"user":           auth.User,
+		"access_token":   auth.AccessToken,
+		"tokenHash":      tokenHash,
+		"expires_in":     auth.ExpiresIn,
+		"expiresAt":      (auth.ExpiresIn + 0) * 1000, // in ms
+		"userId":         user.Name,
+		"roles":          user.Roles,
+		"limitWorkflows": user.LimitWorkflows,
+		"limitNodes":     user.LimitNodes,
+		"name":           user.Name,
 	})
 }
 

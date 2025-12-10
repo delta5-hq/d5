@@ -62,10 +62,10 @@ func (s *ProdService) proxyCustomLLM(c *fiber.Ctx, endpoint string) error {
 	apiKey := BearerTokenExtractor(c)
 
 	req, err := BuildProxyRequest(ProxyRequest{
-		TargetURL:    url + endpoint,
-		APIKey:       apiKey,
-		Body:         body,
-		AuthHeader:   headerAuth,
+		TargetURL:  url + endpoint,
+		APIKey:     apiKey,
+		Body:       body,
+		AuthHeader: headerAuth,
 	})
 	if err != nil {
 		return response.InternalError(c, err.Error())

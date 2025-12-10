@@ -1,10 +1,11 @@
-.PHONY: help build build-docker start stop restart dev e2e logs logs-follow clean status test
+.PHONY: help build build-docker start stop restart dev e2e logs logs-follow clean status test lint fmt
 
 # Configuration (allow override from environment)
+DOCKER_NETWORK := d5-dev-network
 BINARY_NAME := backend-v2
 PORT ?= 3002
 MONGO_URI ?= mongodb://localhost:27017/delta5
-JWT_SECRET ?= GrFYK5ftZDtCg7ZGwxZ1JpSxyyJ9bc8uJijvBD1DYiMoS64ZpnBSrFxsNuybN1iO
+JWT_SECRET ?= test-jwt-secret-change-in-production
 API_ROOT ?= /api/v2
 MOCK_EXTERNAL_SERVICES ?= false
 DOCKER_IMAGE := d5-backend-v2
@@ -24,8 +25,12 @@ help:
 	@echo "  make stop          - Stop running backend"
 	@echo "  make restart       - Restart backend"
 	@echo ""
+	@echo "Code Quality (with Docker fallback):"
+	@echo "  make fmt           - Format Go code (gofmt → Docker if unavailable)"
+	@echo "  make lint          - Run golangci-lint with auto-fix (→ Docker on failure/unavailable)"
+	@echo "  make test          - Run Go unit tests (→ Docker if unavailable)"
+	@echo ""
 	@echo "Test:"
-	@echo "  make test          - Run Go unit tests"
 	@echo "  make e2e           - Run E2E tests with mocked services"
 	@echo ""
 	@echo "Debug:"
@@ -33,18 +38,11 @@ help:
 	@echo "  make logs-follow   - Stream logs in real-time (Ctrl-C to stop)"
 	@echo "  make status        - Check backend status"
 	@echo "  make clean         - Clean build artifacts and logs"
+	@echo ""
+	@echo "Note: All code quality commands auto-fallback to Docker when local tools fail"
 
 build:
-	@echo "→ Building Go binary via Docker..."
-	@mkdir -p $(LOG_DIR)
-	@docker build --target builder -t $(DOCKER_IMAGE)-builder . > /tmp/d5-go-build.log 2>&1 || \
-		(tail -30 /tmp/d5-go-build.log && exit 1)
-	@docker rm -f temp-$(BINARY_NAME) 2>/dev/null || true
-	@docker create --name temp-$(BINARY_NAME) $(DOCKER_IMAGE)-builder
-	@docker cp temp-$(BINARY_NAME):/build/service ./$(BINARY_NAME)
-	@docker rm -f temp-$(BINARY_NAME)
-	@chmod +x $(BINARY_NAME)
-	@echo "✓ Binary built: $(BINARY_NAME)"
+	@bash ../scripts/ci-helpers.sh build_go . $(BINARY_NAME)
 
 build-docker:
 	@echo "→ Building Docker image..."
@@ -167,8 +165,19 @@ logs-follow:
 	fi
 
 test:
-	@echo "→ Running Go unit tests..."
-	@go test -v ./...
+	@bash ../scripts/ci-helpers.sh test_go .
+
+fmt:
+	@echo "→ Formatting Go code..."
+	@if command -v gofmt >/dev/null 2>&1; then \
+		gofmt -s -w .; \
+	else \
+		echo "✗ gofmt not installed, using Docker..."; \
+		docker run --rm --network $(DOCKER_NETWORK) -v $$(pwd):/app -w /app golang:1.25-alpine gofmt -s -w .; \
+	fi
+
+lint:
+	@bash ../scripts/ci-helpers.sh lint_go .
 
 e2e:
 	@echo "→ Running E2E tests with mocked external services..."
@@ -190,13 +199,13 @@ e2e:
 	fi
 	@echo "✓ Backend started in E2E mode with MOCK_EXTERNAL_SERVICES=true (PID $$(cat $(LOG_DIR)/backend-e2e.pid))"
 	@echo "→ Running E2E test suite..."
-	@cd ../backend && \
+	@cd e2e && \
 	 E2E_SERVER_URL=http://localhost:$(PORT) \
 	 E2E_API_BASE_PATH=/api/v2 \
 	 E2E_MONGO_URI=$(MONGO_URI) \
-	 npm run test:e2e -- --maxWorkers=1 --forceExit; \
+	 npm run test -- --maxWorkers=1 --forceExit; \
 	 TEST_EXIT=$$?; \
-	 cd ../backend-v2 && $(MAKE) stop; \
+	 cd .. && $(MAKE) stop; \
 	 exit $$TEST_EXIT
 
 clean:

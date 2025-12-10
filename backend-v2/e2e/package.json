@@ -1,0 +1,23 @@
+{
+  "name": "backend-v2-e2e",
+  "version": "1.0.0",
+  "description": "E2E tests for Go backend-v2 using Node.js/Jest",
+  "type": "module",
+  "scripts": {
+    "test": "E2E_SERVER_URL=${E2E_SERVER_URL:-http://localhost:3002} E2E_API_BASE_PATH=${E2E_API_BASE_PATH:-/api/v2} E2E_MONGO_URI=${E2E_MONGO_URI:-mongodb://localhost:27018/delta5} jest --verbose --maxWorkers=2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.17.9",
+    "@babel/preset-env": "^7.16.11",
+    "@jest/globals": "^27.5.1",
+    "babel-jest": "^27.5.1",
+    "jest": "^27.5.1",
+    "jest-junit": "^13.1.0",
+    "mongodb": "^5.9.2",
+    "supertest": "^6.2.2"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^8.5.1"
+  }
+}

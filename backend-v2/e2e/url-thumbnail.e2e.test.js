@@ -1,6 +1,12 @@
 import {testOrchestrator} from './shared/test-data-factory'
 import {subscriberRequest, publicRequest} from './shared/requests'
-import Thumbnail from '../src/models/Thumbnail'
+
+/* Thumbnail sizes from backend model */
+const THUMBNAIL_SIZES = {
+  full: 'full',
+  small: 'small',
+  tiny: 'tiny',
+}
 
 describe('URL Thumbnail E2E', () => {
   beforeAll(() => testOrchestrator.prepareTestEnvironment(), 60000)
@@ -25,7 +31,7 @@ describe('URL Thumbnail E2E', () => {
 
     it('accepts valid size parameters', async () => {
       const url = 'https://example.com'
-      const validSizes = Object.values(Thumbnail.SIZES)
+      const validSizes = Object.values(THUMBNAIL_SIZES)
 
       for (const size of validSizes) {
         const res = await subscriberRequest.get(`/url/thumbnail?url=${encodeURIComponent(url)}&size=${size}`)

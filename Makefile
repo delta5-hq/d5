@@ -1,7 +1,8 @@
-.PHONY: help dev dev-frontend dev-backend dev-backend-v2 start-mongodb-dev start-mongodb-e2e stop ci-local ci-full lint-backend lint-frontend build-backend build-backend-v2 build-frontend test-backend e2e-backend e2e-frontend seed-e2e seed-dev install-hooks test-hook clean-e2e clean-all reset-dev-db clean-dev-db fix-permissions cleanup-old-data
+.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e stop ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend build-backend build-backend-v2 build-frontend test-backend test-backend-v2 e2e-backend e2e-frontend e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks test-hook clean-e2e clean-all fix-permissions cleanup-old-data
 
 # Configuration variables (DRY principle)
-JWT_SECRET := GrFYK5ftZDtCg7ZGwxZ1JpSxyyJ9bc8uJijvBD1DYiMoS64ZpnBSrFxsNuybN1iO
+DOCKER_NETWORK := d5-dev-network
+JWT_SECRET := test-jwt-secret-change-in-production
 BACKEND_PORT := 3002
 API_ROOT := /api/v2
 MONGO_DEV_URI := mongodb://localhost:27017/delta5-dev
@@ -10,6 +11,12 @@ FRONTEND_PORT := 5173
 
 help:
 	@echo "Available targets:"
+	@echo ""
+	@echo "Quick Commands (all modules):"
+	@echo "  make lint                - Lint all modules (backend + backend-v2 + frontend)"
+	@echo "  make test                - Test all modules (backend + backend-v2 unit tests)"
+	@echo "  make build               - Build all modules (backend + backend-v2 + frontend)"
+	@echo "  make e2e                 - Run all E2E tests (backend-v2 + frontend)"
 	@echo ""
 	@echo "Development:"
 	@echo "  make dev                 - Start full stack (MongoDB-dev + backend-v2 + frontend)"
@@ -22,15 +29,18 @@ help:
 	@echo "CI/Testing:"
 	@echo "  make ci-local            - Fast pre-commit checks (lint + build + test)"
 	@echo "  make ci-full             - Full CI pipeline (lint + build + test + E2E)"
-	@echo "  make e2e-backend         - Run backend-v2 E2E tests (281 tests)"
-	@echo "  make e2e-frontend        - Run frontend E2E tests (54 tests)"
+	@echo "  make e2e-backend         - Run backend-v2 E2E tests (14 suites)"
+	@echo "  make e2e-frontend        - Run frontend E2E tests (27 tests)"
 	@echo "  make test-backend        - Run backend unit tests"
+	@echo "  make test-backend-v2     - Run backend-v2 unit tests"
 	@echo ""
 	@echo "Setup:"
-	@echo "  make seed-dev            - Seed dev MongoDB with initial users"
-	@echo "  make seed-e2e            - Seed E2E MongoDB with test users"
-	@echo "  make reset-dev-db        - Reset dev database to clean state"
-	@echo "  make clean-dev-db        - Remove all dev database data"
+	@echo "  make e2e-db-init         - Initialize E2E database with test fixtures"
+	@echo "  make e2e-db-drop         - Drop E2E database"
+	@echo "  make dev-db-init         - Initialize development database"
+	@echo "  make dev-db-reset        - Reset development database to clean state"
+	@echo "  make dev-db-drop         - Drop development database"
+	@echo "  make setup-build-tools   - Check build tools and show installation links"
 	@echo "  make fix-permissions     - Fix data directory ownership (no sudo required)"
 	@echo "  make cleanup-old-data    - Remove old mongodb data directory"
 	@echo "  make install-hooks       - Install git hooks (pre-commit + pre-push)"
@@ -43,18 +53,56 @@ help:
 	@echo ""
 	@echo "Maintenance:"
 	@echo "  make lint-backend        - Lint backend"
+	@echo "  make lint-backend-v2     - Lint backend-v2 (with Docker fallback)"
+	@echo "  make lint-docker-backend - Lint backend Dockerfile"
+	@echo "  make lint-docker-backend-v2 - Lint backend-v2 Dockerfile"
+	@echo "  make lint-docker-frontend - Lint frontend Dockerfile"
 	@echo "  make lint-frontend       - Lint frontend"
 	@echo "  make clean-e2e           - Clean all E2E test artifacts"
 	@echo "  make clean-all           - Clean all build and test artifacts"
 
-seed-dev:
-	@echo "→ Seeding development MongoDB (port 27017)..."
-	@MONGO_PORT=27017 bash backend-v2/seed-e2e-users.sh
-	@echo "✓ Development users seeded"
+# Centralized commands (all modules)
+lint: lint-backend lint-backend-v2 lint-docker-backend-v2 lint-docker-backend lint-docker-frontend lint-frontend
+	@echo "✓ All modules linted"
 
-seed-e2e:
-	@echo "→ Seeding E2E MongoDB (port 27018)..."
-	@MONGO_PORT=27018 bash backend-v2/seed-e2e-users.sh
+test: test-backend test-backend-v2
+	@echo "✓ All modules tested"
+
+build: build-backend build-backend-v2 build-frontend
+	@echo "✓ All modules built"
+
+e2e: e2e-backend e2e-frontend
+	@echo "✓ All E2E tests completed"
+
+e2e-db-init:
+	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users/main.go seed-users
+	@echo "→ Initializing E2E database (port 27018)..."
+	@DROP_DB=true MONGO_PORT=27018 bash backend-v2/e2e-db-init.sh
+	@echo "✓ E2E database initialized"
+
+e2e-db-drop:
+	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users/main.go seed-users
+	@echo "→ Dropping E2E database (port 27018)..."
+	@MONGO_PORT=27018 bash backend-v2/e2e-db-drop.sh
+	@echo "✓ E2E database dropped"
+
+dev-db-init:
+	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users/main.go seed-users
+	@echo "→ Initializing development database (port 27017)..."
+	@MONGO_PORT=27017 bash backend-v2/e2e-db-init.sh
+	@echo "✓ Development database initialized"
+
+dev-db-reset:
+	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users/main.go seed-users
+	@echo "→ Resetting development database..."
+	@DROP_DB=true MONGO_PORT=27017 bash backend-v2/e2e-db-init.sh
+	@echo "✓ Development database reset"
+
+dev-db-drop:
+	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users/main.go seed-users
+	@echo "→ Dropping development database (port 27017)..."
+	@MONGO_PORT=27017 bash backend-v2/e2e-db-drop.sh
+	@echo "✓ Development database dropped"
 
 start-mongodb-dev:
 	@echo "→ Starting development MongoDB (port 27017)..."
@@ -70,7 +118,7 @@ start-mongodb-e2e:
 	@sleep 3
 	@echo "✓ E2E MongoDB ready"
 
-dev-backend-v2: start-mongodb-dev seed-dev
+dev-backend-v2: start-mongodb-dev dev-db-init
 	@echo "→ Building backend-v2..."
 	@cd backend-v2 && $(MAKE) build
 	@echo "→ Starting backend-v2 in dev mode..."
@@ -122,37 +170,43 @@ stop:
 	fi
 	@echo "✓ All services stopped"
 
-ci-local: lint-backend build-backend build-backend-v2 build-frontend lint-frontend test-backend
+ci-local: lint build test
 	@echo "✓ Pre-commit checks passed"
 
 lint-backend:
-	@echo "→ Linting backend..."
-	@cd backend && npm run lint
+	@bash scripts/ci-helpers.sh lint_node backend
+
+lint-backend-v2:
+	@bash scripts/ci-helpers.sh lint_go backend-v2
+
+lint-docker-backend:
+	@bash scripts/ci-helpers.sh lint_dockerfile Dockerfile backend
+
+lint-docker-backend-v2:
+	@bash scripts/ci-helpers.sh lint_dockerfile Dockerfile backend-v2
+
+lint-docker-frontend:
+	@bash scripts/ci-helpers.sh lint_dockerfile Dockerfile frontend
 
 build-backend:
-	@echo "→ Building backend..."
-	@cd backend && npm run build > /tmp/d5-backend-build.log 2>&1 || \
-		(tail -30 /tmp/d5-backend-build.log && exit 1)
+	@bash scripts/ci-helpers.sh build_node backend
 
 build-backend-v2:
-	@echo "→ Building backend-v2..."
-	@cd backend-v2 && docker build --target builder -t backend-v2-test . > /tmp/d5-backend-v2-build.log 2>&1 || \
-		(tail -30 /tmp/d5-backend-v2-build.log && exit 1)
+	@bash scripts/ci-helpers.sh build_go backend-v2 backend-v2
 
 build-frontend:
-	@echo "→ Building frontend..."
-	@cd frontend && npm run build > /tmp/d5-frontend-build.log 2>&1 || \
-		(tail -30 /tmp/d5-frontend-build.log && exit 1)
+	@bash scripts/ci-helpers.sh build_node frontend
 
 lint-frontend:
-	@echo "→ Linting frontend..."
-	@cd frontend && npm run lint
+	@bash scripts/ci-helpers.sh lint_node frontend
+
+test-backend-v2:
+	@bash scripts/ci-helpers.sh test_go backend-v2
 
 test-backend:
-	@echo "→ Running backend unit tests..."
-	@cd backend && npm test
+	@bash scripts/ci-helpers.sh test_node backend
 
-e2e-backend: start-mongodb-e2e seed-e2e
+e2e-backend: start-mongodb-e2e e2e-db-init
 	@echo "→ Building backend-v2..."
 	@cd backend-v2 && $(MAKE) build > /dev/null 2>&1
 	@echo "→ Starting backend-v2 for E2E tests..."
@@ -165,11 +219,11 @@ e2e-backend: start-mongodb-e2e seed-e2e
 		$(MAKE) start
 	@sleep 3
 	@echo "→ Running backend-v2 E2E tests..."
-	@TEST_EXIT=0; cd backend && E2E_SERVER_URL=http://localhost:$(BACKEND_PORT) E2E_API_BASE_PATH=$(API_ROOT) E2E_MONGO_URI=$(MONGO_E2E_URI) npm run test:e2e || TEST_EXIT=$$?; \
-		cd ../backend-v2 && $(MAKE) stop; \
+	@TEST_EXIT=0; cd backend-v2/e2e && npm ci --silent && E2E_SERVER_URL=http://localhost:$(BACKEND_PORT) E2E_API_BASE_PATH=$(API_ROOT) E2E_MONGO_URI=$(MONGO_E2E_URI) npm test || TEST_EXIT=$$?; \
+		cd ../.. && cd backend-v2 && $(MAKE) stop; \
 		exit $$TEST_EXIT
 
-e2e-frontend: start-mongodb-e2e seed-e2e
+e2e-frontend: start-mongodb-e2e e2e-db-init
 	@echo "→ Building backend-v2..."
 	@cd backend-v2 && $(MAKE) build > /dev/null 2>&1
 	@echo "→ Starting backend-v2..."
@@ -190,7 +244,7 @@ e2e-frontend: start-mongodb-e2e seed-e2e
 		cd ../backend-v2 && $(MAKE) stop; \
 		exit $$TEST_EXIT
 
-ci-full: ci-local e2e-backend e2e-frontend
+ci-full: ci-local e2e
 	@echo "✓ Full CI pipeline completed"
 
 install-hooks:
@@ -213,31 +267,17 @@ test-hook:
 	@rm -f backend-v2/test-invalid.go
 	@echo "✓ Hook validation complete"
 
-reset-dev-db: stop
-	@echo "→ Resetting development database..."
-	@docker-compose stop mongodb-dev 2>/dev/null || true
-	@docker rm -f d5-mongodb-dev 2>/dev/null || true
-	@rm -rf data/mongodb-dev
-	@echo "✓ Development database removed"
-	@$(MAKE) start-mongodb-dev
-	@$(MAKE) seed-dev
-	@echo "✓ Development database reset to clean state"
-
-clean-dev-db: stop
-	@echo "→ Removing development database data..."
-	@docker-compose stop mongodb-dev 2>/dev/null || true
-	@docker rm -f d5-mongodb-dev 2>/dev/null || true
-	@rm -rf data/mongodb-dev
-	@echo "✓ Development database data removed"
+setup-build-tools:
+	@bash scripts/setup-build-tools.sh
 
 fix-permissions:
 	@echo "→ Fixing data directory permissions..."
 	@docker-compose stop mongodb-dev mongodb-e2e 2>/dev/null || true
 	@if [ -d "data/mongodb-dev" ]; then \
-		docker run --rm -v $(PWD)/data:/data alpine chown -R $(shell id -u):$(shell id -g) /data/mongodb-dev 2>/dev/null || true; \
+		docker run --rm --network $(DOCKER_NETWORK) -v $(PWD)/data:/data alpine chown -R $(shell id -u):$(shell id -g) /data/mongodb-dev 2>/dev/null || true; \
 	fi
 	@if [ -d "data/mongodb-e2e" ]; then \
-		docker run --rm -v $(PWD)/data:/data alpine chown -R $(shell id -u):$(shell id -g) /data/mongodb-e2e 2>/dev/null || true; \
+		docker run --rm --network $(DOCKER_NETWORK) -v $(PWD)/data:/data alpine chown -R $(shell id -u):$(shell id -g) /data/mongodb-e2e 2>/dev/null || true; \
 	fi
 	@echo "✓ Data directory permissions fixed (owned by user $(shell id -un))"
 
@@ -246,7 +286,7 @@ cleanup-old-data:
 	@docker-compose stop 2>/dev/null || true
 	@docker rm -f d5_mongodb_1 2>/dev/null || true
 	@if [ -d "data/mongodb" ]; then \
-		docker run --rm -v $(PWD)/data:/data alpine rm -rf /data/mongodb 2>/dev/null || true; \
+		docker run --rm --network $(DOCKER_NETWORK) -v $(PWD)/data:/data alpine rm -rf /data/mongodb 2>/dev/null || true; \
 		echo "✓ Old data/mongodb directory removed"; \
 	else \
 		echo "✓ No old data/mongodb directory found"; \

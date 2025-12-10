@@ -209,7 +209,7 @@ func JWTMiddleware(c *fiber.Ctx) error {
 	}
 
 	c.Locals("auth", claims)
-	
+
 	/* Extract and set userID from subject claim */
 	if sub, ok := claims["sub"].(string); ok {
 		c.Locals("userId", sub)

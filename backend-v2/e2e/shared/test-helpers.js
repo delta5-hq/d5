@@ -1,5 +1,23 @@
 import request from 'supertest'
+import Request from 'supertest'
 import jwt from 'jsonwebtoken'
+import {generateAuth} from './generate-auth.js'
+
+const API_BASE_PATH = process.env.E2E_API_BASE_PATH || '/api/v1'
+
+function createAppRequest() {
+  return process.env.E2E_SERVER_URL
+    ? new Request(process.env.E2E_SERVER_URL)
+    : new Request('http://localhost:3002')
+}
+
+export function createAuthenticatedRequest(user) {
+  const userHandler = {
+    get: (obj, prop) => url =>
+      obj[prop](`${API_BASE_PATH}${url}`).set('Authorization', `Bearer ${generateAuth(user).access_token}`),
+  }
+  return new Proxy(createAppRequest(), userHandler)
+}
 
 export const createTestUser = async (db, overrides = {}) => {
   const defaultUser = {

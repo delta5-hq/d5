@@ -58,10 +58,10 @@ func TestHeaderForwarder_ForwardResponse(t *testing.T) {
 	app.Get("/test", func(c *fiber.Ctx) error {
 		httpResp := &http.Response{
 			Header: http.Header{
-				"Content-Type":     []string{"application/json"},
-				"X-Custom-Header":  []string{"response-value"},
-				"X-Multiple":       []string{"value1", "value2"},
-				"Cache-Control":    []string{"no-cache"},
+				"Content-Type":    []string{"application/json"},
+				"X-Custom-Header": []string{"response-value"},
+				"X-Multiple":      []string{"value1", "value2"},
+				"Cache-Control":   []string{"no-cache"},
 			},
 		}
 
@@ -189,7 +189,7 @@ func TestHeaderForwarder_ConcurrentSafety(t *testing.T) {
 		go func() {
 			ctx := &fasthttp.RequestCtx{}
 			httpReq, _ := http.NewRequest("GET", "http://test.com", nil)
-			
+
 			fiberCtx := fiber.New().AcquireCtx(ctx)
 			defer fiber.New().ReleaseCtx(fiberCtx)
 

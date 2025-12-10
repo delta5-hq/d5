@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken'
-import {JWT_SECRET} from '../src/constants'
+import {JWT_SECRET} from './shared/test-users.js'
 import {publicRequest, rawRequest} from './shared/requests'
 import {testOrchestrator} from './shared/test-data-factory'
 

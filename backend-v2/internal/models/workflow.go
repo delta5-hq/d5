@@ -71,10 +71,10 @@ type Workflow struct {
 	Category   *string           `json:"category" bson:"category"`
 }
 
-func (w Workflow) IsPublic () bool {
-	return  w.Share.Public.Enabled
+func (w Workflow) IsPublic() bool {
+	return w.Share.Public.Enabled
 }
 
-func (w Workflow) IsPublicWriteable () bool {
-	return  w.Share.Public.Enabled && w.Share.Public.Writeable
+func (w Workflow) IsPublicWriteable() bool {
+	return w.Share.Public.Enabled && w.Share.Public.Writeable
 }

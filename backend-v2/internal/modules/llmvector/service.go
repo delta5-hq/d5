@@ -38,12 +38,12 @@ func (s *Service) GetAllContexts(ctx context.Context, userID string) ([]models.L
 /* Save or update context */
 func (s *Service) SaveContext(ctx context.Context, name *string, userID, contextType string, data map[string][]models.MemoryVector, keep bool) (*models.LLMVector, error) {
 	filter := bson.M{"userId": userID, "name": name}
-	
+
 	var existing models.LLMVector
 	err := s.collection.Find(ctx, filter).One(&existing)
-	
+
 	now := time.Now()
-	
+
 	if err != nil {
 		// Create new context
 		newContext := models.LLMVector{
@@ -55,19 +55,19 @@ func (s *Service) SaveContext(ctx context.Context, name *string, userID, context
 			UpdatedAt: now,
 		}
 		newContext.Store[contextType] = data
-		
+
 		_, err = s.collection.InsertOne(ctx, newContext)
 		if err != nil {
 			return nil, err
 		}
 		return &newContext, nil
 	}
-	
+
 	// Update existing context
 	if existing.Store == nil {
 		existing.Store = make(map[string]map[string][]models.MemoryVector)
 	}
-	
+
 	if !keep {
 		// Replace type data
 		existing.Store[contextType] = data
@@ -76,7 +76,7 @@ func (s *Service) SaveContext(ctx context.Context, name *string, userID, context
 		if existing.Store[contextType] == nil {
 			existing.Store[contextType] = make(map[string][]models.MemoryVector)
 		}
-		
+
 		for source, vectors := range data {
 			if existingVectors, ok := existing.Store[contextType][source]; ok {
 				existing.Store[contextType][source] = append(existingVectors, vectors...)
@@ -85,63 +85,63 @@ func (s *Service) SaveContext(ctx context.Context, name *string, userID, context
 			}
 		}
 	}
-	
+
 	existing.UpdatedAt = now
-	
+
 	update := bson.M{
 		"$set": bson.M{
 			"store":     existing.Store,
 			"updatedAt": now,
 		},
 	}
-	
+
 	err = s.collection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &existing, nil
 }
 
 /* Delete context, type, or specific sources */
 func (s *Service) DeleteContext(ctx context.Context, name *string, userID string, contextType *string, sources []string) error {
 	filter := bson.M{"userId": userID, "name": name}
-	
+
 	var existing models.LLMVector
 	err := s.collection.Find(ctx, filter).One(&existing)
 	if err != nil {
 		return err
 	}
-	
+
 	// Delete entire context if no type specified
 	if contextType == nil {
 		return s.collection.Remove(ctx, filter)
 	}
-	
+
 	// Delete specific sources from type
-	if sources != nil && len(sources) > 0 {
+	if len(sources) > 0 {
 		if typeStore, ok := existing.Store[*contextType]; ok {
 			for _, source := range sources {
 				delete(typeStore, source)
 			}
-			
+
 			// If type is empty, remove it
 			if len(typeStore) == 0 {
 				delete(existing.Store, *contextType)
 			}
 		}
-		
+
 		update := bson.M{"$set": bson.M{"store": existing.Store, "updatedAt": time.Now()}}
 		return s.collection.UpdateOne(ctx, filter, update)
 	}
-	
+
 	// Delete entire type
 	if _, ok := existing.Store[*contextType]; ok {
 		delete(existing.Store, *contextType)
 		update := bson.M{"$set": bson.M{"store": existing.Store, "updatedAt": time.Now()}}
 		return s.collection.UpdateOne(ctx, filter, update)
 	}
-	
+
 	return nil
 }
 
@@ -153,17 +153,17 @@ func (s *Service) GetOverview(ctx context.Context, userID string, filterType *st
 	if err != nil {
 		return nil, err
 	}
-	
+
 	overview := make(map[string]map[string][]string)
-	
+
 	for _, context := range contexts {
 		contextKey := ""
 		if context.Name != nil {
 			contextKey = *context.Name
 		}
-		
+
 		overview[contextKey] = make(map[string][]string)
-		
+
 		for storeType, typeStore := range context.Store {
 			if filterType == nil || *filterType == storeType {
 				sources := make([]string, 0, len(typeStore))
@@ -174,6 +174,6 @@ func (s *Service) GetOverview(ctx context.Context, userID string, filterType *st
 			}
 		}
 	}
-	
+
 	return overview, nil
 }

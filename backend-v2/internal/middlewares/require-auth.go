@@ -12,11 +12,11 @@ var reqAuthLog = logger.New("REQ-AUTH")
 
 func RequireAuth(c *fiber.Ctx) error {
 	userID := c.Locals(constants.ContextUserIDKey)
-	
+
 	if userID == nil {
 		reqAuthLog.Warn("RequireAuth: No userID found, path=%s, method=%s", c.Path(), c.Method())
 		return response.Unauthorized(c, "Authentication required")
 	}
-	
+
 	return c.Next()
 }
