@@ -1,13 +1,14 @@
 package llmproxy
 
 import (
-	"backend-v2/internal/common/http"
 	"bytes"
 	"encoding/json"
 	"fmt"
+	nethttp "net/http"
+
+	"backend-v2/internal/common/http"
 
 	"github.com/gofiber/fiber/v2"
-	nethttp "net/http"
 )
 
 type ProxyRequest struct {
@@ -30,7 +31,7 @@ func BuildProxyRequest(req ProxyRequest) (*nethttp.Request, error) {
 	}
 
 	httpReq.Header.Set(headerContentType, contentTypeJSON)
-	
+
 	if req.AuthHeader == headerAuth {
 		httpReq.Header.Set(headerAuth, fmt.Sprintf("%s%s", bearerPrefix, req.APIKey))
 	} else {

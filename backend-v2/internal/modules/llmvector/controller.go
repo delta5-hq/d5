@@ -23,10 +23,10 @@ func (c *Controller) Save(ctx *fiber.Ctx) error {
 	}
 
 	var payload struct {
-		ContextName *string                              `json:"contextName"`
-		Type        string                               `json:"type"`
-		Data        map[string][]models.MemoryVector     `json:"data"`
-		Keep        bool                                 `json:"keep"`
+		ContextName *string                          `json:"contextName"`
+		Type        string                           `json:"type"`
+		Data        map[string][]models.MemoryVector `json:"data"`
+		Keep        bool                             `json:"keep"`
 	}
 
 	if err := ctx.BodyParser(&payload); err != nil {
@@ -44,7 +44,7 @@ func (c *Controller) Save(ctx *fiber.Ctx) error {
 		}
 		for _, vector := range vectors {
 			if vector.Content == "" && len(vector.Embedding) == 0 {
-				return response.BadRequest(ctx, "Invalid value for '" + source + "'")
+				return response.BadRequest(ctx, "Invalid value for '"+source+"'")
 			}
 		}
 	}
@@ -86,14 +86,14 @@ func (c *Controller) Get(ctx *fiber.Ctx) error {
 	// Return specific type
 	typeStore, ok := context.Store[contextType]
 	if !ok {
-		return response.NotFound(ctx, "Type '" + contextType + "' not found")
+		return response.NotFound(ctx, "Type '"+contextType+"' not found")
 	}
 
 	// Return specific source within type
 	if source != "" {
 		sourceData, ok := typeStore[source]
 		if !ok {
-			return response.NotFound(ctx, "'" + source + "' not found in type \"" + contextType + "'")
+			return response.NotFound(ctx, "'"+source+"' not found in type \""+contextType+"'")
 		}
 		return ctx.JSON(fiber.Map{source: sourceData})
 	}

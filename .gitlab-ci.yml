@@ -64,7 +64,7 @@ stages:
 
 .frontend-playwright:
   extends: .frontend
-  image: "mcr.microsoft.com/playwright:v1.47.0-focal"
+  image: "mcr.microsoft.com/playwright:v1.55.0-jammy"
   before_script:
     - cd frontend
     - npm install -g pnpm@10
@@ -74,14 +74,19 @@ stages:
       - /root/.local/share/pnpm/**/*
 
 .backend-e2e-base:
-  extends: .backend-npm
+  extends: .retry
   services:
     - name: "mongo:4.2.8"
       alias: mongo
   variables:
     MONGO_HOST: "mongo"
     MONGO_PORT: "27017"
-    E2E_MONGO_URI: "mongodb://mongo:27017/delta5"
+    MONGO_DB: "delta5_${CI_JOB_ID}"
+    MONGO_URI: "mongodb://mongo:27017/delta5_${CI_JOB_ID}"
+    E2E_MONGO_URI: "mongodb://mongo:27017/delta5_${CI_JOB_ID}"
+    JWT_SECRET: "test-jwt-secret-change-in-production"
+    API_ROOT: "/api/v2"
+    BACKEND_PORT: "3002"
 
 lint-docker-frontend:
   extends: .frontend
@@ -90,6 +95,8 @@ lint-docker-frontend:
   script:
     - /bin/hadolint Dockerfile
   only:
+    refs:
+      - main
     changes:
       - frontend/Dockerfile
 
@@ -100,8 +107,24 @@ lint-docker-backend:
   script:
     - /bin/hadolint Dockerfile
   only:
+    refs:
+      - main
     changes:
       - backend/Dockerfile
+
+lint-docker-backend-v2:
+  extends: .when
+  stage: lint
+  image: "hadolint/hadolint:latest-debian"
+  before_script:
+    - cd backend-v2
+  script:
+    - /bin/hadolint Dockerfile
+  only:
+    refs:
+      - main
+    changes:
+      - backend-v2/Dockerfile
 
 lint-frontend:
   extends: .frontend-pnpm
@@ -112,6 +135,8 @@ lint-frontend:
     - pnpm run genversion
     - pnpm run lint
   only:
+    refs:
+      - main
     changes:
       - frontend/**/*
 
@@ -122,8 +147,24 @@ lint-backend:
     - npm ci
     - npm run lint
   only:
+    refs:
+      - main
     changes:
       - backend/**/*
+
+lint-backend-v2:
+  extends: .when
+  stage: lint
+  image: "golangci/golangci-lint:v1.62-alpine"
+  before_script:
+    - cd backend-v2
+  script:
+    - golangci-lint run --timeout=5m
+  only:
+    refs:
+      - main
+    changes:
+      - backend-v2/**/*
 
 test-backend:
   extends: .backend-npm
@@ -143,8 +184,33 @@ test-backend:
   coverage: /All\sfiles.*?\s+(\d+.\d+)/
   needs: []
   only:
+    refs:
+      - main
     changes:
       - backend/**/*
+
+test-backend-v2:
+  extends: .when
+  stage: test
+  image: "golang:1.25-alpine"
+  before_script:
+    - cd backend-v2
+  script:
+    - apk add --no-cache git
+    - go mod download
+    - go test -v -coverprofile=coverage.out ./...
+    - go tool cover -func=coverage.out
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: backend-v2/coverage.out
+  needs: []
+  only:
+    refs:
+      - main
+    changes:
+      - backend-v2/**/*
 
 build-frontend:
   extends: .frontend-pnpm
@@ -186,6 +252,7 @@ build-backend:
   needs: []
 
 build-backend-v2:
+  extends: .when
   stage: build
   image: "golang:1.25-alpine"
   before_script:
@@ -196,14 +263,13 @@ build-backend-v2:
     - go mod tidy
     - go build -ldflags="-s -w" -o backend-v2 .
     - chmod +x backend-v2
+    - go build -o seed-users ./cmd/seed-users/main.go
   artifacts:
     paths:
       - backend-v2/backend-v2
+      - backend-v2/seed-users
     expire_in: 1 day
   needs: []
-  only:
-    changes:
-      - backend-v2/**/*
 
 build-chatpopup:
   extends: .chatpopup-pnpm
@@ -228,59 +294,69 @@ build-chatpopup:
 e2e-backend:
   extends: .backend-e2e-base
   stage: e2e
+  image: "node:22-alpine"
+  cache:
+    key: node-modules-backend-v2-e2e
+    paths:
+      - /root/.npm/**/*
   script:
+    - apk add --no-cache bash curl git
+    - cd backend-v2
+    - chmod +x backend-v2 seed-users
+    - cd e2e
     - npm ci
-    - cd ../backend-v2
-    - apk add --no-cache bash curl
-    - bash seed-e2e-users.sh
-    - JWT_SECRET='GrFYK5ftZDtCg7ZGwxZ1JpSxyyJ9bc8uJijvBD1DYiMoS64ZpnBSrFxsNuybN1iO' MONGO_URI='mongodb://mongo:27017/delta5' PORT=3002 API_ROOT='/api/v2' MOCK_EXTERNAL_SERVICES=true nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
+    - cd ..
+    - DROP_DB=true bash e2e-db-init.sh
+    - MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" PORT="${BACKEND_PORT}" API_ROOT="${API_ROOT}" MOCK_EXTERNAL_SERVICES=true nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
     - sleep 5
     - if ! kill -0 $(cat backend-e2e.pid); then echo "Backend failed to start"; cat backend-e2e.log; exit 1; fi
-    - curl -f http://localhost:3002/api/v2/health || (cat backend-e2e.log; exit 1)
-    - cd ../backend
-    - E2E_SERVER_URL=http://localhost:3002 E2E_API_BASE_PATH=/api/v2 npm run test:e2e || (kill $(cat ../backend-v2/backend-e2e.pid); exit 1)
-    - kill $(cat ../backend-v2/backend-e2e.pid)
+    - curl -f http://localhost:${BACKEND_PORT}${API_ROOT}/health || (cat backend-e2e.log; exit 1)
+    - cd e2e
+    - E2E_SERVER_URL=http://localhost:${BACKEND_PORT} E2E_API_BASE_PATH=${API_ROOT} E2E_MONGO_URI="${E2E_MONGO_URI}" npm test || (kill $(cat ../backend-e2e.pid); exit 1)
+    - kill $(cat ../backend-e2e.pid)
+  after_script:
+    - cd backend-v2 && bash e2e-db-drop.sh 2>/dev/null || true
   artifacts:
     reports:
-      junit: ./backend/junit.xml
+      junit: ./backend-v2/e2e/junit.xml
     paths:
       - backend-v2/backend-e2e.log
     when: always
   needs:
     - build-backend-v2
   only:
+    refs:
+      - main
     changes:
-      - backend/**/*
       - backend-v2/**/*
 
 e2e-frontend:
-  extends: .frontend-playwright
+  extends: .backend-e2e-base
   stage: e2e
-  services:
-    - name: "mongo:4.2.8"
-      alias: mongo
-  variables:
-    MONGO_HOST: "mongo"
-    MONGO_PORT: "27017"
-    E2E_MONGO_URI: "mongodb://mongo:27017/delta5"
-  script:
+  image: "mcr.microsoft.com/playwright:v1.55.0-jammy"
+  before_script:
     - apt-get update && apt-get install -y curl
-    - cd ../backend-v2
-    - bash seed-e2e-users.sh
-    - JWT_SECRET='GrFYK5ftZDtCg7ZGwxZ1JpSxyyJ9bc8uJijvBD1DYiMoS64ZpnBSrFxsNuybN1iO' MONGO_URI='mongodb://mongo:27017/delta5' PORT=3002 API_ROOT='/api/v2' MOCK_EXTERNAL_SERVICES=true nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
+  script:
+    - cd backend-v2
+    - chmod +x backend-v2 seed-users
+    - DROP_DB=true bash e2e-db-init.sh
+    - MONGO_DATABASE="delta5_${CI_JOB_ID}" MONGO_URI="mongodb://mongo:27017/delta5_${CI_JOB_ID}" JWT_SECRET="test-jwt-secret-change-in-production" PORT="3002" API_ROOT="/api/v2" MOCK_EXTERNAL_SERVICES=true nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
     - sleep 5
     - if ! kill -0 $(cat backend-e2e.pid); then echo "Backend failed to start"; cat backend-e2e.log; exit 1; fi
-    - curl -f http://localhost:3002/api/v2/health || (cat backend-e2e.log; exit 1)
+    - curl -f http://localhost:${BACKEND_PORT}${API_ROOT}/health || (cat backend-e2e.log; exit 1)
     - cd ../frontend
+    - npm install -g pnpm@10
     - pnpm install --frozen-lockfile
     - pnpm run genversion
     - nohup pnpm dev > vite-e2e.log 2>&1 & echo $! > vite-e2e.pid
     - sleep 10
     - curl -f http://localhost:5173 || (cat vite-e2e.log; kill $(cat ../backend-v2/backend-e2e.pid); exit 1)
-    - E2E_ADMIN_USER=admin E2E_ADMIN_PASS='P@ssw0rd!' CI=true pnpm run test:e2e:ci || TEST_EXIT=$?
+    - E2E_ADMIN_USER=admin E2E_ADMIN_PASS='P@ssw0rd!' E2E_OPEN_API_KEY='mock-openai-key' E2E_DEEPSEEK_API_KEY='mock-deepseek-key' E2E_QWEN_API_KEY='mock-qwen-key' E2E_CLAUDE_API_KEY='mock-claude-key' E2E_PERPLEXITY_API_KEY='mock-perplexity-key' E2E_YANDEX_API_KEY='mock-yandex-key' E2E_YANDEX_FOLDER_ID='mock-folder-id' E2E_CUSTOM_LLM_URL='http://localhost:8080' CI=true pnpm run test:e2e:ci || TEST_EXIT=$?
     - kill $(cat vite-e2e.pid) || true
     - kill $(cat ../backend-v2/backend-e2e.pid) || true
     - exit ${TEST_EXIT:-0}
+  after_script:
+    - cd backend-v2 && bash e2e-db-drop.sh 2>/dev/null || true
   artifacts:
     reports:
       junit: ./frontend/junit.xml
@@ -289,10 +365,13 @@ e2e-frontend:
       - frontend/test-results
       - frontend/vite-e2e.log
       - backend-v2/backend-e2e.log
+      - backend-v2/backend-e2e.log
     when: always
   needs:
     - build-backend-v2
   only:
+    refs:
+      - main
     changes:
       - frontend/**/*
       - backend-v2/**/*
@@ -306,17 +385,9 @@ package-frontend:
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}"
       > /kaniko/.docker/config.json
-    - |
-      if [[ -n "${CI_MERGE_REQUEST_IID}" ]] ; then
-        TAG=${CI_MERGE_REQUEST_IID}
-        NAME="frontend-merge"
-      elif [[ "${CI_COMMIT_REF_NAME}" != "${CI_COMMIT_REF_NAME/deploy/}" ]] ; then
-        TAG=${CI_COMMIT_SHORT_SHA}
-        NAME="frontend-branch"
-      else
-        TAG=${CI_COMMIT_REF_NAME/main/latest}
-        NAME="frontend"
-      fi
+    - source $CI_PROJECT_DIR/scripts/ci-helpers.sh
+    - TAG=$(generate_docker_tag)
+    - NAME=$(generate_docker_name "frontend")
     - /kaniko/executor
       --context "$CI_PROJECT_DIR/frontend"
       --dockerfile Dockerfile
@@ -331,17 +402,9 @@ package-backend:
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}"
       > /kaniko/.docker/config.json
-    - |
-      if [[ -n "${CI_MERGE_REQUEST_IID}" ]] ; then
-        TAG=${CI_MERGE_REQUEST_IID}
-        NAME="backend-merge"
-      elif [[ "${CI_COMMIT_REF_NAME}" != "${CI_COMMIT_REF_NAME/deploy/}" ]] ; then
-        TAG=${CI_COMMIT_SHORT_SHA}
-        NAME="backend-branch"
-      else
-        TAG=${CI_COMMIT_REF_NAME/main/latest}
-        NAME="backend"
-      fi
+    - source $CI_PROJECT_DIR/scripts/ci-helpers.sh
+    - TAG=$(generate_docker_tag)
+    - NAME=$(generate_docker_name "backend")
     - /kaniko/executor
       --context "$CI_PROJECT_DIR/backend"
       --dockerfile Dockerfile
@@ -356,18 +419,31 @@ package-chatpopup:
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}"
       > /kaniko/.docker/config.json
-    - |
-      if [[ -n "${CI_MERGE_REQUEST_IID}" ]] ; then
-        TAG=${CI_MERGE_REQUEST_IID}
-        NAME="chatpopup-merge"
-      elif [[ "${CI_COMMIT_REF_NAME}" != "${CI_COMMIT_REF_NAME/deploy/}" ]] ; then
-        TAG=${CI_COMMIT_SHORT_SHA}
-        NAME="chatpopup-branch"
-      else
-        TAG=${CI_COMMIT_REF_NAME/main/latest}
-        NAME="chatpopup"
-      fi
+    - source $CI_PROJECT_DIR/scripts/ci-helpers.sh
+    - TAG=$(generate_docker_tag)
+    - NAME=$(generate_docker_name "chatpopup")
     - /kaniko/executor
       --context "$CI_PROJECT_DIR/plugins/chat-popup"
+      --dockerfile Dockerfile
+      --destination "$CI_REGISTRY_IMAGE:$NAME-$TAG"
+
+package-backend-v2:
+  extends: .when
+  stage: package
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  dependencies:
+    - build-backend-v2
+  before_script:
+    - cd backend-v2
+  script:
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}"
+      > /kaniko/.docker/config.json
+    - source $CI_PROJECT_DIR/scripts/ci-helpers.sh
+    - TAG=$(generate_docker_tag)
+    - NAME=$(generate_docker_name "backend-v2")
+    - /kaniko/executor
+      --context "$CI_PROJECT_DIR/backend-v2"
       --dockerfile Dockerfile
       --destination "$CI_REGISTRY_IMAGE:$NAME-$TAG"

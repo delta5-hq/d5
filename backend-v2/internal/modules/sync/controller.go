@@ -101,11 +101,11 @@ func (h *Controller) AllUserMetaData(c *fiber.Ctx) error {
 
 	/* Support single object or array */
 	var metaDataList []map[string]interface{}
-	switch rawData.(type) {
+	switch data := rawData.(type) {
 	case map[string]interface{}:
-		metaDataList = []map[string]interface{}{rawData.(map[string]interface{})}
+		metaDataList = []map[string]interface{}{data}
 	case []interface{}:
-		for _, item := range rawData.([]interface{}) {
+		for _, item := range data {
 			if obj, ok := item.(map[string]interface{}); ok {
 				metaDataList = append(metaDataList, obj)
 			}

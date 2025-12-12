@@ -22,10 +22,10 @@ func (c *Controller) Create(ctx *fiber.Ctx) error {
 	}
 
 	var payload struct {
-		Path      string                 `json:"path"`
-		Backtrace string                 `json:"backtrace"`
-		Addition  string                 `json:"addition"`
-		WorkflowID string                `json:"workflowId"`
+		Path       string `json:"path"`
+		Backtrace  string `json:"backtrace"`
+		Addition   string `json:"addition"`
+		WorkflowID string `json:"workflowId"`
 		// Any other fields go into additions
 	}
 

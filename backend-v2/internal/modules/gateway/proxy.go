@@ -6,13 +6,14 @@ import (
 	"bytes"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	nethttp "net/http"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 type Proxy struct {
-	config         *Config
-	httpClient     http.Client
+	config          *Config
+	httpClient      http.Client
 	headerForwarder *http.HeaderForwarder
 	responseReader  *http.ResponseReader
 }
@@ -30,7 +31,7 @@ func NewProxy(config *Config) *Proxy {
 func (p *Proxy) Forward(targetPath string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		targetURL := p.config.BuildURL(targetPath)
-		
+
 		if len(c.Request().URI().QueryString()) > 0 {
 			targetURL += "?" + string(c.Request().URI().QueryString())
 		}

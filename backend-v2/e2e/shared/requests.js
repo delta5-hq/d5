@@ -1,7 +1,6 @@
 import Request from 'supertest'
-import app from '../../src/app'
-import {administrator, customer, subscriber, syncuser} from '../../src/utils/test/users'
-import generateAuth from '../../src/controllers/utils/generateAuth'
+import {administrator, customer, subscriber, syncuser} from './test-users.js'
+import {generateAuth} from './generate-auth.js'
 
 const API_BASE_PATH = process.env.E2E_API_BASE_PATH || '/api/v1'
 
@@ -13,7 +12,7 @@ const createUserHandler = user => ({
 function createAppRequest() {
   return process.env.E2E_SERVER_URL
     ? new Request(process.env.E2E_SERVER_URL)
-    : new Request(app.callback())
+    : new Request('http://localhost:3002')
 }
 
 export const subscriberRequest = new Proxy(createAppRequest(), createUserHandler(subscriber))

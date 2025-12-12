@@ -10,7 +10,7 @@ import (
 func RegisterRoutes(router fiber.Router, db *qmgo.Database, emailService email.Service) {
 	usersCollection := db.Collection("users")
 	waitlistCollection := db.Collection("waitlists")
-	
+
 	service := NewService(usersCollection, waitlistCollection)
 	controller := NewController(service, emailService)
 
@@ -25,11 +25,11 @@ func RegisterRoutes(router fiber.Router, db *qmgo.Database, emailService email.S
 	router.Post("/auth/reset-password/:pwdResetToken", controller.ResetPassword)
 
 	/* Backward compatibility aliases (deprecated) */
-	router.Post("/auth", controller.Login)                  // Legacy: Use /auth/login
-	router.Post("/external-auth", controller.LoginJWT)      // Legacy: Use /auth/login-jwt
+	router.Post("/auth", controller.Login)                    // Legacy: Use /auth/login
+	router.Post("/external-auth", controller.LoginJWT)        // Legacy: Use /auth/login-jwt
 	router.Post("/external-auth/refresh", controller.Refresh) // Legacy: Use /auth/refresh
-	router.Post("/refresh", controller.Refresh)             // Legacy: Use /auth/refresh
-	router.Get("/auth/login", func(c *fiber.Ctx) error {    // Legacy GET handler
+	router.Post("/refresh", controller.Refresh)               // Legacy: Use /auth/refresh
+	router.Get("/auth/login", func(c *fiber.Ctx) error {      // Legacy GET handler
 		return c.JSON(fiber.Map{"redirect": false})
 	})
 }

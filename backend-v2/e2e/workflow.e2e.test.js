@@ -1,7 +1,8 @@
-import {describe, beforeEach, afterAll, it, expect} from '@jest/globals'
+import {describe, beforeEach, afterAll, it, expect, beforeAll} from '@jest/globals'
 import {administratorRequest, subscriberRequest, publicRequest} from './shared/requests'
 import {testDataFactory, testOrchestrator} from './shared/test-data-factory'
-import {administrator, subscriber} from '../src/utils/test/users'
+import {administrator, subscriber} from './shared/test-users.js'
+import {createAuthenticatedRequest} from './shared/test-helpers.js'
 
 /* eslint-disable-next-line no-unused-vars */
 const adminUserId = administrator.name
@@ -257,72 +258,46 @@ describe('Workflow Router - Administrator Tests', () => {
 
 describe('Workflow Router - Subscriber Tests', () => {
   let createdWorkflows = []
+  let limitTestUser = null
+  let limitTestRequest = null
 
-    beforeEach(async () => {
-      await testOrchestrator.prepareTestEnvironment()
-    })
+  beforeEach(async () => {
+    await testOrchestrator.prepareTestEnvironment()
+  })
 
-    afterEach(async () => {
-      await testOrchestrator.cleanupTestEnvironment()
-    })
-  
+  afterEach(async () => {
+    await testOrchestrator.cleanupTestEnvironment()
+  })
+
   describe('POST /workflow (payment limits)', () => {
-    async function establishWorkflowLimitState() {
-      /* Deterministic setup: Clean slate approach - reset to exactly limit-1 workflows */
-      console.log('Cleaning up all subscriber workflows before limit testing')
-      
-      /* Delete all visible workflows first */
-      const listResponse = await subscriberRequest.get('/workflow')
-      expect(listResponse.status).toBe(200)
-      const listData = JSON.parse(listResponse.text)
-      const existingWorkflows = listData.data || []
-      
-      console.log(`Found ${existingWorkflows.length} existing workflows, removing all`)
-      for (const workflow of existingWorkflows) {
-        await subscriberRequest.delete(`/workflow/${workflow.workflowId}`)
-        createdWorkflows = createdWorkflows.filter(id => id !== workflow.workflowId)
-      }
-      
-      /* Test if we can create a workflow - if not, subscriber is already at global limit */
-      console.log('Testing if workflow creation is possible...')
-      const testResponse = await subscriberRequest.post('/workflow').send({
-        ...workflowData,
-        title: 'Test Creation Capability',
+    beforeAll(async () => {
+      limitTestUser = await testDataFactory.createUser({
+        id: `limit-test-${Date.now()}`,
+        name: `limit-test-${Date.now()}`,
+        mail: `limit-test-${Date.now()}@example.com`,
+        password: 'TestPass123!',
+        roles: ['subscriber'],
+        limitWorkflows: 10,
+        limitNodes: 300,
+        confirmed: true,
       })
-      
-      if (testResponse.status === 402) {
-        console.log('Subscriber already at global limit - skipping deterministic setup')
-        return // Skip setup if already at limit
-      }
-      
-      expect(testResponse.status).toBe(200)
-      const testData = JSON.parse(testResponse.text)
-      createdWorkflows.push(testData.workflowId)
-      
-      /* Create exactly 9 more workflows (10 total = limit) */
-      console.log('Creating 9 more workflows to reach limit state')
-      for (let i = 0; i < 9; i++) {
-        const response = await subscriberRequest.post('/workflow').send({
+      limitTestRequest = createAuthenticatedRequest(limitTestUser)
+
+      for (let i = 0; i < 10; i++) {
+        const response = await limitTestRequest.post('/workflow').send({
           ...workflowData,
-          title: `Setup Workflow ${i + 2}`,
+          title: `Setup Workflow ${i + 1}`,
         })
         expect(response.status).toBe(200)
         const data = JSON.parse(response.text)
         createdWorkflows.push(data.workflowId)
       }
-      
-      console.log(`Deterministic state: subscriber has exactly 10 workflows (at limit)`)
-    }
-
-    beforeAll(async () => {
-      await establishWorkflowLimitState()
     })
 
     afterAll(async () => {
-      /* Cleanup: Remove all test workflows */
       for (const workflowId of createdWorkflows) {
         try {
-          await subscriberRequest.delete(`/workflow/${workflowId}`)
+          await limitTestRequest.delete(`/workflow/${workflowId}`)
         } catch (err) {
           /* Best effort cleanup */
         }
@@ -331,8 +306,7 @@ describe('Workflow Router - Subscriber Tests', () => {
     })
 
     it('rejects workflow creation when limit reached', async () => {
-      /* Attempt to create workflow - should be rejected if at limit */
-      const response = await subscriberRequest.post('/workflow').send({
+      const response = await limitTestRequest.post('/workflow').send({
         ...workflowData,
         title: 'Limit Test Workflow',
       })
@@ -342,29 +316,18 @@ describe('Workflow Router - Subscriber Tests', () => {
     })
 
     it('allows workflow creation after deleting existing workflow', async () => {
-      /* First, get any existing workflows to delete one */
-      const listResponse = await subscriberRequest.get('/workflow')
+      const listResponse = await limitTestRequest.get('/workflow')
       expect(listResponse.status).toBe(200)
       const listData = JSON.parse(listResponse.text)
       const existingWorkflows = listData.data || []
-      
-      if (existingWorkflows.length === 0) {
-        /* If no workflows exist, create one first to test the delete scenario */
-        console.log('No existing workflows found, creating one for deletion test')
-        // This should fail since we're at limit, so skip this test
-        expect(true).toBe(true) // Skip test if no workflows to delete
-        return
-      }
-      
-      /* Delete one workflow to make space */
+
+      expect(existingWorkflows.length).toBeGreaterThan(0)
+
       const workflowToDelete = existingWorkflows[0].workflowId
-      console.log(`Deleting workflow ${workflowToDelete} to make space`)
-      
-      const deleteResponse = await subscriberRequest.delete(`/workflow/${workflowToDelete}`)
+      const deleteResponse = await limitTestRequest.delete(`/workflow/${workflowToDelete}`)
       expect(deleteResponse.status).toBe(200)
 
-      /* Now create new workflow - should succeed */
-      const createResponse = await subscriberRequest.post('/workflow').send({
+      const createResponse = await limitTestRequest.post('/workflow').send({
         ...workflowData,
         title: 'Post-Delete Workflow',
       })

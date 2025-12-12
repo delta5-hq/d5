@@ -11,9 +11,9 @@ type IconSearchResponse struct {
 }
 
 type Icon struct {
-	ID          string   `json:"id"`
-	Description string   `json:"description"`
-	Tags        []string `json:"tags"`
+	ID           string   `json:"id"`
+	Description  string   `json:"description"`
+	Tags         []string `json:"tags"`
 	ThumbnailURL string   `json:"thumbnail"`
 	DownloadURL  string   `json:"download_url"`
 }

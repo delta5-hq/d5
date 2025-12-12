@@ -28,6 +28,21 @@ services:
       GOAPI_API_KEY: ""
       SCRAPER_API_KEY: ""
 
+  backend-v2:
+    image: "registry.dreaktor.com/solidbranch/d5/d5:backend-v2-latest"
+    restart: unless-stopped
+    labels:
+      - traefik.http.routers.backend-v2-d5.rule=Host(`app.delta5.tech`, `delta5.tech`) && PathPrefix(`/api/v2`)
+      - traefik.http.services.backend-v2-d5.loadbalancer.server.port=3002
+      - traefik.http.routers.backend-v2-d5.entrypoints=http # https
+      #- traefik.http.routers.backend-v2-d5.tls.certresolver=letsencrypt
+    environment:
+      MONGO_URI: "mongodb://mongodb:27017/delta5"
+      JWT_SECRET: ""
+      PORT: "3002"
+      API_ROOT: "/api/v2"
+      MOCK_EXTERNAL_SERVICES: "false"
+
   frontend:
     image: "registry.dreaktor.com/solidbranch/d5/d5:frontend-latest"
     restart: unless-stopped

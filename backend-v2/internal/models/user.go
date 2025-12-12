@@ -36,7 +36,7 @@ type User struct {
 	ID             string    `json:"id" bson:"id"`
 	Name           string    `json:"name" bson:"name"`
 	Mail           string    `json:"mail,omitempty" bson:"mail,omitempty"`
-	Password       string    `json:"-" bson:"password,omitempty"` // Never expose in JSON
+	Password       string    `json:"-" bson:"password,omitempty"`      // Never expose in JSON
 	PwdResetToken  string    `json:"-" bson:"pwdResetToken,omitempty"` // Password reset token
 	Roles          []string  `json:"roles,omitempty" bson:"roles,omitempty"`
 	Confirmed      bool      `json:"confirmed,omitempty" bson:"confirmed,omitempty"`

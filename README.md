@@ -7,10 +7,13 @@ Modern full-stack application with Node.js backend, Go microservices, and React 
 ### New Developer Setup
 
 ```bash
-# 1. Install git hooks (REQUIRED)
+# 1. Check and install build tools
+make setup-build-tools
+
+# 2. Install git hooks (REQUIRED)
 make install-hooks
 
-# 2. Start development environment
+# 3. Start development environment
 make dev
 ```
 
@@ -101,9 +104,10 @@ make start-mongodb-e2e
 make stop-all
 ```
 
-**Database Separation:**
+### Database Separation:**
 - **Development**: Uses MongoDB on port 27017, database `delta5-dev`, persistent storage
 - **E2E Tests**: Uses MongoDB on port 27018, database `delta5`, isolated and reseeded per test run
+- **CI E2E Tests**: Uses MongoDB on port 27017, database `delta5_${CI_JOB_ID}`, temporary per-job isolation
 - Development and test databases are completely isolated to prevent data pollution
 
 ### Testing
@@ -198,13 +202,32 @@ make e2e-backend       # Backend E2E tests
 make e2e-frontend      # Frontend E2E tests
 
 # Utilities
-make seed-dev          # Seed dev MongoDB (port 27017) with initial users
-make seed-e2e          # Seed E2E MongoDB (port 27018) with test users
+make seed-dev          # Seed dev MongoDB (27017) with initial users
+make seed-e2e          # Seed E2E MongoDB (27018) with test users  
 make reset-dev-db      # Reset dev database to clean state
 make fix-permissions   # Fix data directory ownership (no sudo)
 make cleanup-old-data  # Remove legacy mongodb directory
 make clean-e2e         # Clean test artifacts
 ```
+
+## 📊 Database Configuration
+
+### Local Environment
+
+| Database | Port | Name | Purpose | URI |
+|----------|------|------|---------|-----|
+| Development | 27017 | `delta5-dev` | Persistent dev data | `mongodb://localhost:27017/delta5-dev` |
+| E2E Tests | 27018 | `delta5` | Test isolation | `mongodb://localhost:27018/delta5` |
+
+### CI Environment
+
+| Database | Port | Name | Purpose | URI |
+|----------|------|------|---------|-----|
+| E2E Tests | 27017 | `delta5_${CI_JOB_ID}` | Per-job isolation | `mongodb://mongo:27017/delta5_${CI_JOB_ID}` |
+
+**Configuration Variables:**
+- `MONGO_URI`: Backend application runtime connection
+- `E2E_MONGO_URI`: Test harness direct DB access (cleanup, assertions)
 
 ## 🐛 Troubleshooting
 

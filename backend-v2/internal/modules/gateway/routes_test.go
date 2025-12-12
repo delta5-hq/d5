@@ -42,13 +42,13 @@ func TestRouteRegistry_RegisterNodeJSRoutes(t *testing.T) {
 	}
 
 	expectedPaths := map[string]bool{
-		"/api/v2/execute":                           false,
-		"/api/v2/integration/scrape_v2":             false,
-		"/api/v2/integration/scrape_files":          false,
-		"/api/v2/integration/translate":             false,
-		"/api/v2/integration/search":                false,
-		"/api/v2/integration/downloadImage":         false,
-		"/api/v2/integration/images/generations":    false,
+		"/api/v2/execute":                        false,
+		"/api/v2/integration/scrape_v2":          false,
+		"/api/v2/integration/scrape_files":       false,
+		"/api/v2/integration/translate":          false,
+		"/api/v2/integration/search":             false,
+		"/api/v2/integration/downloadImage":      false,
+		"/api/v2/integration/images/generations": false,
 	}
 
 	for _, routeStack := range routes {
@@ -86,12 +86,12 @@ func TestRouteRegistry_ExecuteRoutes(t *testing.T) {
 		for _, route := range routeStack {
 			if route.Path == "/api/v2/execute" {
 				executeRouteFound = true
-				
+
 				validMethods := map[string]bool{
 					"HEAD": true, "GET": true, "POST": true, "PUT": true,
 					"DELETE": true, "PATCH": true, "CONNECT": true, "OPTIONS": true, "TRACE": true,
 				}
-				
+
 				if !validMethods[route.Method] {
 					t.Errorf("Execute route registered with unexpected method: %v", route.Method)
 				}
@@ -118,7 +118,7 @@ func TestRouteRegistry_ScrapingRoutes(t *testing.T) {
 	registry.registerScrapingRoutes(router)
 
 	routes := app.Stack()
-	
+
 	expectedScrapingRoutes := map[string]bool{
 		"/api/v2/integration/scrape_v2":    false,
 		"/api/v2/integration/scrape_files": false,
@@ -153,7 +153,7 @@ func TestRouteRegistry_ExternalAPIRoutes(t *testing.T) {
 	registry.registerExternalAPIRoutes(router)
 
 	routes := app.Stack()
-	
+
 	expectedExternalAPIRoutes := map[string]string{
 		"/api/v2/integration/translate":          "POST",
 		"/api/v2/integration/search":             "GET",
@@ -196,12 +196,12 @@ func TestRouteRegistry_IntegrationGrouping(t *testing.T) {
 	registry.RegisterNodeJSRoutes(router)
 
 	routes := app.Stack()
-	
+
 	integrationRouteCount := 0
 	for _, routeStack := range routes {
 		for _, route := range routeStack {
-			if len(route.Path) >= len("/api/v2/integration") && 
-			   route.Path[:len("/api/v2/integration")] == "/api/v2/integration" {
+			if len(route.Path) >= len("/api/v2/integration") &&
+				route.Path[:len("/api/v2/integration")] == "/api/v2/integration" {
 				integrationRouteCount++
 			}
 		}
@@ -227,7 +227,7 @@ func TestRouteRegistry_AllMethodsExecuteRoute(t *testing.T) {
 	registry.registerExecuteRoutes(router)
 
 	routes := app.Stack()
-	
+
 	methodsFound := make(map[string]bool)
 	for _, routeStack := range routes {
 		for _, route := range routeStack {

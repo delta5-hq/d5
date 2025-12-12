@@ -10,10 +10,10 @@ import (
 
 func Register(router fiber.Router, db *qmgo.Database, services *container.ServiceContainer) {
 	service := NewService(db)
-	
+
 	/* Core integration CRUD controller */
 	baseCtrl := NewController(service, db)
-	
+
 	/* Service-specific controllers (non-LLM only) */
 	midjourneyCtrl := NewMidjourneyController(services.Midjourney)
 	zoomCtrl := NewZoomController(services.Zoom)
@@ -23,14 +23,14 @@ func Register(router fiber.Router, db *qmgo.Database, services *container.Servic
 
 	/* Protected group - JWT auth required for all endpoints */
 	protectedGroup := integrationGroup.Group("", middlewares.RequireAuth)
-	
+
 	/* Core integration management (CRUD only) */
 	protectedGroup.Get("/", baseCtrl.GetAll)
 	protectedGroup.Delete("/", baseCtrl.Delete)
 	protectedGroup.Get("/languages", baseCtrl.GetLanguages)
 	protectedGroup.Post("/language", baseCtrl.SetLanguage)
 	protectedGroup.Post("/model", baseCtrl.SetModel)
-	
+
 	/* LLM proxy endpoints for API key validation (NOT for production LLM execution) */
 	/* Purpose: Validate user API keys when installing integrations */
 	/* Production LLM execution handled by Node.js backend at /api/v1/integration/* */
@@ -41,19 +41,19 @@ func Register(router fiber.Router, db *qmgo.Database, services *container.Servic
 	protectedGroup.Post("/yandex/completion", services.LLMProxy.YandexCompletion)
 	protectedGroup.Post("/custom_llm/chat/completions", services.LLMProxy.CustomLLMChatCompletions)
 	protectedGroup.Post("/custom_llm/embeddings", services.LLMProxy.CustomLLMEmbeddings)
-	
+
 	/* Midjourney endpoints */
 	protectedGroup.Post("/midjourney/create", midjourneyCtrl.Create)
 	protectedGroup.Post("/midjourney/upscale", midjourneyCtrl.Upscale)
-	
+
 	/* Zoom endpoints */
 	protectedGroup.Post("/zoom/auth", zoomCtrl.Auth)
 	protectedGroup.Get("/zoom/meetings/:id/recordings", zoomCtrl.Recordings)
-	
+
 	/* Freepik endpoints */
 	protectedGroup.Get("/icons/freepik", freepikCtrl.Icons)
 	protectedGroup.Post("/icons/download", freepikCtrl.DownloadIcon)
-	
+
 	/* Parameterized routes LAST - catches remaining requests */
 	protectedGroup.Get("/:service", baseCtrl.GetService)
 	protectedGroup.Put("/:service/update", baseCtrl.UpdateService)

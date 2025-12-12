@@ -42,11 +42,11 @@ func TestControllerWithMockedEmail(t *testing.T) {
 
 	/* Setup real database service (or mock if needed) */
 	/* In real test would use test database or mock */
-	var usersCollection *qmgo.Collection   // Would initialize with test DB
+	var usersCollection *qmgo.Collection    // Would initialize with test DB
 	var waitlistCollection *qmgo.Collection // Would initialize with test DB
-	
+
 	service := auth.NewService(usersCollection, waitlistCollection)
-	
+
 	/* Create controller with mock email service injected */
 	controller := auth.NewController(service, mockEmail)
 
@@ -64,11 +64,11 @@ func ExampleProductionSetup() {
 
 	var usersCollection *qmgo.Collection
 	var waitlistCollection *qmgo.Collection
-	
+
 	service := auth.NewService(usersCollection, waitlistCollection)
-	
+
 	controller := auth.NewController(service, emailService)
-	
+
 	_ = controller
 }
 */
@@ -79,11 +79,11 @@ func ExampleE2ESetup() {
 
 	var usersCollection *qmgo.Collection
 	var waitlistCollection *qmgo.Collection
-	
+
 	service := auth.NewService(usersCollection, waitlistCollection)
-	
+
 	controller := auth.NewController(service, emailService)
-	
+
 	_ = controller
 }
 */

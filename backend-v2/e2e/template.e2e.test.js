@@ -1,7 +1,7 @@
 import {describe, beforeEach, afterAll, it, expect} from '@jest/globals'
 import {subscriberRequest, publicRequest, customerRequest, administratorRequest} from './shared/requests'
 import {testDataFactory, testOrchestrator} from './shared/test-data-factory'
-import {subscriber} from '../src/utils/test/users'
+import {subscriber} from './shared/test-users.js'
 
 const subscriberUserId = subscriber.name
 

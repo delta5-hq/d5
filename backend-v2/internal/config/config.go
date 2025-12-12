@@ -9,20 +9,23 @@ import (
 )
 
 var (
-	Port             string
-	MongoUsername    string
-	MongoPassword    string
-	MongoDatabase    string
-	MongoHost        string
-	MongoPort        string
-	JwtSecret        string
-	MongoURI         string
-	SyncUserID       string
-	ApiRoot          string
+	Port          string
+	MongoUsername string
+	MongoPassword string
+	MongoDatabase string
+	MongoHost     string
+	MongoPort     string
+	JwtSecret     string
+	MongoURI      string
+	SyncUserID    string
+	ApiRoot       string
 )
 
 func init() {
-	godotenv.Load(".env")
+	/* Load .env if exists - optional, environment variables take precedence */
+	if err := godotenv.Load(".env"); err != nil {
+		log.Printf("[DEBUG] .env file not loaded (optional): %v", err)
+	}
 
 	Port = getEnv("PORT", "8080")
 	MongoUsername = getEnv("MONGO_USERNAME", "delta5")
@@ -30,7 +33,7 @@ func init() {
 	MongoDatabase = getEnv("MONGO_DATABASE", "delta5")
 	MongoHost = getEnv("MONGO_HOST", "localhost")
 	MongoPort = getEnv("MONGO_PORT", "27017")
-	JwtSecret = getEnv("JWT_SECRET", "GrFYK5ftZDtCg7ZGwxZ1JpSxyyJ9bc8uJijvBD1DYiMoS64ZpnBSrFxsNuybN1iO")
+	JwtSecret = getEnv("JWT_SECRET", "test-jwt-secret-change-in-production")
 	SyncUserID = getEnv("SYNC_USER_ID", "wp-sync-user")
 	ApiRoot = getEnv("API_ROOT", "/")
 

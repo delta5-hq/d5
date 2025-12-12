@@ -14,9 +14,9 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o service .
 
 # Runtime stage - minimal image
-FROM alpine:latest
+FROM alpine:3.21
 
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates=20250911-r0 tzdata=2025b-r0
 
 WORKDIR /app
 COPY --from=builder /build/service .

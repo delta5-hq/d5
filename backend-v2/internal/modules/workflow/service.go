@@ -154,7 +154,7 @@ func (s *WorkflowService) CreateWorkflow(ctx context.Context, dto CreateWorkflow
 		},
 		Access: make([]models.RoleBinding, 0),
 	}
-	
+
 	if dto.Share != nil {
 		share = *dto.Share
 	}
@@ -234,8 +234,8 @@ func (s *WorkflowService) SetShareAccess(
 		}
 
 		/* Reject SQL injection attempts */
-		if strings.Contains(binding.SubjectID, "'") || strings.Contains(binding.SubjectID, "\"") || 
-		   strings.Contains(binding.SubjectID, "--") || strings.Contains(binding.SubjectID, ";") {
+		if strings.Contains(binding.SubjectID, "'") || strings.Contains(binding.SubjectID, "\"") ||
+			strings.Contains(binding.SubjectID, "--") || strings.Contains(binding.SubjectID, ";") {
 			return errors.NewHTTPError(400, "Invalid subject ID")
 		}
 
@@ -292,7 +292,7 @@ func (s *WorkflowService) SetSharePublic(
 			return errors.NewHTTPError(403, "Only administrators can set workflows public writeable")
 		}
 	}
-	
+
 	if !access.IsOwner {
 		return errors.NewHTTPError(403, "You are not an owner of this workflow.")
 	}

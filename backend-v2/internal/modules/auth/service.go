@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -42,7 +43,7 @@ func (s *Service) Signup(ctx context.Context, username, email, password string) 
 		{"mail": email},
 		{"mail": username},
 	}}
-	
+
 	userCount, err := s.usersCollection.Find(ctx, userFilter).Count()
 	if err == nil && userCount > 0 {
 		return ErrUserExists
@@ -122,7 +123,10 @@ func (s *Service) ForgotPassword(ctx context.Context, usernameOrEmail string) (s
 	}
 
 	// Generate random token
-	token := generateRandomString(100)
+	token, err := generateRandomString(100)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate reset token: %w", err)
+	}
 
 	// Update user with reset token
 	update := bson.M{"$set": bson.M{"pwdResetToken": token}}
@@ -164,8 +168,8 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	// Update password and clear reset token
 	update := bson.M{
 		"$set": bson.M{
-			"password":   string(hashedPassword),
-			"updatedAt":  time.Now(),
+			"password":  string(hashedPassword),
+			"updatedAt": time.Now(),
 		},
 		"$unset": bson.M{"pwdResetToken": ""},
 	}
@@ -213,19 +217,21 @@ func (s *Service) ValidateRefreshToken(ctx context.Context, tokenString string) 
 	return &user, nil
 }
 
-func generateRandomString(length int) string {
+func generateRandomString(length int) (string, error) {
 	bytes := make([]byte, length/2)
-	rand.Read(bytes)
-	return hex.EncodeToString(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", fmt.Errorf("crypto/rand.Read failed: %w", err)
+	}
+	return hex.EncodeToString(bytes), nil
 }
 
 /* Custom errors */
 var (
-	ErrUserExists       = &AuthError{Message: "Username already exists."}
-	ErrWaitlistExists   = &AuthError{Message: "Email already in waitlist."}
-	ErrUserNotFound     = &AuthError{Message: "User not found."}
-	ErrInvalidPassword  = &AuthError{Message: "Wrong password."}
-	ErrAccountPending   = &AuthError{Message: "Error: Account pending activation"}
+	ErrUserExists      = &AuthError{Message: "Username already exists."}
+	ErrWaitlistExists  = &AuthError{Message: "Email already in waitlist."}
+	ErrUserNotFound    = &AuthError{Message: "User not found."}
+	ErrInvalidPassword = &AuthError{Message: "Wrong password."}
+	ErrAccountPending  = &AuthError{Message: "Error: Account pending activation"}
 )
 
 type AuthError struct {

@@ -6,9 +6,9 @@ type Service interface {
 }
 
 type CreateResponse struct {
-	TaskId  string `json:"task_id"`
-	Status  string `json:"status"`
-	Prompt  string `json:"prompt"`
+	TaskId   string `json:"task_id"`
+	Status   string `json:"status"`
+	Prompt   string `json:"prompt"`
 	ImageURL string `json:"image_url,omitempty"`
 }
 

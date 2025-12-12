@@ -19,13 +19,13 @@ type RecordingsResponse struct {
 }
 
 type Recording struct {
-	ID           string `json:"id"`
-	MeetingID    string `json:"meeting_id"`
-	RecordingType string `json:"recording_type"`
-	FileType     string `json:"file_type"`
-	FileSize     int64  `json:"file_size"`
-	DownloadURL  string `json:"download_url"`
-	PlayURL      string `json:"play_url"`
+	ID             string `json:"id"`
+	MeetingID      string `json:"meeting_id"`
+	RecordingType  string `json:"recording_type"`
+	FileType       string `json:"file_type"`
+	FileSize       int64  `json:"file_size"`
+	DownloadURL    string `json:"download_url"`
+	PlayURL        string `json:"play_url"`
 	RecordingStart string `json:"recording_start"`
 	RecordingEnd   string `json:"recording_end"`
 }

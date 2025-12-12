@@ -1,6 +1,6 @@
 import {subscriberRequest, customerRequest, administratorRequest, publicRequest} from './shared/requests'
 import {testDataFactory, testOrchestrator} from './shared/test-data-factory'
-import {subscriber, customer, administrator} from '../src/utils/test/users'
+import {subscriber, customer, administrator} from './shared/test-users.js'
 
 const userId = subscriber.name
 const subscriberUserId = subscriber.name

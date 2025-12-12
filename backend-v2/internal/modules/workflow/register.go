@@ -17,7 +17,7 @@ func RegisterRoutes(app fiber.Router, handler *WorkflowController, db *qmgo.Data
 	templateRoutes.Post("", handler.CreateWorkflowFromTemplate)
 
 	workflowRoutes.Use("/:workflowId", Load(db), OptionalAuth, Authorization)
-	
+
 	workflowRoutes.Get("/:workflowId", handler.GetWorkflow)
 	workflowRoutes.Put("/:workflowId", RejectMethod)
 	workflowRoutes.Patch("/:workflowId", RejectMethod)

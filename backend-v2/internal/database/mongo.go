@@ -37,6 +37,8 @@ func Disconnect() {
 		Client.Close(ctx)
 	}
 	if MongoClient != nil {
-		MongoClient.Disconnect(ctx)
+		if err := MongoClient.Disconnect(ctx); err != nil {
+			log.Printf("[WARN] MongoDB disconnect error (non-critical during shutdown): %v", err)
+		}
 	}
 }
