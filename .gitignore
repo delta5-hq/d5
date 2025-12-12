@@ -4,7 +4,7 @@
 
 # Project metadata (workspace-specific)
 .github
-.github/docs/TODO.md
+!.github/workflows/ci.yml
 
 # Editor/IDE (global for all subdirs)
 .vscode

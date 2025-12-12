@@ -1,0 +1,318 @@
+name: CI Pipeline
+
+on:
+  pull_request:
+
+jobs:
+  lint-docker-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: frontend/Dockerfile
+
+  lint-docker-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: backend/Dockerfile
+
+  lint-docker-backend-v2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: backend-v2/Dockerfile
+
+  lint-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: cd frontend && pnpm install --frozen-lockfile
+      - run: cd frontend && pnpm run genversion
+      - run: cd frontend && pnpm run lint
+      - run: |
+          if grep "material-ui/[^/]*'$" frontend/src -Rl ; then
+            echo 'Do not import material ui through root'
+            exit 1
+          fi
+
+  lint-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - run: cd backend && npm ci
+      - run: cd backend && npm run lint
+
+  lint-backend-v2:
+    runs-on: ubuntu-latest
+    container: golangci/golangci-lint:v1.62-alpine
+    steps:
+      - uses: actions/checkout@v4
+      - run: git config --global --add safe.directory $GITHUB_WORKSPACE
+      - run: cd backend-v2 && golangci-lint run --timeout=5m
+
+  test-backend:
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:4.2.8
+        ports:
+          - 27017:27017
+    env:
+      MONGO_HOST: localhost
+      MONGO_PORT: 27017
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - run: cd backend && npm ci
+      - run: cd backend && DEBUG="infinity:*" npm run test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-junit
+          path: backend/junit.xml
+
+  test-backend-v2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: backend-v2/go.sum
+      - run: cd backend-v2 && go mod download
+      - run: cd backend-v2 && go test -v -coverprofile=coverage.out ./...
+      - run: cd backend-v2 && go tool cover -func=coverage.out
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: |
+          cd frontend
+          VERSION=${{ github.sha }}
+          sed "s/\"gitVersion\":[^,]*/\"gitVersion\": \"${VERSION}\"/" -i package.json
+      - run: cd frontend && pnpm install --frozen-lockfile
+      - run: cd frontend && GENERATE_SOURCEMAP=false npm run build
+      - run: ls frontend/dist/index.html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+
+  build-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - run: |
+          cd backend
+          VERSION=0.0.0-${{ github.sha }}+$(date '+%Y%m%d%H%M')
+          sed "s/\"version\":[^,]*/\"version\": \"${VERSION}\"/" -i package.json
+      - run: cd backend && npm ci
+      - run: cd backend && npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-build
+          path: backend/build
+          retention-days: 1
+
+  build-backend-v2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: backend-v2/go.sum
+      - run: cd backend-v2 && go mod download
+      - run: cd backend-v2 && go mod tidy
+      - run: cd backend-v2 && go build -ldflags="-s -w" -o backend-v2 .
+      - run: cd backend-v2 && chmod +x backend-v2
+      - run: cd backend-v2 && go build -o seed-users ./cmd/seed-users/main.go
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-v2-binaries
+          path: |
+            backend-v2/backend-v2
+            backend-v2/seed-users
+          retention-days: 1
+
+  build-chatpopup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+          cache-dependency-path: plugins/chat-popup/pnpm-lock.yaml
+      - run: |
+          cd plugins/chat-popup
+          VERSION=0.0.0-${{ github.sha }}+$(date '+%Y%m%d%H%M')
+          sed "s/\"version\":[^,]*/\"version\": \"${VERSION}\"/" -i package.json
+      - run: cd plugins/chat-popup && pnpm install --frozen-lockfile
+      - run: cd plugins/chat-popup && GENERATE_SOURCEMAP=false pnpm run build
+      - run: ls plugins/chat-popup/dist/index.html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chatpopup-dist
+          path: plugins/chat-popup/dist
+          retention-days: 1
+
+  e2e-backend:
+    runs-on: ubuntu-latest
+    needs: build-backend-v2
+    services:
+      mongodb:
+        image: mongo:4.2.8
+        ports:
+          - 27017:27017
+    env:
+      MONGO_HOST: localhost
+      MONGO_PORT: 27017
+      MONGO_DB: delta5_${{ github.run_id }}
+      MONGO_URI: mongodb://localhost:27017/delta5_${{ github.run_id }}
+      E2E_MONGO_URI: mongodb://localhost:27017/delta5_${{ github.run_id }}
+      JWT_SECRET: test-jwt-secret-change-in-production
+      API_ROOT: /api/v2
+      BACKEND_PORT: 3002
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-v2-binaries
+          path: backend-v2
+      - run: chmod +x backend-v2/backend-v2 backend-v2/seed-users
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: backend-v2/e2e/package-lock.json
+      - run: cd backend-v2/e2e && npm ci
+      - run: DROP_DB=true bash backend-v2/e2e-db-init.sh
+      - run: |
+          cd backend-v2
+          MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" PORT="${BACKEND_PORT}" API_ROOT="${API_ROOT}" MOCK_EXTERNAL_SERVICES=true nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
+          sleep 5
+          if ! kill -0 $(cat backend-e2e.pid); then
+            echo "Backend failed to start"
+            cat backend-e2e.log
+            exit 1
+          fi
+      - run: curl -f http://localhost:${BACKEND_PORT}${API_ROOT}/health || (cat backend-v2/backend-e2e.log; exit 1)
+      - run: cd backend-v2/e2e && E2E_SERVER_URL=http://localhost:${BACKEND_PORT} E2E_API_BASE_PATH=${API_ROOT} E2E_MONGO_URI="${E2E_MONGO_URI}" npm test
+      - run: kill $(cat backend-v2/backend-e2e.pid) || true
+      - run: cd backend-v2 && bash e2e-db-drop.sh 2>/dev/null || true
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-e2e-logs
+          path: backend-v2/backend-e2e.log
+
+  e2e-frontend:
+    runs-on: ubuntu-latest
+    needs: build-backend-v2
+    services:
+      mongodb:
+        image: mongo:4.2.8
+        ports:
+          - 27017:27017
+    env:
+      MONGO_HOST: localhost
+      MONGO_PORT: 27017
+      MONGO_DB: delta5_${{ github.run_id }}
+      MONGO_URI: mongodb://localhost:27017/delta5_${{ github.run_id }}
+      JWT_SECRET: test-jwt-secret-change-in-production
+      API_ROOT: /api/v2
+      BACKEND_PORT: 3002
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-v2-binaries
+          path: backend-v2
+      - run: chmod +x backend-v2/backend-v2 backend-v2/seed-users
+      - run: DROP_DB=true bash backend-v2/e2e-db-init.sh
+      - run: |
+          cd backend-v2
+          MONGO_DATABASE="delta5_${{ github.run_id }}" MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" PORT="${BACKEND_PORT}" API_ROOT="${API_ROOT}" MOCK_EXTERNAL_SERVICES=true nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
+          sleep 5
+          if ! kill -0 $(cat backend-e2e.pid); then
+            echo "Backend failed to start"
+            cat backend-e2e.log
+            exit 1
+          fi
+      - run: curl -f http://localhost:${BACKEND_PORT}${API_ROOT}/health || (cat backend-v2/backend-e2e.log; exit 1)
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: cd frontend && pnpm install --frozen-lockfile
+      - run: cd frontend && pnpm exec playwright install --with-deps
+      - run: cd frontend && pnpm run genversion
+      - run: |
+          cd frontend
+          nohup pnpm dev > vite-e2e.log 2>&1 & echo $! > vite-e2e.pid
+          sleep 10
+      - run: curl -f http://localhost:5173 || (cat frontend/vite-e2e.log; kill $(cat backend-v2/backend-e2e.pid); exit 1)
+      - run: |
+          cd frontend
+          E2E_ADMIN_USER=admin E2E_ADMIN_PASS='P@ssw0rd!' E2E_OPEN_API_KEY='mock-openai-key' E2E_DEEPSEEK_API_KEY='mock-deepseek-key' E2E_QWEN_API_KEY='mock-qwen-key' E2E_CLAUDE_API_KEY='mock-claude-key' E2E_PERPLEXITY_API_KEY='mock-perplexity-key' E2E_YANDEX_API_KEY='mock-yandex-key' E2E_YANDEX_FOLDER_ID='mock-folder-id' E2E_CUSTOM_LLM_URL='http://localhost:8080' CI=true pnpm run test:e2e:ci || TEST_EXIT=$?
+          kill $(cat vite-e2e.pid) || true
+          kill $(cat ../backend-v2/backend-e2e.pid) || true
+          exit ${TEST_EXIT:-0}
+      - run: cd backend-v2 && bash e2e-db-drop.sh 2>/dev/null || true
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-e2e-artifacts
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+            frontend/vite-e2e.log
+            backend-v2/backend-e2e.log
