@@ -45,9 +45,6 @@ END {
     total_commits_all += total_commits[a]
   }
   
-  print "# Time Estimation Report"
-  print ""
-  
   if (range != "--all") {
     print "**Scope**: Branch commits only (" range ")"
   } else {
