@@ -61,15 +61,6 @@ services:
     volumes:
       - ./data/mongodb:/data/db
 
-  mongodb-e2e:
-    image: mongo:4.4.21
-    restart: unless-stopped
-    command: "--wiredTigerCacheSizeGB=1 --logpath=/dev/stdout"
-    ports:
-      - "27018:27017"
-    volumes:
-      - ./data/mongodb-e2e:/data/db
-
   traefik:
     image: traefik:2.10.1
     restart: unless-stopped

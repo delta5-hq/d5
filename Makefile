@@ -106,14 +106,14 @@ dev-db-drop:
 
 start-mongodb-dev:
 	@echo "→ Starting development MongoDB (port 27017)..."
-	@docker-compose up -d mongodb-dev
+	@docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d mongodb-dev
 	@echo "→ Waiting for MongoDB..."
 	@sleep 3
 	@echo "✓ Development MongoDB ready"
 
 start-mongodb-e2e:
 	@echo "→ Starting E2E MongoDB (port 27018)..."
-	@docker-compose up -d mongodb-e2e
+	@docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d mongodb-e2e
 	@echo "→ Waiting for MongoDB..."
 	@sleep 3
 	@echo "✓ E2E MongoDB ready"
@@ -134,7 +134,7 @@ dev-frontend:
 	@echo "→ Starting frontend dev server..."
 	@cd frontend && pnpm dev
 
-dev: start-mongodb-dev seed-dev
+dev: start-mongodb-dev dev-db-init
 	@echo "→ Building backend-v2..."
 	@cd backend-v2 && $(MAKE) build
 	@echo "→ Starting backend-v2..."
@@ -161,7 +161,8 @@ stop:
 	@echo "→ Stopping all services..."
 	@cd backend-v2 && $(MAKE) stop 2>/dev/null || true
 	@echo "  → Stopping MongoDB containers..."
-	@docker-compose stop mongodb-dev mongodb-e2e 2>/dev/null || true
+	@docker-compose -f docker-compose.yml -f docker-compose.dev.yml stop mongodb-dev mongodb-e2e 2>/dev/null || true
+	@docker ps -q --filter "name=mongodb-dev" | xargs -r docker stop 2>/dev/null || true
 	@docker ps -q --filter "name=mongodb-e2e" | xargs -r docker stop 2>/dev/null || true
 	@echo "  → Killing processes on port 5173..."
 	@lsof -ti:5173 2>/dev/null | xargs -r kill -9 2>/dev/null || true
@@ -274,7 +275,7 @@ setup-build-tools:
 
 fix-permissions:
 	@echo "→ Fixing data directory permissions..."
-	@docker-compose stop mongodb-dev mongodb-e2e 2>/dev/null || true
+	@docker-compose -f docker-compose.yml -f docker-compose.dev.yml stop mongodb-dev mongodb-e2e 2>/dev/null || true
 	@if [ -d "data/mongodb-dev" ]; then \
 		docker run --rm --network $(DOCKER_NETWORK) -v $(PWD)/data:/data alpine chown -R $(shell id -u):$(shell id -g) /data/mongodb-dev 2>/dev/null || true; \
 	fi
