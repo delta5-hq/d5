@@ -160,7 +160,9 @@ dev: start-mongodb-dev seed-dev
 stop:
 	@echo "→ Stopping all services..."
 	@cd backend-v2 && $(MAKE) stop 2>/dev/null || true
+	@echo "  → Stopping MongoDB containers..."
 	@docker-compose stop mongodb-dev mongodb-e2e 2>/dev/null || true
+	@docker ps -q --filter "name=mongodb-e2e" | xargs -r docker stop 2>/dev/null || true
 	@echo "  → Killing processes on port 5173..."
 	@lsof -ti:5173 2>/dev/null | xargs -r kill -9 2>/dev/null || true
 	@sleep 1

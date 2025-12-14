@@ -5,7 +5,7 @@ services:
     image: "registry.dreaktor.com/solidbranch/d5/d5:backend-latest"
     restart: unless-stopped
     labels:
-      - traefik.http.routers.backend-d5.rule=Host(`app.delta5.tech`, `delta5.tech`) && PathPrefix(`/api`, `/socket.io`, `/websocket`)
+      - traefik.http.routers.backend-d5.rule=Host(`app.delta5.tech`, `delta5.tech`) && PathPrefix(`/api/v1`, `/socket.io`, `/websocket`)
       - traefik.http.services.backend-d5.loadbalancer.server.port=3000
       - traefik.http.routers.backend-d5.entrypoints=http # https
       #- traefik.http.routers.backend-d5.tls.certresolver=letsencrypt
@@ -42,6 +42,8 @@ services:
       PORT: "3002"
       API_ROOT: "/api/v2"
       MOCK_EXTERNAL_SERVICES: "false"
+      NODEJS_BACKEND_URL: "http://backend:3000"
+      NODEJS_API_ROOT: "/api/v1"
 
   frontend:
     image: "registry.dreaktor.com/solidbranch/d5/d5:frontend-latest"
@@ -52,32 +54,21 @@ services:
       - traefik.http.routers.frontend-d5.entrypoints=http # https
       #- traefik.http.routers.frontend-d5.tls.certresolver=letsencrypt
 
-  mongodb-dev:
+  mongodb:
     image: mongo:4.4.21
-    container_name: d5-mongodb-dev
     restart: unless-stopped
     command: "--wiredTigerCacheSizeGB=1 --logpath=/dev/stdout"
-    user: "${UID:-1000}:${GID:-1000}"
-    ports:
-      - "27017:27017"
     volumes:
-      - ./data/mongodb-dev:/data/db
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=
-      - MONGO_INITDB_ROOT_PASSWORD=
+      - ./data/mongodb:/data/db
 
   mongodb-e2e:
     image: mongo:4.4.21
-    container_name: d5-mongodb-e2e
     restart: unless-stopped
     command: "--wiredTigerCacheSizeGB=1 --logpath=/dev/stdout"
     ports:
       - "27018:27017"
     volumes:
       - ./data/mongodb-e2e:/data/db
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=
-      - MONGO_INITDB_ROOT_PASSWORD=
 
   traefik:
     image: traefik:2.10.1
@@ -121,8 +112,3 @@ services:
     environment:
       API_ROOT: "https://app.delta5.tech"
       BASE_URL: "chat-popup"
-
-networks:
-  default:
-    name: d5-dev-network
-    external: true
