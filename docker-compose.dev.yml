@@ -1,0 +1,34 @@
+version: "3.9"
+services:
+
+  mongodb-dev:
+    image: mongo:4.4.21
+    container_name: d5-mongodb-dev
+    restart: unless-stopped
+    command: "--wiredTigerCacheSizeGB=1 --logpath=/dev/stdout"
+    user: "${UID:-1000}:${GID:-1000}"
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./data/mongodb-dev:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=
+      - MONGO_INITDB_ROOT_PASSWORD=
+
+  mongodb-e2e:
+    image: mongo:4.4.21
+    container_name: d5-mongodb-e2e
+    restart: unless-stopped
+    command: "--wiredTigerCacheSizeGB=1 --logpath=/dev/stdout"
+    ports:
+      - "27018:27017"
+    volumes:
+      - ./data/mongodb-e2e:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=
+      - MONGO_INITDB_ROOT_PASSWORD=
+
+networks:
+  default:
+    name: d5-dev-network
+    external: true

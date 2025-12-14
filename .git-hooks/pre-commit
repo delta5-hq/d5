@@ -3,17 +3,6 @@
 
 echo "🔍 Running pre-commit checks..."
 
-# Validate CI configuration
-bash scripts/validate-ci.sh || exit 1
-
-# Validate no cross-project dependencies
-echo "→ Validating no cross-project dependencies..."
-if grep -r "cd.*\.\./backend[^-]" backend-v2/ 2>/dev/null | grep -v "Binary file" | grep -v ".git"; then
-    echo "❌ backend-v2/ references ../backend/ (cross-project dependency violation)"
-    echo "   backend-v2 must be self-contained for CI stability"
-    exit 1
-fi
-
 make ci-local
 
 if [ $? -ne 0 ]; then

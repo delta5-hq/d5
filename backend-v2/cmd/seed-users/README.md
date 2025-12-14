@@ -2,12 +2,6 @@
 
 Centralized MongoDB seeding utility for E2E tests and development environments.
 
-## Design Principles
-
-- **DRY**: Single source of truth for database seeding logic
-- **SOLID**: Single responsibility - seeds users only
-- **KISS**: Simple CLI interface with minimal flags
-
 ## Usage
 
 ```bash
