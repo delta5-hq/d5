@@ -291,9 +291,8 @@ func (ctrl *Controller) UserStatistics(c *fiber.Ctx) error {
 		stats = bson.M{}
 	}
 
-	// Build response
 	response := bson.M{
-		"id":                   user["_id"],
+		"id":                   user["id"],
 		"name":                 user["name"],
 		"mail":                 user["mail"],
 		"roles":                user["roles"],
@@ -316,14 +315,12 @@ func (ctrl *Controller) UserStatistics(c *fiber.Ctx) error {
 	return c.JSON(response)
 }
 
-/* POST /statistics/users/:userId/comment - add user comment */
 func (ctrl *Controller) UserComment(c *fiber.Ctx) error {
 	userId := c.Params("userId")
 	if userId == "" {
 		return response.BadRequest(c, "User ID required")
 	}
 
-	/* userId is a string field (id), not ObjectID */
 	var payload struct {
 		Data string `json:"data"`
 	}
@@ -332,7 +329,17 @@ func (ctrl *Controller) UserComment(c *fiber.Ctx) error {
 	}
 
 	userColl := ctrl.db.Collection("users")
-	err := userColl.UpdateOne(c.Context(), bson.M{"id": userId}, bson.M{"$set": bson.M{"comment": payload.Data}})
+
+	var existingUser bson.M
+	err := userColl.Find(c.Context(), bson.M{"id": userId}).One(&existingUser)
+	if err == qmgo.ErrNoSuchDocuments {
+		return response.NotFound(c, "User not found")
+	}
+	if err != nil {
+		return response.InternalError(c, err.Error())
+	}
+
+	err = userColl.UpdateOne(c.Context(), bson.M{"id": userId}, bson.M{"$set": bson.M{"comment": payload.Data}})
 	if err != nil {
 		return response.InternalError(c, err.Error())
 	}

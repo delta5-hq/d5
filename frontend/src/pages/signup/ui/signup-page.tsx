@@ -19,6 +19,9 @@ const signupSchema = z.object({
   username: z
     .string()
     .min(1, { message: 'usernameRequired' })
+    .refine(val => !val.includes('@'), {
+      message: 'usernameCannotContainAtSymbol',
+    })
     .refine(val => !validateUsernameOrEmail(val), {
       message: 'fieldHaveSpacesBetweenChars',
     }),
@@ -31,6 +34,7 @@ const signupSchema = z.object({
   password: z
     .string()
     .min(1, { message: 'passwordRequired' })
+    .min(7, { message: 'passwordMinLength' })
     .refine(val => isValidPassword(val), {
       message: 'invalidPassword',
     }),

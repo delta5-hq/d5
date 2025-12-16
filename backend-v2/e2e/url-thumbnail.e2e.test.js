@@ -26,7 +26,8 @@ describe('URL Thumbnail E2E', () => {
       const res = await subscriberRequest.get(`/url/thumbnail?url=${encodeURIComponent(url)}&size=invalid`)
 
       expect(res.status).toBe(400)
-      expect(res.text).toContain('Wrong size given')
+      expect(res.body).toHaveProperty('message')
+      expect(res.body.message).toContain('Wrong size given')
     })
 
     it('accepts valid size parameters', async () => {
@@ -42,11 +43,12 @@ describe('URL Thumbnail E2E', () => {
     it('requires url parameter', async () => {
       const res = await subscriberRequest.get('/url/thumbnail')
       expect(res.status).toBe(400)
-      expect(res.text).toContain('Url is required')
+      expect(res.body).toHaveProperty('message')
+      expect(res.body.message).toContain('Url is required')
     })
 
     it('handles external service errors', async () => {
-      /* In E2E_MODE, noop service always succeeds */
+      /* Mock service always succeeds */
       const url = 'https://example.com'
       const res = await subscriberRequest.get(`/url/thumbnail?url=${encodeURIComponent(url)}`)
 
@@ -78,7 +80,8 @@ describe('URL Thumbnail E2E - Subscriber Tests', () => {
       const res = await subscriberRequest.get(`/url/thumbnail?url=${encodeURIComponent(url)}&size=invalid`)
 
       expect(res.status).toBe(400)
-      expect(res.text).toContain('Wrong size given')
+      expect(res.body).toHaveProperty('message')
+      expect(res.body.message).toContain('Wrong size given')
     })
   })
 })

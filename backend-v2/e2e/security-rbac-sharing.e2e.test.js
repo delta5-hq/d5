@@ -72,7 +72,7 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
       })
 
       expect(response.status).toBe(403)
-      expect(response.body.error).toMatch(/owner/i)
+      expect(response.body.message).toMatch(/owner/i)
     })
 
     it('prevents non-owner from updating access list', async () => {
@@ -85,7 +85,7 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
       ])
 
       expect(response.status).toBe(403)
-      expect(response.body.error).toMatch(/owner/i)
+      expect(response.body.message).toMatch(/owner/i)
     })
 
     it('prevents contributor from updating public sharing', async () => {
@@ -155,7 +155,7 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
       })
 
       expect(response.status).toBe(403)
-      expect(response.body.error).toMatch(/administrator/i)
+      expect(response.body.message).toMatch(/administrator/i)
     })
   })
 

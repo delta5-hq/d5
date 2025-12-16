@@ -159,8 +159,8 @@ func (h *WorkflowController) CreateWorkflow(c *fiber.Ctx) error {
 	})
 
 	if createErr != nil {
-		return c.Status(createErr.Status).JSON(fiber.Map{
-			"error": createErr.Message,
+		return c.Status(createErr.Status).JSON(response.ErrorResponse{
+			Message: createErr.Message,
 		})
 	}
 
@@ -174,8 +174,8 @@ func (h *WorkflowController) DeleteWorkflow(c *fiber.Ctx) error {
 
 	err := h.Service.DeleteWorkflow(c.Context(), workflowId, access)
 	if err != nil {
-		return c.Status(err.Status).JSON(fiber.Map{
-			"error": err.Message,
+		return c.Status(err.Status).JSON(response.ErrorResponse{
+			Message: err.Message,
 		})
 	}
 
@@ -210,8 +210,8 @@ func (h *WorkflowController) SetShareAccess(c *fiber.Ctx) error {
 
 	err := h.Service.SetShareAccess(c.Context(), workflow, access, update)
 	if err != nil {
-		return c.Status(err.Status).JSON(fiber.Map{
-			"error": err.Message,
+		return c.Status(err.Status).JSON(response.ErrorResponse{
+			Message: err.Message,
 		})
 	}
 
@@ -272,8 +272,8 @@ func (h *WorkflowController) SetSharePublic(c *fiber.Ctx) error {
 
 	err := h.Service.SetSharePublic(c.Context(), workflow, access, &publicState, userRoles)
 	if err != nil {
-		return c.Status(err.Status).JSON(fiber.Map{
-			"error": err.Message,
+		return c.Status(err.Status).JSON(response.ErrorResponse{
+			Message: err.Message,
 		})
 	}
 
@@ -290,8 +290,8 @@ func (h *WorkflowController) CreateWorkflowFromTemplate(c *fiber.Ctx) error {
 	workflow, createErr := h.Service.CreateWorkflowFromTemplate(c.Context(), template, userID)
 
 	if createErr != nil {
-		return c.Status(createErr.Status).JSON(fiber.Map{
-			"error": createErr.Message,
+		return c.Status(createErr.Status).JSON(response.ErrorResponse{
+			Message: createErr.Message,
 		})
 	}
 

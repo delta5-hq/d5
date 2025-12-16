@@ -311,8 +311,8 @@ describe('Workflow Router - Subscriber Tests', () => {
         title: 'Limit Test Workflow',
       })
       expect(response.status).toBe(402)
-      const responseText = response.body?.message || response.text || ''
-      expect(responseText).toContain('Workflow limit reached')
+      expect(response.body).toHaveProperty('message')
+      expect(response.body.message).toContain('Workflow limit reached')
     })
 
     it('allows workflow creation after deleting existing workflow', async () => {

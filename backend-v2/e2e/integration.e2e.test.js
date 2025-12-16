@@ -212,7 +212,8 @@ describe('Integration Router', () => {
       await subscriberRequest.put('/integration/openai/update').send({apiKey: 'openai-key'})
       const firstRes = await subscriberRequest.get('/integration')
       expect(firstRes.status).toBe(200)
-      expect(firstRes.body).toBeTruthy()
+      expect(firstRes.body).toBeDefined()
+      expect(typeof firstRes.body).toBe('object')
       expect(firstRes.body).toHaveProperty('openai')
       
       /* Add deepseek - should NOT delete openai store */
