@@ -12,7 +12,7 @@ export const CUSTOM_LLM_CHAT_COMPLETIONS_PATH = `${API_BASE_PATH}/integration/cu
 
 export const QWEN_API_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1'
 
-export const DEEPSEEK_API_URL = 'https://api.deepseek.com'
+export const DEEPSEEK_API_URL = `${window.location.origin}${API_BASE_PATH}/integration/deepseek`
 
 export enum OpenaiModels {
   GPT_3_5_TURBO = 'gpt-3.5-turbo',
