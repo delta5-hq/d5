@@ -6,7 +6,7 @@ import { Copyright } from '@shared/ui/copyright'
 import { Input } from '@shared/ui/input'
 import { Label } from '@shared/ui/label'
 import { Logo } from '@shared/ui/logo'
-import { Version } from '@shared/ui/version'
+import { VersionBase } from '@shared/ui/version'
 import { useCallback, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { FormattedMessage } from 'react-intl'
@@ -86,7 +86,7 @@ const ForgotPassword = () => {
             </div>
 
             <div className="text-center text-foreground/40 text-sm">
-              <FormattedMessage id="version" /> <Version /> <Copyright />
+              <FormattedMessage id="version" /> <VersionBase /> <Copyright />
             </div>
           </div>
 

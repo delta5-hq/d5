@@ -1,13 +1,12 @@
 .menuLinkButton {
   position: relative;
-  color: var(--accent);
 
-  &::before {
+  &::after {
     position: absolute;
-    width: 2px;
+    width: 3px;
     height: 100%;
-
-    left: 0;
+    top: 0;
+    right: -8px;
     background-color: var(--accent);
     content: "";
   }
@@ -15,4 +14,5 @@
 
 .menuLinkText {
   color: var(--accent);
+  font-weight: 600;
 }

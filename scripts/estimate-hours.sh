@@ -1,9 +1,9 @@
 #!/bin/bash
 # Estimate hours worked based on commit timestamps
-# Algorithm: commits within 2h are same session, add 2h bonus per session
+# Algorithm: commits within 2h are same session, add 0.5h bonus per session
 
 THRESHOLD=7200  # 2 hours in seconds
-BONUS=7200      # 2 hours bonus per session
+BONUS=1800      # 0.5 hours bonus per session (AI-assisted era)
 
 # Get base and head commits for branch comparison
 BASE_REF="${1:-main}"

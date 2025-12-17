@@ -102,6 +102,10 @@ func (s *NoopService) YandexCompletion(c *fiber.Ctx) error {
 	})
 }
 
+func (s *NoopService) DeepSeekChatCompletions(c *fiber.Ctx) error {
+	return s.ChatCompletions(c)
+}
+
 func (s *NoopService) CustomLLMChatCompletions(c *fiber.Ctx) error {
 	return s.ChatCompletions(c)
 }

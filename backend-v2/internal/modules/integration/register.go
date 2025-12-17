@@ -39,6 +39,7 @@ func Register(router fiber.Router, db *qmgo.Database, services *container.Servic
 	protectedGroup.Post("/perplexity/chat/completions", services.LLMProxy.PerplexityChatCompletions)
 	protectedGroup.Post("/claude/messages", services.LLMProxy.ClaudeMessages)
 	protectedGroup.Post("/yandex/completion", services.LLMProxy.YandexCompletion)
+	protectedGroup.Post("/deepseek/chat/completions", services.LLMProxy.DeepSeekChatCompletions)
 	protectedGroup.Post("/custom_llm/chat/completions", services.LLMProxy.CustomLLMChatCompletions)
 	protectedGroup.Post("/custom_llm/embeddings", services.LLMProxy.CustomLLMEmbeddings)
 

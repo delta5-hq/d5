@@ -20,7 +20,7 @@ describe('Authentication Router', () => {
   })
 
   describe('POST /auth/signup', () => {
-    it('should add user to waitlist', async () => {
+    it('should add user to waitlist with valid credentials', async () => {
       const validCredentials = getValidCredentials()
       const res = await publicRequest.post('/auth/signup').send(validCredentials)
 
@@ -29,28 +29,136 @@ describe('Authentication Router', () => {
       expect(res.body.success).toBe(true)
     })
 
-    it('should return 401 for invalid email', async () => {
-      const validCredentials = getValidCredentials()
-      const res = await publicRequest.post('/auth/signup').send({username: 'testuser456', mail: 'invalid', password: validCredentials.password})
+    describe('email validation', () => {
+      it('should reject email without @ symbol', async () => {
+        const validCredentials = getValidCredentials()
+        const res = await publicRequest.post('/auth/signup').send({
+          username: 'testuser456',
+          mail: 'invalidemail',
+          password: validCredentials.password,
+        })
 
-      expect(res.status).toBe(401)
-      expect(res.text).toContain('Invalid username or email')
+        expect(res.status).toBe(400)
+        expect(res.body).toHaveProperty('message')
+        expect(res.body.message).toContain('Invalid email format')
+      })
+
+      it('should reject email without domain', async () => {
+        const validCredentials = getValidCredentials()
+        const res = await publicRequest.post('/auth/signup').send({
+          username: 'testuser789',
+          mail: 'user@',
+          password: validCredentials.password,
+        })
+
+        expect(res.status).toBe(400)
+        expect(res.body).toHaveProperty('message')
+        expect(res.body.message).toContain('Invalid email format')
+      })
     })
 
-    it('should return 400 for weak password', async () => {
-      const res = await publicRequest.post('/auth/signup').send({username: 'testuser789', mail: 'testuser789@example.com', password: '123'})
+    describe('username validation', () => {
+      it('should reject username containing @ symbol', async () => {
+        const res = await publicRequest.post('/auth/signup').send({
+          username: 'user@test',
+          mail: 'validmail@example.com',
+          password: 'ValidPass123!',
+        })
 
-      expect(res.status).toBe(400)
-      expect(res.text).toContain('password')
+        expect(res.status).toBe(400)
+        expect(res.body).toHaveProperty('message')
+        expect(res.body.message).toContain('Invalid username')
+        expect(res.body.message).toContain('must not contain @ symbol')
+      })
+
+      it('should accept username with numbers and hyphens', async () => {
+        const unique = `${Date.now()}-${Math.floor(Math.random() * 10000)}`
+        const res = await publicRequest.post('/auth/signup').send({
+          username: `user-123-${unique}`,
+          mail: `user123-${unique}@example.com`,
+          password: 'ValidPass123!',
+        })
+
+        expect(res.status).toBe(200)
+        expect(res.body.success).toBe(true)
+      })
     })
 
-    it('should return 400 for duplicate email', async () => {
-      const validCredentials = getValidCredentials()
-      await publicRequest.post('/auth/signup').send(validCredentials)
-      const res = await publicRequest.post('/auth/signup').send(validCredentials)
+    describe('password validation', () => {
+      it('should reject password shorter than minimum length', async () => {
+        const res = await publicRequest.post('/auth/signup').send({
+          username: 'testuser999',
+          mail: 'testuser999@example.com',
+          password: '123',
+        })
 
-      expect(res.status).toBe(400)
-      expect(res.text).toContain('already in waitlist')
+        expect(res.status).toBe(400)
+        expect(res.body).toHaveProperty('message')
+        expect(res.body.message).toMatch(/password/i)
+      })
+
+      it('should accept password at minimum length boundary', async () => {
+        const unique = `${Date.now()}-${Math.floor(Math.random() * 10000)}`
+        const res = await publicRequest.post('/auth/signup').send({
+          username: `testmin-${unique}`,
+          mail: `testmin-${unique}@example.com`,
+          password: '1234567',
+        })
+
+        expect(res.status).toBe(200)
+        expect(res.body.success).toBe(true)
+      })
+    })
+
+    describe('duplicate prevention', () => {
+      it('should reject duplicate email addresses', async () => {
+        const validCredentials = getValidCredentials()
+        await publicRequest.post('/auth/signup').send(validCredentials)
+        const res = await publicRequest.post('/auth/signup').send(validCredentials)
+
+        expect(res.status).toBe(400)
+        expect(res.body).toHaveProperty('message')
+        expect(res.body.message).toContain('already in waitlist')
+      })
+    })
+
+    describe('request payload validation', () => {
+      it('should reject missing username field', async () => {
+        const res = await publicRequest.post('/auth/signup').send({
+          mail: 'test@example.com',
+          password: 'ValidPass123!',
+        })
+
+        expect(res.status).toBe(400)
+      })
+
+      it('should reject missing email field', async () => {
+        const res = await publicRequest.post('/auth/signup').send({
+          username: 'testuser',
+          password: 'ValidPass123!',
+        })
+
+        expect(res.status).toBe(400)
+      })
+
+      it('should reject missing password field', async () => {
+        const res = await publicRequest.post('/auth/signup').send({
+          username: 'testuser',
+          mail: 'test@example.com',
+        })
+
+        expect(res.status).toBe(400)
+      })
+
+      it('should reject empty username', async () => {
+        const res = await publicRequest.post('/auth/signup').send({
+          username: '',
+          mail: 'test@example.com',
+          password: 'ValidPass123!',
+        })
+
+        expect(res.status).toBe(400)
+      })
     })
   })
 
@@ -132,7 +240,8 @@ describe('Authentication Router', () => {
       const res = await publicRequest.post('/auth/reset-password/invalid-token').send({password: 'NewPass123!'})
 
       expect(res.status).toBe(404)
-      expect(res.text).toContain('not found')
+      expect(res.body).toHaveProperty('message')
+      expect(res.body.message).toMatch(/not found/i)
     })
 
     it('should validate password strength', async () => {
@@ -140,7 +249,8 @@ describe('Authentication Router', () => {
 
       /* Invalid token returns 404 */
       expect(res.status).toBe(404)
-      expect(res.text).toContain('not found')
+      expect(res.body).toHaveProperty('message')
+      expect(res.body.message).toMatch(/not found/i)
     })
   })
 
@@ -163,7 +273,8 @@ describe('Authentication Router', () => {
       /* HTTP mode: Cannot easily generate valid tokens, test invalid token handling */
       const res = await publicRequest.post('/auth/reset-password/invalid-token-here').send({password: '123'})
       expect(res.status).toBe(404)
-      expect(res.text).toContain('not found')
+      expect(res.body).toHaveProperty('message')
+      expect(res.body.message).toMatch(/not found/i)
     })
   })
 })

@@ -98,6 +98,45 @@ describe('Statistics E2E', () => {
       expect(body).toHaveProperty('id')
       expect(body).toHaveProperty('workflowCount')
     })
+
+    it('returns application user ID not MongoDB ObjectID', async () => {
+      const res = await administratorRequest.get(`/statistics/users/${testUser.id}`)
+      expect(res.status).toBe(200)
+      const body = JSON.parse(res.text)
+      
+      expect(body.id).toBe(testUser.id)
+      expect(typeof body.id).toBe('string')
+      expect(body.id).not.toMatch(/^[0-9a-f]{24}$/i)
+    })
+
+    it('returns 404 for non-existent user', async () => {
+      const res = await administratorRequest.get('/statistics/users/nonexistent-user-id')
+      expect(res.status).toBe(404)
+    })
+
+    it('includes all expected user statistics fields', async () => {
+      const res = await administratorRequest.get(`/statistics/users/${testUser.id}`)
+      expect(res.status).toBe(200)
+      const body = JSON.parse(res.text)
+      
+      expect(body).toHaveProperty('id')
+      expect(body).toHaveProperty('name')
+      expect(body).toHaveProperty('mail')
+      expect(body).toHaveProperty('roles')
+      expect(body).toHaveProperty('workflowCount')
+      expect(body).toHaveProperty('nodeCount')
+      expect(body).toHaveProperty('edgeCount')
+    })
+
+    it('requires authentication', async () => {
+      const res = await publicRequest.get(`/statistics/users/${testUser.id}`)
+      expect(res.status).toBe(403)
+    })
+
+    it('requires admin role', async () => {
+      const res = await subscriberRequest.get(`/statistics/users/${testUser.id}`)
+      expect(res.status).toBe(403)
+    })
   })
 
   describe('POST /statistics/users/:userId/comment', () => {
@@ -106,6 +145,97 @@ describe('Statistics E2E', () => {
       const res = await administratorRequest.post(`/statistics/users/${testUser.id}/comment`).send({data: 'Test comment'})
       expect(res.status).toBe(200)
       expect(JSON.parse(res.text).success).toBe(true)
+    })
+
+    it('updates existing comment with new value', async () => {
+      const firstComment = 'First comment'
+      const secondComment = 'Updated comment'
+      
+      await administratorRequest.post(`/statistics/users/${testUser.id}/comment`).send({data: firstComment})
+      const res = await administratorRequest.post(`/statistics/users/${testUser.id}/comment`).send({data: secondComment})
+      
+      expect(res.status).toBe(200)
+      expect(JSON.parse(res.text).success).toBe(true)
+
+      const userRes = await administratorRequest.get(`/statistics/users/${testUser.id}`)
+      const userData = JSON.parse(userRes.text)
+      expect(userData.comment).toBe(secondComment)
+    })
+
+    it('handles empty comment string', async () => {
+      const res = await administratorRequest.post(`/statistics/users/${testUser.id}/comment`).send({data: ''})
+      expect(res.status).toBe(200)
+      expect(JSON.parse(res.text).success).toBe(true)
+    })
+
+    it('handles long comment text', async () => {
+      const longComment = 'a'.repeat(5000)
+      const res = await administratorRequest.post(`/statistics/users/${testUser.id}/comment`).send({data: longComment})
+      expect(res.status).toBe(200)
+      expect(JSON.parse(res.text).success).toBe(true)
+    })
+
+    it('returns 404 for non-existent user ID', async () => {
+      const res = await administratorRequest.post('/statistics/users/nonexistent-user-id/comment').send({data: 'Test comment'})
+      expect(res.status).toBe(404)
+      expect(JSON.parse(res.text).message).toMatch(/not found/i)
+    })
+
+    it('returns 404 for malformed user ID format', async () => {
+      const res = await administratorRequest.post('/statistics/users/invalid@#$%/comment').send({data: 'Test'})
+      expect(res.status).toBe(404)
+    })
+
+    it('accepts empty payload and sets empty comment', async () => {
+      const res = await administratorRequest.post(`/statistics/users/${testUser.id}/comment`).send({})
+      expect(res.status).toBe(200)
+      expect(JSON.parse(res.text).success).toBe(true)
+    })
+
+    it('returns 400 for invalid JSON payload', async () => {
+      const res = await administratorRequest.post(`/statistics/users/${testUser.id}/comment`).send('invalid-json')
+      expect(res.status).toBe(400)
+    })
+
+    it('requires authentication', async () => {
+      const res = await publicRequest.post(`/statistics/users/${testUser.id}/comment`).send({data: 'Test'})
+      expect(res.status).toBe(403)
+    })
+
+    it('requires admin role', async () => {
+      const res = await subscriberRequest.post(`/statistics/users/${testUser.id}/comment`).send({data: 'Test'})
+      expect(res.status).toBe(403)
+    })
+
+    it('handles special characters in comment', async () => {
+      const specialComment = '<script>alert("xss")</script>\n\t Special: !@#$%^&*()'
+      const res = await administratorRequest.post(`/statistics/users/${testUser.id}/comment`).send({data: specialComment})
+      expect(res.status).toBe(200)
+      
+      const userRes = await administratorRequest.get(`/statistics/users/${testUser.id}`)
+      const userData = JSON.parse(userRes.text)
+      expect(userData.comment).toBe(specialComment)
+    })
+
+    it('handles unicode and emoji in comment', async () => {
+      const unicodeComment = 'Test 中文 🚀 emoji'
+      const res = await administratorRequest.post(`/statistics/users/${testUser.id}/comment`).send({data: unicodeComment})
+      expect(res.status).toBe(200)
+      
+      const userRes = await administratorRequest.get(`/statistics/users/${testUser.id}`)
+      const userData = JSON.parse(userRes.text)
+      expect(userData.comment).toBe(unicodeComment)
+    })
+
+    it('preserves comment after multiple reads', async () => {
+      const persistentComment = 'Persistent comment'
+      await administratorRequest.post(`/statistics/users/${testUser.id}/comment`).send({data: persistentComment})
+      
+      for (let i = 0; i < 3; i++) {
+        const res = await administratorRequest.get(`/statistics/users/${testUser.id}`)
+        const userData = JSON.parse(res.text)
+        expect(userData.comment).toBe(persistentComment)
+      }
     })
   })
 

@@ -36,6 +36,11 @@ var providerConfigs = map[string]ProviderConfig{
 		AuthExtractor:  BearerTokenExtractor,
 		AuthHeaderName: headerAuth,
 	},
+	"deepseek": {
+		URL:            "https://api.deepseek.com/chat/completions",
+		AuthExtractor:  BearerTokenExtractor,
+		AuthHeaderName: headerAuth,
+	},
 }
 
 func GetProviderConfig(provider string) (ProviderConfig, bool) {

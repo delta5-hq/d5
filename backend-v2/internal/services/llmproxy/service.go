@@ -19,6 +19,9 @@ type Service interface {
 	/* Yandex endpoints */
 	YandexCompletion(c *fiber.Ctx) error
 
+	/* DeepSeek endpoints */
+	DeepSeekChatCompletions(c *fiber.Ctx) error
+
 	/* Custom LLM endpoints */
 	CustomLLMChatCompletions(c *fiber.Ctx) error
 	CustomLLMEmbeddings(c *fiber.Ctx) error

@@ -7,7 +7,7 @@ import { Input } from '@shared/ui/input'
 import { Label } from '@shared/ui/label'
 import { Logo } from '@shared/ui/logo'
 import { Spinner } from '@shared/ui/spinner'
-import { Version } from '@shared/ui/version'
+import { VersionBase } from '@shared/ui/version'
 import { useCallback, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { FormattedMessage } from 'react-intl'
@@ -90,7 +90,7 @@ const ResetPassword = () => {
                 />
               </div>
               <div className="text-center text-foreground/40 text-sm">
-                <FormattedMessage id="version" /> <Version /> <Copyright />
+                <FormattedMessage id="version" /> <VersionBase /> <Copyright />
               </div>
             </div>
 

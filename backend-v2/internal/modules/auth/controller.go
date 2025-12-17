@@ -4,8 +4,6 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"log"
-	"regexp"
-	"strings"
 
 	"backend-v2/internal/common"
 	"backend-v2/internal/common/response"
@@ -17,12 +15,14 @@ import (
 type Controller struct {
 	service      *Service
 	emailService email.Service
+	validator    *SignupValidator
 }
 
 func NewController(service *Service, emailService email.Service) *Controller {
 	return &Controller{
 		service:      service,
 		emailService: emailService,
+		validator:    NewSignupValidator(),
 	}
 }
 
@@ -38,19 +38,8 @@ func (c *Controller) Signup(ctx *fiber.Ctx) error {
 		return response.BadRequest(ctx, "Invalid payload")
 	}
 
-	// Validate inputs
-	if payload.Username == "" || payload.Mail == "" || payload.Password == "" || len(payload.Password) < 7 {
-		return response.BadRequest(ctx, "Username, email and password required.")
-	}
-
-	// Validate email format
-	if !isValidEmail(payload.Mail) {
-		return response.Unauthorized(ctx, "Invalid username or email")
-	}
-
-	// Validate username
-	if !isValidUsername(payload.Username) {
-		return response.Unauthorized(ctx, "Invalid username or email")
+	if validationErr := c.validator.ValidateSignupRequest(payload.Username, payload.Mail, payload.Password); validationErr != nil {
+		return response.BadRequest(ctx, validationErr.Message)
 	}
 
 	err := c.service.Signup(ctx.Context(), payload.Username, payload.Mail, payload.Password)
@@ -101,7 +90,6 @@ func (c *Controller) Login(ctx *fiber.Ctx) error {
 		return response.InternalError(ctx, err.Error())
 	}
 
-	/* Generate JWT tokens */
 	auth, err := common.GenerateAuth(user)
 	if err != nil {
 		return response.InternalError(ctx, "Failed to generate token")
@@ -152,7 +140,6 @@ func (c *Controller) LoginJWT(ctx *fiber.Ctx) error {
 		return response.InternalError(ctx, err.Error())
 	}
 
-	/* Generate JWT tokens */
 	auth, err := common.GenerateAuth(user)
 	if err != nil {
 		return response.InternalError(ctx, "Failed to generate token")
@@ -164,7 +151,6 @@ func (c *Controller) LoginJWT(ctx *fiber.Ctx) error {
 
 /* POST /auth/logout - Logout user */
 func (c *Controller) Logout(ctx *fiber.Ctx) error {
-	// Clear cookies
 	ctx.Cookie(&fiber.Cookie{
 		Name:     "refresh_token",
 		Value:    "",
@@ -276,13 +262,11 @@ func (c *Controller) Refresh(ctx *fiber.Ctx) error {
 		return response.Unauthorized(ctx, "No refresh token found.")
 	}
 
-	/* Validate refresh token and extract username */
 	user, err := c.service.ValidateRefreshToken(ctx.Context(), refreshToken)
 	if err != nil {
 		return response.Unauthorized(ctx, "Refresh JWT invalid.")
 	}
 
-	/* Generate new JWT tokens */
 	auth, err := common.GenerateAuth(user)
 	if err != nil {
 		return response.InternalError(ctx, "Failed to generate token")
@@ -297,12 +281,10 @@ func (c *Controller) Refresh(ctx *fiber.Ctx) error {
 		SameSite: "Lax",
 	})
 
-	/* Compute SHA1 hash of access token */
 	hasher := sha1.New()
 	hasher.Write([]byte(auth.AccessToken))
 	tokenHash := hex.EncodeToString(hasher.Sum(nil))
 
-	/* Return enriched response */
 	return ctx.JSON(fiber.Map{
 		"user":           auth.User,
 		"access_token":   auth.AccessToken,
@@ -315,15 +297,4 @@ func (c *Controller) Refresh(ctx *fiber.Ctx) error {
 		"limitNodes":     user.LimitNodes,
 		"name":           user.Name,
 	})
-}
-
-/* Validation helpers */
-func isValidEmail(email string) bool {
-	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
-	return emailRegex.MatchString(email)
-}
-
-func isValidUsername(username string) bool {
-	// Username should not be empty and not contain @ (to distinguish from email)
-	return username != "" && !strings.Contains(username, "@")
 }

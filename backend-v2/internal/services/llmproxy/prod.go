@@ -39,6 +39,10 @@ func (s *ProdService) YandexCompletion(c *fiber.Ctx) error {
 	return s.proxyWithConfig(c, "yandex")
 }
 
+func (s *ProdService) DeepSeekChatCompletions(c *fiber.Ctx) error {
+	return s.proxyWithConfig(c, "deepseek")
+}
+
 func (s *ProdService) CustomLLMChatCompletions(c *fiber.Ctx) error {
 	return s.proxyCustomLLM(c, "/chat/completions")
 }
