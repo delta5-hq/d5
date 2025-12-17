@@ -8,7 +8,7 @@ import { Copyright } from '@shared/ui/copyright'
 import { Input } from '@shared/ui/input'
 import { Label } from '@shared/ui/label'
 import { Logo } from '@shared/ui/logo'
-import { Version } from '@shared/ui/version'
+import { VersionBase } from '@shared/ui/version'
 import React, { useCallback, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { FormattedMessage } from 'react-intl'
@@ -172,7 +172,7 @@ const Signup: React.FC = () => {
 
           {/* Version */}
           <div className="text-center text-xs text-card-foreground/40">
-            <FormattedMessage id="version" /> <Version /> <Copyright />
+            <FormattedMessage id="version" /> <VersionBase /> <Copyright />
           </div>
 
           <div className="flex justify-between">

@@ -12,8 +12,8 @@ const StatusPlaceholder: React.FC<StatusPlaceholderProps> = ({ loading, empty, m
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16 w-full h-full">
-        <Loader2 className="animate-spin w-8 h-8 text-primary mb-3" />
-        <span className="text-primary text-lg font-medium">
+        <Loader2 className="animate-spin w-8 h-8 text-accent mb-3" />
+        <span className="text-accent text-lg font-medium">
           <FormattedMessage id="loadingPlaceholder" />
         </span>
       </div>

@@ -58,7 +58,7 @@ const AppSidebar: FC<AppSidebarProps> = ({ isResponsive, isDesktop, isMinimized,
         <SidebarMenuButton asChild>
           <Link className="flex items-center gap-2" to={url}>
             {Icon ? <Icon className="w-5 h-5" /> : null}
-            <span className="text-sm">
+            <span className={cn(isActive && styles.menuLinkText, 'text-sm')}>
               <FormattedMessage id={titleId} />
             </span>
           </Link>
