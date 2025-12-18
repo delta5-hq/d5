@@ -29,7 +29,7 @@ func (s *Service) GetContext(ctx context.Context, name *string, userID string) (
 
 /* Get all contexts for user */
 func (s *Service) GetAllContexts(ctx context.Context, userID string) ([]models.LLMVector, error) {
-	var contexts []models.LLMVector
+	contexts := []models.LLMVector{}
 	filter := bson.M{"userId": userID}
 	err := s.collection.Find(ctx, filter).All(&contexts)
 	return contexts, err
@@ -147,7 +147,7 @@ func (s *Service) DeleteContext(ctx context.Context, name *string, userID string
 
 /* Get overview of all contexts (metadata only) */
 func (s *Service) GetOverview(ctx context.Context, userID string, filterType *string) (map[string]map[string][]string, error) {
-	var contexts []models.LLMVector
+	contexts := []models.LLMVector{}
 	filter := bson.M{"userId": userID}
 	err := s.collection.Find(ctx, filter).All(&contexts)
 	if err != nil {

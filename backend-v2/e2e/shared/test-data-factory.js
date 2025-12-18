@@ -139,14 +139,15 @@ export class TestDataFactory {
   }
 
   /* Template Management */
-  async createTemplate(templateData) {
+  async createTemplate(templateData, request = null) {
     const template = {
       name: templateData.name || `Test Template ${Date.now()}`,
       content: templateData.content || {},
       ...templateData
     }
 
-    const response = await administratorRequest.post('/templates').send(template)
+    const selectedRequest = request || administratorRequest
+    const response = await selectedRequest.post('/templates').send(template)
     if (response.status === 200) {
       const data = JSON.parse(response.text)
       this.createdEntities.templates.push(data.templateId)
@@ -156,7 +157,7 @@ export class TestDataFactory {
   }
 
   /* Integration Management */
-  async createIntegration(integrationData) {
+  async createIntegration(integrationData, request = null) {
     const integration = {
       name: integrationData.name || `Test Integration ${Date.now()}`,
       type: integrationData.type || 'test',
@@ -164,7 +165,8 @@ export class TestDataFactory {
       ...integrationData
     }
 
-    const response = await subscriberRequest.post('/integration').send(integration)
+    const selectedRequest = request || subscriberRequest
+    const response = await selectedRequest.post('/integration').send(integration)
     if (response.status === 200) {
       const data = JSON.parse(response.text)
       this.createdEntities.integrations.push(data.integrationId)

@@ -19,6 +19,9 @@ func RegisterRoutes(api fiber.Router, db *qmgo.Database) {
 	api.Get("/users/search/mail", middlewares.ExtractUserID, controller.SearchMail)
 	api.Get("/users/current", middlewares.RequireAuth, controller.Current)
 
+	/* User management routes */
+	api.Delete("/users/:userId", middlewares.RequireAuth, controller.DeleteUser)
+
 	/* Backward compatibility alias (deprecated) */
 	api.Get("/users/me", middlewares.RequireAuth, controller.Current)
 }
