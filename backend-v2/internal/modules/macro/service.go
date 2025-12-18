@@ -43,7 +43,7 @@ func (s *Service) FindByName(ctx context.Context, name string) (*models.Macro, e
 }
 
 func (s *Service) FindByUserID(ctx context.Context, userID string) ([]models.Macro, error) {
-	var macros []models.Macro
+	macros := []models.Macro{}
 	err := s.collection.Find(ctx, qmgo.M{"userId": userID}).Sort("-updatedAt").All(&macros)
 	if err != nil {
 		return nil, err

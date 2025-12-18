@@ -50,9 +50,33 @@ const AppSidebar: FC<AppSidebarProps> = ({ isResponsive, isDesktop, isMinimized,
     if (!open && !isResponsive && isDesktop) toggleSidebar()
   }, [open, toggleSidebar, isResponsive, isDesktop])
 
+  const allMenuUrls = [
+    ...NAV_ITEMS.map(item => item.url),
+    ...(isLoggedIn ? LOGGED_IN_ITEMS.map(item => item.url) : []),
+    ...(isAdmin ? ADMIN_ITEMS.map(item => item.url) : []),
+  ]
+
+  const hasExactMatch = allMenuUrls.some(menuUrl => location.pathname === menuUrl)
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const renderMenuItem = (url: string, titleId: string, Icon?: FC<any>) => {
-    const isActive = location.pathname === url
+    if (hasExactMatch) {
+      const isActive = location.pathname === url
+      return (
+        <SidebarMenuItem className={cn(isActive && styles.menuLinkButton)} key={titleId}>
+          <SidebarMenuButton asChild>
+            <Link className="flex items-center gap-2" to={url}>
+              {Icon ? <Icon className="w-5 h-5" /> : null}
+              <span className={cn(isActive && styles.menuLinkText, 'text-sm')}>
+                <FormattedMessage id={titleId} />
+              </span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      )
+    }
+
+    const isActive = location.pathname === url || location.pathname.startsWith(url + '/')
     return (
       <SidebarMenuItem className={cn(isActive && styles.menuLinkButton)} key={titleId}>
         <SidebarMenuButton asChild>

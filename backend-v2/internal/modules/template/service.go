@@ -22,7 +22,7 @@ func NewService(db *qmgo.Database) *Service {
 
 /* List templates visible to user (owned + public) */
 func (s *Service) List(ctx context.Context, userID string) ([]models.WorkflowTemplate, error) {
-	var templates []models.WorkflowTemplate
+	templates := []models.WorkflowTemplate{}
 
 	filter := bson.M{
 		"$or": []bson.M{
