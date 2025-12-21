@@ -1,24 +1,13 @@
 import { useDialog } from '@entities/dialog'
 import { Button } from '@shared/ui/button'
 import type { WorkflowItem } from '@widgets/workflow/model'
-import { Globe, Home, Pencil, Users } from 'lucide-react'
+import { Globe } from 'lucide-react'
 import React from 'react'
 import { useIntl } from 'react-intl'
-import WorkflowVisibilityDialog from './workflow-visibility-dialog'
-
-interface VisibilityIconProps {
-  enabled?: boolean
-  hidden?: boolean
-  writeable?: boolean
-  className?: string
-}
-
-const VisibilityIcon: React.FC<VisibilityIconProps> = ({ enabled, hidden, writeable, className }) => {
-  if (!enabled) return <Home className={className} />
-  if (writeable) return <Pencil className={className} />
-  if (hidden) return <Users className={className} />
-  return <Globe className={className} />
-}
+import { WorkflowShareDialog } from '../share-dialog'
+import { visibilityStateFromShare } from '../../model/visibility-state'
+import { getVisibilityIcon } from '@shared/ui/icons/visibility-icon-mapper'
+import { getVisibilityTooltipKey } from '../../lib/get-visibility-tooltip-key'
 
 interface VisibilityProps {
   item: WorkflowItem
@@ -28,6 +17,8 @@ interface VisibilityProps {
 export const Visibility: React.FC<VisibilityProps> = ({ item, isPublic }) => {
   const { showDialog } = useDialog()
   const { formatMessage } = useIntl()
+  const visibilityState = visibilityStateFromShare(item.share?.public)
+  const VisibilityIcon = getVisibilityIcon(visibilityState.value)
 
   if (isPublic) {
     return <Globe className="h-4 w-4" />
@@ -36,12 +27,12 @@ export const Visibility: React.FC<VisibilityProps> = ({ item, isPublic }) => {
   return (
     <Button
       className="!h-4 p-0"
-      onClick={() => showDialog(WorkflowVisibilityDialog, { workflowId: item.workflowId })}
+      onClick={() => showDialog(WorkflowShareDialog, { workflowId: item.workflowId, autoShare: false })}
       size="icon"
-      title={formatMessage({ id: 'dialogWorkflowPrivacyOpenerTitle' })}
+      title={formatMessage({ id: getVisibilityTooltipKey(visibilityState.value) })}
       variant="ghost"
     >
-      <VisibilityIcon {...item.share?.public} className="h-4 w-4" />
+      <VisibilityIcon className="h-4 w-4" />
     </Button>
   )
 }

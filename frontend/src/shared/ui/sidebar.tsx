@@ -191,6 +191,7 @@ const Sidebar = ({
           data-mobile="true"
           data-sidebar="sidebar"
           data-slot="sidebar"
+          data-state={openMobile ? 'expanded' : 'collapsed'}
           disableOverlay={disableOverlay}
           side={side}
           style={

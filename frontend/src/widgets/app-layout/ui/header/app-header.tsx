@@ -23,7 +23,7 @@ const Header = ({ breakpoint, searchPlaceholder }: HeaderProps) => {
   return (
     <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
       <div className="flex items-center gap-4 lg:gap-6">
-        {!isMobile && isResponsive ? <SidebarTrigger className="cursor-pointer rounded-sm h-[30px] w-[30px]" /> : null}
+        {isResponsive ? <SidebarTrigger className="cursor-pointer rounded-sm h-[30px] w-[30px]" /> : null}
         <Logo />
         {!isMobile ? (
           <AppSearch
@@ -50,7 +50,7 @@ const Header = ({ breakpoint, searchPlaceholder }: HeaderProps) => {
             )}
           </div>
         ) : (
-          <CreateWorkflow />
+          <div className="flex items-center gap-2">{isLoggedIn ? <CreateWorkflow /> : <LoginButton />}</div>
         )}
       </div>
     </header>

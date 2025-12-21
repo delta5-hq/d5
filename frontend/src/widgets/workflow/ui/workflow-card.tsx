@@ -9,6 +9,7 @@ import { Badge } from '@shared/ui/badge'
 import WorkflowCardTitle from './workflow-card/workflow-card-title'
 import { Visibility } from './workflow-card/visibility'
 import { MorePopover } from './workflow-card/more-popover'
+import { ShareButton } from './workflow-card/share-button'
 import { Inbox } from 'lucide-react'
 import { FormattedMessage } from 'react-intl'
 import { WorkflowAddDashboard } from './workflow-card/add-dashboard'
@@ -22,16 +23,16 @@ const WorkflowCardSkeleton: React.FC<WorkflowCardSkeletonProps> = ({ count = 12 
     {Array.from({ length: count }).map((_, idx) => (
       <Card className="flex flex-col justify-between animate-pulse" glassEffect={false} key={idx}>
         {/* Header */}
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 pb-4">
-          <div className="flex items-center gap-2">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 pb-4 gap-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
             {/* Avatar */}
             <span className="relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full">
               <span className="flex h-full w-full items-center justify-center rounded-full bg-muted" />
             </span>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 min-w-0 flex-1">
               <div className="w-16 h-3 bg-gray-300 rounded" /> {/* username */}
-              <div className="flex items-center gap-1 text-sm text-muted-foreground truncate max-w-[40vw]">
-                <span className="w-4 h-4 bg-gray-300 rounded" /> {/* icon */}
+              <div className="flex items-center gap-1 text-sm text-muted-foreground truncate">
+                <span className="w-4 h-4 bg-gray-300 rounded shrink-0" /> {/* icon */}
                 <span className="w-12 h-2 bg-gray-200 rounded" /> {/* time */}
               </div>
             </div>
@@ -102,19 +103,19 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({ workflows, isPublic,
           glassEffect={false}
           key={item.workflowId}
         >
-          <CardHeader className="flex flex-row items-cemter justify-between space-y-0 p-2 pb-4">
-            <div className="flex items-center gap-2">
-              <Avatar>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 pb-4 gap-2">
+            <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+              <Avatar className="shrink-0">
                 <AvatarFallback>{item.userId.slice(0, 1).toUpperCase()}</AvatarFallback>
               </Avatar>
-              <div className="flex flex-col">
-                <p>{item.userId}</p>
+              <div className="flex flex-col min-w-0 flex-1">
+                <p className="truncate text-sm">{item.userId}</p>
                 <UpdatedTime updatedAt={item.updatedAt} />
               </div>
             </div>
 
             {!isPublic ? (
-              <div className="flex flex-col justify-center gap-y-2">
+              <div className="flex flex-col justify-center gap-y-2 shrink-0">
                 <MorePopover workflow={item} />
                 <Visibility isPublic={isPublic} item={item} />
               </div>
@@ -137,7 +138,10 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({ workflows, isPublic,
                 <Badge variant="default">{item.category}</Badge>
               ) : null
             ) : (
-              <WorkflowAddDashboard />
+              <>
+                <WorkflowAddDashboard />
+                <ShareButton showLabel={false} size="sm" variant="ghost" workflow={item} />
+              </>
             )}
           </CardFooter>
         </Card>

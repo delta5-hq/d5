@@ -1,14 +1,14 @@
 import React, { useState } from 'react'
 import { Popover, PopoverTrigger, PopoverContent } from '@shared/ui/popover'
 import { Button } from '@shared/ui/button'
-import { MoreHorizontal, Eye, Download, Trash2, FolderPlus } from 'lucide-react'
+import { MoreHorizontal, Download, Trash2, FolderPlus, Share2 } from 'lucide-react'
 import { FormattedMessage } from 'react-intl'
 import { useDialog } from '@entities/dialog'
-import WorkflowVisibilityDialog from './workflow-visibility-dialog'
 import { API_BASE_PATH } from '@shared/config'
 import DeleteWorkflowDialog from './delete-workflow-dialog'
 import type { WorkflowItem } from '@widgets/workflow/model'
 import { WorkflowCategoryDialog } from './workflow-category'
+import { WorkflowShareDialog } from '../share-dialog'
 
 interface MorePopoverProps {
   workflow: WorkflowItem
@@ -20,9 +20,11 @@ export const MorePopover: React.FC<MorePopoverProps> = ({ workflow }) => {
 
   const items = [
     {
-      icon: <Eye className="h-5 w-5" />,
-      labelId: 'menuVisibility',
-      onClick: () => showDialog(WorkflowVisibilityDialog, { workflowId: workflow.workflowId }),
+      icon: <Share2 className="h-5 w-5" />,
+      labelId: 'share',
+      onClick: () => {
+        showDialog(WorkflowShareDialog, { workflowId: workflow.workflowId, autoShare: true })
+      },
     },
     {
       icon: <Download className="h-5 w-5" />,
