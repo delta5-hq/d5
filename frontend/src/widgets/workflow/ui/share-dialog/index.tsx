@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import {
   GlassDialog,
   GlassDialogContent,
@@ -18,6 +18,8 @@ import {
   visibilityStateToShare,
   type VisibilityStateValue,
 } from '../../model/visibility-state'
+import { useUserInteractionTracking } from './use-user-interaction-tracking'
+import { useAutoShareOnOpen } from './use-auto-share-on-open'
 
 interface WorkflowShareDialogProps extends DialogProps {
   workflowId: string
@@ -35,26 +37,26 @@ export const WorkflowShareDialog: React.FC<WorkflowShareDialogProps> = ({
     enabled: open,
   })
 
-  const [hasAutoShared, setHasAutoShared] = useState(false)
   const [isPersisting, setIsPersisting] = useState(false)
   const currentVisibility = visibilityStateFromShare(workflow?.share?.public)
 
-  useEffect(() => {
-    if (open && autoShare && !currentVisibility.isPublic && !hasAutoShared && !isLoading) {
-      updateVisibility({ enabled: true, hidden: false })
-      setHasAutoShared(true)
-    }
-  }, [open, autoShare, currentVisibility.isPublic, hasAutoShared, isLoading, updateVisibility])
+  const { userHasInteracted, markUserInteraction } = useUserInteractionTracking({
+    isDialogOpen: open ?? false,
+  })
 
-  useEffect(() => {
-    if (!open) {
-      setHasAutoShared(false)
-    }
-  }, [open])
+  const { hasAutoShared } = useAutoShareOnOpen({
+    isDialogOpen: open ?? false,
+    autoShare,
+    isCurrentlyPublic: currentVisibility.isPublic,
+    isLoading,
+    userHasInteracted,
+    updateVisibility,
+  })
 
   const autoCopy = !currentVisibility.isPublic && hasAutoShared
 
   const handleVisibilityChange = async (value: VisibilityStateValue) => {
+    markUserInteraction()
     setIsPersisting(true)
     try {
       const newState = visibilityStateToShare(value)

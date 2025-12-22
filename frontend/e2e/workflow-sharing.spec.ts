@@ -36,36 +36,71 @@ test.describe('Workflow Sharing', () => {
     })
   })
 
-  test.describe('Visibility Controls', () => {
-    test('toggles between public and private visibility', async ({ page }) => {
+  test.describe('Visibility State Transitions', () => {
+    test('private to public transition persists', async ({ page }) => {
       const workflowCard = new WorkflowCardPage(page, workflowId)
       const dialog = new ShareDialogInteractions(page)
 
       await workflowCard.openShareDialog()
-      await dialog.togglePublicPrivate()
-      await expect(dialog.dialog).toBeVisible()
-    })
-
-    test('visibility changes persist after dialog close', async ({ page }) => {
-      const workflowCard = new WorkflowCardPage(page, workflowId)
-      const dialog = new ShareDialogInteractions(page)
-
-      await workflowCard.openShareDialog()
-      await expect(dialog.publicOption).toBeVisible()
-      await dialog.publicOption.click()
-      await page.waitForTimeout(2000)
+      await expect(dialog.privateOption).toBeChecked()
       
-      await expect(dialog.dialog).toBeVisible()
+      await dialog.publicOption.click()
+      await page.waitForTimeout(1000)
+      await expect(dialog.publicOption).toBeChecked()
       await dialog.close()
 
       await page.goto('/workflows')
       await page.waitForLoadState('networkidle')
-      await page.waitForTimeout(1000)
+      await page.waitForTimeout(500)
 
-      const card = page.locator(`[data-workflow-id="${workflowId}"]`).first()
-      await expect(card).toBeVisible()
-      
       await workflowCard.clickShare()
+      await expect(dialog.publicOption).toBeChecked()
+      await dialog.close()
+    })
+
+    test('public to private transition persists', async ({ page }) => {
+      const workflowCard = new WorkflowCardPage(page, workflowId)
+      const dialog = new ShareDialogInteractions(page)
+
+      await makeWorkflowPublic(page, workflowId)
+      await page.waitForTimeout(500)
+
+      await workflowCard.openShareDialog()
+      await expect(dialog.publicOption).toBeChecked()
+
+      await dialog.privateOption.click()
+      await page.waitForTimeout(1000)
+      await expect(dialog.privateOption).toBeChecked()
+      await dialog.close()
+
+      await page.waitForTimeout(500)
+      await workflowCard.openShareDialog()
+      await expect(dialog.privateOption).toBeChecked()
+      await dialog.close()
+    })
+
+    test('multiple consecutive state changes persist correctly', async ({ page }) => {
+      const workflowCard = new WorkflowCardPage(page, workflowId)
+      const dialog = new ShareDialogInteractions(page)
+
+      await workflowCard.openShareDialog()
+      
+      await dialog.publicOption.click()
+      await page.waitForTimeout(1000)
+      await expect(dialog.publicOption).toBeChecked()
+
+      await dialog.privateOption.click()
+      await page.waitForTimeout(1000)
+      await expect(dialog.privateOption).toBeChecked()
+
+      await dialog.publicOption.click()
+      await page.waitForTimeout(1000)
+      await expect(dialog.publicOption).toBeChecked()
+
+      await dialog.close()
+      await page.waitForTimeout(500)
+
+      await workflowCard.openShareDialog()
       await expect(dialog.publicOption).toBeChecked()
       await dialog.close()
     })
@@ -154,6 +189,58 @@ test.describe('Workflow Sharing', () => {
     })
   })
 
+  test.describe('Share Button Behavior', () => {
+    test('share button on private workflow auto-publishes', async ({ page }) => {
+      const workflowCard = new WorkflowCardPage(page, workflowId)
+      const dialog = new ShareDialogInteractions(page)
+
+      await workflowCard.openShareDialog()
+      await expect(dialog.privateOption).toBeChecked()
+      
+      await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
+      await dialog.close()
+    })
+
+    test('share button respects manual visibility changes', async ({ page }) => {
+      const workflowCard = new WorkflowCardPage(page, workflowId)
+      const dialog = new ShareDialogInteractions(page)
+
+      await makeWorkflowPublic(page, workflowId)
+      await page.waitForTimeout(500)
+
+      await workflowCard.openShareDialog()
+      await expect(dialog.publicOption).toBeChecked()
+
+      await dialog.privateOption.click()
+      await page.waitForTimeout(1000)
+
+      await expect(dialog.privateOption).toBeChecked()
+      await expect(dialog.publicOption).not.toBeChecked()
+
+      await dialog.close()
+      await page.waitForTimeout(500)
+
+      await workflowCard.openShareDialog()
+      await expect(dialog.privateOption).toBeChecked()
+      await dialog.close()
+    })
+
+    test('share button does not override existing public state', async ({ page }) => {
+      const workflowCard = new WorkflowCardPage(page, workflowId)
+      const dialog = new ShareDialogInteractions(page)
+
+      await makeWorkflowPublic(page, workflowId)
+      await page.waitForTimeout(500)
+
+      await workflowCard.openShareDialog()
+      await expect(dialog.publicOption).toBeChecked()
+      
+      await page.waitForTimeout(1000)
+      await expect(dialog.publicOption).toBeChecked()
+      await dialog.close()
+    })
+  })
+
   test.describe('Edge Cases', () => {
     test('handles multiple workflows correctly', async ({ page }) => {
       const workflow2Id = await createWorkflow(page)
@@ -178,19 +265,6 @@ test.describe('Workflow Sharing', () => {
 
       await page.keyboard.press('Escape')
       await expect(dialog.dialog).not.toBeVisible()
-    })
-
-    test('reopening dialog preserves last visibility setting', async ({ page }) => {
-      const workflowCard = new WorkflowCardPage(page, workflowId)
-      const dialog = new ShareDialogInteractions(page)
-
-      await workflowCard.openShareDialog()
-      await dialog.publicOption.click()
-      await dialog.close()
-
-      await workflowCard.openShareDialog()
-      const isPublicSelected = await dialog.publicOption.isChecked()
-      expect(isPublicSelected).toBe(true)
     })
   })
 })
