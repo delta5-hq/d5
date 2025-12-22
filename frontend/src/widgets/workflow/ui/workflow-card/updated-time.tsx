@@ -8,9 +8,11 @@ interface UpdatedTimeProps {
 }
 
 const UpdatedTime: React.FC<UpdatedTimeProps> = ({ updatedAt }) => (
-  <div className="flex items-center gap-1 text-sm text-muted-foreground truncate max-w-[40vw]">
+  <div className="flex items-center gap-1 text-sm text-muted-foreground truncate">
     <RefreshCcw className="w-4 h-4 shrink-0" />
-    <AgoMoment value={updatedAt} /> <FormattedMessage id="workflowCardTimeAgo" />
+    <span className="truncate">
+      <AgoMoment value={updatedAt} /> <FormattedMessage id="workflowCardTimeAgo" />
+    </span>
   </div>
 )
 

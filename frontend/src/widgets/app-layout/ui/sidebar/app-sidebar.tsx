@@ -17,7 +17,7 @@ import { BriefcaseBusiness, School, Settings, Workflow } from 'lucide-react'
 import { useEffect, type FC } from 'react'
 import { FormattedMessage } from 'react-intl'
 import { Link, useLocation } from 'react-router-dom'
-import { AppSearch, HelpButton, LoginButton, UserSettingsButton } from './../header'
+import { AppSearch, HelpButton, UserSettingsButton } from './../header'
 import styles from './app-sidebar.module.scss'
 
 interface AppSidebarProps {
@@ -102,16 +102,12 @@ const AppSidebar: FC<AppSidebarProps> = ({ isResponsive, isDesktop, isMinimized,
       {isMobile ? (
         <div className="flex flex-col gap-4 p-2">
           <AppSearch onChange={e => setQuery(e.target.value)} placeholder={searchPlaceholder} value={query} />
-          <div className="flex items-center gap-2">
-            {isLoggedIn ? (
-              <>
-                <HelpButton />
-                <UserSettingsButton />
-              </>
-            ) : (
-              <LoginButton />
-            )}
-          </div>
+          {isLoggedIn ? (
+            <div className="flex items-center gap-2">
+              <HelpButton />
+              <UserSettingsButton />
+            </div>
+          ) : null}
         </div>
       ) : null}
 

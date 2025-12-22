@@ -1,13 +1,11 @@
 import { test, expect } from '@playwright/test'
-import { adminLogin } from './utils'
+import { adminLogin, setupUnauthenticatedPage } from './utils'
 
 test.describe('Main navigation (desktop)', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 })
     await page.goto('/')
-    /* Use real authentication instead of mocking - proper E2E testing */
     await adminLogin(page)
-    /* After login, navigate to home to see authenticated UI */
     await page.goto('/')
     await page.waitForLoadState('networkidle')
   })
@@ -37,20 +35,11 @@ test.describe('Main navigation (desktop)', () => {
 test.describe('Sidebar behavior (tablet width)', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 800 })
-    await page.route('**/api/v2/auth/refresh', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }),
-    )
-    await page.route('**/api/v2/users/current', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ id: 'e2e-user', name: 'E2E User', mail: 'e2e@example.com', roles: [] }),
-      })
-    })
+    await setupUnauthenticatedPage(page)
     await page.goto('/')
   })
 
-  test('sidebar toggles between collapsed and expanded', async ({ page }) => {
+  test('sidebar state persists through toggle cycle', async ({ page }) => {
     const toggleButton = page.locator('[data-sidebar="trigger"]')
     const sidebar = page.locator('[data-slot="sidebar"]')
 
@@ -61,5 +50,66 @@ test.describe('Sidebar behavior (tablet width)', () => {
 
     await toggleButton.click()
     await expect(sidebar).toHaveAttribute('data-state', 'collapsed')
+  })
+
+  test('sidebar maintains expanded state after page reload', async ({ page }) => {
+    const toggleButton = page.locator('[data-sidebar="trigger"]')
+    const sidebar = page.locator('[data-slot="sidebar"]')
+
+    await toggleButton.click()
+    await expect(sidebar).toHaveAttribute('data-state', 'expanded')
+
+    await page.reload()
+    await expect(sidebar).toHaveAttribute('data-state', 'expanded')
+  })
+})
+
+test.describe('Sidebar behavior (mobile width)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 })
+    await setupUnauthenticatedPage(page)
+    await page.goto('/')
+  })
+
+  test('sidebar hidden by default and expands on trigger click', async ({ page }) => {
+    const toggleButton = page.locator('[data-sidebar="trigger"]')
+    const sidebar = page.locator('[data-slot="sidebar"]')
+
+    await expect(sidebar).not.toBeVisible()
+
+    await toggleButton.click()
+    await expect(sidebar).toBeVisible()
+    await expect(sidebar).toHaveAttribute('data-state', 'expanded')
+  })
+
+  test('sidebar closes on Escape key', async ({ page }) => {
+    const toggleButton = page.locator('[data-sidebar="trigger"]')
+    const sidebar = page.locator('[data-slot="sidebar"]')
+
+    await toggleButton.click()
+    await expect(sidebar).toBeVisible()
+
+    await page.keyboard.press('Escape')
+    await expect(sidebar).not.toBeVisible()
+  })
+})
+
+test.describe('Sidebar behavior (desktop width)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/')
+    await adminLogin(page)
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
+  })
+
+  test('trigger button is hidden on desktop', async ({ page }) => {
+    const toggleButton = page.locator('[data-sidebar="trigger"]')
+    await expect(toggleButton).not.toBeVisible()
+  })
+
+  test('sidebar is always visible on desktop', async ({ page }) => {
+    const sidebar = page.locator('[data-slot="sidebar"]')
+    await expect(sidebar).toBeVisible()
   })
 })

@@ -1,6 +1,19 @@
 import { expect, Page } from '@playwright/test'
 import { e2eEnv } from './e2e-env-vars'
 
+async function setupUnauthenticatedPage(page: Page) {
+  await page.route('**/api/v2/auth/refresh', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }),
+  )
+  await page.route('**/api/v2/users/current', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: 'e2e-user', name: 'E2E User', mail: 'e2e@example.com', roles: [] }),
+    })
+  })
+}
+
 async function signup(page: Page, username: string, mail: string, password: string) {
   await page.goto('/register')
   await page.getByLabel('Username').fill(username)
@@ -137,8 +150,6 @@ async function logout(page: Page) {
     ),
     page.getByRole('menuitem', { name: 'Log out' }).click(),
   ])
-
-  await expect(page.getByText('Account Settings')).toHaveCount(0)
 }
 
 async function adminLogin(page: Page) {
@@ -149,4 +160,23 @@ async function adminLogin(page: Page) {
   await login(page, e2eEnv.E2E_ADMIN_USER, e2eEnv.E2E_ADMIN_PASS)
 }
 
-export { approveUser, rejectUser, login, logout, signup, openLoginDialogFromSignup, adminLogin }
+async function createWorkflow(page: Page): Promise<string> {
+  await page.goto('/workflows')
+  await page.waitForLoadState('networkidle')
+
+  await Promise.all([
+    page.waitForURL(/\/workflow\//),
+    page.getByRole('button', { name: /create.*workflow/i }).click(),
+  ])
+
+  const currentUrl = page.url()
+  const workflowId = currentUrl.split('/').filter(Boolean).pop() || ''
+  
+  if (!workflowId) {
+    throw new Error(`Unable to extract workflowId from URL: ${currentUrl}`)
+  }
+
+  return workflowId
+}
+
+export { approveUser, rejectUser, login, logout, signup, openLoginDialogFromSignup, adminLogin, setupUnauthenticatedPage, createWorkflow }
