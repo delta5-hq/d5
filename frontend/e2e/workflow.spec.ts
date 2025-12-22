@@ -51,10 +51,10 @@ test.describe('Workflow CRUD', () => {
     await page.waitForTimeout(2000)
     
     // Wait for the specific workflow to appear in DOM
-    await page.waitForSelector(`[data-key="${createdWorkflowId}"]`, { timeout: 15000 })
+    await page.waitForSelector(`[data-workflow-id="${createdWorkflowId}"]`, { timeout: 15000 })
     
     // Click on the created workflow
-    await page.locator(`[data-key="${createdWorkflowId}"]`).click()
+    await page.locator(`[data-workflow-id="${createdWorkflowId}"]`).click()
 
     await expect(page).toHaveURL(`/workflow/${createdWorkflowId}`)
   })

@@ -32,6 +32,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   return (
     <Button
       className={className}
+      data-testid="workflow-share-button"
       onClick={handleShare}
       size={size}
       title={formatMessage({ id: 'shareWorkflow' })}

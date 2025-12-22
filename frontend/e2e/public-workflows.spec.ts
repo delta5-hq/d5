@@ -1,11 +1,5 @@
 import {test, expect} from '@playwright/test'
-import {adminLogin, logout} from './utils'
-
-/**
- * Public Workflows E2E Tests
- * 
- * Tests public workflow sharing functionality
- */
+import {adminLogin, createWorkflow} from './utils'
 
 test.describe('Public Workflows', () => {
   test.beforeEach(async ({page}) => {
@@ -15,14 +9,9 @@ test.describe('Public Workflows', () => {
   })
 
   test('should create and share workflow as public', async ({page}) => {
-    // Create new workflow
-    await page.click('button:has-text("New Workflow"), button:has-text("Create")')
-    await page.waitForURL(/\/workflow\//)
-
-    const workflowId = page.url().split('/').filter(Boolean).pop() || ''
+    const workflowId = await createWorkflow(page)
     expect(workflowId).toBeTruthy()
 
-    // Workflow created successfully (URL changed to /workflow/:id)
     await expect(page).toHaveURL(`/workflow/${workflowId}`)
   })
 

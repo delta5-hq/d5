@@ -160,4 +160,23 @@ async function adminLogin(page: Page) {
   await login(page, e2eEnv.E2E_ADMIN_USER, e2eEnv.E2E_ADMIN_PASS)
 }
 
-export { approveUser, rejectUser, login, logout, signup, openLoginDialogFromSignup, adminLogin, setupUnauthenticatedPage }
+async function createWorkflow(page: Page): Promise<string> {
+  await page.goto('/workflows')
+  await page.waitForLoadState('networkidle')
+
+  await Promise.all([
+    page.waitForURL(/\/workflow\//),
+    page.getByRole('button', { name: /create.*workflow/i }).click(),
+  ])
+
+  const currentUrl = page.url()
+  const workflowId = currentUrl.split('/').filter(Boolean).pop() || ''
+  
+  if (!workflowId) {
+    throw new Error(`Unable to extract workflowId from URL: ${currentUrl}`)
+  }
+
+  return workflowId
+}
+
+export { approveUser, rejectUser, login, logout, signup, openLoginDialogFromSignup, adminLogin, setupUnauthenticatedPage, createWorkflow }

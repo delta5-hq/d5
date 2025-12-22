@@ -99,7 +99,7 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({ workflows, isPublic,
       {workflows.map(item => (
         <Card
           className="flex flex-col justify-between"
-          data-key={item.workflowId}
+          data-workflow-id={item.workflowId}
           glassEffect={false}
           key={item.workflowId}
         >
