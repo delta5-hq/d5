@@ -6,6 +6,7 @@ import { FormattedMessage } from 'react-intl'
 import { Globe, Users, Pencil } from 'lucide-react'
 import { cn } from '@shared/lib/utils'
 import type { VisibilityStateValue } from '../../model/visibility-state'
+import { rememberCollaborativeState } from '../../model/visibility-state'
 
 interface VisibilityRadioGroupProps {
   value: VisibilityStateValue
@@ -44,10 +45,12 @@ export const VisibilityRadioGroup: React.FC<VisibilityRadioGroupProps> = ({
   }
 
   const handleUnlistedCollaborativeToggle = (checked: boolean) => {
+    rememberCollaborativeState(true, checked)
     onValueChange(checked ? 'writeable-unlisted' : 'unlisted')
   }
 
   const handlePublicCollaborativeToggle = (checked: boolean) => {
+    rememberCollaborativeState(false, checked)
     onValueChange(checked ? 'writeable-public' : 'public')
   }
 

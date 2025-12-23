@@ -39,12 +39,9 @@ export const visibilityStateFromShare = (share: PublicShare | undefined): Visibi
   }
 
   if (share.writeable) {
-    rememberCollaborativeState(!!share.hidden, true)
-  }
-
-  if (share.writeable) {
+    const value = share.hidden ? 'writeable-unlisted' : 'writeable-public'
     return {
-      value: share.hidden ? 'writeable-unlisted' : 'writeable-public',
+      value,
       isPublic: true,
       isHidden: !!share.hidden,
       isWriteable: true,
@@ -74,21 +71,19 @@ export const visibilityStateToShare = (value: VisibilityStateValue): PublicShare
       return { enabled: false, hidden: false, writeable: false }
 
     case 'unlisted': {
-      const shouldBeWriteable = getCollaborativeMemory(true)
-      return { enabled: true, hidden: true, writeable: shouldBeWriteable }
+      const writeable = getCollaborativeMemory(true)
+      return { enabled: true, hidden: true, writeable }
     }
 
     case 'public': {
-      const shouldBeWriteable = getCollaborativeMemory(false)
-      return { enabled: true, hidden: false, writeable: shouldBeWriteable }
+      const writeable = getCollaborativeMemory(false)
+      return { enabled: true, hidden: false, writeable }
     }
 
     case 'writeable-unlisted':
-      rememberCollaborativeState(true, true)
       return { enabled: true, hidden: true, writeable: true }
 
     case 'writeable-public':
-      rememberCollaborativeState(false, true)
       return { enabled: true, hidden: false, writeable: true }
 
     default:
