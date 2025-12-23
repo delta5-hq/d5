@@ -241,6 +241,282 @@ test.describe('Workflow Sharing', () => {
     })
   })
 
+  test.describe('Collaborative Editing', () => {
+    test.describe('Basic Toggle Operations', () => {
+      test('can toggle collaborative ON and OFF in public mode', async ({ page }) => {
+        const workflowCard = new WorkflowCardPage(page, workflowId)
+        const dialog = new ShareDialogInteractions(page)
+
+        await makeWorkflowPublic(page, workflowId)
+        await workflowCard.openShareDialog()
+
+        const publicToggle = dialog.dialog.locator('button[role="switch"]').last()
+        expect(await publicToggle.getAttribute('aria-checked')).toBe('false')
+
+        await publicToggle.click()
+        await page.waitForTimeout(2000)
+        expect(await publicToggle.getAttribute('aria-checked')).toBe('true')
+
+        await publicToggle.click()
+        await page.waitForTimeout(2000)
+        expect(await publicToggle.getAttribute('aria-checked')).toBe('false')
+
+        await dialog.close()
+      })
+
+      test('can toggle collaborative ON and OFF in unlisted mode', async ({ page }) => {
+        const workflowCard = new WorkflowCardPage(page, workflowId)
+        const dialog = new ShareDialogInteractions(page)
+
+        await workflowCard.openShareDialog()
+        const unlistedLabel = dialog.dialog.locator('label:has-text("Unlisted"), label[for="unlisted"]').first()
+        await expect(unlistedLabel).toBeVisible({ timeout: 5000 })
+        await unlistedLabel.click()
+        await page.waitForTimeout(2000)
+
+        const unlistedToggle = dialog.dialog.locator('button[role="switch"]').first()
+        expect(await unlistedToggle.getAttribute('aria-checked')).toBe('false')
+
+        await unlistedToggle.click()
+        await page.waitForTimeout(2000)
+        expect(await unlistedToggle.getAttribute('aria-checked')).toBe('true')
+
+        await unlistedToggle.click()
+        await page.waitForTimeout(2000)
+        expect(await unlistedToggle.getAttribute('aria-checked')).toBe('false')
+
+        await dialog.close()
+      })
+    })
+
+    test.describe('Memory Persistence', () => {
+      test('collaborative state persists after dialog close and reopen', async ({ page }) => {
+        const workflowCard = new WorkflowCardPage(page, workflowId)
+        const dialog = new ShareDialogInteractions(page)
+
+        await makeWorkflowPublic(page, workflowId)
+        await workflowCard.openShareDialog()
+
+        const publicToggle = dialog.dialog.locator('button[role="switch"]').last()
+        await publicToggle.click()
+        await page.waitForTimeout(2000)
+        expect(await publicToggle.getAttribute('aria-checked')).toBe('true')
+        await dialog.close()
+
+        await workflowCard.openShareDialog()
+        expect(await publicToggle.getAttribute('aria-checked')).toBe('true')
+        await dialog.close()
+      })
+
+      test('public collaborative state preserved when switching to unlisted and back', async ({ page }) => {
+        const workflowCard = new WorkflowCardPage(page, workflowId)
+        const dialog = new ShareDialogInteractions(page)
+
+        await workflowCard.openShareDialog()
+        await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
+
+        const publicToggle = dialog.dialog.locator('button[role="switch"]').last()
+        await publicToggle.click()
+        await page.waitForTimeout(2000)
+        expect(await publicToggle.getAttribute('aria-checked')).toBe('true')
+
+        const unlistedLabel = dialog.dialog.locator('label:has-text("Unlisted"), label[for="unlisted"]').first()
+        await expect(unlistedLabel).toBeVisible({ timeout: 5000 })
+        await unlistedLabel.click()
+        await page.waitForTimeout(2000)
+
+        await expect(dialog.publicOption).toBeEnabled({ timeout: 5000 })
+        await dialog.publicOption.click()
+        await page.waitForTimeout(2000)
+
+        expect(await publicToggle.getAttribute('aria-checked')).toBe('true')
+        await dialog.close()
+      })
+
+      test('unlisted collaborative state preserved when switching to public and back', async ({ page }) => {
+        const workflowCard = new WorkflowCardPage(page, workflowId)
+        const dialog = new ShareDialogInteractions(page)
+
+        await workflowCard.openShareDialog()
+        const unlistedLabel = dialog.dialog.locator('label:has-text("Unlisted"), label[for="unlisted"]').first()
+        await expect(unlistedLabel).toBeVisible({ timeout: 5000 })
+        await unlistedLabel.click()
+        await page.waitForTimeout(2000)
+
+        const unlistedToggle = dialog.dialog.locator('button[role="switch"]').first()
+        await unlistedToggle.click()
+        await page.waitForTimeout(2000)
+        expect(await unlistedToggle.getAttribute('aria-checked')).toBe('true')
+
+        await expect(dialog.publicOption).toBeEnabled({ timeout: 5000 })
+        await dialog.publicOption.click()
+        await page.waitForTimeout(2000)
+
+        await expect(unlistedLabel).toBeEnabled({ timeout: 5000 })
+        await unlistedLabel.click()
+        await page.waitForTimeout(2000)
+
+        expect(await unlistedToggle.getAttribute('aria-checked')).toBe('true')
+        await dialog.close()
+      })
+    })
+
+    test.describe('Independent Memory per Visibility Mode', () => {
+      test('enabling collaborative in one mode does not affect other mode', async ({ page }) => {
+        const workflowCard = new WorkflowCardPage(page, workflowId)
+        const dialog = new ShareDialogInteractions(page)
+
+        await workflowCard.openShareDialog()
+        await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
+
+        const unlistedLabel = dialog.dialog.locator('label:has-text("Unlisted"), label[for="unlisted"]').first()
+        await expect(unlistedLabel).toBeVisible({ timeout: 5000 })
+        await unlistedLabel.click()
+        await page.waitForTimeout(2000)
+
+        const unlistedToggle = dialog.dialog.locator('button[role="switch"]').first()
+        await unlistedToggle.click()
+        await page.waitForTimeout(2000)
+        expect(await unlistedToggle.getAttribute('aria-checked')).toBe('true')
+
+        await expect(dialog.publicOption).toBeEnabled({ timeout: 5000 })
+        await dialog.publicOption.click()
+        await page.waitForTimeout(2000)
+
+        const publicToggle = dialog.dialog.locator('button[role="switch"]').last()
+        expect(await publicToggle.getAttribute('aria-checked')).toBe('false')
+
+        await dialog.close()
+      })
+
+      test('non-collaborative state preserved when switching between visibility modes', async ({ page }) => {
+        const workflowCard = new WorkflowCardPage(page, workflowId)
+        const dialog = new ShareDialogInteractions(page)
+
+        await workflowCard.openShareDialog()
+        await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
+
+        const publicToggle = dialog.dialog.locator('button[role="switch"]').last()
+        expect(await publicToggle.getAttribute('aria-checked')).toBe('false')
+
+        const unlistedLabel = dialog.dialog.locator('label:has-text("Unlisted"), label[for="unlisted"]').first()
+        await expect(unlistedLabel).toBeVisible({ timeout: 5000 })
+        await unlistedLabel.click()
+        await page.waitForTimeout(2000)
+
+        const unlistedToggle = dialog.dialog.locator('button[role="switch"]').first()
+        expect(await unlistedToggle.getAttribute('aria-checked')).toBe('false')
+
+        await expect(dialog.publicOption).toBeEnabled({ timeout: 5000 })
+        await dialog.publicOption.click()
+        await page.waitForTimeout(2000)
+
+        expect(await publicToggle.getAttribute('aria-checked')).toBe('false')
+
+        await dialog.close()
+      })
+    })
+
+    test.describe('Special Cases', () => {
+      test('debounced updates persist final state from rapid toggle clicks', async ({ page }) => {
+        const workflowCard = new WorkflowCardPage(page, workflowId)
+        const dialog = new ShareDialogInteractions(page)
+
+        await makeWorkflowPublic(page, workflowId)
+        await workflowCard.openShareDialog()
+
+        const publicToggle = dialog.dialog.locator('button[role="switch"]').last()
+
+        await publicToggle.click() // ON
+        await publicToggle.click() // OFF
+        await publicToggle.click() // ON
+        await page.waitForTimeout(2000)
+
+        const finalState = await publicToggle.getAttribute('aria-checked')
+        expect(finalState).toBe('true')
+
+        await dialog.close()
+      })
+
+      test('collaborative state isolated per workflow instance', async ({ page }) => {
+        const workflow2Id = await createWorkflow(page)
+        const workflowCard1 = new WorkflowCardPage(page, workflowId)
+        const workflowCard2 = new WorkflowCardPage(page, workflow2Id)
+        const dialog = new ShareDialogInteractions(page)
+
+        await makeWorkflowPublic(page, workflowId)
+        await workflowCard1.navigateToList()
+
+        await workflowCard1.clickShare()
+        const toggle1 = dialog.dialog.locator('button[role="switch"]').last()
+        await toggle1.click()
+        await page.waitForTimeout(2000)
+        expect(await toggle1.getAttribute('aria-checked')).toBe('true')
+        await dialog.close()
+
+        await makeWorkflowPublic(page, workflow2Id)
+        await workflowCard2.clickShare()
+        const toggle2 = dialog.dialog.locator('button[role="switch"]').last()
+        expect(await toggle2.getAttribute('aria-checked')).toBe('false')
+        await dialog.close()
+
+        await workflowCard1.clickShare()
+        const toggle1Again = dialog.dialog.locator('button[role="switch"]').last()
+        expect(await toggle1Again.getAttribute('aria-checked')).toBe('true')
+        await dialog.close()
+      })
+
+      test('state updates remain atomic under slow network conditions', async ({ page }) => {
+        await page.route('**/api/v2/workflow/*/share/public', async route => {
+          await new Promise(resolve => setTimeout(resolve, 2000))
+          await route.continue()
+        })
+
+        const workflowCard = new WorkflowCardPage(page, workflowId)
+        const dialog = new ShareDialogInteractions(page)
+
+        await workflowCard.openShareDialog()
+        await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
+
+        await dialog.privateOption.click()
+        await page.waitForTimeout(500)
+
+        await dialog.publicOption.click()
+        await page.waitForTimeout(3000)
+
+        await expect(dialog.publicOption).toBeChecked()
+        await dialog.close()
+
+        await page.unroute('**/api/v2/workflow/*/share/public')
+      })
+    })
+
+    test('collaborative toggle availability controlled by visibility mode', async ({ page }) => {
+      const workflowCard = new WorkflowCardPage(page, workflowId)
+      const dialog = new ShareDialogInteractions(page)
+
+      await workflowCard.openShareDialog()
+      await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
+
+      let publicToggle = dialog.dialog.locator('button[role="switch"]').last()
+      await expect(publicToggle).toBeVisible()
+
+      await dialog.privateOption.click()
+      await page.waitForTimeout(1000)
+
+      const toggleCount = await dialog.dialog.locator('button[role="switch"]').count()
+      expect(toggleCount).toBe(0)
+
+      await dialog.publicOption.click()
+      await page.waitForTimeout(1000)
+
+      publicToggle = dialog.dialog.locator('button[role="switch"]').last()
+      await expect(publicToggle).toBeVisible()
+
+      await dialog.close()
+    })
+  })
+
   test.describe('Edge Cases', () => {
     test('handles multiple workflows correctly', async ({ page }) => {
       const workflow2Id = await createWorkflow(page)
@@ -265,6 +541,58 @@ test.describe('Workflow Sharing', () => {
 
       await page.keyboard.press('Escape')
       await expect(dialog.dialog).not.toBeVisible()
+    })
+
+    test('visibility state isolated across concurrent workflows', async ({ page }) => {
+      const workflow2Id = await createWorkflow(page)
+      const workflowCard1 = new WorkflowCardPage(page, workflowId)
+      const workflowCard2 = new WorkflowCardPage(page, workflow2Id)
+      const dialog = new ShareDialogInteractions(page)
+
+      await workflowCard1.navigateToList()
+
+      await workflowCard1.clickShare()
+      await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
+      await dialog.close()
+
+      await workflowCard2.clickShare()
+      await expect(dialog.privateOption).toBeChecked()
+      await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
+      await dialog.close()
+
+      await workflowCard1.clickShare()
+      await expect(dialog.publicOption).toBeChecked()
+      await dialog.close()
+    })
+
+    test('visibility state preserved after page reload', async ({ page }) => {
+      const workflowCard = new WorkflowCardPage(page, workflowId)
+      const dialog = new ShareDialogInteractions(page)
+
+      await makeWorkflowPublic(page, workflowId)
+
+      await page.reload()
+      await page.waitForLoadState('networkidle')
+
+      await workflowCard.openShareDialog()
+      await expect(dialog.publicOption).toBeChecked()
+      await dialog.close()
+    })
+
+    test('visibility updates prevent race conditions on rapid changes', async ({ page }) => {
+      const workflowCard = new WorkflowCardPage(page, workflowId)
+      const dialog = new ShareDialogInteractions(page)
+
+      await workflowCard.openShareDialog()
+      await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
+
+      await dialog.privateOption.click()
+      await dialog.publicOption.click()
+      await dialog.privateOption.click()
+      await page.waitForTimeout(2000)
+
+      await expect(dialog.privateOption).toBeChecked()
+      await dialog.close()
     })
   })
 })

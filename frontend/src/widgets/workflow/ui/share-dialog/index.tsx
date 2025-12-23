@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React from 'react'
 import {
   GlassDialog,
   GlassDialogContent,
@@ -20,6 +20,7 @@ import {
 } from '../../model/visibility-state'
 import { useUserInteractionTracking } from './use-user-interaction-tracking'
 import { useAutoShareOnOpen } from './use-auto-share-on-open'
+import { useVisibilityUpdate } from './use-visibility-update'
 
 interface WorkflowShareDialogProps extends DialogProps {
   workflowId: string
@@ -37,7 +38,11 @@ export const WorkflowShareDialog: React.FC<WorkflowShareDialogProps> = ({
     enabled: open,
   })
 
-  const [isPersisting, setIsPersisting] = useState(false)
+  const { isPersisting, updateWithTimeout } = useVisibilityUpdate({
+    updateVisibility,
+    timeoutMs: 10000,
+  })
+
   const currentVisibility = visibilityStateFromShare(workflow?.share?.public)
 
   const { userHasInteracted, markUserInteraction } = useUserInteractionTracking({
@@ -57,13 +62,8 @@ export const WorkflowShareDialog: React.FC<WorkflowShareDialogProps> = ({
 
   const handleVisibilityChange = async (value: VisibilityStateValue) => {
     markUserInteraction()
-    setIsPersisting(true)
-    try {
-      const newState = visibilityStateToShare(value)
-      await updateVisibility(newState)
-    } finally {
-      setIsPersisting(false)
-    }
+    const newState = visibilityStateToShare(value)
+    await updateWithTimeout(newState)
   }
 
   const isInteractionDisabled = isLoading || isPersisting
