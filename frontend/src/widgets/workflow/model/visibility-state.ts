@@ -90,3 +90,27 @@ export const visibilityStateToShare = (value: VisibilityStateValue): PublicShare
       return { enabled: false, hidden: false, writeable: false }
   }
 }
+
+export const mapCompositeToBaseValue = (value: VisibilityStateValue): VisibilityStateValue => {
+  if (value === 'writeable-unlisted') return 'unlisted'
+  if (value === 'writeable-public') return 'public'
+  return value
+}
+
+export interface VisibilityDisplayState {
+  isPrivate: boolean
+  isUnlisted: boolean
+  isPublic: boolean
+  isUnlistedCollaborative: boolean
+  isPublicCollaborative: boolean
+  radioValue: VisibilityStateValue
+}
+
+export const deriveVisibilityDisplayState = (value: VisibilityStateValue): VisibilityDisplayState => ({
+  isPrivate: value === 'private',
+  isUnlisted: value === 'unlisted' || value === 'writeable-unlisted',
+  isPublic: value === 'public' || value === 'writeable-public',
+  isUnlistedCollaborative: value === 'writeable-unlisted',
+  isPublicCollaborative: value === 'writeable-public',
+  radioValue: mapCompositeToBaseValue(value),
+})
