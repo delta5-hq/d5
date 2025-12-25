@@ -11,53 +11,52 @@ import {
 import {testOrchestrator, testDataFactory} from './shared/test-data-factory'
 
 describe('RBAC Security - Workflow Sharing and Access Control', () => {
-  let orchestrator
-  let workflowId
-  let subscriberWorkflowId
-  let customerWorkflowId
-  let publicWorkflowId
-  let publicWriteableWorkflowId
-
   const subscriberUserId = 'subscriber'
   const customerUserId = 'customer'
   const administratorUserId = 'admin'
 
-  beforeAll(async () => {
-    await testOrchestrator.prepareTestEnvironment()
+  /* Workflow factory helpers - DRY principle for test data creation */
+  const createAdminWorkflow = (title = 'Admin Test Workflow') =>
+    testDataFactory.createWorkflow({title, userId: administratorUserId})
 
-    const adminWorkflow = await testDataFactory.createWorkflow({title: 'Admin Test Workflow'})
-    workflowId = adminWorkflow.workflowId
+  const createSubscriberWorkflow = (title = 'Subscriber Test Workflow') =>
+    testDataFactory.createWorkflow({title, userId: subscriberUserId})
 
-    const subWorkflow = await testDataFactory.createWorkflow({
-      title: 'Subscriber Workflow',
-      userId: subscriberUserId,
-    })
-    subscriberWorkflowId = subWorkflow.workflowId
+  const createCustomerWorkflow = (title = 'Customer Test Workflow') =>
+    testDataFactory.createWorkflow({title, userId: customerUserId})
 
-    const custWorkflow = await testDataFactory.createWorkflow({
-      title: 'Customer Workflow',
-      userId: customerUserId,
-    })
-    customerWorkflowId = custWorkflow.workflowId
-
-    const pubWorkflow = await testDataFactory.createWorkflow({
-      title: 'Public Workflow',
+  const createPublicWorkflow = (title = 'Public Test Workflow', userId = administratorUserId) =>
+    testDataFactory.createWorkflow({
+      title,
+      userId,
       share: {
         public: {enabled: true, hidden: false, writeable: false},
         access: [],
       },
     })
-    publicWorkflowId = pubWorkflow.workflowId
 
-    const pubWriteWorkflow = await testDataFactory.createWorkflow({
-      title: 'Public Writeable Workflow',
+  const createPublicWriteableWorkflow = (title = 'Public Writeable Workflow') =>
+    testDataFactory.createWorkflow({
+      title,
       userId: administratorUserId,
       share: {
         public: {enabled: true, hidden: false, writeable: true},
         access: [],
       },
     })
-    publicWriteableWorkflowId = pubWriteWorkflow.workflowId
+
+  const createHiddenPublicWorkflow = (title = 'Hidden Public Workflow', userId = administratorUserId) =>
+    testDataFactory.createWorkflow({
+      title,
+      userId,
+      share: {
+        public: {enabled: true, hidden: true, writeable: false},
+        access: [],
+      },
+    })
+
+  beforeAll(async () => {
+    await testOrchestrator.prepareTestEnvironment()
   })
 
   afterAll(async () => {
@@ -66,7 +65,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
 
   describe('Owner-Only Operations - Share Configuration', () => {
     it('prevents non-owner from updating public sharing', async () => {
-      const response = await subscriberRequest.post(`/workflow/${workflowId}/share/public`).send({
+      const adminWorkflow = await createAdminWorkflow('Non-owner public sharing test')
+
+      const response = await subscriberRequest.post(`/workflow/${adminWorkflow.workflowId}/share/public`).send({
         enabled: true,
         hidden: false,
       })
@@ -76,7 +77,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('prevents non-owner from updating access list', async () => {
-      const response = await subscriberRequest.post(`/workflow/${workflowId}/share/access`).send([
+      const adminWorkflow = await createAdminWorkflow('Non-owner access list test')
+
+      const response = await subscriberRequest.post(`/workflow/${adminWorkflow.workflowId}/share/access`).send([
         {
           subjectId: subscriberUserId,
           subjectType: 'user',
@@ -148,7 +151,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('prevents non-administrator from enabling public writeable workflow', async () => {
-      const response = await subscriberRequest.post(`/workflow/${subscriberWorkflowId}/share/public`).send({
+      const subscriberWorkflow = await createSubscriberWorkflow('Non-admin writeable test')
+
+      const response = await subscriberRequest.post(`/workflow/${subscriberWorkflow.workflowId}/share/public`).send({
         enabled: true,
         hidden: false,
         writeable: true,
@@ -353,7 +358,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('prevents adding access rule with invalid subject type', async () => {
-      const response = await administratorRequest.post(`/workflow/${workflowId}/share/access`).send([
+      const adminWorkflow = await createAdminWorkflow('Invalid subject type test')
+
+      const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/access`).send([
         {
           subjectId: subscriberUserId,
           subjectType: 'invalid_type',
@@ -365,7 +372,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('prevents adding access rule with empty subject ID', async () => {
-      const response = await administratorRequest.post(`/workflow/${workflowId}/share/access`).send([
+      const adminWorkflow = await createAdminWorkflow('Empty subject ID test')
+
+      const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/access`).send([
         {
           subjectId: '',
           subjectType: 'user',
@@ -377,7 +386,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('prevents adding access rule with null subject ID', async () => {
-      const response = await administratorRequest.post(`/workflow/${workflowId}/share/access`).send([
+      const adminWorkflow = await createAdminWorkflow('Null subject ID test')
+
+      const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/access`).send([
         {
           subjectId: null,
           subjectType: 'user',
@@ -389,7 +400,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('prevents adding access rule with SQL injection in subject ID', async () => {
-      const response = await administratorRequest.post(`/workflow/${workflowId}/share/access`).send([
+      const adminWorkflow = await createAdminWorkflow('SQL injection test')
+
+      const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/access`).send([
         {
           subjectId: "admin' OR '1'='1",
           subjectType: 'user',
@@ -401,7 +414,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('prevents adding access rule with XSS in subject ID', async () => {
-      const response = await administratorRequest.post(`/workflow/${workflowId}/share/access`).send([
+      const adminWorkflow = await createAdminWorkflow('XSS test')
+
+      const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/access`).send([
         {
           subjectId: '<script>alert("xss")</script>',
           subjectType: 'user',
@@ -415,13 +430,17 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
 
   describe('Public Workflow Access Control', () => {
     it('allows unauthenticated read access to public workflow', async () => {
-      const response = await publicRequest.get(`/workflow/${publicWorkflowId}`)
+      const publicWorkflow = await createPublicWorkflow('Unauthenticated read test')
+
+      const response = await publicRequest.get(`/workflow/${publicWorkflow.workflowId}`)
 
       expect(response.status).toBe(200)
     })
 
     it('prevents unauthenticated write access to public non-writeable workflow', async () => {
-      const response = await publicRequest.post(`/workflow/${publicWorkflowId}/category`).send({
+      const publicWorkflow = await createPublicWorkflow('Unauthenticated write test')
+
+      const response = await publicRequest.post(`/workflow/${publicWorkflow.workflowId}/category`).send({
         category: 'test',
       })
 
@@ -429,7 +448,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('allows authenticated write access to public writeable workflow', async () => {
-      const response = await subscriberRequest.post(`/workflow/${publicWriteableWorkflowId}/category`).send({
+      const publicWriteableWorkflow = await createPublicWriteableWorkflow('Authenticated write test')
+
+      const response = await subscriberRequest.post(`/workflow/${publicWriteableWorkflow.workflowId}/category`).send({
         category: 'test',
       })
 
@@ -437,25 +458,23 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('prevents unauthenticated delete of public workflow', async () => {
-      const response = await publicRequest.delete(`/workflow/${publicWorkflowId}`)
+      const publicWorkflow = await createPublicWorkflow('Unauthenticated delete test')
+
+      const response = await publicRequest.delete(`/workflow/${publicWorkflow.workflowId}`)
 
       expect(response.status).toBe(401)
     })
 
     it('prevents non-owner from deleting public workflow', async () => {
-      const response = await subscriberRequest.delete(`/workflow/${publicWorkflowId}`)
+      const publicWorkflow = await createPublicWorkflow('Non-owner delete test')
+
+      const response = await subscriberRequest.delete(`/workflow/${publicWorkflow.workflowId}`)
 
       expect(response.status).toBe(403)
     })
 
     it('prevents listing hidden public workflows', async () => {
-      const hiddenWorkflow = await testDataFactory.createWorkflow({
-        title: 'Hidden Public Workflow',
-        share: {
-          public: {enabled: true, hidden: true, writeable: false},
-          access: [],
-        },
-      })
+      const hiddenWorkflow = await createHiddenPublicWorkflow('Hidden public workflow listing test')
 
       const response = await publicRequest.get('/workflow?public=true')
 
@@ -465,14 +484,7 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('allows owner to access hidden public workflow', async () => {
-      const hiddenWorkflow = await testDataFactory.createWorkflow({
-        title: 'Hidden Workflow',
-        userId: subscriberUserId,
-        share: {
-          public: {enabled: true, hidden: true, writeable: false},
-          access: [],
-        },
-      })
+      const hiddenWorkflow = await createHiddenPublicWorkflow('Owner access hidden test', subscriberUserId)
 
       const response = await subscriberRequest.get(`/workflow/${hiddenWorkflow.workflowId}`)
 
@@ -494,8 +506,11 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('allows administrator to access all workflows', async () => {
-      const response1 = await administratorRequest.get(`/workflow/${subscriberWorkflowId}`)
-      const response2 = await administratorRequest.get(`/workflow/${customerWorkflowId}`)
+      const subscriberWorkflow = await createSubscriberWorkflow('Admin access subscriber workflow')
+      const customerWorkflow = await createCustomerWorkflow('Admin access customer workflow')
+
+      const response1 = await administratorRequest.get(`/workflow/${subscriberWorkflow.workflowId}`)
+      const response2 = await administratorRequest.get(`/workflow/${customerWorkflow.workflowId}`)
 
       expect(response1.status).toBe(200)
       expect(response2.status).toBe(200)
@@ -578,13 +593,17 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
 
   describe('Access List Boundary Conditions', () => {
     it('handles empty access list', async () => {
-      const response = await administratorRequest.post(`/workflow/${workflowId}/share/access`).send([])
+      const adminWorkflow = await createAdminWorkflow('Empty access list test')
+
+      const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/access`).send([])
 
       expect(response.status).toBe(200)
     })
 
     it('prevents access list with only invalid entries', async () => {
-      const response = await administratorRequest.post(`/workflow/${workflowId}/share/access`).send([
+      const adminWorkflow = await createAdminWorkflow('Invalid entries test')
+
+      const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/access`).send([
         {subjectId: '', subjectType: 'user', role: ACCESS_ROLES.reader},
         {subjectId: null, subjectType: 'user', role: ACCESS_ROLES.reader},
       ])
@@ -593,19 +612,23 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('handles large access list', async () => {
+      const adminWorkflow = await createAdminWorkflow('Large access list test')
+
       const largeAccessList = Array.from({length: 100}, (_, i) => ({
         subjectId: `user_${i}@example.com`,
         subjectType: 'mail',
         role: ACCESS_ROLES.reader,
       }))
 
-      const response = await administratorRequest.post(`/workflow/${workflowId}/share/access`).send(largeAccessList)
+      const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/access`).send(largeAccessList)
 
       expect(response.status).toBe(200)
     })
 
     it('handles duplicate entries in access list', async () => {
-      const response = await administratorRequest.post(`/workflow/${workflowId}/share/access`).send([
+      const adminWorkflow = await createAdminWorkflow('Duplicate entries test')
+
+      const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/access`).send([
         {
           subjectId: subscriberUserId,
           subjectType: 'user',
@@ -620,13 +643,15 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
 
       expect(response.status).toBe(200)
 
-      const accessList = await administratorRequest.get(`/workflow/${workflowId}/share/access`)
+      const accessList = await administratorRequest.get(`/workflow/${adminWorkflow.workflowId}/share/access`)
       const userEntries = accessList.body.filter(a => a.subjectId === subscriberUserId)
       expect(userEntries.length).toBeLessThanOrEqual(2)
     })
 
     it('rejects access list as non-array', async () => {
-      const response = await administratorRequest.post(`/workflow/${workflowId}/share/access`).send({
+      const adminWorkflow = await createAdminWorkflow('Non-array access list test')
+
+      const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/access`).send({
         subjectId: subscriberUserId,
         subjectType: 'user',
         role: ACCESS_ROLES.reader,
@@ -636,7 +661,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('rejects access list as string', async () => {
-      const response = await administratorRequest.post(`/workflow/${workflowId}/share/access`).send('reader')
+      const adminWorkflow = await createAdminWorkflow('String access list test')
+
+      const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/access`).send('reader')
 
       expect(response.status).toBe(400)
     })
@@ -644,26 +671,32 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
 
   describe('Cross-User Workflow Leakage', () => {
     it('prevents subscriber from accessing another subscriber workflow', async () => {
-      const response = await subscriberRequest.get(`/workflow/${customerWorkflowId}`)
+      const customerWorkflow = await createCustomerWorkflow('Cross-user access test')
+
+      const response = await subscriberRequest.get(`/workflow/${customerWorkflow.workflowId}`)
 
       expect(response.status).toBe(401)
     })
 
     it('prevents customer from accessing subscriber workflow', async () => {
-      const response = await customerRequest.get(`/workflow/${subscriberWorkflowId}`)
+      const subscriberWorkflow = await createSubscriberWorkflow('Reverse cross-user access test')
+
+      const response = await customerRequest.get(`/workflow/${subscriberWorkflow.workflowId}`)
 
       expect(response.status).toBe(401)
     })
 
     it('prevents listing workflows of other users', async () => {
+      const customerWorkflow = await createCustomerWorkflow('Listing leak test')
+
       const response = await subscriberRequest.get('/workflow?public=false')
 
       expect(response.status).toBe(200)
       const workflows = JSON.parse(response.text)
       
       /* Subscriber should only see: their own workflows + workflows they have access to */
-      /* customerWorkflowId should NOT appear (no access granted) */
-      const hasCustomerWorkflow = workflows.data.some(w => w.workflowId === customerWorkflowId)
+      /* customerWorkflow should NOT appear (no access granted) */
+      const hasCustomerWorkflow = workflows.data.some(w => w.workflowId === customerWorkflow.workflowId)
       expect(hasCustomerWorkflow).toBe(false)
     })
 
@@ -684,7 +717,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
 
   describe('Public Sharing Permission Edge Cases', () => {
     it('rejects public sharing update without enabled field', async () => {
-      const response = await administratorRequest.post(`/workflow/${workflowId}/share/public`).send({
+      const adminWorkflow = await createAdminWorkflow('Missing enabled field test')
+
+      const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/public`).send({
         hidden: false,
         writeable: false,
       })
@@ -693,12 +728,14 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('allows partial public sharing update', async () => {
-      await administratorRequest.post(`/workflow/${workflowId}/share/public`).send({
+      const adminWorkflow = await createAdminWorkflow('Partial update test')
+
+      await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/public`).send({
         enabled: true,
         hidden: false,
       })
 
-      const response = await administratorRequest.post(`/workflow/${workflowId}/share/public`).send({
+      const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/public`).send({
         enabled: true,
         writeable: false,
       })
@@ -707,6 +744,8 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('prevents enabling public writeable without administrator role', async () => {
+      const subscriberWorkflow = await createSubscriberWorkflow('Non-admin writeable edge test')
+
       const token = jwt.sign(
         {
           sub: subscriberUserId,
@@ -717,7 +756,7 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
       )
 
       const response = await rawRequest
-        .post(`/api/v1/workflow/${subscriberWorkflowId}/share/public`)
+        .post(`/api/v1/workflow/${subscriberWorkflow.workflowId}/share/public`)
         .set('Authorization', `Bearer ${token}`)
         .send({
           enabled: true,
@@ -729,7 +768,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('prevents enabling public writeable non-hidden without administrator role', async () => {
-      const response = await subscriberRequest.post(`/workflow/${subscriberWorkflowId}/share/public`).send({
+      const subscriberWorkflow = await createSubscriberWorkflow('Non-admin public writeable test')
+
+      const response = await subscriberRequest.post(`/workflow/${subscriberWorkflow.workflowId}/share/public`).send({
         enabled: true,
         hidden: false,
         writeable: true,
@@ -739,10 +780,7 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('allows administrator to enable public writeable', async () => {
-      const adminWorkflow = await testDataFactory.createWorkflow({
-        title: 'Admin Public Writeable Test',
-        userId: administratorUserId,
-      })
+      const adminWorkflow = await createAdminWorkflow('Admin public writeable test')
 
       const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/public`).send({
         enabled: true,
@@ -851,7 +889,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
 
   describe('Invalid Role Assignment Prevention', () => {
     it('rejects access rule with invalid role', async () => {
-      const response = await administratorRequest.post(`/workflow/${workflowId}/share/access`).send([
+      const adminWorkflow = await createAdminWorkflow('Invalid role test')
+
+      const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/access`).send([
         {
           subjectId: subscriberUserId,
           subjectType: 'user',
@@ -863,7 +903,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('rejects access rule with missing role', async () => {
-      const response = await administratorRequest.post(`/workflow/${workflowId}/share/access`).send([
+      const adminWorkflow = await createAdminWorkflow('Missing role test')
+
+      const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/access`).send([
         {
           subjectId: subscriberUserId,
           subjectType: 'user',
@@ -874,7 +916,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('rejects access rule with null role', async () => {
-      const response = await administratorRequest.post(`/workflow/${workflowId}/share/access`).send([
+      const adminWorkflow = await createAdminWorkflow('Null role test')
+
+      const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/access`).send([
         {
           subjectId: subscriberUserId,
           subjectType: 'user',
@@ -886,7 +930,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('rejects access rule with empty string role', async () => {
-      const response = await administratorRequest.post(`/workflow/${workflowId}/share/access`).send([
+      const adminWorkflow = await createAdminWorkflow('Empty string role test')
+
+      const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/access`).send([
         {
           subjectId: subscriberUserId,
           subjectType: 'user',
@@ -898,7 +944,9 @@ describe('RBAC Security - Workflow Sharing and Access Control', () => {
     })
 
     it('rejects access rule with numeric role', async () => {
-      const response = await administratorRequest.post(`/workflow/${workflowId}/share/access`).send([
+      const adminWorkflow = await createAdminWorkflow('Numeric role test')
+
+      const response = await administratorRequest.post(`/workflow/${adminWorkflow.workflowId}/share/access`).send([
         {
           subjectId: subscriberUserId,
           subjectType: 'user',

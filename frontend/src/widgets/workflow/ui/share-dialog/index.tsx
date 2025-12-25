@@ -21,6 +21,7 @@ import {
 import { useUserInteractionTracking } from './use-user-interaction-tracking'
 import { useAutoShareOnOpen } from './use-auto-share-on-open'
 import { useVisibilityUpdate } from './use-visibility-update'
+import { useIsFetching } from '@tanstack/react-query'
 
 interface WorkflowShareDialogProps extends DialogProps {
   workflowId: string
@@ -42,6 +43,10 @@ export const WorkflowShareDialog: React.FC<WorkflowShareDialogProps> = ({
     updateVisibility,
     timeoutMs: 10000,
   })
+
+  const workflowsFetching = useIsFetching({ queryKey: ['workflows'] })
+  const workflowFetching = useIsFetching({ queryKey: ['workflow', workflowId] })
+  const isRefetching = workflowsFetching > 0 || workflowFetching > 0
 
   const currentVisibility = visibilityStateFromShare(workflow?.share?.public)
 
@@ -70,7 +75,12 @@ export const WorkflowShareDialog: React.FC<WorkflowShareDialogProps> = ({
 
   return (
     <GlassDialog onOpenChange={onClose} open={open}>
-      <GlassDialogContent className="max-w-lg" glassIntensity="medium">
+      <GlassDialogContent
+        className="max-w-lg"
+        data-persisting={String(isPersisting)}
+        data-refetching={String(isRefetching)}
+        glassIntensity="medium"
+      >
         <GlassDialogHeader>
           <GlassDialogTitle>
             <FormattedMessage id="shareWorkflowTitle" />

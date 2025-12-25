@@ -12,15 +12,27 @@ export class ShareDialogInteractions {
   }
 
   get publicOption(): Locator {
-    return this.dialog.locator(
-      'label:has-text("Public"), input[value="public"], button:has-text("Public")'
-    ).first()
+    return this.dialog.locator('button[role="radio"][value="public"]').first()
+  }
+
+  get publicLabel(): Locator {
+    return this.dialog.locator('label[for="public"]').first()
   }
 
   get privateOption(): Locator {
-    return this.dialog.locator(
-      'label:has-text("Private"), input[value="private"], button:has-text("Private")'
-    ).first()
+    return this.dialog.locator('button[role="radio"][value="private"]').first()
+  }
+
+  get privateLabel(): Locator {
+    return this.dialog.locator('label[for="private"]').first()
+  }
+
+  get unlistedOption(): Locator {
+    return this.dialog.locator('button[role="radio"][value="unlisted"]').first()
+  }
+
+  get unlistedLabel(): Locator {
+    return this.dialog.locator('label[for="unlisted"]').first()
   }
 
   get shareLinkInput(): Locator {
@@ -98,9 +110,9 @@ export class ShareDialogInteractions {
     }
 
     await this.copyButton.click()
-    await this.page.waitForTimeout(500)
 
     try {
+      await this.page.waitForFunction(() => navigator.clipboard.readText())
       return await this.page.evaluate(() => navigator.clipboard.readText())
     } catch {
       return null
@@ -122,5 +134,21 @@ export class ShareDialogInteractions {
 
   async close(): Promise<void> {
     await this.closeButton.click()
+  }
+
+  async waitForPersistence(timeoutMs: number = 15000): Promise<void> {
+    await this.dialog.waitFor({ state: 'visible', timeout: 5000 })
+    
+    await this.page.waitForFunction(
+      () => {
+        const dialog = document.querySelector('[role="dialog"]')
+        const persisting = dialog?.getAttribute('data-persisting')
+        const refetching = dialog?.getAttribute('data-refetching')
+        return persisting === 'false' && refetching === 'false'
+      },
+      { timeout: timeoutMs }
+    )
+    
+    await this.page.waitForTimeout(2000)
   }
 }
