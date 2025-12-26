@@ -19,7 +19,8 @@ test.describe('Workflow Sharing', () => {
     await workflowCard.navigateToList()
     await workflowCard.clickShare()
     await dialog.publicOption.click()
-    await page.waitForTimeout(500)
+    await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
+    await dialog.waitForPersistence()
     await dialog.close()
   }
 
@@ -45,13 +46,12 @@ test.describe('Workflow Sharing', () => {
       await expect(dialog.privateOption).toBeChecked()
       
       await dialog.publicOption.click()
-      await page.waitForTimeout(1000)
-      await expect(dialog.publicOption).toBeChecked()
+      await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence()
       await dialog.close()
 
       await page.goto('/workflows')
       await page.waitForLoadState('networkidle')
-      await page.waitForTimeout(500)
 
       await workflowCard.clickShare()
       await expect(dialog.publicOption).toBeChecked()
@@ -63,17 +63,15 @@ test.describe('Workflow Sharing', () => {
       const dialog = new ShareDialogInteractions(page)
 
       await makeWorkflowPublic(page, workflowId)
-      await page.waitForTimeout(500)
 
       await workflowCard.openShareDialog()
       await expect(dialog.publicOption).toBeChecked()
 
       await dialog.privateOption.click()
-      await page.waitForTimeout(1000)
-      await expect(dialog.privateOption).toBeChecked()
+      await expect(dialog.privateOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence()
       await dialog.close()
 
-      await page.waitForTimeout(500)
       await workflowCard.openShareDialog()
       await expect(dialog.privateOption).toBeChecked()
       await dialog.close()
@@ -86,19 +84,18 @@ test.describe('Workflow Sharing', () => {
       await workflowCard.openShareDialog()
       
       await dialog.publicOption.click()
-      await page.waitForTimeout(1000)
-      await expect(dialog.publicOption).toBeChecked()
+      await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence()
 
       await dialog.privateOption.click()
-      await page.waitForTimeout(1000)
-      await expect(dialog.privateOption).toBeChecked()
+      await expect(dialog.privateOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence()
 
       await dialog.publicOption.click()
-      await page.waitForTimeout(1000)
-      await expect(dialog.publicOption).toBeChecked()
+      await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence()
 
       await dialog.close()
-      await page.waitForTimeout(500)
 
       await workflowCard.openShareDialog()
       await expect(dialog.publicOption).toBeChecked()
@@ -113,6 +110,10 @@ test.describe('Workflow Sharing', () => {
 
       await makeWorkflowPublic(page, workflowId)
       await workflowCard.openShareDialog()
+      
+      // Wait for share link input to be visible
+      await expect(dialog.shareLinkInput).toBeVisible({ timeout: 15000 })
+      
       const shareLink = await dialog.getShareLink()
       
       expect(shareLink).toBeTruthy()
@@ -126,6 +127,9 @@ test.describe('Workflow Sharing', () => {
 
       await makeWorkflowPublic(page, workflowId)
       await workflowCard.openShareDialog()
+      
+      // Wait for share link input to be visible
+      await expect(dialog.shareLinkInput).toBeVisible({ timeout: 15000 })
       
       const shareLink = await dialog.getShareLink()
       expect(shareLink).toBeTruthy()
@@ -206,19 +210,18 @@ test.describe('Workflow Sharing', () => {
       const dialog = new ShareDialogInteractions(page)
 
       await makeWorkflowPublic(page, workflowId)
-      await page.waitForTimeout(500)
 
       await workflowCard.openShareDialog()
       await expect(dialog.publicOption).toBeChecked()
 
       await dialog.privateOption.click()
-      await page.waitForTimeout(1000)
+      await expect(dialog.privateOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence()
 
       await expect(dialog.privateOption).toBeChecked()
       await expect(dialog.publicOption).not.toBeChecked()
 
       await dialog.close()
-      await page.waitForTimeout(500)
 
       await workflowCard.openShareDialog()
       await expect(dialog.privateOption).toBeChecked()
@@ -230,13 +233,11 @@ test.describe('Workflow Sharing', () => {
       const dialog = new ShareDialogInteractions(page)
 
       await makeWorkflowPublic(page, workflowId)
-      await page.waitForTimeout(500)
 
       await workflowCard.openShareDialog()
       await expect(dialog.publicOption).toBeChecked()
       
-      await page.waitForTimeout(1000)
-      await expect(dialog.publicOption).toBeChecked()
+      await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
       await dialog.close()
     })
   })
@@ -251,12 +252,12 @@ test.describe('Workflow Sharing', () => {
 
       const publicToggle = dialog.dialog.locator('button[role="switch"]').last()
       await publicToggle.click()
-      await page.waitForTimeout(1000)
-      expect(await publicToggle.getAttribute('aria-checked')).toBe('true')
+      await expect(publicToggle).toHaveAttribute('aria-checked', 'true', { timeout: 15000 })
+      await dialog.waitForPersistence()
       await dialog.close()
 
       await workflowCard.openShareDialog()
-      expect(await publicToggle.getAttribute('aria-checked')).toBe('true')
+      await expect(publicToggle).toHaveAttribute('aria-checked', 'true', { timeout: 15000 })
       await dialog.close()
     })
 
@@ -269,16 +270,18 @@ test.describe('Workflow Sharing', () => {
 
       const publicToggle = dialog.dialog.locator('button[role="switch"]').last()
       await publicToggle.click()
-      await page.waitForTimeout(1000)
-      expect(await publicToggle.getAttribute('aria-checked')).toBe('true')
+      await expect(publicToggle).toHaveAttribute('aria-checked', 'true', { timeout: 15000 })
+      await dialog.waitForPersistence()
 
       await dialog.unlistedOption.click()
-      await page.waitForTimeout(1000)
+      await expect(dialog.unlistedOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence()
 
       await dialog.publicOption.click()
-      await page.waitForTimeout(1000)
+      await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence()
 
-      expect(await publicToggle.getAttribute('aria-checked')).toBe('true')
+      await expect(publicToggle).toHaveAttribute('aria-checked', 'true', { timeout: 15000 })
       await dialog.close()
     })
 
@@ -295,9 +298,10 @@ test.describe('Workflow Sharing', () => {
       for (let i = 0; i < 6; i++) {
         expectedState = !expectedState
         await publicToggle.click()
+        await expect(publicToggle).toHaveAttribute('aria-checked', expectedState ? 'true' : 'false', {
+          timeout: 15000,
+        })
         await dialog.waitForPersistence()
-        const state = await publicToggle.getAttribute('aria-checked')
-        expect(state).toBe(expectedState ? 'true' : 'false')
       }
 
       await dialog.close()
@@ -311,18 +315,20 @@ test.describe('Workflow Sharing', () => {
       await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
 
       await dialog.unlistedOption.click()
-      await page.waitForTimeout(1000)
+      await expect(dialog.unlistedOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence()
 
       const unlistedToggle = dialog.dialog.locator('button[role="switch"]').first()
       await unlistedToggle.click()
-      await page.waitForTimeout(1000)
-      expect(await unlistedToggle.getAttribute('aria-checked')).toBe('true')
+      await expect(unlistedToggle).toHaveAttribute('aria-checked', 'true', { timeout: 15000 })
+      await dialog.waitForPersistence()
 
       await dialog.publicOption.click()
-      await page.waitForTimeout(1000)
+      await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence()
 
       const publicToggle = dialog.dialog.locator('button[role="switch"]').last()
-      expect(await publicToggle.getAttribute('aria-checked')).toBe('false')
+      await expect(publicToggle).toHaveAttribute('aria-checked', 'false', { timeout: 15000 })
 
       await dialog.close()
     })
@@ -338,13 +344,15 @@ test.describe('Workflow Sharing', () => {
       await expect(publicToggle).toBeVisible()
 
       await dialog.privateOption.click()
-      await page.waitForTimeout(1000)
+      await expect(dialog.privateOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence()
 
       const toggleCount = await dialog.dialog.locator('button[role="switch"]').count()
       expect(toggleCount).toBe(0)
 
       await dialog.publicOption.click()
-      await page.waitForTimeout(1000)
+      await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence()
 
       publicToggle = dialog.dialog.locator('button[role="switch"]').last()
       await expect(publicToggle).toBeVisible()
@@ -425,7 +433,8 @@ test.describe('Workflow Sharing', () => {
       await dialog.privateOption.click()
       await dialog.publicOption.click()
       await dialog.privateOption.click()
-      await page.waitForTimeout(2000)
+      await expect(dialog.privateOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence()
 
       await expect(dialog.privateOption).toBeChecked()
       await dialog.close()
@@ -443,19 +452,19 @@ test.describe('Workflow Sharing', () => {
       await workflowCard1.clickShare()
       const toggle1 = dialog.dialog.locator('button[role="switch"]').last()
       await toggle1.click()
-      await page.waitForTimeout(1000)
-      expect(await toggle1.getAttribute('aria-checked')).toBe('true')
+      await expect(toggle1).toHaveAttribute('aria-checked', 'true', { timeout: 15000 })
+      await dialog.waitForPersistence()
       await dialog.close()
 
       await makeWorkflowPublic(page, workflow2Id)
       await workflowCard2.clickShare()
       const toggle2 = dialog.dialog.locator('button[role="switch"]').last()
-      expect(await toggle2.getAttribute('aria-checked')).toBe('false')
+      await expect(toggle2).toHaveAttribute('aria-checked', 'false', { timeout: 15000 })
       await dialog.close()
 
       await workflowCard1.clickShare()
       const toggle1Again = dialog.dialog.locator('button[role="switch"]').last()
-      expect(await toggle1Again.getAttribute('aria-checked')).toBe('true')
+      await expect(toggle1Again).toHaveAttribute('aria-checked', 'true', { timeout: 15000 })
       await dialog.close()
     })
 
@@ -472,10 +481,12 @@ test.describe('Workflow Sharing', () => {
       await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
 
       await dialog.privateOption.click()
-      await page.waitForTimeout(500)
+      await expect(dialog.privateOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence()
 
       await dialog.publicOption.click()
-      await page.waitForTimeout(3000)
+      await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence()
 
       await expect(dialog.publicOption).toBeChecked()
       await dialog.close()
