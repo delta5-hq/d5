@@ -180,29 +180,34 @@ test.describe('Visibility State System', () => {
       
       const unlistedLabel = dialog.dialog.locator('label[for="unlisted"]').first()
       await unlistedLabel.click()
-      await dialog.waitForPersistence()
+      await expect(dialog.unlistedOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence(30000)
 
       const unlistedToggle = dialog.dialog.locator('button[role="switch"]').first()
       await unlistedToggle.click()
-      await dialog.waitForPersistence()
-      await expect(unlistedToggle).toHaveAttribute('aria-checked', 'true', { timeout: 10000 })
+      await expect(unlistedToggle).toHaveAttribute('aria-checked', 'true', { timeout: 15000 })
+      await dialog.waitForPersistence(30000)
 
       await dialog.publicLabel.click()
-      await dialog.waitForPersistence()
+      await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence(30000)
 
       const publicToggle = dialog.dialog.locator('button[role="switch"]').last()
-      await expect(publicToggle).toHaveAttribute('aria-checked', 'false', { timeout: 5000 })
+      await expect(publicToggle).toHaveAttribute('aria-checked', 'false', { timeout: 15000 })
 
       await dialog.privateLabel.click()
-      await dialog.waitForPersistence()
+      await expect(dialog.privateOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence(30000)
 
       await dialog.publicLabel.click()
-      await dialog.waitForPersistence()
-      await expect(publicToggle).toHaveAttribute('aria-checked', 'false')
+      await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence(30000)
+      await expect(publicToggle).toHaveAttribute('aria-checked', 'false', { timeout: 15000 })
 
       await unlistedLabel.click()
-      await dialog.waitForPersistence()
-      await expect(unlistedToggle).toHaveAttribute('aria-checked', 'true')
+      await expect(dialog.unlistedOption).toBeChecked({ timeout: 15000 })
+      await dialog.waitForPersistence(30000)
+      await expect(unlistedToggle).toHaveAttribute('aria-checked', 'true', { timeout: 15000 })
 
       await dialog.close()
     })

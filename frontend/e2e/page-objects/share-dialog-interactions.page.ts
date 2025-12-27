@@ -148,7 +148,5 @@ export class ShareDialogInteractions {
       },
       { timeout: timeoutMs }
     )
-    
-    await this.page.waitForTimeout(2000)
   }
 }

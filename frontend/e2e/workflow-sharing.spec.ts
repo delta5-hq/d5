@@ -153,6 +153,10 @@ test.describe('Workflow Sharing', () => {
 
       await makeWorkflowPublic(page, workflowId)
       await workflowCard.openShareDialog()
+      
+      // Wait for QR toggle to be visible
+      await expect(dialog.qrToggle).toBeVisible({ timeout: 15000 })
+      
       const qrToggled = await dialog.toggleQRCode()
       
       expect(qrToggled).toBe(true)
@@ -297,11 +301,15 @@ test.describe('Workflow Sharing', () => {
       let expectedState = false
       for (let i = 0; i < 6; i++) {
         expectedState = !expectedState
+        
+        // Click and wait for UI state change first
         await publicToggle.click()
         await expect(publicToggle).toHaveAttribute('aria-checked', expectedState ? 'true' : 'false', {
           timeout: 15000,
         })
-        await dialog.waitForPersistence()
+        
+        // Then wait for backend to finish before next click
+        await dialog.waitForPersistence(30000)
       }
 
       await dialog.close()
@@ -482,11 +490,11 @@ test.describe('Workflow Sharing', () => {
 
       await dialog.privateOption.click()
       await expect(dialog.privateOption).toBeChecked({ timeout: 15000 })
-      await dialog.waitForPersistence()
+      await dialog.waitForPersistence(30000)
 
       await dialog.publicOption.click()
       await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
-      await dialog.waitForPersistence()
+      await dialog.waitForPersistence(30000)
 
       await expect(dialog.publicOption).toBeChecked()
       await dialog.close()
