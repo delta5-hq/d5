@@ -10,10 +10,17 @@ export default {
 
   sidebarMainGroupLabel: 'Application',
   sidebarHomeLabel: 'Home',
+  sidebarCreateLabel: 'Create',
+  sidebarPublicLabel: 'Public',
   sidebarPublicWorkflowsLabel: 'Public Workflows',
   sidebarMyWorkflowsLabel: 'My Workflows',
   sidebarSearchLabel: 'Search',
   sidebarSettingsLabel: 'Settings',
+  sidebarAdminLabel: 'Admin',
+  sidebarRecentItemsLabel: 'Recent Items',
+  sidebarTagsLabel: 'Tags',
+  sidebarNoRecentItems: 'No recent items',
+  sidebarNoTags: 'No tags',
   sidebarBuild: 'build',
 
   buttonCancel: 'Cancel',
