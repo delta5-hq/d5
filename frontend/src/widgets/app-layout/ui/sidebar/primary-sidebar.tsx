@@ -1,7 +1,9 @@
 import { useAuthContext } from '@entities/auth'
+import { CreatePopover } from '@features/create-popover'
 import { cn } from '@shared/lib/utils'
-import { type FC, useRef, useState, useEffect } from 'react'
+import { type FC, useRef, useState, useEffect, type ReactNode } from 'react'
 import { PRIMARY_NAV_ITEMS, filterVisibleNavItems, type NavItem } from '../../config'
+import { useWorkflowActions } from '../../hooks/use-workflow-actions'
 import { NavigationList } from './components/navigation-list'
 import { SidebarFooter } from './components/sidebar-footer'
 import styles from './primary-sidebar.module.scss'
@@ -13,31 +15,42 @@ interface PrimarySidebarProps {
 
 const PrimarySidebar: FC<PrimarySidebarProps> = ({ onSectionChange, onOpenSecondary }) => {
   const { isLoggedIn, isAdmin } = useAuthContext()
+  const { createWorkflow } = useWorkflowActions()
   const visibleItems = filterVisibleNavItems(PRIMARY_NAV_ITEMS, isLoggedIn ?? false, isAdmin ?? false)
   const navRef = useRef<HTMLElement>(null)
   const [isScrolled, setIsScrolled] = useState(false)
+  const [isAtBottom, setIsAtBottom] = useState(false)
 
   useEffect(() => {
     const navElement = navRef.current
     if (!navElement) return
 
     const handleScroll = () => {
-      setIsScrolled(navElement.scrollTop > 5)
+      const { scrollTop, scrollHeight, clientHeight } = navElement
+      const atTop = scrollTop <= 5
+      const atBottom = scrollTop + clientHeight >= scrollHeight - 5
+
+      setIsScrolled(!atTop)
+      setIsAtBottom(atBottom)
     }
 
     navElement.addEventListener('scroll', handleScroll)
+    handleScroll()
     return () => navElement.removeEventListener('scroll', handleScroll)
   }, [])
 
   const handleItemClick = (item: NavItem) => {
-    if (item.id === 'create') {
+    if (item.id !== 'create') {
       onSectionChange?.(item.id)
       onOpenSecondary?.()
-      return
     }
+  }
 
-    onSectionChange?.(item.id)
-    onOpenSecondary?.()
+  const wrapWithCreatePopover = (item: NavItem, element: ReactNode) => {
+    if (item.id === 'create') {
+      return <CreatePopover onCreateWorkflow={createWorkflow} trigger={element} />
+    }
+    return element
   }
 
   return (
@@ -46,11 +59,11 @@ const PrimarySidebar: FC<PrimarySidebarProps> = ({ onSectionChange, onOpenSecond
       data-testid="primary-sidebar"
     >
       <nav className={styles.primaryNav} ref={navRef}>
-        <NavigationList items={visibleItems} onItemClick={handleItemClick} />
-        <SidebarFooter onOpenSecondary={onOpenSecondary} onSectionChange={onSectionChange} />
+        <NavigationList customWrapper={wrapWithCreatePopover} items={visibleItems} onItemClick={handleItemClick} />
+        <SidebarFooter isAtBottom={isAtBottom} onOpenSecondary={onOpenSecondary} onSectionChange={onSectionChange} />
       </nav>
     </aside>
   )
 }
 
-export default PrimarySidebar
+export { PrimarySidebar }

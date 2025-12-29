@@ -35,6 +35,10 @@ export const DualSidebarProvider: React.FC<DualSidebarProviderProps> = ({
 }) => {
   const getInitialSecondaryState = useCallback(() => {
     if (typeof window === 'undefined') return defaultOpen
+
+    const isMobile = window.innerWidth < 768
+    if (isMobile) return false
+
     return safeLocalStorage.getBoolean(SECONDARY_SIDEBAR_KEY) ?? defaultOpen
   }, [defaultOpen])
 

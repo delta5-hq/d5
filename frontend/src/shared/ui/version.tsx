@@ -3,11 +3,11 @@ import ClickToCopy from './click-to-copy'
 import { FormattedMessage } from 'react-intl'
 import { useSidebar } from './sidebar'
 
-interface VersionBaseProps {
+interface VersionDisplayProps {
   readonly isCollapsed?: boolean
 }
 
-const VersionBase = ({ isCollapsed = false }: VersionBaseProps) => (
+const VersionDisplay = ({ isCollapsed = false }: VersionDisplayProps) => (
   <div className="flex justify-center items-center gap-2">
     <p className="text-sm group-data-[collapsible=icon]:hidden">
       <FormattedMessage id="sidebarBuild" />:
@@ -16,10 +16,14 @@ const VersionBase = ({ isCollapsed = false }: VersionBaseProps) => (
   </div>
 )
 
-const Version = () => {
+const PrimarySidebarVersion = () => {
   const { state } = useSidebar()
   const isCollapsed = state === 'collapsed'
-  return <VersionBase isCollapsed={isCollapsed} />
+  return <VersionDisplay isCollapsed={isCollapsed} />
 }
 
-export { Version, VersionBase }
+const SecondarySidebarVersion = () => <VersionDisplay isCollapsed={false} />
+
+const Version = PrimarySidebarVersion
+
+export { Version, VersionDisplay, PrimarySidebarVersion, SecondarySidebarVersion }

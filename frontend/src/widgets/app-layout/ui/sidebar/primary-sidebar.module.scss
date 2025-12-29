@@ -35,7 +35,7 @@
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0 0 88px 0;
+  padding: 0 0 120px 0;
   position: relative;
   z-index: 1;
 }
@@ -161,15 +161,29 @@
   align-items: center;
   justify-content: flex-end;
   padding-bottom: 8px;
-  background: linear-gradient(
-    to top,
-    oklch(from var(--sidebar) l c h / 1) 0%,
-    oklch(from var(--sidebar) l c h / 1) 60%,
-    oklch(from var(--sidebar) l c h / 0) 100%
-  );
   border-right: 1px solid hsl(var(--sidebar-border));
   z-index: 20;
   pointer-events: none;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to top,
+      oklch(from var(--sidebar) l c h / 1) 0%,
+      oklch(from var(--sidebar) l c h / 1) 60%,
+      oklch(from var(--sidebar) l c h / 0) 100%
+    );
+    opacity: 1;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  &.primaryFooterScrolledToBottom::before {
+    opacity: 0;
+  }
 
   > * {
     pointer-events: auto;

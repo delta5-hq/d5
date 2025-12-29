@@ -1,3 +1,3 @@
 export { default as AppSidebar } from './app-sidebar'
-export { default as PrimarySidebar } from './primary-sidebar'
-export { default as SecondarySidebar } from './secondary-sidebar'
+export { PrimarySidebar } from './primary-sidebar'
+export { SecondarySidebar } from './secondary-sidebar'

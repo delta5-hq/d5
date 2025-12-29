@@ -1,4 +1,4 @@
-import { type FC } from 'react'
+import { type FC, type ReactNode } from 'react'
 import { FormattedMessage } from 'react-intl'
 import { Link } from 'react-router-dom'
 import { cn } from '@shared/lib/utils'
@@ -9,9 +9,10 @@ interface NavItemProps {
   item: NavItem
   isActive: boolean
   onClick: () => void
+  customWrapper?: (element: ReactNode) => ReactNode
 }
 
-export const NavigationItem: FC<NavItemProps> = ({ item, isActive, onClick }) => {
+export const NavigationItem: FC<NavItemProps> = ({ item, isActive, onClick, customWrapper }) => {
   const Icon = item.icon
   const className = cn(
     styles.primaryNavItem,
@@ -30,17 +31,20 @@ export const NavigationItem: FC<NavItemProps> = ({ item, isActive, onClick }) =>
     </>
   )
 
-  if (item.id === 'create') {
-    return (
+  const navElement =
+    item.id === 'create' ? (
       <div className={className} data-testid={`primary-nav-${item.id}`} onClick={onClick} role="button" tabIndex={0}>
         {content}
       </div>
+    ) : (
+      <Link className={className} data-testid={`primary-nav-${item.id}`} onClick={onClick} to={item.url}>
+        {content}
+      </Link>
     )
+
+  if (customWrapper) {
+    return <>{customWrapper(navElement)}</>
   }
 
-  return (
-    <Link className={className} data-testid={`primary-nav-${item.id}`} onClick={onClick} to={item.url}>
-      {content}
-    </Link>
-  )
+  return navElement
 }

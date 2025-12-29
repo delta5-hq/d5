@@ -19,7 +19,7 @@ export const PRIMARY_NAV_ITEMS: ReadonlyArray<NavItem> = [
   {
     id: 'admin',
     titleId: 'sidebarAdminLabel',
-    url: '/admin/users',
+    url: '/admin',
     icon: BriefcaseBusiness,
     requiresAdmin: true,
   },

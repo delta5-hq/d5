@@ -1,5 +1,5 @@
 import { type FC } from 'react'
-import { BriefcaseBusiness, School, Settings, Workflow } from 'lucide-react'
+import { BriefcaseBusiness, Settings, Workflow } from 'lucide-react'
 
 export interface SecondaryMenuItem {
   titleId: string
@@ -8,17 +8,18 @@ export interface SecondaryMenuItem {
   action?: 'create'
 }
 
-export type SectionId = 'create' | 'home' | 'settings' | 'admin' | 'training'
+export type SectionId = 'create' | 'home' | 'public' | 'settings' | 'admin' | 'training'
 
 export const SECTION_MENUS: Record<SectionId, ReadonlyArray<SecondaryMenuItem>> = {
-  create: [{ titleId: 'createWorkflow', url: '#create', icon: Workflow, action: 'create' }],
+  create: [],
   home: [{ titleId: 'sidebarMyWorkflowsLabel', url: '/workflows', icon: Workflow }],
+  public: [],
   settings: [{ titleId: 'sidebarSettingsLabel', url: '/settings', icon: Settings }],
   admin: [
     { titleId: 'adminWaitlist', url: '/admin/waitlist', icon: BriefcaseBusiness },
     { titleId: 'adminList', url: '/admin/users', icon: BriefcaseBusiness },
   ],
-  training: [{ titleId: 'menuItemTraining', url: '/training', icon: School }],
+  training: [],
 }
 
 export function getSectionGroupLabel(section: string): string {
@@ -27,6 +28,8 @@ export function getSectionGroupLabel(section: string): string {
       return 'sidebarMyWorkflowsLabel'
     case 'create':
       return 'sidebarCreateLabel'
+    case 'public':
+      return 'sidebarPublicLabel'
     case 'settings':
       return 'sidebarSettingsLabel'
     case 'admin':

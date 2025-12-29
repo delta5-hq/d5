@@ -291,6 +291,7 @@ export default {
   settingsPageIntegrations: 'Integrations',
   loadingPlaceholder: 'Loading...',
   toggleSidebar: 'Toggle Sidebar',
+  toggleSecondaryMenu: 'Toggle Secondary Menu',
   rowsPerPage: 'Rows per page',
   page: 'Page',
 

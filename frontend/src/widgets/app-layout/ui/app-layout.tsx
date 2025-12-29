@@ -2,9 +2,10 @@ import { useResponsive } from '@shared/composables'
 import { DualSidebarProvider, useDualSidebar } from '@shared/context'
 import { SidebarProvider, useSidebar } from '@shared/ui/sidebar'
 import React, { useEffect } from 'react'
+import { useRouteBasedSection } from '../hooks/use-route-based-section'
 import { AppHeader } from './header'
-import PrimarySidebar from './sidebar/primary-sidebar'
-import SecondarySidebar from './sidebar/secondary-sidebar'
+import { PrimarySidebar } from './sidebar/primary-sidebar'
+import { SecondarySidebar } from './sidebar/secondary-sidebar'
 import { Background, BackgroundContainer } from './background'
 
 interface AppLayoutProps {
@@ -30,10 +31,19 @@ const AppLayoutContent = ({ children, breakpoint, searchPlaceholder }: AppLayout
   }, [isResponsive, isMobile, openMobile, setOpenMobile])
 
   const handleOpenSecondary = () => {
-    if (!secondaryOpen) {
+    const actualIsMobile = typeof window !== 'undefined' && window.innerWidth < 768
+
+    if (!actualIsMobile && !secondaryOpen) {
       setSecondaryOpen(true)
     }
   }
+
+  useRouteBasedSection({
+    currentActiveSection: activeSection,
+    onSectionChange: setActiveSection,
+    onSecondaryOpen: handleOpenSecondary,
+    isMobile,
+  })
 
   return (
     <>

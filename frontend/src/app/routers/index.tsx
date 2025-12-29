@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { ForgotPasswordPage, ResetPasswordPage } from '@pages/password-recover'
 import { SignUpPage } from '@pages/signup'
 import Providers from '@app/providers/providers'
@@ -53,6 +53,10 @@ export const router = createBrowserRouter([
           {
             path: '/admin',
             children: [
+              {
+                index: true,
+                element: <Navigate replace to="/admin/users" />,
+              },
               {
                 path: 'waitlist',
                 element: (
