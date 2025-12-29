@@ -1,4 +1,7 @@
 export { MobileCloseButton } from './mobile-close-button'
+export { NavigationItem } from './navigation-item'
+export { NavigationList } from './navigation-list'
 export { ScrollableMenuContainer } from './scrollable-menu-container'
+export { SidebarFooter } from './sidebar-footer'
 export { SidebarSection } from './sidebar-section'
 export { ActionMenuItem, LinkMenuItem } from './menu-items'
