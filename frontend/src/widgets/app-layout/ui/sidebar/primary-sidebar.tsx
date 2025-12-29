@@ -38,13 +38,11 @@ const PrimarySidebar: FC<PrimarySidebarProps> = ({ onSectionChange, onOpenSecond
 
   return (
     <aside className={cn(styles.primarySidebar)} data-testid="primary-sidebar">
-      {/* Primary navigation items */}
       <nav className={styles.primaryNav}>
         {visibleItems.map(item => {
           const Icon = item.icon
           const isActive = isNavItemActive(item, location.pathname)
 
-          // Create item should not use Link
           if (item.id === 'create') {
             return (
               <div

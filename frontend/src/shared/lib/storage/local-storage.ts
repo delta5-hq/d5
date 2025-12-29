@@ -14,8 +14,9 @@ export const safeLocalStorage = {
 
     try {
       localStorage.setItem(key, value)
-    } catch {
-      /* localStorage write failed */
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn(`localStorage.setItem failed for key "${key}":`, error)
     }
   },
 
@@ -24,8 +25,9 @@ export const safeLocalStorage = {
 
     try {
       localStorage.removeItem(key)
-    } catch {
-      /* localStorage remove failed */
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn(`localStorage.removeItem failed for key "${key}":`, error)
     }
   },
 
