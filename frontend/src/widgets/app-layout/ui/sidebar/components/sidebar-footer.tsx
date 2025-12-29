@@ -1,11 +1,23 @@
+import { UserPopover } from '@features/user-popover'
 import { User } from 'lucide-react'
 import { type FC } from 'react'
 import styles from '../primary-sidebar.module.scss'
 
-export const SidebarFooter: FC = () => (
+interface SidebarFooterProps {
+  onSectionChange?: (section: string) => void
+  onOpenSecondary?: () => void
+}
+
+export const SidebarFooter: FC<SidebarFooterProps> = ({ onSectionChange, onOpenSecondary }) => (
   <div className={styles.primaryFooter}>
-    <div className={styles.primaryFooterIcon}>
-      <User className="w-5 h-5" />
-    </div>
+    <UserPopover
+      onOpenSecondary={onOpenSecondary}
+      onSectionChange={onSectionChange}
+      trigger={
+        <button className={styles.primaryFooterIcon} type="button">
+          <User className="w-5 h-5" />
+        </button>
+      }
+    />
   </div>
 )

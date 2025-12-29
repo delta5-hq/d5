@@ -14,8 +14,8 @@ export const PRIMARY_NAV_ITEMS: ReadonlyArray<NavItem> = [
   { id: 'create', titleId: 'sidebarCreateLabel', url: '#', icon: Plus, requiresAuth: true },
   { id: 'home', titleId: 'sidebarHomeLabel', url: '/', icon: Home },
   { id: 'public', titleId: 'sidebarPublicLabel', url: '/workflows/public', icon: Globe },
-  { id: 'settings', titleId: 'sidebarSettingsLabel', url: '/settings', icon: Settings, requiresAuth: true },
   { id: 'training', titleId: 'menuItemTraining', url: '/training', icon: School, requiresAuth: true },
+  { id: 'settings', titleId: 'sidebarSettingsLabel', url: '/settings', icon: Settings, requiresAuth: true },
   {
     id: 'admin',
     titleId: 'sidebarAdminLabel',

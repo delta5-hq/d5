@@ -30,7 +30,7 @@ const PrimarySidebar: FC<PrimarySidebarProps> = ({ onSectionChange, onOpenSecond
     <aside className={cn(styles.primarySidebar)} data-testid="primary-sidebar">
       <nav className={styles.primaryNav}>
         <NavigationList items={visibleItems} onItemClick={handleItemClick} />
-        <SidebarFooter />
+        <SidebarFooter onOpenSecondary={onOpenSecondary} onSectionChange={onSectionChange} />
       </nav>
     </aside>
   )

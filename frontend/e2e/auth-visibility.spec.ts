@@ -63,7 +63,8 @@ test.describe('Auth controls visibility', () => {
       await page.goto('/workflows')
 
       await expect(page.locator('[data-type="login"]')).toHaveCount(0)
-      await expect(page.locator('[data-type="user-settings"]')).toBeVisible()
+      /* User settings moved to primary sidebar footer */
+      await expect(page.locator('[data-testid="primary-sidebar"] [data-type="user-settings"]')).toBeVisible()
       await expect(page.locator('button:has(svg.lucide-circle-question-mark)')).toBeVisible()
     })
 
@@ -73,6 +74,16 @@ test.describe('Auth controls visibility', () => {
 
       await expect(page.locator('[data-type="login"]')).toHaveCount(0)
       await expect(page.getByRole('button', { name: /create.*workflow/i })).toBeVisible()
+    })
+
+    test('mobile sidebar shows user controls when authenticated', async ({ page }) => {
+      await page.setViewportSize({ width: 375, height: 667 })
+      await page.goto('/workflows')
+
+      /* Primary sidebar with user settings always visible */
+      await expect(page.locator('[data-testid="primary-sidebar"] [data-type="user-settings"]')).toBeVisible()
+
+      await expect(page.locator('[data-type="login"]')).toHaveCount(0)
     })
   })
 })

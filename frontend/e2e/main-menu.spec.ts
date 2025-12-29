@@ -22,7 +22,7 @@ test.describe('Header navigation', () => {
     const userMenuButton = page.locator('[data-type="user-settings"]')
     await userMenuButton.click()
 
-    const accountSettings = page.getByRole('menuitem', { name: 'Settings' })
+    const accountSettings = page.getByRole('button', { name: 'Settings' })
     await expect(accountSettings).toBeVisible()
   })
 
