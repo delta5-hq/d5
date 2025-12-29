@@ -33,24 +33,6 @@ test.describe('Auth controls visibility', () => {
       }
     })
 
-    test('mobile sidebar does not contain login button', async ({ page }) => {
-      await page.setViewportSize({ width: 375, height: 667 })
-
-      await page.locator('[data-type="login"]').first().waitFor({ state: 'visible' })
-
-      const toggleButton = page.locator('[data-sidebar="trigger"]')
-      await toggleButton.click()
-
-      const sidebar = page.locator('[data-slot="sidebar"]')
-      await expect(sidebar).toBeVisible()
-
-      const sidebarLoginButton = page.locator('[data-slot="sidebar"] [data-type="login"]')
-      await expect(sidebarLoginButton).toHaveCount(0)
-
-      const headerLoginButton = page.locator('header [data-type="login"]')
-      await expect(headerLoginButton).toBeVisible()
-    })
-
     test('viewport transitions preserve login button', async ({ page }) => {
       await page.locator('[data-type="login"]').first().waitFor({ state: 'visible' })
 
@@ -81,7 +63,8 @@ test.describe('Auth controls visibility', () => {
       await page.goto('/workflows')
 
       await expect(page.locator('[data-type="login"]')).toHaveCount(0)
-      await expect(page.locator('[data-type="user-settings"]')).toBeVisible()
+      /* User settings moved to primary sidebar footer */
+      await expect(page.locator('[data-testid="primary-sidebar"] [data-type="user-settings"]')).toBeVisible()
       await expect(page.locator('button:has(svg.lucide-circle-question-mark)')).toBeVisible()
     })
 
@@ -97,14 +80,8 @@ test.describe('Auth controls visibility', () => {
       await page.setViewportSize({ width: 375, height: 667 })
       await page.goto('/workflows')
 
-      const toggleButton = page.locator('[data-sidebar="trigger"]')
-      await toggleButton.click()
-
-      const sidebar = page.locator('[data-slot="sidebar"]')
-      await expect(sidebar).toBeVisible()
-
-      await expect(sidebar.locator('[data-type="user-settings"]')).toBeVisible()
-      await expect(sidebar.locator('button:has(svg.lucide-circle-question-mark)')).toBeVisible()
+      /* Primary sidebar with user settings always visible */
+      await expect(page.locator('[data-testid="primary-sidebar"] [data-type="user-settings"]')).toBeVisible()
 
       await expect(page.locator('[data-type="login"]')).toHaveCount(0)
     })

@@ -66,7 +66,7 @@ export const WorkflowsListPage = () => {
       <HelmetTitle titleId={isPublic ? 'workflowsPublic' : 'workflowsPrivate'} />
       <Card className="flex flex-col justify-between w-full h-full overflow-y-auto pb-4">
         <div>
-          {isLoggedIn && !isMobile ? <WorkflowTemplates /> : null}
+          {isLoggedIn && !isMobile && !isPublic ? <WorkflowTemplates /> : null}
           <ControlButtons
             disabled={isWorkflowsLoading}
             isPublic={isPublic}

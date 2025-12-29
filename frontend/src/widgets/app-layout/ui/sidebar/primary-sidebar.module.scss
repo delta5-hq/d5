@@ -1,0 +1,196 @@
+.primarySidebar {
+  position: relative;
+  width: 72px;
+  height: 100vh;
+  background-color: hsl(var(--sidebar));
+  border-right: 1px solid hsl(var(--sidebar-border));
+  z-index: 10;
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 72px;
+    height: 40px;
+    background: linear-gradient(
+      to bottom,
+      oklch(from var(--sidebar) l c h / 1) 0%,
+      oklch(from var(--sidebar) l c h / 1) 30%,
+      oklch(from var(--sidebar) l c h / 0) 100%
+    );
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  &.primarySidebarScrolled::before {
+    opacity: 1;
+  }
+}
+
+.primaryNav {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 0 88px 0;
+  position: relative;
+  z-index: 1;
+}
+
+.primaryNavItems {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0 0 0;
+}
+
+.primaryNavItem {
+  display: grid;
+  grid-template-rows: 40px 18px;
+  gap: 4px;
+  align-items: center;
+  justify-items: center;
+  padding: 8px 4px;
+  cursor: pointer;
+  text-decoration: none;
+  color: hsl(var(--sidebar-foreground));
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+  position: relative;
+
+  &:hover {
+    background-color: var(--sidebar-accent);
+  }
+
+  &.primaryNavItemActive {
+    background-color: var(--sidebar-accent);
+    
+    .primaryNavLabel {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    &::after {
+      content: "";
+      position: absolute;
+      width: 3px;
+      height: 100%;
+      top: 0;
+      right: 0;
+      background-color: var(--accent);
+    }
+  }
+
+  &.primaryNavItemCreate {
+    padding: 6px 4px;
+    
+    .primaryNavButton {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(to right, var(--primary) 10%, var(--primary-gradient-end));
+      box-shadow: 
+        0 2px 8px oklch(from var(--primary) l c h / 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      transition: all 0.2s ease;
+
+      svg {
+        width: 1.75rem;
+        height: 1.75rem;
+        color: var(--primary-foreground);
+      }
+    }
+
+    &:hover .primaryNavButton {
+      transform: scale(1.05);
+      box-shadow: 
+        0 4px 12px oklch(from var(--primary) l c h / 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+
+    &:active .primaryNavButton {
+      transform: scale(1.0);
+    }
+
+    .primaryNavLabel {
+      color: var(--accent);
+      font-weight: 600;
+    }
+  }
+}
+
+.primaryNavButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+
+  &:hover {
+    background-color: var(--sidebar-accent);
+  }
+}
+
+.primaryNavLabel {
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.2;
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.primaryFooter {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 72px;
+  height: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: 8px;
+  background: linear-gradient(
+    to top,
+    oklch(from var(--sidebar) l c h / 1) 0%,
+    oklch(from var(--sidebar) l c h / 1) 60%,
+    oklch(from var(--sidebar) l c h / 0) 100%
+  );
+  border-right: 1px solid hsl(var(--sidebar-border));
+  z-index: 20;
+  pointer-events: none;
+
+  > * {
+    pointer-events: auto;
+  }
+}
+
+.primaryFooterIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: hsl(var(--sidebar-foreground));
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+
+  &:hover {
+    background-color: hsl(var(--sidebar-accent));
+  }
+}

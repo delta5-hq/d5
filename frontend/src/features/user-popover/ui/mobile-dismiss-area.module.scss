@@ -1,0 +1,57 @@
+.gripButton {
+  position: fixed;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.5rem;
+  height: 7.5rem;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(8px);
+  border-top-right-radius: 0.5rem;
+  border-bottom-right-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.15);
+    width: 1.75rem;
+  }
+
+  &:active {
+    background: rgba(0, 0, 0, 0.2);
+    transform: translateY(-50%) scale(0.95);
+  }
+}
+
+.gripArrow {
+  width: 0.5rem;
+  height: 2.5rem;
+  color: var(--muted-foreground);
+  opacity: 0.6;
+  transition: opacity 0.2s ease-in-out;
+
+  .gripButton:hover & {
+    opacity: 0.9;
+  }
+}
+
+:global(.dark) {
+  .gripButton {
+    background: rgba(255, 255, 255, 0.08);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    &:active {
+      background: rgba(255, 255, 255, 0.16);
+    }
+  }
+}

@@ -1,0 +1,143 @@
+$glass-base-light: rgba(255, 255, 255, 0.3);
+$glass-base-dark: rgba(30, 30, 35, 0.4);
+
+$accent-stroke-light: linear-gradient(
+  135deg,
+  oklch(57.96% 0.2215 31.428) 0%,
+  oklch(69.577% 0.20423 43.479) 100%
+);
+$accent-stroke-dark: linear-gradient(
+  135deg,
+  oklch(57.96% 0.2215 31.428) 0%,
+  oklch(69.577% 0.20423 43.479) 100%
+);
+
+$glass-gradient-light: radial-gradient(
+  circle at 25% 0%,
+  rgba(255, 255, 255, 0.45) 0%,
+  rgba(255, 255, 255, 0.35) 30%,
+  rgba(255, 255, 255, 0.25) 60%,
+  rgba(249, 248, 248, 0.15) 100%
+);
+
+$glass-gradient-dark: radial-gradient(
+  circle at 25% 0%,
+  rgba(60, 60, 70, 0.5) 0%,
+  rgba(40, 40, 50, 0.4) 30%,
+  rgba(30, 30, 40, 0.35) 60%,
+  rgba(20, 20, 30, 0.3) 100%
+);
+
+.glassPopover {
+  background: $glass-base-light;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  background-image: $glass-gradient-light;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  border-radius: 0.75rem;
+
+  :global(.dark) & {
+    background: $glass-base-dark;
+    background-image: $glass-gradient-dark;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
+  }
+}
+
+.glassPopoverSubtle {
+  @extend .glassPopover;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+
+  :global(.dark) & {
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+}
+
+.glassPopoverMedium {
+  @extend .glassPopover;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+
+  :global(.dark) & {
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
+  }
+}
+
+.glassPopoverStrong {
+  @extend .glassPopover;
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+
+  :global(.dark) & {
+    backdrop-filter: blur(36px);
+    -webkit-backdrop-filter: blur(36px);
+  }
+}
+
+.accentBorder {
+  position: relative;
+  border: 2px solid transparent;
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    padding: 2px;
+    background: $accent-stroke-light;
+    -webkit-mask: 
+      linear-gradient(#fff 0 0) content-box, 
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask: 
+      linear-gradient(#fff 0 0) content-box, 
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+
+    :global(.dark) & {
+      background: $accent-stroke-dark;
+    }
+  }
+}
+
+.technogenicStroke {
+  position: relative;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--primary) 20%,
+      var(--primary) 80%,
+      transparent 100%
+    );
+    clip-path: polygon(
+      0 0,
+      10% 0,
+      15% 100%,
+      85% 100%,
+      90% 0,
+      100% 0,
+      100% 100%,
+      0 100%
+    );
+  }
+}

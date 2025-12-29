@@ -10,10 +10,17 @@ export default {
 
   sidebarMainGroupLabel: 'Application',
   sidebarHomeLabel: 'Home',
+  sidebarCreateLabel: 'Create',
+  sidebarPublicLabel: 'Public',
   sidebarPublicWorkflowsLabel: 'Public Workflows',
   sidebarMyWorkflowsLabel: 'My Workflows',
   sidebarSearchLabel: 'Search',
   sidebarSettingsLabel: 'Settings',
+  sidebarAdminLabel: 'Admin',
+  sidebarRecentItemsLabel: 'Recent Items',
+  sidebarTagsLabel: 'Tags',
+  sidebarNoRecentItems: 'No recent items',
+  sidebarNoTags: 'No tags',
   sidebarBuild: 'build',
 
   buttonCancel: 'Cancel',
@@ -207,6 +214,7 @@ export default {
   langSaveSuccessfully: 'Language saved successfully',
   modelSaveSuccessfully: 'Model saved successfully',
 
+  themeLabel: 'Theme',
   themeLight: 'Day',
   themeDark: 'Night',
   themeSystem: 'Auto based on OS',
