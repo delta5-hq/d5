@@ -3,6 +3,7 @@ import { SidebarMenuButton, SidebarMenuItem } from '@shared/ui/sidebar'
 import { type FC } from 'react'
 import { FormattedMessage } from 'react-intl'
 import { Link } from 'react-router-dom'
+import { useAutoCloseOnMobile } from '../../../hooks/use-auto-close-on-mobile'
 import { type SecondaryMenuItem } from '../../../config'
 import styles from '../app-sidebar.module.scss'
 
@@ -37,11 +38,12 @@ interface LinkMenuItemProps {
 
 export const LinkMenuItem: FC<LinkMenuItemProps> = ({ item, isActive, index }) => {
   const { titleId, url, icon: Icon } = item
+  const { handleMobileAutoClose } = useAutoCloseOnMobile()
 
   return (
     <SidebarMenuItem className={cn(isActive && styles.menuLinkButton)} key={`${titleId}-${index}`}>
       <SidebarMenuButton asChild>
-        <Link className="flex items-center gap-2" to={url}>
+        <Link className="flex items-center gap-2" onClick={handleMobileAutoClose} to={url}>
           {Icon ? <Icon className="w-5 h-5" /> : null}
           <span className={cn(isActive && styles.menuLinkText, 'text-sm')}>
             <FormattedMessage id={titleId} />

@@ -1,5 +1,6 @@
 import { useAuthContext } from '@entities/auth'
 import { cn } from '@shared/lib/utils'
+import { User } from 'lucide-react'
 import { type FC } from 'react'
 import { FormattedMessage } from 'react-intl'
 import { Link, useLocation } from 'react-router-dom'
@@ -81,6 +82,11 @@ const PrimarySidebar: FC<PrimarySidebarProps> = ({ onSectionChange, onOpenSecond
           )
         })}
       </nav>
+      <div className={styles.primaryFooter}>
+        <div className={styles.primaryFooterIcon}>
+          <User className="w-5 h-5" />
+        </div>
+      </div>
     </aside>
   )
 }
