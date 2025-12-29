@@ -13,7 +13,11 @@ interface NavItemProps {
 
 export const NavigationItem: FC<NavItemProps> = ({ item, isActive, onClick }) => {
   const Icon = item.icon
-  const className = cn(styles.primaryNavItem, isActive && styles.primaryNavItemActive)
+  const className = cn(
+    styles.primaryNavItem,
+    isActive && styles.primaryNavItemActive,
+    item.id === 'create' && styles.primaryNavItemCreate,
+  )
 
   const content = (
     <>
