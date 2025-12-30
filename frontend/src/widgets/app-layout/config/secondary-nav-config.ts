@@ -5,7 +5,8 @@ export interface SecondaryMenuItem {
   titleId: string
   url: string
   icon?: FC<{ className?: string }>
-  action?: 'create'
+  action?: 'create' | 'dialog'
+  dialog?: 'login' | 'register'
 }
 
 export type SectionId = 'create' | 'home' | 'public' | 'settings' | 'admin' | 'training' | 'landing'
@@ -21,7 +22,7 @@ export const SECTION_MENUS: Record<SectionId, ReadonlyArray<SecondaryMenuItem>> 
   ],
   training: [],
   landing: [
-    { titleId: 'loginTitle', url: '/login', icon: LogIn },
+    { titleId: 'loginTitle', url: '#', icon: LogIn, action: 'dialog', dialog: 'login' },
     { titleId: 'loginSignUp', url: '/register', icon: UserPlus },
   ],
 }
@@ -41,7 +42,7 @@ export function getSectionGroupLabel(section: string): string {
     case 'training':
       return 'menuItemTraining'
     case 'landing':
-      return 'sidebarHomeLabel'
+      return 'sidebarWelcomeLabel'
     default:
       return 'sidebarMainGroupLabel'
   }

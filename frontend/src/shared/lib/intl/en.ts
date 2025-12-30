@@ -10,6 +10,7 @@ export default {
 
   sidebarMainGroupLabel: 'Application',
   sidebarHomeLabel: 'Home',
+  sidebarWelcomeLabel: 'Welcome',
   sidebarCreateLabel: 'Create',
   sidebarPublicLabel: 'Public',
   sidebarPublicWorkflowsLabel: 'Public Workflows',
