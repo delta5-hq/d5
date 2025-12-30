@@ -11,10 +11,9 @@ import { Background, BackgroundContainer } from './background'
 interface AppLayoutProps {
   children: React.ReactNode
   breakpoint?: number
-  searchPlaceholder?: string
 }
 
-const AppLayoutContent = ({ children, breakpoint, searchPlaceholder }: AppLayoutProps) => {
+const AppLayoutContent = ({ children, breakpoint }: AppLayoutProps) => {
   const { isResponsive } = useResponsive({ breakpoint })
   const { openMobile, setOpenMobile, isMobile } = useSidebar()
   const { secondaryOpen, setSecondaryOpen, activeSection, setActiveSection } = useDualSidebar()
@@ -47,7 +46,7 @@ const AppLayoutContent = ({ children, breakpoint, searchPlaceholder }: AppLayout
 
   return (
     <>
-      <AppHeader breakpoint={breakpoint} searchPlaceholder={searchPlaceholder} />
+      <AppHeader breakpoint={breakpoint} />
 
       <div className="flex flex-1 overflow-hidden">
         <PrimarySidebar onOpenSecondary={handleOpenSecondary} onSectionChange={setActiveSection} />
@@ -64,12 +63,10 @@ const AppLayoutContent = ({ children, breakpoint, searchPlaceholder }: AppLayout
   )
 }
 
-export const AppLayout = ({ children, breakpoint, searchPlaceholder }: AppLayoutProps) => (
+export const AppLayout = ({ children, breakpoint }: AppLayoutProps) => (
   <SidebarProvider className="flex flex-col h-screen">
     <DualSidebarProvider>
-      <AppLayoutContent breakpoint={breakpoint} searchPlaceholder={searchPlaceholder}>
-        {children}
-      </AppLayoutContent>
+      <AppLayoutContent breakpoint={breakpoint}>{children}</AppLayoutContent>
     </DualSidebarProvider>
   </SidebarProvider>
 )

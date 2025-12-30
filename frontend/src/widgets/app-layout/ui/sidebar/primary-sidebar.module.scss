@@ -23,7 +23,7 @@
     pointer-events: none;
     z-index: 100;
     opacity: 0;
-    transition: opacity 0.2s ease;
+    transition: opacity 0.1s ease;
   }
 
   &.primarySidebarScrolled::before {
@@ -35,7 +35,7 @@
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0 0 120px 0;
+  padding: 0 0 160px 0;
   position: relative;
   z-index: 1;
 }
@@ -155,7 +155,7 @@
   bottom: 0;
   left: 0;
   width: 72px;
-  height: 88px;
+  height: 160px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -176,7 +176,7 @@
       oklch(from var(--sidebar) l c h / 0) 100%
     );
     opacity: 1;
-    transition: opacity 0.2s ease;
+    transition: opacity 0.1s ease;
     pointer-events: none;
     z-index: -1;
   }

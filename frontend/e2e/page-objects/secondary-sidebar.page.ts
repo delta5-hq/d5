@@ -16,6 +16,10 @@ export class SecondarySidebarPage {
     return this.root.getByRole('link', { name: 'My Workflows' })
   }
 
+  get myTemplatesLink(): Locator {
+    return this.root.getByRole('link', { name: 'My templates' })
+  }
+
   get settingsLink(): Locator {
     return this.root.getByRole('link', { name: 'Settings' })
   }
@@ -29,7 +33,7 @@ export class SecondarySidebarPage {
   }
 
   get createWorkflowButton(): Locator {
-    return this.root.getByRole('button', { name: 'Create Workflow' })
+    return this.root.getByRole('button', { name: 'Create workflow' })
   }
 
   groupLabel(name: string): Locator {
@@ -46,6 +50,10 @@ export class SecondarySidebarPage {
 
   async hasMyWorkflowsLink(): Promise<boolean> {
     return this.myWorkflowsLink.isVisible()
+  }
+
+  async hasMyTemplatesLink(): Promise<boolean> {
+    return this.myTemplatesLink.isVisible()
   }
 
   async hasSettingsLink(): Promise<boolean> {
@@ -74,6 +82,10 @@ export class SecondarySidebarPage {
 
   async clickMyWorkflows(): Promise<void> {
     await this.myWorkflowsLink.click()
+  }
+
+  async clickMyTemplates(): Promise<void> {
+    await this.myTemplatesLink.click()
   }
 
   async clickSettings(): Promise<void> {

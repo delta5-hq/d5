@@ -1,6 +1,7 @@
-import { Plus } from 'lucide-react'
+import { Plus, LayoutTemplate } from 'lucide-react'
 import { type FC } from 'react'
 import { FormattedMessage } from 'react-intl'
+import { useNavigate } from 'react-router-dom'
 import styles from './create-actions-content.module.scss'
 
 interface CreateActionsContentProps {
@@ -9,8 +10,15 @@ interface CreateActionsContentProps {
 }
 
 export const CreateActionsContent: FC<CreateActionsContentProps> = ({ onCreateWorkflow, onNavigate }) => {
+  const navigate = useNavigate()
+
   const handleCreate = () => {
     onCreateWorkflow()
+    onNavigate?.()
+  }
+
+  const handleTemplates = () => {
+    navigate('/templates')
     onNavigate?.()
   }
 
@@ -19,6 +27,10 @@ export const CreateActionsContent: FC<CreateActionsContentProps> = ({ onCreateWo
       <button className={styles.createButton} onClick={handleCreate} type="button">
         <Plus className="w-5 h-5" />
         <FormattedMessage id="createWorkflow" />
+      </button>
+      <button className={styles.createButton} onClick={handleTemplates} type="button">
+        <LayoutTemplate className="w-5 h-5" />
+        <FormattedMessage id="createWorkflowFromTemplate" />
       </button>
     </div>
   )

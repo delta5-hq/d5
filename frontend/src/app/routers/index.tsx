@@ -5,7 +5,7 @@ import Providers from '@app/providers/providers'
 import { AppLayout } from '@widgets/app-layout'
 import { UserProfilePage, WaitlistPage, AdminUsersPage } from '@pages/admin'
 import { SettingsPage } from '@pages/user-settings'
-import { WorkflowPage, WorkflowsListPage } from '@pages/workflow'
+import { WorkflowPage, WorkflowsListPage, TemplatesPage } from '@pages/workflow'
 import { ProtectedRoute, PublicRoute } from '@app/providers/guards'
 import { HomeRedirect } from '@app/providers/home-redirect'
 import { TrainingPage } from '@pages/training'
@@ -50,6 +50,10 @@ export const router = createBrowserRouter([
           {
             path: '/workflows',
             element: <WorkflowsListPage />,
+          },
+          {
+            path: '/templates',
+            element: <TemplatesPage />,
           },
           {
             path: '/training',

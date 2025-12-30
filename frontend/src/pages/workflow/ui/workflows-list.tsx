@@ -6,16 +6,14 @@ import { StatusPlaceholder } from '@shared/ui/status-placeholder'
 import { AppLayout } from '@widgets/app-layout'
 import {
   CallToRegister,
-  ControlButtons,
   WorkflowCard,
   WorkflowShareFilters,
   WorkflowsPagination,
   WorkflowsView,
   WorkflowTable,
-  WorkflowTemplates,
+  WorkflowsHero,
 } from '@widgets/workflow'
 import { useEffect, useState } from 'react'
-import { useIntl } from 'react-intl'
 import { useMatch, useNavigate } from 'react-router-dom'
 import { useLocalStorage } from 'react-use'
 import { useWorkflows } from '../api'
@@ -27,7 +25,6 @@ export const WorkflowsListPage = () => {
   const isPublic = !!matchPublic
   const { isLoggedIn, isLoading: isAuthProcessing } = useAuthContext()
   const isMobile = useIsMobile()
-  const { formatMessage } = useIntl()
 
   const [view, setView] = useLocalStorage<WorkflowsView>('workflowsView', WorkflowsView.grid)
   const [shareFilter, setShareFilter] = useLocalStorage<WorkflowShareFilters>(
@@ -62,35 +59,38 @@ export const WorkflowsListPage = () => {
   }
 
   return (
-    <AppLayout searchPlaceholder={formatMessage({ id: 'searchWorkflow' })}>
+    <AppLayout>
       <HelmetTitle titleId={isPublic ? 'workflowsPublic' : 'workflowsPrivate'} />
-      <Card className="flex flex-col justify-between w-full h-full overflow-y-auto pb-4">
-        <div>
-          {isLoggedIn && !isMobile && !isPublic ? <WorkflowTemplates /> : null}
-          <ControlButtons
-            disabled={isWorkflowsLoading}
-            isPublic={isPublic}
-            setShareFilter={setShareFilter}
-            setView={setView}
-            shareFilter={shareFilter || WorkflowShareFilters.all}
-            view={view || WorkflowsView.grid}
-          />
+      <div className="flex flex-col gap-4 w-full h-full overflow-y-auto pb-4">
+        <WorkflowsHero
+          disabled={isWorkflowsLoading}
+          isMobile={isMobile}
+          isPublic={isPublic}
+          onShareFilterChange={setShareFilter}
+          onViewChange={setView}
+          shareFilter={shareFilter || WorkflowShareFilters.all}
+          view={view || WorkflowsView.grid}
+        />
 
-          <div className="w-full p-4">
-            <Card className="p-4" glassEffect={false}>
-              {view === WorkflowsView.grid || isMobile ? (
-                <WorkflowCard isLoading={isWorkflowsLoading} isPublic={isPublic} workflows={workflows} />
-              ) : (
-                <WorkflowTable data={workflows} isPublic={isPublic} />
-              )}
-            </Card>
+        <Card className="flex flex-col justify-between flex-1">
+          <div className="p-4">
+            {view === WorkflowsView.grid || isMobile ? (
+              <WorkflowCard isLoading={isWorkflowsLoading} isPublic={isPublic} workflows={workflows} />
+            ) : (
+              <WorkflowTable data={workflows} isPublic={isPublic} />
+            )}
           </div>
-        </div>
 
-        {total ? (
-          <WorkflowsPagination limit={WORKFLOWS_PAGE_LIMIT} onPageChange={p => setPage(p)} page={page} total={total} />
-        ) : null}
-      </Card>
+          {total ? (
+            <WorkflowsPagination
+              limit={WORKFLOWS_PAGE_LIMIT}
+              onPageChange={p => setPage(p)}
+              page={page}
+              total={total}
+            />
+          ) : null}
+        </Card>
+      </div>
     </AppLayout>
   )
 }

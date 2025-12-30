@@ -8,6 +8,8 @@ interface RouteMapping {
 const ROUTE_SECTION_MAPPINGS: readonly RouteMapping[] = [
   { route: '/workflows/public', sectionId: 'public' },
   { route: '/workflows', sectionId: 'home' },
+  { route: '/workflow/', sectionId: 'home' },
+  { route: '/templates', sectionId: 'home' },
   { route: '/settings', sectionId: 'settings' },
   { route: '/training', sectionId: 'training' },
   { route: '/admin/waitlist', sectionId: 'admin' },
