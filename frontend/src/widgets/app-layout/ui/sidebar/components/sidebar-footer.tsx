@@ -1,7 +1,8 @@
 import { useAuthContext } from '@entities/auth'
 import { UserPopover } from '@features/user-popover'
+import { HelpPopover } from '@features/help-popover'
 import { ThemePopover } from '@features/theme-popover'
-import { User } from 'lucide-react'
+import { User, HelpCircle } from 'lucide-react'
 import { type FC } from 'react'
 import { cn } from '@shared/lib/utils'
 import styles from '../primary-sidebar.module.scss'
@@ -17,6 +18,13 @@ export const SidebarFooter: FC<SidebarFooterProps> = ({ onSectionChange, onOpenS
 
   return (
     <div className={cn(styles.primaryFooter, isAtBottom && styles.primaryFooterScrolledToBottom)}>
+      <HelpPopover
+        trigger={
+          <button className={styles.primaryFooterIcon} type="button">
+            <HelpCircle className="w-5 h-5" />
+          </button>
+        }
+      />
       {isLoggedIn ? (
         <UserPopover
           onOpenSecondary={onOpenSecondary}

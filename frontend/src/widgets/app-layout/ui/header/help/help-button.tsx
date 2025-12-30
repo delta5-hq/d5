@@ -29,7 +29,7 @@ const HelpButton = () => {
           <FormattedMessage id="helpMenuTutorials" />
         </DropdownMenuItem>
         <DropdownMenuItem>
-          <FormattedMessage id="helpMenuTerraformProvider" />
+          <FormattedMessage id="helpMenuReference" />
         </DropdownMenuItem>
         <DropdownMenuItem>
           <FormattedMessage id="helpMenuChangelog" />

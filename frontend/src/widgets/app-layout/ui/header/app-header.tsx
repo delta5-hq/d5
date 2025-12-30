@@ -1,6 +1,6 @@
 import { useResponsive } from '@shared/composables'
 import { useSidebar } from '@shared/ui/sidebar'
-import { HelpButton, LoginButton } from './help'
+import { LoginButton } from './help'
 import { AppSearch } from './search'
 import { UserSettingsButton } from './user-settings'
 import { SecondaryMenuToggle } from './secondary-menu-toggle'
@@ -43,7 +43,6 @@ const Header = ({ breakpoint, searchPlaceholder }: HeaderProps) => {
             {isLoggedIn ? (
               <>
                 <CreateWorkflow />
-                <HelpButton />
                 <UserSettingsButton />
               </>
             ) : (

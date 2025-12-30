@@ -1,7 +1,7 @@
 export default {
   helpMenuLabel: 'Help & Support',
   helpMenuTutorials: 'Tutorials',
-  helpMenuTerraformProvider: 'Terraform Provider',
+  helpMenuReference: 'Reference',
   helpMenuChangelog: 'Changelog',
   helpMenuCreateSupportTicket: 'Create support ticket',
   helpMenuGiveFeedback: 'Give feedback',

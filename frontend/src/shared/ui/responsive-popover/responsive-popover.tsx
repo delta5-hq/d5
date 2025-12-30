@@ -13,6 +13,7 @@ interface ResponsivePopoverProps {
   sheetClassName?: string
   popoverSide?: 'top' | 'right' | 'bottom' | 'left'
   sheetSide?: 'top' | 'right' | 'bottom' | 'left'
+  showCloseButton?: boolean
 }
 
 export const useResponsivePopover = (breakpoint = 768) => {
@@ -42,6 +43,7 @@ export const ResponsivePopover = ({
   sheetClassName = 'w-full sm:max-w-md',
   popoverSide = 'right',
   sheetSide = 'left',
+  showCloseButton = false,
 }: ResponsivePopoverProps) => {
   const { open, isResponsive, handleClose, setOpen } = useResponsivePopover(breakpoint)
 
@@ -60,7 +62,7 @@ export const ResponsivePopover = ({
         <GlassSheetTrigger asChild data-type={dataType}>
           {trigger}
         </GlassSheetTrigger>
-        <GlassSheetContent className={sheetClassName} showCloseButton={false} side={sheetSide}>
+        <GlassSheetContent className={sheetClassName} showCloseButton={showCloseButton} side={sheetSide}>
           {mobileContent}
         </GlassSheetContent>
       </GlassSheet>
