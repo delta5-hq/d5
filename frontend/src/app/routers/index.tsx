@@ -8,6 +8,7 @@ import { SettingsPage } from '@pages/user-settings'
 import { WorkflowPage, WorkflowsListPage } from '@pages/workflow'
 import { ProtectedRoute, PublicRoute } from '@app/providers/guards'
 import { HomeRedirect } from '@app/providers/home-redirect'
+import { TrainingPage } from '@pages/training'
 
 export const router = createBrowserRouter([
   {
@@ -49,6 +50,10 @@ export const router = createBrowserRouter([
           {
             path: '/workflows',
             element: <WorkflowsListPage />,
+          },
+          {
+            path: '/training',
+            element: <TrainingPage />,
           },
           {
             path: '/admin',

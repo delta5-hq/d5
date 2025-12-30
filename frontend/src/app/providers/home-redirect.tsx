@@ -1,19 +1,19 @@
 import { useAuthContext } from '@entities/auth'
-import React, { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { LandingPage } from '@pages/landing'
+import { StatusPlaceholder } from '@shared/ui/status-placeholder'
+import React from 'react'
+import { Navigate } from 'react-router-dom'
 
 export const HomeRedirect: React.FC = () => {
   const { isLoggedIn, isLoading } = useAuthContext()
-  const navigate = useNavigate()
 
-  useEffect(() => {
-    if (isLoading) return
-    if (isLoggedIn) {
-      navigate('/workflows', { replace: true })
-    } else {
-      navigate('/workflows/public', { replace: true })
-    }
-  }, [isLoggedIn, isLoading, navigate])
+  if (isLoading) {
+    return <StatusPlaceholder loading />
+  }
 
-  return null
+  if (isLoggedIn) {
+    return <Navigate replace to="/workflows" />
+  }
+
+  return <LandingPage />
 }

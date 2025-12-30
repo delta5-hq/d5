@@ -112,6 +112,11 @@ export default {
   adminWaitlist: 'Waitlist',
 
   menuItemTraining: 'Training',
+  comingSoon: 'Coming soon',
+  landingWelcomeTitle: 'Welcome to Delta5',
+  landingWelcomeDescription: 'Create, manage, and share workflows with ease',
+  landingLoginButton: 'Login',
+  landingSignUpButton: 'Sign Up',
   allAccountApproved: 'All accounts approved',
   activationError: 'Activation Error',
   accountApproved: 'Account approved',
