@@ -1,11 +1,14 @@
-import { Sidebar, SidebarContent, SidebarFooter, useSidebar } from '@shared/ui/sidebar'
+import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, useSidebar } from '@shared/ui/sidebar'
 import { SecondarySidebarVersion } from '@shared/ui/version'
 import { GlassSheet, GlassSheetContent } from '@shared/ui/glass-sheet'
+import { MobileDismissArea } from '@shared/ui/mobile-dismiss-area'
 import { useDualSidebar } from '@shared/context'
+import { Logo } from '@shared/ui/logo'
 import { type FC } from 'react'
 import { SECTION_MENUS } from '../../config'
-import { MobileCloseButton } from './components/mobile-close-button'
+import { SecondarySidebarMobileHeader } from './components/secondary-sidebar-mobile-header'
 import { SectionRenderer } from './sections/section-renderer'
+import styles from './secondary-sidebar.module.scss'
 
 interface SecondarySidebarProps {
   isOpen: boolean
@@ -23,16 +26,30 @@ const SecondarySidebar: FC<SecondarySidebarProps> = ({ isOpen, activeSection }) 
   if (menuItems === undefined) return null
 
   const content = (
+    <SidebarContent className="p-2 flex flex-col overflow-hidden" style={{ height: '100%' }}>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 -mr-2 pr-2">
+        <SectionRenderer activeSection={activeSection} menuItems={menuItems} />
+      </div>
+      <SidebarFooter className="flex-shrink-0 mt-2">
+        <SecondarySidebarVersion />
+      </SidebarFooter>
+    </SidebarContent>
+  )
+
+  const mobileContent = (
     <>
-      <MobileCloseButton />
-      <SidebarContent className="p-2 flex flex-col h-full overflow-hidden">
-        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 -mr-2 pr-2">
-          <SectionRenderer activeSection={activeSection} menuItems={menuItems} />
-        </div>
-        <SidebarFooter className="flex-shrink-0 mt-2">
-          <SecondarySidebarVersion />
-        </SidebarFooter>
-      </SidebarContent>
+      <MobileDismissArea onDismiss={() => setSecondaryOpen?.(false)} />
+      <div className={styles.mobileContentWrapper}>
+        <SecondarySidebarMobileHeader onDismiss={() => setSecondaryOpen?.(false)} />
+        <SidebarContent className="p-2 flex flex-col overflow-hidden" style={{ height: 'calc(100% - 56px)' }}>
+          <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 -mr-2 pr-2">
+            <SectionRenderer activeSection={activeSection} menuItems={menuItems} />
+          </div>
+          <SidebarFooter className="flex-shrink-0 mt-2">
+            <SecondarySidebarVersion />
+          </SidebarFooter>
+        </SidebarContent>
+      </div>
     </>
   )
 
@@ -40,7 +57,7 @@ const SecondarySidebar: FC<SecondarySidebarProps> = ({ isOpen, activeSection }) 
     return (
       <GlassSheet onOpenChange={open => !open && setSecondaryOpen?.(false)} open={isOpen}>
         <GlassSheetContent className="w-full" showCloseButton={false} side="left">
-          {content}
+          {mobileContent}
         </GlassSheetContent>
       </GlassSheet>
     )
@@ -54,6 +71,9 @@ const SecondarySidebar: FC<SecondarySidebarProps> = ({ isOpen, activeSection }) 
       side="left"
       variant="sidebar"
     >
+      <SidebarHeader className={styles.secondaryHeader}>
+        <Logo />
+      </SidebarHeader>
       {content}
     </Sidebar>
   )

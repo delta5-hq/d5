@@ -5,7 +5,7 @@ import { FormattedMessage } from 'react-intl'
 import { Link } from 'react-router-dom'
 import { useAutoCloseOnMobile } from '../../../hooks/use-auto-close-on-mobile'
 import { type SecondaryMenuItem } from '../../../config'
-import styles from '../app-sidebar.module.scss'
+import styles from '../primary-sidebar.module.scss'
 import { useDialog } from '@entities/dialog'
 import { LoginDialog } from '@entities/auth'
 

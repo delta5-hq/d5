@@ -23,7 +23,7 @@ export const InlineThemeToggle = () => {
             className="justify-start gap-2"
             onClick={handleThemeChange('light')}
             size="sm"
-            variant={isActive('light') ? 'accent' : 'ghost'}
+            variant={isActive('light') ? 'accent' : 'default'}
           >
             <Sun className="h-4 w-4" />
             <FormattedMessage id="themeLight" />
@@ -33,7 +33,7 @@ export const InlineThemeToggle = () => {
             className="justify-start gap-2"
             onClick={handleThemeChange('dark')}
             size="sm"
-            variant={isActive('dark') ? 'accent' : 'ghost'}
+            variant={isActive('dark') ? 'accent' : 'default'}
           >
             <Moon className="h-4 w-4" />
             <FormattedMessage id="themeDark" />
@@ -44,7 +44,7 @@ export const InlineThemeToggle = () => {
           className="w-full justify-start gap-2"
           onClick={handleThemeChange('system')}
           size="sm"
-          variant={isActive('system') ? 'accent' : 'ghost'}
+          variant={isActive('system') ? 'accent' : 'default'}
         >
           <Monitor className="h-4 w-4" />
           <FormattedMessage id="themeSystem" />

@@ -5,11 +5,13 @@
   background-color: hsl(var(--sidebar));
   border-right: 1px solid hsl(var(--sidebar-border));
   z-index: 10;
+  display: flex;
+  flex-direction: column;
 
   &::before {
     content: "";
     position: absolute;
-    top: 0;
+    top: 56px;
     left: 0;
     right: 0;
     width: 72px;
@@ -31,11 +33,40 @@
   }
 }
 
+.primaryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 56px;
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border-bottom: 1px solid hsl(var(--sidebar-border) / 0.3);
+}
+
+.hamburgerButton {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border-radius: 8px;
+  color: hsl(var(--sidebar-foreground));
+  transition: all 0.2s ease;
+
+  &:hover {
+    background-color: hsl(var(--sidebar-accent));
+    transform: scale(1.05);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
 .primaryNav {
-  height: 100%;
+  flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0 0 160px 0;
+  padding: 0 0 100px 0;
   position: relative;
   z-index: 1;
 }
@@ -155,7 +186,7 @@
   bottom: 0;
   left: 0;
   width: 72px;
-  height: 160px;
+  height: 130px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -207,4 +238,23 @@
   &:hover {
     background-color: hsl(var(--sidebar-accent));
   }
+}
+
+.menuLinkButton {
+  position: relative;
+
+  &::after {
+    position: absolute;
+    width: 3px;
+    height: 100%;
+    top: 0;
+    right: -8px;
+    background-color: var(--accent);
+    content: "";
+  }
+}
+
+.menuLinkText {
+  color: var(--accent);
+  font-weight: 600;
 }

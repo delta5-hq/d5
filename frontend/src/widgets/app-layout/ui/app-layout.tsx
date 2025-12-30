@@ -3,7 +3,6 @@ import { DualSidebarProvider, useDualSidebar } from '@shared/context'
 import { SidebarProvider, useSidebar } from '@shared/ui/sidebar'
 import React, { useEffect } from 'react'
 import { useRouteBasedSection } from '../hooks/use-route-based-section'
-import { AppHeader } from './header'
 import { PrimarySidebar } from './sidebar/primary-sidebar'
 import { SecondarySidebar } from './sidebar/secondary-sidebar'
 import { Background, BackgroundContainer } from './background'
@@ -45,21 +44,17 @@ const AppLayoutContent = ({ children, breakpoint }: AppLayoutProps) => {
   })
 
   return (
-    <>
-      <AppHeader breakpoint={breakpoint} />
+    <div className="flex flex-1 overflow-hidden">
+      <PrimarySidebar onOpenSecondary={handleOpenSecondary} onSectionChange={setActiveSection} />
+      <SecondarySidebar activeSection={activeSection ?? undefined} isOpen={secondaryOpen} />
 
-      <div className="flex flex-1 overflow-hidden">
-        <PrimarySidebar onOpenSecondary={handleOpenSecondary} onSectionChange={setActiveSection} />
-        <SecondarySidebar activeSection={activeSection ?? undefined} isOpen={secondaryOpen} />
-
-        <BackgroundContainer>
-          <div className="relative h-full overflow-y-auto">
-            <Background />
-            <div className="h-full z-10 p-5">{children}</div>
-          </div>
-        </BackgroundContainer>
-      </div>
-    </>
+      <BackgroundContainer>
+        <div className="relative h-full overflow-y-auto">
+          <Background />
+          <div className="h-full z-10 p-5">{children}</div>
+        </div>
+      </BackgroundContainer>
+    </div>
   )
 }
 

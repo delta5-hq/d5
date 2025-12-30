@@ -1,0 +1,26 @@
+.secondaryHeader {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 12px 20px;
+  border-bottom: 1px solid hsl(var(--sidebar-border) / 0.3);
+  height: 56px;
+
+  a {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  img {
+    transition: opacity 0.2s ease;
+  }
+
+  &:hover img {
+    opacity: 0.8;
+  }
+}
+
+.mobileContentWrapper {
+  margin-left: 1.75rem;
+}
