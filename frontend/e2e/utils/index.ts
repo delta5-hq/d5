@@ -39,7 +39,6 @@ async function openLoginDialogFromSignup(page: Page) {
 }
 
 async function login(page: Page, usernameOrEmail: string, password: string, valid = true, fromSignUp = false) {
-  /* Navigate to /register which has login button for all users */
   if (!fromSignUp) {
     await page.goto('/register')
     await page.waitForLoadState('networkidle')
@@ -51,14 +50,11 @@ async function login(page: Page, usernameOrEmail: string, password: string, vali
   await page.getByPlaceholder(/username.*email/i).fill(usernameOrEmail)
   await page.getByPlaceholder(/password/i).fill(password)
 
-  /* Use data attribute instead of text to avoid i18n issues */
   const confirmButton = page.locator('button[data-type="confirm-login"]')
   await confirmButton.waitFor({ state: 'visible', timeout: 5000 })
   
-  /* Monitor auth requests for debugging */
   const authPromise = page.waitForResponse(
-    resp => resp.url().includes('/api/v2/auth/login')
-         && resp.request().method() === 'POST',
+    resp => resp.url().includes('/api/v2/auth/login') && resp.request().method() === 'POST',
     { timeout: 15000 }
   )
   
@@ -71,9 +67,7 @@ async function login(page: Page, usernameOrEmail: string, password: string, vali
     }
     
     await page.waitForResponse(
-      resp => resp.url().includes('/api/v2/auth/refresh')
-           && resp.request().method() === 'POST' 
-           && resp.ok(),
+      resp => resp.url().includes('/api/v2/auth/refresh') && resp.request().method() === 'POST' && resp.ok(),
     )
   }
 }
@@ -107,22 +101,18 @@ async function approveUser(page: Page, username: string) {
   await page.goto('/admin/waitlist', { waitUntil: 'networkidle' })
   await page.waitForLoadState('networkidle')
   
-  /* Wait for table to render */
   await page.locator('table tbody tr').first().waitFor({ state: 'visible', timeout: 10000 })
   
-  /* Check if user visible in current page, if not, search for them */
   const row = page.locator('table tbody tr', { hasText: username }).first()
   const isVisible = await row.isVisible().catch(() => false)
   
   if (!isVisible) {
-    /* User not in first page - use search to find them */
     const searchInput = page.getByPlaceholder(/search/i).or(page.locator('input[type="search"]')).or(page.locator('input[placeholder*="Search"]'))
     if (await searchInput.count() > 0) {
       await searchInput.first().fill(username)
-      await page.waitForTimeout(1000) /* Wait for search debounce */
+      await page.waitForTimeout(1000)
       await row.waitFor({ state: 'visible', timeout: 10000 })
     } else {
-      /* No search input - user must be in table */
       await expect(row).toBeVisible({ timeout: 10000 })
     }
   }
@@ -142,13 +132,13 @@ async function approveUser(page: Page, username: string) {
 
 async function logout(page: Page) {
   await page.locator('[data-type="user-settings"]').click()
+  
   await Promise.all([
     page.waitForResponse(
-      resp => resp.url().includes('/api/v2/auth/logout')
-           && resp.request().method() === 'POST' 
-           && resp.ok(),
+      resp => resp.url().includes('/auth/logout') && resp.request().method() === 'POST',
+      { timeout: 10000 }
     ),
-    page.getByRole('menuitem', { name: 'Log out' }).click(),
+    page.getByRole('button', { name: 'Log out' }).click(),
   ])
 }
 

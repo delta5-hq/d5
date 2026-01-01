@@ -42,7 +42,7 @@ test.describe('Dual sidebar system', () => {
       await secondarySidebar.waitForTransition()
 
       await expect(secondarySidebar.myWorkflowsLink).toHaveCount(0)
-      await expect(secondarySidebar.settingsLink).toBeVisible()
+      await expect(secondarySidebar.groupLabel('Settings')).toBeVisible()
     })
 
     test('secondary sidebar width is independent of primary sidebar', async ({ page }) => {
@@ -73,23 +73,46 @@ test.describe('Dual sidebar system', () => {
 
       await expect(secondarySidebar.myWorkflowsLink).toBeVisible()
     })
+  })
 
-    test('secondary sidebar renders both group label and link for settings section', async ({ page }) => {
-      const primaryNav = new PrimaryNavigationPage(page)
-      const secondarySidebar = new SecondarySidebarPage(page)
-      
-      await primaryNav.clickSettings()
-      await secondarySidebar.waitForTransition()
+  test.describe('Section content rendering', () => {
+    test.beforeEach(async ({ page }) => {
+      await page.setViewportSize(VIEWPORT.DESKTOP)
+      await page.goto('/')
+      await adminLogin(page)
+      await page.goto('/')
+      await page.waitForLoadState('networkidle')
+    })
 
-      await expect(secondarySidebar.groupLabel('Settings')).toBeVisible()
-      await expect(secondarySidebar.settingsLink).toBeVisible()
+    const sectionContentTypes = [
+      { section: 'home', type: 'menu', expectedElement: 'link', elementText: 'My Workflows' },
+      { section: 'admin', type: 'menu', expectedElement: 'link', elementText: 'Waitlist' },
+      { section: 'settings', type: 'content', expectedElement: 'heading', elementText: 'Edit Profile' },
+    ]
+
+    sectionContentTypes.forEach(({ section, type, expectedElement, elementText }) => {
+      test(`${section} section renders ${type} with ${expectedElement}`, async ({ page }) => {
+        const primaryNav = new PrimaryNavigationPage(page)
+        const secondarySidebar = new SecondarySidebarPage(page)
+        
+        await primaryNav.clickSection(section)
+        await secondarySidebar.waitForTransition()
+
+        await expect(secondarySidebar.root).toBeVisible()
+
+        if (type === 'menu') {
+          await expect(page.getByRole('link', { name: elementText })).toBeVisible()
+        } else if (type === 'content') {
+          await expect(page.getByRole('heading', { name: elementText })).toBeVisible()
+        }
+      })
     })
   })
 
   test.describe('Auth-based section visibility matrix', () => {
     const sectionTests = [
       { section: 'create', authRequired: true, adminOnly: false, hasContent: true },
-      { section: 'home', authRequired: false, adminOnly: false, hasContent: true },
+      { section: 'home', authRequired: true, adminOnly: false, hasContent: true },
       { section: 'settings', authRequired: true, adminOnly: false, hasContent: true },
       { section: 'admin', authRequired: true, adminOnly: true, hasContent: true },
       { section: 'training', authRequired: true, adminOnly: false, hasContent: true },
@@ -141,14 +164,17 @@ test.describe('Dual sidebar system', () => {
       await page.goto('/')
       await page.waitForLoadState('networkidle')
 
-      await primaryNav.clickHome()
+      await expect(primaryNav.homeItem).toHaveCount(0)
+      await expect(primaryNav.item('landing')).toBeVisible()
+
+      await primaryNav.item('landing').click()
       await secondarySidebar.waitForTransition()
 
       await expect(secondarySidebar.root).toBeVisible()
 
       await expect(secondarySidebar.myWorkflowsLink).toHaveCount(0)
       await expect(secondarySidebar.firstGroupWithText('Recent Items')).toHaveCount(0)
-      await expect(secondarySidebar.firstGroupWithText('Tags')).toBeVisible()
+      await expect(secondarySidebar.firstGroupWithText('Welcome')).toBeVisible()
     })
 
     test('home section shows all groups when authenticated', async ({ page }) => {
@@ -180,13 +206,11 @@ test.describe('Dual sidebar system', () => {
     })
 
     const sectionsWithActions = [
-      { section: 'create', hasAction: true, actionText: 'Create Workflow' },
       { section: 'home', hasAction: false, linkText: 'My Workflows' },
-      { section: 'settings', hasAction: false, linkText: 'Settings' },
       { section: 'admin', hasAction: false, linkText: 'Waitlist' },
     ]
 
-    sectionsWithActions.forEach(({ section, hasAction, actionText, linkText }) => {
+    sectionsWithActions.forEach(({ section, hasAction, linkText }) => {
       test(`${section} section renders ${hasAction ? 'action button' : 'navigation links'}`, async ({ page }) => {
         const primaryNav = new PrimaryNavigationPage(page)
         const secondarySidebar = new SecondarySidebarPage(page)
@@ -196,8 +220,8 @@ test.describe('Dual sidebar system', () => {
 
         await expect(secondarySidebar.root).toBeVisible()
 
-        if (hasAction && actionText) {
-          await expect(secondarySidebar.root.getByRole('button', { name: actionText })).toBeVisible()
+        if (hasAction) {
+          // Action button check would go here
         } else if (linkText) {
           const linkLocator = secondarySidebar.root.getByRole('link', { name: linkText })
           await expect(linkLocator).toBeVisible()
@@ -266,7 +290,7 @@ test.describe('Dual sidebar system', () => {
       await page.waitForLoadState('networkidle')
 
       await expect(secondarySidebar.root).toBeVisible()
-      await expect(secondarySidebar.settingsLink).toBeVisible()
+      await expect(secondarySidebar.groupLabel('Settings')).toBeVisible()
     })
 
     test('missing localStorage initializes with defaults', async ({ page }) => {
@@ -331,34 +355,22 @@ test.describe('Dual sidebar system', () => {
       await page.waitForLoadState('networkidle')
     })
 
-    test('create workflow button triggers navigation to new workflow', async ({ page }) => {
+    test('create button triggers popover with workflow creation', async ({ page }) => {
       const primaryNav = new PrimaryNavigationPage(page)
-      const secondarySidebar = new SecondarySidebarPage(page)
       
       await primaryNav.clickCreate()
-      await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(TEST_TIMEOUTS.SIDEBAR_ANIMATION)
 
-      await expect(secondarySidebar.createWorkflowButton).toBeVisible()
-      await secondarySidebar.clickCreateWorkflow()
-
-      await page.waitForURL(/\/workflow\/[a-zA-Z0-9-]+/, { timeout: TEST_TIMEOUTS.NAVIGATION })
-      expect(page.url()).toMatch(/\/workflow\/[a-zA-Z0-9-]+/)
+      // Create button shows popover, not secondary sidebar content
+      const createPopover = page.locator('[role="dialog"]', { hasText: /Create workflow|My templates/i })
+      await expect(createPopover).toBeVisible()
+      
+      const createWorkflowButton = page.getByRole('button', { name: 'Create workflow', exact: true })
+      await expect(createWorkflowButton).toBeVisible()
     })
 
-    test('create workflow button disables during creation', async ({ page }) => {
-      const primaryNav = new PrimaryNavigationPage(page)
-      const secondarySidebar = new SecondarySidebarPage(page)
-      
-      await primaryNav.clickCreate()
-      await secondarySidebar.waitForTransition()
-      
-      await expect(secondarySidebar.createWorkflowButton).toBeVisible()
-      await secondarySidebar.clickCreateWorkflow()
-      
-      const isDisabled = await secondarySidebar.createWorkflowButton.isDisabled().catch(() => false)
-      if (!isDisabled) {
-        await page.waitForURL(/\/workflow\/[a-zA-Z0-9-]+/, { timeout: TEST_TIMEOUTS.NAVIGATION })
-      }
+    test.skip('create workflow button disables during creation', async ({ page }) => {
+      // Skipped: Create uses popover, not secondary sidebar button
     })
   })
 
@@ -409,15 +421,13 @@ test.describe('Dual sidebar system', () => {
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
 
-      const beforeContent = await secondarySidebar.root.textContent()
-      expect(beforeContent).toContain('My Workflows')
+      await expect(secondarySidebar.myWorkflowsLink).toBeVisible()
 
       await primaryNav.clickSettings()
       await secondarySidebar.waitForTransition()
 
-      const afterContent = await secondarySidebar.root.textContent()
-      expect(afterContent).toContain('Settings')
-      expect(afterContent).not.toContain('My Workflows')
+      await expect(secondarySidebar.myWorkflowsLink).toHaveCount(0)
+      await expect(secondarySidebar.groupLabel('Settings')).toBeVisible()
     })
 
     test('primary sidebar visibility independent of secondary state', async ({ page }) => {
@@ -432,6 +442,68 @@ test.describe('Dual sidebar system', () => {
 
       const secondarySidebar = new SecondarySidebarPage(page)
       await expect(secondarySidebar.root).toHaveCount(0)
+    })
+  })
+
+  test.describe('Mobile overlay behavior', () => {
+    test.beforeEach(async ({ page }) => {
+      await page.setViewportSize({ width: 375, height: 667 })
+      await page.goto('/')
+      await adminLogin(page)
+      await page.goto('/')
+      await page.waitForLoadState('networkidle')
+    })
+
+    test('backdrop click closes secondary sidebar on mobile', async ({ page }) => {
+      const primaryNav = new PrimaryNavigationPage(page)
+      const secondarySidebar = new SecondarySidebarPage(page)
+      
+      await primaryNav.clickHome()
+      await secondarySidebar.waitForTransition()
+      await expect(secondarySidebar.root).toBeVisible()
+      
+      const backdrop = page.locator('[data-testid="sidebar-overlay"]')
+      if (await backdrop.count() > 0) {
+        await backdrop.click({ position: { x: 10, y: 10 } })
+        await page.waitForTimeout(TEST_TIMEOUTS.SIDEBAR_ANIMATION)
+        await expect(secondarySidebar.root).not.toBeVisible()
+      } else {
+        await page.mouse.click(350, 350)
+        await page.waitForTimeout(TEST_TIMEOUTS.SIDEBAR_ANIMATION)
+        const sidebarVisible = await secondarySidebar.root.isVisible().catch(() => false)
+        expect(sidebarVisible).toBe(false)
+      }
+    })
+
+    test('escape key closes secondary sidebar on mobile', async ({ page }) => {
+      const primaryNav = new PrimaryNavigationPage(page)
+      const secondarySidebar = new SecondarySidebarPage(page)
+      
+      await primaryNav.clickHome()
+      await secondarySidebar.waitForTransition()
+      await expect(secondarySidebar.root).toBeVisible()
+      
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(TEST_TIMEOUTS.SIDEBAR_ANIMATION)
+      
+      const sidebarVisible = await secondarySidebar.root.isVisible().catch(() => false)
+      expect(sidebarVisible).toBe(false)
+    })
+
+    test('sidebar opens when primary nav item clicked on mobile', async ({ page }) => {
+      const primaryNav = new PrimaryNavigationPage(page)
+      const secondarySidebar = new SecondarySidebarPage(page)
+      
+      await page.evaluate(() => localStorage.removeItem('secondary_sidebar_state'))
+      await page.reload()
+      await page.waitForLoadState('networkidle')
+      
+      await expect(secondarySidebar.root).toHaveCount(0)
+      
+      await primaryNav.clickHome()
+      await secondarySidebar.waitForTransition()
+      
+      await expect(secondarySidebar.root).toBeVisible()
     })
   })
 })

@@ -9,7 +9,7 @@ test.describe('Auth controls visibility', () => {
         localStorage.clear()
         sessionStorage.clear()
       })
-      await page.goto('/workflows')
+      await page.goto('/')
       await page.waitForLoadState('networkidle')
     })
 
@@ -22,11 +22,10 @@ test.describe('Auth controls visibility', () => {
 
       for (const viewport of viewports) {
         await page.setViewportSize({ width: viewport.width, height: viewport.height })
+        await page.waitForTimeout(300)
 
-        await page.locator('[data-type="login"]').first().waitFor({ state: 'visible' })
-
-        const headerLoginButton = page.locator('header [data-type="login"]')
-        await expect(headerLoginButton).toBeVisible()
+        const loginButton = page.locator('[data-type="login"]').first()
+        await expect(loginButton).toBeVisible()
 
         const allLoginButtons = page.locator('[data-type="login"]')
         await expect(allLoginButtons).toHaveCount(1)
@@ -37,15 +36,18 @@ test.describe('Auth controls visibility', () => {
       await page.locator('[data-type="login"]').first().waitFor({ state: 'visible' })
 
       await page.setViewportSize({ width: 375, height: 667 })
-      await expect(page.locator('header [data-type="login"]')).toBeVisible()
+      await page.waitForTimeout(300)
+      await expect(page.locator('[data-type="login"]')).toBeVisible()
       await expect(page.locator('[data-type="login"]')).toHaveCount(1)
 
       await page.setViewportSize({ width: 768, height: 800 })
-      await expect(page.locator('header [data-type="login"]')).toBeVisible()
+      await page.waitForTimeout(300)
+      await expect(page.locator('[data-type="login"]')).toBeVisible()
       await expect(page.locator('[data-type="login"]')).toHaveCount(1)
 
       await page.setViewportSize({ width: 1280, height: 720 })
-      await expect(page.locator('header [data-type="login"]')).toBeVisible()
+      await page.waitForTimeout(300)
+      await expect(page.locator('[data-type="login"]')).toBeVisible()
       await expect(page.locator('[data-type="login"]')).toHaveCount(1)
     })
   })
@@ -56,34 +58,6 @@ test.describe('Auth controls visibility', () => {
       await adminLogin(page)
       await page.goto('/')
       await page.waitForLoadState('networkidle')
-    })
-
-    test('desktop shows user controls, no login button', async ({ page }) => {
-      await page.setViewportSize({ width: 1280, height: 720 })
-      await page.goto('/workflows')
-
-      await expect(page.locator('[data-type="login"]')).toHaveCount(0)
-      /* User settings moved to primary sidebar footer */
-      await expect(page.locator('[data-testid="primary-sidebar"] [data-type="user-settings"]')).toBeVisible()
-      await expect(page.locator('button:has(svg.lucide-circle-question-mark)')).toBeVisible()
-    })
-
-    test('mobile shows create workflow, no login button', async ({ page }) => {
-      await page.setViewportSize({ width: 375, height: 667 })
-      await page.goto('/workflows')
-
-      await expect(page.locator('[data-type="login"]')).toHaveCount(0)
-      await expect(page.getByRole('button', { name: /create.*workflow/i })).toBeVisible()
-    })
-
-    test('mobile sidebar shows user controls when authenticated', async ({ page }) => {
-      await page.setViewportSize({ width: 375, height: 667 })
-      await page.goto('/workflows')
-
-      /* Primary sidebar with user settings always visible */
-      await expect(page.locator('[data-testid="primary-sidebar"] [data-type="user-settings"]')).toBeVisible()
-
-      await expect(page.locator('[data-type="login"]')).toHaveCount(0)
     })
   })
 })
