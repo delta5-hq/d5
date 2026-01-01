@@ -7,8 +7,20 @@ export class SecondarySidebarPage extends PageComponent {
     return '[data-testid="secondary-sidebar"]'
   }
 
+  get mobileRootSelector(): string {
+    return '[data-testid="mobile-secondary-sidebar"]'
+  }
+
+  get mobileRoot(): Locator {
+    return this.page.locator(this.mobileRootSelector)
+  }
+
   get mobileOverlayContainer(): Locator {
     return this.page.locator('[data-radix-presence]').first()
+  }
+
+  get mobileDismissButton(): Locator {
+    return this.mobileRoot.getByRole('button', { name: 'Close menu' })
   }
 
   get myWorkflowsLink(): Locator {
@@ -117,5 +129,22 @@ export class SecondarySidebarPage extends PageComponent {
 
   async waitForTransition(): Promise<void> {
     await this.page.waitForTimeout(TEST_TIMEOUTS.SIDEBAR_TRANSITION)
+  }
+
+  async isMobileOverlayVisible(): Promise<boolean> {
+    const overlay = this.page.locator('[data-radix-presence][data-state="open"]')
+    return overlay.isVisible().catch(() => false)
+  }
+
+  async isMobileSidebarVisible(): Promise<boolean> {
+    return this.mobileRoot.isVisible().catch(() => false)
+  }
+
+  async clickMobileDismissButton(): Promise<void> {
+    await this.mobileDismissButton.click()
+  }
+
+  async hasWaitlistLinkInContext(): Promise<boolean> {
+    return this.waitlistLink.isVisible().catch(() => false)
   }
 }

@@ -56,7 +56,12 @@ const SecondarySidebar: FC<SecondarySidebarProps> = ({ isOpen, activeSection }) 
   if (isMobile) {
     return (
       <GlassSheet onOpenChange={open => !open && setSecondaryOpen?.(false)} open={isOpen}>
-        <GlassSheetContent className="w-full" showCloseButton={false} side="left">
+        <GlassSheetContent
+          className="w-full"
+          data-testid="mobile-secondary-sidebar"
+          showCloseButton={false}
+          side="left"
+        >
           {mobileContent}
         </GlassSheetContent>
       </GlassSheet>

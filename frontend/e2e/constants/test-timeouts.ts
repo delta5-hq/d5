@@ -4,6 +4,7 @@ export const TEST_TIMEOUTS = {
   SECTION_SWITCH: 300,
   NAVIGATION: 10000,
   NETWORK_IDLE: 30000,
+  RAPID_INTERACTION_DELAY: 50,
 } as const
 
 export const VIEWPORT = {
