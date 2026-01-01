@@ -1,15 +1,14 @@
 import type { Locator, Page } from '@playwright/test'
 import { TEST_TIMEOUTS } from '../constants/test-timeouts'
+import { PageComponent } from '../helpers/base-page'
 
-export class SecondarySidebarPage {
-  readonly page: Page
-
-  constructor(page: Page) {
-    this.page = page
+export class SecondarySidebarPage extends PageComponent {
+  get rootSelector(): string {
+    return '[data-testid="secondary-sidebar"]'
   }
 
-  get root(): Locator {
-    return this.page.locator('[data-testid="secondary-sidebar"]')
+  get mobileOverlayContainer(): Locator {
+    return this.page.locator('[data-radix-presence]').first()
   }
 
   get myWorkflowsLink(): Locator {
@@ -36,16 +35,16 @@ export class SecondarySidebarPage {
     return this.root.getByRole('button', { name: 'Create workflow' })
   }
 
+  get mobileCloseButton(): Locator {
+    return this.root.getByRole('button', { name: 'Close menu' })
+  }
+
   groupLabel(name: string): Locator {
     return this.root.locator('[data-sidebar="group-label"]', { hasText: name })
   }
 
   firstGroupWithText(text: string): Locator {
     return this.root.getByText(text).first()
-  }
-
-  async isVisible(): Promise<boolean> {
-    return this.root.isVisible()
   }
 
   async hasMyWorkflowsLink(): Promise<boolean> {
@@ -96,12 +95,20 @@ export class SecondarySidebarPage {
     await this.createWorkflowButton.click()
   }
 
-  async getTextContent(): Promise<string | null> {
-    return this.root.textContent()
+  async clickMobileClose(): Promise<void> {
+    await this.mobileCloseButton.click()
   }
 
-  async count(): Promise<number> {
-    return this.root.count()
+  async hasMobileCloseButton(): Promise<boolean> {
+    return this.mobileCloseButton.isVisible()
+  }
+
+  async getBoundingBox(): Promise<{ width: number; height: number; x: number; y: number } | null> {
+    return this.root.boundingBox()
+  }
+
+  async getTextContent(): Promise<string | null> {
+    return this.root.textContent()
   }
 
   async waitForVisible(): Promise<void> {

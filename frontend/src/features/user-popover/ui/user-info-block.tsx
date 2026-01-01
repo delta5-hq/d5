@@ -31,6 +31,7 @@ export const UserInfoBlock = ({ onNavigate }: UserInfoBlockProps) => {
       </div>
       <Button
         className={styles.logoutButton}
+        data-testid="logout-button"
         datatype="logout"
         onClick={handleLogout}
         size="icon"

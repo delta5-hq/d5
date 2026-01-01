@@ -1,5 +1,6 @@
 import { expect, Page } from '@playwright/test'
 import { e2eEnv } from './e2e-env-vars'
+import { CreateWorkflowActionsPage, UserMenuPage } from '../page-objects'
 
 async function setupUnauthenticatedPage(page: Page) {
   await page.route('**/api/v2/auth/refresh', route =>
@@ -131,14 +132,13 @@ async function approveUser(page: Page, username: string) {
 }
 
 async function logout(page: Page) {
-  await page.locator('[data-type="user-settings"]').click()
-  
+  const userMenu = new UserMenuPage(page)
   await Promise.all([
     page.waitForResponse(
       resp => resp.url().includes('/auth/logout') && resp.request().method() === 'POST',
       { timeout: 10000 }
     ),
-    page.getByRole('button', { name: 'Log out' }).click(),
+    userMenu.logout(),
   ])
 }
 
@@ -154,19 +154,8 @@ async function createWorkflow(page: Page): Promise<string> {
   await page.goto('/workflows')
   await page.waitForLoadState('networkidle')
 
-  await Promise.all([
-    page.waitForURL(/\/workflow\//),
-    page.getByRole('button', { name: /create.*workflow/i }).click(),
-  ])
-
-  const currentUrl = page.url()
-  const workflowId = currentUrl.split('/').filter(Boolean).pop() || ''
-  
-  if (!workflowId) {
-    throw new Error(`Unable to extract workflowId from URL: ${currentUrl}`)
-  }
-
-  return workflowId
+  const createActions = new CreateWorkflowActionsPage(page)
+  return await createActions.createNewWorkflow()
 }
 
 export { approveUser, rejectUser, login, logout, signup, openLoginDialogFromSignup, adminLogin, setupUnauthenticatedPage, createWorkflow }

@@ -14,11 +14,11 @@ interface UserPopoverProps {
 export const UserPopover = ({ trigger, breakpoint = 768, onSectionChange, onOpenSecondary }: UserPopoverProps) => (
   <ResponsivePopover breakpoint={breakpoint} dataType="user-settings" trigger={trigger}>
     {onClose => (
-      <>
+      <div data-testid="user-popover">
         <UserInfoBlock onNavigate={onClose} />
         <QuickActionsGrid onNavigate={onClose} onOpenSecondary={onOpenSecondary} onSectionChange={onSectionChange} />
         <InlineThemeToggle />
-      </>
+      </div>
     )}
   </ResponsivePopover>
 )

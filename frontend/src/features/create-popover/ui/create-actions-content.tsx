@@ -23,12 +23,17 @@ export const CreateActionsContent: FC<CreateActionsContentProps> = ({ onCreateWo
   }
 
   return (
-    <div className={styles.createActionsContent}>
-      <button className={styles.createButton} onClick={handleCreate} type="button">
+    <div className={styles.createActionsContent} data-testid="create-workflow-popover">
+      <button className={styles.createButton} data-testid="create-workflow-button" onClick={handleCreate} type="button">
         <Plus className="w-5 h-5" />
         <FormattedMessage id="createWorkflow" />
       </button>
-      <button className={styles.createButton} onClick={handleTemplates} type="button">
+      <button
+        className={styles.createButton}
+        data-testid="create-from-template-button"
+        onClick={handleTemplates}
+        type="button"
+      >
         <LayoutTemplate className="w-5 h-5" />
         <FormattedMessage id="createWorkflowFromTemplate" />
       </button>

@@ -1,5 +1,5 @@
 import {test, expect} from '@playwright/test'
-import {adminLogin} from './utils'
+import {adminLogin, createWorkflow} from './utils'
 
 /**
  * Workflow Categories E2E Tests
@@ -19,10 +19,9 @@ test.describe('Workflow Categories', () => {
   })
 
   test('should create new workflow for future categorization', async ({page}) => {
-    await page.click('button:has-text("New Workflow"), button:has-text("Create")')
-    await page.waitForURL(/\/workflow\//)
-
-    const workflowId = page.url().split('/').filter(Boolean).pop() || ''
+    const workflowId = await createWorkflow(page)
+    
     expect(workflowId).toBeTruthy()
+    await expect(page).toHaveURL(`/workflow/${workflowId}`)
   })
 })

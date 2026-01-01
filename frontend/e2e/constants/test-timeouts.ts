@@ -8,4 +8,5 @@ export const TEST_TIMEOUTS = {
 
 export const VIEWPORT = {
   DESKTOP: { width: 1280, height: 800 },
+  MOBILE: { width: 375, height: 667 },
 } as const

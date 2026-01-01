@@ -30,7 +30,7 @@ export const SidebarFooter: FC<SidebarFooterProps> = ({ onSectionChange, onOpenS
           onOpenSecondary={onOpenSecondary}
           onSectionChange={onSectionChange}
           trigger={
-            <button className={styles.primaryFooterIcon} type="button">
+            <button className={styles.primaryFooterIcon} data-testid="user-menu-trigger" type="button">
               <User className="w-5 h-5" />
             </button>
           }

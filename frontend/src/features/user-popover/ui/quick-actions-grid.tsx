@@ -26,11 +26,11 @@ export const QuickActionsGrid = ({ onNavigate, onSectionChange, onOpenSecondary 
 
   return (
     <div className={styles.quickActionsGrid}>
-      <button className={styles.actionButton} onClick={handleSettings} type="button">
+      <button className={styles.actionButton} data-testid="settings-button" onClick={handleSettings} type="button">
         <Settings />
         <FormattedMessage id="sidebarSettingsLabel" />
       </button>
-      <button className={styles.actionButton} onClick={handleProfile} type="button">
+      <button className={styles.actionButton} data-testid="profile-button" onClick={handleProfile} type="button">
         <User />
         <FormattedMessage id="settingsPageProfile" />
       </button>

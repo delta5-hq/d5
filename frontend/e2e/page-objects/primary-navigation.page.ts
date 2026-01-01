@@ -1,18 +1,15 @@
 import type { Locator, Page } from '@playwright/test'
 import { TEST_TIMEOUTS } from '../constants/test-timeouts'
+import { PageComponent } from '../helpers/base-page'
 
-export class PrimaryNavigationPage {
-  readonly page: Page
+type NavigationSection = 'home' | 'create' | 'settings' | 'admin' | 'training' | 'landing'
 
-  constructor(page: Page) {
-    this.page = page
+export class PrimaryNavigationPage extends PageComponent {
+  get rootSelector(): string {
+    return '[data-testid="primary-sidebar"]'
   }
 
-  get root(): Locator {
-    return this.page.locator('[data-testid="primary-sidebar"]')
-  }
-
-  item(section: string): Locator {
+  item(section: NavigationSection): Locator {
     return this.page.locator(`[data-testid="primary-nav-${section}"]`)
   }
 
@@ -56,12 +53,8 @@ export class PrimaryNavigationPage {
     await this.trainingItem.click()
   }
 
-  async clickSection(section: string): Promise<void> {
-    await this.item(section).click()
-  }
-
-  async isVisible(): Promise<boolean> {
-    return this.root.isVisible()
+  async clickSection(section: NavigationSection | string): Promise<void> {
+    await this.page.locator(`[data-testid="primary-nav-${section}"]`).click()
   }
 
   async getSectionWidth(): Promise<number | null> {
