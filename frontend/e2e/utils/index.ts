@@ -56,7 +56,7 @@ async function login(page: Page, usernameOrEmail: string, password: string, vali
   
   const authPromise = page.waitForResponse(
     resp => resp.url().includes('/api/v2/auth/login') && resp.request().method() === 'POST',
-    { timeout: 15000 }
+    { timeout: 60000 }
   )
   
   await confirmButton.click()
@@ -69,6 +69,7 @@ async function login(page: Page, usernameOrEmail: string, password: string, vali
     
     await page.waitForResponse(
       resp => resp.url().includes('/api/v2/auth/refresh') && resp.request().method() === 'POST' && resp.ok(),
+      { timeout: 60000 }
     )
   }
 }

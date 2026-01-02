@@ -3,6 +3,7 @@ import { adminLogin, createWorkflow } from './utils'
 import { WorkflowCardPage } from './page-objects/workflow-card.page'
 import { ShareDialogInteractions } from './page-objects/share-dialog-interactions.page'
 import { testAcrossViewports, testViewportTransitions, STANDARD_VIEWPORTS } from './helpers/viewport-testing'
+import { TIMEOUTS } from './config/test-timeouts'
 
 test.describe('Workflow Sharing', () => {
   let workflowId: string
@@ -19,7 +20,7 @@ test.describe('Workflow Sharing', () => {
     await workflowCard.navigateToList()
     await workflowCard.clickShare()
     await dialog.publicOption.click()
-    await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
+    await expect(dialog.publicOption).toBeChecked({ timeout: TIMEOUTS.BACKEND_SYNC })
     await dialog.waitForPersistence()
     await dialog.close()
   }
@@ -86,9 +87,9 @@ test.describe('Workflow Sharing', () => {
         const finalOption = finalMode === 'public' ? dialog.publicOption : dialog.privateOption
         
         if (useLabels) {
-          await expect(finalOption).toHaveAttribute('data-state', 'checked', { timeout: 10000 })
+          await expect(finalOption).toHaveAttribute('data-state', 'checked', { timeout: TIMEOUTS.EXPECT_DEFAULT })
         } else {
-          await expect(finalOption).toBeChecked({ timeout: 15000 })
+          await expect(finalOption).toBeChecked({ timeout: TIMEOUTS.BACKEND_SYNC })
         }
 
         await dialog.close()
@@ -108,7 +109,7 @@ test.describe('Workflow Sharing', () => {
       await makeWorkflowPublic(page, workflowId)
       await workflowCard.openShareDialog()
       
-      await expect(dialog.shareLinkInput).toBeVisible({ timeout: 15000 })
+      await expect(dialog.shareLinkInput).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
       
       const shareLink = await dialog.getShareLink()
       
@@ -124,7 +125,7 @@ test.describe('Workflow Sharing', () => {
       await makeWorkflowPublic(page, workflowId)
       await workflowCard.openShareDialog()
       
-      await expect(dialog.shareLinkInput).toBeVisible({ timeout: 15000 })
+      await expect(dialog.shareLinkInput).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
       
       const shareLink = await dialog.getShareLink()
       expect(shareLink).toBeTruthy()
@@ -149,7 +150,7 @@ test.describe('Workflow Sharing', () => {
       await makeWorkflowPublic(page, workflowId)
       await workflowCard.openShareDialog()
       
-      await expect(dialog.qrToggle).toBeVisible({ timeout: 15000 })
+      await expect(dialog.qrToggle).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
       
       const qrToggled = await dialog.toggleQRCode()
       
@@ -199,7 +200,7 @@ test.describe('Workflow Sharing', () => {
       await workflowCard.openShareDialog()
       await expect(dialog.privateOption).toBeChecked()
       
-      await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
+      await expect(dialog.publicOption).toBeChecked({ timeout: TIMEOUTS.AUTO_PUBLISH })
       await dialog.close()
     })
 
@@ -213,7 +214,7 @@ test.describe('Workflow Sharing', () => {
       await expect(dialog.publicOption).toBeChecked()
 
       await dialog.privateOption.click()
-      await expect(dialog.privateOption).toBeChecked({ timeout: 15000 })
+      await expect(dialog.privateOption).toBeChecked({ timeout: TIMEOUTS.BACKEND_SYNC })
       await dialog.waitForPersistence()
 
       await expect(dialog.privateOption).toBeChecked()
@@ -235,7 +236,7 @@ test.describe('Workflow Sharing', () => {
       await workflowCard.openShareDialog()
       await expect(dialog.publicOption).toBeChecked()
       
-      await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
+      await expect(dialog.publicOption).toBeChecked({ timeout: TIMEOUTS.BACKEND_SYNC })
       await dialog.close()
     })
   })
@@ -246,22 +247,22 @@ test.describe('Workflow Sharing', () => {
       const dialog = new ShareDialogInteractions(page)
 
       await workflowCard.openShareDialog()
-      await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
+      await expect(dialog.publicOption).toBeChecked({ timeout: TIMEOUTS.AUTO_PUBLISH })
 
       const publicToggle = dialog.dialog.locator('button[role="switch"]').last()
       await publicToggle.click()
-      await expect(publicToggle).toHaveAttribute('aria-checked', 'true', { timeout: 15000 })
+      await expect(publicToggle).toHaveAttribute('aria-checked', 'true', { timeout: TIMEOUTS.BACKEND_SYNC })
       await dialog.waitForPersistence()
 
       await dialog.unlistedOption.click()
-      await expect(dialog.unlistedOption).toBeChecked({ timeout: 15000 })
+      await expect(dialog.unlistedOption).toBeChecked({ timeout: TIMEOUTS.BACKEND_SYNC })
       await dialog.waitForPersistence()
 
       await dialog.publicOption.click()
-      await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
+      await expect(dialog.publicOption).toBeChecked({ timeout: TIMEOUTS.BACKEND_SYNC })
       await dialog.waitForPersistence()
 
-      await expect(publicToggle).toHaveAttribute('aria-checked', 'true', { timeout: 15000 })
+      await expect(publicToggle).toHaveAttribute('aria-checked', 'true', { timeout: TIMEOUTS.BACKEND_SYNC })
       await dialog.close()
     })
 
@@ -280,10 +281,10 @@ test.describe('Workflow Sharing', () => {
         
         await publicToggle.click()
         await expect(publicToggle).toHaveAttribute('aria-checked', expectedState ? 'true' : 'false', {
-          timeout: 15000,
+          timeout: TIMEOUTS.BACKEND_SYNC,
         })
         
-        await dialog.waitForPersistence(30000)
+        await dialog.waitForPersistence(TIMEOUTS.SLOW_NETWORK)
       }
 
       await dialog.close()
@@ -294,23 +295,23 @@ test.describe('Workflow Sharing', () => {
       const dialog = new ShareDialogInteractions(page)
 
       await workflowCard.openShareDialog()
-      await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
+      await expect(dialog.publicOption).toBeChecked({ timeout: TIMEOUTS.AUTO_PUBLISH })
 
       await dialog.unlistedOption.click()
-      await expect(dialog.unlistedOption).toBeChecked({ timeout: 15000 })
+      await expect(dialog.unlistedOption).toBeChecked({ timeout: TIMEOUTS.BACKEND_SYNC })
       await dialog.waitForPersistence()
 
       const unlistedToggle = dialog.dialog.locator('button[role="switch"]').first()
       await unlistedToggle.click()
-      await expect(unlistedToggle).toHaveAttribute('aria-checked', 'true', { timeout: 15000 })
+      await expect(unlistedToggle).toHaveAttribute('aria-checked', 'true', { timeout: TIMEOUTS.BACKEND_SYNC })
       await dialog.waitForPersistence()
 
       await dialog.publicOption.click()
-      await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
+      await expect(dialog.publicOption).toBeChecked({ timeout: TIMEOUTS.BACKEND_SYNC })
       await dialog.waitForPersistence()
 
       const publicToggle = dialog.dialog.locator('button[role="switch"]').last()
-      await expect(publicToggle).toHaveAttribute('aria-checked', 'false', { timeout: 15000 })
+      await expect(publicToggle).toHaveAttribute('aria-checked', 'false', { timeout: TIMEOUTS.BACKEND_SYNC })
 
       await dialog.close()
     })
@@ -320,20 +321,20 @@ test.describe('Workflow Sharing', () => {
       const dialog = new ShareDialogInteractions(page)
 
       await workflowCard.openShareDialog()
-      await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
+      await expect(dialog.publicOption).toBeChecked({ timeout: TIMEOUTS.AUTO_PUBLISH })
 
       let publicToggle = dialog.dialog.locator('button[role="switch"]').last()
       await expect(publicToggle).toBeVisible()
 
       await dialog.privateOption.click()
-      await expect(dialog.privateOption).toBeChecked({ timeout: 15000 })
+      await expect(dialog.privateOption).toBeChecked({ timeout: TIMEOUTS.BACKEND_SYNC })
       await dialog.waitForPersistence()
 
       const toggleCount = await dialog.dialog.locator('button[role="switch"]').count()
       expect(toggleCount).toBe(0)
 
       await dialog.publicOption.click()
-      await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
+      await expect(dialog.publicOption).toBeChecked({ timeout: TIMEOUTS.BACKEND_SYNC })
       await dialog.waitForPersistence()
 
       publicToggle = dialog.dialog.locator('button[role="switch"]').last()
@@ -378,12 +379,12 @@ test.describe('Workflow Sharing', () => {
       await workflowCard1.navigateToList()
 
       await workflowCard1.clickShare()
-      await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
+      await expect(dialog.publicOption).toBeChecked({ timeout: TIMEOUTS.AUTO_PUBLISH })
       await dialog.close()
 
       await workflowCard2.clickShare()
       await expect(dialog.privateOption).toBeChecked()
-      await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
+      await expect(dialog.publicOption).toBeChecked({ timeout: TIMEOUTS.AUTO_PUBLISH })
       await dialog.close()
 
       await workflowCard1.clickShare()
@@ -417,19 +418,19 @@ test.describe('Workflow Sharing', () => {
       await workflowCard1.clickShare()
       const toggle1 = dialog.dialog.locator('button[role="switch"]').last()
       await toggle1.click()
-      await expect(toggle1).toHaveAttribute('aria-checked', 'true', { timeout: 15000 })
+      await expect(toggle1).toHaveAttribute('aria-checked', 'true', { timeout: TIMEOUTS.BACKEND_SYNC })
       await dialog.waitForPersistence()
       await dialog.close()
 
       await makeWorkflowPublic(page, workflow2Id)
       await workflowCard2.clickShare()
       const toggle2 = dialog.dialog.locator('button[role="switch"]').last()
-      await expect(toggle2).toHaveAttribute('aria-checked', 'false', { timeout: 15000 })
+      await expect(toggle2).toHaveAttribute('aria-checked', 'false', { timeout: TIMEOUTS.BACKEND_SYNC })
       await dialog.close()
 
       await workflowCard1.clickShare()
       const toggle1Again = dialog.dialog.locator('button[role="switch"]').last()
-      await expect(toggle1Again).toHaveAttribute('aria-checked', 'true', { timeout: 15000 })
+      await expect(toggle1Again).toHaveAttribute('aria-checked', 'true', { timeout: TIMEOUTS.BACKEND_SYNC })
       await dialog.close()
     })
 
@@ -443,14 +444,14 @@ test.describe('Workflow Sharing', () => {
       const dialog = new ShareDialogInteractions(page)
 
       await workflowCard.openShareDialog()
-      await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
+      await expect(dialog.publicOption).toBeChecked({ timeout: TIMEOUTS.AUTO_PUBLISH })
 
       await dialog.privateOption.click()
-      await expect(dialog.privateOption).toBeChecked({ timeout: 15000 })
+      await expect(dialog.privateOption).toBeChecked({ timeout: TIMEOUTS.BACKEND_SYNC })
       await dialog.waitForPersistence(30000)
 
       await dialog.publicOption.click()
-      await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
+      await expect(dialog.publicOption).toBeChecked({ timeout: TIMEOUTS.BACKEND_SYNC })
       await dialog.waitForPersistence(30000)
 
       await expect(dialog.publicOption).toBeChecked()

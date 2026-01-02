@@ -3,22 +3,22 @@ import dotenv from 'dotenv'
 
 dotenv.config()
 
-/* Slow CI throttling config - simulates resource-constrained runners */
+/* Throttled config for resource-constrained CI runners */
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 2,
   workers: 1,
-  timeout: 120000,
+  timeout: 180000,
   reporter: [['list'], ['junit', { outputFile: 'junit.xml' }], ['html']],
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    actionTimeout: 20000,
-    navigationTimeout: 60000,
+    actionTimeout: 30000,
+    navigationTimeout: 90000,
     headless: true,
     launchOptions: {
       slowMo: 50,

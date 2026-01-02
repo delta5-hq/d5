@@ -1,4 +1,4 @@
-.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e stop ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend build-backend build-backend-v2 build-frontend test-backend test-backend-v2 e2e-backend e2e-frontend e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks test-hook clean-e2e clean-all fix-permissions cleanup-old-data
+.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e stop ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend build-backend build-backend-v2 build-frontend test-backend test-backend-v2 e2e-backend e2e-frontend e2e-frontend-throttled e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks test-hook clean-e2e clean-all fix-permissions cleanup-old-data
 
 # Configuration variables (DRY principle)
 DOCKER_NETWORK := d5-dev-network
@@ -31,6 +31,7 @@ help:
 	@echo "  make ci-full             - Full CI pipeline (lint + build + test + E2E)"
 	@echo "  make e2e-backend         - Run backend-v2 E2E tests (14 suites)"
 	@echo "  make e2e-frontend        - Run frontend E2E tests (27 tests)"
+	@echo "  make e2e-frontend-throttled - Run frontend E2E tests (throttled: slowMo=50ms)"
 	@echo "  make test-backend        - Run backend unit tests"
 	@echo "  make test-backend-v2     - Run backend-v2 unit tests"
 	@echo ""
@@ -244,6 +245,29 @@ e2e-frontend: start-mongodb-e2e e2e-db-init
 	@echo "→ Running frontend E2E tests..."
 	@TEST_EXIT=0; cd frontend && E2E_ADMIN_USER=admin E2E_ADMIN_PASS='P@ssw0rd!' CI=true npm run test:e2e:ci || TEST_EXIT=$$?; \
 		kill $$(cat /tmp/vite-e2e.pid 2>/dev/null) 2>/dev/null || true; \
+		cd ../backend-v2 && $(MAKE) stop; \
+		exit $$TEST_EXIT
+
+e2e-frontend-throttled: start-mongodb-e2e e2e-db-init
+	@echo "→ Building backend-v2..."
+	@cd backend-v2 && $(MAKE) build > /dev/null 2>&1
+	@echo "→ Starting backend-v2..."
+	@cd backend-v2 && $(MAKE) stop
+	@cd backend-v2 && JWT_SECRET='$(JWT_SECRET)' \
+		MONGO_URI='$(MONGO_E2E_URI)' \
+		PORT=$(BACKEND_PORT) \
+		API_ROOT='$(API_ROOT)' \
+		MOCK_EXTERNAL_SERVICES=true \
+		$(MAKE) start
+	@sleep 20
+	@until curl -s http://localhost:$(BACKEND_PORT)$(API_ROOT)/health > /dev/null 2>&1; do sleep 2; done
+	@sleep 5
+	@echo "→ Starting frontend dev server..."
+	@cd frontend && bash -c 'nohup pnpm dev > /tmp/vite-e2e-throttled.log 2>&1 & echo $$! > /tmp/vite-e2e-throttled.pid'
+	@sleep 10
+	@echo "→ Running frontend E2E tests (throttled: slowMo=50ms, workers=1)..."
+	@TEST_EXIT=0; cd frontend && E2E_ADMIN_USER=admin E2E_ADMIN_PASS='P@ssw0rd!' CI=true npm run test:e2e:throttled || TEST_EXIT=$$?; \
+		kill $$(cat /tmp/vite-e2e-throttled.pid 2>/dev/null) 2>/dev/null || true; \
 		cd ../backend-v2 && $(MAKE) stop; \
 		exit $$TEST_EXIT
 
