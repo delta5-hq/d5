@@ -1,4 +1,6 @@
 import type { Page, Locator } from '@playwright/test'
+import { TIMEOUTS } from '../config/test-timeouts'
+import { SELECTORS, type VisibilityMode, type CollaborativeMode } from '../config/test-selectors'
 
 export class ShareDialogInteractions {
   readonly page: Page
@@ -136,8 +138,8 @@ export class ShareDialogInteractions {
     await this.closeButton.click()
   }
 
-  async waitForPersistence(timeoutMs: number = 15000): Promise<void> {
-    await this.dialog.waitFor({ state: 'visible', timeout: 5000 })
+  async waitForPersistence(timeoutMs: number = TIMEOUTS.BACKEND_SYNC): Promise<void> {
+    await this.dialog.waitFor({ state: 'visible', timeout: TIMEOUTS.UI_UPDATE })
     
     await this.page.waitForFunction(
       () => {
@@ -148,5 +150,58 @@ export class ShareDialogInteractions {
       },
       { timeout: timeoutMs }
     )
+  }
+
+  getCollaborativeToggleForMode(mode: CollaborativeMode): Locator {
+    return this.dialog.locator(SELECTORS.collaborativeToggle(mode))
+  }
+
+  getVisibilityRadioForMode(mode: VisibilityMode): Locator {
+    return this.dialog.locator(SELECTORS.visibilityRadio(mode)).first()
+  }
+
+  getVisibilityLabelForMode(mode: VisibilityMode): Locator {
+    return this.dialog.locator(SELECTORS.visibilityLabel(mode)).first()
+  }
+
+  async setVisibilityMode(mode: VisibilityMode): Promise<void> {
+    const option = this.getVisibilityRadioForMode(mode)
+    await option.click()
+    await option.page().waitForTimeout(TIMEOUTS.UI_UPDATE)
+    await this.waitForPersistence()
+  }
+
+  async enableCollaborativeForMode(mode: CollaborativeMode, enable: boolean = true): Promise<void> {
+    const toggle = this.getCollaborativeToggleForMode(mode)
+    const currentState = await toggle.getAttribute('aria-checked')
+    const shouldClick = (enable && currentState === 'false') || (!enable && currentState === 'true')
+    
+    if (shouldClick) {
+      await toggle.click()
+      await toggle.page().waitForTimeout(TIMEOUTS.UI_UPDATE)
+      await this.waitForPersistence()
+    }
+  }
+
+  async getCollaborativeStateForMode(mode: CollaborativeMode): Promise<boolean> {
+    const toggle = this.getCollaborativeToggleForMode(mode)
+    const ariaChecked = await toggle.getAttribute('aria-checked')
+    return ariaChecked === 'true'
+  }
+
+  async getCurrentVisibilityMode(): Promise<VisibilityMode | null> {
+    const modes: VisibilityMode[] = ['private', 'public', 'unlisted']
+    
+    for (const mode of modes) {
+      const radio = this.getVisibilityRadioForMode(mode)
+      const dataState = await radio.getAttribute('data-state')
+      const ariaChecked = await radio.getAttribute('aria-checked')
+      
+      if (dataState === 'checked' || ariaChecked === 'true') {
+        return mode
+      }
+    }
+    
+    return null
   }
 }

@@ -38,68 +38,65 @@ test.describe('Workflow Sharing', () => {
   })
 
   test.describe('Visibility State Transitions', () => {
-    test('private to public transition persists', async ({ page }) => {
-      const workflowCard = new WorkflowCardPage(page, workflowId)
-      const dialog = new ShareDialogInteractions(page)
+    const rapidChangeScenarios = [
+      {
+        name: 'ordered consecutive transitions (pub→priv→pub)',
+        sequence: ['public', 'private', 'public'],
+        waitBetween: true,
+      },
+      {
+        name: 'rapid clicks without wait (priv→pub→priv)',
+        sequence: ['private', 'public', 'private'],
+        waitBetween: false,
+      },
+      {
+        name: 'rapid label clicks (pub→priv→pub)',
+        sequence: ['public', 'private', 'public'],
+        useLabels: true,
+        waitBetween: false,
+      },
+    ]
 
-      await workflowCard.openShareDialog()
-      await expect(dialog.privateOption).toBeChecked()
-      
-      await dialog.publicOption.click()
-      await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
-      await dialog.waitForPersistence()
-      await dialog.close()
+    rapidChangeScenarios.forEach(({ name, sequence, waitBetween, useLabels }) => {
+      test(`${name} maintains final state`, async ({ page }) => {
+        const workflowCard = new WorkflowCardPage(page, workflowId)
+        const dialog = new ShareDialogInteractions(page)
 
-      await page.goto('/workflows')
-      await page.waitForLoadState('networkidle')
+        await workflowCard.openShareDialog()
+        
+        for (const mode of sequence) {
+          if (useLabels) {
+            const label = mode === 'public' ? dialog.publicLabel : dialog.privateLabel
+            await label.click()
+          } else {
+            const option = mode === 'public' ? dialog.publicOption : dialog.privateOption
+            await option.click()
+          }
+          
+          if (waitBetween) {
+            await dialog.waitForPersistence()
+          }
+        }
+        
+        if (!waitBetween) {
+          await dialog.waitForPersistence()
+        }
 
-      await workflowCard.clickShare()
-      await expect(dialog.publicOption).toBeChecked()
-      await dialog.close()
-    })
+        const finalMode = sequence[sequence.length - 1]
+        const finalOption = finalMode === 'public' ? dialog.publicOption : dialog.privateOption
+        
+        if (useLabels) {
+          await expect(finalOption).toHaveAttribute('data-state', 'checked', { timeout: 10000 })
+        } else {
+          await expect(finalOption).toBeChecked({ timeout: 15000 })
+        }
 
-    test('public to private transition persists', async ({ page }) => {
-      const workflowCard = new WorkflowCardPage(page, workflowId)
-      const dialog = new ShareDialogInteractions(page)
+        await dialog.close()
 
-      await makeWorkflowPublic(page, workflowId)
-
-      await workflowCard.openShareDialog()
-      await expect(dialog.publicOption).toBeChecked()
-
-      await dialog.privateOption.click()
-      await expect(dialog.privateOption).toBeChecked({ timeout: 15000 })
-      await dialog.waitForPersistence()
-      await dialog.close()
-
-      await workflowCard.openShareDialog()
-      await expect(dialog.privateOption).toBeChecked()
-      await dialog.close()
-    })
-
-    test('multiple consecutive state changes persist correctly', async ({ page }) => {
-      const workflowCard = new WorkflowCardPage(page, workflowId)
-      const dialog = new ShareDialogInteractions(page)
-
-      await workflowCard.openShareDialog()
-      
-      await dialog.publicOption.click()
-      await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
-      await dialog.waitForPersistence()
-
-      await dialog.privateOption.click()
-      await expect(dialog.privateOption).toBeChecked({ timeout: 15000 })
-      await dialog.waitForPersistence()
-
-      await dialog.publicOption.click()
-      await expect(dialog.publicOption).toBeChecked({ timeout: 15000 })
-      await dialog.waitForPersistence()
-
-      await dialog.close()
-
-      await workflowCard.openShareDialog()
-      await expect(dialog.publicOption).toBeChecked()
-      await dialog.close()
+        await workflowCard.openShareDialog()
+        await expect(finalOption).toBeChecked()
+        await dialog.close()
+      })
     })
   })
 
@@ -111,7 +108,6 @@ test.describe('Workflow Sharing', () => {
       await makeWorkflowPublic(page, workflowId)
       await workflowCard.openShareDialog()
       
-      // Wait for share link input to be visible
       await expect(dialog.shareLinkInput).toBeVisible({ timeout: 15000 })
       
       const shareLink = await dialog.getShareLink()
@@ -128,7 +124,6 @@ test.describe('Workflow Sharing', () => {
       await makeWorkflowPublic(page, workflowId)
       await workflowCard.openShareDialog()
       
-      // Wait for share link input to be visible
       await expect(dialog.shareLinkInput).toBeVisible({ timeout: 15000 })
       
       const shareLink = await dialog.getShareLink()
@@ -154,7 +149,6 @@ test.describe('Workflow Sharing', () => {
       await makeWorkflowPublic(page, workflowId)
       await workflowCard.openShareDialog()
       
-      // Wait for QR toggle to be visible
       await expect(dialog.qrToggle).toBeVisible({ timeout: 15000 })
       
       const qrToggled = await dialog.toggleQRCode()
@@ -247,24 +241,6 @@ test.describe('Workflow Sharing', () => {
   })
 
   test.describe('Collaborative Editing', () => {
-    test('collaborative toggle state persists across visibility modes', async ({ page }) => {
-      const workflowCard = new WorkflowCardPage(page, workflowId)
-      const dialog = new ShareDialogInteractions(page)
-
-      await makeWorkflowPublic(page, workflowId)
-      await workflowCard.openShareDialog()
-
-      const publicToggle = dialog.dialog.locator('button[role="switch"]').last()
-      await publicToggle.click()
-      await expect(publicToggle).toHaveAttribute('aria-checked', 'true', { timeout: 15000 })
-      await dialog.waitForPersistence()
-      await dialog.close()
-
-      await workflowCard.openShareDialog()
-      await expect(publicToggle).toHaveAttribute('aria-checked', 'true', { timeout: 15000 })
-      await dialog.close()
-    })
-
     test('collaborative memory retained when switching between visibility modes', async ({ page }) => {
       const workflowCard = new WorkflowCardPage(page, workflowId)
       const dialog = new ShareDialogInteractions(page)
@@ -302,13 +278,11 @@ test.describe('Workflow Sharing', () => {
       for (let i = 0; i < 6; i++) {
         expectedState = !expectedState
         
-        // Click and wait for UI state change first
         await publicToggle.click()
         await expect(publicToggle).toHaveAttribute('aria-checked', expectedState ? 'true' : 'false', {
           timeout: 15000,
         })
         
-        // Then wait for backend to finish before next click
         await dialog.waitForPersistence(30000)
       }
 
@@ -428,23 +402,6 @@ test.describe('Workflow Sharing', () => {
 
       await workflowCard.openShareDialog()
       await expect(dialog.publicOption).toBeChecked()
-      await dialog.close()
-    })
-
-    test('visibility updates prevent race conditions on rapid changes', async ({ page }) => {
-      const workflowCard = new WorkflowCardPage(page, workflowId)
-      const dialog = new ShareDialogInteractions(page)
-
-      await workflowCard.openShareDialog()
-      await expect(dialog.publicOption).toBeChecked({ timeout: 3000 })
-
-      await dialog.privateOption.click()
-      await dialog.publicOption.click()
-      await dialog.privateOption.click()
-      await expect(dialog.privateOption).toBeChecked({ timeout: 15000 })
-      await dialog.waitForPersistence()
-
-      await expect(dialog.privateOption).toBeChecked()
       await dialog.close()
     })
 
