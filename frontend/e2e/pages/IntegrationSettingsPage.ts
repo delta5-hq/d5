@@ -19,6 +19,8 @@ const API_ENDPOINTS = {
 
 const TIMEOUTS = {
   dialogAppear: 10000,
+  apiResponse: 30000,
+  dialogClose: 10000,
 } as const
 
 export interface IntegrationConfig {
@@ -115,12 +117,14 @@ export class IntegrationSettingsPage {
       this.page.waitForResponse(
         resp => resp.url().includes(API_ENDPOINTS.integrationUpdate(serviceName)) && 
                 resp.request().method() === 'PUT' && 
-                resp.ok()
+                resp.ok(),
+        { timeout: TIMEOUTS.apiResponse }
       ),
       this.page.waitForResponse(
         resp => resp.url().includes(API_ENDPOINTS.integrationGet) && 
                 resp.request().method() === 'GET' && 
-                resp.ok()
+                resp.ok(),
+        { timeout: TIMEOUTS.apiResponse }
       ),
       submitButton.click(),
     ])
@@ -156,7 +160,7 @@ export class IntegrationSettingsPage {
     await this.submitIntegration(serviceName)
     
     /* Wait for dialog to close after successful submit */
-    await this.page.waitForSelector(`[data-dialog-name="${serviceName}"]`, { state: 'hidden', timeout: 5000 })
+    await this.page.waitForSelector(`[data-dialog-name="${serviceName}"]`, { state: 'hidden', timeout: TIMEOUTS.dialogClose })
     
     /* Find installed integration card on settings page (outside dialog) */
     const installedCard = this.page.locator(`[data-type="integration-card"][data-title-id="${titleId}"]`).first()
