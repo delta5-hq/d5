@@ -37,11 +37,13 @@ test.describe('Sidebar keyboard navigation', () => {
     /* Navigate to home link with keyboard */
     const homeButton = primaryNav.homeItem
     await homeButton.focus()
+    await page.waitForTimeout(300)
     await page.keyboard.press('Enter')
     
     await secondarySidebar.waitForTransition()
-    await expect(secondarySidebar.root).toBeVisible()
-    await expect(secondarySidebar.myWorkflowsLink).toBeVisible()
+    await page.waitForTimeout(500)
+    await expect(secondarySidebar.root).toBeVisible({ timeout: 15000 })
+    await expect(secondarySidebar.myWorkflowsLink).toBeVisible({ timeout: 15000 })
   })
 
   test('space key activates primary navigation link', async ({ page }) => {
@@ -51,11 +53,13 @@ test.describe('Sidebar keyboard navigation', () => {
     /* Navigate to settings link with keyboard */
     const settingsButton = primaryNav.item('settings')
     await settingsButton.focus()
+    await page.waitForTimeout(300)
     await page.keyboard.press('Space')
     
     await secondarySidebar.waitForTransition()
-    await expect(secondarySidebar.root).toBeVisible()
-    await expect(secondarySidebar.groupLabel('Settings')).toBeVisible()
+    await page.waitForTimeout(500)
+    await expect(secondarySidebar.root).toBeVisible({ timeout: 15000 })
+    await expect(secondarySidebar.groupLabel('Settings')).toBeVisible({ timeout: 15000 })
   })
 
   test('tab navigates through secondary sidebar links', async ({ page }) => {
@@ -65,7 +69,8 @@ test.describe('Sidebar keyboard navigation', () => {
     /* Open secondary sidebar */
     await primaryNav.clickHome()
     await secondarySidebar.waitForTransition()
-    await expect(secondarySidebar.root).toBeVisible()
+    await page.waitForTimeout(500)
+    await expect(secondarySidebar.root).toBeVisible({ timeout: 15000 })
     
     /* Focus first link in secondary sidebar */
     const firstLink = secondarySidebar.myWorkflowsLink

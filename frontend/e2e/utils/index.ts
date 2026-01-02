@@ -159,4 +159,12 @@ async function createWorkflow(page: Page): Promise<string> {
   return await createActions.createNewWorkflow()
 }
 
-export { approveUser, rejectUser, login, logout, signup, openLoginDialogFromSignup, adminLogin, setupUnauthenticatedPage, createWorkflow }
+async function clearAuthState(page: Page) {
+  await page.evaluate(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+  })
+  await page.context().clearCookies()
+}
+
+export { approveUser, rejectUser, login, logout, signup, openLoginDialogFromSignup, adminLogin, setupUnauthenticatedPage, createWorkflow, clearAuthState }

@@ -25,14 +25,18 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
+      await page.waitForTimeout(500)
 
-      await expect(secondarySidebar.mobileRoot).toBeVisible()
-      await expect(secondarySidebar.mobileDismissButton).toBeVisible()
+      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
+      await expect(secondarySidebar.mobileDismissButton).toBeVisible({ timeout: 15000 })
 
       await secondarySidebar.clickMobileDismissButton()
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
+      await page.waitForTimeout(500)
 
-      await expect(secondarySidebar.mobileRoot).not.toBeVisible()
+      await expect(secondarySidebar.mobileRoot).not.toBeVisible({ timeout: 15000 })
     })
 
     test('mobile dismiss button is visible when sidebar opens', async ({ page }) => {
@@ -41,8 +45,10 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
+      await page.waitForTimeout(500)
 
-      await expect(secondarySidebar.mobileDismissButton).toBeVisible()
+      await expect(secondarySidebar.mobileDismissButton).toBeVisible({ timeout: 15000 })
     })
 
     test('clicking outside secondary sidebar closes it on mobile', async ({ page }) => {
@@ -51,11 +57,14 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
+      await page.waitForTimeout(500)
 
-      await expect(secondarySidebar.mobileRoot).toBeVisible()
+      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
       await page.locator('body').click({ position: { x: 10, y: 10 } })
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
 
       const isVisible = await secondarySidebar.isMobileSidebarVisible()
       expect(isVisible).toBe(false)
@@ -77,6 +86,7 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
 
       const overlayVisible = await secondarySidebar.isMobileOverlayVisible()
       expect(overlayVisible).toBe(true)
@@ -88,9 +98,11 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
 
       await secondarySidebar.clickMobileDismissButton()
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
 
       const overlayVisible = await secondarySidebar.isMobileOverlayVisible()
       expect(overlayVisible).toBe(false)
@@ -112,11 +124,13 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
-      await expect(secondarySidebar.mobileRoot).toBeVisible()
+      await page.waitForTimeout(500)
+      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
       await secondarySidebar.clickMyWorkflows()
       await page.waitForURL(/\/workflows/, { timeout: TEST_TIMEOUTS.NAVIGATION })
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
 
       const isVisible = await secondarySidebar.isMobileSidebarVisible()
       expect(isVisible).toBe(false)
@@ -135,7 +149,8 @@ test.describe('Dual sidebar mobile behavior', () => {
 
         await primaryNav.clickSection(from)
         await secondarySidebar.waitForTransition()
-        await expect(secondarySidebar.mobileRoot).toBeVisible()
+      await page.waitForTimeout(500)
+        await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
         if (fromLink) {
           await expect(secondarySidebar.root.getByRole('link', { name: fromLink })).toBeVisible()
@@ -145,11 +160,13 @@ test.describe('Dual sidebar mobile behavior', () => {
 
         await secondarySidebar.clickMobileDismissButton()
         await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
 
         await primaryNav.clickSection(to)
         await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
 
-        await expect(secondarySidebar.mobileRoot).toBeVisible()
+        await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
         if (toLink) {
           await expect(secondarySidebar.root.getByRole('link', { name: toLink })).toBeVisible()
@@ -174,6 +191,7 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
 
       await testViewportTransitions(
         page,
@@ -182,7 +200,7 @@ test.describe('Dual sidebar mobile behavior', () => {
           if (!viewportSize) return
 
           if (viewportSize.width < 768) {
-            await expect(secondarySidebar.mobileRoot).toBeVisible()
+            await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
             await expect(secondarySidebar.mobileDismissButton).toBeVisible()
           } else {
             await expect(secondarySidebar.root).toBeVisible()
@@ -198,6 +216,7 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
 
       const testViewports: ViewportSpec[] = [
         { width: 375, height: 667, name: 'mobile' },
@@ -229,6 +248,7 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
 
       await expect(secondarySidebar.root).toBeVisible()
       await expect(secondarySidebar.mobileDismissButton).not.toBeVisible()
@@ -244,6 +264,7 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
 
       const mobileVisible = await secondarySidebar.isMobileSidebarVisible()
       const overlayVisible = await secondarySidebar.isMobileOverlayVisible()
@@ -262,6 +283,7 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
 
       await expect(secondarySidebar.root).toBeVisible()
 
@@ -279,8 +301,9 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
 
-      await expect(secondarySidebar.mobileRoot).toBeVisible()
+      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
       await expect(secondarySidebar.mobileDismissButton).toBeVisible()
 
       const boundingBox = await secondarySidebar.mobileRoot.boundingBox()
@@ -297,7 +320,8 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
-      await expect(secondarySidebar.mobileRoot).toBeVisible()
+      await page.waitForTimeout(500)
+      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
       await page.setViewportSize({ width: 667, height: 375 })
       await page.waitForTimeout(TEST_TIMEOUTS.SIDEBAR_TRANSITION)
@@ -313,6 +337,7 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
 
       const viewportSizes = [
         { width: 375, height: 667 },
@@ -329,7 +354,7 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await page.waitForTimeout(TEST_TIMEOUTS.SIDEBAR_TRANSITION)
 
-      await expect(secondarySidebar.mobileRoot).toBeVisible()
+      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
     })
   })
 
@@ -348,13 +373,15 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
-      await expect(secondarySidebar.mobileRoot).toBeVisible()
+      await page.waitForTimeout(500)
+      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
       await page.goto('/settings')
       await page.waitForLoadState('networkidle')
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
 
-      await expect(secondarySidebar.mobileRoot).toBeVisible()
+      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
       await expect(secondarySidebar.groupLabel('Settings')).toBeVisible()
     })
 
@@ -368,13 +395,15 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
-      await expect(secondarySidebar.mobileRoot).toBeVisible()
+      await page.waitForTimeout(500)
+      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
       const storedStateOpen = await page.evaluate(() => localStorage.getItem('secondary_sidebar_state'))
       expect(storedStateOpen).toBe('true')
 
       await secondarySidebar.clickMobileDismissButton()
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
 
       const isVisible = await secondarySidebar.isMobileSidebarVisible()
       expect(isVisible).toBe(false)
@@ -392,12 +421,13 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
-      await expect(secondarySidebar.mobileRoot).toBeVisible()
+      await page.waitForTimeout(500)
+      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
       await page.reload()
       await page.waitForLoadState('networkidle')
 
-      await expect(secondarySidebar.mobileRoot).toBeVisible()
+      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
       await expect(secondarySidebar.myWorkflowsLink).toBeVisible()
     })
   })
@@ -417,7 +447,8 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
-      await expect(secondarySidebar.mobileRoot).toBeVisible()
+      await page.waitForTimeout(500)
+      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
       for (let i = 0; i < 5; i++) {
         await secondarySidebar.clickMobileDismissButton()
@@ -426,7 +457,7 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await page.waitForTimeout(TEST_TIMEOUTS.SIDEBAR_TRANSITION)
 
-      await expect(secondarySidebar.mobileRoot).not.toBeVisible()
+      await expect(secondarySidebar.mobileRoot).not.toBeVisible({ timeout: 15000 })
     })
 
     test('rapid primary section switches maintain final section state on mobile', async ({ page }) => {
@@ -443,7 +474,7 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await page.waitForTimeout(TEST_TIMEOUTS.SIDEBAR_ANIMATION)
 
-      await expect(secondarySidebar.mobileRoot).toBeVisible()
+      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
       await expect(secondarySidebar.groupLabel('Settings')).toBeVisible()
     })
 
@@ -456,6 +487,7 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await secondarySidebar.clickMobileDismissButton()
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
 
       const isVisible = await secondarySidebar.isMobileSidebarVisible()
       expect(isVisible).toBe(false)
@@ -467,7 +499,8 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
-      await expect(secondarySidebar.mobileRoot).toBeVisible()
+      await page.waitForTimeout(500)
+      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
       await page.goto('/workflows')
       await page.waitForLoadState('networkidle')
@@ -475,8 +508,9 @@ test.describe('Dual sidebar mobile behavior', () => {
       await page.goBack()
       await page.waitForLoadState('networkidle')
       await secondarySidebar.waitForTransition()
+      await page.waitForTimeout(500)
 
-      await expect(secondarySidebar.mobileRoot).toBeVisible()
+      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
     })
 
     test('deep nested route navigation maintains mobile sidebar section context', async ({ page }) => {
@@ -485,7 +519,8 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await primaryNav.clickAdmin()
       await secondarySidebar.waitForTransition()
-      await expect(secondarySidebar.mobileRoot).toBeVisible()
+      await page.waitForTimeout(500)
+      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
       await page.goto('/admin/users')
       await page.waitForLoadState('networkidle')

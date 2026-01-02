@@ -1,9 +1,15 @@
 import { test, expect } from '@playwright/test'
+import { clearAuthState } from './utils'
 
 test.describe('Authentication network error handling', () => {
   test.beforeEach(async ({ page }) => {
+    await clearAuthState(page)
     await page.goto('/')
     await page.waitForLoadState('networkidle')
+  })
+
+  test.afterEach(async ({ page }) => {
+    await clearAuthState(page)
   })
 
   test('offline shows error message on login attempt', async ({ page }) => {
