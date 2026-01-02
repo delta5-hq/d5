@@ -37,10 +37,10 @@ export const LandingPage = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button onClick={handleLogin} size="lg" variant="accent">
+              <Button data-type="login" onClick={handleLogin} size="lg" variant="accent">
                 <FormattedMessage id="landingLoginButton" />
               </Button>
-              <Button onClick={handleSignup} size="lg" variant="default">
+              <Button data-type="signup" onClick={handleSignup} size="lg" variant="default">
                 <FormattedMessage id="landingSignUpButton" />
               </Button>
             </div>

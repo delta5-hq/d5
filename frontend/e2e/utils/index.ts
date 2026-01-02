@@ -160,10 +160,14 @@ async function createWorkflow(page: Page): Promise<string> {
 }
 
 async function clearAuthState(page: Page) {
-  await page.evaluate(() => {
-    localStorage.clear()
-    sessionStorage.clear()
-  })
+  try {
+    await page.evaluate(() => {
+      localStorage.clear()
+      sessionStorage.clear()
+    })
+  } catch {
+    // SecurityError before document loads
+  }
   await page.context().clearCookies()
 }
 
