@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { adminLogin, closeMobileSidebar } from './utils'
 import { CreateWorkflowActionsPage, UserMenuPage } from './page-objects'
-import { VIEWPORT } from './constants/test-timeouts'
+import { VIEWPORT, TEST_TIMEOUTS } from './constants/test-timeouts'
 
 test.describe('Auth-dependent UI visibility', () => {
   test.describe('Unauthenticated state', () => {
@@ -39,6 +39,7 @@ test.describe('Auth-dependent UI visibility', () => {
       await adminLogin(page)
       await page.goto('/')
       await page.waitForLoadState('networkidle')
+      await page.waitForTimeout(TEST_TIMEOUTS.AUTH_STATE_SETTLEMENT)
     })
 
     test('login button hidden in header', async ({ page }) => {

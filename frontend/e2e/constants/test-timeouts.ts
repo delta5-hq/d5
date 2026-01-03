@@ -1,11 +1,5 @@
-export const TEST_TIMEOUTS = {
-  SIDEBAR_TRANSITION: 300,
-  SIDEBAR_ANIMATION: 500,
-  SECTION_SWITCH: 600,
-  NAVIGATION: 15000,
-  NETWORK_IDLE: 40000,
-  RAPID_INTERACTION_DELAY: 100,
-} as const
+/* DEPRECATED: Use ../config/test-timeouts instead */
+export { TIMEOUTS as TEST_TIMEOUTS } from '../config/test-timeouts'
 
 export const VIEWPORT = {
   DESKTOP: { width: 1280, height: 800 },

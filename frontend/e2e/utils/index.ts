@@ -1,6 +1,7 @@
 import { expect, Page } from '@playwright/test'
 import { e2eEnv } from './e2e-env-vars'
 import { CreateWorkflowActionsPage, UserMenuPage } from '../page-objects'
+import { TEST_TIMEOUTS } from '../constants/test-timeouts'
 
 async function setupUnauthenticatedPage(page: Page) {
   await page.route('**/api/v2/auth/refresh', route =>
@@ -67,10 +68,7 @@ async function login(page: Page, usernameOrEmail: string, password: string, vali
       throw new Error(`Auth failed: ${authResp.status()} ${await authResp.text()}`)
     }
     
-    await page.waitForResponse(
-      resp => resp.url().includes('/api/v2/auth/refresh') && resp.request().method() === 'POST' && resp.ok(),
-      { timeout: 60000 }
-    )
+    await page.waitForLoadState('networkidle', { timeout: TEST_TIMEOUTS.AUTH_REFRESH_RESPONSE })
   }
 }
 
