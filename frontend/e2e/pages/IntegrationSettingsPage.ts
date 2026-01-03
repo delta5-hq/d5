@@ -46,12 +46,18 @@ export class IntegrationSettingsPage {
   async deleteAllInstalledIntegrations() {
     const services = ['openai', 'deepseek', 'qwen', 'claude', 'perplexity', 'yandex', 'custom_llm']
     
-    for (const service of services) {
-      await this.page.request.delete(`/api/v2/integration/${service}/delete`)
-        .catch(() => {/* Ignore errors - integration may not exist */})
-    }
+    await Promise.all(
+      services.map(service =>
+        this.page.request.delete(`/api/v2/integration/${service}/delete`)
+          .catch(() => {/* Ignore errors - integration may not exist */})
+      )
+    )
 
     await this.page.reload({ waitUntil: 'networkidle' })
+
+    await this.page.locator(`${SELECTORS.integrationCard}:has-text("Installed")`).first()
+      .waitFor({ state: 'hidden', timeout: 5000 })
+      .catch(() => {/* No installed integrations to wait for */})
   }
 
   async isIntegrationDialogOpen(): Promise<boolean> {
