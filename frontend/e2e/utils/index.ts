@@ -160,15 +160,32 @@ async function createWorkflow(page: Page): Promise<string> {
 }
 
 async function clearAuthState(page: Page) {
-  try {
-    await page.evaluate(() => {
-      localStorage.clear()
-      sessionStorage.clear()
-    })
-  } catch {
-    // SecurityError before document loads
-  }
+  await page.goto('/')
+  await page.evaluate(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+  })
   await page.context().clearCookies()
 }
 
-export { approveUser, rejectUser, login, logout, signup, openLoginDialogFromSignup, adminLogin, setupUnauthenticatedPage, createWorkflow, clearAuthState }
+async function closeMobileSidebar(page: Page) {
+  const mobileSidebar = page.locator('[data-testid="mobile-secondary-sidebar"]')
+  const mobileOverlay = page.locator('[data-radix-presence][data-state="open"]').first()
+  
+  if (await mobileSidebar.isVisible().catch(() => false)) {
+    const dismissButton = mobileSidebar.locator('button[aria-label="Close menu"]').first()
+    if (await dismissButton.isVisible().catch(() => false)) {
+      await dismissButton.click()
+      
+      await Promise.race([
+        mobileSidebar.waitFor({ state: 'hidden', timeout: 3000 }),
+        mobileOverlay.waitFor({ state: 'hidden', timeout: 3000 }),
+        page.waitForTimeout(3000)
+      ]).catch(() => {})
+      
+      await page.waitForTimeout(300)
+    }
+  }
+}
+
+export { approveUser, rejectUser, login, logout, signup, openLoginDialogFromSignup, adminLogin, setupUnauthenticatedPage, createWorkflow, clearAuthState, closeMobileSidebar }

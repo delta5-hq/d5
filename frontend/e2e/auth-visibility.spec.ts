@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { adminLogin } from './utils'
+import { adminLogin, closeMobileSidebar } from './utils'
 import { CreateWorkflowActionsPage, UserMenuPage } from './page-objects'
 import { VIEWPORT } from './constants/test-timeouts'
 
@@ -85,11 +85,12 @@ test.describe('Auth-dependent UI visibility', () => {
     test('mobile shows create workflow, no login button', async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 667 })
       await page.goto('/workflows')
+      await closeMobileSidebar(page)
 
       await expect(page.locator('[data-type="login"]')).toHaveCount(0)
       
       const createActions = new CreateWorkflowActionsPage(page)
-      await expect(createActions.isCreateWorkflowButtonVisible()).resolves.toBe(true)
+      await expect(createActions.createNavItem).toBeVisible()
     })
 
     test('mobile sidebar shows user controls when authenticated', async ({ page }) => {

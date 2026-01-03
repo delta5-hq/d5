@@ -1,10 +1,13 @@
 import { test, expect, Page } from '@playwright/test'
-import { randomUUID } from 'crypto'
 import { adminLogin, approveUser, login, logout, rejectUser, signup } from './utils'
+
+function testUUID() {
+  return Math.random().toString(36).slice(2, 10)
+}
 
 test.describe.serial('Auth flows', () => {
   test('New user registers -> login attempt fails -> forgot password fails', async ({ page }) => {
-    const suffix = randomUUID()
+    const suffix = testUUID()
     const newUser = { name: `user_${suffix}`, mail: `user_${suffix}@example.com`, password: 'Password1!' }
 
     await signup(page, newUser.name, newUser.mail, newUser.password)
@@ -27,7 +30,7 @@ test.describe.serial('Auth flows', () => {
   })
 
   test('Two new users register -> admin rejects both -> both login fail', async ({ page }) => {
-    const suffix = randomUUID()
+    const suffix = testUUID()
     const userA = { name: `userA_${suffix}`, mail: `userA_${suffix}@example.com`, password: 'Password1!' }
     const userB = { name: `userB_${suffix}`, mail: `userB_${suffix}@example.com`, password: 'Password1!' }
 
@@ -58,7 +61,7 @@ test.describe.serial('Auth flows', () => {
   test('Two new users register -> admin approves second -> first fails login, second succeeds -> logout -> forgot password success', async ({
     page,
   }) => {
-    const suffix = randomUUID()
+    const suffix = testUUID()
     const userA = { name: `userA_${suffix}`, mail: `userA_${suffix}@example.com`, password: 'Password1!' }
     const userB = { name: `userB_${suffix}`, mail: `userB_${suffix}@example.com`, password: 'Password1!' }
 

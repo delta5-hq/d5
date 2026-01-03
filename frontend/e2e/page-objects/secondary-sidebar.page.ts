@@ -20,7 +20,7 @@ export class SecondarySidebarPage extends PageComponent {
   }
 
   get mobileDismissButton(): Locator {
-    return this.mobileRoot.getByRole('button', { name: 'Close menu' })
+    return this.mobileRoot.locator('button[aria-label="Close menu"]').first()
   }
 
   get myWorkflowsLink(): Locator {
