@@ -68,7 +68,7 @@ test.describe('Dual sidebar mobile behavior', () => {
       await page.waitForLoadState('networkidle')
     })
 
-    test.skip('overlay appears when secondary sidebar opens on mobile', async ({ page }) => {
+    test('overlay appears when secondary sidebar opens on mobile', async ({ page }) => {
       const secondarySidebar = new SecondarySidebarPage(page)
 
       const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
@@ -201,7 +201,7 @@ test.describe('Dual sidebar mobile behavior', () => {
       )
     })
 
-    test.skip('mobile overlay only appears below tablet breakpoint', async ({ page }) => {
+    test('mobile overlay only appears below tablet breakpoint', async ({ page }) => {
       const primaryNav = new PrimaryNavigationPage(page)
       const secondarySidebar = new SecondarySidebarPage(page)
 
@@ -313,7 +313,7 @@ test.describe('Dual sidebar mobile behavior', () => {
       expect(boundingBox?.width).toBeLessThanOrEqual(320)
     })
 
-    test.skip('orientation change from portrait to landscape maintains sidebar state', async ({ page }) => {
+    test('orientation change from portrait to landscape maintains sidebar state', async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 667 })
       await page.reload()
       await page.waitForLoadState('networkidle')
@@ -374,7 +374,7 @@ test.describe('Dual sidebar mobile behavior', () => {
       await page.waitForLoadState('networkidle')
     })
 
-    test.skip('secondary sidebar state persists across mobile page navigation', async ({ page }) => {
+    test('secondary sidebar state persists across mobile page navigation', async ({ page }) => {
       const secondarySidebar = new SecondarySidebarPage(page)
 
       await closeMobileSidebar(page)
@@ -424,7 +424,7 @@ test.describe('Dual sidebar mobile behavior', () => {
       expect(isVisibleAfterReload).toBe(false)
     })
 
-    test.skip('mobile sidebar reopens after page reload if state persisted', async ({ page }) => {
+    test('mobile sidebar reopens after page reload if state persisted', async ({ page }) => {
       const secondarySidebar = new SecondarySidebarPage(page)
 
       await closeMobileSidebar(page)
@@ -515,7 +515,7 @@ test.describe('Dual sidebar mobile behavior', () => {
       expect(isVisible).toBe(false)
     })
 
-    test.skip('browser back button preserves mobile sidebar state', async ({ page }) => {
+    test('browser back button preserves mobile sidebar state', async ({ page }) => {
       const secondarySidebar = new SecondarySidebarPage(page)
 
       await closeMobileSidebar(page)
