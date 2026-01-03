@@ -50,6 +50,8 @@ export class IntegrationSettingsPage {
       await this.page.request.delete(`/api/v2/integration/${service}/delete`)
         .catch(() => {/* Ignore errors - integration may not exist */})
     }
+
+    await this.page.reload({ waitUntil: 'networkidle' })
   }
 
   async isIntegrationDialogOpen(): Promise<boolean> {
