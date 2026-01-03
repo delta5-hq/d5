@@ -52,7 +52,7 @@ END {
   }
   
   print ""
-  print "Based on commit timestamp analysis (2h session threshold)"
+  print "Based on commit timestamp analysis (30min session threshold)"
   print ""
   
   for (a in hours) {
