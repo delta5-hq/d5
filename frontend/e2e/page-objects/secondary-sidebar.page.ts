@@ -132,8 +132,9 @@ export class SecondarySidebarPage extends PageComponent {
   }
 
   async isMobileOverlayVisible(): Promise<boolean> {
-    const overlay = this.page.locator('[data-radix-presence][data-state="open"]')
-    return overlay.isVisible().catch(() => false)
+    const overlay = this.page.locator('[role="dialog"][data-state="open"]').locator('..').locator('> div[data-state="open"][data-aria-hidden="true"]').first()
+    const isVisible = await overlay.isVisible().catch(() => false)
+    return isVisible
   }
 
   async isMobileSidebarVisible(): Promise<boolean> {

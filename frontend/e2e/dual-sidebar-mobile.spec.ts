@@ -78,7 +78,7 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await expect(secondarySidebar.mobileRoot).toBeVisible()
       
-      const overlay = page.locator('[data-radix-presence][data-state="open"]').first()
+      const overlay = page.locator('[role="dialog"][data-state="open"]').locator('..').locator('> div[data-state="open"][data-aria-hidden="true"]').first()
       await expect(overlay).toBeVisible({ timeout: 5000 })
     })
 
@@ -333,7 +333,8 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       const mobileVisible = await secondarySidebar.isMobileSidebarVisible()
       expect(mobileVisible).toBe(true)
-      await expect(secondarySidebar.myWorkflowsLink).toBeVisible()
+      const mobileWorkflowsLink = secondarySidebar.mobileRoot.getByRole('link', { name: 'My workflows' })
+      await expect(mobileWorkflowsLink).toBeVisible()
     })
 
     test('rapid viewport size changes maintain consistent sidebar rendering', async ({ page }) => {
@@ -387,11 +388,16 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await page.goto('/settings')
       await page.waitForLoadState('networkidle')
+      await page.waitForTimeout(1000)
+      
+      const mobileVisible = await secondarySidebar.isMobileSidebarVisible()
+      expect(mobileVisible).toBe(false)
+      
+      await menuToggle.click()
       await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
-
       await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
-      await expect(secondarySidebar.groupLabel('Settings')).toBeVisible()
+      const mobileSettingsLabel = secondarySidebar.mobileRoot.locator('[data-sidebar="group-label"]').filter({ hasText: 'Settings' })
+      await expect(mobileSettingsLabel).toBeVisible()
     })
 
     test('closing mobile sidebar clears localStorage state', async ({ page }) => {
@@ -438,8 +444,15 @@ test.describe('Dual sidebar mobile behavior', () => {
       await page.reload()
       await page.waitForLoadState('networkidle')
 
+      const mobileVisible = await secondarySidebar.isMobileSidebarVisible()
+      expect(mobileVisible).toBe(false)
+      
+      await menuToggle.click()
+      await secondarySidebar.waitForTransition()
       await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
-      await expect(secondarySidebar.myWorkflowsLink).toBeVisible()
+      
+      const mobileWorkflowsLink = secondarySidebar.mobileRoot.getByRole('link', { name: 'My workflows' })
+      await expect(mobileWorkflowsLink).toBeVisible()
     })
   })
 
@@ -531,9 +544,13 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await page.goBack()
       await page.waitForLoadState('networkidle')
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
+      await page.waitForTimeout(1000)
 
+      const mobileVisible = await secondarySidebar.isMobileSidebarVisible()
+      expect(mobileVisible).toBe(false)
+      
+      await menuToggle.click()
+      await secondarySidebar.waitForTransition()
       await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
     })
 
