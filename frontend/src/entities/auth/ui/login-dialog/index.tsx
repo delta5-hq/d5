@@ -60,6 +60,8 @@ export const LoginDialog = ({ open, onClose }: LoginDialogProps) => {
               {...register('usernameOrEmail')}
               autoComplete="username"
               className="border rounded px-3 py-2"
+              data-testid="login-username-input"
+              name="usernameOrEmail"
               placeholder="Username or Email"
               type="text"
             />
@@ -74,6 +76,8 @@ export const LoginDialog = ({ open, onClose }: LoginDialogProps) => {
               {...register('password')}
               autoComplete="current-password"
               className="border rounded px-3 py-2"
+              data-testid="login-password-input"
+              name="password"
               placeholder="Password"
               type="password"
             />
@@ -113,6 +117,7 @@ export const LoginDialog = ({ open, onClose }: LoginDialogProps) => {
             </Button>
             <Button
               className="px-4 py-2 rounded text-white disabled:opacity-50"
+              data-testid="login-submit-button"
               data-type="confirm-login"
               disabled={isSubmitting}
               type="submit"

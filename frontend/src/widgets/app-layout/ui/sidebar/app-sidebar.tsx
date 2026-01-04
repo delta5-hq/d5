@@ -1,5 +1,4 @@
 import { useAuthContext } from '@entities/auth'
-import { useSearch } from '@shared/context'
 import { cn } from '@shared/lib/utils'
 import {
   Sidebar,
@@ -17,14 +16,13 @@ import { BriefcaseBusiness, School, Settings, Workflow } from 'lucide-react'
 import { useEffect, type FC } from 'react'
 import { FormattedMessage } from 'react-intl'
 import { Link, useLocation } from 'react-router-dom'
-import { AppSearch, HelpButton, UserSettingsButton } from './../header'
+import { HelpButton, UserSettingsButton } from './../header'
 import styles from './app-sidebar.module.scss'
 
 interface AppSidebarProps {
   isResponsive?: boolean
   isDesktop?: boolean
   isMinimized?: boolean
-  searchPlaceholder?: string
 }
 
 const NAV_ITEMS = [{ titleId: 'sidebarPublicWorkflowsLabel', url: '/workflows/public', icon: Workflow }]
@@ -40,11 +38,10 @@ const LOGGED_IN_ITEMS = [
   { titleId: 'menuItemTraining', url: '/training', icon: School },
 ]
 
-const AppSidebar: FC<AppSidebarProps> = ({ isResponsive, isDesktop, isMinimized, searchPlaceholder }) => {
+const AppSidebar: FC<AppSidebarProps> = ({ isResponsive, isDesktop, isMinimized }) => {
   const { isMobile, open, toggleSidebar } = useSidebar()
   const location = useLocation()
   const { isLoggedIn, isAdmin } = useAuthContext()
-  const { query, setQuery } = useSearch()
 
   useEffect(() => {
     if (!open && !isResponsive && isDesktop) toggleSidebar()
@@ -99,15 +96,12 @@ const AppSidebar: FC<AppSidebarProps> = ({ isResponsive, isDesktop, isMinimized,
       side={isMobile ? 'right' : 'left'}
       variant="sidebar"
     >
-      {isMobile ? (
+      {isMobile && isLoggedIn ? (
         <div className="flex flex-col gap-4 p-2">
-          <AppSearch onChange={e => setQuery(e.target.value)} placeholder={searchPlaceholder} value={query} />
-          {isLoggedIn ? (
-            <div className="flex items-center gap-2">
-              <HelpButton />
-              <UserSettingsButton />
-            </div>
-          ) : null}
+          <div className="flex items-center gap-2">
+            <HelpButton />
+            <UserSettingsButton />
+          </div>
         </div>
       ) : null}
 

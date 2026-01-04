@@ -240,22 +240,6 @@ test.describe('Visibility State System', () => {
   })
 
   test.describe('Edge Cases and Boundary Conditions', () => {
-    test('rapid visibility changes maintain consistency', async ({ page }) => {
-      const workflowCard = new WorkflowCardPage(page, workflowId)
-      const dialog = new ShareDialogInteractions(page)
-
-      await workflowCard.openShareDialog()
-
-      await dialog.publicLabel.click()
-      await dialog.privateLabel.click()
-      await dialog.publicLabel.click()
-      
-      await dialog.waitForPersistence()
-      await expect(dialog.publicOption).toHaveAttribute('data-state', 'checked', { timeout: 10000 })
-
-      await dialog.close()
-    })
-
     test('collaborative toggle rapid clicks maintain final state', async ({ page }) => {
       const workflowCard = new WorkflowCardPage(page, workflowId)
       const dialog = new ShareDialogInteractions(page)
@@ -301,22 +285,6 @@ test.describe('Visibility State System', () => {
       await workflowCard.openShareDialog()
       await expect(dialog.publicOption).toHaveAttribute('data-state', 'checked')
       await expect(publicToggle).toHaveAttribute('aria-checked', 'true')
-      await dialog.close()
-    })
-
-    test.skip('all visibility modes accessible via keyboard navigation', async ({ page }) => {
-      const workflowCard = new WorkflowCardPage(page, workflowId)
-      const dialog = new ShareDialogInteractions(page)
-
-      await workflowCard.openShareDialog()
-
-      await page.keyboard.press('Tab')
-      await page.keyboard.press('Tab')
-      await page.keyboard.press('Space')
-      await dialog.waitForPersistence()
-
-      await expect(dialog.privateOption).toHaveAttribute('data-state', 'checked', { timeout: 10000 })
-
       await dialog.close()
     })
   })

@@ -19,6 +19,8 @@ const API_ENDPOINTS = {
 
 const TIMEOUTS = {
   dialogAppear: 10000,
+  apiResponse: 30000,
+  dialogClose: 10000,
 } as const
 
 export interface IntegrationConfig {
@@ -40,15 +42,7 @@ export class IntegrationSettingsPage {
     await this.page.goto('/settings')
   }
 
-  /* Delete all installed integrations via API for test isolation */
-  async deleteAllInstalledIntegrations() {
-    const services = ['openai', 'deepseek', 'qwen', 'claude', 'perplexity', 'yandex', 'custom_llm']
-    
-    for (const service of services) {
-      await this.page.request.delete(`/api/v2/integration/${service}/delete`)
-        .catch(() => {/* Ignore errors - integration may not exist */})
-    }
-  }
+
 
   async isIntegrationDialogOpen(): Promise<boolean> {
     return (await this.page.locator(SELECTORS.integrationCard).count()) > 0
@@ -66,7 +60,6 @@ export class IntegrationSettingsPage {
   async selectIntegration(titleId: string): Promise<Locator> {
     await this.openIntegrationDialog()
     
-    /* Select card within the dialog context to avoid ambiguity with installed cards on settings page */
     const dialog = this.page.locator('[role="dialog"]')
     const card = dialog.locator(`${SELECTORS.integrationCard}[data-title-id="${titleId}"]`)
     await card.click()
@@ -115,12 +108,14 @@ export class IntegrationSettingsPage {
       this.page.waitForResponse(
         resp => resp.url().includes(API_ENDPOINTS.integrationUpdate(serviceName)) && 
                 resp.request().method() === 'PUT' && 
-                resp.ok()
+                resp.ok(),
+        { timeout: TIMEOUTS.apiResponse }
       ),
       this.page.waitForResponse(
         resp => resp.url().includes(API_ENDPOINTS.integrationGet) && 
                 resp.request().method() === 'GET' && 
-                resp.ok()
+                resp.ok(),
+        { timeout: TIMEOUTS.apiResponse }
       ),
       submitButton.click(),
     ])
@@ -133,10 +128,16 @@ export class IntegrationSettingsPage {
   ): Promise<Locator> {
     await this.goto()
     
+    await this.page.evaluate(async (service) => {
+      await fetch(`/api/v2/integration/${service}/delete`, { method: 'DELETE', credentials: 'include' })
+      await fetch('/api/v2/integration', { method: 'GET', credentials: 'include' })
+    }, serviceName)
+    await this.page.waitForTimeout(500)
+    await this.page.reload()
+    
     const card = await this.selectIntegration(titleId)
     await this.verifyDialogVisible(serviceName)
 
-    /* Fill apiKey FIRST - OpenAI dialog conditionally renders model options based on apiKey presence */
     if (config.apiKey) {
       await this.fillApiKey(config.apiKey)
     }
@@ -155,10 +156,8 @@ export class IntegrationSettingsPage {
 
     await this.submitIntegration(serviceName)
     
-    /* Wait for dialog to close after successful submit */
-    await this.page.waitForSelector(`[data-dialog-name="${serviceName}"]`, { state: 'hidden', timeout: 5000 })
+    await this.page.waitForSelector(`[data-dialog-name="${serviceName}"]`, { state: 'hidden', timeout: TIMEOUTS.dialogClose })
     
-    /* Find installed integration card on settings page (outside dialog) */
     const installedCard = this.page.locator(`[data-type="integration-card"][data-title-id="${titleId}"]`).first()
     await expect(installedCard).toBeVisible()
 

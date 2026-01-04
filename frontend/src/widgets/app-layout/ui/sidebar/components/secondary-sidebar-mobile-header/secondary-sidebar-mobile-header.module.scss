@@ -1,0 +1,24 @@
+.mobileHeader {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 12px;
+  margin-left: -1.75rem;
+  height: 56px;
+  border-bottom: 1px solid hsl(var(--sidebar-border) / 0.3);
+  flex-shrink: 0;
+
+  a {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  img {
+    transition: opacity 0.2s ease;
+  }
+
+  &:hover img {
+    opacity: 0.8;
+  }
+}

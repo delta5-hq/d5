@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { adminLogin, logout } from './utils'
+import { adminLogin, logout, createWorkflow } from './utils'
 
 const TEST_WORKFLOW_TITLE = 'E2E Test Workflow'
 const CATEGORY_NAME = 'E2E Category'
@@ -9,13 +9,7 @@ test.describe('Workflow CRUD', () => {
     await page.goto('/workflows')
     await adminLogin(page)
 
-    await Promise.all([
-      page.waitForURL(/\/workflow\//),
-      page.getByRole('button', { name: /create.*workflow/i }).click(),
-    ])
-
-    const currentUrl = page.url()
-    const workflowId = currentUrl.split('/').filter(Boolean).pop()
+    const workflowId = await createWorkflow(page)
 
     await expect(page).toHaveURL(`/workflow/${workflowId}`)
   })
@@ -25,18 +19,7 @@ test.describe('Workflow CRUD', () => {
     await adminLogin(page)
 
     // Create a workflow first
-    await page.goto('/workflows')
-    await Promise.all([
-      page.waitForURL(/\/workflow\//),
-      page.getByRole('button', { name: /create.*workflow/i }).click(),
-    ])
-
-    const createdUrl = page.url()
-    const createdWorkflowId = createdUrl.split('/').filter(Boolean).pop()
-
-    if (!createdWorkflowId) {
-      throw new Error(`Unable to extract workflowId from URL: ${createdUrl}`)
-    }
+    const createdWorkflowId = await createWorkflow(page)
 
     // Navigate back to workflows list
     await page.goto('/workflows')

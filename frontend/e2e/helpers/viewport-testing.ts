@@ -12,6 +12,14 @@ const STANDARD_VIEWPORTS: ViewportSpec[] = [
   { width: 375, height: 667, name: 'mobile' },
 ]
 
+const EXTENDED_VIEWPORTS: ViewportSpec[] = [
+  { width: 320, height: 568, name: 'mobileSmall' },
+  { width: 375, height: 667, name: 'mobile' },
+  { width: 768, height: 800, name: 'tablet' },
+  { width: 1280, height: 720, name: 'desktop' },
+  { width: 3840, height: 2160, name: 'desktop4K' },
+]
+
 export function testAcrossViewports(
   testName: string,
   testFn: (page: Page, viewport: ViewportSpec) => Promise<void>,
@@ -36,4 +44,12 @@ export async function testViewportTransitions(
   }
 }
 
-export { STANDARD_VIEWPORTS, type ViewportSpec }
+export function isMobileViewport(viewport: ViewportSpec): boolean {
+  return viewport.width < 768
+}
+
+export function isDesktopViewport(viewport: ViewportSpec): boolean {
+  return viewport.width >= 1024
+}
+
+export { STANDARD_VIEWPORTS, EXTENDED_VIEWPORTS, type ViewportSpec }

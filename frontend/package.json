@@ -15,6 +15,7 @@
     "test:e2e:firefox": "playwright test --project=firefox",
     "test:e2e:chromium": "playwright test --project=chromium",
     "test:e2e:ci": "CI=true playwright test",
+    "test:e2e:throttled": "playwright test --config=playwright.config.throttled.ts",
     "genversion": "node genversion.js"
   },
   "dependencies": {
