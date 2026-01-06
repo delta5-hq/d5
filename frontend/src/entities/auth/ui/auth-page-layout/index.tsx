@@ -7,9 +7,9 @@ import type { AuthPageLayoutProps } from './types'
 export const AuthPageLayout = ({ children, maxWidth = 'md', showFooter = true }: AuthPageLayoutProps) => (
   <div className="relative flex flex-col items-center justify-center min-h-screen p-4">
     <BackgroundPattern />
-    <LogoHeader />
 
     <div className="relative z-10 flex flex-col items-center gap-6 w-full">
+      <LogoHeader />
       <CenteredCardContainer maxWidth={maxWidth}>{children}</CenteredCardContainer>
       {showFooter ? <FooterMetadata /> : null}
     </div>

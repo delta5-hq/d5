@@ -4,11 +4,14 @@ import {
   type RequestRecoveryDto,
   AuthPageLayout,
   EmailSentDialog,
+  AuthFormTitle,
+  AuthFormField,
+  LoginDialog,
 } from '@entities/auth'
+import { useDialog } from '@entities/dialog'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@shared/ui/button'
 import { Input } from '@shared/ui/input'
-import { Label } from '@shared/ui/label'
 import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { FormattedMessage } from 'react-intl'
@@ -25,6 +28,7 @@ const ForgotPassword = () => {
   const navigate = useNavigate()
   const { isLoggedIn } = useAuthContext()
   const [showEmailSentDialog, setShowEmailSentDialog] = useState(false)
+  const { showDialog } = useDialog()
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -60,31 +64,38 @@ const ForgotPassword = () => {
       <EmailSentDialog onClose={onCloseEmailDialog} open={showEmailSentDialog} />
 
       <form className="flex flex-col gap-6" onSubmit={handleSubmit(onSubmit)}>
-        <h1 className="text-2xl font-semibold text-card-foreground text-center">
-          <FormattedMessage id="accountRecovery" />
-        </h1>
+        <AuthFormTitle messageId="accountRecovery" />
 
-        <div>
-          <Label htmlFor="usernameOrEmail">
-            <FormattedMessage id="usernameOrEmail" />
-          </Label>
-          <Input
-            {...register('usernameOrEmail')}
-            autoFocus
-            error={!!errors.usernameOrEmail?.message}
-            errorHelper={errors.usernameOrEmail?.message}
-            id="usernameOrEmail"
-            required
-          />
-        </div>
+        <AuthFormField
+          error={errors.usernameOrEmail?.message}
+          htmlFor="usernameOrEmail"
+          label={<FormattedMessage id="usernameOrEmail" />}
+        >
+          <Input {...register('usernameOrEmail')} autoFocus id="usernameOrEmail" required />
+        </AuthFormField>
 
-        <div className="flex justify-between gap-4">
-          <Button onClick={() => navigate(-1)} type="button" variant="default">
+        <Button className="w-full" disabled={isSubmitting} type="submit" variant="accent">
+          <FormattedMessage id="sendRecoveryLink" />
+        </Button>
+
+        <div className="flex flex-col gap-2">
+          <button
+            className="text-center text-sm text-link hover:text-link-hover hover:underline cursor-pointer"
+            onClick={() => {
+              navigate('/')
+              showDialog(LoginDialog)
+            }}
+            type="button"
+          >
+            <FormattedMessage id="loginTitle" />
+          </button>
+          <button
+            className="text-center text-sm text-muted-foreground hover:text-foreground hover:underline cursor-pointer"
+            onClick={() => navigate('/')}
+            type="button"
+          >
             <FormattedMessage id="buttonCancel" />
-          </Button>
-          <Button disabled={isSubmitting} type="submit">
-            <FormattedMessage id="sendRecoveryLink" />
-          </Button>
+          </button>
         </div>
       </form>
     </AuthPageLayout>

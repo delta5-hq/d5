@@ -1,17 +1,22 @@
-import { isValidPassword, LoginDialog, useAuthContext, usePasswordRecovery, useResetTokenCheck } from '@entities/auth'
+import {
+  isValidPassword,
+  LoginDialog,
+  useAuthContext,
+  usePasswordRecovery,
+  useResetTokenCheck,
+  AuthPageLayout,
+  AuthFormTitle,
+  AuthFormField,
+} from '@entities/auth'
 import { useDialog } from '@entities/dialog'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@shared/ui/button'
-import { Copyright } from '@shared/ui/copyright'
-import { Input } from '@shared/ui/input'
-import { Label } from '@shared/ui/label'
-import { Logo } from '@shared/ui/logo'
+import { PasswordInput } from '@shared/ui/password-input'
 import { Spinner } from '@shared/ui/spinner'
-import { VersionDisplay } from '@shared/ui/version'
 import { useCallback, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { FormattedMessage } from 'react-intl'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import * as z from 'zod'
 
 const resetPasswordSchema = z.object({
@@ -55,11 +60,7 @@ const ResetPassword = () => {
   )
 
   return (
-    <div className="relative flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
-      <div className="absolute top-5 left-5">
-        <Logo />
-      </div>
-
+    <AuthPageLayout maxWidth="md" showFooter={false}>
       {isLoading ? <Spinner /> : null}
 
       {!isLoading && !isValid ? (
@@ -69,43 +70,27 @@ const ResetPassword = () => {
       ) : null}
 
       {!isLoading && isValid ? (
-        <div className="w-full max-w-md bg-card shadow-md rounded-lg p-6">
-          <form className="flex flex-col h-full justify-between gap-y-4" onSubmit={handleSubmit(onSubmit)}>
-            <h2>
-              <FormattedMessage id="resetPassword" />
-            </h2>
+        <form className="flex flex-col gap-6" onSubmit={handleSubmit(onSubmit)}>
+          <AuthFormTitle messageId="resetPassword" />
 
-            <div className="flex flex-col gap-4">
-              <div>
-                <Label htmlFor="password">
-                  <FormattedMessage id="password" />
-                </Label>
-                <Input
-                  {...register('password')}
-                  error={!!errors.password}
-                  errorHelper={<FormattedMessage id={errors.password?.message} />}
-                  id="password"
-                  required
-                  type="password"
-                />
-              </div>
-              <div className="text-center text-foreground/40 text-sm">
-                <FormattedMessage id="version" /> <VersionDisplay /> <Copyright />
-              </div>
-            </div>
+          <AuthFormField
+            error={errors.password ? <FormattedMessage id={errors.password?.message} /> : null}
+            htmlFor="password"
+            label={<FormattedMessage id="password" />}
+          >
+            <PasswordInput {...register('password')} autoComplete="new-password" id="password" required />
+          </AuthFormField>
 
-            <div className="flex justify-between mt-4">
-              <Button onClick={() => navigate('/')} variant="default">
-                <FormattedMessage id="buttonCancel" />
-              </Button>
-              <Button disabled={isSubmitting} type="submit">
-                <FormattedMessage id="reset" />
-              </Button>
-            </div>
-          </form>
-        </div>
+          <Button className="w-full" disabled={isSubmitting} type="submit" variant="accent">
+            <FormattedMessage id="reset" />
+          </Button>
+
+          <Link className="text-center text-sm text-link hover:text-link-hover hover:underline" to="/">
+            <FormattedMessage id="buttonCancel" />
+          </Link>
+        </form>
       ) : null}
-    </div>
+    </AuthPageLayout>
   )
 }
 

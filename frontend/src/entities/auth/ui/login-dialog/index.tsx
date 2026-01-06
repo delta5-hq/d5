@@ -6,6 +6,8 @@ import { Link } from 'react-router-dom'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@shared/ui/dialog'
 import type { LoginDialogProps } from './types'
 import { Input } from '@shared/ui/input'
+import { PasswordInput } from '@shared/ui/password-input'
+import { Label } from '@shared/ui/label'
 import { Button } from '@shared/ui/button'
 import { useEffect } from 'react'
 import { useAuthContext } from '@entities/auth/model'
@@ -45,17 +47,20 @@ export const LoginDialog = ({ open, onClose }: LoginDialogProps) => {
       }}
       open={open}
     >
-      <DialogContent className="max-w-md w-full p-6">
+      <DialogContent className="max-w-md w-full p-8">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-xl font-semibold">
             <FormattedMessage id="loginTitle" />
           </DialogTitle>
           <DialogDescription />
         </DialogHeader>
 
-        <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)}>
+        <form className="flex flex-col gap-6" onSubmit={handleSubmit(onSubmit)}>
           {/* Username / Email */}
-          <div className="flex flex-col">
+          <div className="flex flex-col gap-2">
+            <Label className="text-sm font-medium" htmlFor="usernameOrEmail">
+              <FormattedMessage id="usernameOrEmail" />
+            </Label>
             <Input
               {...register('usernameOrEmail')}
               autoComplete="username"
@@ -71,15 +76,17 @@ export const LoginDialog = ({ open, onClose }: LoginDialogProps) => {
           </div>
 
           {/* Password */}
-          <div className="flex flex-col">
-            <Input
+          <div className="flex flex-col gap-2">
+            <Label className="text-sm font-medium" htmlFor="password">
+              <FormattedMessage id="password" />
+            </Label>
+            <PasswordInput
               {...register('password')}
               autoComplete="current-password"
               className="border rounded px-3 py-2"
               data-testid="login-password-input"
               name="password"
               placeholder="Password"
-              type="password"
             />
             {errors.password ? <span className="text-red-500 text-sm">{errors.password.message}</span> : null}
           </div>
