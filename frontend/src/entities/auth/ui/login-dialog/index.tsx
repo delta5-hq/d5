@@ -2,15 +2,14 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { FormattedMessage } from 'react-intl'
-import { Link } from 'react-router-dom'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@shared/ui/dialog'
+import { GlassAuthDialog } from '@shared/ui/glass-auth-dialog'
 import type { LoginDialogProps } from './types'
-import { Input } from '@shared/ui/input'
-import { PasswordInput } from '@shared/ui/password-input'
-import { Label } from '@shared/ui/label'
-import { Button } from '@shared/ui/button'
 import { useEffect } from 'react'
 import { useAuthContext } from '@entities/auth/model'
+import { UsernameEmailField, PasswordField } from './components/auth-form-fields'
+import { PrimarySubmitButton } from './components/primary-submit-button'
+import { SecondaryTextLink } from './components/secondary-text-link'
+import { ForgotPasswordLink, SignUpLink } from './components/navigation-links'
 
 const LoginSchema = z.object({
   usernameOrEmail: z.string().nonempty('Username or email is required'),
@@ -41,101 +40,26 @@ export const LoginDialog = ({ open, onClose }: LoginDialogProps) => {
   }
 
   return (
-    <Dialog
-      onOpenChange={val => {
-        if (!val) onClose?.()
-      }}
-      open={open}
-    >
-      <DialogContent className="max-w-md w-full p-8">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-semibold">
+    <GlassAuthDialog onClose={onClose} open={open} title={<FormattedMessage id="loginTitle" />}>
+      <form className="flex flex-col gap-8" onSubmit={handleSubmit(onSubmit)}>
+        <UsernameEmailField errors={errors} register={register} />
+        <PasswordField errors={errors} register={register} />
+
+        <div className="flex flex-col items-center gap-3">
+          <ForgotPasswordLink onClose={onClose} />
+          <SignUpLink onClose={onClose} />
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <PrimarySubmitButton isLoading={isSubmitting} testId="login-submit-button">
             <FormattedMessage id="loginTitle" />
-          </DialogTitle>
-          <DialogDescription />
-        </DialogHeader>
-
-        <form className="flex flex-col gap-6" onSubmit={handleSubmit(onSubmit)}>
-          {/* Username / Email */}
-          <div className="flex flex-col gap-2">
-            <Label className="text-sm font-medium" htmlFor="usernameOrEmail">
-              <FormattedMessage id="usernameOrEmail" />
-            </Label>
-            <Input
-              {...register('usernameOrEmail')}
-              autoComplete="username"
-              className="border rounded px-3 py-2"
-              data-testid="login-username-input"
-              name="usernameOrEmail"
-              placeholder="Username or Email"
-              type="text"
-            />
-            {errors.usernameOrEmail ? (
-              <span className="text-red-500 text-sm">{errors.usernameOrEmail.message}</span>
-            ) : null}
-          </div>
-
-          {/* Password */}
-          <div className="flex flex-col gap-2">
-            <Label className="text-sm font-medium" htmlFor="password">
-              <FormattedMessage id="password" />
-            </Label>
-            <PasswordInput
-              {...register('password')}
-              autoComplete="current-password"
-              className="border rounded px-3 py-2"
-              data-testid="login-password-input"
-              name="password"
-              placeholder="Password"
-            />
-            {errors.password ? <span className="text-red-500 text-sm">{errors.password.message}</span> : null}
-          </div>
-
-          {/* Links */}
-          <div className="flex flex-col items-center gap-2 text-sm">
-            <span className="cursor-pointer hover:underline hover:text-link-hover text-link">
-              <Link onClick={() => onClose?.()} to="/forgot-password">
-                <FormattedMessage id="loginForgotPassword" />
-              </Link>
-            </span>
-
-            <div className="flex flex-row nowrap gap-x-2">
-              <span className="text-muted-foreground">
-                <FormattedMessage id="notRegistered" />
-              </span>
-              <span className="cursor-pointer hover:underline hover:text-link-hover text-link">
-                <Link onClick={() => onClose?.()} to="/register">
-                  <FormattedMessage id="loginSignUp" />
-                </Link>
-              </span>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex justify-end gap-2">
-            <Button
-              className="px-4 py-2 rounded border"
-              data-type="cancel"
-              onClick={() => onClose?.()}
-              type="button"
-              variant="default"
-            >
-              <FormattedMessage id="buttonCancel" />
-            </Button>
-            <Button
-              className="px-4 py-2 rounded text-white disabled:opacity-50"
-              data-testid="login-submit-button"
-              data-type="confirm-login"
-              disabled={isSubmitting}
-              type="submit"
-              variant="accent"
-            >
-              <FormattedMessage id="loginTitle" />
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+          </PrimarySubmitButton>
+          <SecondaryTextLink onClick={onClose}>
+            <FormattedMessage id="buttonCancel" />
+          </SecondaryTextLink>
+        </div>
+      </form>
+    </GlassAuthDialog>
   )
 }
 
