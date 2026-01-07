@@ -87,6 +87,6 @@ test.describe.serial('Auth flows', () => {
       ),
       page.getByRole('button', { name: 'Send recovery link' }).click(),
     ])
-    await expect(page.getByText('Email Sent')).toBeVisible()
+    await expect(page.getByText('Check Your Inbox!')).toBeVisible()
   })
 })
