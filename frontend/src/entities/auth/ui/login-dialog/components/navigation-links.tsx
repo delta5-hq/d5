@@ -1,5 +1,7 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { FormattedMessage } from 'react-intl'
+import { useDialog } from '@entities/dialog'
+import { LoginDialog } from '../index'
 
 interface NavigationLinksProps {
   onClose?: () => void
@@ -29,3 +31,35 @@ export const SignUpLink = ({ onClose }: NavigationLinksProps) => (
     </Link>
   </div>
 )
+
+export const LoginNavigationLink = () => {
+  const navigate = useNavigate()
+  const { showDialog } = useDialog()
+
+  return (
+    <button
+      className="text-center text-sm text-link hover:text-link-hover hover:underline cursor-pointer transition-colors"
+      onClick={() => {
+        navigate('/')
+        showDialog(LoginDialog)
+      }}
+      type="button"
+    >
+      <FormattedMessage id="loginTitle" />
+    </button>
+  )
+}
+
+export const CancelNavigationLink = () => {
+  const navigate = useNavigate()
+
+  return (
+    <button
+      className="text-center text-sm text-muted-foreground hover:text-foreground hover:underline cursor-pointer transition-colors"
+      onClick={() => navigate('/')}
+      type="button"
+    >
+      <FormattedMessage id="buttonCancel" />
+    </button>
+  )
+}

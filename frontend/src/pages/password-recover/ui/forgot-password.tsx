@@ -5,13 +5,14 @@ import {
   AuthPageLayout,
   EmailSentDialog,
   AuthFormTitle,
-  AuthFormField,
-  LoginDialog,
 } from '@entities/auth'
-import { useDialog } from '@entities/dialog'
+import {
+  EmailOrUsernameField,
+  PrimarySubmitButton,
+  LoginNavigationLink,
+  CancelNavigationLink,
+} from '@entities/auth/ui/login-dialog/components'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Button } from '@shared/ui/button'
-import { Input } from '@shared/ui/input'
 import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { FormattedMessage } from 'react-intl'
@@ -28,7 +29,6 @@ const ForgotPassword = () => {
   const navigate = useNavigate()
   const { isLoggedIn } = useAuthContext()
   const [showEmailSentDialog, setShowEmailSentDialog] = useState(false)
-  const { showDialog } = useDialog()
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -63,39 +63,18 @@ const ForgotPassword = () => {
     <AuthPageLayout maxWidth="md">
       <EmailSentDialog onClose={onCloseEmailDialog} open={showEmailSentDialog} />
 
-      <form className="flex flex-col gap-6" onSubmit={handleSubmit(onSubmit)}>
+      <form className="flex flex-col gap-8" onSubmit={handleSubmit(onSubmit)}>
         <AuthFormTitle messageId="accountRecovery" />
 
-        <AuthFormField
-          error={errors.usernameOrEmail?.message}
-          htmlFor="usernameOrEmail"
-          label={<FormattedMessage id="usernameOrEmail" />}
-        >
-          <Input {...register('usernameOrEmail')} autoFocus id="usernameOrEmail" required />
-        </AuthFormField>
+        <EmailOrUsernameField autoFocus errors={errors} fieldName="usernameOrEmail" register={register} />
 
-        <Button className="w-full" disabled={isSubmitting} type="submit" variant="accent">
+        <PrimarySubmitButton isLoading={isSubmitting}>
           <FormattedMessage id="sendRecoveryLink" />
-        </Button>
+        </PrimarySubmitButton>
 
         <div className="flex flex-col gap-2">
-          <button
-            className="text-center text-sm text-link hover:text-link-hover hover:underline cursor-pointer"
-            onClick={() => {
-              navigate('/')
-              showDialog(LoginDialog)
-            }}
-            type="button"
-          >
-            <FormattedMessage id="loginTitle" />
-          </button>
-          <button
-            className="text-center text-sm text-muted-foreground hover:text-foreground hover:underline cursor-pointer"
-            onClick={() => navigate('/')}
-            type="button"
-          >
-            <FormattedMessage id="buttonCancel" />
-          </button>
+          <LoginNavigationLink />
+          <CancelNavigationLink />
         </div>
       </form>
     </AuthPageLayout>

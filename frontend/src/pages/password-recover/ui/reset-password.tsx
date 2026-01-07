@@ -6,17 +6,20 @@ import {
   useResetTokenCheck,
   AuthPageLayout,
   AuthFormTitle,
-  AuthFormField,
 } from '@entities/auth'
+import {
+  PrimarySubmitButton,
+  LoginNavigationLink,
+  CancelNavigationLink,
+} from '@entities/auth/ui/login-dialog/components'
 import { useDialog } from '@entities/dialog'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Button } from '@shared/ui/button'
-import { PasswordInput } from '@shared/ui/password-input'
+import { PasswordFieldWithStrength } from '@shared/ui/form-fields'
 import { Spinner } from '@shared/ui/spinner'
 import { useCallback, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { FormattedMessage } from 'react-intl'
-import { useNavigate, useParams, Link } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import * as z from 'zod'
 
 const resetPasswordSchema = z.object({
@@ -45,9 +48,12 @@ const ResetPassword = () => {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
+    watch,
   } = useForm<ResetPasswordForm>({
     resolver: zodResolver(resetPasswordSchema),
   })
+
+  const passwordValue = watch('password', '')
 
   const onSubmit = useCallback(
     async (data: ResetPasswordForm) => {
@@ -70,24 +76,24 @@ const ResetPassword = () => {
       ) : null}
 
       {!isLoading && isValid ? (
-        <form className="flex flex-col gap-6" onSubmit={handleSubmit(onSubmit)}>
+        <form className="flex flex-col gap-8" onSubmit={handleSubmit(onSubmit)}>
           <AuthFormTitle messageId="resetPassword" />
 
-          <AuthFormField
-            error={errors.password ? <FormattedMessage id={errors.password?.message} /> : null}
-            htmlFor="password"
-            label={<FormattedMessage id="password" />}
-          >
-            <PasswordInput {...register('password')} autoComplete="new-password" id="password" required />
-          </AuthFormField>
+          <PasswordFieldWithStrength
+            errors={errors}
+            fieldName="password"
+            passwordValue={passwordValue}
+            register={register}
+          />
 
-          <Button className="w-full" disabled={isSubmitting} type="submit" variant="accent">
+          <PrimarySubmitButton isLoading={isSubmitting}>
             <FormattedMessage id="reset" />
-          </Button>
+          </PrimarySubmitButton>
 
-          <Link className="text-center text-sm text-link hover:text-link-hover hover:underline" to="/">
-            <FormattedMessage id="buttonCancel" />
-          </Link>
+          <div className="flex flex-col gap-2">
+            <LoginNavigationLink />
+            <CancelNavigationLink />
+          </div>
         </form>
       ) : null}
     </AuthPageLayout>
