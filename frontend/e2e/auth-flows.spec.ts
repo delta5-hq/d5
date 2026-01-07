@@ -13,19 +13,15 @@ test.describe.serial('Auth flows', () => {
     await signup(page, newUser.name, newUser.mail, newUser.password)
 
     await login(page, newUser.mail, newUser.password, false, true)
-    /* Login should fail - verify toast appears with error message */
     await expect(page.locator('[data-sonner-toast]')).toBeVisible({ timeout: 15000 })
-    /* Verify user not logged in - login dialog should still be open */
-    await expect(page.locator('button[data-type="confirm-login"]')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByTestId('login-submit-button')).toBeVisible({ timeout: 5000 })
 
-    /* Click forgot password link */
     await page.getByRole('link', { name: /forgot.*password/i }).click()
     await page.getByLabel(/email.*username/i).fill(newUser.mail)
     await Promise.all([
       page.waitForResponse(r => r.url().includes('/api/v2/auth/forgot-password') && r.request().method() === 'POST'),
       page.getByRole('button', { name: /send.*recovery/i }).click(),
     ])
-    /* Wait for response to complete */
     await page.waitForLoadState('networkidle')
   })
 
@@ -45,15 +41,13 @@ test.describe.serial('Auth flows', () => {
 
     await login(page, userA.mail, userA.password, false)
 
-    /* Toast notification appears in notification region */
     await expect(page.locator('[data-sonner-toast]').getByText(/User not found|Account pending activation/i)).toBeVisible({ timeout: 10000 })
     await expect(page.getByText('Account Settings')).toHaveCount(0)
 
-    await page.locator('button[data-type="cancel"]').click()
+    await page.getByRole('button', { name: /cancel/i }).click()
 
     await login(page, userB.mail, userB.password, false)
 
-    /* Toast notification appears in notification region */
     await expect(page.locator('[data-sonner-toast]').getByText(/User not found|Account pending activation/i).first()).toBeVisible({ timeout: 10000 })
     await expect(page.getByText('Account Settings')).toHaveCount(0)
   })
@@ -74,11 +68,10 @@ test.describe.serial('Auth flows', () => {
     await logout(page)
 
     await login(page, userA.mail, userA.password, false)
-    /* Toast notification appears in notification region */
     await expect(page.locator('[data-sonner-toast]').getByText(/User not found|Account pending activation|Invalid login/i)).toBeVisible({ timeout: 10000 })
     await expect(page.getByText('Account Settings')).toHaveCount(0)
 
-    await page.locator('button[data-type="cancel"]').click()
+    await page.getByRole('button', { name: /cancel/i }).click()
 
     await login(page, userB.mail, userB.password)
 
