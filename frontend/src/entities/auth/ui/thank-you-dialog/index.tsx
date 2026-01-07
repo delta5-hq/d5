@@ -1,5 +1,6 @@
-import { Dialog, DialogContent } from '@shared/ui/dialog'
-import { ActionButton } from './action-button'
+import { GlassAuthDialog } from '@shared/ui/glass-auth-dialog'
+import { PrimaryDialogButton } from '@shared/ui/primary-dialog-button'
+import { FormattedMessage } from 'react-intl'
 import { SuccessIcon } from './success-icon'
 import { SuccessMessage } from './success-message'
 import type { ThankYouDialogProps } from './types'
@@ -10,12 +11,12 @@ export const ThankYouDialog = ({ open, onClose }: ThankYouDialogProps) => {
   }
 
   return (
-    <Dialog onOpenChange={val => !val && handleClose()} open={open}>
-      <DialogContent className="max-w-md w-full p-8 bg-card/95 backdrop-blur-xl border border-card-foreground/10">
-        <SuccessIcon />
-        <SuccessMessage messageId="signupDialogMessage" titleId="signupDialogTitle" />
-        <ActionButton onClick={handleClose} />
-      </DialogContent>
-    </Dialog>
+    <GlassAuthDialog hideHeader onClose={handleClose} open={open}>
+      <SuccessIcon />
+      <SuccessMessage messageId="signupDialogMessage" titleId="signupDialogTitle" />
+      <PrimaryDialogButton onClick={handleClose}>
+        <FormattedMessage id="OK" />
+      </PrimaryDialogButton>
+    </GlassAuthDialog>
   )
 }
