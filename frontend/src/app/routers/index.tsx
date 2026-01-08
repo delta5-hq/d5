@@ -1,13 +1,14 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { ForgotPasswordPage, ResetPasswordPage } from '@pages/password-recover'
 import { SignUpPage } from '@pages/signup'
 import Providers from '@app/providers/providers'
 import { AppLayout } from '@widgets/app-layout'
 import { UserProfilePage, WaitlistPage, AdminUsersPage } from '@pages/admin'
 import { SettingsPage } from '@pages/user-settings'
-import { WorkflowPage, WorkflowsListPage } from '@pages/workflow'
+import { WorkflowPage, WorkflowsListPage, TemplatesPage } from '@pages/workflow'
 import { ProtectedRoute, PublicRoute } from '@app/providers/guards'
 import { HomeRedirect } from '@app/providers/home-redirect'
+import { TrainingPage } from '@pages/training'
 
 export const router = createBrowserRouter([
   {
@@ -51,8 +52,20 @@ export const router = createBrowserRouter([
             element: <WorkflowsListPage />,
           },
           {
+            path: '/templates',
+            element: <TemplatesPage />,
+          },
+          {
+            path: '/training',
+            element: <TrainingPage />,
+          },
+          {
             path: '/admin',
             children: [
+              {
+                index: true,
+                element: <Navigate replace to="/admin/users" />,
+              },
               {
                 path: 'waitlist',
                 element: (

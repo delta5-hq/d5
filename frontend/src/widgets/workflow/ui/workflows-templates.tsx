@@ -95,29 +95,30 @@ export const WorkflowTemplates = () => {
   }
 
   return (
-    <div className="w-full p-4" ref={containerRef}>
-      <h1 className="text-foreground text-2xl font-semibold mb-4">
-        <FormattedMessage id="createNewWorkflow" />
+    <Card className="flex flex-col flex-1 p-6 md:p-8" glassEffect>
+      <h1 className="text-3xl font-bold text-center mb-6">
+        <FormattedMessage id="workflowTemplates" />
       </h1>
-      <Card className="p-4 shadow-lg rounded-lg" glassEffect={false}>
-        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-8 auto-rows-fr">
-          <Card
-            className="aspect-square flex justify-center items-center bg-card rounded-lg border p-0 cursor-pointer transform transition duration-300 hover:scale-101 hover:shadow-lg"
-            glassEffect={false}
-            onClick={onCreateEmpty}
-          >
-            <CardContent className="flex justify-center items-center flex-col ">
-              <Plus className="w-8 h-8" />
-              <p className="text-left text-base">
-                <FormattedMessage id="emptyWorkflow" />
-              </p>
-            </CardContent>
-          </Card>
-          {data.slice(0, shownCards).map(template => (
-            <TemplateCard key={template._id} template={template} />
-          ))}
-        </div>
-      </Card>
-    </div>
+      <div
+        className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-8 auto-rows-fr"
+        ref={containerRef}
+      >
+        <Card
+          className="aspect-square flex justify-center items-center bg-card rounded-lg border p-0 cursor-pointer transform transition duration-300 hover:scale-101 hover:shadow-lg"
+          glassEffect
+          onClick={onCreateEmpty}
+        >
+          <CardContent className="flex justify-center items-center flex-col ">
+            <Plus className="w-8 h-8" />
+            <p className="text-left text-base">
+              <FormattedMessage id="emptyWorkflow" />
+            </p>
+          </CardContent>
+        </Card>
+        {data.slice(0, shownCards).map(template => (
+          <TemplateCard key={template._id} template={template} />
+        ))}
+      </div>
+    </Card>
   )
 }

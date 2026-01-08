@@ -20,8 +20,15 @@ const test = base.extend<{}, { workerStorageState: string }>({
         baseURL: workerInfo.project.use.baseURL,
       })
 
-      /* Use admin user directly - avoids waitlist approval complexity */
       await adminLogin(page)
+
+      /* Clean all integrations for this worker before tests start */
+      const services = ['openai', 'deepseek', 'qwen', 'claude', 'perplexity', 'yandex', 'custom_llm']
+      for (const service of services) {
+        await page.evaluate(async (svc) => {
+          await fetch(`/api/v2/integration/${svc}/delete`, { method: 'DELETE', credentials: 'include' }).catch(() => {})
+        }, service)
+      }
 
       await page.context().storageState({ path: fileName })
       await page.close()
@@ -33,9 +40,23 @@ const test = base.extend<{}, { workerStorageState: string }>({
 })
 
 test.describe.serial('Integrations', () => {
-  /* Clean up integrations before each test to ensure isolation */
   test.beforeEach(async ({ page }) => {
-    /* Mock external LLM API calls to prevent real network requests */
+    /* Delete ALL integrations before each test to ensure clean state */
+    await page.goto('/settings')
+    await page.waitForLoadState('networkidle')
+    
+    const services = ['openai', 'deepseek', 'qwen', 'claude', 'perplexity', 'yandex', 'custom_llm']
+    for (const service of services) {
+      await page.evaluate(async (svc) => {
+        await fetch(`/api/v2/integration/${svc}/delete`, { method: 'DELETE', credentials: 'include' })
+      }, service)
+    }
+    
+    await page.evaluate(() => fetch('/api/v2/integration', { method: 'GET', credentials: 'include' }))
+    await page.waitForTimeout(500)
+  })
+
+  test.beforeEach(async ({ page }) => {
     await page.route('**/api.deepseek.com/**', route => {
       route.fulfill({
         status: 200,
@@ -122,12 +143,10 @@ test.describe.serial('Integrations', () => {
         route.continue()
       }
     })
-    
-    const integrationPage = new IntegrationSettingsPage(page)
-    await integrationPage.deleteAllInstalledIntegrations()
   })
 
   test('Install openai integration', async ({ page }) => {
+    
     const integrationPage = new IntegrationSettingsPage(page)
     
     await integrationPage.installIntegration(
@@ -141,6 +160,7 @@ test.describe.serial('Integrations', () => {
   })
 
   test('Install openai integration without apiKey', async ({ page }) => {
+    
     const integrationPage = new IntegrationSettingsPage(page)
     
     await integrationPage.installIntegration(
@@ -153,6 +173,7 @@ test.describe.serial('Integrations', () => {
   })
 
   test('Install deepseek integration', async ({ page }) => {
+    
     const integrationPage = new IntegrationSettingsPage(page)
     
     await integrationPage.installIntegration(
@@ -165,6 +186,7 @@ test.describe.serial('Integrations', () => {
   })
 
   test('Install qwen integration', async ({ page }) => {
+    
     const integrationPage = new IntegrationSettingsPage(page)
     
     await integrationPage.installIntegration(
@@ -177,6 +199,7 @@ test.describe.serial('Integrations', () => {
   })
 
   test('Install claude integration', async ({ page }) => {
+    
     const integrationPage = new IntegrationSettingsPage(page)
     
     await integrationPage.installIntegration(
@@ -189,6 +212,7 @@ test.describe.serial('Integrations', () => {
   })
 
   test('Install perplexity integration', async ({ page }) => {
+    
     const integrationPage = new IntegrationSettingsPage(page)
     
     await integrationPage.installIntegration(
@@ -201,6 +225,7 @@ test.describe.serial('Integrations', () => {
   })
 
   test('Install yandex integration', async ({ page }) => {
+    
     const integrationPage = new IntegrationSettingsPage(page)
     
     await integrationPage.installIntegration(
@@ -215,6 +240,7 @@ test.describe.serial('Integrations', () => {
   })
 
   test('Install custom_llm integration', async ({ page }) => {
+    
     const integrationPage = new IntegrationSettingsPage(page)
     
     await integrationPage.installIntegration(

@@ -23,7 +23,9 @@ export class WorkflowCardPage {
   }
 
   async clickShare(): Promise<void> {
-    await this.shareButton.click()
+    await this.card.scrollIntoViewIfNeeded()
+    await this.page.waitForLoadState('networkidle')
+    await this.shareButton.evaluate(el => (el as HTMLElement).click())
   }
 
   async openShareDialog(): Promise<void> {

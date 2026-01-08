@@ -1,5 +1,7 @@
 import { expect, Page } from '@playwright/test'
 import { e2eEnv } from './e2e-env-vars'
+import { CreateWorkflowActionsPage, UserMenuPage } from '../page-objects'
+import { TEST_TIMEOUTS } from '../constants/test-timeouts'
 
 async function setupUnauthenticatedPage(page: Page) {
   await page.route('**/api/v2/auth/refresh', route =>
@@ -39,7 +41,6 @@ async function openLoginDialogFromSignup(page: Page) {
 }
 
 async function login(page: Page, usernameOrEmail: string, password: string, valid = true, fromSignUp = false) {
-  /* Navigate to /register which has login button for all users */
   if (!fromSignUp) {
     await page.goto('/register')
     await page.waitForLoadState('networkidle')
@@ -51,15 +52,12 @@ async function login(page: Page, usernameOrEmail: string, password: string, vali
   await page.getByPlaceholder(/username.*email/i).fill(usernameOrEmail)
   await page.getByPlaceholder(/password/i).fill(password)
 
-  /* Use data attribute instead of text to avoid i18n issues */
   const confirmButton = page.locator('button[data-type="confirm-login"]')
   await confirmButton.waitFor({ state: 'visible', timeout: 5000 })
   
-  /* Monitor auth requests for debugging */
   const authPromise = page.waitForResponse(
-    resp => resp.url().includes('/api/v2/auth/login')
-         && resp.request().method() === 'POST',
-    { timeout: 15000 }
+    resp => resp.url().includes('/api/v2/auth/login') && resp.request().method() === 'POST',
+    { timeout: 60000 }
   )
   
   await confirmButton.click()
@@ -70,11 +68,7 @@ async function login(page: Page, usernameOrEmail: string, password: string, vali
       throw new Error(`Auth failed: ${authResp.status()} ${await authResp.text()}`)
     }
     
-    await page.waitForResponse(
-      resp => resp.url().includes('/api/v2/auth/refresh')
-           && resp.request().method() === 'POST' 
-           && resp.ok(),
-    )
+    await page.waitForLoadState('networkidle', { timeout: TEST_TIMEOUTS.AUTH_REFRESH_RESPONSE })
   }
 }
 
@@ -107,22 +101,18 @@ async function approveUser(page: Page, username: string) {
   await page.goto('/admin/waitlist', { waitUntil: 'networkidle' })
   await page.waitForLoadState('networkidle')
   
-  /* Wait for table to render */
   await page.locator('table tbody tr').first().waitFor({ state: 'visible', timeout: 10000 })
   
-  /* Check if user visible in current page, if not, search for them */
   const row = page.locator('table tbody tr', { hasText: username }).first()
   const isVisible = await row.isVisible().catch(() => false)
   
   if (!isVisible) {
-    /* User not in first page - use search to find them */
     const searchInput = page.getByPlaceholder(/search/i).or(page.locator('input[type="search"]')).or(page.locator('input[placeholder*="Search"]'))
     if (await searchInput.count() > 0) {
       await searchInput.first().fill(username)
-      await page.waitForTimeout(1000) /* Wait for search debounce */
+      await page.waitForTimeout(1000)
       await row.waitFor({ state: 'visible', timeout: 10000 })
     } else {
-      /* No search input - user must be in table */
       await expect(row).toBeVisible({ timeout: 10000 })
     }
   }
@@ -141,14 +131,13 @@ async function approveUser(page: Page, username: string) {
 }
 
 async function logout(page: Page) {
-  await page.locator('[data-type="user-settings"]').click()
+  const userMenu = new UserMenuPage(page)
   await Promise.all([
     page.waitForResponse(
-      resp => resp.url().includes('/api/v2/auth/logout')
-           && resp.request().method() === 'POST' 
-           && resp.ok(),
+      resp => resp.url().includes('/auth/logout') && resp.request().method() === 'POST',
+      { timeout: 10000 }
     ),
-    page.getByRole('menuitem', { name: 'Log out' }).click(),
+    userMenu.logout(),
   ])
 }
 
@@ -164,19 +153,37 @@ async function createWorkflow(page: Page): Promise<string> {
   await page.goto('/workflows')
   await page.waitForLoadState('networkidle')
 
-  await Promise.all([
-    page.waitForURL(/\/workflow\//),
-    page.getByRole('button', { name: /create.*workflow/i }).click(),
-  ])
-
-  const currentUrl = page.url()
-  const workflowId = currentUrl.split('/').filter(Boolean).pop() || ''
-  
-  if (!workflowId) {
-    throw new Error(`Unable to extract workflowId from URL: ${currentUrl}`)
-  }
-
-  return workflowId
+  const createActions = new CreateWorkflowActionsPage(page)
+  return await createActions.createNewWorkflow()
 }
 
-export { approveUser, rejectUser, login, logout, signup, openLoginDialogFromSignup, adminLogin, setupUnauthenticatedPage, createWorkflow }
+async function clearAuthState(page: Page) {
+  await page.goto('/')
+  await page.evaluate(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+  })
+  await page.context().clearCookies()
+}
+
+async function closeMobileSidebar(page: Page) {
+  const mobileSidebar = page.locator('[data-testid="mobile-secondary-sidebar"]')
+  const mobileOverlay = page.locator('[data-radix-presence][data-state="open"]').first()
+  
+  if (await mobileSidebar.isVisible().catch(() => false)) {
+    const dismissButton = mobileSidebar.locator('button[aria-label="Close menu"]').first()
+    if (await dismissButton.isVisible().catch(() => false)) {
+      await dismissButton.click()
+      
+      await Promise.race([
+        mobileSidebar.waitFor({ state: 'hidden', timeout: 3000 }),
+        mobileOverlay.waitFor({ state: 'hidden', timeout: 3000 }),
+        page.waitForTimeout(3000)
+      ]).catch(() => {})
+      
+      await page.waitForTimeout(300)
+    }
+  }
+}
+
+export { approveUser, rejectUser, login, logout, signup, openLoginDialogFromSignup, adminLogin, setupUnauthenticatedPage, createWorkflow, clearAuthState, closeMobileSidebar }

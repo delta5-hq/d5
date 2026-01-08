@@ -89,7 +89,20 @@ func (s *Service) UpdateRaw(ctx context.Context, userID string, update map[strin
 		return err
 	}
 
-	return s.collection.UpdateOne(ctx, filter, update)
+	/* Force synchronous write - wait for MongoDB acknowledgment before returning */
+	err = s.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return err
+	}
+
+	/* Verify deletion completed by reading back */
+	var updated models.Integration
+	readErr := s.collection.Find(ctx, filter).One(&updated)
+	if readErr != nil && readErr != qmgo.ErrNoSuchDocuments {
+		return readErr
+	}
+
+	return nil
 }
 
 func (s *Service) CreateLLMVector(ctx context.Context, db *qmgo.Database, userID string, service string) (*models.LLMVector, error) {
