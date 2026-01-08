@@ -1,13 +1,21 @@
-import { isValidPassword, LoginDialog, useAuthContext, usePasswordRecovery, useResetTokenCheck } from '@entities/auth'
+import {
+  isValidPassword,
+  LoginDialog,
+  useAuthContext,
+  usePasswordRecovery,
+  useResetTokenCheck,
+  AuthPageLayout,
+  AuthFormTitle,
+} from '@entities/auth'
+import {
+  PrimarySubmitButton,
+  LoginNavigationLink,
+  CancelNavigationLink,
+} from '@entities/auth/ui/login-dialog/components'
 import { useDialog } from '@entities/dialog'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Button } from '@shared/ui/button'
-import { Copyright } from '@shared/ui/copyright'
-import { Input } from '@shared/ui/input'
-import { Label } from '@shared/ui/label'
-import { Logo } from '@shared/ui/logo'
+import { PasswordFieldWithStrength } from '@shared/ui/form-fields'
 import { Spinner } from '@shared/ui/spinner'
-import { VersionDisplay } from '@shared/ui/version'
 import { useCallback, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { FormattedMessage } from 'react-intl'
@@ -40,9 +48,12 @@ const ResetPassword = () => {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
+    watch,
   } = useForm<ResetPasswordForm>({
     resolver: zodResolver(resetPasswordSchema),
   })
+
+  const passwordValue = watch('password', '')
 
   const onSubmit = useCallback(
     async (data: ResetPasswordForm) => {
@@ -55,11 +66,7 @@ const ResetPassword = () => {
   )
 
   return (
-    <div className="relative flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
-      <div className="absolute top-5 left-5">
-        <Logo />
-      </div>
-
+    <AuthPageLayout maxWidth="md" showFooter={false}>
       {isLoading ? <Spinner /> : null}
 
       {!isLoading && !isValid ? (
@@ -69,43 +76,27 @@ const ResetPassword = () => {
       ) : null}
 
       {!isLoading && isValid ? (
-        <div className="w-full max-w-md bg-card shadow-md rounded-lg p-6">
-          <form className="flex flex-col h-full justify-between gap-y-4" onSubmit={handleSubmit(onSubmit)}>
-            <h2>
-              <FormattedMessage id="resetPassword" />
-            </h2>
+        <form className="flex flex-col gap-8" onSubmit={handleSubmit(onSubmit)}>
+          <AuthFormTitle messageId="resetPassword" />
 
-            <div className="flex flex-col gap-4">
-              <div>
-                <Label htmlFor="password">
-                  <FormattedMessage id="password" />
-                </Label>
-                <Input
-                  {...register('password')}
-                  error={!!errors.password}
-                  errorHelper={<FormattedMessage id={errors.password?.message} />}
-                  id="password"
-                  required
-                  type="password"
-                />
-              </div>
-              <div className="text-center text-foreground/40 text-sm">
-                <FormattedMessage id="version" /> <VersionDisplay /> <Copyright />
-              </div>
-            </div>
+          <PasswordFieldWithStrength
+            errors={errors}
+            fieldName="password"
+            passwordValue={passwordValue}
+            register={register}
+          />
 
-            <div className="flex justify-between mt-4">
-              <Button onClick={() => navigate('/')} variant="default">
-                <FormattedMessage id="buttonCancel" />
-              </Button>
-              <Button disabled={isSubmitting} type="submit">
-                <FormattedMessage id="reset" />
-              </Button>
-            </div>
-          </form>
-        </div>
+          <PrimarySubmitButton isLoading={isSubmitting}>
+            <FormattedMessage id="reset" />
+          </PrimarySubmitButton>
+
+          <div className="flex flex-col gap-2">
+            <LoginNavigationLink />
+            <CancelNavigationLink />
+          </div>
+        </form>
       ) : null}
-    </div>
+    </AuthPageLayout>
   )
 }
 

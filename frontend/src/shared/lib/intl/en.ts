@@ -51,15 +51,14 @@ export default {
   alreadyExistAccount: 'Already have an account?',
   notRegistered: 'No account yet?',
   createAccount: 'Create Account',
-  signupDialogTitle: 'Thank you for signing up!',
-  signupDialogMessage:
-    '<b>Your account is currently in the waitlist for manual approval.</b> You will receive an email notification once your account has been approved.<br><br><b>We appreciate your patience and look forward to having you as a user of our product!</b>',
+  signupDialogTitle: 'Welcome aboard!',
+  signupDialogMessage: "Your account is awaiting approval. We'll notify you shortly.",
 
   accountRecovery: 'Account Recovery',
   sendRecoveryLink: 'Send recovery link',
-  forgotPasswordDialogTitle: 'Email Sent',
+  forgotPasswordDialogTitle: 'Check Your Inbox!',
   forgotPasswordDialogMessage:
-    "A password reset email has been sent to your email address. Once you receive the email, open the link provided to reset your password.<br><br>If you don't see the email in your inbox, please also check your spam folder. ",
+    "A password reset email has been sent to your email address. Once you receive the email, open the link provided to reset your password.<br><br>If you don't see the email in your inbox, please also check your spam folder.",
   noDataAvailable: 'No data available',
   resetPassword: 'Reset Password',
   reset: 'Reset',

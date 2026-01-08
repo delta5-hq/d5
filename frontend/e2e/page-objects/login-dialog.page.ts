@@ -14,7 +14,7 @@ export class LoginDialogPage {
     this.usernameInput = page.getByTestId('login-username-input')
     this.passwordInput = page.getByTestId('login-password-input')
     this.submitButton = page.getByTestId('login-submit-button')
-    this.cancelButton = page.locator('[data-type="cancel"]')
+    this.cancelButton = page.getByRole('button', { name: /cancel/i })
     this.forgotPasswordLink = page.getByRole('link', { name: /forgot.*password/i })
     this.signupLink = page.getByRole('link', { name: /sign up/i })
   }
