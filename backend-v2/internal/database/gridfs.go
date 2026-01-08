@@ -34,7 +34,7 @@ func (g *GridFSBucket) Find(ctx context.Context, filter bson.M) ([]GridFSFile, e
 	}
 	defer cursor.Close(ctx)
 
-	var files []GridFSFile
+	files := []GridFSFile{}
 	for cursor.Next(ctx) {
 		var file gridfs.File
 		if err := cursor.Decode(&file); err != nil {

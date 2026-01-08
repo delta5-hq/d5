@@ -39,16 +39,12 @@ func (s *Service) Create(ctx context.Context, userID, path, backtrace string, ad
 
 /* List errors (admin only) */
 func (s *Service) List(ctx context.Context) ([]models.ClientError, error) {
-	var errors []models.ClientError
+	errors := []models.ClientError{}
 
 	err := s.collection.Find(ctx, bson.M{}).Sort("-updatedAt").Limit(500).All(&errors)
 
 	if err != nil {
 		return nil, err
-	}
-
-	if errors == nil {
-		errors = []models.ClientError{}
 	}
 
 	return errors, nil

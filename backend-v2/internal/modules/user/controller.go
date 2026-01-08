@@ -93,3 +93,34 @@ func (h *Controller) Current(c *fiber.Ctx) error {
 		"updatedAt": user.UpdatedAt,
 	})
 }
+
+func (h *Controller) DeleteUser(c *fiber.Ctx) error {
+	userId := c.Params("userId")
+
+	if userId == "" {
+		return response.BadRequest(c, "User ID required.")
+	}
+
+	roles, ok := c.Locals("roles").([]string)
+	if !ok {
+		return response.Forbidden(c, "Administrator role required.")
+	}
+
+	isAdmin := false
+	for _, role := range roles {
+		if role == "administrator" {
+			isAdmin = true
+			break
+		}
+	}
+
+	if !isAdmin {
+		return response.Forbidden(c, "Administrator role required.")
+	}
+
+	if err := h.Service.DeleteUserWithRelatedData(c.Context(), userId); err != nil {
+		return response.InternalError(c, err.Error())
+	}
+
+	return c.JSON(fiber.Map{"success": true})
+}
