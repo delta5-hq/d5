@@ -1,0 +1,57 @@
+.tree {
+    position: relative;
+    font-size: 14px;
+    line-height: 1.4;
+    user-select: none;
+}
+
+.tree-node {
+    position: relative;
+}
+
+.tree-node__row {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    gap: 6px;
+    position: relative;
+    z-index: 1;
+}
+
+.tree-node__row:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.tree-node__row--selected {
+    background: rgba(0, 212, 255, 0.15);
+}
+
+.tree-node__label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tree-node__children {
+    position: relative;
+    padding-left: 24px;
+    overflow: hidden;
+}
+
+.tree-node__children--collapsed {
+    display: none;
+}
+
+.tree-node__child {
+    position: relative;
+}
+
+.tree-node__connector {
+    position: absolute;
+    left: -24px;
+    top: 0;
+    pointer-events: none;
+    z-index: 0;
+}

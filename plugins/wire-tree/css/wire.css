@@ -1,0 +1,11 @@
+.wire {
+    fill: none;
+    stroke: #2a2a3a;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.wire--active {
+    stroke: #3a3a5a;
+}
