@@ -1,13 +1,3 @@
-export type Dimensions = {
-  height: number
-  width: number
-}
-
-export type RectangleData = Dimensions & {
-  x: number
-  y: number
-}
-
 export type WorkflowId = string
 
 export type NodeId = string
@@ -37,6 +27,8 @@ export type NodeContent = {
   autoshrink?: boolean
   dirty?: boolean
   command?: string
+  collapsed?: boolean
+  parent?: NodeId
 }
 
 export type NodeData = NodeContent & {
