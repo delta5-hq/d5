@@ -4,10 +4,12 @@ const SvgBuilder = {
 
   createSvg(width, height) {
     const svg = document.createElementNS(this.NS, 'svg');
+    /* Lottie uses top-left origin (0,0), same as SVG default */
     svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     svg.setAttribute('width', '100%');
     svg.setAttribute('height', '100%');
-    svg.style.overflow = 'visible';
+    svg.style.overflow = 'hidden';
     return svg;
   },
 
@@ -59,26 +61,45 @@ const SvgBuilder = {
   },
 
   applyTransform(element, transform) {
+    /* Lottie matrix build order:
+     * M = pre * translate(-a) * scale(s) * rotate(-r) * translate(p)
+     * Point transformation: p' = M * p
+     * Effective order on point: -anchor → scale → rotate → position
+     * 
+     * SVG transform="A B C" applies A(B(C(point))), i.e., C first, A last.
+     * So we need: translate(p), rotate(r), scale(s), translate(-a)
+     * Note: Keeping rotation POSITIVE - the negation in lottie is internal to matrix math
+     */
+    
+    /* Format number to avoid scientific notation and NaN */
+    const fmt = (n) => {
+      if (!Number.isFinite(n)) return 0;
+      return Math.round(n * 1000) / 1000;
+    };
+    
+    const px = fmt(transform.position ? transform.position[0] : 0);
+    const py = fmt(transform.position ? transform.position[1] : 0);
+    const ax = fmt(transform.anchor ? transform.anchor[0] : 0);
+    const ay = fmt(transform.anchor ? transform.anchor[1] : 0);
+    const r = fmt(transform.rotation || 0);
+    const sx = fmt(transform.scale ? transform.scale[0] / 100 : 1);
+    const sy = fmt(transform.scale ? transform.scale[1] / 100 : 1);
+    
     const parts = [];
     
-    if (transform.anchor) {
-      parts.push('translate(' + (-transform.anchor[0]) + ',' + (-transform.anchor[1]) + ')');
+    /* Order: position last (outermost), anchor first (innermost) */
+    parts.push('translate(' + px + ',' + py + ')');
+    
+    if (r !== 0) {
+      parts.push('rotate(' + r + ')');
     }
     
-    if (transform.position) {
-      parts.push('translate(' + transform.position[0] + ',' + transform.position[1] + ')');
+    if (sx !== 1 || sy !== 1) {
+      parts.push('scale(' + sx + ',' + sy + ')');
     }
     
-    if (transform.rotation) {
-      parts.push('rotate(' + transform.rotation + ')');
-    }
-    
-    if (transform.scale) {
-      const sx = transform.scale[0] / 100;
-      const sy = transform.scale[1] / 100;
-      if (sx !== 1 || sy !== 1) {
-        parts.push('scale(' + sx + ',' + sy + ')');
-      }
+    if (ax !== 0 || ay !== 0) {
+      parts.push('translate(' + (-ax) + ',' + (-ay) + ')');
     }
 
     if (parts.length > 0) {
@@ -114,8 +135,8 @@ const SvgBuilder = {
     }
   },
 
-  applyStroke(element, color, opacity, width) {
-    element.setAttribute('fill', 'none');
+  applyStroke(element, color, opacity, width, lineCap, lineJoin) {
+    /* Do not set fill here - fill is managed separately */
     
     if (color) {
       element.setAttribute('stroke', this.rgbToString(color));
@@ -126,9 +147,35 @@ const SvgBuilder = {
     }
     if (width !== undefined && width > 0) {
       element.setAttribute('stroke-width', width);
+      /* Lottie renders stroke under fill - use paint-order to match */
+      element.setAttribute('paint-order', 'stroke');
     }
-    element.setAttribute('stroke-linecap', 'round');
-    element.setAttribute('stroke-linejoin', 'round');
+    /* lc: 1=butt, 2=round, 3=square */
+    const capMap = { 1: 'butt', 2: 'round', 3: 'square' };
+    element.setAttribute('stroke-linecap', capMap[lineCap] || 'round');
+    /* lj: 1=miter, 2=round, 3=bevel */
+    const joinMap = { 1: 'miter', 2: 'round', 3: 'bevel' };
+    element.setAttribute('stroke-linejoin', joinMap[lineJoin] || 'round');
+  },
+
+  createClipPath(id, width, height) {
+    const clipPath = document.createElementNS(this.NS, 'clipPath');
+    clipPath.setAttribute('id', id);
+    const rect = document.createElementNS(this.NS, 'rect');
+    rect.setAttribute('x', '0');
+    rect.setAttribute('y', '0');
+    rect.setAttribute('width', width);
+    rect.setAttribute('height', height);
+    clipPath.appendChild(rect);
+    return clipPath;
+  },
+
+  createDefs() {
+    return document.createElementNS(this.NS, 'defs');
+  },
+
+  applyClipPath(element, clipId) {
+    element.setAttribute('clip-path', 'url(#' + clipId + ')');
   }
 };
 `;

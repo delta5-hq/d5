@@ -5,11 +5,18 @@ const Interpolator = {
   },
 
   lerpArray(a, b, t) {
+    if (!b || !Array.isArray(b)) b = a;  /* Fallback if b is undefined */
     const result = new Array(a.length);
     for (let i = 0; i < a.length; i++) {
-      result[i] = this.lerp(a[i], b[i], t);
+      result[i] = this.lerp(a[i], b[i] ?? a[i], t);  /* Use a[i] if b[i] undefined */
     }
     return result;
+  },
+
+  /* Unwrap single-element arrays for scalar contexts */
+  unwrapScalar(val) {
+    if (Array.isArray(val) && val.length === 1) return val[0];
+    return val;
   },
 
   findKeyframeIndex(keyframes, frame) {
@@ -43,17 +50,17 @@ const Interpolator = {
     const keyframes = property.k;
     if (!keyframes || keyframes.length === 0) return 0;
     
-    if (frame <= keyframes[0].t) return keyframes[0].s;
+    if (frame <= keyframes[0].t) return this.unwrapScalar(keyframes[0].s);
     
     const lastKf = keyframes[keyframes.length - 1];
-    if (frame >= lastKf.t) return lastKf.s;
+    if (frame >= lastKf.t) return this.unwrapScalar(lastKf.s);
 
     const idx = this.findKeyframeIndex(keyframes, frame);
     const kf = keyframes[idx];
     const nextKf = keyframes[idx + 1];
 
     const duration = nextKf.t - kf.t;
-    if (duration === 0) return kf.s;
+    if (duration === 0) return this.unwrapScalar(kf.s);
     
     const elapsed = frame - kf.t;
     let t = elapsed / duration;
@@ -64,7 +71,8 @@ const Interpolator = {
     const endVal = kf.e || nextKf.s;
 
     if (Array.isArray(startVal)) {
-      return this.lerpArray(startVal, endVal, t);
+      const result = this.lerpArray(startVal, endVal, t);
+      return this.unwrapScalar(result);
     }
     return this.lerp(startVal, endVal, t);
   },

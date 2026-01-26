@@ -29,15 +29,49 @@ src/
 ## Usage
 
 ```bash
-# CLI
-pnpm convert input.tgs output.js
-
-# Programmatic
-import { TgsConverter } from '@d5/tgs-player';
-
-const converter = new TgsConverter();
-const result = converter.convertFromBuffer(tgsBuffer);
+pnpm convert input.tgs output.player.js && python3 -m http.server 8888 -d output
+# Open http://localhost:8888/test.html
 ```
+
+```typescript
+import { TgsConverter } from '@d5/tgs-player';
+const result = new TgsConverter().convertFromBuffer(tgsBuffer);
+```
+
+## Framework Integration
+
+The output is a self-contained IIFE bundle (`.player.js`) that:
+
+1. **Exposes a global `TgsPlayer` class** - can be instantiated on any DOM element
+2. **Creates pure SVG** - no external dependencies, no canvas, just DOM manipulation
+3. **Works with any framework** via refs:
+
+**React example:**
+```jsx
+useEffect(() => {
+  const player = new TgsPlayer(animationData, 'my-container');
+  player.play();
+  return () => player.stop();
+}, []);
+```
+
+**Angular example:**
+```typescript
+ngAfterViewInit() {
+  this.player = new TgsPlayer(animationData, 'my-container');
+  this.player.play();
+}
+```
+
+**Vue example:**
+```javascript
+mounted() {
+  this.player = new TgsPlayer(animationData, 'my-container');
+  this.player.play();
+}
+```
+
+The animation data JSON is embedded in the bundle, or can be passed separately. Just include the script and instantiate on a container div.
 
 ## License
 

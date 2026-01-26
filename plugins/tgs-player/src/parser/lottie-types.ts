@@ -78,9 +78,26 @@ export interface ShapeElement {
   c?: AnimatedProperty;
   o?: AnimatedProperty;
   w?: AnimatedProperty;
+  s?: AnimatedProperty; // trim start
+  e?: AnimatedProperty; // trim end
+  m?: number; // trim multiple shapes
+  p?: AnimatedProperty; // position (rectangle/ellipse)
+  d?: number; // direction
+  g?: GradientData; // gradient data
+  t?: number; // gradient type
+  s2?: AnimatedProperty; // gradient start point
+  e2?: AnimatedProperty; // gradient end point
+  h?: AnimatedProperty; // gradient highlight
+  a?: AnimatedProperty; // gradient angle
+  mm?: number; // merge mode
 }
 
-export type ShapeType = 'gr' | 'sh' | 'fl' | 'st' | 'tr' | 'el' | 'rc' | 'sr';
+export type ShapeType = 'gr' | 'sh' | 'fl' | 'st' | 'tr' | 'el' | 'rc' | 'sr' | 'tm' | 'gf' | 'gs' | 'mm' | 'rd' | 'rp';
+
+export interface GradientData {
+  p: number; // number of colors
+  k: AnimatedProperty; // gradient colors
+}
 
 export interface ShapePath {
   a: 0 | 1;

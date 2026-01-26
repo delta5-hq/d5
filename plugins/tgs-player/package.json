@@ -21,6 +21,8 @@
     "lint:fix": "eslint src --ext .ts --fix",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:golden": "vitest run src/__tests__/golden.test.ts",
+    "test:golden:update": "UPDATE_GOLDEN=true vitest run src/__tests__/golden.test.ts",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "convert": "node --loader ts-node/esm src/cli.ts"
@@ -34,6 +36,8 @@
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.45.0",
+    "playwright": "^1.58.0",
+    "puppeteer": "^24.36.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.0.2",
     "vitest": "^1.0.0"
