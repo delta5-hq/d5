@@ -133,7 +133,7 @@ dev-backend-v2: start-mongodb-dev dev-db-init
 
 dev-frontend:
 	@echo "→ Starting frontend dev server..."
-	@cd frontend && pnpm dev
+	@cd frontend && pnpm dev --host 0.0.0.0
 
 dev: start-mongodb-dev dev-db-init
 	@echo "→ Building backend-v2..."
@@ -156,7 +156,7 @@ dev: start-mongodb-dev dev-db-init
 	@echo "✓ Frontend will be available at http://localhost:$(FRONTEND_PORT)"
 	@echo ""
 	@echo "Press Ctrl+C to stop..."
-	@cd frontend && pnpm dev
+	@cd frontend && pnpm dev --host 0.0.0.0
 
 stop:
 	@echo "→ Stopping all services..."
