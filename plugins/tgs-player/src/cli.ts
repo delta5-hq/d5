@@ -2,11 +2,15 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, basename, dirname } from 'node:path';
 import { TgsConverter } from './converter/tgs-converter.js';
+import { decompressTgs } from './parser/tgs-decompressor.js';
+import { precomputeStaticValues } from './optimizer/precompute-static.js';
+import { generateStandalonePlayer } from './generator/standalone-generator.js';
 
 interface CliArgs {
   input: string;
   output?: string | undefined;
   targetId?: string | undefined;
+  optimize?: boolean;
 }
 
 function generateIndexHtml(playerJsFile: string): string {
@@ -37,6 +41,7 @@ function parseArgs(): CliArgs {
   let input = '';
   let output: string | undefined;
   let targetId: string | undefined;
+  let optimize = false;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '-o' && i + 1 < args.length) {
@@ -45,6 +50,8 @@ function parseArgs(): CliArgs {
     } else if (args[i] === '--target' && i + 1 < args.length) {
       targetId = args[i + 1];
       i++;
+    } else if (args[i] === '--optimize') {
+      optimize = true;
     } else if (input === undefined || input === '') {
       input = args[i];
     } else if (output === undefined || output === '') {
@@ -58,22 +65,56 @@ function parseArgs(): CliArgs {
     process.exit(1);
   }
 
-  return { input, output, targetId };
+  return { input, output, targetId, optimize };
 }
 
 function printUsage(): void {
   /* eslint-disable-next-line no-console */
-  console.error('Usage: tgs-convert <input.tgs> [output.js] [--target <id>]');
+  console.error('Usage: tgs-convert <input.tgs> [output.js] [--target <id>] [--optimize]');
 }
 
 function main(): void {
-  const { input, output, targetId } = parseArgs();
+  const { input, output, targetId, optimize } = parseArgs();
   const inputPath = resolve(input);
+  const buffer = readFileSync(inputPath);
+
+  if (optimize === true) {
+    const animation = decompressTgs(new Uint8Array(buffer));
+    
+    /* Pre-compute static values IN-PLACE within animation JSON */
+    const precomputeStats = precomputeStaticValues(animation);
+    
+    /* Generate player using SAME generator, but with pre-computed data */
+    const code = generateStandalonePlayer(animation, { 
+      outputFormat: 'standalone',
+      minify: false,
+      embedAnimation: true,
+      targetId: targetId ?? 'tgs-player' 
+    });
+    
+    const outputPath = output !== undefined && output !== ''
+      ? resolve(output)
+      : inputPath.replace(/\.tgs$/, '.optimized.player.js');
+    
+    writeFileSync(outputPath, code);
+    
+    const outputDir = dirname(outputPath);
+    const indexPath = resolve(outputDir, 'index.html');
+    writeFileSync(indexPath, generateIndexHtml(basename(outputPath)));
+    
+    /* eslint-disable no-console */
+    console.error(`Converted+Optimized: ${basename(inputPath)} → ${basename(outputPath)}`);
+    console.error(`  Colors pre-computed: ${precomputeStats.colorsPrecomputed}`);
+    console.error(`  Total static props: ${precomputeStats.totalStatic}`);
+    console.error(`  Size: ${buffer.length} → ${code.length} bytes`);
+    /* eslint-enable no-console */
+    return;
+  }
+
   const outputPath = output !== undefined && output !== ''
     ? resolve(output) 
     : inputPath.replace(/\.tgs$/, '.player.js');
 
-  const buffer = readFileSync(inputPath);
   const options = targetId !== undefined && targetId !== '' ? { targetId } : {};
   const converter = new TgsConverter(options);
   const result = converter.convertFromBuffer(new Uint8Array(buffer));

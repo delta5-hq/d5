@@ -119,6 +119,8 @@ const SvgBuilder = {
   },
 
   rgbToString(color) {
+    /* If already pre-computed string, use directly */
+    if (typeof color === 'string') return color;
     const r = Math.round(Math.max(0, Math.min(1, color[0])) * 255);
     const g = Math.round(Math.max(0, Math.min(1, color[1])) * 255);
     const b = Math.round(Math.max(0, Math.min(1, color[2])) * 255);
@@ -127,6 +129,7 @@ const SvgBuilder = {
 
   applyFill(element, color, opacity) {
     if (color) {
+      /* Pre-computed string or array - rgbToString handles both */
       element.setAttribute('fill', this.rgbToString(color));
     }
     if (opacity !== undefined) {
@@ -139,6 +142,7 @@ const SvgBuilder = {
     /* Do not set fill here - fill is managed separately */
     
     if (color) {
+      /* Pre-computed string or array - rgbToString handles both */
       element.setAttribute('stroke', this.rgbToString(color));
     }
     if (opacity !== undefined) {

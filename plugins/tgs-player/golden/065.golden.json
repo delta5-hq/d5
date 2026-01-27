@@ -112,35 +112,35 @@
       "stroke": null,
       "strokeWidth": null,
       "strokeLinecap": null,
-      "dLength": 397
+      "dLength": 511
     },
     {
       "fill": "none",
       "stroke": "rgb(8,78,255)",
       "strokeWidth": "20",
       "strokeLinecap": "round",
-      "dLength": 397
+      "dLength": 511
     },
     {
       "fill": "rgb(255,255,255)",
       "stroke": null,
       "strokeWidth": null,
       "strokeLinecap": null,
-      "dLength": 464
+      "dLength": 501
     },
     {
       "fill": "url(#golden_065_grad_8)",
       "stroke": null,
       "strokeWidth": null,
       "strokeLinecap": null,
-      "dLength": 259
+      "dLength": 282
     },
     {
       "fill": "none",
       "stroke": "rgb(8,78,255)",
       "strokeWidth": "20",
       "strokeLinecap": "round",
-      "dLength": 259
+      "dLength": 282
     },
     {
       "fill": "url(#golden_065_grad_9)",
@@ -189,21 +189,21 @@
       "stroke": null,
       "strokeWidth": null,
       "strokeLinecap": null,
-      "dLength": 416
+      "dLength": 0
     },
     {
-      "fill": "none",
-      "stroke": "rgb(8,78,255)",
-      "strokeWidth": "20",
-      "strokeLinecap": "round",
-      "dLength": 416
-    },
-    {
-      "fill": "rgb(255,255,255)",
+      "fill": null,
       "stroke": null,
       "strokeWidth": null,
       "strokeLinecap": null,
-      "dLength": 416
+      "dLength": 0
+    },
+    {
+      "fill": null,
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 0
     },
     {
       "fill": null,
@@ -217,14 +217,14 @@
       "stroke": null,
       "strokeWidth": null,
       "strokeLinecap": null,
-      "dLength": 495
+      "dLength": 748
     },
     {
       "fill": "none",
       "stroke": "rgb(8,78,255)",
       "strokeWidth": "20",
       "strokeLinecap": "round",
-      "dLength": 495
+      "dLength": 748
     },
     {
       "fill": "rgb(255,255,255)",
