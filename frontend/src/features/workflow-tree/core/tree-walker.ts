@@ -8,6 +8,8 @@ interface StackEntry {
   ancestorContinuation: boolean[]
   /** True if this node is NOT the last child of its parent */
   hasMoreSiblings: boolean
+  /** Row index of the immediate parent */
+  parentRowIndex: number
 }
 
 /**
@@ -17,6 +19,7 @@ interface StackEntry {
  * - Missing child node graceful skipping
  * - Orphan nodes (nodes without valid parent chain)
  * - Wire continuation tracking for proper tree line rendering
+ * - Parent row index tracking for spark path calculation
  *
  * @param treeData - Flat tree data containing nodes, rootId, and expandedIds
  * @param refresh - If true yields TreeWalkerYield objects, else yields node IDs
@@ -31,13 +34,16 @@ export function* createTreeWalker(treeData: FlatTreeData, refresh: boolean) {
   if (!rootNode) return
 
   const visitedIds = new Set<string>()
-  const stack: StackEntry[] = [{ node: rootNode, depth: 0, ancestorContinuation: [], hasMoreSiblings: false }]
+  const stack: StackEntry[] = [
+    { node: rootNode, depth: 0, ancestorContinuation: [], hasMoreSiblings: false, parentRowIndex: -1 },
+  ]
+  let currentRowIndex = 0
 
   while (stack.length > 0) {
     const entry = stack.pop()
     if (!entry) continue
 
-    const { node, depth, ancestorContinuation, hasMoreSiblings } = entry
+    const { node, depth, ancestorContinuation, hasMoreSiblings, parentRowIndex } = entry
 
     if (visitedIds.has(node.id)) continue
     visitedIds.add(node.id)
@@ -45,6 +51,8 @@ export function* createTreeWalker(treeData: FlatTreeData, refresh: boolean) {
     const isRootNode = node.id === rootId
     const isOpen = isRootNode || expandedIds.has(node.id)
     const hasChildren = Boolean(node.children?.length)
+    const thisRowIndex = currentRowIndex
+    currentRowIndex++
 
     if (refresh) {
       yield {
@@ -54,10 +62,9 @@ export function* createTreeWalker(treeData: FlatTreeData, refresh: boolean) {
         isOpen,
         isOpenByDefault: isRootNode,
         hasChildren,
-        /** Wire continuation: at each ancestor depth, does that level need a vertical continuation line? */
         ancestorContinuation,
-        /** Does this node have more siblings after it? (should extend vertical line below) */
         hasMoreSiblings,
+        parentRowIndex,
       }
     } else {
       yield node.id
@@ -84,6 +91,7 @@ export function* createTreeWalker(treeData: FlatTreeData, refresh: boolean) {
           depth: depth + 1,
           ancestorContinuation: childAncestorContinuation,
           hasMoreSiblings: !isLastChild,
+          parentRowIndex: thisRowIndex,
         })
       })
     }

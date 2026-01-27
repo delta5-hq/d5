@@ -1,3 +1,5 @@
+import type React from 'react'
+
 export type WorkflowId = string
 
 export type NodeId = string
@@ -29,6 +31,15 @@ export type NodeContent = {
   command?: string
   collapsed?: boolean
   parent?: NodeId
+  /** Container config for grouping children */
+  container?: {
+    type: string
+    /** IDs of children to include in container. If omitted, includes all immediate children */
+    childrenIds?: NodeId[]
+    paddingTop?: number
+    paddingBottom?: number
+    component?: (props: { children: React.ReactNode; depth: number; parentNode: unknown }) => React.ReactNode
+  }
 }
 
 export type NodeData = NodeContent & {

@@ -10,56 +10,84 @@ export interface TreeNodeProps extends TreeRecord {
   onToggle?: (id: string) => void
   isSelected?: boolean
   onSelect?: (id: string) => void
+  /** Current row index in the virtualized list */
+  rowIndex?: number
+  /** Extra space to extend wire DOWN (e.g., for container paddingTop after parent) */
+  wireExtendDown?: number
+  /** Extra space to extend wire UP (e.g., for first child in container) */
+  wireExtendUp?: number
 }
 
-/**
- * Wire-tree layout constants matching the original wire-tree plugin
- * - INDENT: horizontal space per depth level (where wire lives)
- * - ROW_HEIGHT: fixed height per row
- * - WIRE_PADDING: padding inside the wire SVG
- */
+/* Wire-tree layout constants */
 const INDENT_PER_LEVEL = 24
 const ROW_HEIGHT = 32
 const WIRE_PADDING = 2
 const BASE_PADDING = 8
 
-/**
- * Build L-shaped wire path matching wire-tree:
- * Starts at top of indent area, goes down to row center, then right to node
- * If hasMoreSiblings, also extend vertical line to bottom of row
- */
-function buildLPath(indentX: number, rowHeight: number, indentWidth: number, extendDown: boolean): string {
+/* Build wire path starting from parent center (matches spark path) */
+function buildWirePath(
+  indentX: number,
+  rowHeight: number,
+  indentWidth: number,
+  rowsFromParent: number,
+  hasMoreSiblings: boolean,
+  extendDown: number = 0,
+): string {
   const startX = indentX + WIRE_PADDING
+  const parentCenterY = -(rowsFromParent * rowHeight) + rowHeight / 2
   const cornerY = rowHeight / 2
   const endX = indentX + indentWidth - WIRE_PADDING
 
-  /* L-shape: top → center → right */
-  let path = `M ${startX} 0 L ${startX} ${cornerY} L ${endX} ${cornerY}`
+  let path = `M ${startX} ${parentCenterY} L ${startX} ${cornerY} L ${endX} ${cornerY}`
 
-  /* If more siblings below, extend vertical line to bottom */
-  if (extendDown) {
-    path += ` M ${startX} ${cornerY} L ${startX} ${rowHeight}`
+  if (hasMoreSiblings || extendDown > 0) {
+    const bottomY = rowHeight + extendDown
+    path += ` M ${startX} ${cornerY} L ${startX} ${bottomY}`
   }
 
   return path
 }
 
-/**
- * Build vertical continuation line for ancestor levels
- * These are straight vertical lines where an ancestor has more siblings
- */
+/* Build child connector at children's depth level */
+function buildChildConnectorPath(childIndentX: number, rowHeight: number, extendDown: number = 0): string {
+  const x = childIndentX + WIRE_PADDING
+  const centerY = rowHeight / 2
+  const bottomY = rowHeight + extendDown
+  return `M ${x} ${centerY} L ${x} ${bottomY}`
+}
+
+/* Build spark animation path from parent center to node */
+function buildSparkPath(indentX: number, rowHeight: number, indentWidth: number, rowsFromParent: number): string {
+  const startX = indentX + WIRE_PADDING
+  const parentCenterY = -(rowsFromParent * rowHeight) + rowHeight / 2
+  const cornerY = rowHeight / 2
+  const endX = indentX + indentWidth - WIRE_PADDING
+  return `M ${startX} ${parentCenterY} L ${startX} ${cornerY} L ${endX} ${cornerY}`
+}
+
+/* Build ancestor continuation lines - truncates deepest at center for last child */
 function buildContinuationLines(
   ancestorContinuation: boolean[],
   rowHeight: number,
+  extendUp: number = 0,
+  extendDown: number = 0,
+  hasMoreSiblings: boolean = true,
 ): Array<{ x: number; path: string }> {
   const lines: Array<{ x: number; path: string }> = []
+  const lastIndex = ancestorContinuation.length - 1
 
   ancestorContinuation.forEach((needsContinuation, depthIndex) => {
     if (needsContinuation) {
       const x = BASE_PADDING + depthIndex * INDENT_PER_LEVEL + WIRE_PADDING
+      const topY = -extendUp
+      const centerY = rowHeight / 2
+
+      const isDeepestContinuation = depthIndex === lastIndex
+      const bottomY = isDeepestContinuation && !hasMoreSiblings ? centerY : rowHeight + extendDown
+
       lines.push({
         x,
-        path: `M ${x} 0 L ${x} ${rowHeight}`,
+        path: `M ${x} ${topY} L ${x} ${bottomY}`,
       })
     }
   })
@@ -67,7 +95,6 @@ function buildContinuationLines(
   return lines
 }
 
-/** Trigger wire pulse + spark animation */
 function triggerAnimation(wireEl: SVGPathElement | null, sparkEl: HTMLDivElement | null) {
   if (wireEl) {
     wireEl.classList.remove('wire-tree-connector--pulse')
@@ -81,18 +108,31 @@ function triggerAnimation(wireEl: SVGPathElement | null, sparkEl: HTMLDivElement
   }
 }
 
-export const TreeNodeDefault = ({ id, data, isOpen, style, onToggle, isSelected, onSelect }: TreeNodeProps) => {
-  const { node, depth, ancestorContinuation = [], hasMoreSiblings = false } = data
+export const TreeNodeDefault = ({
+  id,
+  data,
+  isOpen,
+  style,
+  onToggle,
+  isSelected,
+  onSelect,
+  rowIndex,
+  wireExtendDown = 0,
+  wireExtendUp = 0,
+}: TreeNodeProps) => {
+  const { node, depth, ancestorContinuation = [], hasMoreSiblings = false, parentRowIndex = -1 } = data
   const hasChildren = node.children && node.children.length > 0
   const paddingLeft = BASE_PADDING + depth * INDENT_PER_LEVEL
   const sparkRef = useRef<HTMLDivElement>(null)
   const wireRef = useRef<SVGPathElement>(null)
-  const { shouldAnimate, clearAnimation } = useTreeAnimation()
+  const { shouldAnimate, clearAnimation, animationVersion } = useTreeAnimation()
 
-  /* Auto-trigger animation if this node was scheduled (parent just expanded) */
+  const currentRowIndex = rowIndex ?? 0
+  const rowsFromParent = parentRowIndex >= 0 ? currentRowIndex - parentRowIndex : 1
+
+  /* Auto-trigger animation for descendants on parent expansion */
   useEffect(() => {
     if (depth > 0 && shouldAnimate(id)) {
-      /* Stagger based on depth for cascading effect */
       const delay = depth * 50
       const timer = setTimeout(() => {
         triggerAnimation(wireRef.current, sparkRef.current)
@@ -100,15 +140,11 @@ export const TreeNodeDefault = ({ id, data, isOpen, style, onToggle, isSelected,
       }, delay)
       return () => clearTimeout(timer)
     }
-  }, [id, depth, shouldAnimate, clearAnimation])
+  }, [id, depth, shouldAnimate, clearAnimation, animationVersion])
 
   const handleToggle = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-
-      /* Pulse wire + spark animation for this node */
-      triggerAnimation(wireRef.current, sparkRef.current)
-
       onToggle?.(id)
     },
     [id, onToggle],
@@ -118,16 +154,25 @@ export const TreeNodeDefault = ({ id, data, isOpen, style, onToggle, isSelected,
     onSelect?.(id)
   }, [id, onSelect])
 
-  /* Calculate wire position: lives in the indent space before this node's content */
   const wireIndentX = BASE_PADDING + (depth - 1) * INDENT_PER_LEVEL
-  const wirePath = depth > 0 ? buildLPath(wireIndentX, ROW_HEIGHT, INDENT_PER_LEVEL, hasMoreSiblings) : ''
+  const isExpandedWithChildren = Boolean(isOpen && hasChildren)
 
-  /* Ancestor continuation lines (vertical lines for ancestors that have more siblings) */
-  const continuationLines = depth > 0 ? buildContinuationLines(ancestorContinuation, ROW_HEIGHT) : []
+  const wirePath =
+    depth > 0
+      ? buildWirePath(wireIndentX, ROW_HEIGHT, INDENT_PER_LEVEL, rowsFromParent, hasMoreSiblings, wireExtendDown)
+      : ''
 
-  /* Combined path for spark to travel (only the L-shape portion, not continuations) */
-  const sparkPath =
-    depth > 0 ? buildLPath(wireIndentX, ROW_HEIGHT, INDENT_PER_LEVEL, false /* spark doesn't travel down */) : ''
+  const childIndentX = BASE_PADDING + depth * INDENT_PER_LEVEL
+  const childConnectorPath = isExpandedWithChildren
+    ? buildChildConnectorPath(childIndentX, ROW_HEIGHT, wireExtendDown)
+    : ''
+
+  const continuationLines =
+    depth > 0
+      ? buildContinuationLines(ancestorContinuation, ROW_HEIGHT, wireExtendUp, wireExtendDown, hasMoreSiblings)
+      : []
+
+  const sparkPath = depth > 0 ? buildSparkPath(wireIndentX, ROW_HEIGHT, INDENT_PER_LEVEL, rowsFromParent) : ''
 
   return (
     <div
@@ -138,9 +183,8 @@ export const TreeNodeDefault = ({ id, data, isOpen, style, onToggle, isSelected,
         isSelected && 'bg-accent',
       )}
       onClick={handleClick}
-      style={{ ...style, paddingLeft }}
+      style={{ ...style, paddingLeft, overflow: 'visible' }}
     >
-      {/* Wire connectors SVG: L-shape + vertical continuation lines */}
       {depth > 0 ? (
         <svg
           className="absolute pointer-events-none"
@@ -148,21 +192,27 @@ export const TreeNodeDefault = ({ id, data, isOpen, style, onToggle, isSelected,
           style={{ left: 0, top: 0, overflow: 'visible' }}
           width={paddingLeft}
         >
-          {/* Ancestor continuation lines */}
           {continuationLines.map((line, i) => (
             <path className="wire-tree-connector" d={line.path} key={`cont-${i}`} />
           ))}
-          {/* Main L-shaped connector for this node */}
           <path className="wire-tree-connector" d={wirePath} ref={wireRef} />
+          {childConnectorPath ? <path className="wire-tree-connector" d={childConnectorPath} /> : null}
+        </svg>
+      ) : childConnectorPath ? (
+        <svg
+          className="absolute pointer-events-none"
+          height={ROW_HEIGHT}
+          style={{ left: 0, top: 0, overflow: 'visible' }}
+          width={paddingLeft}
+        >
+          <path className="wire-tree-connector" d={childConnectorPath} />
         </svg>
       ) : null}
 
-      {/* Spark element - travels along L-shaped wire path */}
       {depth > 0 ? (
         <div className="wire-tree-spark" ref={sparkRef} style={{ offsetPath: `path('${sparkPath}')` }} />
       ) : null}
 
-      {/* Chevron toggle */}
       <button
         className={cn(
           'relative z-10 w-5 h-5 flex items-center justify-center rounded-sm',
@@ -176,7 +226,6 @@ export const TreeNodeDefault = ({ id, data, isOpen, style, onToggle, isSelected,
         <ChevronRight className={cn('w-3.5 h-3.5 transition-transform duration-200 ease-out', isOpen && 'rotate-90')} />
       </button>
 
-      {/* Folder/File icon */}
       <span className="relative z-10 flex-shrink-0 ml-1 transition-transform duration-150 group-hover:scale-110">
         {hasChildren ? (
           isOpen ? (
@@ -189,7 +238,6 @@ export const TreeNodeDefault = ({ id, data, isOpen, style, onToggle, isSelected,
         )}
       </span>
 
-      {/* Label */}
       <span className="relative z-10 flex-1 truncate ml-1.5 pr-2">{node.title || node.id}</span>
     </div>
   )

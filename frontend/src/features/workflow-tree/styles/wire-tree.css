@@ -69,18 +69,31 @@
 }
 
 /* Wire connector - L-shaped line from parent to child */
+/* Win3.1/95/98 embossed effect: 1px line with subtle inset shadow */
 .wire-tree-connector {
-  stroke: var(--muted-foreground);
-  stroke-opacity: 0.4;
-  stroke-width: 2;
+  stroke: oklch(0.72 0 0);
+  stroke-width: 1;
   fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  transition: stroke 200ms ease, stroke-opacity 200ms ease;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  /* Subtle embossed inset: thin highlight offset */
+  filter: drop-shadow(0.5px 0.5px 0 oklch(0.98 0 0));
+  transition: stroke 200ms ease;
+}
+
+:root.dark .wire-tree-connector,
+.dark .wire-tree-connector {
+  stroke: oklch(0.32 0 0);
+  filter: drop-shadow(0.5px 0.5px 0 oklch(0.48 0 0));
 }
 
 .wire-tree-connector:hover {
-  stroke-opacity: 0.6;
+  stroke: oklch(0.5 0 0);
+}
+
+:root.dark .wire-tree-connector:hover,
+.dark .wire-tree-connector:hover {
+  stroke: oklch(0.42 0 0);
 }
 
 .wire-tree-connector--pulse {

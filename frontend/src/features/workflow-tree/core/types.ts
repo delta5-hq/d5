@@ -11,6 +11,8 @@ export interface TreeNode {
   ancestorContinuation: boolean[]
   /** Does this node have more siblings after it? (should extend vertical line below) */
   hasMoreSiblings: boolean
+  /** Row index of the immediate parent node (for calculating spark path length) */
+  parentRowIndex: number
 }
 
 export interface TreeRecord {
@@ -35,6 +37,8 @@ export interface TreeWalkerYield {
   ancestorContinuation: boolean[]
   /** Does this node have more siblings after it? (should extend vertical line below) */
   hasMoreSiblings: boolean
+  /** Row index of the immediate parent node */
+  parentRowIndex: number
 }
 
 export type TreeWalkerGenerator = (refresh: boolean) => ReturnType<typeof import('./tree-walker').createTreeWalker>

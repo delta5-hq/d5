@@ -1,12 +1,18 @@
 import { useState, useCallback } from 'react'
-import { WorkflowTree } from '@/features/workflow-tree'
+import { WorkflowSegmentTree } from '@/features/workflow-tree'
 import { Card, CardContent, CardHeader, CardTitle } from '@shared/ui/card'
 import { FileText, Folder, Layers } from 'lucide-react'
 import type { NodeData } from '@/shared/base-types/workflow'
 
 const mockNodes: Record<string, NodeData> = {
   root: { id: 'root', title: 'Project Alpha', children: ['requirements', 'design', 'development', 'testing'] },
-  requirements: { id: 'requirements', title: 'Requirements', children: ['req-1', 'req-2', 'req-3'] },
+  requirements: {
+    id: 'requirements',
+    title: 'Requirements',
+    children: ['req-1', 'req-2', 'req-3'],
+    /* Container with partial children: req-1 and req-2 inside, req-3 outside */
+    container: { type: 'card', childrenIds: ['req-1', 'req-2'], paddingTop: 4, paddingBottom: 4 },
+  },
   'req-1': { id: 'req-1', title: 'User Stories', children: [] },
   'req-2': { id: 'req-2', title: 'Technical Specs', children: [] },
   'req-3': { id: 'req-3', title: 'Acceptance Criteria', children: [] },
@@ -14,7 +20,13 @@ const mockNodes: Record<string, NodeData> = {
   'design-1': { id: 'design-1', title: 'UI Mockups', children: ['design-1-1'] },
   'design-1-1': { id: 'design-1-1', title: 'Mobile Wireframes', children: [] },
   'design-2': { id: 'design-2', title: 'Architecture Diagram', children: [] },
-  development: { id: 'development', title: 'Development', children: ['dev-1', 'dev-2', 'dev-3'] },
+  development: {
+    id: 'development',
+    title: 'Development',
+    children: ['dev-1', 'dev-2', 'dev-3'],
+    /* Container with partial children: dev-1 and dev-2 inside, dev-3 outside */
+    container: { type: 'card', childrenIds: ['dev-1', 'dev-2'], paddingTop: 8, paddingBottom: 8 },
+  },
   'dev-1': { id: 'dev-1', title: 'Backend API', children: [] },
   'dev-2': { id: 'dev-2', title: 'Frontend UI', children: [] },
   'dev-3': { id: 'dev-3', title: 'Database Schema', children: [] },
@@ -45,7 +57,7 @@ export const Workflow = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="flex-1 p-0 overflow-hidden min-h-0">
-          <WorkflowTree
+          <WorkflowSegmentTree
             initialExpandedIds={new Set(['root', 'requirements', 'design', 'development', 'testing', 'design-1'])}
             nodes={mockNodes}
             onSelect={handleSelect}
