@@ -92,19 +92,20 @@ async function createSnapshot(stickerId: string): Promise<GoldenSnapshot> {
      * 5. Then capture DOM state
      */
     const snapshot = await page.evaluate(async (sid: string): Promise<GoldenSnapshot> => {
-      /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument */
+      /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return */
       const doc = (globalThis as any).document;
+      const raf = (globalThis as any).requestAnimationFrame as (cb: () => void) => number;
       const container = doc.getElementById(`golden_${sid}`);
       
       const player = container?._tgsPlayer;
       if (player != null) {
         /* Stop animation and wait for RAF to settle */
         player.pause();
-        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        await new Promise<void>(r => { raf(() => { raf(() => { r(); }); }); });
         
         /* Render frame 0 explicitly */
         player.renderFrame(0);
-        await new Promise(r => requestAnimationFrame(r));
+        await new Promise<void>(r => { raf(() => { r(); }); });
       }
       
       const svg = container?.querySelector('svg');
@@ -127,7 +128,7 @@ async function createSnapshot(stickerId: string): Promise<GoldenSnapshot> {
         svgHeight: svg.height.baseVal.value as number,
         viewBox: svg.getAttribute('viewBox') as string | null,
       };
-      /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument */
+      /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return */
     }, stickerId);
     
     return snapshot;

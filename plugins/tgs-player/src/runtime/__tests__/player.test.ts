@@ -7,20 +7,27 @@
 import { describe, it, expect } from 'vitest';
 
 /* Mock DOM environment */
-const createMockDocument = () => {
+interface MockDocument {
+  querySelector(selector: string): MockElement | null;
+  getElementById(id: string): MockElement | null;
+  createElementNS(_ns: string, tagName: string): MockElement;
+  addElement(selector: string, element: MockElement): void;
+}
+
+const createMockDocument = (): MockDocument => {
   const elements = new Map<string, MockElement>();
   
   return {
-    querySelector(selector: string) {
-      return elements.get(selector) || null;
+    querySelector(selector: string): MockElement | null {
+      return elements.get(selector) ?? null;
     },
-    getElementById(id: string) {
-      return elements.get(id) || null;
+    getElementById(id: string): MockElement | null {
+      return elements.get(id) ?? null;
     },
-    createElementNS(_ns: string, tagName: string) {
+    createElementNS(_ns: string, tagName: string): MockElement {
       return createMockElement(tagName);
     },
-    addElement(selector: string, element: MockElement) {
+    addElement(selector: string, element: MockElement): void {
       elements.set(selector, element);
       elements.set('#' + selector, element);
     }
@@ -43,22 +50,36 @@ const createMockElement = (tagName: string): MockElement => ({
   attributes: new Map(),
   children: [],
   style: {},
-  setAttribute(name: string, value: string) {
+  setAttribute(name: string, value: string): void {
     this.attributes.set(name, value);
   },
-  getAttribute(name: string) {
-    return this.attributes.get(name) || null;
+  getAttribute(name: string): string | null {
+    return this.attributes.get(name) ?? null;
   },
-  removeAttribute(name: string) {
+  removeAttribute(name: string): void {
     this.attributes.delete(name);
   },
-  appendChild(child: MockElement) {
+  appendChild(child: MockElement): void {
     this.children.push(child);
   }
 });
 
+/* Minimal animation data interface for testing */
+interface MinimalAnimationData {
+  v: string;
+  fr: number;
+  ip: number;
+  op: number;
+  w: number;
+  h: number;
+  nm: string;
+  ddd: number;
+  assets: unknown[];
+  layers: unknown[];
+}
+
 /* Minimal animation data for testing */
-const createMinimalAnimation = (overrides = {}) => ({
+const createMinimalAnimation = (overrides: Partial<MinimalAnimationData> = {}): MinimalAnimationData => ({
   v: '5.7.4',
   fr: 60,
   ip: 0,
@@ -73,29 +94,38 @@ const createMinimalAnimation = (overrides = {}) => ({
 });
 
 /* Recreate TgsPlayer state logic for testing */
-const createPlayerState = (animationData: ReturnType<typeof createMinimalAnimation>) => {
+const createPlayerState = (animationData: MinimalAnimationData): {
+  frameRate: number;
+  totalFrames: number;
+  currentFrame: number;
+  isPlaying: boolean;
+  play(): boolean;
+  pause(): void;
+  stop(): void;
+  advanceFrame(deltaMs: number): number;
+} => {
   return {
     frameRate: animationData.fr,
     totalFrames: animationData.op - animationData.ip,
     currentFrame: 0,
     isPlaying: false,
     
-    play() {
+    play(): boolean {
       if (this.isPlaying) return false;
       this.isPlaying = true;
       return true;
     },
     
-    pause() {
+    pause(): void {
       this.isPlaying = false;
     },
     
-    stop() {
+    stop(): void {
       this.isPlaying = false;
       this.currentFrame = 0;
     },
     
-    advanceFrame(deltaMs: number) {
+    advanceFrame(deltaMs: number): number {
       if (!this.isPlaying) return this.currentFrame;
       
       const frameDelta = (deltaMs / 1000) * this.frameRate;
@@ -115,7 +145,7 @@ describe('TgsPlayer', () => {
     it('should throw error when container not found', () => {
       const mockDoc = createMockDocument();
       
-      const initPlayer = () => {
+      const initPlayer = (): void => {
         const container = mockDoc.querySelector('#nonexistent');
         if (!container) {
           throw new Error('TGS Player: Container element not found: nonexistent');

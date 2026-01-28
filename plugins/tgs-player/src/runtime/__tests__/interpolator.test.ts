@@ -14,8 +14,8 @@ const Interpolator = {
   },
 
   lerpArray(a: number[], b: number[] | undefined, t: number): number[] {
-    const bArr = b && Array.isArray(b) ? b : a;
-    const result = new Array(a.length);
+    const bArr = b !== undefined && Array.isArray(b) ? b : a;
+    const result: number[] = new Array(a.length) as number[];
     for (let i = 0; i < a.length; i++) {
       result[i] = this.lerp(a[i], bArr[i] ?? a[i], t);
     }
@@ -37,7 +37,7 @@ const Interpolator = {
   },
 
   extractBezierHandle(handle: number | number[] | undefined, index: number): number {
-    if (!handle) return 0;
+    if (handle === undefined || handle === null) return 0;
     return Array.isArray(handle) ? handle[index] : handle;
   },
 
@@ -45,7 +45,7 @@ const Interpolator = {
     if (property.a === 0) return property.k;
 
     const keyframes = property.k as Array<{ t: number; s: number[]; e?: number[]; o?: unknown; i?: unknown }>;
-    if (!keyframes || keyframes.length === 0) return 0;
+    if (keyframes === null || keyframes === undefined || keyframes.length === 0) return 0;
     
     if (frame <= keyframes[0].t) return this.unwrapScalar(keyframes[0].s);
     
@@ -63,17 +63,17 @@ const Interpolator = {
     const t = elapsed / duration;
 
     const startVal = kf.s;
-    const endVal = kf.e || nextKf.s;
+    const endVal = kf.e ?? nextKf.s;
 
     if (Array.isArray(startVal)) {
       const result = this.lerpArray(startVal, endVal, t);
       return this.unwrapScalar(result);
     }
-    return this.lerp(startVal[0], (endVal as number[])[0], t);
+    return this.lerp(startVal[0], (endVal)[0], t);
   },
 
   lerpPoints(a: number[][], b: number[][], t: number): number[][] {
-    const result = new Array(Math.min(a.length, b.length));
+    const result: number[][] = new Array(Math.min(a.length, b.length)) as number[][];
     for (let i = 0; i < result.length; i++) {
       result[i] = this.lerpArray(a[i], b[i], t);
     }

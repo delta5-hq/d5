@@ -41,9 +41,9 @@ describe('PropertyAnalyzer', () => {
           a: { a: 0, k: [0, 0, 0] },
           s: { a: 0, k: [100, 100, 100] },
         },
-        /* eslint-disable @typescript-eslint/no-explicit-any */
+        /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment */
         shapes: [{ ty: 'fl', c: { a: 0, k: [1, 0, 0, 1] }, o: { a: 0, k: 100 } } as any]
-        /* eslint-enable @typescript-eslint/no-explicit-any */
+        /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment */
       }]
     };
 
@@ -54,6 +54,7 @@ describe('PropertyAnalyzer', () => {
   });
 
   it('should classify animated properties (a=1)', () => {
+    /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment */
     const animation: LottieAnimation = {
       v: '5.7.4', fr: 60, ip: 0, op: 180, w: 512, h: 512, nm: 'test', ddd: 0, assets: [],
       layers: [{
@@ -61,10 +62,12 @@ describe('PropertyAnalyzer', () => {
         ks: {
           o: { a: 1, k: [{ t: 0, s: [100], e: [50] }, { t: 180, s: [50] }] },
           r: { a: 0, k: 0 },
-        },
+          p: { a: 0, k: [0, 0, 0] },
+        } as any,
         shapes: []
       }]
     };
+    /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment */
 
     const result = analyzer.classify(animation);
     
@@ -85,14 +88,16 @@ describe('PropertyAnalyzer', () => {
   });
 
   it('should handle missing properties with defaults', () => {
+    /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment */
     const animation: LottieAnimation = {
       v: '5.7.4', fr: 60, ip: 0, op: 180, w: 512, h: 512, nm: 'test', ddd: 0, assets: [],
       layers: [{
         ddd: 0, ind: 1, ty: 4, nm: 'Layer', sr: 1, ao: 0, ip: 0, op: 180, st: 0, bm: 0,
-        ks: {},
+        ks: {} as any,
         shapes: []
       }]
     };
+    /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment */
 
     const result = analyzer.classify(animation);
     
@@ -101,16 +106,16 @@ describe('PropertyAnalyzer', () => {
   });
 
   it('should correctly identify color properties', () => {
+    /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment */
     const animation: LottieAnimation = {
       v: '5.7.4', fr: 60, ip: 0, op: 180, w: 512, h: 512, nm: 'test', ddd: 0, assets: [],
       layers: [{
         ddd: 0, ind: 1, ty: 4, nm: 'Layer', sr: 1, ao: 0, ip: 0, op: 180, st: 0, bm: 0,
-        ks: {},
-        /* eslint-disable @typescript-eslint/no-explicit-any */
+        ks: {} as any,
         shapes: [{ ty: 'fl', c: { a: 0, k: [1, 0.5, 0, 1] }, o: { a: 0, k: 100 } } as any]
-        /* eslint-enable @typescript-eslint/no-explicit-any */
       }]
     };
+    /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment */
 
     const result = analyzer.classify(animation);
     
@@ -120,14 +125,16 @@ describe('PropertyAnalyzer', () => {
   });
 
   it('should correctly identify opacity properties', () => {
+    /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment */
     const animation: LottieAnimation = {
       v: '5.7.4', fr: 60, ip: 0, op: 180, w: 512, h: 512, nm: 'test', ddd: 0, assets: [],
       layers: [{
         ddd: 0, ind: 1, ty: 4, nm: 'Layer', sr: 1, ao: 0, ip: 0, op: 180, st: 0, bm: 0,
-        ks: { o: { a: 0, k: 75 } },
+        ks: { o: { a: 0, k: 75 }, p: { a: 0, k: [0, 0, 0] } } as any,
         shapes: []
       }]
     };
+    /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment */
 
     const result = analyzer.classify(animation);
     
@@ -245,38 +252,39 @@ describe('StaticValueComputer', () => {
 
 describe('precomputeStaticValues', () => {
   it('should precompute static color values in-place', () => {
+    /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment */
     const animation: LottieAnimation = {
       v: '5.7.4', fr: 60, ip: 0, op: 180, w: 512, h: 512, nm: 'test', ddd: 0, assets: [],
       layers: [{
         ddd: 0, ind: 1, ty: 4, nm: 'Layer', sr: 1, ao: 0, ip: 0, op: 180, st: 0, bm: 0,
-        ks: {},
-        /* eslint-disable @typescript-eslint/no-explicit-any */
+        ks: {} as any,
         shapes: [{ ty: 'fl', c: { a: 0, k: [1, 0, 0, 1] }, o: { a: 0, k: 100 } } as any]
-        /* eslint-enable @typescript-eslint/no-explicit-any */
       }]
     };
+    /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment */
 
     const stats = precomputeStaticValues(animation);
     
     expect(stats.colorsPrecomputed).toBeGreaterThan(0);
     expect(stats.totalStatic).toBeGreaterThan(0);
     
+    /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
     /* Verify in-place mutation */
     const fill = (animation.layers[0].shapes as any)[0];
     expect(typeof fill.c.k).toBe('string');
     expect(fill.c.k).toBe('rgb(255,0,0)');
     expect(fill.c._precomputed).toBe(true);
+    /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
   });
 
   it('should not modify animated properties', () => {
+    /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
     const animation: LottieAnimation = {
       v: '5.7.4', fr: 60, ip: 0, op: 180, w: 512, h: 512, nm: 'test', ddd: 0, assets: [],
       layers: [{
         ddd: 0, ind: 1, ty: 4, nm: 'Layer', sr: 1, ao: 0, ip: 0, op: 180, st: 0, bm: 0,
-        ks: {},
-        /* eslint-disable @typescript-eslint/no-explicit-any */
+        ks: {} as any,
         shapes: [{ ty: 'fl', c: { a: 1, k: [{ t: 0, s: [1,0,0,1], e: [0,1,0,1] }] }, o: { a: 0, k: 100 } } as any]
-        /* eslint-enable @typescript-eslint/no-explicit-any */
       }]
     };
 
@@ -287,6 +295,7 @@ describe('precomputeStaticValues', () => {
     /* Verify animated property unchanged */
     const fill = (animation.layers[0].shapes as any)[0];
     expect(Array.isArray(fill.c.k)).toBe(true);
+    /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
   });
 
   it('should handle empty animation', () => {
@@ -301,14 +310,13 @@ describe('precomputeStaticValues', () => {
   });
 
   it('should handle RGBA colors with alpha channel', () => {
+    /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
     const animation: LottieAnimation = {
       v: '5.7.4', fr: 60, ip: 0, op: 180, w: 512, h: 512, nm: 'test', ddd: 0, assets: [],
       layers: [{
         ddd: 0, ind: 1, ty: 4, nm: 'Layer', sr: 1, ao: 0, ip: 0, op: 180, st: 0, bm: 0,
-        ks: {},
-        /* eslint-disable @typescript-eslint/no-explicit-any */
+        ks: {} as any,
         shapes: [{ ty: 'fl', c: { a: 0, k: [1, 0, 0, 0.5] }, o: { a: 0, k: 100 } } as any]
-        /* eslint-enable @typescript-eslint/no-explicit-any */
       }]
     };
 
@@ -318,6 +326,7 @@ describe('precomputeStaticValues', () => {
     
     const fill = (animation.layers[0].shapes as any)[0];
     expect(fill.c.k).toBe('rgba(255,0,0,0.5)');
+    /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
   });
 
   it('should handle non-color static properties without errors', () => {

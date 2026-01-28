@@ -150,6 +150,6 @@ describe('serializeAnimationData', () => {
     };
     
     const result = serializeAnimationData(animation);
-    expect(JSON.parse(result).layers).toEqual([]);
+    expect((JSON.parse(result) as LottieAnimation).layers).toEqual([]);
   });
 });

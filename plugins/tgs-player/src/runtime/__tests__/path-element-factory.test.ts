@@ -20,22 +20,27 @@ const createMockElement = (tagName: string): MockElement => ({
   tagName,
   attributes: new Map(),
   children: [],
-  setAttribute(name: string, value: string) {
+  setAttribute(name: string, value: string): void {
     this.attributes.set(name, value);
   },
-  getAttribute(name: string) {
-    return this.attributes.get(name) || null;
+  getAttribute(name: string): string | null {
+    return this.attributes.get(name) ?? null;
   },
-  appendChild(child: MockElement) {
+  appendChild(child: MockElement): void {
     this.children.push(child);
   }
 });
 
 /* Recreate PathElementFactory logic for testing */
-const createPathElementFactory = () => ({
+const createPathElementFactory = (): {
+  createFillPath(parentGroup: MockElement, gradientId?: string): MockElement;
+  createStrokePath(parentGroup: MockElement): MockElement;
+  createEmptyPath(parentGroup: MockElement): MockElement;
+  createPathDescriptor(element: MockElement, group: MockElement, shapes: Record<string, unknown>, isMerged: boolean): Record<string, unknown>;
+} => ({
   createFillPath(parentGroup: MockElement, gradientId?: string): MockElement {
     const element = createMockElement('path');
-    if (gradientId) {
+    if (gradientId !== undefined && gradientId !== '') {
       element.setAttribute('fill', 'url(#' + gradientId + ')');
     }
     parentGroup.appendChild(element);
@@ -68,7 +73,7 @@ const createPathElementFactory = () => ({
       trimShapes?: unknown[];
     },
     isMerged: boolean
-  ) {
+  ): Record<string, unknown> {
     return {
       element,
       group,

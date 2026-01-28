@@ -1,30 +1,29 @@
 # @d5/tgs-player
 
-Minimal TGS/Lottie to standalone SVG animation converter.
+The TGS player is built on Lottie format (which After Effects exports via Bodymovin), but with constraints:
 
-## Architecture
+**What it supports:**
 
-```
-src/
-├── index.ts              # Public API exports
-├── cli.ts                # CLI entry point
-├── parser/               # TGS/Lottie parsing
-│   ├── lottie-types.ts   # Type definitions
-│   ├── tgs-decompressor.ts
-│   └── metadata-extractor.ts
-├── converter/            # Conversion orchestration
-│   ├── tgs-converter.ts  # Main converter class
-│   └── types.ts          # Options and result types
-├── generator/            # Code generation
-│   ├── standalone-generator.ts
-│   ├── data-serializer.ts
-│   └── runtime-bundler.ts
-└── runtime/              # Embeddable player runtime
-    ├── bezier-easer.ts   # MIT - Gaëtan Renaudeau
-    ├── interpolator.ts   # Keyframe interpolation
-    ├── svg-builder.ts    # SVG DOM construction
-    └── player.ts         # Animation controller
-```
+- Vector shapes (paths, rectangles, ellipses)
+- Solid fills and strokes
+- Gradient fills (linear/radial)
+- Transforms (position, scale, rotation, anchor)
+- Trim paths
+- Precompositions (nested layers)
+- Layer parenting
+- Keyframe interpolation with bezier easing
+
+**What it does NOT support (common in AE exports):**
+
+- Images/bitmaps - TGS forbids embedded images
+- Masks - not implemented
+- Mattes - not implemented
+- Effects (blur, glow, etc.) - not implemented
+- Text layers - not implemented
+- 3D transforms - not implemented
+- Expressions - not implemented
+
+Currently only accepts `.tgs` files (gzipped Lottie).
 
 ## Usage
 

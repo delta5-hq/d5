@@ -7,14 +7,19 @@
 import { describe, it, expect } from 'vitest';
 
 /* Recreate SvgBuilder logic for testing */
-const createSvgBuilder = () => {
+const createSvgBuilder = (): {
+  NS: string;
+  pathDataToString(pathData: { v: number[][]; i: number[][]; o: number[][]; c: boolean } | null): string;
+  rgbToString(color: number[] | string): string;
+  buildTransformString(transform: { position?: number[]; anchor?: number[]; rotation?: number; scale?: number[] }): string[];
+} => {
   const NS = 'http://www.w3.org/2000/svg';
   
   return {
     NS,
     
     pathDataToString(pathData: { v: number[][]; i: number[][]; o: number[][]; c: boolean } | null): string {
-      if (!pathData || !pathData.v || pathData.v.length === 0) return '';
+      if (pathData === null || pathData.v === undefined || pathData.v.length === 0) return '';
       
       const v = pathData.v;
       const i = pathData.i;
@@ -66,18 +71,18 @@ const createSvgBuilder = () => {
       rotation?: number;
       scale?: number[];
     }): string[] {
-      const fmt = (n: number) => {
+      const fmt = (n: number): number => {
         if (!Number.isFinite(n)) return 0;
         return Math.round(n * 1000) / 1000;
       };
       
-      const px = fmt(transform.position ? transform.position[0] : 0);
-      const py = fmt(transform.position ? transform.position[1] : 0);
-      const ax = fmt(transform.anchor ? transform.anchor[0] : 0);
-      const ay = fmt(transform.anchor ? transform.anchor[1] : 0);
-      const r = fmt(transform.rotation || 0);
-      const sx = fmt(transform.scale ? transform.scale[0] / 100 : 1);
-      const sy = fmt(transform.scale ? transform.scale[1] / 100 : 1);
+      const px = fmt(transform.position !== undefined ? transform.position[0] : 0);
+      const py = fmt(transform.position !== undefined ? transform.position[1] : 0);
+      const ax = fmt(transform.anchor !== undefined ? transform.anchor[0] : 0);
+      const ay = fmt(transform.anchor !== undefined ? transform.anchor[1] : 0);
+      const r = fmt(transform.rotation ?? 0);
+      const sx = fmt(transform.scale !== undefined ? transform.scale[0] / 100 : 1);
+      const sy = fmt(transform.scale !== undefined ? transform.scale[1] / 100 : 1);
       
       const parts: string[] = [];
       
