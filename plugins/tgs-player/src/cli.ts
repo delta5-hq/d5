@@ -80,11 +80,8 @@ function main(): void {
 
   if (optimize === true) {
     const animation = decompressTgs(new Uint8Array(buffer));
-    
-    /* Pre-compute static values IN-PLACE within animation JSON */
     const precomputeStats = precomputeStaticValues(animation);
     
-    /* Generate player using SAME generator, but with pre-computed data */
     const code = generateStandalonePlayer(animation, { 
       outputFormat: 'standalone',
       minify: false,

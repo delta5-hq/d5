@@ -112,35 +112,35 @@
       "stroke": null,
       "strokeWidth": null,
       "strokeLinecap": null,
-      "dLength": 511
+      "dLength": 0
     },
     {
-      "fill": "none",
-      "stroke": "rgb(8,78,255)",
-      "strokeWidth": "20",
-      "strokeLinecap": "round",
-      "dLength": 511
-    },
-    {
-      "fill": "rgb(255,255,255)",
+      "fill": null,
       "stroke": null,
       "strokeWidth": null,
       "strokeLinecap": null,
-      "dLength": 501
+      "dLength": 0
+    },
+    {
+      "fill": null,
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 0
     },
     {
       "fill": "url(#golden_065_grad_8)",
       "stroke": null,
       "strokeWidth": null,
       "strokeLinecap": null,
-      "dLength": 282
+      "dLength": 0
     },
     {
-      "fill": "none",
-      "stroke": "rgb(8,78,255)",
-      "strokeWidth": "20",
-      "strokeLinecap": "round",
-      "dLength": 282
+      "fill": null,
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 0
     },
     {
       "fill": "url(#golden_065_grad_9)",

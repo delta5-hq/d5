@@ -81,19 +81,30 @@ async function createSnapshot(stickerId: string): Promise<GoldenSnapshot> {
   
   try {
     await page.setContent(html, { waitUntil: 'networkidle0' });
-    await new Promise(r => setTimeout(r, 500));
     await page.waitForSelector('svg', { timeout: 5000 });
     
-    /* Browser context evaluation - DOM types not available in Node */
-    const snapshot = await page.evaluate((sid: string): GoldenSnapshot => {
+    /* 
+     * DETERMINISTIC FRAME CAPTURE:
+     * 1. Stop animation immediately to prevent RAF race conditions
+     * 2. Wait for any pending RAF callbacks to complete
+     * 3. Render frame 0 explicitly
+     * 4. Wait again for RAF to settle
+     * 5. Then capture DOM state
+     */
+    const snapshot = await page.evaluate(async (sid: string): Promise<GoldenSnapshot> => {
       /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument */
       const doc = (globalThis as any).document;
       const container = doc.getElementById(`golden_${sid}`);
       
       const player = container?._tgsPlayer;
       if (player != null) {
+        /* Stop animation and wait for RAF to settle */
         player.pause();
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        
+        /* Render frame 0 explicitly */
         player.renderFrame(0);
+        await new Promise(r => requestAnimationFrame(r));
       }
       
       const svg = container?.querySelector('svg');
