@@ -1,0 +1,51 @@
+{
+  "stickerId": "012",
+  "pathCount": 6,
+  "paths": [
+    {
+      "fill": "none",
+      "stroke": "rgb(255,155,0)",
+      "strokeWidth": "40",
+      "strokeLinecap": "butt",
+      "dLength": 528
+    },
+    {
+      "fill": "url(#golden_012_grad_1)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 528
+    },
+    {
+      "fill": "none",
+      "stroke": "rgb(255,155,0)",
+      "strokeWidth": "40",
+      "strokeLinecap": "butt",
+      "dLength": 528
+    },
+    {
+      "fill": "url(#golden_012_grad_2)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 528
+    },
+    {
+      "fill": "url(#golden_012_grad_3)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 489
+    },
+    {
+      "fill": "rgb(0,0,0)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 577
+    }
+  ],
+  "svgWidth": 512,
+  "svgHeight": 512,
+  "viewBox": "0 0 512 512"
+}
