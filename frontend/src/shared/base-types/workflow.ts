@@ -1,12 +1,4 @@
-export type Dimensions = {
-  height: number
-  width: number
-}
-
-export type RectangleData = Dimensions & {
-  x: number
-  y: number
-}
+import type React from 'react'
 
 export type WorkflowId = string
 
@@ -37,6 +29,17 @@ export type NodeContent = {
   autoshrink?: boolean
   dirty?: boolean
   command?: string
+  collapsed?: boolean
+  parent?: NodeId
+  /** Container config for grouping children */
+  container?: {
+    type: string
+    /** IDs of children to include in container. If omitted, includes all immediate children */
+    childrenIds?: NodeId[]
+    paddingTop?: number
+    paddingBottom?: number
+    component?: (props: { children: React.ReactNode; depth: number; parentNode: unknown }) => React.ReactNode
+  }
 }
 
 export type NodeData = NodeContent & {
