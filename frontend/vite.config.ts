@@ -65,6 +65,18 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    test: {
+      globals: true,
+      environment: 'jsdom',
+      setupFiles: './src/test/setup.ts',
+      include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+      exclude: ['node_modules/', 'e2e/', '**/*.spec.ts', '**/*.spec.tsx'],
+      coverage: {
+        provider: 'v8',
+        reporter: ['text', 'json', 'html'],
+        exclude: ['node_modules/', 'src/test/', 'e2e/', '**/*.spec.ts', '**/*.spec.tsx'],
+      },
+    },
     define: {
       'import.meta.env.API_BASE_PATH': JSON.stringify(process.env.VITE_API_BASE_PATH || '/api/v2'),
       'import.meta.env.API_V2_BASE_PATH': JSON.stringify(process.env.VITE_API_V2_BASE_PATH || '/api/v2'),
