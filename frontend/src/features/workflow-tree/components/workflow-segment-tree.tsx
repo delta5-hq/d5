@@ -38,7 +38,7 @@ function collectDescendantIds(nodeId: string, nodes: Record<string, NodeData>): 
 const WorkflowSegmentTreeInner = ({
   nodes,
   rootId,
-  rowHeight = 32,
+  rowHeight = 48,
   initialExpandedIds,
   overscanCount = 5,
   selectedId,

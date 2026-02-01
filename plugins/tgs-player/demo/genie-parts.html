@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Genie Parts Demo</title>
+  <style>
+    body { font-family: sans-serif; background: #1a1a1a; color: #fff; margin: 20px; }
+    h1 { text-align: center; }
+    .container { display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; }
+    .part { text-align: center; }
+    .part h3 { margin: 10px 0; }
+    canvas { background: #333; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Genie Composable Parts</h1>
+  <div class="container">
+    <div class="part">
+      <h3>Base Genie</h3>
+      <canvas id="base-genie" width="256" height="256"></canvas>
+    </div>
+    <div class="part">
+      <h3>Eyes Blink</h3>
+      <canvas id="eyes-blink" width="256" height="256"></canvas>
+    </div>
+    <div class="part">
+      <h3>Radial Flash</h3>
+      <canvas id="radial-flash" width="256" height="256"></canvas>
+    </div>
+  </div>
+
+  <script src="base-genie.player.js"></script>
+  <script src="eyes-blink.player.js"></script>
+  <script src="radial-flash.player.js"></script>
+</body>
+</html>
