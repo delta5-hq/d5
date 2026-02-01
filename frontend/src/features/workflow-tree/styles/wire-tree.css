@@ -1,0 +1,105 @@
+/* Wire-tree spark and connector animations */
+
+@keyframes spark-travel {
+  0% {
+    offset-distance: 0%;
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes wire-pulse {
+  0% {
+    stroke: var(--muted-foreground);
+    stroke-opacity: 0.4;
+  }
+  50% {
+    stroke: var(--primary);
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 4px var(--primary));
+  }
+  100% {
+    stroke: var(--muted-foreground);
+    stroke-opacity: 0.4;
+  }
+}
+
+@keyframes node-expand {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Spark element - glowing orb that travels along wire path */
+.wire-tree-spark {
+  width: 8px;
+  height: 8px;
+  background: var(--primary);
+  border-radius: 50%;
+  box-shadow: 
+    0 0 4px var(--primary),
+    0 0 8px var(--primary),
+    0 0 12px color-mix(in oklch, var(--primary) 80%, transparent),
+    0 0 20px color-mix(in oklch, var(--primary) 60%, transparent);
+  position: absolute;
+  top: 0;
+  left: 0;
+  offset-distance: 0%;
+  offset-rotate: 0deg;
+  offset-anchor: 50% 50%;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.wire-tree-spark--active {
+  opacity: 1;
+  animation: spark-travel 500ms ease-out forwards;
+}
+
+/* Wire connector - L-shaped line from parent to child */
+/* Win3.1/95/98 embossed effect: 1px line with subtle inset shadow */
+.wire-tree-connector {
+  stroke: oklch(0.72 0 0);
+  stroke-width: 1;
+  fill: none;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  /* Subtle embossed inset: thin highlight offset */
+  filter: drop-shadow(0.5px 0.5px 0 oklch(0.98 0 0));
+  transition: stroke 200ms ease;
+}
+
+:root.dark .wire-tree-connector,
+.dark .wire-tree-connector {
+  stroke: oklch(0.32 0 0);
+  filter: drop-shadow(0.5px 0.5px 0 oklch(0.48 0 0));
+}
+
+.wire-tree-connector:hover {
+  stroke: oklch(0.5 0 0);
+}
+
+:root.dark .wire-tree-connector:hover,
+.dark .wire-tree-connector:hover {
+  stroke: oklch(0.42 0 0);
+}
+
+.wire-tree-connector--pulse {
+  animation: wire-pulse 600ms ease-out;
+}
+
+.wire-tree-node--entering {
+  animation: node-expand 200ms ease-out forwards;
+}
