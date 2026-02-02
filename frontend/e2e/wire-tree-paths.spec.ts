@@ -15,7 +15,7 @@ test.describe('Wire Tree Paths', () => {
 
     /* Get wire path from first child node */
     const wirePath = await page.evaluate(() => {
-      const rows = document.querySelectorAll('.group.relative.flex.items-center.h-8')
+      const rows = document.querySelectorAll('.group.relative.flex.items-center.h-12')
       if (rows.length < 2) return null
       
       const childRow = rows[1]
@@ -24,8 +24,8 @@ test.describe('Wire Tree Paths', () => {
     })
 
     expect(wirePath).toBeTruthy()
-    /* Wire should start with M x -16 (parent center at -1 row * 32 + 16 = -16) */
-    expect(wirePath).toMatch(/^M \d+ -16/)
+    /* Wire should start with M x -24 (parent center at -1 row * 48 + 24 = -24) */
+    expect(wirePath).toMatch(/^M \d+ -24/)
   })
 
   test('last child continuation line truncates at center', async ({ page }) => {
@@ -41,14 +41,14 @@ test.describe('Wire Tree Paths', () => {
 
     /* Find last child's continuation paths */
     const lastChildPaths = await page.evaluate(() => {
-      const rows = document.querySelectorAll('.group.relative.flex.items-center.h-8')
+      const rows = document.querySelectorAll('.group.relative.flex.items-center.h-12')
       const paths: string[] = []
       
       /* Find rows at depth > 0 */
       rows.forEach((row) => {
         const style = (row as HTMLElement).style
         const paddingLeft = parseInt(style.paddingLeft || '0', 10)
-        const depth = Math.round((paddingLeft - 8) / 24)
+        const depth = Math.round((paddingLeft - 12) / 32)
         
         if (depth > 0) {
           const allPaths = row.querySelectorAll('path.wire-tree-connector')
@@ -78,7 +78,7 @@ test.describe('Wire Tree Paths', () => {
 
     /* Compare wire and spark paths */
     const paths = await page.evaluate(() => {
-      const rows = document.querySelectorAll('.group.relative.flex.items-center.h-8')
+      const rows = document.querySelectorAll('.group.relative.flex.items-center.h-12')
       if (rows.length < 2) return { wire: null, spark: null }
       
       const childRow = rows[1]

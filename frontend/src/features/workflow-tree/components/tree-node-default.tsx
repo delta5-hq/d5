@@ -1,6 +1,7 @@
 import React, { type CSSProperties, useRef, useCallback, useEffect } from 'react'
 import { ChevronRight, Folder, FolderOpen, FileText } from 'lucide-react'
 import { cn } from '@shared/lib/utils'
+import { Genie } from '@shared/ui/genie'
 import type { TreeRecord } from '../core/types'
 import { useTreeAnimation } from '../context'
 import '../styles/wire-tree.css'
@@ -19,10 +20,10 @@ export interface TreeNodeProps extends TreeRecord {
 }
 
 /* Wire-tree layout constants */
-const INDENT_PER_LEVEL = 24
-const ROW_HEIGHT = 32
+const INDENT_PER_LEVEL = 32
+const ROW_HEIGHT = 48
 const WIRE_PADDING = 2
-const BASE_PADDING = 8
+const BASE_PADDING = 12
 
 /* Build wire path starting from parent center (matches spark path) */
 function buildWirePath(
@@ -177,7 +178,7 @@ export const TreeNodeDefault = ({
   return (
     <div
       className={cn(
-        'group relative flex items-center h-8 cursor-pointer select-none',
+        'group relative flex items-center h-12 cursor-pointer select-none',
         'hover:bg-accent/50 active:bg-accent/70 transition-colors duration-150',
         'text-sm text-foreground/90',
         isSelected && 'bg-accent',
@@ -215,7 +216,7 @@ export const TreeNodeDefault = ({
 
       <button
         className={cn(
-          'relative z-10 w-5 h-5 flex items-center justify-center rounded-sm',
+          'relative z-10 w-6 h-6 flex items-center justify-center rounded-sm',
           'text-muted-foreground hover:text-foreground hover:bg-accent',
           'transition-all duration-150',
           !hasChildren && 'invisible',
@@ -223,22 +224,28 @@ export const TreeNodeDefault = ({
         onClick={handleToggle}
         type="button"
       >
-        <ChevronRight className={cn('w-3.5 h-3.5 transition-transform duration-200 ease-out', isOpen && 'rotate-90')} />
+        <ChevronRight className={cn('w-4 h-4 transition-transform duration-200 ease-out', isOpen && 'rotate-90')} />
       </button>
 
-      <span className="relative z-10 flex-shrink-0 ml-1 transition-transform duration-150 group-hover:scale-110">
-        {hasChildren ? (
+      <span className="relative z-10 flex-shrink-0 ml-1.5 transition-transform duration-150 group-hover:scale-110">
+        {depth === 1 ? (
+          <Genie size={32} variant="base" />
+        ) : depth === 2 ? (
+          <Genie size={32} variant="eyes" />
+        ) : depth === 3 ? (
+          <Genie size={32} variant="eyes-flash" />
+        ) : hasChildren ? (
           isOpen ? (
-            <FolderOpen className="w-4 h-4 text-amber-500" />
+            <FolderOpen className="w-5 h-5 text-amber-500" />
           ) : (
-            <Folder className="w-4 h-4 text-amber-500/80" />
+            <Folder className="w-5 h-5 text-amber-500/80" />
           )
         ) : (
-          <FileText className="w-4 h-4 text-muted-foreground" />
+          <FileText className="w-5 h-5 text-muted-foreground" />
         )}
       </span>
 
-      <span className="relative z-10 flex-1 truncate ml-1.5 pr-2">{node.title || node.id}</span>
+      <span className="relative z-10 flex-1 truncate ml-2 pr-2">{node.title || node.id}</span>
     </div>
   )
 }

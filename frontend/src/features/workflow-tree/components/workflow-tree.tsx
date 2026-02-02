@@ -43,7 +43,7 @@ function collectDescendantIds(nodeId: string, nodes: Record<string, NodeData>): 
 const WorkflowTreeInner = ({
   nodes,
   rootId,
-  rowHeight = 32,
+  rowHeight = 48,
   initialExpandedIds,
   nodeComponent,
   overscanCount = 5,
