@@ -1,0 +1,13 @@
+/* Genie reading animation - subtle rocking motion when busy */
+@keyframes genie-reading {
+  0%, 100% {
+    transform: translateY(-2px);
+  }
+  50% {
+    transform: translateY(0);
+  }
+}
+
+.genie-reading {
+  animation: genie-reading 1.2s ease-in-out infinite;
+}

@@ -1,7 +1,8 @@
-import React, { type CSSProperties, useRef, useCallback, useEffect } from 'react'
+import React, { type CSSProperties, useRef, useCallback, useEffect, memo } from 'react'
 import { ChevronRight, Folder, FolderOpen, FileText } from 'lucide-react'
 import { cn } from '@shared/lib/utils'
-import { Genie } from '@shared/ui/genie'
+import { useGenieState } from '@shared/lib/use-genie-state'
+import { Genie, type GenieRef } from '@shared/ui/genie'
 import type { TreeRecord } from '../core/types'
 import { useTreeAnimation } from '../context'
 import '../styles/wire-tree.css'
@@ -17,6 +18,25 @@ export interface TreeNodeProps extends TreeRecord {
   wireExtendDown?: number
   /** Extra space to extend wire UP (e.g., for first child in container) */
   wireExtendUp?: number
+}
+
+/* Hand colors mapped to ROLE (command) per Issue #336 */
+const ROLE_HAND_COLORS: Record<string, string> = {
+  '/instruct': '#ffa726', // Orange
+  '/reason': '#66bb6a', // Green
+  '/web': '#42a5f5', // Blue
+  '/scholar': '#ab47bc', // Purple
+  '/refine': '#ef5350', // Red
+  '/foreach': '#26c6da', // Cyan
+}
+const DEFAULT_HAND_COLOR = '#9e9e9e'
+
+function getHandColorFromRole(command?: string): string {
+  return command ? ROLE_HAND_COLORS[command] || DEFAULT_HAND_COLOR : DEFAULT_HAND_COLOR
+}
+
+function getShowHandRibsFromDepth(depth: number): boolean {
+  return depth <= 2
 }
 
 /* Wire-tree layout constants */
@@ -125,6 +145,8 @@ export const TreeNodeDefault = ({
   const hasChildren = node.children && node.children.length > 0
   const paddingLeft = BASE_PADDING + depth * INDENT_PER_LEVEL
   const sparkRef = useRef<HTMLDivElement>(null)
+  const genieRef = useRef<GenieRef>(null)
+  const genieState = useGenieState(id)
   const wireRef = useRef<SVGPathElement>(null)
   const { shouldAnimate, clearAnimation, animationVersion } = useTreeAnimation()
 
@@ -137,6 +159,7 @@ export const TreeNodeDefault = ({
       const delay = depth * 50
       const timer = setTimeout(() => {
         triggerAnimation(wireRef.current, sparkRef.current)
+        genieRef.current?.flash()
         clearAnimation(id)
       }, delay)
       return () => clearTimeout(timer)
@@ -146,12 +169,14 @@ export const TreeNodeDefault = ({
   const handleToggle = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
+      genieRef.current?.flash()
       onToggle?.(id)
     },
     [id, onToggle],
   )
 
   const handleClick = useCallback(() => {
+    genieRef.current?.flash()
     onSelect?.(id)
   }, [id, onSelect])
 
@@ -228,12 +253,15 @@ export const TreeNodeDefault = ({
       </button>
 
       <span className="relative z-10 flex-shrink-0 ml-1.5 transition-transform duration-150 group-hover:scale-110">
-        {depth === 1 ? (
-          <Genie size={32} variant="base" />
-        ) : depth === 2 ? (
-          <Genie size={32} variant="eyes" />
-        ) : depth === 3 ? (
-          <Genie size={32} variant="eyes-flash" />
+        {depth > 0 && depth <= 4 ? (
+          <Genie
+            handColor={getHandColorFromRole(node.command)}
+            nodeId={id}
+            ref={genieRef}
+            showHandRibs={getShowHandRibsFromDepth(depth)}
+            size={32}
+            state={genieState}
+          />
         ) : hasChildren ? (
           isOpen ? (
             <FolderOpen className="w-5 h-5 text-amber-500" />
@@ -249,3 +277,5 @@ export const TreeNodeDefault = ({
     </div>
   )
 }
+
+export const MemoizedTreeNodeDefault = memo(TreeNodeDefault)

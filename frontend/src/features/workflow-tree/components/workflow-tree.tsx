@@ -1,11 +1,12 @@
 import { AutoSizer } from 'react-virtualized-auto-sizer'
-import { useCallback, type ComponentType } from 'react'
+import { useCallback, useMemo, useRef, type ComponentType } from 'react'
 import type { NodeData } from '@/shared/base-types/workflow'
+import { useNodeCacheCleanup } from '@shared/lib/use-node-cache-cleanup'
 import { VirtualizedTree, type TreeNodeComponentProps } from '../virtualization/virtualized-tree'
 import { useTreeWalker } from '../hooks/use-tree-walker'
 import { useTreeExpansion } from '../hooks/use-tree-expansion'
 import { TreeAnimationProvider, useTreeAnimation } from '../context'
-import { TreeNodeDefault } from './tree-node-default'
+import { MemoizedTreeNodeDefault } from './tree-node-default'
 import type { TreeNodeProps } from './tree-node-default'
 
 export interface WorkflowTreeProps {
@@ -50,11 +51,14 @@ const WorkflowTreeInner = ({
   selectedId,
   onSelect,
 }: WorkflowTreeProps) => {
+  const nodeIds = useMemo(() => new Set(Object.keys(nodes)), [nodes])
+  useNodeCacheCleanup(nodeIds)
+
   const { expandedIds, toggleNode } = useTreeExpansion(initialExpandedIds)
   const treeWalker = useTreeWalker({ nodes, rootId, expandedIds })
   const { scheduleAnimation } = useTreeAnimation()
 
-  const NodeComponent = nodeComponent || TreeNodeDefault
+  const NodeComponent = nodeComponent || MemoizedTreeNodeDefault
 
   const handleSelect = useCallback(
     (id: string) => {
@@ -66,23 +70,23 @@ const WorkflowTreeInner = ({
     [nodes, onSelect],
   )
 
-  /* Toggle with animation scheduling for descendants */
-  const handleToggle = useCallback(
-    (id: string) => {
-      const wasExpanded = expandedIds.has(id)
+  const handleToggleRef = useRef<(id: string) => void>(() => {})
+  handleToggleRef.current = (id: string) => {
+    const wasExpanded = expandedIds.has(id)
 
-      /* If expanding, schedule animations for all descendants */
-      if (!wasExpanded) {
-        const descendantIds = collectDescendantIds(id, nodes)
-        if (descendantIds.length > 0) {
-          scheduleAnimation(descendantIds)
-        }
+    if (!wasExpanded) {
+      const descendantIds = collectDescendantIds(id, nodes)
+      if (descendantIds.length > 0) {
+        scheduleAnimation(descendantIds)
       }
+    }
 
-      toggleNode(id)
-    },
-    [expandedIds, nodes, scheduleAnimation, toggleNode],
-  )
+    toggleNode(id)
+  }
+
+  const handleToggle = useCallback((id: string) => {
+    handleToggleRef.current(id)
+  }, [])
 
   const NodeWrapper = useCallback(
     (props: TreeNodeComponentProps) => (
