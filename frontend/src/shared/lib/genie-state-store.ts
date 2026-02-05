@@ -1,4 +1,5 @@
 import type { GenieState } from '@shared/ui/genie'
+import { ProgressStreamClient } from './progress-stream-client'
 
 export type { GenieState }
 
@@ -9,6 +10,22 @@ export class GenieStateStore {
   private stateMap = new Map<string, GenieState>()
   private listenersByNodeId = new Map<string, Set<Listener>>()
   private globalListeners = new Set<Listener>()
+  private streamClient: ProgressStreamClient | null = null
+
+  connectToProgressStream(baseUrl: string): void {
+    if (this.streamClient) return
+
+    this.streamClient = new ProgressStreamClient(baseUrl, (nodeId, state) => {
+      this.setState(nodeId, state)
+    })
+
+    this.streamClient.connect()
+  }
+
+  disconnectFromProgressStream(): void {
+    this.streamClient?.disconnect()
+    this.streamClient = null
+  }
 
   subscribe(nodeId: string, listener: Listener): Unsubscribe {
     if (!this.listenersByNodeId.has(nodeId)) {
