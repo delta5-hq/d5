@@ -1,6 +1,7 @@
 import { AutoSizer } from 'react-virtualized-auto-sizer'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import type { NodeData } from '@/shared/base-types/workflow'
+import { useNodeCacheCleanup } from '@shared/lib/use-node-cache-cleanup'
 import { VirtualizedSegmentTree } from '../virtualization/virtualized-segment-tree'
 import { useTreeWalker } from '../hooks/use-tree-walker'
 import { useTreeExpansion } from '../hooks/use-tree-expansion'
@@ -44,6 +45,9 @@ const WorkflowSegmentTreeInner = ({
   selectedId,
   onSelect,
 }: WorkflowSegmentTreeProps) => {
+  const nodeIds = useMemo(() => new Set(Object.keys(nodes)), [nodes])
+  useNodeCacheCleanup(nodeIds)
+
   const { expandedIds, toggleNode } = useTreeExpansion(initialExpandedIds)
   const treeWalker = useTreeWalker({ nodes, rootId, expandedIds })
   const { scheduleAnimation } = useTreeAnimation()
