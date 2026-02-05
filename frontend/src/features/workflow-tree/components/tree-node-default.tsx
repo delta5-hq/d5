@@ -3,6 +3,8 @@ import { ChevronRight, Folder, FolderOpen, FileText } from 'lucide-react'
 import { cn } from '@shared/lib/utils'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { Genie, type GenieRef } from '@shared/ui/genie'
+import { getCommandRole } from '@shared/constants/command-roles'
+import { getColorForRole } from '@shared/ui/genie/role-colors'
 import type { TreeRecord } from '../core/types'
 import { useTreeAnimation } from '../context'
 import '../styles/wire-tree.css'
@@ -18,21 +20,6 @@ export interface TreeNodeProps extends TreeRecord {
   wireExtendDown?: number
   /** Extra space to extend wire UP (e.g., for first child in container) */
   wireExtendUp?: number
-}
-
-/* Hand colors mapped to ROLE (command) per Issue #336 */
-const ROLE_HAND_COLORS: Record<string, string> = {
-  '/instruct': '#ffa726', // Orange
-  '/reason': '#66bb6a', // Green
-  '/web': '#42a5f5', // Blue
-  '/scholar': '#ab47bc', // Purple
-  '/refine': '#ef5350', // Red
-  '/foreach': '#26c6da', // Cyan
-}
-const DEFAULT_HAND_COLOR = '#9e9e9e'
-
-function getHandColorFromRole(command?: string): string {
-  return command ? ROLE_HAND_COLORS[command] || DEFAULT_HAND_COLOR : DEFAULT_HAND_COLOR
 }
 
 function getShowHandRibsFromDepth(depth: number): boolean {
@@ -255,7 +242,7 @@ export const TreeNodeDefault = ({
       <span className="relative z-10 flex-shrink-0 ml-1.5 transition-transform duration-150 group-hover:scale-110">
         {depth > 0 && depth <= 4 ? (
           <Genie
-            handColor={getHandColorFromRole(node.command)}
+            color={getColorForRole(getCommandRole(node.command))}
             nodeId={id}
             ref={genieRef}
             showHandRibs={getShowHandRibsFromDepth(depth)}

@@ -1,16 +1,4 @@
-import { type ReactNode, useEffect } from 'react'
-import { genieStateStore } from '@shared/lib/genie-state-store'
+import { type ReactNode } from 'react'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
-
-export const ProgressStreamProvider = ({ children }: { children: ReactNode }) => {
-  useEffect(() => {
-    genieStateStore.connectToProgressStream(API_BASE_URL)
-
-    return () => {
-      genieStateStore.disconnectFromProgressStream()
-    }
-  }, [])
-
-  return children
-}
+/* SSE progress streaming - disabled until workflow execution integration complete */
+export const ProgressStreamProvider = ({ children }: { children: ReactNode }) => children

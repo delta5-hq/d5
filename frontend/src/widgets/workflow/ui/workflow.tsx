@@ -2,27 +2,12 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { WorkflowSegmentTree } from '@/features/workflow-tree'
 import { Card, CardContent, CardHeader, CardTitle } from '@shared/ui/card'
 import { Genie, type GenieRef, type GenieState } from '@shared/ui/genie'
+import { getCommandRole } from '@shared/constants/command-roles'
+import { getColorForRole } from '@shared/ui/genie/role-colors'
 import { genieStateStore } from '@shared/lib/genie-state-store'
 import { FileText, Folder, Layers, Zap } from 'lucide-react'
 import type { NodeData } from '@/shared/base-types/workflow'
 
-/* Hand colors mapped to ROLE (command) per Issue #336 */
-const ROLE_HAND_COLORS: Record<string, string> = {
-  '/instruct': '#ffa726', // Orange
-  '/reason': '#66bb6a', // Green
-  '/web': '#42a5f5', // Blue
-  '/scholar': '#ab47bc', // Purple
-  '/refine': '#ef5350', // Red
-  '/foreach': '#26c6da', // Cyan
-}
-const DEFAULT_HAND_COLOR = '#9e9e9e' // Gray for nodes without command
-
-function getHandColorFromRole(command?: string): string {
-  if (!command) return DEFAULT_HAND_COLOR
-  return ROLE_HAND_COLORS[command] || DEFAULT_HAND_COLOR
-}
-
-/* Extended node data with genie state for demo */
 interface DemoNodeData extends NodeData {
   genieState?: GenieState
 }
@@ -114,7 +99,6 @@ export const Workflow = () => {
 
   const hasChildren = selectedNode?.children && selectedNode.children.length > 0
   const genieState = selectedNode?.genieState || 'idle'
-  /* Hand ribs: show for nodes with commands (role-augmented genies) */
   const showHandRibs = Boolean(selectedNode?.command)
 
   return (
@@ -193,7 +177,7 @@ export const Workflow = () => {
                   <Genie
                     clipboardEdge="#424242"
                     clipboardFill="#ffffff"
-                    handColor={getHandColorFromRole(selectedNode.command)}
+                    color={getColorForRole(getCommandRole(selectedNode.command))}
                     ref={genieRef}
                     showHandRibs={showHandRibs}
                     size={80}
