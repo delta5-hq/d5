@@ -1,4 +1,15 @@
-import { type ReactNode } from 'react'
+import { type ReactNode, useEffect } from 'react'
+import { genieStateStore } from '@shared/lib/genie-state-store'
 
-/* SSE progress streaming - disabled until workflow execution integration complete */
-export const ProgressStreamProvider = ({ children }: { children: ReactNode }) => children
+export const ProgressStreamProvider = ({ children }: { children: ReactNode }) => {
+  useEffect(() => {
+    const baseUrl = window.location.origin
+    genieStateStore.connectToProgressStream(baseUrl)
+
+    return () => {
+      genieStateStore.disconnectFromProgressStream()
+    }
+  }, [])
+
+  return children
+}

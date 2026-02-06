@@ -1,128 +1,106 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
-import { WorkflowSegmentTree } from '@/features/workflow-tree'
+import { useState, useCallback, useMemo } from 'react'
+import {
+  WorkflowSegmentTree,
+  WorkflowTreeProvider,
+  useWorkflowTreeData,
+  useExecuteFromTree,
+} from '@features/workflow-tree'
 import { Card, CardContent, CardHeader, CardTitle } from '@shared/ui/card'
-import { Genie, type GenieRef, type GenieState } from '@shared/ui/genie'
+import { Genie } from '@shared/ui/genie'
 import { getCommandRole } from '@shared/constants/command-roles'
 import { getColorForRole } from '@shared/ui/genie/role-colors'
-import { genieStateStore } from '@shared/lib/genie-state-store'
-import { FileText, Folder, Layers, Zap } from 'lucide-react'
-import type { NodeData } from '@/shared/base-types/workflow'
+import { useGenieState } from '@shared/lib/use-genie-state'
+import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
+import { FileText, Folder, Loader2, Play, RefreshCw } from 'lucide-react'
+import { Button } from '@shared/ui/button'
 
-interface DemoNodeData extends NodeData {
-  genieState?: GenieState
+interface WorkflowProps {
+  workflowId: string
 }
 
-const COMMANDS = ['/instruct', '/reason', '/web', '/scholar', '/refine', '/foreach'] as const
-const STATES: GenieState[] = ['idle', 'busy', 'busy-alert', 'done-success', 'done-failure']
-
-function generateLargeTree(): Record<string, DemoNodeData> {
-  const nodes: Record<string, DemoNodeData> = {}
-  const rootChildren: string[] = []
-
-  for (let phase = 1; phase <= 10; phase++) {
-    const phaseId = `phase-${phase}`
-    rootChildren.push(phaseId)
-    const phaseChildren: string[] = []
-
-    for (let task = 1; task <= 5; task++) {
-      const taskId = `${phaseId}-task-${task}`
-      phaseChildren.push(taskId)
-      const taskChildren: string[] = []
-
-      for (let sub = 1; sub <= 5; sub++) {
-        const subId = `${taskId}-sub-${sub}`
-        taskChildren.push(subId)
-        nodes[subId] = {
-          id: subId,
-          title: `Subtask ${phase}.${task}.${sub}`,
-          children: [],
-          genieState: STATES[(phase + task + sub) % STATES.length],
-          command: COMMANDS[(phase + task + sub) % COMMANDS.length],
-        }
-      }
-
-      nodes[taskId] = {
-        id: taskId,
-        title: `Task ${phase}.${task}`,
-        children: taskChildren,
-        genieState: STATES[(phase + task) % STATES.length],
-        command: COMMANDS[(phase + task) % COMMANDS.length],
-      }
-    }
-
-    nodes[phaseId] = {
-      id: phaseId,
-      title: `Phase ${phase}`,
-      children: phaseChildren,
-      genieState: STATES[phase % STATES.length],
-      command: COMMANDS[phase % COMMANDS.length],
-    }
-  }
-
-  nodes['root'] = {
-    id: 'root',
-    title: 'Large Project (300+ nodes)',
-    children: rootChildren,
-    genieState: 'idle',
-  }
-
-  return nodes
-}
-
-const mockNodes: Record<string, DemoNodeData> = generateLargeTree()
-
-export const Workflow = () => {
+const WorkflowContent = () => {
+  const { nodes, root, isLoading, error, workflow, refetch } = useWorkflowTreeData()
   const [selectedId, setSelectedId] = useState<string | undefined>()
-  const [selectedNode, setSelectedNode] = useState<DemoNodeData | undefined>()
-  const genieRef = useRef<GenieRef>(null)
 
-  useEffect(() => {
-    const initialStates: Record<string, GenieState> = {}
-    for (const [nodeId, nodeData] of Object.entries(mockNodes)) {
-      if (nodeData.genieState) {
-        initialStates[nodeId] = nodeData.genieState
-      }
-    }
-    genieStateStore.hydrate(initialStates)
-  }, [])
+  const selectedNode = useMemo(() => (selectedId ? nodes[selectedId] : undefined), [selectedId, nodes])
 
-  const handleSelect = useCallback((id: string, node: NodeData) => {
+  const workflowId = workflow?.workflowId ?? ''
+
+  const { executeNode, isExecuting } = useExecuteFromTree({
+    workflowId,
+    workflowData: workflow ?? { nodes: {}, edges: {}, root: '', share: { access: [] } },
+    onSuccess: refetch,
+  })
+
+  const genieState = useGenieState(selectedId ?? '')
+
+  const handleSelect = useCallback((id: string) => {
     setSelectedId(id)
-    setSelectedNode(node as DemoNodeData)
-    /* Trigger front flash on selection */
-    setTimeout(() => genieRef.current?.flash(), 100)
   }, [])
 
-  const handleFlashClick = useCallback(() => {
-    genieRef.current?.flash()
-  }, [])
+  const handleExecute = useCallback(async () => {
+    if (!selectedNode) return
+
+    const queryType = extractQueryTypeFromCommand(selectedNode.command)
+    await executeNode(selectedNode, queryType)
+  }, [selectedNode, executeNode])
 
   const hasChildren = selectedNode?.children && selectedNode.children.length > 0
-  const genieState = selectedNode?.genieState || 'idle'
   const showHandRibs = Boolean(selectedNode?.command)
+  const canExecute = selectedNode && (selectedNode.command || true)
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <Card className="m-4">
+        <CardHeader>
+          <CardTitle className="text-destructive">Error Loading Workflow</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">{error.message}</p>
+          <Button className="mt-4" onClick={refetch} variant="default">
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (!root || Object.keys(nodes).length === 0) {
+    return (
+      <Card className="m-4">
+        <CardContent className="py-8 text-center text-muted-foreground">
+          <p>No workflow data available</p>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <div className="flex h-full min-h-[400px] gap-4">
-      {/* Tree panel */}
       <Card className="w-80 flex flex-col min-h-0">
         <CardHeader className="pb-2 flex-shrink-0">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Layers className="w-4 h-4 text-primary" />
-            Project Alpha
-          </CardTitle>
+          <CardTitle className="text-base">Workflow Tree</CardTitle>
         </CardHeader>
         <CardContent className="flex-1 p-0 overflow-hidden min-h-0">
           <WorkflowSegmentTree
-            initialExpandedIds={new Set(['root', 'requirements', 'design', 'development', 'testing', 'design-1'])}
-            nodes={mockNodes}
+            initialExpandedIds={new Set([root])}
+            nodes={nodes}
             onSelect={handleSelect}
-            rootId="root"
+            rootId={root}
             selectedId={selectedId}
           />
         </CardContent>
       </Card>
 
-      {/* Detail panel - data-bound to selection */}
       <Card className="flex-1">
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
@@ -138,7 +116,7 @@ export const Workflow = () => {
             ) : (
               <>
                 <FileText className="w-4 h-4 text-muted-foreground" />
-                No Selection
+                Node Details
               </>
             )}
           </CardTitle>
@@ -149,12 +127,16 @@ export const Workflow = () => {
               <div className="flex items-start gap-4">
                 <div className="flex-1 space-y-4">
                   <div className="grid grid-cols-2 gap-2">
-                    <span className="text-muted-foreground">ID</span>
-                    <span className="font-mono">{selectedNode.id}</span>
+                    <span className="text-muted-foreground">Node ID</span>
+                    <span className="font-mono text-xs">{selectedNode.id}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <span className="text-muted-foreground">Title</span>
                     <span>{selectedNode.title || '—'}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <span className="text-muted-foreground">Command</span>
+                    <span className="font-mono text-xs">{selectedNode.command || '—'}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <span className="text-muted-foreground">State</span>
@@ -164,21 +146,27 @@ export const Workflow = () => {
                     <span className="text-muted-foreground">Children</span>
                     <span>{selectedNode.children?.length || 0}</span>
                   </div>
-                  <button
-                    className="flex items-center gap-2 px-3 py-1.5 text-xs bg-primary/10 hover:bg-primary/20 rounded-md transition-colors"
-                    onClick={handleFlashClick}
-                    type="button"
-                  >
-                    <Zap className="w-3 h-3" />
-                    Trigger Flash
-                  </button>
+                  {canExecute ? (
+                    <Button className="w-full" disabled={isExecuting} onClick={handleExecute} variant="default">
+                      {isExecuting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Executing...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="mr-2 h-4 w-4" />
+                          Execute Command
+                        </>
+                      )}
+                    </Button>
+                  ) : null}
                 </div>
-                <div className="flex-shrink-0 cursor-pointer" onClick={handleFlashClick}>
+                <div className="flex-shrink-0">
                   <Genie
                     clipboardEdge="#424242"
                     clipboardFill="#ffffff"
                     color={getColorForRole(getCommandRole(selectedNode.command))}
-                    ref={genieRef}
                     showHandRibs={showHandRibs}
                     size={80}
                     state={genieState}
@@ -191,7 +179,7 @@ export const Workflow = () => {
                   <ul className="list-disc list-inside space-y-1">
                     {selectedNode.children?.map(childId => (
                       <li className="text-foreground/80" key={childId}>
-                        {mockNodes[childId]?.title || childId}
+                        {nodes[childId]?.title || childId}
                       </li>
                     ))}
                   </ul>
@@ -206,3 +194,9 @@ export const Workflow = () => {
     </div>
   )
 }
+
+export const Workflow = ({ workflowId }: WorkflowProps) => (
+  <WorkflowTreeProvider workflowId={workflowId}>
+    <WorkflowContent />
+  </WorkflowTreeProvider>
+)

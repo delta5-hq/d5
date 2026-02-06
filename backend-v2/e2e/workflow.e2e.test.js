@@ -54,10 +54,13 @@ describe('Workflow Router - Administrator Tests', () => {
   })
 
   describe('PUT /workflow/:workflowId', () => {
-    it('rejects PUT method', async () => {
-      const response = await administratorRequest.put(`/workflow/${workflowId}`).send(JSON.stringify(workflowData))
+    it('updates workflow', async () => {
+      const updatedData = {...workflowData, title: 'updated title'}
+      const response = await administratorRequest.put(`/workflow/${workflowId}`).send(updatedData)
 
-      expect(response.status).toBe(405)
+      expect(response.status).toBe(200)
+      const data = JSON.parse(response.res.text)
+      expect(data.message).toBe('workflow updated successfully')
     })
   })
 

@@ -1,11 +1,14 @@
 import { createContext, useContext, type ReactNode } from 'react'
-import { useWorkflow } from '@entities/workflow/api'
-import type { NodeData } from '@shared/base-types'
+import { useWorkflow, type WorkflowResponse } from '@entities/workflow/api'
+import type { NodeData, EdgeDatas } from '@shared/base-types'
 
 interface WorkflowTreeContextValue {
   nodes: Record<string, NodeData>
+  edges: EdgeDatas
   root: string | undefined
   isLoading: boolean
+  error: Error | null
+  workflow: WorkflowResponse | undefined
   refetch: () => void
 }
 
@@ -17,12 +20,15 @@ interface WorkflowTreeProviderProps {
 }
 
 export const WorkflowTreeProvider = ({ workflowId, children }: WorkflowTreeProviderProps) => {
-  const { nodes, root, isLoading, refetch } = useWorkflow(workflowId)
+  const { workflow, nodes, root, isLoading, error, refetch } = useWorkflow(workflowId)
 
   const value: WorkflowTreeContextValue = {
     nodes: nodes ?? {},
+    edges: workflow?.edges ?? {},
     root,
     isLoading,
+    error,
+    workflow,
     refetch,
   }
 

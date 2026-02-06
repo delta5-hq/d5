@@ -8,6 +8,7 @@ type Unsubscribe = () => void
 
 export class GenieStateStore {
   private stateMap = new Map<string, GenieState>()
+  private errorMap = new Map<string, string>()
   private listenersByNodeId = new Map<string, Set<Listener>>()
   private globalListeners = new Set<Listener>()
   private streamClient: ProgressStreamClient | null = null
@@ -15,8 +16,21 @@ export class GenieStateStore {
   connectToProgressStream(baseUrl: string): void {
     if (this.streamClient) return
 
-    this.streamClient = new ProgressStreamClient(baseUrl, (nodeId, state) => {
+    this.streamClient = new ProgressStreamClient(baseUrl, (nodeId, state, error) => {
       this.setState(nodeId, state)
+      if (error) {
+        this.setError(nodeId, error)
+      } else {
+        this.clearError(nodeId)
+      }
+
+      if (state === 'done-success' || state === 'done-failure') {
+        setTimeout(() => {
+          if (this.stateMap.get(nodeId) === state) {
+            this.setState(nodeId, 'idle')
+          }
+        }, 3000)
+      }
     })
 
     this.streamClient.connect()
@@ -89,12 +103,30 @@ export class GenieStateStore {
 
   deleteNode(nodeId: string): void {
     this.stateMap.delete(nodeId)
+    this.errorMap.delete(nodeId)
     this.listenersByNodeId.delete(nodeId)
   }
 
   clearAll(): void {
     this.stateMap.clear()
+    this.errorMap.clear()
     this.listenersByNodeId.clear()
+  }
+
+  getError(nodeId: string): string | undefined {
+    return this.errorMap.get(nodeId)
+  }
+
+  setError(nodeId: string, error: string): void {
+    this.errorMap.set(nodeId, error)
+    this.notifyNodeListeners(nodeId)
+    this.notifyGlobalListeners()
+  }
+
+  clearError(nodeId: string): void {
+    this.errorMap.delete(nodeId)
+    this.notifyNodeListeners(nodeId)
+    this.notifyGlobalListeners()
   }
 
   reconcile(validNodeIds: Set<string>): void {

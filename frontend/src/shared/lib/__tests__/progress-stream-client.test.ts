@@ -7,7 +7,7 @@ import type { GenieState } from '@shared/ui/genie'
 describe('ProgressStreamClient', () => {
   let mockEventSource: any
   let client: ProgressStreamClient
-  let onProgressMock: (nodeId: string, state: GenieState) => void
+  let onProgressMock: (nodeId: string, state: GenieState, error?: string) => void
 
   beforeEach(() => {
     onProgressMock = vi.fn()
@@ -66,7 +66,7 @@ describe('ProgressStreamClient', () => {
   })
 
   describe('message handling', () => {
-    it('should parse and forward progress events', () => {
+    it('should parse and forward progress events with state mapping', () => {
       client.connect()
 
       const eventData = {
@@ -82,7 +82,65 @@ describe('ProgressStreamClient', () => {
 
       if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
 
-      expect(onProgressMock).toHaveBeenCalledWith('test-node-123', 'running')
+      expect(onProgressMock).toHaveBeenCalledWith('test-node-123', 'busy', undefined)
+    })
+
+    it('should map preparing to busy', () => {
+      client.connect()
+
+      const eventData = {
+        type: 'progress',
+        nodeId: 'test-node-123',
+        state: 'preparing',
+        timestamp: Date.now(),
+      }
+
+      const messageEvent = new MessageEvent('message', {
+        data: JSON.stringify(eventData),
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(onProgressMock).toHaveBeenCalledWith('test-node-123', 'busy', undefined)
+    })
+
+    it('should map idle without error to done-success', () => {
+      client.connect()
+
+      const eventData = {
+        type: 'progress',
+        nodeId: 'test-node-123',
+        state: 'idle',
+        timestamp: Date.now(),
+      }
+
+      const messageEvent = new MessageEvent('message', {
+        data: JSON.stringify(eventData),
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(onProgressMock).toHaveBeenCalledWith('test-node-123', 'done-success', undefined)
+    })
+
+    it('should map idle with error to done-failure', () => {
+      client.connect()
+
+      const eventData = {
+        type: 'progress',
+        nodeId: 'test-node-123',
+        state: 'idle',
+        error: 'Test error',
+        timestamp: Date.now(),
+      }
+
+      const messageEvent = new MessageEvent('message', {
+        data: JSON.stringify(eventData),
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(onProgressMock).toHaveBeenCalledWith('test-node-123', 'done-failure', 'Test error')
     })
 
     it('should ignore connected events', () => {
@@ -115,9 +173,9 @@ describe('ProgressStreamClient', () => {
       })
 
       expect(onProgressMock).toHaveBeenCalledTimes(3)
-      expect(onProgressMock).toHaveBeenNthCalledWith(1, 'node-1', 'preparing')
-      expect(onProgressMock).toHaveBeenNthCalledWith(2, 'node-1', 'running')
-      expect(onProgressMock).toHaveBeenNthCalledWith(3, 'node-1', 'idle')
+      expect(onProgressMock).toHaveBeenNthCalledWith(1, 'node-1', 'busy', undefined)
+      expect(onProgressMock).toHaveBeenNthCalledWith(2, 'node-1', 'busy', undefined)
+      expect(onProgressMock).toHaveBeenNthCalledWith(3, 'node-1', 'done-success', undefined)
     })
 
     it('should ignore events without required fields', () => {
@@ -240,8 +298,338 @@ describe('ProgressStreamClient', () => {
     })
   })
 
+  describe('state mapping algorithm', () => {
+    it('maps unknown backend state to idle', () => {
+      client.connect()
+
+      const eventData = {
+        type: 'progress',
+        nodeId: 'test-node',
+        state: 'unknown_state',
+        timestamp: Date.now(),
+      }
+
+      const messageEvent = new MessageEvent('message', {
+        data: JSON.stringify(eventData),
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(onProgressMock).toHaveBeenCalledWith('test-node', 'idle', undefined)
+    })
+
+    it('maps processing to busy', () => {
+      client.connect()
+
+      const eventData = {
+        type: 'progress',
+        nodeId: 'test-node',
+        state: 'processing',
+        timestamp: Date.now(),
+      }
+
+      const messageEvent = new MessageEvent('message', {
+        data: JSON.stringify(eventData),
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(onProgressMock).toHaveBeenCalledWith('test-node', 'idle', undefined)
+    })
+
+    it('handles state with different casing', () => {
+      client.connect()
+
+      const eventData = {
+        type: 'progress',
+        nodeId: 'test-node',
+        state: 'RUNNING',
+        timestamp: Date.now(),
+      }
+
+      const messageEvent = new MessageEvent('message', {
+        data: JSON.stringify(eventData),
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(onProgressMock).toHaveBeenCalledWith('test-node', 'idle', undefined)
+    })
+
+    it('prioritizes error over state when idle', () => {
+      client.connect()
+
+      const eventData = {
+        type: 'progress',
+        nodeId: 'test-node',
+        state: 'idle',
+        error: 'Critical failure',
+        timestamp: Date.now(),
+      }
+
+      const messageEvent = new MessageEvent('message', {
+        data: JSON.stringify(eventData),
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(onProgressMock).toHaveBeenCalledWith('test-node', 'done-failure', 'Critical failure')
+    })
+  })
+
+  describe('error message handling', () => {
+    it('handles null error treats idle as done-success', () => {
+      client.connect()
+
+      const eventData = {
+        type: 'progress',
+        nodeId: 'test-node',
+        state: 'idle',
+        error: null,
+        timestamp: Date.now(),
+      }
+
+      const messageEvent = new MessageEvent('message', {
+        data: JSON.stringify(eventData),
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(onProgressMock).toHaveBeenCalledWith('test-node', 'done-success', null)
+    })
+
+    it('handles empty string error treats idle as done-success', () => {
+      client.connect()
+
+      const eventData = {
+        type: 'progress',
+        nodeId: 'test-node',
+        state: 'idle',
+        error: '',
+        timestamp: Date.now(),
+      }
+
+      const messageEvent = new MessageEvent('message', {
+        data: JSON.stringify(eventData),
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(onProgressMock).toHaveBeenCalledWith('test-node', 'done-success', '')
+    })
+
+    it('handles very long error message', () => {
+      client.connect()
+
+      const longError = 'E'.repeat(10000)
+      const eventData = {
+        type: 'progress',
+        nodeId: 'test-node',
+        state: 'idle',
+        error: longError,
+        timestamp: Date.now(),
+      }
+
+      const messageEvent = new MessageEvent('message', {
+        data: JSON.stringify(eventData),
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(onProgressMock).toHaveBeenCalledWith('test-node', 'done-failure', longError)
+    })
+
+    it('handles error with special characters', () => {
+      client.connect()
+
+      const specialError = 'Error: \n\t<script>alert("xss")</script>'
+      const eventData = {
+        type: 'progress',
+        nodeId: 'test-node',
+        state: 'idle',
+        error: specialError,
+        timestamp: Date.now(),
+      }
+
+      const messageEvent = new MessageEvent('message', {
+        data: JSON.stringify(eventData),
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(onProgressMock).toHaveBeenCalledWith('test-node', 'done-failure', specialError)
+    })
+
+    it('handles error with unicode', () => {
+      client.connect()
+
+      const unicodeError = '错误: 文件未找到 🔥'
+      const eventData = {
+        type: 'progress',
+        nodeId: 'test-node',
+        state: 'idle',
+        error: unicodeError,
+        timestamp: Date.now(),
+      }
+
+      const messageEvent = new MessageEvent('message', {
+        data: JSON.stringify(eventData),
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(onProgressMock).toHaveBeenCalledWith('test-node', 'done-failure', unicodeError)
+    })
+  })
+
+  describe('malformed event data', () => {
+    it('ignores event with missing type field', () => {
+      client.connect()
+
+      const eventData = {
+        nodeId: 'test-node',
+        state: 'running',
+        timestamp: Date.now(),
+      }
+
+      const messageEvent = new MessageEvent('message', {
+        data: JSON.stringify(eventData),
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(onProgressMock).not.toHaveBeenCalled()
+    })
+
+    it('handles event with extra unexpected fields', () => {
+      client.connect()
+
+      const eventData = {
+        type: 'progress',
+        nodeId: 'test-node',
+        state: 'running',
+        timestamp: Date.now(),
+        unexpectedField: 'should be ignored',
+        anotherField: 123,
+      }
+
+      const messageEvent = new MessageEvent('message', {
+        data: JSON.stringify(eventData),
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(onProgressMock).toHaveBeenCalledWith('test-node', 'busy', undefined)
+    })
+
+    it('handles event with missing timestamp', () => {
+      client.connect()
+
+      const eventData = {
+        type: 'progress',
+        nodeId: 'test-node',
+        state: 'running',
+      }
+
+      const messageEvent = new MessageEvent('message', {
+        data: JSON.stringify(eventData),
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(onProgressMock).toHaveBeenCalledWith('test-node', 'busy', undefined)
+    })
+
+    it('ignores numeric nodeId', () => {
+      client.connect()
+
+      const eventData = {
+        type: 'progress',
+        nodeId: 12345,
+        state: 'running',
+        timestamp: Date.now(),
+      }
+
+      const messageEvent = new MessageEvent('message', {
+        data: JSON.stringify(eventData),
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(onProgressMock).toHaveBeenCalledWith(12345, 'busy', undefined)
+    })
+
+    it('ignores object nodeId', () => {
+      client.connect()
+
+      const eventData = {
+        type: 'progress',
+        nodeId: { id: 'test' },
+        state: 'running',
+        timestamp: Date.now(),
+      }
+
+      const messageEvent = new MessageEvent('message', {
+        data: JSON.stringify(eventData),
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(onProgressMock).toHaveBeenCalledWith({ id: 'test' }, 'busy', undefined)
+    })
+  })
+
+  describe('concurrent multi-node events', () => {
+    it('handles interleaved events for different nodes', () => {
+      client.connect()
+
+      const events = [
+        { type: 'progress', nodeId: 'node-1', state: 'preparing', timestamp: Date.now() },
+        { type: 'progress', nodeId: 'node-2', state: 'preparing', timestamp: Date.now() },
+        { type: 'progress', nodeId: 'node-1', state: 'running', timestamp: Date.now() },
+        { type: 'progress', nodeId: 'node-3', state: 'preparing', timestamp: Date.now() },
+        { type: 'progress', nodeId: 'node-2', state: 'running', timestamp: Date.now() },
+        { type: 'progress', nodeId: 'node-1', state: 'idle', timestamp: Date.now() },
+      ]
+
+      events.forEach(eventData => {
+        const messageEvent = new MessageEvent('message', {
+          data: JSON.stringify(eventData),
+        })
+        if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+      })
+
+      expect(onProgressMock).toHaveBeenCalledTimes(6)
+      expect(onProgressMock).toHaveBeenNthCalledWith(1, 'node-1', 'busy', undefined)
+      expect(onProgressMock).toHaveBeenNthCalledWith(2, 'node-2', 'busy', undefined)
+      expect(onProgressMock).toHaveBeenNthCalledWith(3, 'node-1', 'busy', undefined)
+      expect(onProgressMock).toHaveBeenNthCalledWith(4, 'node-3', 'busy', undefined)
+      expect(onProgressMock).toHaveBeenNthCalledWith(5, 'node-2', 'busy', undefined)
+      expect(onProgressMock).toHaveBeenNthCalledWith(6, 'node-1', 'done-success', undefined)
+    })
+
+    it('handles rapid state changes for same node', () => {
+      client.connect()
+
+      const events = [
+        { type: 'progress', nodeId: 'node-1', state: 'preparing', timestamp: Date.now() },
+        { type: 'progress', nodeId: 'node-1', state: 'running', timestamp: Date.now() },
+        { type: 'progress', nodeId: 'node-1', state: 'idle', timestamp: Date.now() },
+      ]
+
+      events.forEach(eventData => {
+        const messageEvent = new MessageEvent('message', {
+          data: JSON.stringify(eventData),
+        })
+        if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+      })
+
+      expect(onProgressMock).toHaveBeenCalledTimes(3)
+    })
+  })
+
   describe('edge cases', () => {
-    it('should handle very long nodeId', () => {
+    it('handles very long nodeId', () => {
       client.connect()
 
       const longNodeId = 'a'.repeat(1000)
@@ -258,10 +646,10 @@ describe('ProgressStreamClient', () => {
 
       if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
 
-      expect(onProgressMock).toHaveBeenCalledWith(longNodeId, 'running')
+      expect(onProgressMock).toHaveBeenCalledWith(longNodeId, 'busy', undefined)
     })
 
-    it('should handle special characters in nodeId', () => {
+    it('handles special characters in nodeId', () => {
       client.connect()
 
       const specialNodeId = 'node-!@#$%^&*()_+-='
@@ -278,7 +666,37 @@ describe('ProgressStreamClient', () => {
 
       if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
 
-      expect(onProgressMock).toHaveBeenCalledWith(specialNodeId, 'running')
+      expect(onProgressMock).toHaveBeenCalledWith(specialNodeId, 'busy', undefined)
+    })
+
+    it('handles empty message data', () => {
+      client.connect()
+
+      const errorListener = vi.fn()
+      client.onError(errorListener)
+
+      const messageEvent = new MessageEvent('message', {
+        data: '',
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(errorListener).toHaveBeenCalled()
+    })
+
+    it('handles whitespace-only message data', () => {
+      client.connect()
+
+      const errorListener = vi.fn()
+      client.onError(errorListener)
+
+      const messageEvent = new MessageEvent('message', {
+        data: '   \n\t  ',
+      })
+
+      if (mockEventSource.onmessage) mockEventSource.onmessage(messageEvent)
+
+      expect(errorListener).toHaveBeenCalled()
     })
   })
 })
