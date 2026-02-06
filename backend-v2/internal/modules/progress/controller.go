@@ -1,58 +1,63 @@
 package progress
 
 import (
+	"backend-v2/internal/modules/gateway"
 	"bufio"
-	"encoding/json"
-	"fmt"
-	"time"
+	"io"
+	"net/http"
 
 	"github.com/gofiber/fiber/v2"
 )
 
-type ProgressEvent struct {
-	Type      string `json:"type"`
-	NodeID    string `json:"nodeId,omitempty"`
-	State     string `json:"state,omitempty"`
-	Timestamp int64  `json:"timestamp"`
+type Controller struct {
+	config *gateway.Config
 }
 
-type Controller struct{}
-
 func NewController() *Controller {
-	return &Controller{}
+	return &Controller{
+		config: gateway.NewConfig(),
+	}
 }
 
 func (c *Controller) Stream(ctx *fiber.Ctx) error {
+	nodeURL := c.config.NodeJSBackendURL + "/api/v1/progress/stream"
+
+	req, err := http.NewRequest("GET", nodeURL, nil)
+	if err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).SendString("Proxy setup failed")
+	}
+
+	req.Header.Set("Accept", "text/event-stream")
+	if auth := ctx.Get("Authorization"); auth != "" {
+		req.Header.Set("Authorization", auth)
+	}
+
+	client := &http.Client{Timeout: 0}
+	resp, err := client.Do(req)
+	if err != nil {
+		return ctx.Status(fiber.StatusBadGateway).SendString("Node.js backend unavailable")
+	}
+	defer resp.Body.Close()
+
 	ctx.Set("Content-Type", "text/event-stream")
 	ctx.Set("Cache-Control", "no-cache")
 	ctx.Set("Connection", "keep-alive")
 	ctx.Set("Transfer-Encoding", "chunked")
-	ctx.Set("Access-Control-Allow-Origin", "*")
 
 	ctx.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
-		connEvent := ProgressEvent{
-			Type:      "connected",
-			Timestamp: time.Now().UnixMilli(),
-		}
-		data, _ := json.Marshal(connEvent)
-		fmt.Fprintf(w, "data: %s\n\n", data)
-		w.Flush()
-
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-
-		for range ticker.C {
-			heartbeat := ProgressEvent{
-				Type:      "heartbeat",
-				Timestamp: time.Now().UnixMilli(),
-			}
-			data, _ := json.Marshal(heartbeat)
-			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+		reader := bufio.NewReader(resp.Body)
+		for {
+			line, err := reader.ReadBytes('\n')
+			if err != nil {
+				if err != io.EOF {
+					return
+				}
 				return
 			}
-			if err := w.Flush(); err != nil {
+			if _, wErr := w.Write(line); wErr != nil {
 				return
 			}
+			w.Flush()
 		}
 	})
 
