@@ -7,6 +7,7 @@ import { DialogProvider } from '@entities/dialog'
 import { Outlet } from 'react-router-dom'
 import { AuthProvider } from '@entities/auth'
 import { SearchProvider } from '@shared/context'
+import { ProgressStreamProvider } from './progress-stream-provider'
 
 const queryClient = new QueryClient()
 
@@ -16,9 +17,11 @@ const Providers = () => (
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <SearchProvider>
-            <DialogProvider>
-              <Outlet />
-            </DialogProvider>
+            <ProgressStreamProvider>
+              <DialogProvider>
+                <Outlet />
+              </DialogProvider>
+            </ProgressStreamProvider>
           </SearchProvider>
         </AuthProvider>
       </QueryClientProvider>

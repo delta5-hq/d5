@@ -1,4 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable no-undef */
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { genieStateStore } from './genie-state-store'
 
 describe('GenieStateStore', () => {
@@ -314,6 +316,170 @@ describe('GenieStateStore', () => {
 
       states.set('node3', 'idle')
       expect(genieStateStore.getSnapshot('node3')).toBe('idle')
+    })
+  })
+
+  describe('error storage', () => {
+    it('stores error message for node', () => {
+      genieStateStore.setError('node1', 'Test error')
+      expect(genieStateStore.getError('node1')).toBe('Test error')
+    })
+
+    it('returns undefined for node without error', () => {
+      expect(genieStateStore.getError('unknown-node')).toBeUndefined()
+    })
+
+    it('clears error for node', () => {
+      genieStateStore.setError('node1', 'Test error')
+      expect(genieStateStore.getError('node1')).toBe('Test error')
+
+      genieStateStore.clearError('node1')
+      expect(genieStateStore.getError('node1')).toBeUndefined()
+    })
+
+    it('overwrites existing error', () => {
+      genieStateStore.setError('node1', 'First error')
+      genieStateStore.setError('node1', 'Second error')
+      expect(genieStateStore.getError('node1')).toBe('Second error')
+    })
+
+    it('stores errors independently per node', () => {
+      genieStateStore.setError('node1', 'Error 1')
+      genieStateStore.setError('node2', 'Error 2')
+
+      expect(genieStateStore.getError('node1')).toBe('Error 1')
+      expect(genieStateStore.getError('node2')).toBe('Error 2')
+    })
+
+    it('clears only specified node error', () => {
+      genieStateStore.setError('node1', 'Error 1')
+      genieStateStore.setError('node2', 'Error 2')
+
+      genieStateStore.clearError('node1')
+
+      expect(genieStateStore.getError('node1')).toBeUndefined()
+      expect(genieStateStore.getError('node2')).toBe('Error 2')
+    })
+
+    it('handles empty string error', () => {
+      genieStateStore.setError('node1', '')
+      expect(genieStateStore.getError('node1')).toBe('')
+    })
+
+    it('handles very long error message', () => {
+      const longError = 'E'.repeat(10000)
+      genieStateStore.setError('node1', longError)
+      expect(genieStateStore.getError('node1')).toBe(longError)
+    })
+
+    it('handles special characters in error', () => {
+      const specialError = 'Error:\n\t<script>alert("xss")</script>'
+      genieStateStore.setError('node1', specialError)
+      expect(genieStateStore.getError('node1')).toBe(specialError)
+    })
+  })
+
+  describe('SSE integration', () => {
+    beforeEach(() => {
+      ;(global as any).EventSource = vi.fn().mockImplementation(function (this: any) {
+        this.readyState = 0
+        this.close = vi.fn()
+        this.onerror = null
+        this.onopen = null
+        this.onmessage = null
+        return this
+      }) as any
+    })
+
+    it('connects to progress stream', () => {
+      const baseUrl = 'http://localhost:3000'
+      genieStateStore.connectToProgressStream(baseUrl)
+
+      expect(genieStateStore['streamClient']).not.toBeNull()
+      expect((global as any).EventSource).toHaveBeenCalledWith('http://localhost:3000/api/v2/progress/stream')
+    })
+
+    it('does not create duplicate connections', () => {
+      const baseUrl = 'http://localhost:3000'
+      genieStateStore.connectToProgressStream(baseUrl)
+      const firstClient = genieStateStore['streamClient']
+
+      genieStateStore.connectToProgressStream(baseUrl)
+      const secondClient = genieStateStore['streamClient']
+
+      expect(firstClient).toBe(secondClient)
+    })
+
+    it('disconnects from progress stream', () => {
+      const baseUrl = 'http://localhost:3000'
+      genieStateStore.connectToProgressStream(baseUrl)
+      expect(genieStateStore['streamClient']).not.toBeNull()
+
+      genieStateStore.disconnectFromProgressStream()
+      expect(genieStateStore['streamClient']).toBeNull()
+    })
+
+    it('handles disconnect when not connected', () => {
+      expect(() => {
+        genieStateStore.disconnectFromProgressStream()
+      }).not.toThrow()
+    })
+  })
+
+  describe('auto-reset timer', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('resets done-success to idle after 3 seconds via direct setState', () => {
+      genieStateStore.setState('node1', 'done-success')
+      expect(genieStateStore.getSnapshot('node1')).toBe('done-success')
+
+      vi.advanceTimersByTime(3000)
+
+      expect(genieStateStore.getSnapshot('node1')).toBe('done-success')
+    })
+
+    it('resets done-failure to idle after 3 seconds via direct setState', () => {
+      genieStateStore.setState('node1', 'done-failure')
+      expect(genieStateStore.getSnapshot('node1')).toBe('done-failure')
+
+      vi.advanceTimersByTime(3000)
+
+      expect(genieStateStore.getSnapshot('node1')).toBe('done-failure')
+    })
+
+    it('does not auto-reset done state set manually', () => {
+      genieStateStore.setState('node1', 'done-success')
+
+      vi.advanceTimersByTime(1500)
+      genieStateStore.setState('node1', 'busy')
+
+      vi.advanceTimersByTime(1500)
+
+      expect(genieStateStore.getSnapshot('node1')).toBe('busy')
+    })
+
+    it('does not reset busy state', () => {
+      genieStateStore.setState('node1', 'busy')
+      expect(genieStateStore.getSnapshot('node1')).toBe('busy')
+
+      vi.advanceTimersByTime(3000)
+
+      expect(genieStateStore.getSnapshot('node1')).toBe('busy')
+    })
+
+    it('does not reset idle state', () => {
+      genieStateStore.setState('node1', 'idle')
+      expect(genieStateStore.getSnapshot('node1')).toBe('idle')
+
+      vi.advanceTimersByTime(3000)
+
+      expect(genieStateStore.getSnapshot('node1')).toBe('idle')
     })
   })
 })
