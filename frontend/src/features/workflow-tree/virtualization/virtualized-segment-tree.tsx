@@ -1,16 +1,14 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { List, type RowComponentProps, type ListImperativeAPI } from 'react-window'
-import type { TreeState, TreeWalkerGenerator } from '../core/types'
+import type { TreeState, TreeWalkerGenerator, TreeNodeCallbacks } from '../core/types'
 import { computeTree } from '../core/tree-computer'
 import { computeSegments, getSegmentHeight, getSegmentCount, type SegmentState } from '../segments'
 import { SegmentRow, type SegmentRowProps } from '../components/segment-row'
 
-export interface SegmentRowData {
+export interface SegmentRowData extends TreeNodeCallbacks {
   segmentState: SegmentState
   rowHeight: number
-  onToggle?: (id: string) => void
   selectedId?: string
-  onSelect?: (id: string) => void
 }
 
 export type SegmentRowComponentProps = RowComponentProps<SegmentRowData>
@@ -31,20 +29,21 @@ export const SegmentRowComponent = ({ index, style, ...props }: SegmentRowCompon
     onToggle: data.onToggle,
     selectedId: data.selectedId,
     onSelect: data.onSelect,
+    onAddChild: data.onAddChild,
+    onRequestDelete: data.onRequestDelete,
+    onDuplicateNode: data.onDuplicateNode,
   }
 
   return <SegmentRow {...segmentRowProps} />
 }
 
-interface VirtualizedSegmentTreeProps {
+interface VirtualizedSegmentTreeProps extends TreeNodeCallbacks {
   height: number
   rowHeight: number
   treeWalker: TreeWalkerGenerator
   width?: number | string
   overscanCount?: number
-  onToggle?: (id: string) => void
   selectedId?: string
-  onSelect?: (id: string) => void
 }
 
 export const VirtualizedSegmentTree = ({
@@ -56,6 +55,9 @@ export const VirtualizedSegmentTree = ({
   onToggle,
   selectedId,
   onSelect,
+  onAddChild,
+  onRequestDelete,
+  onDuplicateNode,
 }: VirtualizedSegmentTreeProps) => {
   const listRef = useRef<ListImperativeAPI | null>(null)
   const prevTreeWalkerRef = useRef<TreeWalkerGenerator | null>(null)
@@ -77,16 +79,6 @@ export const VirtualizedSegmentTree = ({
 
   const getRowHeight = useCallback((index: number) => getSegmentHeight(segmentState, index), [segmentState])
 
-  const scrollToNode = useCallback(
-    (nodeId: string, align?: 'auto' | 'smart' | 'center' | 'end' | 'start') => {
-      const index = segmentState.nodeToSegmentIndex.get(nodeId)
-      if (index !== undefined && listRef.current) {
-        listRef.current.scrollToRow({ index, align, behavior: 'auto' })
-      }
-    },
-    [segmentState],
-  )
-
   const rowData = useMemo(
     () => ({
       segmentState,
@@ -94,11 +86,12 @@ export const VirtualizedSegmentTree = ({
       onToggle,
       selectedId,
       onSelect,
+      onAddChild,
+      onRequestDelete,
+      onDuplicateNode,
     }),
-    [segmentState, rowHeight, onToggle, selectedId, onSelect],
+    [segmentState, rowHeight, onToggle, selectedId, onSelect, onAddChild, onRequestDelete, onDuplicateNode],
   )
-
-  void scrollToNode
 
   return (
     <List

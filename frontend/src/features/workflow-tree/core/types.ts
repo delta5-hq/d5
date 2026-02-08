@@ -1,5 +1,13 @@
 import type { NodeData, NodeId } from '@/shared/base-types/workflow'
 
+export interface TreeNodeCallbacks {
+  onToggle?: (id: string) => void
+  onSelect?: (id: string) => void
+  onAddChild?: (parentId: string) => void
+  onRequestDelete?: (nodeId: string) => void
+  onDuplicateNode?: (nodeId: string) => void
+}
+
 export interface TreeNode {
   id: string
   node: NodeData

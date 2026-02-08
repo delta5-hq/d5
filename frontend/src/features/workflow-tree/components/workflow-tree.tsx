@@ -1,6 +1,7 @@
 import { AutoSizer } from 'react-virtualized-auto-sizer'
 import { useCallback, useMemo, useRef, type ComponentType } from 'react'
 import type { NodeData } from '@/shared/base-types/workflow'
+import { getDescendantIds } from '@entities/workflow/lib'
 import { useNodeCacheCleanup } from '@shared/lib/use-node-cache-cleanup'
 import { VirtualizedTree, type TreeNodeComponentProps } from '../virtualization/virtualized-tree'
 import { useTreeWalker } from '../hooks/use-tree-walker'
@@ -20,27 +21,6 @@ export interface WorkflowTreeProps {
   onSelect?: (id: string, node: NodeData) => void
 }
 
-/** Collect all descendant IDs recursively */
-function collectDescendantIds(nodeId: string, nodes: Record<string, NodeData>): string[] {
-  const node = nodes[nodeId]
-  if (!node?.children?.length) return []
-
-  const descendants: string[] = []
-  const stack = [...node.children]
-
-  while (stack.length > 0) {
-    const childId = stack.pop()!
-    descendants.push(childId)
-    const childNode = nodes[childId]
-    if (childNode?.children?.length) {
-      stack.push(...childNode.children)
-    }
-  }
-
-  return descendants
-}
-
-/** Inner component that uses animation context */
 const WorkflowTreeInner = ({
   nodes,
   rootId,
@@ -75,7 +55,7 @@ const WorkflowTreeInner = ({
     const wasExpanded = expandedIds.has(id)
 
     if (!wasExpanded) {
-      const descendantIds = collectDescendantIds(id, nodes)
+      const descendantIds = getDescendantIds(nodes, id)
       if (descendantIds.length > 0) {
         scheduleAnimation(descendantIds)
       }

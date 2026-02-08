@@ -1,19 +1,27 @@
 import type { CSSProperties } from 'react'
 import type { Segment } from '../segments/types'
-import type { TreeRecord } from '../core/types'
+import type { TreeRecord, TreeNodeCallbacks } from '../core/types'
 import { TreeNodeDefault } from './tree-node-default'
 import { ContainerRenderer } from './container-renderer'
 
-export interface SegmentRowProps {
+export interface SegmentRowProps extends TreeNodeCallbacks {
   segment: Segment
   style: CSSProperties
   rowHeight: number
-  onToggle?: (id: string) => void
   selectedId?: string
-  onSelect?: (id: string) => void
 }
 
-export const SegmentRow = ({ segment, style, rowHeight, onToggle, selectedId, onSelect }: SegmentRowProps) => {
+export const SegmentRow = ({
+  segment,
+  style,
+  rowHeight,
+  onToggle,
+  selectedId,
+  onSelect,
+  onAddChild,
+  onRequestDelete,
+  onDuplicateNode,
+}: SegmentRowProps) => {
   if (segment.type === 'node') {
     const record: TreeRecord = {
       id: segment.data.id,
@@ -25,6 +33,9 @@ export const SegmentRow = ({ segment, style, rowHeight, onToggle, selectedId, on
       <TreeNodeDefault
         {...record}
         isSelected={record.id === selectedId}
+        onAddChild={onAddChild}
+        onDuplicateNode={onDuplicateNode}
+        onRequestDelete={onRequestDelete}
         onSelect={onSelect}
         onToggle={onToggle}
         rowIndex={segment.rowIndex}
@@ -37,6 +48,9 @@ export const SegmentRow = ({ segment, style, rowHeight, onToggle, selectedId, on
     return (
       <ContainerRenderer
         container={segment}
+        onAddChild={onAddChild}
+        onDuplicateNode={onDuplicateNode}
+        onRequestDelete={onRequestDelete}
         onSelect={onSelect}
         onToggle={onToggle}
         rowHeight={rowHeight}

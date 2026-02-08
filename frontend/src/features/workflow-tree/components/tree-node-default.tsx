@@ -1,19 +1,25 @@
 import React, { type CSSProperties, useRef, useCallback, useEffect, memo } from 'react'
-import { ChevronRight, Folder, FolderOpen, FileText } from 'lucide-react'
+import { ChevronRight, Folder, FolderOpen, FileText, Plus, Copy, Trash2 } from 'lucide-react'
 import { cn } from '@shared/lib/utils'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { Genie, type GenieRef } from '@shared/ui/genie'
 import { getCommandRole } from '@shared/constants/command-roles'
 import { getColorForRole } from '@shared/ui/genie/role-colors'
-import type { TreeRecord } from '../core/types'
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+} from '@shared/ui/context-menu'
+import { FormattedMessage } from 'react-intl'
+import type { TreeRecord, TreeNodeCallbacks } from '../core/types'
 import { useTreeAnimation } from '../context'
 import '../styles/wire-tree.css'
 
-export interface TreeNodeProps extends TreeRecord {
+export interface TreeNodeProps extends TreeRecord, TreeNodeCallbacks {
   style: CSSProperties
-  onToggle?: (id: string) => void
   isSelected?: boolean
-  onSelect?: (id: string) => void
   /** Current row index in the virtualized list */
   rowIndex?: number
   /** Extra space to extend wire DOWN (e.g., for container paddingTop after parent) */
@@ -26,7 +32,6 @@ function getShowHandRibsFromDepth(depth: number): boolean {
   return depth <= 2
 }
 
-/* Wire-tree layout constants */
 const INDENT_PER_LEVEL = 32
 const ROW_HEIGHT = 48
 const WIRE_PADDING = 2
@@ -56,7 +61,6 @@ function buildWirePath(
   return path
 }
 
-/* Build child connector at children's depth level */
 function buildChildConnectorPath(childIndentX: number, rowHeight: number, extendDown: number = 0): string {
   const x = childIndentX + WIRE_PADDING
   const centerY = rowHeight / 2
@@ -64,7 +68,6 @@ function buildChildConnectorPath(childIndentX: number, rowHeight: number, extend
   return `M ${x} ${centerY} L ${x} ${bottomY}`
 }
 
-/* Build spark animation path from parent center to node */
 function buildSparkPath(indentX: number, rowHeight: number, indentWidth: number, rowsFromParent: number): string {
   const startX = indentX + WIRE_PADDING
   const parentCenterY = -(rowsFromParent * rowHeight) + rowHeight / 2
@@ -127,6 +130,9 @@ export const TreeNodeDefault = ({
   rowIndex,
   wireExtendDown = 0,
   wireExtendUp = 0,
+  onAddChild,
+  onRequestDelete,
+  onDuplicateNode,
 }: TreeNodeProps) => {
   const { node, depth, ancestorContinuation = [], hasMoreSiblings = false, parentRowIndex = -1 } = data
   const hasChildren = node.children && node.children.length > 0
@@ -140,7 +146,6 @@ export const TreeNodeDefault = ({
   const currentRowIndex = rowIndex ?? 0
   const rowsFromParent = parentRowIndex >= 0 ? currentRowIndex - parentRowIndex : 1
 
-  /* Auto-trigger animation for descendants on parent expansion */
   useEffect(() => {
     if (depth > 0 && shouldAnimate(id)) {
       const delay = depth * 50
@@ -167,6 +172,16 @@ export const TreeNodeDefault = ({
     onSelect?.(id)
   }, [id, onSelect])
 
+  const handleAddChild = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      onAddChild?.(id)
+    },
+    [id, onAddChild],
+  )
+
+  const isRoot = depth === 0
+
   const wireIndentX = BASE_PADDING + (depth - 1) * INDENT_PER_LEVEL
   const isExpandedWithChildren = Boolean(isOpen && hasChildren)
 
@@ -188,80 +203,115 @@ export const TreeNodeDefault = ({
   const sparkPath = depth > 0 ? buildSparkPath(wireIndentX, ROW_HEIGHT, INDENT_PER_LEVEL, rowsFromParent) : ''
 
   return (
-    <div
-      className={cn(
-        'group relative flex items-center h-12 cursor-pointer select-none',
-        'hover:bg-accent/50 active:bg-accent/70 transition-colors duration-150',
-        'text-sm text-foreground/90',
-        isSelected && 'bg-accent',
-      )}
-      onClick={handleClick}
-      style={{ ...style, paddingLeft, overflow: 'visible' }}
-    >
-      {depth > 0 ? (
-        <svg
-          className="absolute pointer-events-none"
-          height={ROW_HEIGHT}
-          style={{ left: 0, top: 0, overflow: 'visible' }}
-          width={paddingLeft}
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          className={cn(
+            'group relative flex items-center h-12 cursor-pointer select-none',
+            'hover:bg-accent/50 active:bg-accent/70 transition-colors duration-150',
+            'text-sm text-foreground/90',
+            isSelected && 'bg-accent',
+          )}
+          onClick={handleClick}
+          style={{ ...style, paddingLeft, overflow: 'visible' }}
         >
-          {continuationLines.map((line, i) => (
-            <path className="wire-tree-connector" d={line.path} key={`cont-${i}`} />
-          ))}
-          <path className="wire-tree-connector" d={wirePath} ref={wireRef} />
-          {childConnectorPath ? <path className="wire-tree-connector" d={childConnectorPath} /> : null}
-        </svg>
-      ) : childConnectorPath ? (
-        <svg
-          className="absolute pointer-events-none"
-          height={ROW_HEIGHT}
-          style={{ left: 0, top: 0, overflow: 'visible' }}
-          width={paddingLeft}
-        >
-          <path className="wire-tree-connector" d={childConnectorPath} />
-        </svg>
-      ) : null}
+          {depth > 0 ? (
+            <svg
+              className="absolute pointer-events-none"
+              height={ROW_HEIGHT}
+              style={{ left: 0, top: 0, overflow: 'visible' }}
+              width={paddingLeft}
+            >
+              {continuationLines.map((line, i) => (
+                <path className="wire-tree-connector" d={line.path} key={`cont-${i}`} />
+              ))}
+              <path className="wire-tree-connector" d={wirePath} ref={wireRef} />
+              {childConnectorPath ? <path className="wire-tree-connector" d={childConnectorPath} /> : null}
+            </svg>
+          ) : childConnectorPath ? (
+            <svg
+              className="absolute pointer-events-none"
+              height={ROW_HEIGHT}
+              style={{ left: 0, top: 0, overflow: 'visible' }}
+              width={paddingLeft}
+            >
+              <path className="wire-tree-connector" d={childConnectorPath} />
+            </svg>
+          ) : null}
 
-      {depth > 0 ? (
-        <div className="wire-tree-spark" ref={sparkRef} style={{ offsetPath: `path('${sparkPath}')` }} />
-      ) : null}
+          {depth > 0 ? (
+            <div className="wire-tree-spark" ref={sparkRef} style={{ offsetPath: `path('${sparkPath}')` }} />
+          ) : null}
 
-      <button
-        className={cn(
-          'relative z-10 w-6 h-6 flex items-center justify-center rounded-sm',
-          'text-muted-foreground hover:text-foreground hover:bg-accent',
-          'transition-all duration-150',
-          !hasChildren && 'invisible',
-        )}
-        onClick={handleToggle}
-        type="button"
-      >
-        <ChevronRight className={cn('w-4 h-4 transition-transform duration-200 ease-out', isOpen && 'rotate-90')} />
-      </button>
+          <button
+            className={cn(
+              'relative z-10 w-6 h-6 flex items-center justify-center rounded-sm',
+              'text-muted-foreground hover:text-foreground hover:bg-accent',
+              'transition-all duration-150',
+              !hasChildren && 'invisible',
+            )}
+            onClick={handleToggle}
+            type="button"
+          >
+            <ChevronRight className={cn('w-4 h-4 transition-transform duration-200 ease-out', isOpen && 'rotate-90')} />
+          </button>
 
-      <span className="relative z-10 flex-shrink-0 ml-1.5 transition-transform duration-150 group-hover:scale-110">
-        {depth > 0 && depth <= 4 ? (
-          <Genie
-            color={getColorForRole(getCommandRole(node.command))}
-            nodeId={id}
-            ref={genieRef}
-            showHandRibs={getShowHandRibsFromDepth(depth)}
-            size={32}
-            state={genieState}
-          />
-        ) : hasChildren ? (
-          isOpen ? (
-            <FolderOpen className="w-5 h-5 text-amber-500" />
-          ) : (
-            <Folder className="w-5 h-5 text-amber-500/80" />
-          )
-        ) : (
-          <FileText className="w-5 h-5 text-muted-foreground" />
-        )}
-      </span>
+          <span className="relative z-10 flex-shrink-0 ml-1.5 transition-transform duration-150 group-hover:scale-110">
+            {depth > 0 && depth <= 4 ? (
+              <Genie
+                color={getColorForRole(getCommandRole(node.command))}
+                nodeId={id}
+                ref={genieRef}
+                showHandRibs={getShowHandRibsFromDepth(depth)}
+                size={32}
+                state={genieState}
+              />
+            ) : hasChildren ? (
+              isOpen ? (
+                <FolderOpen className="w-5 h-5 text-amber-500" />
+              ) : (
+                <Folder className="w-5 h-5 text-amber-500/80" />
+              )
+            ) : (
+              <FileText className="w-5 h-5 text-muted-foreground" />
+            )}
+          </span>
 
-      <span className="relative z-10 flex-1 truncate ml-2 pr-2">{node.title || node.id}</span>
-    </div>
+          <span className="relative z-10 flex-1 truncate ml-2 pr-2">{node.title || node.id}</span>
+
+          {onAddChild ? (
+            <button
+              className={cn(
+                'relative z-10 w-6 h-6 flex items-center justify-center rounded-sm mr-1',
+                'text-muted-foreground hover:text-foreground hover:bg-accent',
+                'opacity-0 group-hover:opacity-100 transition-opacity duration-150',
+              )}
+              onClick={handleAddChild}
+              title="Add child"
+              type="button"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          ) : null}
+        </div>
+      </ContextMenuTrigger>
+
+      <ContextMenuContent>
+        <ContextMenuItem onClick={() => onAddChild?.(id)}>
+          <Plus className="mr-2 h-4 w-4" />
+          <FormattedMessage id="workflowTree.node.addChild" />
+        </ContextMenuItem>
+        <ContextMenuItem disabled={isRoot} onClick={() => onDuplicateNode?.(id)}>
+          <Copy className="mr-2 h-4 w-4" />
+          <FormattedMessage id="workflowTree.node.duplicate" />
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem disabled={isRoot} onClick={() => onRequestDelete?.(id)} variant="destructive">
+          <Trash2 className="mr-2 h-4 w-4" />
+          <FormattedMessage id="delete" />
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   )
 }
 

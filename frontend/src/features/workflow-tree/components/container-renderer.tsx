@@ -1,15 +1,13 @@
 import type { CSSProperties, ReactNode } from 'react'
-import type { TreeNode } from '../core/types'
+import type { TreeNode, TreeNodeCallbacks } from '../core/types'
 import type { SegmentContainer } from '../segments/types'
 import { TreeNodeDefault } from './tree-node-default'
 
-export interface ContainerRendererProps {
+export interface ContainerRendererProps extends TreeNodeCallbacks {
   container: SegmentContainer
   rowHeight: number
   style: CSSProperties
-  onToggle?: (id: string) => void
   selectedId?: string
-  onSelect?: (id: string) => void
 }
 
 const DefaultContainerWrapper = ({ children }: { children: ReactNode }) => (
@@ -23,6 +21,9 @@ export const ContainerRenderer = ({
   onToggle,
   selectedId,
   onSelect,
+  onAddChild,
+  onRequestDelete,
+  onDuplicateNode,
 }: ContainerRendererProps) => {
   const ContainerComponent = container.config.component || DefaultContainerWrapper
   const paddingTop = container.config.paddingTop ?? 8
@@ -44,6 +45,9 @@ export const ContainerRenderer = ({
           id={parentNode.id}
           isOpen={parentNode.isOpen}
           isSelected={parentNode.id === selectedId}
+          onAddChild={onAddChild}
+          onDuplicateNode={onDuplicateNode}
+          onRequestDelete={onRequestDelete}
           onSelect={onSelect}
           onToggle={onToggle}
           rowIndex={container.parentRowIndex}
@@ -75,6 +79,9 @@ export const ContainerRenderer = ({
                   id={childNode.id}
                   isOpen={childNode.isOpen}
                   isSelected={childNode.id === selectedId}
+                  onAddChild={onAddChild}
+                  onDuplicateNode={onDuplicateNode}
+                  onRequestDelete={onRequestDelete}
                   onSelect={onSelect}
                   onToggle={onToggle}
                   rowIndex={container.childRowIndices[index]}

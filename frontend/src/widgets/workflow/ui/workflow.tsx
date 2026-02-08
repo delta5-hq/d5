@@ -12,9 +12,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@shared/ui/card'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@shared/ui/button'
 import { FormattedMessage, useIntl } from 'react-intl'
+import { getDescendantIds } from '@entities/workflow/lib'
 import { EmptyWorkflowView } from './empty-workflow-view'
 import { DirtyIndicator } from './dirty-indicator'
 import { NodeDetailPanel } from './node-detail-panel'
+import { DeleteConfirmDialog } from './delete-confirm-dialog'
 
 interface WorkflowProps {
   workflowId: string
@@ -35,8 +37,18 @@ const WorkflowContent = () => {
   const { formatMessage } = useIntl()
 
   const [selectedId, setSelectedId] = useState<string | undefined>()
+  const [shouldAutoFocusTitle, setShouldAutoFocusTitle] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>()
 
   const selectedNode = useMemo(() => (selectedId ? nodes[selectedId] : undefined), [selectedId, nodes])
+  const pendingDeleteNode = useMemo(
+    () => (pendingDeleteId ? nodes[pendingDeleteId] : undefined),
+    [pendingDeleteId, nodes],
+  )
+  const pendingDescendantCount = useMemo(
+    () => (pendingDeleteId ? getDescendantIds(nodes, pendingDeleteId).length : 0),
+    [pendingDeleteId, nodes],
+  )
 
   useEffect(() => {
     if (selectedId && !nodes[selectedId]) {
@@ -46,12 +58,14 @@ const WorkflowContent = () => {
 
   const handleSelect = useCallback((id: string) => {
     setSelectedId(id)
+    setShouldAutoFocusTitle(false)
   }, [])
 
   const handleCreateRoot = useCallback(() => {
     const newId = actions.createRoot({ title: formatMessage({ id: 'workflowTree.rootNodeDefault' }) })
     if (newId) {
       setSelectedId(newId)
+      setShouldAutoFocusTitle(true)
     }
   }, [actions, formatMessage])
 
@@ -60,6 +74,7 @@ const WorkflowContent = () => {
       const newId = actions.addChild(parentId, { title: '' })
       if (newId) {
         setSelectedId(newId)
+        setShouldAutoFocusTitle(true)
       }
     },
     [actions],
@@ -72,21 +87,25 @@ const WorkflowContent = () => {
     [actions],
   )
 
-  const handleRemoveNode = useCallback(
-    (nodeId: string) => {
-      const success = actions.removeNode(nodeId)
-      if (success && selectedId === nodeId) {
-        setSelectedId(undefined)
-      }
-    },
-    [actions, selectedId],
-  )
+  const handleRequestDelete = useCallback((nodeId: string) => {
+    setPendingDeleteId(nodeId)
+  }, [])
+
+  const handleConfirmDelete = useCallback(() => {
+    if (!pendingDeleteId) return
+    const success = actions.removeNode(pendingDeleteId)
+    if (success && selectedId === pendingDeleteId) {
+      setSelectedId(undefined)
+    }
+    setPendingDeleteId(undefined)
+  }, [actions, pendingDeleteId, selectedId])
 
   const handleDuplicateNode = useCallback(
     (nodeId: string) => {
       const newId = actions.duplicateNode(nodeId)
       if (newId) {
         setSelectedId(newId)
+        setShouldAutoFocusTitle(true)
       }
     },
     [actions],
@@ -145,6 +164,9 @@ const WorkflowContent = () => {
           <WorkflowSegmentTree
             initialExpandedIds={new Set([root])}
             nodes={nodes}
+            onAddChild={handleAddChild}
+            onDuplicateNode={handleDuplicateNode}
+            onRequestDelete={handleRequestDelete}
             onSelect={handleSelect}
             rootId={root}
             selectedId={selectedId}
@@ -161,13 +183,15 @@ const WorkflowContent = () => {
         <CardContent>
           {selectedNode ? (
             <NodeDetailPanel
+              autoFocusTitle={shouldAutoFocusTitle}
               isExecuting={isExecuting}
+              key={selectedNode.id}
               node={selectedNode}
               nodes={nodes}
               onAddChild={handleAddChild}
               onDuplicateNode={handleDuplicateNode}
               onExecute={handleExecute}
-              onRemoveNode={handleRemoveNode}
+              onRequestDelete={handleRequestDelete}
               onUpdateNode={handleUpdateNode}
             />
           ) : (
@@ -177,6 +201,16 @@ const WorkflowContent = () => {
           )}
         </CardContent>
       </Card>
+
+      <DeleteConfirmDialog
+        descendantCount={pendingDescendantCount}
+        nodeTitle={pendingDeleteNode?.title ?? ''}
+        onConfirm={handleConfirmDelete}
+        onOpenChange={open => {
+          if (!open) setPendingDeleteId(undefined)
+        }}
+        open={Boolean(pendingDeleteId)}
+      />
     </div>
   )
 }

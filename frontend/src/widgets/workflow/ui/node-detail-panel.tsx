@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback } from 'react'
 import type { NodeData, NodeId } from '@shared/base-types'
 import { Button } from '@shared/ui/button'
 import { Genie } from '@shared/ui/genie'
@@ -6,40 +6,38 @@ import { getCommandRole } from '@shared/constants/command-roles'
 import { getColorForRole } from '@shared/ui/genie/role-colors'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
-import { getDescendantIds } from '@entities/workflow/lib'
 import { FileText, Folder, Loader2, Play, Copy, Trash2, Plus } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { NodeTitleEditor } from './node-title-editor'
-import { DeleteConfirmDialog } from './delete-confirm-dialog'
 
 interface NodeDetailPanelProps {
   node: NodeData
   nodes: Record<NodeId, NodeData>
   onUpdateNode: (nodeId: NodeId, updates: Partial<Omit<NodeData, 'id' | 'parent'>>) => void
-  onRemoveNode: (nodeId: NodeId) => void
+  onRequestDelete: (nodeId: NodeId) => void
   onDuplicateNode: (nodeId: NodeId) => void
   onAddChild: (parentId: NodeId) => void
   onExecute: (node: NodeData, queryType: string) => Promise<void>
   isExecuting: boolean
+  autoFocusTitle?: boolean
 }
 
 export const NodeDetailPanel = ({
   node,
   nodes,
   onUpdateNode,
-  onRemoveNode,
+  onRequestDelete,
   onDuplicateNode,
   onAddChild,
   onExecute,
   isExecuting,
+  autoFocusTitle,
 }: NodeDetailPanelProps) => {
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [command, setCommand] = useState(node.command ?? '')
 
   const genieState = useGenieState(node.id)
   const hasChildren = Boolean(node.children?.length)
   const isRoot = !node.parent
-  const descendantCount = useMemo(() => getDescendantIds(nodes, node.id).length, [nodes, node.id])
   const { formatMessage } = useIntl()
 
   const handleTitleChange = useCallback(
@@ -61,8 +59,8 @@ export const NodeDetailPanel = ({
   }, [node, onExecute])
 
   const handleDelete = useCallback(() => {
-    onRemoveNode(node.id)
-  }, [node.id, onRemoveNode])
+    onRequestDelete(node.id)
+  }, [node.id, onRequestDelete])
 
   const handleDuplicate = useCallback(() => {
     onDuplicateNode(node.id)
@@ -82,7 +80,12 @@ export const NodeDetailPanel = ({
             ) : (
               <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
             )}
-            <NodeTitleEditor className="flex-1 font-medium" onChange={handleTitleChange} value={node.title ?? ''} />
+            <NodeTitleEditor
+              autoFocus={autoFocusTitle}
+              className="flex-1 font-medium"
+              onChange={handleTitleChange}
+              value={node.title ?? ''}
+            />
           </div>
 
           <div className="grid grid-cols-[100px_1fr] gap-2 items-start">
@@ -144,7 +147,7 @@ export const NodeDetailPanel = ({
               <FormattedMessage id="workflowTree.node.duplicate" />
             </Button>
 
-            <Button disabled={isRoot} onClick={() => setShowDeleteDialog(true)} size="sm" variant="danger">
+            <Button disabled={isRoot} onClick={handleDelete} size="sm" variant="danger">
               <Trash2 className="mr-1 h-3 w-3" />
               <FormattedMessage id="delete" />
             </Button>
@@ -177,14 +180,6 @@ export const NodeDetailPanel = ({
           </ul>
         </div>
       ) : null}
-
-      <DeleteConfirmDialog
-        descendantCount={descendantCount}
-        nodeTitle={node.title ?? ''}
-        onConfirm={handleDelete}
-        onOpenChange={setShowDeleteDialog}
-        open={showDeleteDialog}
-      />
     </div>
   )
 }
