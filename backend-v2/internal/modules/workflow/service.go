@@ -35,14 +35,35 @@ func (s *WorkflowService) GetByWorkflowID(ctx context.Context, workflowId string
 	return &wf, nil
 }
 
-func (s *WorkflowService) UpdateWorkflow(ctx context.Context, workflowId string, update *models.Workflow) error {
+func (s *WorkflowService) UpdateWorkflow(ctx context.Context, workflowId string, update *models.WorkflowUpdateDTO) error {
 	filter := map[string]string{"workflowId": workflowId}
 
-	/* Always update timestamp */
-	update.UpdatedAt = time.Now().Unix() * 1000
+	/* Build selective update - only set fields that are explicitly provided (non-nil pointers) */
+	setDoc := qmgo.M{
+		"updatedAt": time.Now().Unix() * 1000,
+	}
 
-	updateDoc := map[string]*models.Workflow{
-		"$set": update,
+	if update.Nodes != nil {
+		setDoc["nodes"] = *update.Nodes
+	}
+	if update.Edges != nil {
+		setDoc["edges"] = *update.Edges
+	}
+	if update.Root != nil {
+		setDoc["root"] = *update.Root
+	}
+	if update.Title != nil {
+		setDoc["title"] = *update.Title
+	}
+	if update.Files != nil {
+		setDoc["files"] = *update.Files
+	}
+	if update.Category != nil {
+		setDoc["category"] = *update.Category
+	}
+
+	updateDoc := qmgo.M{
+		"$set": setDoc,
 	}
 
 	err := s.Collection.UpdateOne(ctx, filter, updateDoc)

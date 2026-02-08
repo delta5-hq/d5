@@ -1,53 +1,103 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import {
   WorkflowSegmentTree,
-  WorkflowTreeProvider,
-  useWorkflowTreeData,
-  useExecuteFromTree,
+  WorkflowStoreProvider,
+  useWorkflowNodes,
+  useWorkflowRoot,
+  useWorkflowActions,
+  useWorkflowStatus,
+  useWorkflowIsDirty,
 } from '@features/workflow-tree'
 import { Card, CardContent, CardHeader, CardTitle } from '@shared/ui/card'
-import { Genie } from '@shared/ui/genie'
-import { getCommandRole } from '@shared/constants/command-roles'
-import { getColorForRole } from '@shared/ui/genie/role-colors'
-import { useGenieState } from '@shared/lib/use-genie-state'
-import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
-import { FileText, Folder, Loader2, Play, RefreshCw } from 'lucide-react'
+import { Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@shared/ui/button'
+import { FormattedMessage, useIntl } from 'react-intl'
+import { EmptyWorkflowView } from './empty-workflow-view'
+import { DirtyIndicator } from './dirty-indicator'
+import { NodeDetailPanel } from './node-detail-panel'
 
 interface WorkflowProps {
   workflowId: string
 }
 
+export const Workflow = ({ workflowId }: WorkflowProps) => (
+  <WorkflowStoreProvider workflowId={workflowId}>
+    <WorkflowContent />
+  </WorkflowStoreProvider>
+)
+
 const WorkflowContent = () => {
-  const { nodes, root, isLoading, error, workflow, refetch } = useWorkflowTreeData()
+  const nodes = useWorkflowNodes()
+  const root = useWorkflowRoot()
+  const actions = useWorkflowActions()
+  const { isLoading, error, isSaving, isExecuting } = useWorkflowStatus()
+  const isDirty = useWorkflowIsDirty()
+  const { formatMessage } = useIntl()
+
   const [selectedId, setSelectedId] = useState<string | undefined>()
 
   const selectedNode = useMemo(() => (selectedId ? nodes[selectedId] : undefined), [selectedId, nodes])
 
-  const workflowId = workflow?.workflowId ?? ''
-
-  const { executeNode, isExecuting } = useExecuteFromTree({
-    workflowId,
-    workflowData: workflow ?? { nodes: {}, edges: {}, root: '', share: { access: [] } },
-    onSuccess: refetch,
-  })
-
-  const genieState = useGenieState(selectedId ?? '')
+  useEffect(() => {
+    if (selectedId && !nodes[selectedId]) {
+      setSelectedId(undefined)
+    }
+  }, [selectedId, nodes])
 
   const handleSelect = useCallback((id: string) => {
     setSelectedId(id)
   }, [])
 
-  const handleExecute = useCallback(async () => {
-    if (!selectedNode) return
+  const handleCreateRoot = useCallback(() => {
+    const newId = actions.createRoot({ title: formatMessage({ id: 'workflowTree.rootNodeDefault' }) })
+    if (newId) {
+      setSelectedId(newId)
+    }
+  }, [actions, formatMessage])
 
-    const queryType = extractQueryTypeFromCommand(selectedNode.command)
-    await executeNode(selectedNode, queryType)
-  }, [selectedNode, executeNode])
+  const handleAddChild = useCallback(
+    (parentId: string) => {
+      const newId = actions.addChild(parentId, { title: '' })
+      if (newId) {
+        setSelectedId(newId)
+      }
+    },
+    [actions],
+  )
 
-  const hasChildren = selectedNode?.children && selectedNode.children.length > 0
-  const showHandRibs = Boolean(selectedNode?.command)
-  const canExecute = selectedNode && (selectedNode.command || true)
+  const handleUpdateNode = useCallback(
+    (nodeId: string, updates: Parameters<typeof actions.updateNode>[1]) => {
+      actions.updateNode(nodeId, updates)
+    },
+    [actions],
+  )
+
+  const handleRemoveNode = useCallback(
+    (nodeId: string) => {
+      const success = actions.removeNode(nodeId)
+      if (success && selectedId === nodeId) {
+        setSelectedId(undefined)
+      }
+    },
+    [actions, selectedId],
+  )
+
+  const handleDuplicateNode = useCallback(
+    (nodeId: string) => {
+      const newId = actions.duplicateNode(nodeId)
+      if (newId) {
+        setSelectedId(newId)
+      }
+    },
+    [actions],
+  )
+
+  const handleExecute = useCallback(
+    async (node: Parameters<typeof actions.executeCommand>[0], queryType: string) => {
+      await actions.executeCommand(node, queryType)
+    },
+    [actions],
+  )
 
   if (isLoading) {
     return (
@@ -61,13 +111,15 @@ const WorkflowContent = () => {
     return (
       <Card className="m-4">
         <CardHeader>
-          <CardTitle className="text-destructive">Error Loading Workflow</CardTitle>
+          <CardTitle className="text-destructive">
+            <FormattedMessage id="workflowTree.errorTitle" />
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">{error.message}</p>
-          <Button className="mt-4" onClick={refetch} variant="default">
+          <Button className="mt-4" onClick={() => actions.load()} variant="default">
             <RefreshCw className="mr-2 h-4 w-4" />
-            Retry
+            <FormattedMessage id="workflowTree.retry" />
           </Button>
         </CardContent>
       </Card>
@@ -75,20 +127,19 @@ const WorkflowContent = () => {
   }
 
   if (!root || Object.keys(nodes).length === 0) {
-    return (
-      <Card className="m-4">
-        <CardContent className="py-8 text-center text-muted-foreground">
-          <p>No workflow data available</p>
-        </CardContent>
-      </Card>
-    )
+    return <EmptyWorkflowView onCreateRoot={handleCreateRoot} />
   }
 
   return (
-    <div className="flex h-full min-h-[400px] gap-4">
+    <div className="flex h-full min-h-[400px] gap-4 p-4">
       <Card className="w-80 flex flex-col min-h-0">
         <CardHeader className="pb-2 flex-shrink-0">
-          <CardTitle className="text-base">Workflow Tree</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">
+              <FormattedMessage id="workflowTree.title" />
+            </CardTitle>
+            <DirtyIndicator isDirty={isDirty} isSaving={isSaving} />
+          </div>
         </CardHeader>
         <CardContent className="flex-1 p-0 overflow-hidden min-h-0">
           <WorkflowSegmentTree
@@ -103,100 +154,29 @@ const WorkflowContent = () => {
 
       <Card className="flex-1">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            {selectedNode ? (
-              <>
-                {hasChildren ? (
-                  <Folder className="w-4 h-4 text-amber-500" />
-                ) : (
-                  <FileText className="w-4 h-4 text-muted-foreground" />
-                )}
-                {selectedNode.title || selectedNode.id}
-              </>
-            ) : (
-              <>
-                <FileText className="w-4 h-4 text-muted-foreground" />
-                Node Details
-              </>
-            )}
+          <CardTitle className="text-base">
+            <FormattedMessage id="workflowTree.nodeDetails" />
           </CardTitle>
         </CardHeader>
         <CardContent>
           {selectedNode ? (
-            <div className="space-y-4 text-sm">
-              <div className="flex items-start gap-4">
-                <div className="flex-1 space-y-4">
-                  <div className="grid grid-cols-2 gap-2">
-                    <span className="text-muted-foreground">Node ID</span>
-                    <span className="font-mono text-xs">{selectedNode.id}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <span className="text-muted-foreground">Title</span>
-                    <span>{selectedNode.title || '—'}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <span className="text-muted-foreground">Command</span>
-                    <span className="font-mono text-xs">{selectedNode.command || '—'}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <span className="text-muted-foreground">State</span>
-                    <span className="font-mono">{genieState}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <span className="text-muted-foreground">Children</span>
-                    <span>{selectedNode.children?.length || 0}</span>
-                  </div>
-                  {canExecute ? (
-                    <Button className="w-full" disabled={isExecuting} onClick={handleExecute} variant="default">
-                      {isExecuting ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Executing...
-                        </>
-                      ) : (
-                        <>
-                          <Play className="mr-2 h-4 w-4" />
-                          Execute Command
-                        </>
-                      )}
-                    </Button>
-                  ) : null}
-                </div>
-                <div className="flex-shrink-0">
-                  <Genie
-                    clipboardEdge="#424242"
-                    clipboardFill="#ffffff"
-                    color={getColorForRole(getCommandRole(selectedNode.command))}
-                    showHandRibs={showHandRibs}
-                    size={80}
-                    state={genieState}
-                  />
-                </div>
-              </div>
-              {hasChildren ? (
-                <div className="pt-2 border-t">
-                  <span className="text-muted-foreground block mb-2">Child nodes:</span>
-                  <ul className="list-disc list-inside space-y-1">
-                    {selectedNode.children?.map(childId => (
-                      <li className="text-foreground/80" key={childId}>
-                        {nodes[childId]?.title || childId}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
+            <NodeDetailPanel
+              isExecuting={isExecuting}
+              node={selectedNode}
+              nodes={nodes}
+              onAddChild={handleAddChild}
+              onDuplicateNode={handleDuplicateNode}
+              onExecute={handleExecute}
+              onRemoveNode={handleRemoveNode}
+              onUpdateNode={handleUpdateNode}
+            />
           ) : (
-            <p className="text-muted-foreground">Select a node from the tree to view details</p>
+            <p className="text-muted-foreground">
+              <FormattedMessage id="workflowTree.selectNode" />
+            </p>
           )}
         </CardContent>
       </Card>
     </div>
   )
 }
-
-export const Workflow = ({ workflowId }: WorkflowProps) => (
-  <WorkflowTreeProvider workflowId={workflowId}>
-    <WorkflowContent />
-  </WorkflowTreeProvider>
-)
