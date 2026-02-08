@@ -3,6 +3,11 @@ import type { NodeData, NodeId, EdgeData, EdgeId } from '@shared/base-types'
 import type { WorkflowStoreState, WorkflowStoreActions } from './workflow-store-types'
 import { useWorkflowStore } from './workflow-store-provider'
 
+export function useWorkflowSelectedId(): NodeId | undefined {
+  const { store } = useWorkflowStore()
+  return useSelector(store, s => s.selectedId)
+}
+
 export function useWorkflowNode(nodeId: NodeId | undefined): NodeData | undefined {
   const { store } = useWorkflowStore()
   return useSelector(store, s => (nodeId ? s.nodes[nodeId] : undefined))

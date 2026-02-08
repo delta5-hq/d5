@@ -6,6 +6,7 @@ export interface WorkflowStoreState {
   edges: Record<EdgeId, EdgeData>
   root: NodeId | undefined
   share: Share | undefined
+  selectedId: NodeId | undefined
 
   isLoading: boolean
   error: Error | null
@@ -21,6 +22,7 @@ export interface WorkflowStoreActions {
   discard: () => void
   destroy: () => void
 
+  select: (nodeId: NodeId | undefined) => void
   createRoot: (nodeData: Partial<NodeData>) => NodeId | null
   addChild: (parentId: NodeId, nodeData: Partial<NodeData>) => NodeId | null
   updateNode: (nodeId: NodeId, updates: Partial<Omit<NodeData, 'id' | 'parent'>>) => boolean
@@ -36,6 +38,7 @@ export const INITIAL_WORKFLOW_STATE: Omit<WorkflowStoreState, 'workflowId'> = {
   edges: {},
   root: undefined,
   share: undefined,
+  selectedId: undefined,
   isLoading: false,
   error: null,
   isDirty: false,

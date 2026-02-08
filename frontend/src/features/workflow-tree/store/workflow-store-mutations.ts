@@ -78,11 +78,18 @@ export function bindMutationActions(
     ) !== null
 
   const removeNode = (nodeId: NodeId): boolean => {
-    const { nodes, edges } = store.getState()
+    const { nodes, edges, selectedId } = store.getState()
     return (
       applyMutation(
         () => removeNodePure(nodes, edges, nodeId),
-        result => store.setState({ nodes: result.nodes, edges: result.edges }),
+        result => {
+          const clearSelection = selectedId !== undefined && result.removedNodeIds.includes(selectedId)
+          store.setState({
+            nodes: result.nodes,
+            edges: result.edges,
+            ...(clearSelection && { selectedId: undefined }),
+          })
+        },
       ) !== null
     )
   }

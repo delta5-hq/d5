@@ -115,6 +115,68 @@ describe('bindMutationActions', () => {
     expect(ok).toBe(true)
   })
 
+  it('removeNode clears selectedId when selected node is among removedNodeIds', () => {
+    const store = makeStore({
+      nodes: { n1: { id: 'n1', parent: 'root' } } as WorkflowStoreState['nodes'],
+      selectedId: 'n1',
+    })
+    const persister = makePersister()
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+
+    removeNode('n1')
+
+    expect(store.getState().selectedId).toBeUndefined()
+  })
+
+  it('removeNode preserves selectedId when selected node is not among removedNodeIds', () => {
+    const store = makeStore({
+      nodes: { n1: { id: 'n1', parent: 'root' }, n2: { id: 'n2', parent: 'root' } } as WorkflowStoreState['nodes'],
+      selectedId: 'n2',
+    })
+    const persister = makePersister()
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+
+    removeNode('n1')
+
+    expect(store.getState().selectedId).toBe('n2')
+  })
+
+  it('removeNode leaves selectedId undefined when nothing was selected', () => {
+    const store = makeStore({
+      nodes: { n1: { id: 'n1', parent: 'root' } } as WorkflowStoreState['nodes'],
+    })
+    const persister = makePersister()
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+
+    removeNode('n1')
+
+    expect(store.getState().selectedId).toBeUndefined()
+  })
+
+  it('removeNode clears selectedId when selected descendant is cascade-removed', async () => {
+    const { removeNode: removeNodePure } = await import('@entities/workflow/lib')
+    vi.mocked(removeNodePure).mockReturnValueOnce({
+      nodes: {},
+      edges: {},
+      removedNodeIds: ['parent', 'child-1', 'child-2'],
+    })
+
+    const store = makeStore({
+      nodes: {
+        parent: { id: 'parent' },
+        'child-1': { id: 'child-1' },
+        'child-2': { id: 'child-2' },
+      } as WorkflowStoreState['nodes'],
+      selectedId: 'child-2',
+    })
+    const persister = makePersister()
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+
+    removeNode('parent')
+
+    expect(store.getState().selectedId).toBeUndefined()
+  })
+
   it('duplicateNode returns new root id', () => {
     const store = makeStore({
       nodes: { n1: { id: 'n1' } } as WorkflowStoreState['nodes'],

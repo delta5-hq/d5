@@ -33,11 +33,14 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
       })
 
       const merged = mergeWorkflowNodes(workflowData, response)
+      const { selectedId } = store.getState()
+      const selectionStale = selectedId !== undefined && !(selectedId in merged.nodes)
       store.setState({
         nodes: merged.nodes,
         edges: merged.edges ?? {},
         root: merged.root,
         isDirty: true,
+        ...(selectionStale ? { selectedId: undefined } : {}),
       })
 
       await persister.flush()

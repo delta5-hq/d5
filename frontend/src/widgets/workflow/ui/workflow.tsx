@@ -1,7 +1,9 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import {
   WorkflowSegmentTree,
   WorkflowStoreProvider,
+  useWorkflowSelectedId,
+  useWorkflowNode,
   useWorkflowNodes,
   useWorkflowRoot,
   useWorkflowActions,
@@ -36,11 +38,11 @@ const WorkflowContent = () => {
   const isDirty = useWorkflowIsDirty()
   const { formatMessage } = useIntl()
 
-  const [selectedId, setSelectedId] = useState<string | undefined>()
+  const selectedId = useWorkflowSelectedId()
+  const selectedNode = useWorkflowNode(selectedId)
   const [shouldAutoFocusTitle, setShouldAutoFocusTitle] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>()
 
-  const selectedNode = useMemo(() => (selectedId ? nodes[selectedId] : undefined), [selectedId, nodes])
   const pendingDeleteNode = useMemo(
     () => (pendingDeleteId ? nodes[pendingDeleteId] : undefined),
     [pendingDeleteId, nodes],
@@ -50,21 +52,18 @@ const WorkflowContent = () => {
     [pendingDeleteId, nodes],
   )
 
-  useEffect(() => {
-    if (selectedId && !nodes[selectedId]) {
-      setSelectedId(undefined)
-    }
-  }, [selectedId, nodes])
-
-  const handleSelect = useCallback((id: string) => {
-    setSelectedId(id)
-    setShouldAutoFocusTitle(false)
-  }, [])
+  const handleSelect = useCallback(
+    (id: string) => {
+      actions.select(id)
+      setShouldAutoFocusTitle(false)
+    },
+    [actions],
+  )
 
   const handleCreateRoot = useCallback(() => {
     const newId = actions.createRoot({ title: formatMessage({ id: 'workflowTree.rootNodeDefault' }) })
     if (newId) {
-      setSelectedId(newId)
+      actions.select(newId)
       setShouldAutoFocusTitle(true)
     }
   }, [actions, formatMessage])
@@ -73,7 +72,7 @@ const WorkflowContent = () => {
     (parentId: string) => {
       const newId = actions.addChild(parentId, { title: '' })
       if (newId) {
-        setSelectedId(newId)
+        actions.select(newId)
         setShouldAutoFocusTitle(true)
       }
     },
@@ -93,18 +92,15 @@ const WorkflowContent = () => {
 
   const handleConfirmDelete = useCallback(() => {
     if (!pendingDeleteId) return
-    const success = actions.removeNode(pendingDeleteId)
-    if (success && selectedId === pendingDeleteId) {
-      setSelectedId(undefined)
-    }
+    actions.removeNode(pendingDeleteId)
     setPendingDeleteId(undefined)
-  }, [actions, pendingDeleteId, selectedId])
+  }, [actions, pendingDeleteId])
 
   const handleDuplicateNode = useCallback(
     (nodeId: string) => {
       const newId = actions.duplicateNode(nodeId)
       if (newId) {
-        setSelectedId(newId)
+        actions.select(newId)
         setShouldAutoFocusTitle(true)
       }
     },

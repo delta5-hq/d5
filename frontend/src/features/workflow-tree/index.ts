@@ -11,6 +11,7 @@ export type { UseTreeWalkerOptions } from './hooks/use-tree-walker'
 export type { Segment, SegmentNode, SegmentContainer, ContainerConfig, ContainerProps } from './segments'
 export { WorkflowStoreProvider, useWorkflowStore } from './store/workflow-store-provider'
 export {
+  useWorkflowSelectedId,
   useWorkflowNode,
   useWorkflowRoot,
   useWorkflowNodes,

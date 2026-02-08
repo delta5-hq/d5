@@ -38,6 +38,7 @@ describe('createWorkflowStore', () => {
     expect(state.workflowId).toBe('wf-test')
     expect(state.nodes).toEqual({})
     expect(state.isLoading).toBe(false)
+    expect(state.selectedId).toBeUndefined()
   })
 
   it('load fetches workflow and populates state', async () => {
@@ -111,5 +112,70 @@ describe('createWorkflowStore', () => {
 
     expect(store.getState().nodes).toEqual(mockApiResponse.nodes)
     expect(vi.mocked(apiFetch)).toHaveBeenCalledTimes(2)
+  })
+
+  it('select updates selectedId to given node', () => {
+    const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+
+    actions.select('root')
+
+    expect(store.getState().selectedId).toBe('root')
+  })
+
+  it('select clears selectedId when given undefined', () => {
+    const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+    actions.select('root')
+
+    actions.select(undefined)
+
+    expect(store.getState().selectedId).toBeUndefined()
+  })
+
+  it('select replaces previously selected node', () => {
+    const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+    actions.select('node-a')
+
+    actions.select('node-b')
+
+    expect(store.getState().selectedId).toBe('node-b')
+  })
+
+  it('load clears selectedId when referenced node is absent from server data', async () => {
+    vi.mocked(apiFetch).mockResolvedValueOnce(mockApiResponse)
+    const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+    store.setState({ selectedId: 'deleted-node' })
+
+    await actions.load()
+
+    expect(store.getState().selectedId).toBeUndefined()
+  })
+
+  it('load preserves selectedId when referenced node exists in server data', async () => {
+    vi.mocked(apiFetch).mockResolvedValueOnce(mockApiResponse)
+    const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+    store.setState({ selectedId: 'root' })
+
+    await actions.load()
+
+    expect(store.getState().selectedId).toBe('root')
+  })
+
+  it('load leaves selectedId undefined when no prior selection exists', async () => {
+    vi.mocked(apiFetch).mockResolvedValueOnce(mockApiResponse)
+    const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+
+    await actions.load()
+
+    expect(store.getState().selectedId).toBeUndefined()
+  })
+
+  it('load error does not modify selectedId', async () => {
+    vi.mocked(apiFetch).mockRejectedValueOnce(new Error('Network error'))
+    const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+    store.setState({ selectedId: 'some-node' })
+
+    await actions.load()
+
+    expect(store.getState().selectedId).toBe('some-node')
   })
 })

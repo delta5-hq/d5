@@ -44,13 +44,17 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     store.setState({ isLoading: true, error: null })
     try {
       const data = await apiFetch<WorkflowApiResponse>(`/workflow/${workflowId}`)
+      const newNodes = (data.nodes ?? {}) as WorkflowStoreState['nodes']
+      const { selectedId } = store.getState()
+      const selectionStale = selectedId !== undefined && !(selectedId in newNodes)
       store.setState({
-        nodes: (data.nodes ?? {}) as WorkflowStoreState['nodes'],
+        nodes: newNodes,
         edges: (data.edges ?? {}) as WorkflowStoreState['edges'],
         root: data.root,
         share: data.share as WorkflowStoreState['share'],
         isLoading: false,
         isDirty: false,
+        ...(selectionStale ? { selectedId: undefined } : {}),
       })
     } catch (err) {
       store.setState({
@@ -58,6 +62,10 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
         error: err instanceof Error ? err : new Error('Failed to load workflow'),
       })
     }
+  }
+
+  const select = (nodeId: string | undefined) => {
+    store.setState({ selectedId: nodeId })
   }
 
   const discard = () => {
@@ -74,6 +82,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     load,
     persist: persister.flush,
     persistNow: persister.flush,
+    select,
     discard,
     destroy,
     executeCommand,
