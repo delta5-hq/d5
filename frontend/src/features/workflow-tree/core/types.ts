@@ -6,6 +6,8 @@ export interface TreeNodeCallbacks {
   onAddChild?: (parentId: string) => void
   onRequestDelete?: (nodeId: string) => void
   onDuplicateNode?: (nodeId: string) => void
+  onRename?: (nodeId: string, newTitle: string) => void
+  onRequestRename?: (nodeId: string) => void
 }
 
 export interface TreeNode {

@@ -9,6 +9,7 @@ export interface SegmentRowProps extends TreeNodeCallbacks {
   style: CSSProperties
   rowHeight: number
   selectedId?: string
+  autoEditNodeId?: string
 }
 
 export const SegmentRow = ({
@@ -21,6 +22,9 @@ export const SegmentRow = ({
   onAddChild,
   onRequestDelete,
   onDuplicateNode,
+  onRename,
+  onRequestRename,
+  autoEditNodeId,
 }: SegmentRowProps) => {
   if (segment.type === 'node') {
     const record: TreeRecord = {
@@ -32,10 +36,13 @@ export const SegmentRow = ({
     return (
       <TreeNodeDefault
         {...record}
+        autoEditNodeId={autoEditNodeId}
         isSelected={record.id === selectedId}
         onAddChild={onAddChild}
         onDuplicateNode={onDuplicateNode}
+        onRename={onRename}
         onRequestDelete={onRequestDelete}
+        onRequestRename={onRequestRename}
         onSelect={onSelect}
         onToggle={onToggle}
         rowIndex={segment.rowIndex}
@@ -47,10 +54,13 @@ export const SegmentRow = ({
   if (segment.type === 'container') {
     return (
       <ContainerRenderer
+        autoEditNodeId={autoEditNodeId}
         container={segment}
         onAddChild={onAddChild}
         onDuplicateNode={onDuplicateNode}
+        onRename={onRename}
         onRequestDelete={onRequestDelete}
+        onRequestRename={onRequestRename}
         onSelect={onSelect}
         onToggle={onToggle}
         rowHeight={rowHeight}

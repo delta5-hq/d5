@@ -1,8 +1,9 @@
 import React, { type CSSProperties, useRef, useCallback, useEffect, memo } from 'react'
-import { ChevronRight, Folder, FolderOpen, FileText, Plus, Copy, Trash2 } from 'lucide-react'
+import { ChevronRight, Folder, FolderOpen, FileText, Plus, Copy, Trash2, Pencil } from 'lucide-react'
 import { cn } from '@shared/lib/utils'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { Genie, type GenieRef } from '@shared/ui/genie'
+import { EditableText } from '@shared/ui/editable-field'
 import { getCommandRole } from '@shared/constants/command-roles'
 import { getColorForRole } from '@shared/ui/genie/role-colors'
 import {
@@ -12,7 +13,8 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
 } from '@shared/ui/context-menu'
-import { FormattedMessage } from 'react-intl'
+import { FormattedMessage, useIntl } from 'react-intl'
+import { normalizeNodeTitle } from '@entities/workflow/lib'
 import type { TreeRecord, TreeNodeCallbacks } from '../core/types'
 import { useTreeAnimation } from '../context'
 import '../styles/wire-tree.css'
@@ -20,6 +22,7 @@ import '../styles/wire-tree.css'
 export interface TreeNodeProps extends TreeRecord, TreeNodeCallbacks {
   style: CSSProperties
   isSelected?: boolean
+  autoEditNodeId?: string
   /** Current row index in the virtualized list */
   rowIndex?: number
   /** Extra space to extend wire DOWN (e.g., for container paddingTop after parent) */
@@ -127,12 +130,15 @@ export const TreeNodeDefault = ({
   onToggle,
   isSelected,
   onSelect,
+  onRename,
+  autoEditNodeId,
   rowIndex,
   wireExtendDown = 0,
   wireExtendUp = 0,
   onAddChild,
   onRequestDelete,
   onDuplicateNode,
+  onRequestRename,
 }: TreeNodeProps) => {
   const { node, depth, ancestorContinuation = [], hasMoreSiblings = false, parentRowIndex = -1 } = data
   const hasChildren = node.children && node.children.length > 0
@@ -142,6 +148,7 @@ export const TreeNodeDefault = ({
   const genieState = useGenieState(id)
   const wireRef = useRef<SVGPathElement>(null)
   const { shouldAnimate, clearAnimation, animationVersion } = useTreeAnimation()
+  const { formatMessage } = useIntl()
 
   const currentRowIndex = rowIndex ?? 0
   const rowsFromParent = parentRowIndex >= 0 ? currentRowIndex - parentRowIndex : 1
@@ -178,6 +185,13 @@ export const TreeNodeDefault = ({
       onAddChild?.(id)
     },
     [id, onAddChild],
+  )
+
+  const handleRename = useCallback(
+    (newTitle: string) => {
+      onRename?.(id, newTitle)
+    },
+    [id, onRename],
   )
 
   const isRoot = depth === 0
@@ -277,7 +291,21 @@ export const TreeNodeDefault = ({
             )}
           </span>
 
-          <span className="relative z-10 flex-1 truncate ml-2 pr-2">{node.title || node.id}</span>
+          <span className="relative z-10 flex-1 truncate ml-2 pr-2">
+            {onRename ? (
+              <EditableText
+                autoFocus={autoEditNodeId === id}
+                className="truncate text-sm"
+                onChange={handleRename}
+                placeholder={formatMessage({ id: 'workflowTree.node.untitled' })}
+                readOnlyClassName="block truncate"
+                title={formatMessage({ id: 'workflowTree.node.editHint' })}
+                value={normalizeNodeTitle(node.title)}
+              />
+            ) : (
+              normalizeNodeTitle(node.title) || node.id
+            )}
+          </span>
 
           {onAddChild ? (
             <button
@@ -297,6 +325,10 @@ export const TreeNodeDefault = ({
       </ContextMenuTrigger>
 
       <ContextMenuContent>
+        <ContextMenuItem onClick={() => onRequestRename?.(id)}>
+          <Pencil className="mr-2 h-4 w-4" />
+          <FormattedMessage id="workflowTree.node.rename" />
+        </ContextMenuItem>
         <ContextMenuItem onClick={() => onAddChild?.(id)}>
           <Plus className="mr-2 h-4 w-4" />
           <FormattedMessage id="workflowTree.node.addChild" />

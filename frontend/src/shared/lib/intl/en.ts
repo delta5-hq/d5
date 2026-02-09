@@ -355,6 +355,7 @@ export default {
       addChild: 'Add Child',
       duplicate: 'Duplicate',
       untitled: 'Untitled',
+      rename: 'Rename',
       editHint: 'Double-click to edit',
     },
 

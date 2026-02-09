@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@shared/ui/card'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@shared/ui/button'
 import { FormattedMessage, useIntl } from 'react-intl'
-import { getDescendantIds } from '@entities/workflow/lib'
+import { getDescendantIds, normalizeNodeTitle } from '@entities/workflow/lib'
 import { EmptyWorkflowView } from './empty-workflow-view'
 import { DirtyIndicator } from './dirty-indicator'
 import { NodeDetailPanel } from './node-detail-panel'
@@ -40,7 +40,7 @@ const WorkflowContent = () => {
 
   const selectedId = useWorkflowSelectedId()
   const selectedNode = useWorkflowNode(selectedId)
-  const [shouldAutoFocusTitle, setShouldAutoFocusTitle] = useState(false)
+  const [autoEditNodeId, setAutoEditNodeId] = useState<string | undefined>()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>()
 
   const pendingDeleteNode = useMemo(
@@ -55,7 +55,7 @@ const WorkflowContent = () => {
   const handleSelect = useCallback(
     (id: string) => {
       actions.select(id)
-      setShouldAutoFocusTitle(false)
+      setAutoEditNodeId(undefined)
     },
     [actions],
   )
@@ -64,7 +64,7 @@ const WorkflowContent = () => {
     const newId = actions.createRoot({ title: formatMessage({ id: 'workflowTree.rootNodeDefault' }) })
     if (newId) {
       actions.select(newId)
-      setShouldAutoFocusTitle(true)
+      setAutoEditNodeId(newId)
     }
   }, [actions, formatMessage])
 
@@ -73,7 +73,7 @@ const WorkflowContent = () => {
       const newId = actions.addChild(parentId, { title: '' })
       if (newId) {
         actions.select(newId)
-        setShouldAutoFocusTitle(true)
+        setAutoEditNodeId(newId)
       }
     },
     [actions],
@@ -86,9 +86,24 @@ const WorkflowContent = () => {
     [actions],
   )
 
+  const handleRename = useCallback(
+    (nodeId: string, newTitle: string) => {
+      actions.updateNode(nodeId, { title: newTitle })
+    },
+    [actions],
+  )
+
   const handleRequestDelete = useCallback((nodeId: string) => {
     setPendingDeleteId(nodeId)
   }, [])
+
+  const handleRequestRename = useCallback(
+    (nodeId: string) => {
+      actions.select(nodeId)
+      setAutoEditNodeId(nodeId)
+    },
+    [actions],
+  )
 
   const handleConfirmDelete = useCallback(() => {
     if (!pendingDeleteId) return
@@ -101,7 +116,7 @@ const WorkflowContent = () => {
       const newId = actions.duplicateNode(nodeId)
       if (newId) {
         actions.select(newId)
-        setShouldAutoFocusTitle(true)
+        setAutoEditNodeId(newId)
       }
     },
     [actions],
@@ -158,11 +173,14 @@ const WorkflowContent = () => {
         </CardHeader>
         <CardContent className="flex-1 p-0 overflow-hidden min-h-0">
           <WorkflowSegmentTree
+            autoEditNodeId={autoEditNodeId}
             initialExpandedIds={new Set([root])}
             nodes={nodes}
             onAddChild={handleAddChild}
             onDuplicateNode={handleDuplicateNode}
+            onRename={handleRename}
             onRequestDelete={handleRequestDelete}
+            onRequestRename={handleRequestRename}
             onSelect={handleSelect}
             rootId={root}
             selectedId={selectedId}
@@ -179,7 +197,7 @@ const WorkflowContent = () => {
         <CardContent>
           {selectedNode ? (
             <NodeDetailPanel
-              autoFocusTitle={shouldAutoFocusTitle}
+              autoFocusTitle={autoEditNodeId === selectedId}
               isExecuting={isExecuting}
               key={selectedNode.id}
               node={selectedNode}
@@ -200,7 +218,7 @@ const WorkflowContent = () => {
 
       <DeleteConfirmDialog
         descendantCount={pendingDescendantCount}
-        nodeTitle={pendingDeleteNode?.title ?? ''}
+        nodeTitle={normalizeNodeTitle(pendingDeleteNode?.title)}
         onConfirm={handleConfirmDelete}
         onOpenChange={open => {
           if (!open) setPendingDeleteId(undefined)

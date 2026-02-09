@@ -15,10 +15,13 @@ export interface WorkflowSegmentTreeProps {
   initialExpandedIds?: Set<string>
   overscanCount?: number
   selectedId?: string
+  autoEditNodeId?: string
   onSelect?: (id: string, node: NodeData) => void
   onAddChild?: (parentId: string) => void
   onRequestDelete?: (nodeId: string) => void
   onDuplicateNode?: (nodeId: string) => void
+  onRename?: (nodeId: string, newTitle: string) => void
+  onRequestRename?: (nodeId: string) => void
 }
 
 const WorkflowSegmentTreeInner = ({
@@ -28,10 +31,13 @@ const WorkflowSegmentTreeInner = ({
   initialExpandedIds,
   overscanCount = 5,
   selectedId,
+  autoEditNodeId,
   onSelect,
   onAddChild,
   onRequestDelete,
   onDuplicateNode,
+  onRename,
+  onRequestRename,
 }: WorkflowSegmentTreeProps) => {
   const nodeIds = useMemo(() => new Set(Object.keys(nodes)), [nodes])
   useNodeCacheCleanup(nodeIds)
@@ -80,10 +86,13 @@ const WorkflowSegmentTreeInner = ({
         renderProp={({ height, width }) =>
           height && width ? (
             <VirtualizedSegmentTree
+              autoEditNodeId={autoEditNodeId}
               height={height}
               onAddChild={handleAddChild}
               onDuplicateNode={onDuplicateNode}
+              onRename={onRename}
               onRequestDelete={onRequestDelete}
+              onRequestRename={onRequestRename}
               onSelect={handleSelect}
               onToggle={handleToggle}
               overscanCount={overscanCount}

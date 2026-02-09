@@ -1,13 +1,15 @@
-import { useState, useCallback } from 'react'
+import { useCallback } from 'react'
 import type { NodeData, NodeId } from '@shared/base-types'
 import { Button } from '@shared/ui/button'
 import { Genie } from '@shared/ui/genie'
+import { EditableTextArea } from '@shared/ui/editable-field'
 import { getCommandRole } from '@shared/constants/command-roles'
 import { getColorForRole } from '@shared/ui/genie/role-colors'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import { FileText, Folder, Loader2, Play, Copy, Trash2, Plus } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
+import { normalizeNodeTitle } from '@entities/workflow/lib'
 import { NodeTitleEditor } from './node-title-editor'
 
 interface NodeDetailPanelProps {
@@ -33,8 +35,6 @@ export const NodeDetailPanel = ({
   isExecuting,
   autoFocusTitle,
 }: NodeDetailPanelProps) => {
-  const [command, setCommand] = useState(node.command ?? '')
-
   const genieState = useGenieState(node.id)
   const hasChildren = Boolean(node.children?.length)
   const isRoot = !node.parent
@@ -47,11 +47,12 @@ export const NodeDetailPanel = ({
     [node.id, onUpdateNode],
   )
 
-  const handleCommandBlur = useCallback(() => {
-    if (command !== (node.command ?? '')) {
+  const handleCommandChange = useCallback(
+    (command: string) => {
       onUpdateNode(node.id, { command })
-    }
-  }, [command, node.command, node.id, onUpdateNode])
+    },
+    [node.id, onUpdateNode],
+  )
 
   const handleExecute = useCallback(async () => {
     const queryType = extractQueryTypeFromCommand(node.command)
@@ -84,7 +85,7 @@ export const NodeDetailPanel = ({
               autoFocus={autoFocusTitle}
               className="flex-1 font-medium"
               onChange={handleTitleChange}
-              value={node.title ?? ''}
+              value={normalizeNodeTitle(node.title)}
             />
           </div>
 
@@ -92,12 +93,11 @@ export const NodeDetailPanel = ({
             <span className="text-muted-foreground text-xs pt-2">
               <FormattedMessage id="workflowTree.node.command" />
             </span>
-            <textarea
-              className="min-h-[80px] text-xs font-mono w-full rounded-md border border-input bg-background px-3 py-2 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              onBlur={handleCommandBlur}
-              onChange={e => setCommand(e.target.value)}
+            <EditableTextArea
+              className="min-h-[80px] text-xs font-mono w-full"
+              onChange={handleCommandChange}
               placeholder={formatMessage({ id: 'workflowTree.node.commandPlaceholder' })}
-              value={command}
+              value={node.command ?? ''}
             />
           </div>
 
@@ -174,7 +174,7 @@ export const NodeDetailPanel = ({
           <ul className="list-disc list-inside space-y-1">
             {node.children?.map(childId => (
               <li className="text-foreground/80 text-xs" key={childId}>
-                {nodes[childId]?.title || childId}
+                {normalizeNodeTitle(nodes[childId]?.title) || childId}
               </li>
             ))}
           </ul>

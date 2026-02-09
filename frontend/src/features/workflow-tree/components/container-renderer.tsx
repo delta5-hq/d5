@@ -8,6 +8,7 @@ export interface ContainerRendererProps extends TreeNodeCallbacks {
   rowHeight: number
   style: CSSProperties
   selectedId?: string
+  autoEditNodeId?: string
 }
 
 const DefaultContainerWrapper = ({ children }: { children: ReactNode }) => (
@@ -24,6 +25,9 @@ export const ContainerRenderer = ({
   onAddChild,
   onRequestDelete,
   onDuplicateNode,
+  onRename,
+  onRequestRename,
+  autoEditNodeId,
 }: ContainerRendererProps) => {
   const ContainerComponent = container.config.component || DefaultContainerWrapper
   const paddingTop = container.config.paddingTop ?? 8
@@ -41,13 +45,16 @@ export const ContainerRenderer = ({
     >
       <div style={{ position: 'relative', height: `${rowHeight}px` }}>
         <TreeNodeDefault
+          autoEditNodeId={autoEditNodeId}
           data={parentNode}
           id={parentNode.id}
           isOpen={parentNode.isOpen}
           isSelected={parentNode.id === selectedId}
           onAddChild={onAddChild}
           onDuplicateNode={onDuplicateNode}
+          onRename={onRename}
           onRequestDelete={onRequestDelete}
+          onRequestRename={onRequestRename}
           onSelect={onSelect}
           onToggle={onToggle}
           rowIndex={container.parentRowIndex}
@@ -75,13 +82,16 @@ export const ContainerRenderer = ({
                 }}
               >
                 <TreeNodeDefault
+                  autoEditNodeId={autoEditNodeId}
                   data={childNode}
                   id={childNode.id}
                   isOpen={childNode.isOpen}
                   isSelected={childNode.id === selectedId}
                   onAddChild={onAddChild}
                   onDuplicateNode={onDuplicateNode}
+                  onRename={onRename}
                   onRequestDelete={onRequestDelete}
+                  onRequestRename={onRequestRename}
                   onSelect={onSelect}
                   onToggle={onToggle}
                   rowIndex={container.childRowIndices[index]}

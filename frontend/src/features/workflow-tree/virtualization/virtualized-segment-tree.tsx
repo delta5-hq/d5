@@ -9,6 +9,7 @@ export interface SegmentRowData extends TreeNodeCallbacks {
   segmentState: SegmentState
   rowHeight: number
   selectedId?: string
+  autoEditNodeId?: string
 }
 
 export type SegmentRowComponentProps = RowComponentProps<SegmentRowData>
@@ -32,6 +33,9 @@ export const SegmentRowComponent = ({ index, style, ...props }: SegmentRowCompon
     onAddChild: data.onAddChild,
     onRequestDelete: data.onRequestDelete,
     onDuplicateNode: data.onDuplicateNode,
+    onRename: data.onRename,
+    onRequestRename: data.onRequestRename,
+    autoEditNodeId: data.autoEditNodeId,
   }
 
   return <SegmentRow {...segmentRowProps} />
@@ -44,6 +48,7 @@ interface VirtualizedSegmentTreeProps extends TreeNodeCallbacks {
   width?: number | string
   overscanCount?: number
   selectedId?: string
+  autoEditNodeId?: string
 }
 
 export const VirtualizedSegmentTree = ({
@@ -58,6 +63,9 @@ export const VirtualizedSegmentTree = ({
   onAddChild,
   onRequestDelete,
   onDuplicateNode,
+  onRename,
+  onRequestRename,
+  autoEditNodeId,
 }: VirtualizedSegmentTreeProps) => {
   const listRef = useRef<ListImperativeAPI | null>(null)
   const prevTreeWalkerRef = useRef<TreeWalkerGenerator | null>(null)
@@ -89,8 +97,23 @@ export const VirtualizedSegmentTree = ({
       onAddChild,
       onRequestDelete,
       onDuplicateNode,
+      onRename,
+      onRequestRename,
+      autoEditNodeId,
     }),
-    [segmentState, rowHeight, onToggle, selectedId, onSelect, onAddChild, onRequestDelete, onDuplicateNode],
+    [
+      segmentState,
+      rowHeight,
+      onToggle,
+      selectedId,
+      onSelect,
+      onAddChild,
+      onRequestDelete,
+      onDuplicateNode,
+      onRename,
+      onRequestRename,
+      autoEditNodeId,
+    ],
   )
 
   return (
