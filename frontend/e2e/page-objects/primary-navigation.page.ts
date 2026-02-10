@@ -57,6 +57,25 @@ export class PrimaryNavigationPage extends PageComponent {
     await this.page.locator(`[data-testid="primary-nav-${section}"]`).click()
   }
 
+  activeItem(section: NavigationSection): Locator {
+    return this.page.locator(`[data-testid="primary-nav-${section}"][data-active="true"]`)
+  }
+
+  inactiveItem(section: NavigationSection): Locator {
+    return this.page.locator(`[data-testid="primary-nav-${section}"][data-active="false"]`)
+  }
+
+  get allActiveItems(): Locator {
+    return this.page.locator('[data-testid^="primary-nav-"][data-active="true"]')
+  }
+
+  async hasVisibleIndicatorBar(section: NavigationSection): Promise<boolean> {
+    return this.item(section).evaluate(el => {
+      const after = getComputedStyle(el, '::after')
+      return after.content !== 'none' && after.content !== ''
+    })
+  }
+
   async getSectionWidth(): Promise<number | null> {
     const box = await this.root.boundingBox()
     return box?.width ?? null

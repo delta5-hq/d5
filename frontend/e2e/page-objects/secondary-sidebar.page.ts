@@ -148,4 +148,12 @@ export class SecondarySidebarPage extends PageComponent {
   async hasWaitlistLinkInContext(): Promise<boolean> {
     return this.waitlistLink.isVisible().catch(() => false)
   }
+
+  menuItemByText(text: string): Locator {
+    return this.root.locator('[data-sidebar="menu-item"]').filter({ hasText: text })
+  }
+
+  menuButtonByText(text: string): Locator {
+    return this.menuItemByText(text).locator('[data-sidebar="menu-button"]')
+  }
 }
