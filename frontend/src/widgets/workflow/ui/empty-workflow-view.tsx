@@ -9,7 +9,7 @@ interface EmptyWorkflowViewProps {
 }
 
 export const EmptyWorkflowView = ({ onCreateRoot, isCreating }: EmptyWorkflowViewProps) => (
-  <Card className="m-4">
+  <Card className="m-4" data-testid="empty-workflow-view">
     <CardContent className="py-12 text-center">
       <div className="flex flex-col items-center gap-4">
         <div className="rounded-full bg-muted p-4">
@@ -23,7 +23,7 @@ export const EmptyWorkflowView = ({ onCreateRoot, isCreating }: EmptyWorkflowVie
             <FormattedMessage id="workflowTree.empty.description" />
           </p>
         </div>
-        <Button disabled={isCreating} onClick={onCreateRoot} size="lg">
+        <Button data-testid="create-first-node" disabled={isCreating} onClick={onCreateRoot} size="lg">
           <Plus className="mr-2 h-4 w-4" />
           <FormattedMessage id="workflowTree.empty.createFirst" />
         </Button>

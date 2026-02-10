@@ -67,6 +67,9 @@ export const findRootId = (nodes: Record<NodeId, NodeData>): NodeId | undefined 
   return undefined
 }
 
+export const hasUsableRoot = (root: NodeId | undefined, nodes: Record<NodeId, NodeData>): root is NodeId =>
+  Boolean(root) && root! in nodes
+
 export const hasCircularReference = (nodes: Record<NodeId, NodeData>, nodeId: NodeId, newParentId: NodeId): boolean => {
   if (nodeId === newParentId) return true
   return isDescendantOf(nodes, newParentId, nodeId)

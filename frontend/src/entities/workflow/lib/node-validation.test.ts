@@ -7,6 +7,7 @@ import {
   getAncestorIds,
   findRootId,
   hasCircularReference,
+  hasUsableRoot,
 } from './node-validation'
 
 const createTestTree = (): Record<string, NodeData> => ({
@@ -253,5 +254,27 @@ describe('getAncestorIds - Edge Cases', () => {
       child: { id: 'child', title: 'Child', parent: 'nonexistent', children: [] },
     }
     expect(getAncestorIds(nodes, 'child')).toEqual(['nonexistent'])
+  })
+})
+
+describe('hasUsableRoot', () => {
+  it('accepts root that exists in nodes', () => {
+    const nodes = createTestTree()
+    expect(hasUsableRoot('root', nodes)).toBe(true)
+    expect(hasUsableRoot('a', nodes)).toBe(true)
+    expect(hasUsableRoot('a1x', nodes)).toBe(true)
+  })
+
+  it('rejects falsy root regardless of nodes', () => {
+    expect(hasUsableRoot(undefined, createTestTree())).toBe(false)
+    expect(hasUsableRoot(undefined, {})).toBe(false)
+    expect(hasUsableRoot('', createTestTree())).toBe(false)
+    expect(hasUsableRoot('', {})).toBe(false)
+  })
+
+  it('rejects root not present in nodes', () => {
+    const nodes = createTestTree()
+    expect(hasUsableRoot('nonexistent', nodes)).toBe(false)
+    expect(hasUsableRoot('root', {})).toBe(false)
   })
 })

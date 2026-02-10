@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@shared/ui/card'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@shared/ui/button'
 import { FormattedMessage, useIntl } from 'react-intl'
-import { getDescendantIds, normalizeNodeTitle } from '@entities/workflow/lib'
+import { getDescendantIds, normalizeNodeTitle, hasUsableRoot } from '@entities/workflow/lib'
 import { EmptyWorkflowView } from './empty-workflow-view'
 import { DirtyIndicator } from './dirty-indicator'
 import { NodeDetailPanel } from './node-detail-panel'
@@ -156,7 +156,7 @@ const WorkflowContent = () => {
     )
   }
 
-  if (!root || Object.keys(nodes).length === 0) {
+  if (!hasUsableRoot(root, nodes)) {
     return <EmptyWorkflowView onCreateRoot={handleCreateRoot} />
   }
 
