@@ -21,6 +21,7 @@ interface NodeDetailPanelProps {
   onAddChild: (parentId: NodeId) => void
   onExecute: (node: NodeData, queryType: string) => Promise<void>
   isExecuting: boolean
+  executeDisabled: boolean
   autoFocusTitle?: boolean
 }
 
@@ -33,6 +34,7 @@ export const NodeDetailPanel = ({
   onAddChild,
   onExecute,
   isExecuting,
+  executeDisabled,
   autoFocusTitle,
 }: NodeDetailPanelProps) => {
   const genieState = useGenieState(node.id)
@@ -123,7 +125,7 @@ export const NodeDetailPanel = ({
           </div>
 
           <div className="flex flex-wrap gap-2 pt-2">
-            <Button disabled={isExecuting} onClick={handleExecute} size="sm">
+            <Button disabled={executeDisabled} onClick={handleExecute} size="sm">
               {isExecuting ? (
                 <>
                   <Loader2 className="mr-1 h-3 w-3 animate-spin" />

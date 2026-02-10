@@ -12,7 +12,7 @@ export interface WorkflowStoreState {
   error: Error | null
   isDirty: boolean
   isSaving: boolean
-  isExecuting: boolean
+  executingNodeIds: Set<NodeId>
 }
 
 export interface WorkflowStoreActions {
@@ -43,5 +43,5 @@ export const INITIAL_WORKFLOW_STATE: Omit<WorkflowStoreState, 'workflowId'> = {
   error: null,
   isDirty: false,
   isSaving: false,
-  isExecuting: false,
+  executingNodeIds: new Set<NodeId>(),
 }

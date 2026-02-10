@@ -1,12 +1,28 @@
 import type { Store } from '@shared/lib/store'
-import type { NodeData, WorkflowContentData } from '@shared/base-types'
+import type { NodeData, NodeId, WorkflowContentData } from '@shared/base-types'
 import { mergeWorkflowNodes } from '@entities/workflow/lib'
 import { executeWorkflowCommand } from '../api/execute-workflow-command'
 import type { WorkflowStoreState } from './workflow-store-types'
 import type { DebouncedPersister } from './workflow-store-persistence'
 
+function addExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): void {
+  store.setState(prev => ({
+    executingNodeIds: new Set([...prev.executingNodeIds, nodeId]),
+  }))
+}
+
+function removeExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): void {
+  store.setState(prev => {
+    const next = new Set(prev.executingNodeIds)
+    next.delete(nodeId)
+    return { executingNodeIds: next }
+  })
+}
+
 export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: DebouncedPersister) {
   return async (node: NodeData, queryType: string): Promise<boolean> => {
+    if (store.getState().executingNodeIds.size > 0) return false
+
     const { isDirty, workflowId, nodes, edges, root, share } = store.getState()
 
     if (isDirty) {
@@ -14,7 +30,7 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
       if (!saved) return false
     }
 
-    store.setState({ isExecuting: true })
+    addExecutingNode(store, node.id)
 
     try {
       const workflowData: WorkflowContentData = {
@@ -48,7 +64,7 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
     } catch {
       return false
     } finally {
-      store.setState({ isExecuting: false })
+      removeExecutingNode(store, node.id)
     }
   }
 }

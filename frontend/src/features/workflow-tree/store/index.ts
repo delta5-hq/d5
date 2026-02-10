@@ -11,4 +11,6 @@ export {
   useWorkflowActions,
   useWorkflowIsDirty,
   useWorkflowStatus,
+  useIsNodeExecuting,
+  useIsAnyNodeExecuting,
 } from './workflow-selectors'

@@ -38,11 +38,23 @@ export function useWorkflowIsDirty(): boolean {
   return useSelector(store, s => s.isDirty)
 }
 
-export function useWorkflowStatus(): Pick<WorkflowStoreState, 'isLoading' | 'error' | 'isSaving' | 'isExecuting'> {
+export function useIsNodeExecuting(nodeId: NodeId | undefined): boolean {
+  const { store } = useWorkflowStore()
+  return useSelector(store, s => nodeId !== undefined && s.executingNodeIds.has(nodeId))
+}
+
+export function useIsAnyNodeExecuting(): boolean {
+  const { store } = useWorkflowStore()
+  return useSelector(store, s => s.executingNodeIds.size > 0)
+}
+
+export function useWorkflowStatus(): Pick<WorkflowStoreState, 'isLoading' | 'error' | 'isSaving'> & {
+  isExecuting: boolean
+} {
   const { store } = useWorkflowStore()
   return useSelector(
     store,
-    s => ({ isLoading: s.isLoading, error: s.error, isSaving: s.isSaving, isExecuting: s.isExecuting }),
+    s => ({ isLoading: s.isLoading, error: s.error, isSaving: s.isSaving, isExecuting: s.executingNodeIds.size > 0 }),
     shallowEqual,
   )
 }

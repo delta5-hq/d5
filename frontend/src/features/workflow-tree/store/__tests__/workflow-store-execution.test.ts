@@ -116,10 +116,10 @@ describe('bindExecuteAction', () => {
     expect(store.getState().selectedId).toBe('n1')
   })
 
-  it('sets isExecuting during execution and clears after', async () => {
-    let executingDuringCall = false
+  it('tracks executing node in executingNodeIds during execution and clears after', async () => {
+    let executingNodeIdsDuringCall = new Set<string>()
     vi.mocked(executeWorkflowCommand).mockImplementationOnce(async () => {
-      executingDuringCall = store.getState().isExecuting
+      executingNodeIdsDuringCall = new Set(store.getState().executingNodeIds)
       return { nodesChanged: {} }
     })
     vi.mocked(mergeWorkflowNodes).mockReturnValueOnce({
@@ -138,8 +138,46 @@ describe('bindExecuteAction', () => {
 
     await executeCommand(stubNode, 'query')
 
-    expect(executingDuringCall).toBe(true)
-    expect(store.getState().isExecuting).toBe(false)
+    expect(executingNodeIdsDuringCall.has('n1')).toBe(true)
+    expect(store.getState().executingNodeIds.size).toBe(0)
+  })
+
+  it('rejects concurrent execution while another node is executing', async () => {
+    let resolveFirst!: (value: { nodesChanged: Record<string, never> }) => void
+    vi.mocked(executeWorkflowCommand).mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          resolveFirst = resolve
+        }),
+    )
+
+    const store = makeStore({
+      nodes: {
+        n1: { id: 'n1' } as WorkflowStoreState['nodes'][''],
+        n2: { id: 'n2' } as WorkflowStoreState['nodes'][''],
+      },
+      root: 'n1',
+    })
+    const persister = makePersister()
+    const executeCommand = bindExecuteAction(store, persister)
+
+    const firstExecution = executeCommand(stubNode, 'query')
+
+    const secondResult = await executeCommand({ id: 'n2', title: 'Node 2', children: [] }, 'query')
+    expect(secondResult).toBe(false)
+    expect(store.getState().executingNodeIds.has('n1')).toBe(true)
+    expect(store.getState().executingNodeIds.has('n2')).toBe(false)
+
+    vi.mocked(mergeWorkflowNodes).mockReturnValueOnce({
+      nodes: { n1: { id: 'n1' }, n2: { id: 'n2' } },
+      edges: {},
+      root: 'n1',
+      share: { access: [] },
+    })
+    resolveFirst({ nodesChanged: {} })
+    await firstExecution
+
+    expect(store.getState().executingNodeIds.size).toBe(0)
   })
 
   it('flushes dirty state before executing', async () => {
@@ -178,5 +216,127 @@ describe('bindExecuteAction', () => {
 
     expect(result).toBe(false)
     expect(executeWorkflowCommand).not.toHaveBeenCalled()
+  })
+
+  it('returns true on successful execution', async () => {
+    vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+    vi.mocked(mergeWorkflowNodes).mockReturnValueOnce({
+      nodes: { n1: { id: 'n1' } },
+      edges: {},
+      root: 'n1',
+      share: { access: [] },
+    })
+
+    const store = makeStore({
+      nodes: { n1: { id: 'n1' } } as WorkflowStoreState['nodes'],
+      root: 'n1',
+    })
+    const persister = makePersister()
+    const executeCommand = bindExecuteAction(store, persister)
+
+    const result = await executeCommand(stubNode, 'query')
+
+    expect(result).toBe(true)
+  })
+
+  it('returns false on API failure', async () => {
+    vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(new Error('network error'))
+
+    const store = makeStore({
+      nodes: { n1: { id: 'n1' } } as WorkflowStoreState['nodes'],
+      root: 'n1',
+    })
+    const persister = makePersister()
+    const executeCommand = bindExecuteAction(store, persister)
+
+    const result = await executeCommand(stubNode, 'query')
+
+    expect(result).toBe(false)
+  })
+
+  it('clears executingNodeIds after failed execution', async () => {
+    vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(new Error('server error'))
+
+    const store = makeStore({
+      nodes: { n1: { id: 'n1' } } as WorkflowStoreState['nodes'],
+      root: 'n1',
+    })
+    const persister = makePersister()
+    const executeCommand = bindExecuteAction(store, persister)
+
+    await executeCommand(stubNode, 'query')
+
+    expect(store.getState().executingNodeIds.size).toBe(0)
+  })
+
+  it('skips pre-flush when state is not dirty', async () => {
+    vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+    vi.mocked(mergeWorkflowNodes).mockReturnValueOnce({
+      nodes: { n1: { id: 'n1' } },
+      edges: {},
+      root: 'n1',
+      share: { access: [] },
+    })
+
+    const store = makeStore({
+      nodes: { n1: { id: 'n1' } } as WorkflowStoreState['nodes'],
+      root: 'n1',
+      isDirty: false,
+    })
+    const persister = makePersister()
+    const executeCommand = bindExecuteAction(store, persister)
+
+    await executeCommand(stubNode, 'query')
+
+    expect(persister.flush).toHaveBeenCalledTimes(1)
+  })
+
+  it('merges response into store and marks dirty', async () => {
+    vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: { n2: { id: 'n2' } } })
+    vi.mocked(mergeWorkflowNodes).mockReturnValueOnce({
+      nodes: { n1: { id: 'n1' }, n2: { id: 'n2' } },
+      edges: { e1: { id: 'e1', start: 'n1', end: 'n2' } },
+      root: 'n1',
+      share: { access: [] },
+    })
+
+    const store = makeStore({
+      nodes: { n1: { id: 'n1' } } as WorkflowStoreState['nodes'],
+      edges: {},
+      root: 'n1',
+      isDirty: false,
+    })
+    const persister = makePersister()
+    const executeCommand = bindExecuteAction(store, persister)
+
+    await executeCommand(stubNode, 'query')
+
+    const state = store.getState()
+    expect(state.nodes).toEqual({ n1: { id: 'n1' }, n2: { id: 'n2' } })
+    expect(state.edges).toEqual({ e1: { id: 'e1', start: 'n1', end: 'n2' } })
+    expect(state.root).toBe('n1')
+    expect(state.isDirty).toBe(true)
+  })
+
+  it('persists after successful execution', async () => {
+    vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+    vi.mocked(mergeWorkflowNodes).mockReturnValueOnce({
+      nodes: { n1: { id: 'n1' } },
+      edges: {},
+      root: 'n1',
+      share: { access: [] },
+    })
+
+    const store = makeStore({
+      nodes: { n1: { id: 'n1' } } as WorkflowStoreState['nodes'],
+      root: 'n1',
+      isDirty: false,
+    })
+    const persister = makePersister()
+    const executeCommand = bindExecuteAction(store, persister)
+
+    await executeCommand(stubNode, 'query')
+
+    expect(persister.flush).toHaveBeenCalled()
   })
 })
