@@ -1,7 +1,8 @@
+import type { CSSProperties } from 'react'
 import type { NodeData, NodeId } from '@/shared/base-types/workflow'
 
 export interface TreeNodeCallbacks {
-  onToggle?: (id: string) => void
+  onToggle?: (id: string, sparkDelay?: number) => void
   onSelect?: (id: string) => void
   onAddChild?: (parentId: string) => void
   onRequestDelete?: (nodeId: string) => void
@@ -21,14 +22,24 @@ export interface TreeNode {
   ancestorContinuation: boolean[]
   /** Does this node have more siblings after it? (should extend vertical line below) */
   hasMoreSiblings: boolean
-  /** Row index of the immediate parent node (for calculating spark path length) */
-  parentRowIndex: number
+  /** Number of rows between this node and its parent (for wire path calculation) */
+  rowsFromParent: number
+  /** Cumulative animation delay (ms) — child spark starts when parent spark reaches its corner */
+  sparkDelay: number
 }
 
 export interface TreeRecord {
   id: string
   data: TreeNode
   isOpen: boolean
+}
+
+export interface TreeNodeProps extends TreeRecord, TreeNodeCallbacks {
+  style: CSSProperties
+  isSelected?: boolean
+  autoEditNodeId?: string
+  wireExtendDown?: number
+  wireExtendUp?: number
 }
 
 export interface TreeState {
@@ -47,8 +58,10 @@ export interface TreeWalkerYield {
   ancestorContinuation: boolean[]
   /** Does this node have more siblings after it? (should extend vertical line below) */
   hasMoreSiblings: boolean
-  /** Row index of the immediate parent node */
-  parentRowIndex: number
+  /** Number of rows between this node and its parent */
+  rowsFromParent: number
+  /** Cumulative animation delay (ms) — child spark starts when parent spark reaches its corner */
+  sparkDelay: number
 }
 
 export type TreeWalkerGenerator = (refresh: boolean) => ReturnType<typeof import('./tree-walker').createTreeWalker>

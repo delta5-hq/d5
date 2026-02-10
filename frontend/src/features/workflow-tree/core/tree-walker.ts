@@ -1,5 +1,7 @@
 import type { NodeData } from '@/shared/base-types/workflow'
 import type { FlatTreeData } from './types'
+import { ROW_HEIGHT, INDENT_PER_LEVEL, WIRE_PADDING, SPARK_DURATION_MS } from './constants'
+import { computeCornerArrivalMs } from './spark-delay'
 
 interface StackEntry {
   node: NodeData
@@ -10,6 +12,8 @@ interface StackEntry {
   hasMoreSiblings: boolean
   /** Row index of the immediate parent */
   parentRowIndex: number
+  /** Cumulative spark animation delay inherited from ancestors (ms) */
+  parentSparkDelay: number
 }
 
 /**
@@ -35,7 +39,14 @@ export function* createTreeWalker(treeData: FlatTreeData, refresh: boolean) {
 
   const visitedIds = new Set<string>()
   const stack: StackEntry[] = [
-    { node: rootNode, depth: 0, ancestorContinuation: [], hasMoreSiblings: false, parentRowIndex: -1 },
+    {
+      node: rootNode,
+      depth: 0,
+      ancestorContinuation: [],
+      hasMoreSiblings: false,
+      parentRowIndex: -1,
+      parentSparkDelay: 0,
+    },
   ]
   let currentRowIndex = 0
 
@@ -43,7 +54,7 @@ export function* createTreeWalker(treeData: FlatTreeData, refresh: boolean) {
     const entry = stack.pop()
     if (!entry) continue
 
-    const { node, depth, ancestorContinuation, hasMoreSiblings, parentRowIndex } = entry
+    const { node, depth, ancestorContinuation, hasMoreSiblings, parentRowIndex, parentSparkDelay } = entry
 
     if (visitedIds.has(node.id)) continue
     visitedIds.add(node.id)
@@ -53,6 +64,13 @@ export function* createTreeWalker(treeData: FlatTreeData, refresh: boolean) {
     const hasChildren = Boolean(node.children?.length)
     const thisRowIndex = currentRowIndex
     currentRowIndex++
+
+    const rowsFromParent = parentRowIndex >= 0 ? thisRowIndex - parentRowIndex : 1
+    const edgeDelay =
+      depth > 0
+        ? computeCornerArrivalMs(rowsFromParent, ROW_HEIGHT, INDENT_PER_LEVEL, WIRE_PADDING, SPARK_DURATION_MS)
+        : 0
+    const sparkDelay = parentSparkDelay + edgeDelay
 
     if (refresh) {
       yield {
@@ -64,7 +82,8 @@ export function* createTreeWalker(treeData: FlatTreeData, refresh: boolean) {
         hasChildren,
         ancestorContinuation,
         hasMoreSiblings,
-        parentRowIndex,
+        rowsFromParent,
+        sparkDelay,
       }
     } else {
       yield node.id
@@ -92,6 +111,7 @@ export function* createTreeWalker(treeData: FlatTreeData, refresh: boolean) {
           ancestorContinuation: childAncestorContinuation,
           hasMoreSiblings: !isLastChild,
           parentRowIndex: thisRowIndex,
+          parentSparkDelay: sparkDelay,
         })
       })
     }

@@ -1,12 +1,13 @@
 import { AutoSizer } from 'react-virtualized-auto-sizer'
 import { useCallback, useMemo } from 'react'
 import type { NodeData } from '@/shared/base-types/workflow'
-import { getDescendantIds } from '@entities/workflow/lib'
+import { useStableCallback } from '@shared/lib/hooks'
 import { useNodeCacheCleanup } from '@shared/lib/use-node-cache-cleanup'
 import { VirtualizedSegmentTree } from '../virtualization/virtualized-segment-tree'
 import { useTreeWalker } from '../hooks/use-tree-walker'
 import { useTreeExpansion } from '../hooks/use-tree-expansion'
-import { TreeAnimationProvider, useTreeAnimation } from '../context'
+import { useAnimatedToggle } from '../hooks/use-animated-toggle'
+import { TreeAnimationProvider } from '../context'
 
 export interface WorkflowSegmentTreeProps {
   nodes: Record<string, NodeData>
@@ -44,33 +45,15 @@ const WorkflowSegmentTreeInner = ({
 
   const { expandedIds, toggleNode, expandNode } = useTreeExpansion(initialExpandedIds)
   const treeWalker = useTreeWalker({ nodes, rootId, expandedIds })
-  const { scheduleAnimation } = useTreeAnimation()
 
-  const handleSelect = useCallback(
-    (id: string) => {
-      const node = nodes[id]
-      if (node && onSelect) {
-        onSelect(id, node)
-      }
-    },
-    [nodes, onSelect],
-  )
+  const handleSelect = useStableCallback((id: string) => {
+    const node = nodes[id]
+    if (node && onSelect) {
+      onSelect(id, node)
+    }
+  })
 
-  const handleToggle = useCallback(
-    (id: string) => {
-      const wasExpanded = expandedIds.has(id)
-
-      if (!wasExpanded) {
-        const descendantIds = getDescendantIds(nodes, id)
-        if (descendantIds.length > 0) {
-          scheduleAnimation(descendantIds)
-        }
-      }
-
-      toggleNode(id)
-    },
-    [expandedIds, nodes, scheduleAnimation, toggleNode],
-  )
+  const handleToggle = useAnimatedToggle(nodes, expandedIds, toggleNode)
 
   const handleAddChild = useCallback(
     (parentId: string) => {

@@ -1,12 +1,14 @@
 import type { CSSProperties } from 'react'
 import type { Segment } from '../segments/types'
 import type { TreeRecord, TreeNodeCallbacks } from '../core/types'
-import { TreeNodeDefault } from './tree-node-default'
+import { MemoizedTreeNodeDefault } from './tree-node-default'
 import { ContainerRenderer } from './container-renderer'
+
+/* Stable identity — memo comparator short-circuits on reference equality */
+const EMPTY_STYLE: CSSProperties = {}
 
 export interface SegmentRowProps extends TreeNodeCallbacks {
   segment: Segment
-  style: CSSProperties
   rowHeight: number
   selectedId?: string
   autoEditNodeId?: string
@@ -14,7 +16,6 @@ export interface SegmentRowProps extends TreeNodeCallbacks {
 
 export const SegmentRow = ({
   segment,
-  style,
   rowHeight,
   onToggle,
   selectedId,
@@ -34,7 +35,7 @@ export const SegmentRow = ({
     }
 
     return (
-      <TreeNodeDefault
+      <MemoizedTreeNodeDefault
         {...record}
         autoEditNodeId={autoEditNodeId}
         isSelected={record.id === selectedId}
@@ -45,8 +46,7 @@ export const SegmentRow = ({
         onRequestRename={onRequestRename}
         onSelect={onSelect}
         onToggle={onToggle}
-        rowIndex={segment.rowIndex}
-        style={style}
+        style={EMPTY_STYLE}
       />
     )
   }
@@ -65,7 +65,6 @@ export const SegmentRow = ({
         onToggle={onToggle}
         rowHeight={rowHeight}
         selectedId={selectedId}
-        style={style}
       />
     )
   }

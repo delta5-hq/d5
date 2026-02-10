@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { List, type RowComponentProps, type ListImperativeAPI } from 'react-window'
+import { List, type ListImperativeAPI } from '@shared/lib/virtualized-list'
+import type { RowComponentProps } from '@shared/lib/virtualized-list/types'
 import type { TreeState, TreeWalkerGenerator, TreeNodeCallbacks } from '../core/types'
 import { computeTree } from '../core/tree-computer'
 import { computeSegments, getSegmentHeight, getSegmentCount, type SegmentState } from '../segments'
@@ -14,28 +15,23 @@ export interface SegmentRowData extends TreeNodeCallbacks {
 
 export type SegmentRowComponentProps = RowComponentProps<SegmentRowData>
 
-export const SegmentRowComponent = ({ index, style, ...props }: SegmentRowComponentProps) => {
-  const data = props as unknown as SegmentRowData
-  const segment = data.segmentState.segments[index]
+export const SegmentRowComponent = ({ index, rowProps }: SegmentRowComponentProps) => {
+  const segment = rowProps.segmentState.segments[index]
 
   if (!segment) return null
 
-  /* Allow overflow for wire lines extending above/below row bounds */
-  const rowStyle = { ...style, overflow: 'visible' as const }
-
   const segmentRowProps: SegmentRowProps = {
     segment,
-    style: rowStyle,
-    rowHeight: data.rowHeight,
-    onToggle: data.onToggle,
-    selectedId: data.selectedId,
-    onSelect: data.onSelect,
-    onAddChild: data.onAddChild,
-    onRequestDelete: data.onRequestDelete,
-    onDuplicateNode: data.onDuplicateNode,
-    onRename: data.onRename,
-    onRequestRename: data.onRequestRename,
-    autoEditNodeId: data.autoEditNodeId,
+    rowHeight: rowProps.rowHeight,
+    onToggle: rowProps.onToggle,
+    selectedId: rowProps.selectedId,
+    onSelect: rowProps.onSelect,
+    onAddChild: rowProps.onAddChild,
+    onRequestDelete: rowProps.onRequestDelete,
+    onDuplicateNode: rowProps.onDuplicateNode,
+    onRename: rowProps.onRename,
+    onRequestRename: rowProps.onRequestRename,
+    autoEditNodeId: rowProps.autoEditNodeId,
   }
 
   return <SegmentRow {...segmentRowProps} />
@@ -116,9 +112,17 @@ export const VirtualizedSegmentTree = ({
     ],
   )
 
+  /* Stable key extractor — matches segment to its primary node ID instead of index */
+  const getItemKey = useCallback((index: number, props: SegmentRowData) => {
+    const segment = props.segmentState.segments[index]
+    if (!segment) return index
+    return segment.type === 'node' ? segment.data.id : segment.parentTreeNode.id
+  }, [])
+
   return (
     <List
       defaultHeight={height}
+      itemKey={getItemKey}
       listRef={ref => {
         listRef.current = ref
       }}

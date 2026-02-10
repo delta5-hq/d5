@@ -1,14 +1,14 @@
 import { AutoSizer } from 'react-virtualized-auto-sizer'
-import { useCallback, useMemo, useRef, type ComponentType } from 'react'
+import { useCallback, useMemo, type ComponentType } from 'react'
 import type { NodeData } from '@/shared/base-types/workflow'
-import { getDescendantIds } from '@entities/workflow/lib'
 import { useNodeCacheCleanup } from '@shared/lib/use-node-cache-cleanup'
 import { VirtualizedTree, type TreeNodeComponentProps } from '../virtualization/virtualized-tree'
 import { useTreeWalker } from '../hooks/use-tree-walker'
 import { useTreeExpansion } from '../hooks/use-tree-expansion'
-import { TreeAnimationProvider, useTreeAnimation } from '../context'
+import { useAnimatedToggle } from '../hooks/use-animated-toggle'
+import { TreeAnimationProvider } from '../context'
 import { MemoizedTreeNodeDefault } from './tree-node-default'
-import type { TreeNodeProps } from './tree-node-default'
+import type { TreeNodeProps } from '../core/types'
 
 export interface WorkflowTreeProps {
   nodes: Record<string, NodeData>
@@ -36,7 +36,6 @@ const WorkflowTreeInner = ({
 
   const { expandedIds, toggleNode } = useTreeExpansion(initialExpandedIds)
   const treeWalker = useTreeWalker({ nodes, rootId, expandedIds })
-  const { scheduleAnimation } = useTreeAnimation()
 
   const NodeComponent = nodeComponent || MemoizedTreeNodeDefault
 
@@ -50,23 +49,7 @@ const WorkflowTreeInner = ({
     [nodes, onSelect],
   )
 
-  const handleToggleRef = useRef<(id: string) => void>(() => {})
-  handleToggleRef.current = (id: string) => {
-    const wasExpanded = expandedIds.has(id)
-
-    if (!wasExpanded) {
-      const descendantIds = getDescendantIds(nodes, id)
-      if (descendantIds.length > 0) {
-        scheduleAnimation(descendantIds)
-      }
-    }
-
-    toggleNode(id)
-  }
-
-  const handleToggle = useCallback((id: string) => {
-    handleToggleRef.current(id)
-  }, [])
+  const handleToggle = useAnimatedToggle(nodes, expandedIds, toggleNode)
 
   const NodeWrapper = useCallback(
     (props: TreeNodeComponentProps) => (

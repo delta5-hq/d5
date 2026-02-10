@@ -1,4 +1,4 @@
-import React, { type CSSProperties, useRef, useCallback, useEffect, memo } from 'react'
+import React, { useRef, useCallback, useEffect, memo } from 'react'
 import { ChevronRight, Folder, FolderOpen, FileText, Plus, Copy, Trash2, Pencil } from 'lucide-react'
 import { cn } from '@shared/lib/utils'
 import { useGenieState } from '@shared/lib/use-genie-state'
@@ -15,30 +15,17 @@ import {
 } from '@shared/ui/context-menu'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
-import type { TreeRecord, TreeNodeCallbacks } from '../core/types'
+import type { TreeNodeProps } from '../core/types'
+import { INDENT_PER_LEVEL, ROW_HEIGHT, WIRE_PADDING, BASE_PADDING } from '../core/constants'
+import { areTreeNodePropsEqual } from '../core/tree-node-memo'
 import { useTreeAnimation } from '../context'
 import '../styles/wire-tree.css'
 
-export interface TreeNodeProps extends TreeRecord, TreeNodeCallbacks {
-  style: CSSProperties
-  isSelected?: boolean
-  autoEditNodeId?: string
-  /** Current row index in the virtualized list */
-  rowIndex?: number
-  /** Extra space to extend wire DOWN (e.g., for container paddingTop after parent) */
-  wireExtendDown?: number
-  /** Extra space to extend wire UP (e.g., for first child in container) */
-  wireExtendUp?: number
-}
+export type { TreeNodeProps }
 
 function getShowHandRibsFromDepth(depth: number): boolean {
   return depth <= 2
 }
-
-const INDENT_PER_LEVEL = 32
-const ROW_HEIGHT = 48
-const WIRE_PADDING = 2
-const BASE_PADDING = 12
 
 /* Build wire path starting from parent center (matches spark path) */
 function buildWirePath(
@@ -79,31 +66,23 @@ function buildSparkPath(indentX: number, rowHeight: number, indentWidth: number,
   return `M ${startX} ${parentCenterY} L ${startX} ${cornerY} L ${endX} ${cornerY}`
 }
 
-/* Build ancestor continuation lines - truncates deepest at center for last child */
+/* Ancestor continuation lines — vertical │ at each ancestor's wire column where that ancestor has more siblings.
+ * ancestorContinuation[k] = hasMoreSiblings of ancestor at depth k.
+ * Wire column for depth k = BASE_PADDING + (k-1) * INDENT_PER_LEVEL + WIRE_PADDING (depth 0 has no wire). */
 function buildContinuationLines(
   ancestorContinuation: boolean[],
   rowHeight: number,
   extendUp: number = 0,
   extendDown: number = 0,
-  hasMoreSiblings: boolean = true,
 ): Array<{ x: number; path: string }> {
   const lines: Array<{ x: number; path: string }> = []
-  const lastIndex = ancestorContinuation.length - 1
 
   ancestorContinuation.forEach((needsContinuation, depthIndex) => {
-    if (needsContinuation) {
-      const x = BASE_PADDING + depthIndex * INDENT_PER_LEVEL + WIRE_PADDING
-      const topY = -extendUp
-      const centerY = rowHeight / 2
-
-      const isDeepestContinuation = depthIndex === lastIndex
-      const bottomY = isDeepestContinuation && !hasMoreSiblings ? centerY : rowHeight + extendDown
-
-      lines.push({
-        x,
-        path: `M ${x} ${topY} L ${x} ${bottomY}`,
-      })
-    }
+    if (!needsContinuation || depthIndex < 1) return
+    const x = BASE_PADDING + (depthIndex - 1) * INDENT_PER_LEVEL + WIRE_PADDING
+    const topY = -extendUp
+    const bottomY = rowHeight + extendDown
+    lines.push({ x, path: `M ${x} ${topY} L ${x} ${bottomY}` })
   })
 
   return lines
@@ -132,7 +111,6 @@ export const TreeNodeDefault = ({
   onSelect,
   onRename,
   autoEditNodeId,
-  rowIndex,
   wireExtendDown = 0,
   wireExtendUp = 0,
   onAddChild,
@@ -140,22 +118,20 @@ export const TreeNodeDefault = ({
   onDuplicateNode,
   onRequestRename,
 }: TreeNodeProps) => {
-  const { node, depth, ancestorContinuation = [], hasMoreSiblings = false, parentRowIndex = -1 } = data
+  const { node, depth, ancestorContinuation = [], hasMoreSiblings = false, rowsFromParent = 1, sparkDelay = 0 } = data
   const hasChildren = node.children && node.children.length > 0
   const paddingLeft = BASE_PADDING + depth * INDENT_PER_LEVEL
+
   const sparkRef = useRef<HTMLDivElement>(null)
   const genieRef = useRef<GenieRef>(null)
   const genieState = useGenieState(id)
   const wireRef = useRef<SVGPathElement>(null)
-  const { shouldAnimate, clearAnimation, animationVersion } = useTreeAnimation()
+  const { shouldAnimate, getBaseDelay, clearAnimation } = useTreeAnimation()
   const { formatMessage } = useIntl()
-
-  const currentRowIndex = rowIndex ?? 0
-  const rowsFromParent = parentRowIndex >= 0 ? currentRowIndex - parentRowIndex : 1
 
   useEffect(() => {
     if (depth > 0 && shouldAnimate(id)) {
-      const delay = depth * 50
+      const delay = Math.max(0, sparkDelay - getBaseDelay(id))
       const timer = setTimeout(() => {
         triggerAnimation(wireRef.current, sparkRef.current)
         genieRef.current?.flash()
@@ -163,15 +139,15 @@ export const TreeNodeDefault = ({
       }, delay)
       return () => clearTimeout(timer)
     }
-  }, [id, depth, shouldAnimate, clearAnimation, animationVersion])
+  }, [id, depth, sparkDelay, shouldAnimate, getBaseDelay, clearAnimation])
 
   const handleToggle = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
       genieRef.current?.flash()
-      onToggle?.(id)
+      onToggle?.(id, sparkDelay)
     },
-    [id, onToggle],
+    [id, sparkDelay, onToggle],
   )
 
   const handleClick = useCallback(() => {
@@ -210,9 +186,7 @@ export const TreeNodeDefault = ({
     : ''
 
   const continuationLines =
-    depth > 0
-      ? buildContinuationLines(ancestorContinuation, ROW_HEIGHT, wireExtendUp, wireExtendDown, hasMoreSiblings)
-      : []
+    depth > 0 ? buildContinuationLines(ancestorContinuation, ROW_HEIGHT, wireExtendUp, wireExtendDown) : []
 
   const sparkPath = depth > 0 ? buildSparkPath(wireIndentX, ROW_HEIGHT, INDENT_PER_LEVEL, rowsFromParent) : ''
 
@@ -347,4 +321,4 @@ export const TreeNodeDefault = ({
   )
 }
 
-export const MemoizedTreeNodeDefault = memo(TreeNodeDefault)
+export const MemoizedTreeNodeDefault = memo(TreeNodeDefault, areTreeNodePropsEqual)
