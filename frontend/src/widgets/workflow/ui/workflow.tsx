@@ -10,7 +10,6 @@ import {
   useWorkflowStatus,
   useWorkflowIsDirty,
   useIsNodeExecuting,
-  useIsAnyNodeExecuting,
 } from '@features/workflow-tree'
 import { Card, CardContent, CardHeader, CardTitle } from '@shared/ui/card'
 import { Loader2, RefreshCw } from 'lucide-react'
@@ -43,7 +42,6 @@ const WorkflowContent = () => {
   const selectedId = useWorkflowSelectedId()
   const selectedNode = useWorkflowNode(selectedId)
   const isSelectedNodeExecuting = useIsNodeExecuting(selectedId)
-  const isAnyNodeExecuting = useIsAnyNodeExecuting()
   const [autoEditNodeId, setAutoEditNodeId] = useState<string | undefined>()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>()
 
@@ -202,7 +200,7 @@ const WorkflowContent = () => {
           {selectedNode ? (
             <NodeDetailPanel
               autoFocusTitle={autoEditNodeId === selectedId}
-              executeDisabled={isAnyNodeExecuting}
+              executeDisabled={isSelectedNodeExecuting}
               isExecuting={isSelectedNodeExecuting}
               key={selectedNode.id}
               node={selectedNode}

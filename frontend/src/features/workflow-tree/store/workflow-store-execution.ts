@@ -21,11 +21,9 @@ function removeExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): 
 
 export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: DebouncedPersister) {
   return async (node: NodeData, queryType: string): Promise<boolean> => {
-    if (store.getState().executingNodeIds.size > 0) return false
+    if (store.getState().executingNodeIds.has(node.id)) return false
 
-    const { isDirty, workflowId, nodes, edges, root, share } = store.getState()
-
-    if (isDirty) {
+    if (store.getState().isDirty) {
       const saved = await persister.flush()
       if (!saved) return false
     }
@@ -33,12 +31,7 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
     addExecutingNode(store, node.id)
 
     try {
-      const workflowData: WorkflowContentData = {
-        nodes,
-        edges,
-        root: root ?? '',
-        share: share ?? { access: [] },
-      }
+      const { workflowId, nodes, edges } = store.getState()
 
       const response = await executeWorkflowCommand({
         queryType,
@@ -48,9 +41,15 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
         workflowId,
       })
 
-      const merged = mergeWorkflowNodes(workflowData, response)
-      const { selectedId } = store.getState()
-      const selectionStale = selectedId !== undefined && !(selectedId in merged.nodes)
+      const current = store.getState()
+      const currentData: WorkflowContentData = {
+        nodes: current.nodes,
+        edges: current.edges,
+        root: current.root ?? '',
+        share: current.share ?? { access: [] },
+      }
+      const merged = mergeWorkflowNodes(currentData, response)
+      const selectionStale = current.selectedId !== undefined && !(current.selectedId in merged.nodes)
       store.setState({
         nodes: merged.nodes,
         edges: merged.edges ?? {},

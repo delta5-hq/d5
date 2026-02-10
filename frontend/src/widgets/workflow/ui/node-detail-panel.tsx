@@ -40,6 +40,7 @@ export const NodeDetailPanel = ({
   const genieState = useGenieState(node.id)
   const hasChildren = Boolean(node.children?.length)
   const isRoot = !node.parent
+  const mutationDisabled = isExecuting
   const { formatMessage } = useIntl()
 
   const handleTitleChange = useCallback(
@@ -144,12 +145,12 @@ export const NodeDetailPanel = ({
               <FormattedMessage id="workflowTree.node.addChild" />
             </Button>
 
-            <Button disabled={isRoot} onClick={handleDuplicate} size="sm" variant="ghost">
+            <Button disabled={isRoot || mutationDisabled} onClick={handleDuplicate} size="sm" variant="ghost">
               <Copy className="mr-1 h-3 w-3" />
               <FormattedMessage id="workflowTree.node.duplicate" />
             </Button>
 
-            <Button disabled={isRoot} onClick={handleDelete} size="sm" variant="danger">
+            <Button disabled={isRoot || mutationDisabled} onClick={handleDelete} size="sm" variant="danger">
               <Trash2 className="mr-1 h-3 w-3" />
               <FormattedMessage id="delete" />
             </Button>
