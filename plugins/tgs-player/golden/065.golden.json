@@ -1,0 +1,331 @@
+{
+  "stickerId": "065",
+  "pathCount": 46,
+  "paths": [
+    {
+      "fill": "url(#golden_065_grad_1)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 100
+    },
+    {
+      "fill": "none",
+      "stroke": "rgb(8,78,255)",
+      "strokeWidth": "20",
+      "strokeLinecap": "round",
+      "dLength": 100
+    },
+    {
+      "fill": "url(#golden_065_grad_2)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 81
+    },
+    {
+      "fill": "none",
+      "stroke": "rgb(8,78,255)",
+      "strokeWidth": "20",
+      "strokeLinecap": "round",
+      "dLength": 81
+    },
+    {
+      "fill": "rgb(255,255,255)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 81
+    },
+    {
+      "fill": "url(#golden_065_grad_3)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 97
+    },
+    {
+      "fill": "none",
+      "stroke": "rgb(8,78,255)",
+      "strokeWidth": "20",
+      "strokeLinecap": "round",
+      "dLength": 97
+    },
+    {
+      "fill": "url(#golden_065_grad_4)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 149
+    },
+    {
+      "fill": "none",
+      "stroke": "rgb(8,78,255)",
+      "strokeWidth": "20",
+      "strokeLinecap": "round",
+      "dLength": 149
+    },
+    {
+      "fill": "rgb(255,255,255)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 149
+    },
+    {
+      "fill": "url(#golden_065_grad_5)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 139
+    },
+    {
+      "fill": "none",
+      "stroke": "rgb(8,78,255)",
+      "strokeWidth": "20",
+      "strokeLinecap": "round",
+      "dLength": 139
+    },
+    {
+      "fill": "rgb(255,255,255)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 139
+    },
+    {
+      "fill": "url(#golden_065_grad_6)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 149
+    },
+    {
+      "fill": "none",
+      "stroke": "rgb(8,78,255)",
+      "strokeWidth": "20",
+      "strokeLinecap": "round",
+      "dLength": 149
+    },
+    {
+      "fill": "url(#golden_065_grad_7)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 0
+    },
+    {
+      "fill": null,
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 0
+    },
+    {
+      "fill": null,
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 0
+    },
+    {
+      "fill": "url(#golden_065_grad_8)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 0
+    },
+    {
+      "fill": null,
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 0
+    },
+    {
+      "fill": "url(#golden_065_grad_9)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 0
+    },
+    {
+      "fill": null,
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 0
+    },
+    {
+      "fill": "url(#golden_065_grad_10)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 0
+    },
+    {
+      "fill": null,
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 0
+    },
+    {
+      "fill": "url(#golden_065_grad_11)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 0
+    },
+    {
+      "fill": null,
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 0
+    },
+    {
+      "fill": "url(#golden_065_grad_12)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 0
+    },
+    {
+      "fill": null,
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 0
+    },
+    {
+      "fill": null,
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 0
+    },
+    {
+      "fill": null,
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 0
+    },
+    {
+      "fill": "rgb(227,254,255)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 748
+    },
+    {
+      "fill": "none",
+      "stroke": "rgb(8,78,255)",
+      "strokeWidth": "20",
+      "strokeLinecap": "round",
+      "dLength": 748
+    },
+    {
+      "fill": "rgb(255,255,255)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 502
+    },
+    {
+      "fill": "none",
+      "stroke": "rgb(154,164,255)",
+      "strokeWidth": "3",
+      "strokeLinecap": "round",
+      "dLength": 502
+    },
+    {
+      "fill": "rgb(255,255,255)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 502
+    },
+    {
+      "fill": "none",
+      "stroke": "rgb(154,164,255)",
+      "strokeWidth": "3",
+      "strokeLinecap": "round",
+      "dLength": 502
+    },
+    {
+      "fill": "rgb(255,255,255)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 1446
+    },
+    {
+      "fill": "none",
+      "stroke": "rgb(154,164,255)",
+      "strokeWidth": "4",
+      "strokeLinecap": "round",
+      "dLength": 1446
+    },
+    {
+      "fill": "rgb(255,255,255)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 502
+    },
+    {
+      "fill": "none",
+      "stroke": "rgb(154,164,255)",
+      "strokeWidth": "3",
+      "strokeLinecap": "round",
+      "dLength": 502
+    },
+    {
+      "fill": "rgb(255,255,255)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 502
+    },
+    {
+      "fill": "none",
+      "stroke": "rgb(154,164,255)",
+      "strokeWidth": "3",
+      "strokeLinecap": "round",
+      "dLength": 502
+    },
+    {
+      "fill": "rgb(255,255,255)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 502
+    },
+    {
+      "fill": "none",
+      "stroke": "rgb(154,164,255)",
+      "strokeWidth": "3",
+      "strokeLinecap": "round",
+      "dLength": 502
+    },
+    {
+      "fill": "rgb(255,255,255)",
+      "stroke": null,
+      "strokeWidth": null,
+      "strokeLinecap": null,
+      "dLength": 1446
+    },
+    {
+      "fill": "none",
+      "stroke": "rgb(154,164,255)",
+      "strokeWidth": "4",
+      "strokeLinecap": "round",
+      "dLength": 1446
+    }
+  ],
+  "svgWidth": 512,
+  "svgHeight": 512,
+  "viewBox": "0 0 512 512"
+}

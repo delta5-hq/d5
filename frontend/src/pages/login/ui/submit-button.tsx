@@ -6,7 +6,7 @@ interface SubmitButtonProps {
 }
 
 export const SubmitButton = ({ isSubmitting }: SubmitButtonProps) => (
-  <Button className="w-full" disabled={isSubmitting} type="submit">
+  <Button className="w-full" disabled={isSubmitting} type="submit" variant="accent">
     <FormattedMessage id="loginTitle" />
   </Button>
 )

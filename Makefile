@@ -1,4 +1,4 @@
-.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e stop ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend build-backend build-backend-v2 build-frontend test-backend test-backend-v2 e2e-backend e2e-frontend e2e-frontend-throttled e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks test-hook clean-e2e clean-all fix-permissions cleanup-old-data
+.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e stop ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend build-backend build-backend-v2 build-frontend test-backend test-backend-v2 test-frontend e2e-backend e2e-frontend e2e-frontend-throttled e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks test-hook clean-e2e clean-all fix-permissions cleanup-old-data
 
 # Configuration variables (DRY principle)
 DOCKER_NETWORK := d5-dev-network
@@ -34,6 +34,7 @@ help:
 	@echo "  make e2e-frontend-throttled - Run frontend E2E tests (throttled: slowMo=50ms)"
 	@echo "  make test-backend        - Run backend unit tests"
 	@echo "  make test-backend-v2     - Run backend-v2 unit tests"
+	@echo "  make test-frontend       - Run frontend unit tests (Vitest)"
 	@echo ""
 	@echo "Setup:"
 	@echo "  make e2e-db-init         - Initialize E2E database with test fixtures"
@@ -66,7 +67,7 @@ help:
 lint: lint-backend lint-backend-v2 lint-docker-backend-v2 lint-docker-backend lint-docker-frontend lint-frontend
 	@echo "✓ All modules linted"
 
-test: test-backend test-backend-v2
+test: test-backend test-backend-v2 test-frontend
 	@echo "✓ All modules tested"
 
 build: build-backend build-backend-v2 build-frontend
@@ -133,7 +134,7 @@ dev-backend-v2: start-mongodb-dev dev-db-init
 
 dev-frontend:
 	@echo "→ Starting frontend dev server..."
-	@cd frontend && pnpm dev
+	@cd frontend && pnpm dev --host 0.0.0.0
 
 dev: start-mongodb-dev dev-db-init
 	@echo "→ Building backend-v2..."
@@ -156,7 +157,7 @@ dev: start-mongodb-dev dev-db-init
 	@echo "✓ Frontend will be available at http://localhost:$(FRONTEND_PORT)"
 	@echo ""
 	@echo "Press Ctrl+C to stop..."
-	@cd frontend && pnpm dev
+	@cd frontend && pnpm dev --host 0.0.0.0
 
 stop:
 	@echo "→ Stopping all services..."
@@ -209,6 +210,10 @@ test-backend-v2:
 
 test-backend:
 	@bash scripts/ci-helpers.sh test_node backend
+
+test-frontend:
+	@echo "→ Running frontend unit tests..."
+	@cd frontend && npm test -- --run
 
 e2e-backend: start-mongodb-e2e e2e-db-init
 	@echo "→ Building backend-v2..."

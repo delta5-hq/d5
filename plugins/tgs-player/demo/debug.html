@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Debug TGS</title>
+  <style>
+    body { background: #1a1a1a; color: #fff; font-family: monospace; padding: 20px; }
+    canvas { background: #333; border: 2px solid #666; }
+    pre { background: #333; padding: 10px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>TGS Player Debug</h1>
+  
+  <h2>1. Canvas element:</h2>
+  <canvas id="eyes-blink" width="256" height="256"></canvas>
+  
+  <h2>2. Load script:</h2>
+  <pre id="log"></pre>
+  
+  <script>
+    window.onerror = function(msg, url, line) {
+      document.getElementById('log').textContent += 'ERROR: ' + msg + ' at line ' + line + '\n';
+    };
+    function log(msg) {
+      document.getElementById('log').textContent += msg + '\n';
+      console.log(msg);
+    }
+    log('Canvas exists: ' + !!document.getElementById('eyes-blink'));
+  </script>
+  
+  <script src="eyes-blink.player.js"></script>
+  
+  <script>
+    log('Script loaded');
+    log('TgsPlayer class: ' + typeof window.TgsPlayer);
+    log('TgsAnimations: ' + JSON.stringify(window.TgsAnimations?.map(a => a.id)));
+    
+    const canvas = document.getElementById('eyes-blink');
+    log('Canvas._tgsPlayer: ' + !!canvas._tgsPlayer);
+    
+    if (canvas._tgsPlayer) {
+      log('Player state: ' + JSON.stringify({
+        isPlaying: canvas._tgsPlayer.isPlaying,
+        currentFrame: canvas._tgsPlayer.currentFrame,
+        totalFrames: canvas._tgsPlayer.totalFrames
+      }));
+    } else {
+      log('Trying manual init...');
+      try {
+        const anim = window.TgsAnimations?.find(a => a.id === 'eyes-blink');
+        if (anim) {
+          const player = new window.TgsPlayer(anim.data, 'eyes-blink');
+          player.play();
+          log('Manual init SUCCESS');
+        } else {
+          log('No animation data found');
+        }
+      } catch (e) {
+        log('Manual init FAILED: ' + e.message);
+      }
+    }
+  </script>
+</body>
+</html>

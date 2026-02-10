@@ -4,11 +4,15 @@ import {
   type RequestRecoveryDto,
   AuthPageLayout,
   EmailSentDialog,
+  AuthFormTitle,
 } from '@entities/auth'
+import {
+  EmailOrUsernameField,
+  PrimarySubmitButton,
+  LoginNavigationLink,
+  CancelNavigationLink,
+} from '@entities/auth/ui/login-dialog/components'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Button } from '@shared/ui/button'
-import { Input } from '@shared/ui/input'
-import { Label } from '@shared/ui/label'
 import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { FormattedMessage } from 'react-intl'
@@ -59,32 +63,18 @@ const ForgotPassword = () => {
     <AuthPageLayout maxWidth="md">
       <EmailSentDialog onClose={onCloseEmailDialog} open={showEmailSentDialog} />
 
-      <form className="flex flex-col gap-6" onSubmit={handleSubmit(onSubmit)}>
-        <h1 className="text-2xl font-semibold text-card-foreground text-center">
-          <FormattedMessage id="accountRecovery" />
-        </h1>
+      <form className="flex flex-col gap-8" onSubmit={handleSubmit(onSubmit)}>
+        <AuthFormTitle messageId="accountRecovery" />
 
-        <div>
-          <Label htmlFor="usernameOrEmail">
-            <FormattedMessage id="usernameOrEmail" />
-          </Label>
-          <Input
-            {...register('usernameOrEmail')}
-            autoFocus
-            error={!!errors.usernameOrEmail?.message}
-            errorHelper={errors.usernameOrEmail?.message}
-            id="usernameOrEmail"
-            required
-          />
-        </div>
+        <EmailOrUsernameField autoFocus errors={errors} fieldName="usernameOrEmail" register={register} />
 
-        <div className="flex justify-between gap-4">
-          <Button onClick={() => navigate(-1)} type="button" variant="default">
-            <FormattedMessage id="buttonCancel" />
-          </Button>
-          <Button disabled={isSubmitting} type="submit">
-            <FormattedMessage id="sendRecoveryLink" />
-          </Button>
+        <PrimarySubmitButton isLoading={isSubmitting}>
+          <FormattedMessage id="sendRecoveryLink" />
+        </PrimarySubmitButton>
+
+        <div className="flex flex-col gap-2">
+          <LoginNavigationLink />
+          <CancelNavigationLink />
         </div>
       </form>
     </AuthPageLayout>

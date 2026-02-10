@@ -52,7 +52,7 @@ async function login(page: Page, usernameOrEmail: string, password: string, vali
   await page.getByPlaceholder(/username.*email/i).fill(usernameOrEmail)
   await page.getByPlaceholder(/password/i).fill(password)
 
-  const confirmButton = page.locator('button[data-type="confirm-login"]')
+  const confirmButton = page.getByTestId('login-submit-button')
   await confirmButton.waitFor({ state: 'visible', timeout: 5000 })
   
   const authPromise = page.waitForResponse(
