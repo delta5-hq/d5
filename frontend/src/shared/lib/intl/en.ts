@@ -346,10 +346,6 @@ export default {
     node: {
       command: 'Command',
       commandPlaceholder: 'Enter command...',
-      nodeId: 'Node ID',
-      state: 'State',
-      children: 'Children',
-      childNodes: 'Child nodes:',
       execute: 'Execute',
       executing: 'Executing...',
       addChild: 'Add Child',

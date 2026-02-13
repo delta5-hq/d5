@@ -19,8 +19,8 @@ export class WorkflowTreePage {
     return this.page.locator('[data-node-id]', { hasText: title })
   }
 
-  async nodeCount(): Promise<number> {
-    return this.nodes.count()
+  nodesAtDepth(depth: number): Locator {
+    return this.page.locator(`[data-node-depth="${depth}"]`)
   }
 
   async selectNode(nodeId: string): Promise<void> {

@@ -14,7 +14,6 @@ import { NodeTitleEditor } from './node-title-editor'
 
 interface NodeDetailPanelProps {
   node: NodeData
-  nodes: Record<NodeId, NodeData>
   onUpdateNode: (nodeId: NodeId, updates: Partial<Omit<NodeData, 'id' | 'parent'>>) => void
   onRequestDelete: (nodeId: NodeId) => void
   onDuplicateNode: (nodeId: NodeId) => void
@@ -27,7 +26,6 @@ interface NodeDetailPanelProps {
 
 export const NodeDetailPanel = ({
   node,
-  nodes,
   onUpdateNode,
   onRequestDelete,
   onDuplicateNode,
@@ -104,29 +102,6 @@ export const NodeDetailPanel = ({
             />
           </div>
 
-          <div className="grid grid-cols-[100px_1fr] gap-2">
-            <span className="text-muted-foreground text-xs">
-              <FormattedMessage id="workflowTree.node.nodeId" />
-            </span>
-            <span className="font-mono text-xs text-muted-foreground">{node.id}</span>
-          </div>
-
-          <div className="grid grid-cols-[100px_1fr] gap-2">
-            <span className="text-muted-foreground text-xs">
-              <FormattedMessage id="workflowTree.node.state" />
-            </span>
-            <span className="font-mono text-xs">{genieState}</span>
-          </div>
-
-          <div className="grid grid-cols-[100px_1fr] gap-2">
-            <span className="text-muted-foreground text-xs">
-              <FormattedMessage id="workflowTree.node.children" />
-            </span>
-            <span className="text-xs" data-testid="node-children-count">
-              {node.children?.length ?? 0}
-            </span>
-          </div>
-
           <div className="flex flex-wrap gap-2 pt-2">
             <Button data-testid="execute-node-button" disabled={executeDisabled} onClick={handleExecute} size="sm">
               {isExecuting ? (
@@ -176,21 +151,6 @@ export const NodeDetailPanel = ({
           />
         </div>
       </div>
-
-      {hasChildren ? (
-        <div className="pt-2 border-t">
-          <span className="text-muted-foreground block mb-2 text-xs">
-            <FormattedMessage id="workflowTree.node.childNodes" />
-          </span>
-          <ul className="list-disc list-inside space-y-1">
-            {node.children?.map(childId => (
-              <li className="text-foreground/80 text-xs" key={childId}>
-                {normalizeNodeTitle(nodes[childId]?.title) || childId}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
     </div>
   )
 }

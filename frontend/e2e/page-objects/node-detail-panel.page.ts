@@ -14,20 +14,11 @@ export class NodeDetailPanelPage extends PageComponent {
     return this.page.getByTestId('add-child-node-button')
   }
 
-  get childrenCount(): Locator {
-    return this.page.getByTestId('node-children-count')
-  }
-
   async execute(): Promise<void> {
     await this.executeButton.click()
   }
 
   async addChild(): Promise<void> {
     await this.addChildButton.click()
-  }
-
-  async getChildrenCount(): Promise<number> {
-    const text = await this.childrenCount.textContent()
-    return parseInt(text ?? '0', 10)
   }
 }

@@ -21,7 +21,7 @@ test.describe('Workflow execution merge pipeline', () => {
     await tree.selectNode(rootId)
     await detail.waitForComponent()
 
-    await expect(detail.childrenCount).toHaveText('0')
+    await expect(tree.nodesAtDepth(1)).toHaveCount(0)
 
     await page.route('**/api/v2/execute', async route => {
       if (route.request().method() !== 'POST') return route.continue()
@@ -41,8 +41,7 @@ test.describe('Workflow execution merge pipeline', () => {
 
     await expect(tree.nodeByTitle('Generated Alpha')).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
     await expect(tree.nodeByTitle('Generated Beta')).toBeVisible()
-    await expect(detail.childrenCount).toHaveText('2')
-    expect(await tree.nodeCount()).toBe(3)
+    await expect(tree.nodesAtDepth(1)).toHaveCount(2)
   })
 
   test('preserves existing children when merging new siblings', async ({ page }) => {
@@ -62,7 +61,7 @@ test.describe('Workflow execution merge pipeline', () => {
 
     await tree.selectNode(rootId)
     await detail.waitForComponent()
-    await expect(detail.childrenCount).toHaveText('1')
+    await expect(tree.nodesAtDepth(1)).toHaveCount(1)
 
     await page.route('**/api/v2/execute', async route => {
       if (route.request().method() !== 'POST') return route.continue()
@@ -81,8 +80,7 @@ test.describe('Workflow execution merge pipeline', () => {
 
     await expect(tree.nodeByTitle('Newly Generated')).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
     await expect(tree.node(existingChildId!)).toBeVisible()
-    await expect(detail.childrenCount).toHaveText('2')
-    expect(await tree.nodeCount()).toBe(3)
+    await expect(tree.nodesAtDepth(1)).toHaveCount(2)
   })
 
   test('reconciles parent-child links from orphaned backend response', async ({ page }) => {
@@ -113,6 +111,6 @@ test.describe('Workflow execution merge pipeline', () => {
     await detail.execute()
 
     await expect(tree.nodeByTitle('Orphan Reconciled')).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
-    await expect(detail.childrenCount).toHaveText('1')
+    await expect(tree.nodesAtDepth(1)).toHaveCount(1)
   })
 })

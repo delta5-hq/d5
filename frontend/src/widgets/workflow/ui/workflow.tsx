@@ -218,7 +218,6 @@ const WorkflowContent = () => {
               isExecuting={isSelectedNodeExecuting}
               key={selectedNode.id}
               node={selectedNode}
-              nodes={nodes}
               onAddChild={handleAddChild}
               onDuplicateNode={handleDuplicateNode}
               onExecute={handleExecute}

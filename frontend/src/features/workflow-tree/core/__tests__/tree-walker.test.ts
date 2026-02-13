@@ -16,6 +16,10 @@ function makeNode(id: string, children: string[] = []): NodeData {
   return { id, children } as NodeData
 }
 
+function buildNodes(tree: Record<string, string[]>): Record<string, NodeData> {
+  return Object.fromEntries(Object.entries(tree).map(([id, children]) => [id, makeNode(id, children)]))
+}
+
 /* ─────────────────────────────────────────────────────
  * Empty / missing data guard-rails
  * ─────────────────────────────────────────────────────*/
@@ -192,6 +196,66 @@ describe('createTreeWalker — depth', () => {
     const childDepths = results.filter(n => n.id !== 'r').map(n => n.depth)
     expect(new Set(childDepths).size).toBe(1)
     expect(childDepths[0]).toBe(1)
+  })
+
+  it.each<{ scenario: string; tree: Record<string, string[]>; expanded: string[]; expected: [string, number][] }>([
+    {
+      scenario: 'depth resets when traversal returns to shallower branch',
+      tree: { r: ['a', 'b'], a: ['a1'], a1: ['a1a'], a1a: [], b: [] },
+      expanded: ['r', 'a', 'a1'],
+      expected: [
+        ['r', 0],
+        ['a', 1],
+        ['a1', 2],
+        ['a1a', 3],
+        ['b', 1],
+      ],
+    },
+    {
+      scenario: 'collapsed subtree does not affect sibling depth',
+      tree: { r: ['a', 'b', 'c'], a: ['a1', 'a2'], a1: [], a2: [], b: ['b1'], b1: [], c: [] },
+      expanded: ['a'],
+      expected: [
+        ['r', 0],
+        ['a', 1],
+        ['a1', 2],
+        ['a2', 2],
+        ['b', 1],
+        ['c', 1],
+      ],
+    },
+    {
+      scenario: 'missing children references do not corrupt depth',
+      tree: { r: ['a', 'ghost', 'b'], a: ['a1'], a1: [], b: [] },
+      expanded: ['a'],
+      expected: [
+        ['r', 0],
+        ['a', 1],
+        ['a1', 2],
+        ['b', 1],
+      ],
+    },
+    {
+      scenario: 'multiple expanded subtrees at different levels',
+      tree: { r: ['a', 'b'], a: ['a1'], a1: ['a1a'], a1a: [], b: ['b1', 'b2'], b1: [], b2: [] },
+      expanded: ['a', 'a1', 'b'],
+      expected: [
+        ['r', 0],
+        ['a', 1],
+        ['a1', 2],
+        ['a1a', 3],
+        ['b', 1],
+        ['b1', 2],
+        ['b2', 2],
+      ],
+    },
+  ])('$scenario', ({ tree, expanded, expected }) => {
+    const data: FlatTreeData = {
+      nodes: buildNodes(tree),
+      rootId: 'r',
+      expandedIds: new Set(expanded),
+    }
+    expect(collectWalker(data).map(n => [n.id, n.depth])).toEqual(expected)
   })
 })
 
