@@ -33,11 +33,24 @@ export const NavigationItem: FC<NavItemProps> = ({ item, isActive, onClick, cust
 
   const navElement =
     item.id === 'create' ? (
-      <div className={className} data-testid={`primary-nav-${item.id}`} onClick={onClick} role="button" tabIndex={0}>
+      <div
+        className={className}
+        data-active={isActive}
+        data-testid={`primary-nav-${item.id}`}
+        onClick={onClick}
+        role="button"
+        tabIndex={0}
+      >
         {content}
       </div>
     ) : (
-      <Link className={className} data-testid={`primary-nav-${item.id}`} onClick={onClick} to={item.url}>
+      <Link
+        className={className}
+        data-active={isActive}
+        data-testid={`primary-nav-${item.id}`}
+        onClick={onClick}
+        to={item.url}
+      >
         {content}
       </Link>
     )

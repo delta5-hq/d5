@@ -1,5 +1,6 @@
 import { type FC } from 'react'
 import { BriefcaseBusiness, Globe, Home, Plus, School, Settings } from 'lucide-react'
+import { SECTION_MENUS, isMenuItemActive, type SectionId } from './secondary-nav-config'
 
 export interface NavItem {
   id: string
@@ -39,5 +40,11 @@ export function filterVisibleNavItems(items: ReadonlyArray<NavItem>, isLoggedIn:
 export function isNavItemActive(item: NavItem, currentPath: string): boolean {
   if (currentPath === item.url) return true
   if (item.url !== '/' && currentPath.startsWith(item.url + '/')) return true
+
+  const sectionMenuItems = SECTION_MENUS[item.id as SectionId]
+  if (sectionMenuItems) {
+    return sectionMenuItems.some(menuItem => menuItem.url !== '#' && isMenuItemActive(menuItem.url, currentPath))
+  }
+
   return false
 }

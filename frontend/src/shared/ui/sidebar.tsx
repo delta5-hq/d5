@@ -493,7 +493,7 @@ const SidebarMenuButton = ({
       className={cn(
         sidebarMenuButtonVariants({ variant, size }),
         state === 'expanded' && 'active-animated',
-        'rounded-sm hover:[background:linear-gradient(to_right,var(--primary)_10%,var(--primary-gradient-end))] hover:rounded-l-none hover:text-primary-foreground',
+        'rounded-sm hover:[background:linear-gradient(to_right,var(--primary)_10%,var(--primary-gradient-end))] hover:rounded-r-none hover:text-primary-foreground',
         className,
       )}
       data-active={isActive}
