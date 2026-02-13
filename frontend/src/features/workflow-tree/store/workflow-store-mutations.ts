@@ -8,6 +8,7 @@ import {
   moveNode as moveNodePure,
   duplicateNode as duplicateNodePure,
   NodeMutationError,
+  resolveSelectionAfterDelete,
 } from '@entities/workflow/lib'
 import { toast } from 'sonner'
 import type { WorkflowStoreState } from './workflow-store-types'
@@ -79,15 +80,16 @@ export function bindMutationActions(
 
   const removeNode = (nodeId: NodeId): boolean => {
     const { nodes, edges, selectedId } = store.getState()
+    const nextSelectedId = selectedId !== undefined ? resolveSelectionAfterDelete(nodes, nodeId) : undefined
     return (
       applyMutation(
         () => removeNodePure(nodes, edges, nodeId),
         result => {
-          const clearSelection = selectedId !== undefined && result.removedNodeIds.includes(selectedId)
+          const selectionAffected = selectedId !== undefined && result.removedNodeIds.includes(selectedId)
           store.setState({
             nodes: result.nodes,
             edges: result.edges,
-            ...(clearSelection && { selectedId: undefined }),
+            ...(selectionAffected && { selectedId: nextSelectedId }),
           })
         },
       ) !== null

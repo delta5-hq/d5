@@ -16,35 +16,39 @@ const { MockNodeMutationError } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@entities/workflow/lib', () => ({
-  createRootNode: vi.fn((_nodes: unknown, data: Record<string, unknown>) => ({
-    nodes: { 'new-root': { id: 'new-root', title: data.title ?? '', children: [] } },
-    newId: 'new-root',
-  })),
-  addChildNode: vi.fn((_nodes: unknown, _parentId: string, data: Record<string, unknown>) => ({
-    nodes: {
-      p1: { id: 'p1', children: ['new-child'] },
-      'new-child': { id: 'new-child', title: data.title ?? '', parent: 'p1', children: [] },
-    },
-    newId: 'new-child',
-  })),
-  updateNode: vi.fn((_nodes: unknown, nodeId: string, updates: Record<string, unknown>) => ({
-    [nodeId]: { id: nodeId, ...updates },
-  })),
-  removeNode: vi.fn((_nodes: unknown, edges: unknown, _nodeId: string) => ({
-    nodes: {},
-    edges,
-    removedNodeIds: [_nodeId],
-  })),
-  moveNode: vi.fn((_nodes: unknown) => ({ moved: true })),
-  duplicateNode: vi.fn((_nodes: unknown, edges: unknown) => ({
-    nodes: {},
-    edges,
-    newRootId: 'dup-root',
-    idMapping: {},
-  })),
-  NodeMutationError: MockNodeMutationError,
-}))
+vi.mock('@entities/workflow/lib', async importOriginal => {
+  const actual = await importOriginal<typeof import('@entities/workflow/lib')>()
+  return {
+    ...actual,
+    createRootNode: vi.fn((_nodes: unknown, data: Record<string, unknown>) => ({
+      nodes: { 'new-root': { id: 'new-root', title: data.title ?? '', children: [] } },
+      newId: 'new-root',
+    })),
+    addChildNode: vi.fn((_nodes: unknown, _parentId: string, data: Record<string, unknown>) => ({
+      nodes: {
+        p1: { id: 'p1', children: ['new-child'] },
+        'new-child': { id: 'new-child', title: data.title ?? '', parent: 'p1', children: [] },
+      },
+      newId: 'new-child',
+    })),
+    updateNode: vi.fn((_nodes: unknown, nodeId: string, updates: Record<string, unknown>) => ({
+      [nodeId]: { id: nodeId, ...updates },
+    })),
+    removeNode: vi.fn((_nodes: unknown, edges: unknown, _nodeId: string) => ({
+      nodes: {},
+      edges,
+      removedNodeIds: [_nodeId],
+    })),
+    moveNode: vi.fn((_nodes: unknown) => ({ moved: true })),
+    duplicateNode: vi.fn((_nodes: unknown, edges: unknown) => ({
+      nodes: {},
+      edges,
+      newRootId: 'dup-root',
+      idMapping: {},
+    })),
+    NodeMutationError: MockNodeMutationError,
+  }
+})
 
 function makeStore(overrides: Partial<WorkflowStoreState> = {}) {
   return createStore<WorkflowStoreState>({
@@ -115,9 +119,12 @@ describe('bindMutationActions', () => {
     expect(ok).toBe(true)
   })
 
-  it('removeNode clears selectedId when selected node is among removedNodeIds', () => {
+  it('removeNode selects parent when deleted node has no siblings', () => {
     const store = makeStore({
-      nodes: { n1: { id: 'n1', parent: 'root' } } as WorkflowStoreState['nodes'],
+      nodes: {
+        root: { id: 'root', children: ['n1'] },
+        n1: { id: 'n1', parent: 'root', children: [] },
+      } as WorkflowStoreState['nodes'],
       selectedId: 'n1',
     })
     const persister = makePersister()
@@ -125,7 +132,24 @@ describe('bindMutationActions', () => {
 
     removeNode('n1')
 
-    expect(store.getState().selectedId).toBeUndefined()
+    expect(store.getState().selectedId).toBe('root')
+  })
+
+  it('removeNode selects next sibling when deleted node has one', () => {
+    const store = makeStore({
+      nodes: {
+        root: { id: 'root', children: ['n1', 'n2'] },
+        n1: { id: 'n1', parent: 'root', children: [] },
+        n2: { id: 'n2', parent: 'root', children: [] },
+      } as WorkflowStoreState['nodes'],
+      selectedId: 'n1',
+    })
+    const persister = makePersister()
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+
+    removeNode('n1')
+
+    expect(store.getState().selectedId).toBe('n2')
   })
 
   it('removeNode preserves selectedId when selected node is not among removedNodeIds', () => {
