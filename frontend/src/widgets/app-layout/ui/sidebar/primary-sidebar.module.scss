@@ -242,15 +242,20 @@
 
 .menuLinkButton {
   position: relative;
+  margin-right: -8px;
 
   &::after {
     position: absolute;
     width: 3px;
     height: 100%;
     top: 0;
-    right: -8px;
+    right: 0;
     background-color: var(--accent);
     content: "";
+  }
+
+  &:hover .menuLinkText {
+    color: var(--primary-foreground);
   }
 }
 
