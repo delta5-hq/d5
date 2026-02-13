@@ -75,7 +75,7 @@ export const NodeDetailPanel = ({
   }, [node.id, onAddChild])
 
   return (
-    <div className="space-y-4 text-sm">
+    <div className="space-y-4 text-sm" data-testid="node-detail-panel">
       <div className="flex items-start gap-4">
         <div className="flex-1 space-y-4">
           <div className="flex items-center gap-2">
@@ -122,11 +122,13 @@ export const NodeDetailPanel = ({
             <span className="text-muted-foreground text-xs">
               <FormattedMessage id="workflowTree.node.children" />
             </span>
-            <span className="text-xs">{node.children?.length ?? 0}</span>
+            <span className="text-xs" data-testid="node-children-count">
+              {node.children?.length ?? 0}
+            </span>
           </div>
 
           <div className="flex flex-wrap gap-2 pt-2">
-            <Button disabled={executeDisabled} onClick={handleExecute} size="sm">
+            <Button data-testid="execute-node-button" disabled={executeDisabled} onClick={handleExecute} size="sm">
               {isExecuting ? (
                 <>
                   <Loader2 className="mr-1 h-3 w-3 animate-spin" />
@@ -140,7 +142,13 @@ export const NodeDetailPanel = ({
               )}
             </Button>
 
-            <Button onClick={handleAddChild} size="sm" variant="ghost">
+            <Button
+              data-testid="add-child-node-button"
+              disabled={mutationDisabled}
+              onClick={handleAddChild}
+              size="sm"
+              variant="ghost"
+            >
               <Plus className="mr-1 h-3 w-3" />
               <FormattedMessage id="workflowTree.node.addChild" />
             </Button>

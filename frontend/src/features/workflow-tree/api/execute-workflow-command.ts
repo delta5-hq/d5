@@ -1,5 +1,6 @@
 import { apiFetch } from '@shared/lib/base-api'
-import type { NodeData } from '@shared/base-types'
+import { normalizeToRecord } from '@shared/lib/normalize-to-record'
+import type { NodeData, EdgeData } from '@shared/base-types'
 import { toast } from 'sonner'
 
 interface ExecuteRequest {
@@ -13,22 +14,32 @@ interface ExecuteRequest {
   prompt?: string
 }
 
+interface BackendExecuteResponse {
+  nodesChanged?: NodeData[] | Record<string, NodeData>
+  edgesChanged?: EdgeData[] | Record<string, EdgeData>
+  cell?: NodeData
+}
+
 interface ExecuteResponse {
   nodesChanged?: Record<string, NodeData>
-  edgesChanged?: Record<string, unknown>
+  edgesChanged?: Record<string, EdgeData>
   cell?: NodeData
 }
 
 export const executeWorkflowCommand = async (request: ExecuteRequest): Promise<ExecuteResponse> => {
   try {
-    const response = await apiFetch<ExecuteResponse>('/execute', {
+    const raw = await apiFetch<BackendExecuteResponse>('/execute', {
       method: 'POST',
       body: JSON.stringify(request),
       headers: {
         'Content-Type': 'application/json',
       },
     })
-    return response
+    return {
+      ...raw,
+      nodesChanged: normalizeToRecord(raw.nodesChanged),
+      edgesChanged: normalizeToRecord(raw.edgesChanged),
+    }
   } catch (error) {
     toast.error(`Execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     throw error

@@ -6,14 +6,14 @@ import { bindExecuteAction } from '../workflow-store-execution'
 import type { DebouncedPersister } from '../workflow-store-persistence'
 
 vi.mock('@entities/workflow/lib', () => ({
-  mergeWorkflowNodes: vi.fn(),
+  mergeWorkflowChanges: vi.fn(),
 }))
 
 vi.mock('../../api/execute-workflow-command', () => ({
   executeWorkflowCommand: vi.fn(),
 }))
 
-import { mergeWorkflowNodes } from '@entities/workflow/lib'
+import { mergeWorkflowChanges } from '@entities/workflow/lib'
 import { executeWorkflowCommand } from '../../api/execute-workflow-command'
 
 function makeStore(overrides: Partial<WorkflowStoreState> = {}) {
@@ -30,7 +30,7 @@ function makePersister(): DebouncedPersister {
 
 function mockIdentityExecution(nodes: WorkflowStoreState['nodes']) {
   vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
-  vi.mocked(mergeWorkflowNodes).mockReturnValueOnce({
+  vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
     nodes,
     edges: {},
     root: Object.keys(nodes)[0] ?? '',
@@ -68,7 +68,7 @@ describe('bindExecuteAction', () => {
       expect(store.getState().executingNodeIds.has('n1')).toBe(true)
       expect(store.getState().executingNodeIds.size).toBe(1)
 
-      vi.mocked(mergeWorkflowNodes).mockReturnValueOnce({ nodes: N1, edges: {}, root: 'n1', share: { access: [] } })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({ nodes: N1, edges: {}, root: 'n1', share: { access: [] } })
       resolveFirst({ nodesChanged: {} })
       await first
 
@@ -107,7 +107,7 @@ describe('bindExecuteAction', () => {
       expect(store.getState().executingNodeIds.has('n2')).toBe(true)
       expect(store.getState().executingNodeIds.size).toBe(2)
 
-      vi.mocked(mergeWorkflowNodes).mockReturnValueOnce({
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
         nodes: { n1: { id: 'n1', title: 'A result' }, n2: { id: 'n2' } },
         edges: {},
         root: 'n1',
@@ -119,7 +119,7 @@ describe('bindExecuteAction', () => {
       expect(store.getState().executingNodeIds.has('n1')).toBe(false)
       expect(store.getState().executingNodeIds.has('n2')).toBe(true)
 
-      vi.mocked(mergeWorkflowNodes).mockReturnValueOnce({
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
         nodes: { n1: { id: 'n1', title: 'A result' }, n2: { id: 'n2', title: 'B result' } },
         edges: {},
         root: 'n1',
@@ -137,7 +137,7 @@ describe('bindExecuteAction', () => {
         captured = new Set(store.getState().executingNodeIds)
         return { nodesChanged: {} }
       })
-      vi.mocked(mergeWorkflowNodes).mockReturnValueOnce({ nodes: N1, edges: {}, root: 'n1', share: { access: [] } })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({ nodes: N1, edges: {}, root: 'n1', share: { access: [] } })
 
       const store = makeStore({ nodes: N1, root: 'n1' })
       const persister = makePersister()
@@ -202,7 +202,7 @@ describe('bindExecuteAction', () => {
 
     it('captures store state after flush for API request', async () => {
       vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
-      vi.mocked(mergeWorkflowNodes).mockReturnValueOnce({
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
         nodes: { n1: { id: 'n1', title: 'post-flush' } },
         edges: {},
         root: 'n1',
@@ -234,7 +234,7 @@ describe('bindExecuteAction', () => {
   describe('response merging', () => {
     it('applies merged nodes, edges, and root to store and marks dirty', async () => {
       vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: { n2: { id: 'n2' } } })
-      vi.mocked(mergeWorkflowNodes).mockReturnValueOnce({
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
         nodes: { n1: { id: 'n1' }, n2: { id: 'n2' } },
         edges: { e1: { id: 'e1', start: 'n1', end: 'n2' } },
         root: 'n1',
@@ -282,7 +282,7 @@ describe('bindExecuteAction', () => {
       const first = execute(stubNode, 'query')
       const second = execute(stubNodeB, 'query')
 
-      vi.mocked(mergeWorkflowNodes).mockImplementationOnce((current, _response) => ({
+      vi.mocked(mergeWorkflowChanges).mockImplementationOnce((current, _response) => ({
         ...current,
         nodes: { ...current.nodes, n1: { id: 'n1', title: 'A done' }, childA: { id: 'childA' } },
       }))
@@ -291,7 +291,7 @@ describe('bindExecuteAction', () => {
 
       expect(store.getState().nodes).toHaveProperty('childA')
 
-      vi.mocked(mergeWorkflowNodes).mockImplementationOnce((current, _response) => ({
+      vi.mocked(mergeWorkflowChanges).mockImplementationOnce((current, _response) => ({
         ...current,
         nodes: { ...current.nodes, n2: { id: 'n2', title: 'B done' }, childB: { id: 'childB' } },
       }))
@@ -319,7 +319,7 @@ describe('bindExecuteAction', () => {
 
     it('returns false when post-execution persist throws', async () => {
       vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
-      vi.mocked(mergeWorkflowNodes).mockReturnValueOnce({ nodes: N1, edges: {}, root: 'n1', share: { access: [] } })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({ nodes: N1, edges: {}, root: 'n1', share: { access: [] } })
 
       const store = makeStore({ nodes: N1, root: 'n1' })
       const persister = makePersister()
@@ -338,7 +338,7 @@ describe('bindExecuteAction', () => {
   describe('selection management', () => {
     it('clears selectedId when selected node removed by merge', async () => {
       vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: { n2: { id: 'n2' } } })
-      vi.mocked(mergeWorkflowNodes).mockReturnValueOnce({
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
         nodes: { n2: { id: 'n2' } },
         edges: {},
         root: 'n2',
@@ -358,7 +358,7 @@ describe('bindExecuteAction', () => {
       vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({
         nodesChanged: { n1: { id: 'n1', title: 'Updated' } },
       })
-      vi.mocked(mergeWorkflowNodes).mockReturnValueOnce({
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
         nodes: { n1: { id: 'n1', title: 'Updated' }, n2: { id: 'n2' } },
         edges: {},
         root: 'n1',

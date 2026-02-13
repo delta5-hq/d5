@@ -43,11 +43,6 @@ export function useIsNodeExecuting(nodeId: NodeId | undefined): boolean {
   return useSelector(store, s => nodeId !== undefined && s.executingNodeIds.has(nodeId))
 }
 
-export function useIsAnyNodeExecuting(): boolean {
-  const { store } = useWorkflowStore()
-  return useSelector(store, s => s.executingNodeIds.size > 0)
-}
-
 export function useWorkflowStatus(): Pick<WorkflowStoreState, 'isLoading' | 'error' | 'isSaving'> & {
   isExecuting: boolean
 } {

@@ -200,6 +200,7 @@ export const TreeNodeDefault = ({
             'text-sm text-foreground/90',
             isSelected && 'bg-accent',
           )}
+          data-node-id={id}
           onClick={handleClick}
           style={{ ...style, paddingLeft, overflow: 'visible' }}
         >

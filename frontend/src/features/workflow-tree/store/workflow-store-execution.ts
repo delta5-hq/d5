@@ -1,6 +1,6 @@
 import type { Store } from '@shared/lib/store'
 import type { NodeData, NodeId, WorkflowContentData } from '@shared/base-types'
-import { mergeWorkflowNodes } from '@entities/workflow/lib'
+import { mergeWorkflowChanges } from '@entities/workflow/lib'
 import { executeWorkflowCommand } from '../api/execute-workflow-command'
 import type { WorkflowStoreState } from './workflow-store-types'
 import type { DebouncedPersister } from './workflow-store-persistence'
@@ -48,7 +48,7 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
         root: current.root ?? '',
         share: current.share ?? { access: [] },
       }
-      const merged = mergeWorkflowNodes(currentData, response)
+      const merged = mergeWorkflowChanges(currentData, response)
       const selectionStale = current.selectedId !== undefined && !(current.selectedId in merged.nodes)
       store.setState({
         nodes: merged.nodes,

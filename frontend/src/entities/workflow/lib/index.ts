@@ -1,4 +1,4 @@
-export * from './merge-workflow-nodes'
+export * from './merge-workflow-changes'
 export * from './node-validation'
 export * from './node-mutations'
 export * from './normalize-title'
