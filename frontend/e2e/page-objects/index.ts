@@ -1,4 +1,6 @@
 export { WorkflowCardPage } from './workflow-card.page'
+export { WorkflowTreePage } from './workflow-tree.page'
+export { NodeDetailPanelPage } from './node-detail-panel.page'
 export { ShareDialogInteractions } from './share-dialog-interactions.page'
 export { PrimaryNavigationPage } from './primary-navigation.page'
 export { SecondarySidebarPage } from './secondary-sidebar.page'

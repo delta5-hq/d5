@@ -4,13 +4,7 @@ export type ScrollAlign = 'auto' | 'center' | 'end' | 'smart' | 'start'
 export type ScrollBehavior = 'auto' | 'instant' | 'smooth'
 
 export interface RowComponentProps<RowProps extends object = object> {
-  ariaAttributes: {
-    'aria-posinset': number
-    'aria-setsize': number
-    role: 'listitem'
-  }
   index: number
-  style: CSSProperties
   rowProps: RowProps
 }
 

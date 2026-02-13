@@ -15,6 +15,8 @@ export interface ContainerConfig {
   component?: ComponentType<ContainerProps>
   paddingTop?: number
   paddingBottom?: number
+  /** When true, parent node renders inside the container wrapper alongside children */
+  includeParent?: boolean
 }
 
 export interface SegmentNode {

@@ -13,7 +13,7 @@ export type TreeExpansionAction =
   | { type: 'COLLAPSE_ALL' }
   | { type: 'SET'; ids: Set<string> }
 
-function expansionReducer(state: TreeExpansionState, action: TreeExpansionAction): TreeExpansionState {
+export function expansionReducer(state: TreeExpansionState, action: TreeExpansionAction): TreeExpansionState {
   const newExpandedIds = new Set(state.expandedIds)
 
   switch (action.type) {
@@ -41,7 +41,7 @@ function expansionReducer(state: TreeExpansionState, action: TreeExpansionAction
       return { expandedIds: new Set() }
 
     case 'SET':
-      return { expandedIds: action.ids }
+      return { expandedIds: new Set(action.ids) }
 
     default:
       return state

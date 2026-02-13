@@ -20,6 +20,7 @@
 # Logs (global pattern)
 logs/
 *.log
+*.pid
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

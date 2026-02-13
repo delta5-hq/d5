@@ -328,4 +328,63 @@ export default {
   collaborativeEditingPublicDescription: 'Anyone can edit',
   workflowSharedPublicSuccess: 'Workflow is now public! Link copied to clipboard.',
   workflowMadePrivateSuccess: 'Workflow is now private',
+
+  workflowTree: {
+    title: 'Workflow Tree',
+    nodeDetails: 'Node Details',
+    selectNode: 'Select a node from the tree to view details',
+    errorTitle: 'Error Loading Workflow',
+    retry: 'Retry',
+    rootNodeDefault: 'Root Node',
+
+    empty: {
+      title: 'No nodes yet',
+      description: 'Create your first node to get started',
+      createFirst: 'Create First Node',
+    },
+
+    node: {
+      command: 'Command',
+      commandPlaceholder: 'Enter command...',
+      nodeId: 'Node ID',
+      state: 'State',
+      children: 'Children',
+      childNodes: 'Child nodes:',
+      execute: 'Execute',
+      executing: 'Executing...',
+      addChild: 'Add Child',
+      duplicate: 'Duplicate',
+      untitled: 'Untitled',
+      rename: 'Rename',
+      editHint: 'Double-click to edit',
+    },
+
+    status: {
+      saving: 'Saving...',
+      unsaved: 'Unsaved changes',
+      saved: 'Saved',
+    },
+
+    deleteDialog: {
+      title: 'Delete Node',
+      descriptionWithChildren:
+        'Delete "{title}" and {count} child {count, plural, one {node} other {nodes}}? This action cannot be undone.',
+      description: 'Delete "{title}"? This action cannot be undone.',
+    },
+
+    mutation: {
+      invalidNodeData: 'Invalid node data',
+      rootExists: 'Root node already exists',
+      rootWithParent: 'Root node cannot have a parent',
+      parentNotFound: 'Parent node not found',
+      nodeNotFound: 'Node not found',
+      cannotRemoveRoot: 'Cannot remove the root node',
+      circularReference: 'Move would create a circular reference',
+      cannotMoveRoot: 'Cannot move the root node',
+      targetNotFound: 'Target node not found',
+      noTargetParent: 'Cannot duplicate root without a target parent',
+      selfParent: 'Node cannot be its own parent',
+      failed: 'Operation failed',
+    },
+  },
 }

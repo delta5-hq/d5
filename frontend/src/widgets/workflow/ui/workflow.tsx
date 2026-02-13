@@ -1,224 +1,233 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
-import { WorkflowSegmentTree } from '@/features/workflow-tree'
+import { useState, useCallback, useMemo } from 'react'
+import {
+  WorkflowSegmentTree,
+  WorkflowStoreProvider,
+  useWorkflowSelectedId,
+  useWorkflowNode,
+  useWorkflowNodes,
+  useWorkflowRoot,
+  useWorkflowActions,
+  useWorkflowStatus,
+  useWorkflowIsDirty,
+  useIsNodeExecuting,
+} from '@features/workflow-tree'
 import { Card, CardContent, CardHeader, CardTitle } from '@shared/ui/card'
-import { Genie, type GenieRef, type GenieState } from '@shared/ui/genie'
-import { genieStateStore } from '@shared/lib/genie-state-store'
-import { FileText, Folder, Layers, Zap } from 'lucide-react'
-import type { NodeData } from '@/shared/base-types/workflow'
+import { Loader2, RefreshCw } from 'lucide-react'
+import { Button } from '@shared/ui/button'
+import { FormattedMessage, useIntl } from 'react-intl'
+import { getDescendantIds, normalizeNodeTitle, hasUsableRoot } from '@entities/workflow/lib'
+import { EmptyWorkflowView } from './empty-workflow-view'
+import { DirtyIndicator } from './dirty-indicator'
+import { NodeDetailPanel } from './node-detail-panel'
+import { DeleteConfirmDialog } from './delete-confirm-dialog'
 
-/* Hand colors mapped to ROLE (command) per Issue #336 */
-const ROLE_HAND_COLORS: Record<string, string> = {
-  '/instruct': '#ffa726', // Orange
-  '/reason': '#66bb6a', // Green
-  '/web': '#42a5f5', // Blue
-  '/scholar': '#ab47bc', // Purple
-  '/refine': '#ef5350', // Red
-  '/foreach': '#26c6da', // Cyan
-}
-const DEFAULT_HAND_COLOR = '#9e9e9e' // Gray for nodes without command
-
-function getHandColorFromRole(command?: string): string {
-  if (!command) return DEFAULT_HAND_COLOR
-  return ROLE_HAND_COLORS[command] || DEFAULT_HAND_COLOR
+interface WorkflowProps {
+  workflowId: string
 }
 
-/* Extended node data with genie state for demo */
-interface DemoNodeData extends NodeData {
-  genieState?: GenieState
-}
+export const Workflow = ({ workflowId }: WorkflowProps) => (
+  <WorkflowStoreProvider workflowId={workflowId}>
+    <WorkflowContent />
+  </WorkflowStoreProvider>
+)
 
-const COMMANDS = ['/instruct', '/reason', '/web', '/scholar', '/refine', '/foreach'] as const
-const STATES: GenieState[] = ['idle', 'busy', 'busy-alert', 'done-success', 'done-failure']
+const WorkflowContent = () => {
+  const nodes = useWorkflowNodes()
+  const root = useWorkflowRoot()
+  const actions = useWorkflowActions()
+  const { isLoading, error, isSaving } = useWorkflowStatus()
+  const isDirty = useWorkflowIsDirty()
+  const { formatMessage } = useIntl()
 
-function generateLargeTree(): Record<string, DemoNodeData> {
-  const nodes: Record<string, DemoNodeData> = {}
-  const rootChildren: string[] = []
+  const selectedId = useWorkflowSelectedId()
+  const selectedNode = useWorkflowNode(selectedId)
+  const isSelectedNodeExecuting = useIsNodeExecuting(selectedId)
+  const [autoEditNodeId, setAutoEditNodeId] = useState<string | undefined>()
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>()
 
-  for (let phase = 1; phase <= 10; phase++) {
-    const phaseId = `phase-${phase}`
-    rootChildren.push(phaseId)
-    const phaseChildren: string[] = []
+  const pendingDeleteNode = useMemo(
+    () => (pendingDeleteId ? nodes[pendingDeleteId] : undefined),
+    [pendingDeleteId, nodes],
+  )
+  const pendingDescendantCount = useMemo(
+    () => (pendingDeleteId ? getDescendantIds(nodes, pendingDeleteId).length : 0),
+    [pendingDeleteId, nodes],
+  )
 
-    for (let task = 1; task <= 5; task++) {
-      const taskId = `${phaseId}-task-${task}`
-      phaseChildren.push(taskId)
-      const taskChildren: string[] = []
+  const handleSelect = useCallback(
+    (id: string) => {
+      actions.select(id)
+      setAutoEditNodeId(undefined)
+    },
+    [actions],
+  )
 
-      for (let sub = 1; sub <= 5; sub++) {
-        const subId = `${taskId}-sub-${sub}`
-        taskChildren.push(subId)
-        nodes[subId] = {
-          id: subId,
-          title: `Subtask ${phase}.${task}.${sub}`,
-          children: [],
-          genieState: STATES[(phase + task + sub) % STATES.length],
-          command: COMMANDS[(phase + task + sub) % COMMANDS.length],
-        }
-      }
-
-      nodes[taskId] = {
-        id: taskId,
-        title: `Task ${phase}.${task}`,
-        children: taskChildren,
-        genieState: STATES[(phase + task) % STATES.length],
-        command: COMMANDS[(phase + task) % COMMANDS.length],
-      }
+  const handleCreateRoot = useCallback(() => {
+    const newId = actions.createRoot({ title: formatMessage({ id: 'workflowTree.rootNodeDefault' }) })
+    if (newId) {
+      actions.select(newId)
+      setAutoEditNodeId(newId)
     }
+  }, [actions, formatMessage])
 
-    nodes[phaseId] = {
-      id: phaseId,
-      title: `Phase ${phase}`,
-      children: phaseChildren,
-      genieState: STATES[phase % STATES.length],
-      command: COMMANDS[phase % COMMANDS.length],
-    }
+  const handleAddChild = useCallback(
+    (parentId: string) => {
+      const newId = actions.addChild(parentId, { title: '' })
+      if (newId) {
+        actions.select(newId)
+        setAutoEditNodeId(newId)
+      }
+    },
+    [actions],
+  )
+
+  const handleUpdateNode = useCallback(
+    (nodeId: string, updates: Parameters<typeof actions.updateNode>[1]) => {
+      actions.updateNode(nodeId, updates)
+    },
+    [actions],
+  )
+
+  const handleRename = useCallback(
+    (nodeId: string, newTitle: string) => {
+      actions.updateNode(nodeId, { title: newTitle })
+    },
+    [actions],
+  )
+
+  const handleRequestDelete = useCallback((nodeId: string) => {
+    setPendingDeleteId(nodeId)
+  }, [])
+
+  const handleRequestRename = useCallback(
+    (nodeId: string) => {
+      actions.select(nodeId)
+      setAutoEditNodeId(nodeId)
+    },
+    [actions],
+  )
+
+  const handleConfirmDelete = useCallback(() => {
+    if (!pendingDeleteId) return
+    actions.removeNode(pendingDeleteId)
+    setPendingDeleteId(undefined)
+  }, [actions, pendingDeleteId])
+
+  const handleDuplicateNode = useCallback(
+    (nodeId: string) => {
+      const newId = actions.duplicateNode(nodeId)
+      if (newId) {
+        actions.select(newId)
+        setAutoEditNodeId(newId)
+      }
+    },
+    [actions],
+  )
+
+  const handleExecute = useCallback(
+    async (node: Parameters<typeof actions.executeCommand>[0], queryType: string) => {
+      await actions.executeCommand(node, queryType)
+    },
+    [actions],
+  )
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
   }
 
-  nodes['root'] = {
-    id: 'root',
-    title: 'Large Project (300+ nodes)',
-    children: rootChildren,
-    genieState: 'idle',
+  if (error) {
+    return (
+      <Card className="m-4">
+        <CardHeader>
+          <CardTitle className="text-destructive">
+            <FormattedMessage id="workflowTree.errorTitle" />
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">{error.message}</p>
+          <Button className="mt-4" onClick={() => actions.load()} variant="default">
+            <RefreshCw className="mr-2 h-4 w-4" />
+            <FormattedMessage id="workflowTree.retry" />
+          </Button>
+        </CardContent>
+      </Card>
+    )
   }
 
-  return nodes
-}
-
-const mockNodes: Record<string, DemoNodeData> = generateLargeTree()
-
-export const Workflow = () => {
-  const [selectedId, setSelectedId] = useState<string | undefined>()
-  const [selectedNode, setSelectedNode] = useState<DemoNodeData | undefined>()
-  const genieRef = useRef<GenieRef>(null)
-
-  useEffect(() => {
-    const initialStates: Record<string, GenieState> = {}
-    for (const [nodeId, nodeData] of Object.entries(mockNodes)) {
-      if (nodeData.genieState) {
-        initialStates[nodeId] = nodeData.genieState
-      }
-    }
-    genieStateStore.hydrate(initialStates)
-  }, [])
-
-  const handleSelect = useCallback((id: string, node: NodeData) => {
-    setSelectedId(id)
-    setSelectedNode(node as DemoNodeData)
-    /* Trigger front flash on selection */
-    setTimeout(() => genieRef.current?.flash(), 100)
-  }, [])
-
-  const handleFlashClick = useCallback(() => {
-    genieRef.current?.flash()
-  }, [])
-
-  const hasChildren = selectedNode?.children && selectedNode.children.length > 0
-  const genieState = selectedNode?.genieState || 'idle'
-  /* Hand ribs: show for nodes with commands (role-augmented genies) */
-  const showHandRibs = Boolean(selectedNode?.command)
+  if (!hasUsableRoot(root, nodes)) {
+    return <EmptyWorkflowView onCreateRoot={handleCreateRoot} />
+  }
 
   return (
-    <div className="flex h-full min-h-[400px] gap-4">
-      {/* Tree panel */}
+    <div className="flex h-full min-h-[400px] gap-4 p-4">
       <Card className="w-80 flex flex-col min-h-0">
         <CardHeader className="pb-2 flex-shrink-0">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Layers className="w-4 h-4 text-primary" />
-            Project Alpha
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">
+              <FormattedMessage id="workflowTree.title" />
+            </CardTitle>
+            <DirtyIndicator isDirty={isDirty} isSaving={isSaving} />
+          </div>
         </CardHeader>
         <CardContent className="flex-1 p-0 overflow-hidden min-h-0">
           <WorkflowSegmentTree
-            initialExpandedIds={new Set(['root', 'requirements', 'design', 'development', 'testing', 'design-1'])}
-            nodes={mockNodes}
+            autoEditNodeId={autoEditNodeId}
+            initialExpandedIds={new Set([root])}
+            nodes={nodes}
+            onAddChild={handleAddChild}
+            onDuplicateNode={handleDuplicateNode}
+            onRename={handleRename}
+            onRequestDelete={handleRequestDelete}
+            onRequestRename={handleRequestRename}
             onSelect={handleSelect}
-            rootId="root"
+            rootId={root}
             selectedId={selectedId}
           />
         </CardContent>
       </Card>
 
-      {/* Detail panel - data-bound to selection */}
       <Card className="flex-1">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            {selectedNode ? (
-              <>
-                {hasChildren ? (
-                  <Folder className="w-4 h-4 text-amber-500" />
-                ) : (
-                  <FileText className="w-4 h-4 text-muted-foreground" />
-                )}
-                {selectedNode.title || selectedNode.id}
-              </>
-            ) : (
-              <>
-                <FileText className="w-4 h-4 text-muted-foreground" />
-                No Selection
-              </>
-            )}
+          <CardTitle className="text-base">
+            <FormattedMessage id="workflowTree.nodeDetails" />
           </CardTitle>
         </CardHeader>
         <CardContent>
           {selectedNode ? (
-            <div className="space-y-4 text-sm">
-              <div className="flex items-start gap-4">
-                <div className="flex-1 space-y-4">
-                  <div className="grid grid-cols-2 gap-2">
-                    <span className="text-muted-foreground">ID</span>
-                    <span className="font-mono">{selectedNode.id}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <span className="text-muted-foreground">Title</span>
-                    <span>{selectedNode.title || '—'}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <span className="text-muted-foreground">State</span>
-                    <span className="font-mono">{genieState}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <span className="text-muted-foreground">Children</span>
-                    <span>{selectedNode.children?.length || 0}</span>
-                  </div>
-                  <button
-                    className="flex items-center gap-2 px-3 py-1.5 text-xs bg-primary/10 hover:bg-primary/20 rounded-md transition-colors"
-                    onClick={handleFlashClick}
-                    type="button"
-                  >
-                    <Zap className="w-3 h-3" />
-                    Trigger Flash
-                  </button>
-                </div>
-                <div className="flex-shrink-0 cursor-pointer" onClick={handleFlashClick}>
-                  <Genie
-                    clipboardEdge="#424242"
-                    clipboardFill="#ffffff"
-                    handColor={getHandColorFromRole(selectedNode.command)}
-                    ref={genieRef}
-                    showHandRibs={showHandRibs}
-                    size={80}
-                    state={genieState}
-                  />
-                </div>
-              </div>
-              {hasChildren ? (
-                <div className="pt-2 border-t">
-                  <span className="text-muted-foreground block mb-2">Child nodes:</span>
-                  <ul className="list-disc list-inside space-y-1">
-                    {selectedNode.children?.map(childId => (
-                      <li className="text-foreground/80" key={childId}>
-                        {mockNodes[childId]?.title || childId}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
+            <NodeDetailPanel
+              autoFocusTitle={autoEditNodeId === selectedId}
+              executeDisabled={isSelectedNodeExecuting}
+              isExecuting={isSelectedNodeExecuting}
+              key={selectedNode.id}
+              node={selectedNode}
+              nodes={nodes}
+              onAddChild={handleAddChild}
+              onDuplicateNode={handleDuplicateNode}
+              onExecute={handleExecute}
+              onRequestDelete={handleRequestDelete}
+              onUpdateNode={handleUpdateNode}
+            />
           ) : (
-            <p className="text-muted-foreground">Select a node from the tree to view details</p>
+            <p className="text-muted-foreground">
+              <FormattedMessage id="workflowTree.selectNode" />
+            </p>
           )}
         </CardContent>
       </Card>
+
+      <DeleteConfirmDialog
+        descendantCount={pendingDescendantCount}
+        nodeTitle={normalizeNodeTitle(pendingDeleteNode?.title)}
+        onConfirm={handleConfirmDelete}
+        onOpenChange={open => {
+          if (!open) setPendingDeleteId(undefined)
+        }}
+        open={Boolean(pendingDeleteId)}
+      />
     </div>
   )
 }
