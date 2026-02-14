@@ -3,6 +3,7 @@ import {getWorkflowData} from './commands/utils/getWorkflowData'
 import {runCommand} from './commands/utils/runCommand'
 import Store from './commands/utils/Store'
 import {allowedCommands} from './constants'
+import {loadMCPAliases, findAliasByQueryType} from './commands/mcp/aliasResolver'
 import ProgressReporter from './ProgressReporter'
 
 const ExecutorController = {
@@ -15,8 +16,14 @@ const ExecutorController = {
       ctx.throw(404, 'Cell not specified')
     }
 
+    let mcpAlias
+
     if (!allowedCommands.includes(queryType)) {
-      ctx.throw(400, 'Not allowed query')
+      const mcpAliases = await loadMCPAliases(userId)
+      mcpAlias = findAliasByQueryType(mcpAliases, queryType)
+      if (!mcpAlias) {
+        ctx.throw(400, 'Not allowed query')
+      }
     }
 
     const log = debug('delta5:app:ProgressReporter').extend(userId, '/')
@@ -36,7 +43,7 @@ const ExecutorController = {
         {...body, userId, nodes: workflowNodes, edges: workflowEdges, files: workflowFiles},
         progress,
       )
-      await runCommand({...otherData, store}, progress)
+      await runCommand({...otherData, store, mcpAlias}, progress)
 
       const {nodes: nodesChanged, edges: edgesChanged} = store.getOutput()
       ctx.body = {

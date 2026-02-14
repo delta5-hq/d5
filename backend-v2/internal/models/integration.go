@@ -41,16 +41,28 @@ type CustomLLMConfig struct {
 	APIKey              string `json:"apiKey,omitempty" bson:"apiKey,omitempty"`
 }
 
+type MCPIntegrationConfig struct {
+	Alias          string                 `json:"alias" bson:"alias"`
+	ServerURL      string                 `json:"serverUrl" bson:"serverUrl"`
+	Transport      string                 `json:"transport" bson:"transport"`
+	ToolName       string                 `json:"toolName" bson:"toolName"`
+	ToolInputField string                 `json:"toolInputField,omitempty" bson:"toolInputField,omitempty"`
+	ToolStaticArgs map[string]interface{} `json:"toolStaticArgs,omitempty" bson:"toolStaticArgs,omitempty"`
+	Headers        map[string]string      `json:"headers,omitempty" bson:"headers,omitempty"`
+	Description    string                 `json:"description,omitempty" bson:"description,omitempty"`
+}
+
 type Integration struct {
-	ID         string            `json:"_id,omitempty" bson:"_id,omitempty"`
-	UserID     string            `json:"userId" bson:"userId"`
-	OpenAI     *OpenAIConfig     `json:"openai,omitempty" bson:"openai,omitempty"`
-	Yandex     *YandexConfig     `json:"yandex,omitempty" bson:"yandex,omitempty"`
-	Claude     *ClaudeConfig     `json:"claude,omitempty" bson:"claude,omitempty"`
-	Qwen       *QwenConfig       `json:"qwen,omitempty" bson:"qwen,omitempty"`
-	Deepseek   *DeepseekConfig   `json:"deepseek,omitempty" bson:"deepseek,omitempty"`
-	CustomLLM  *CustomLLMConfig  `json:"custom_llm,omitempty" bson:"custom_llm,omitempty"`
-	Perplexity *PerplexityConfig `json:"perplexity,omitempty" bson:"perplexity,omitempty"`
-	Lang       string            `json:"lang" bson:"lang"`
-	Model      string            `json:"model" bson:"model"`
+	ID         string                 `json:"_id,omitempty" bson:"_id,omitempty"`
+	UserID     string                 `json:"userId" bson:"userId"`
+	OpenAI     *OpenAIConfig          `json:"openai,omitempty" bson:"openai,omitempty"`
+	Yandex     *YandexConfig          `json:"yandex,omitempty" bson:"yandex,omitempty"`
+	Claude     *ClaudeConfig          `json:"claude,omitempty" bson:"claude,omitempty"`
+	Qwen       *QwenConfig            `json:"qwen,omitempty" bson:"qwen,omitempty"`
+	Deepseek   *DeepseekConfig        `json:"deepseek,omitempty" bson:"deepseek,omitempty"`
+	CustomLLM  *CustomLLMConfig       `json:"custom_llm,omitempty" bson:"custom_llm,omitempty"`
+	Perplexity *PerplexityConfig      `json:"perplexity,omitempty" bson:"perplexity,omitempty"`
+	Lang       string                 `json:"lang" bson:"lang"`
+	Model      string                 `json:"model" bson:"model"`
+	MCP        []MCPIntegrationConfig `json:"mcp,omitempty" bson:"mcp,omitempty"`
 }

@@ -80,6 +80,20 @@ const CustomLLM = createSchema(
   {_id: false, timestamps: false},
 )
 
+const MCPIntegration = createSchema(
+  {
+    alias: {type: String, required: true},
+    serverUrl: {type: String, required: true},
+    transport: {type: String, required: true, enum: ['streamable-http']},
+    toolName: {type: String, required: true},
+    toolInputField: {type: String, default: 'prompt'},
+    toolStaticArgs: {type: mongoose.Schema.Types.Mixed},
+    headers: {type: mongoose.Schema.Types.Mixed},
+    description: String,
+  },
+  {_id: false, timestamps: false},
+)
+
 const IntegrationSchema = createSchema({
   userId: {type: String, required: true, index: true},
   openai: Openai,
@@ -92,6 +106,7 @@ const IntegrationSchema = createSchema({
   lang: {type: String, default: 'none'},
   model: {type: String, default: 'auto'},
   perplexity: Perplexity,
+  mcp: [MCPIntegration],
 })
 
 const Integration = mongoose.model('Integration', IntegrationSchema)

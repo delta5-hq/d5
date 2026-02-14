@@ -37,6 +37,7 @@ import {SummarizeCommand} from '../SummarizeCommand'
 import {SwitchCommand} from '../SwitchCommand'
 import {WebCommand} from '../WebCommand'
 import {YandexCommand} from '../YandexCommand'
+import {MCPCommand} from '../MCPCommand'
 // eslint-disable-next-line no-unused-vars
 import Store from './Store'
 
@@ -59,12 +60,16 @@ import Store from './Store'
  *  prompt: string,
  *  cell: import('./Store').NodeData,
  *  store: Store,
- *  preventPostProcess: boolean
+ *  preventPostProcess: boolean,
+ *  mcpAlias: import('../mcp/aliasResolver').MCPAliasConfig
  * }} params
  * @param {ProgressReporter} progress
  * @returns
  */
-export const runCommand = async ({queryType, context, prompt, cell, store, preventPostProcess = false}, progress) => {
+export const runCommand = async (
+  {queryType, context, prompt, cell, store, preventPostProcess = false, mcpAlias},
+  progress,
+) => {
   let runPostProccess = !preventPostProcess
   const postProcessNode = async (node, ids = []) => {
     const sortedNodes = (node.children || [])
@@ -244,6 +249,11 @@ export const runCommand = async ({queryType, context, prompt, cell, store, preve
 
     runCommandTracker = await runCommandProgress.add('MemorizeCommand.run')
     await command.run(cell)
+  } else if (mcpAlias) {
+    const command = new MCPCommand(store._userId, store._workflowId, store, mcpAlias)
+
+    runCommandTracker = await runCommandProgress.add('MCPCommand.run')
+    await command.run(cell, context, prompt)
   }
 
   if (runPostProccess) {

@@ -36,6 +36,7 @@ import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
 import {COMPLETION_QUERY_TYPE} from '../../constants/completion'
 import {MEMORIZE_QUERY_TYPE} from '../../constants/memorize'
+import * as MCPClientManager from '../mcp/MCPClientManager'
 
 jest.mock('debug', () => {
   const fn = jest.fn(() => fn) // debug() возвращает саму функцию
@@ -56,6 +57,12 @@ jest.mock('../../../integrations/yandex/YandexService', () => {
 
 jest.mock('../../../integrations/claude/ClaudeService', () => ({
   sendMessages: jest.fn(),
+}))
+
+/* Manual mock factory — auto-mock triggers zod ESM crash in Jest 27 */
+jest.mock('../mcp/MCPClientManager', () => ({
+  callTool: jest.fn(),
+  listTools: jest.fn(),
 }))
 
 jest.useFakeTimers()
@@ -1890,6 +1897,83 @@ describe('MemorizeCommand run test', () => {
         }),
       ]),
       false,
+    )
+  })
+})
+
+describe('MCPCommand run test', () => {
+  const mcpAlias = {
+    alias: '/mymcp',
+    serverUrl: 'http://localhost:3001/mcp',
+    transport: 'streamable-http',
+    toolName: 'summarize',
+  }
+
+  it('should create nodes from MCP tool response', async () => {
+    const mcpNode = {id: 'mcpNode', title: '/mymcp explain quantum physics', command: '/mymcp explain quantum physics'}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [mcpNode.id]}
+    mcpNode.parent = rootNode.id
+
+    const mockStore = new Store({
+      userId,
+      workflowId,
+      nodes: {
+        mcpNode,
+        rootNode,
+      },
+    })
+
+    MCPClientManager.callTool.mockResolvedValueOnce({content: 'Quantum physics explained', isError: false})
+
+    await runCommand({
+      cell: mcpNode,
+      store: mockStore,
+      mcpAlias,
+    })
+
+    const output = mockStore.getOutput()
+
+    expect(output.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'Quantum physics explained',
+          parent: mcpNode.id,
+        }),
+      ]),
+    )
+  })
+
+  it('should create error node when MCP tool fails', async () => {
+    const mcpNode = {id: 'mcpNode', title: '/mymcp explain quantum physics', command: '/mymcp explain quantum physics'}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [mcpNode.id]}
+    mcpNode.parent = rootNode.id
+
+    const mockStore = new Store({
+      userId,
+      workflowId,
+      nodes: {
+        mcpNode,
+        rootNode,
+      },
+    })
+
+    MCPClientManager.callTool.mockRejectedValueOnce(new Error('Connection refused'))
+
+    await runCommand({
+      cell: mcpNode,
+      store: mockStore,
+      mcpAlias,
+    })
+
+    const output = mockStore.getOutput()
+
+    expect(output.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'Error: Connection refused',
+          parent: mcpNode.id,
+        }),
+      ]),
     )
   })
 })

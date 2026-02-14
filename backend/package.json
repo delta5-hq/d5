@@ -20,6 +20,7 @@
     "@babel/runtime": "^7.16.0",
     "@iamtraction/google-translate": "^2.0.1",
     "@koa/router": "^10.1.1",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "archiver": "^5.3.1",
     "bcryptjs": "^2.4.3",
     "cheerio": "^1.0.0-rc.12",
@@ -87,9 +88,16 @@
   },
   "jest": {
     "testTimeout": 60000,
+    "setupFiles": [
+      "<rootDir>/src/test/jest.setup.js"
+    ],
     "transformIgnorePatterns": [
       "node_modules/(?!(langchain|langsmith)/)"
     ],
+    "moduleNameMapper": {
+      "^@modelcontextprotocol/sdk/(.*)$": "@modelcontextprotocol/sdk/dist/cjs/$1",
+      "^pkce-challenge$": "<rootDir>/src/test/__mocks__/pkce-challenge.js"
+    },
     "moduleDirectories": [
       "node_modules",
       "<rootDir>/src"
