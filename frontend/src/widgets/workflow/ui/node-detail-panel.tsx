@@ -10,7 +10,9 @@ import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mappe
 import { FileText, Folder, Loader2, Play, Copy, Trash2, Plus } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
+import { hasReferences } from '@features/workflow-tree'
 import { NodeTitleEditor } from './node-title-editor'
+import { NodePreviewSection } from './node-preview-section'
 
 interface NodeDetailPanelProps {
   node: NodeData
@@ -101,6 +103,8 @@ export const NodeDetailPanel = ({
               value={node.command ?? ''}
             />
           </div>
+
+          {hasReferences(node.command) ? <NodePreviewSection command={node.command} nodeId={node.id} /> : null}
 
           <div className="flex flex-wrap gap-2 pt-2">
             <Button data-testid="execute-node-button" disabled={executeDisabled} onClick={handleExecute} size="sm">

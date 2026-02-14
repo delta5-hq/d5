@@ -6,6 +6,7 @@ export type { WorkflowSegmentTreeProps } from './components/workflow-segment-tre
 export type { TreeNodeProps } from './components/tree-node-default'
 export { useTreeExpansion, deriveExpandedIdsFromNodes } from './hooks/use-tree-expansion'
 export { useTreeWalker } from './hooks/use-tree-walker'
+export { useNodePreview, hasReferences } from './hooks/use-node-preview'
 export type { UseTreeExpansionReturn } from './hooks/use-tree-expansion'
 export type { UseTreeWalkerOptions } from './hooks/use-tree-walker'
 export type { Segment, SegmentNode, SegmentContainer, ContainerConfig, ContainerProps } from './segments'
@@ -20,5 +21,6 @@ export {
   useWorkflowIsDirty,
   useWorkflowStatus,
   useIsNodeExecuting,
+  useWorkflowId,
 } from './store/workflow-selectors'
 export type { WorkflowStoreState, WorkflowStoreActions, WorkflowStore } from './store'

@@ -353,6 +353,8 @@ export default {
       untitled: 'Untitled',
       rename: 'Rename',
       editHint: 'Double-click to edit',
+      preview: 'Preview',
+      previewError: 'Preview failed',
     },
 
     status: {

@@ -8,6 +8,11 @@ export function useWorkflowSelectedId(): NodeId | undefined {
   return useSelector(store, s => s.selectedId)
 }
 
+export function useWorkflowId(): string {
+  const { store } = useWorkflowStore()
+  return useSelector(store, s => s.workflowId)
+}
+
 export function useWorkflowNode(nodeId: NodeId | undefined): NodeData | undefined {
   const { store } = useWorkflowStore()
   return useSelector(store, s => (nodeId ? s.nodes[nodeId] : undefined))
