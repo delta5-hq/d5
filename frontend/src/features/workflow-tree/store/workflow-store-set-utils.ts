@@ -1,6 +1,6 @@
 import type { NodeId } from '@shared/base-types'
 
-/* Keep only ids that exist as keys in nodes. Same ref when nothing changed. */
+/* Referentially stable — returns same Set when nothing changed */
 export function retainExistingIds(ids: Set<NodeId>, nodes: Record<NodeId, unknown>): Set<NodeId> {
   if (ids.size === 0) return ids
   const next = new Set<NodeId>()
@@ -15,7 +15,7 @@ export function retainExistingIds(ids: Set<NodeId>, nodes: Record<NodeId, unknow
   return dirty ? next : ids
 }
 
-/* Remove ids present in the excluded set. Same ref when nothing changed. */
+/* Referentially stable — returns same Set when nothing changed */
 export function excludeIds(ids: Set<NodeId>, excluded: Set<NodeId>): Set<NodeId> {
   if (ids.size === 0) return ids
   const next = new Set<NodeId>()

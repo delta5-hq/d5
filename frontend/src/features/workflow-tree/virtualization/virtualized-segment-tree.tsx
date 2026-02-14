@@ -118,7 +118,7 @@ export const VirtualizedSegmentTree = ({
     ],
   )
 
-  /* Stable key extractor — matches segment to its primary node ID instead of index */
+  /* Stable React keys — node ID instead of positional index */
   const getItemKey = useCallback((index: number, props: SegmentRowData) => {
     const segment = props.segmentState.segments[index]
     if (!segment) return index

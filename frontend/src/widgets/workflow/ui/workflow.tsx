@@ -199,7 +199,12 @@ const WorkflowContent = () => {
 
   return (
     <div className="flex h-full min-h-[400px] gap-4 p-4">
-      <Card className="w-80 flex flex-col min-h-0 focus:outline-none" onKeyDown={handleTreeKeyDown} tabIndex={0}>
+      <Card
+        className="w-80 flex flex-col min-h-0 focus:outline-none"
+        data-testid="workflow-tree-panel"
+        onKeyDown={handleTreeKeyDown}
+        tabIndex={0}
+      >
         <CardHeader className="pb-2 flex-shrink-0">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">

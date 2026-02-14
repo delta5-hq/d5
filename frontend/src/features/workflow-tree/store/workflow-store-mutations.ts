@@ -89,14 +89,20 @@ export function bindMutationActions(
         result => {
           const removedSet = new Set(result.removedNodeIds)
           const selectionAffected = selectedId !== undefined && removedSet.has(selectedId)
-          const cleanedIds = excludeIds(selectedIds, removedSet)
           const anchorAffected = anchorId !== undefined && removedSet.has(anchorId)
+
+          const newSelectedIds = selectionAffected
+            ? nextSelectedId
+              ? new Set<NodeId>([nextSelectedId])
+              : new Set<NodeId>()
+            : excludeIds(selectedIds, removedSet)
+
           store.setState({
             nodes: result.nodes,
             edges: result.edges,
             ...(selectionAffected && { selectedId: nextSelectedId }),
-            ...(cleanedIds !== selectedIds && { selectedIds: cleanedIds }),
-            ...(anchorAffected && { anchorId: undefined }),
+            ...(newSelectedIds !== selectedIds && { selectedIds: newSelectedIds }),
+            ...(anchorAffected && { anchorId: nextSelectedId }),
           })
         },
       ) !== null
@@ -108,7 +114,8 @@ export function bindMutationActions(
 
     const { nodes, edges, executingNodeIds, selectedIds, anchorId } = store.getState()
 
-    const deletableIds = getTopLevelIds(nodes, targetIds).filter(id => nodes[id]?.parent && !executingNodeIds.has(id))
+    const candidateIds = [...targetIds].filter(id => nodes[id]?.parent && !executingNodeIds.has(id))
+    const deletableIds = getTopLevelIds(nodes, new Set(candidateIds))
 
     if (deletableIds.length === 0) return 0
 

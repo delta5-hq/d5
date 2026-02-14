@@ -205,6 +205,7 @@ export const TreeNodeDefault = ({
           )}
           data-node-depth={depth}
           data-node-id={id}
+          data-node-selected={isSelected || undefined}
           onClick={handleClick}
           style={{ ...style, paddingLeft, overflow: 'visible' }}
         >
@@ -243,6 +244,7 @@ export const TreeNodeDefault = ({
               'transition-all duration-150',
               !hasChildren && 'invisible',
             )}
+            data-testid="node-toggle"
             onClick={handleToggle}
             type="button"
           >
