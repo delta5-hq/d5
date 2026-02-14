@@ -5,6 +5,7 @@ import { INITIAL_WORKFLOW_STATE } from './workflow-store-types'
 import { createDebouncedPersister } from './workflow-store-persistence'
 import { bindMutationActions, type FormatMessage } from './workflow-store-mutations'
 import { bindExecuteAction } from './workflow-store-execution'
+import { retainExistingIds } from './workflow-store-set-utils'
 
 interface WorkflowApiResponse {
   _id: string
@@ -45,8 +46,9 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     try {
       const data = await apiFetch<WorkflowApiResponse>(`/workflow/${workflowId}`)
       const newNodes = (data.nodes ?? {}) as WorkflowStoreState['nodes']
-      const { selectedId } = store.getState()
+      const { selectedId, selectedIds } = store.getState()
       const selectionStale = selectedId !== undefined && !(selectedId in newNodes)
+      const cleanedIds = retainExistingIds(selectedIds, newNodes)
       store.setState({
         nodes: newNodes,
         edges: (data.edges ?? {}) as WorkflowStoreState['edges'],
@@ -55,6 +57,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
         isLoading: false,
         isDirty: false,
         ...(selectionStale ? { selectedId: undefined } : {}),
+        ...(cleanedIds !== selectedIds ? { selectedIds: cleanedIds } : {}),
       })
     } catch (err) {
       store.setState({
@@ -65,7 +68,22 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
   }
 
   const select = (nodeId: string | undefined) => {
-    store.setState({ selectedId: nodeId })
+    store.setState({
+      selectedId: nodeId,
+      selectedIds: nodeId ? new Set([nodeId]) : new Set<string>(),
+    })
+  }
+
+  const toggleSelect = (nodeId: string) => {
+    const { selectedIds } = store.getState()
+    const next = new Set(selectedIds)
+    if (next.has(nodeId)) {
+      next.delete(nodeId)
+    } else {
+      next.add(nodeId)
+    }
+    const lastId = [...next].at(-1)
+    store.setState({ selectedId: lastId, selectedIds: next })
   }
 
   const discard = () => {
@@ -83,6 +101,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     persist: persister.flush,
     persistNow: persister.flush,
     select,
+    toggleSelect,
     discard,
     destroy,
     executeCommand,

@@ -1,5 +1,5 @@
 import { AutoSizer } from 'react-virtualized-auto-sizer'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, type MouseEvent } from 'react'
 import type { NodeData } from '@/shared/base-types/workflow'
 import { useStableCallback } from '@shared/lib/hooks'
 import { useNodeCacheCleanup } from '@shared/lib/use-node-cache-cleanup'
@@ -15,9 +15,9 @@ export interface WorkflowSegmentTreeProps {
   rowHeight?: number
   initialExpandedIds?: Set<string>
   overscanCount?: number
-  selectedId?: string
+  selectedIds?: Set<string>
   autoEditNodeId?: string
-  onSelect?: (id: string, node: NodeData) => void
+  onSelect?: (id: string, node: NodeData, event?: MouseEvent) => void
   onAddChild?: (parentId: string) => void
   onRequestDelete?: (nodeId: string) => void
   onDuplicateNode?: (nodeId: string) => void
@@ -31,7 +31,7 @@ const WorkflowSegmentTreeInner = ({
   rowHeight = 48,
   initialExpandedIds,
   overscanCount = 5,
-  selectedId,
+  selectedIds,
   autoEditNodeId,
   onSelect,
   onAddChild,
@@ -46,10 +46,10 @@ const WorkflowSegmentTreeInner = ({
   const { expandedIds, toggleNode, expandNode } = useTreeExpansion(initialExpandedIds)
   const treeWalker = useTreeWalker({ nodes, rootId, expandedIds })
 
-  const handleSelect = useStableCallback((id: string) => {
+  const handleSelect = useStableCallback((id: string, event?: MouseEvent) => {
     const node = nodes[id]
     if (node && onSelect) {
-      onSelect(id, node)
+      onSelect(id, node, event)
     }
   })
 
@@ -80,7 +80,7 @@ const WorkflowSegmentTreeInner = ({
               onToggle={handleToggle}
               overscanCount={overscanCount}
               rowHeight={rowHeight}
-              selectedId={selectedId}
+              selectedIds={selectedIds}
               treeWalker={treeWalker}
               width={width}
             />

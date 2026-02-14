@@ -4,6 +4,7 @@ export { createWorkflowStore } from './create-workflow-store'
 export { WorkflowStoreProvider, useWorkflowStore } from './workflow-store-provider'
 export {
   useWorkflowSelectedId,
+  useWorkflowSelectedIds,
   useWorkflowNode,
   useWorkflowRoot,
   useWorkflowNodes,

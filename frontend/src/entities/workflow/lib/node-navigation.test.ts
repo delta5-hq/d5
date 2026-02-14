@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { NodeData } from '@shared/base-types'
-import { resolveSelectionAfterDelete } from './node-navigation'
+import { getTopLevelIds, resolveSelectionAfterDelete } from './node-navigation'
 
 const createTree = (): Record<string, NodeData> => ({
   root: { id: 'root', title: 'Root', children: ['a', 'b', 'c'] },
@@ -102,5 +102,53 @@ describe('resolveSelectionAfterDelete', () => {
       }
       expect(resolveSelectionAfterDelete(nodes, 'real')).toBe('root')
     })
+  })
+})
+
+describe('getTopLevelIds', () => {
+  const tree: Record<string, NodeData> = {
+    root: { id: 'root', title: 'Root', children: ['a', 'b'] },
+    a: { id: 'a', title: 'A', parent: 'root', children: ['a1', 'a2'] },
+    b: { id: 'b', title: 'B', parent: 'root', children: [] },
+    a1: { id: 'a1', title: 'A1', parent: 'a', children: [] },
+    a2: { id: 'a2', title: 'A2', parent: 'a', children: [] },
+  }
+
+  it('returns single node unchanged', () => {
+    expect(getTopLevelIds(tree, new Set(['a']))).toEqual(['a'])
+  })
+
+  it('returns all when no ancestor relationship exists', () => {
+    expect(getTopLevelIds(tree, new Set(['a', 'b']))).toEqual(['a', 'b'])
+  })
+
+  it('filters descendants when ancestor is in the set', () => {
+    expect(getTopLevelIds(tree, new Set(['a', 'a1', 'a2']))).toEqual(['a'])
+  })
+
+  it('keeps nodes from independent branches', () => {
+    expect(getTopLevelIds(tree, new Set(['a1', 'b']))).toEqual(['a1', 'b'])
+  })
+
+  it('returns empty for empty set', () => {
+    expect(getTopLevelIds(tree, new Set())).toEqual([])
+  })
+
+  it('excludes nonexistent node ids', () => {
+    expect(getTopLevelIds(tree, new Set(['missing', 'a']))).toEqual(['a'])
+  })
+
+  it('handles root in selection set — root is valid top-level node', () => {
+    expect(getTopLevelIds(tree, new Set(['root', 'a', 'b']))).toEqual(['root'])
+  })
+
+  it('handles deeply nested ancestor filtering', () => {
+    const deep: Record<string, NodeData> = {
+      r: { id: 'r', title: '', children: ['l1'] },
+      l1: { id: 'l1', title: '', parent: 'r', children: ['l2'] },
+      l2: { id: 'l2', title: '', parent: 'l1', children: ['l3'] },
+      l3: { id: 'l3', title: '', parent: 'l2', children: [] },
+    }
+    expect(getTopLevelIds(deep, new Set(['l1', 'l3']))).toEqual(['l1'])
   })
 })

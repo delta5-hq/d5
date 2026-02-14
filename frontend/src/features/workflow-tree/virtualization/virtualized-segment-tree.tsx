@@ -9,7 +9,7 @@ import { SegmentRow, type SegmentRowProps } from '../components/segment-row'
 export interface SegmentRowData extends TreeNodeCallbacks {
   segmentState: SegmentState
   rowHeight: number
-  selectedId?: string
+  selectedIds?: Set<string>
   autoEditNodeId?: string
 }
 
@@ -24,7 +24,7 @@ export const SegmentRowComponent = ({ index, rowProps }: SegmentRowComponentProp
     segment,
     rowHeight: rowProps.rowHeight,
     onToggle: rowProps.onToggle,
-    selectedId: rowProps.selectedId,
+    selectedIds: rowProps.selectedIds,
     onSelect: rowProps.onSelect,
     onAddChild: rowProps.onAddChild,
     onRequestDelete: rowProps.onRequestDelete,
@@ -43,7 +43,7 @@ interface VirtualizedSegmentTreeProps extends TreeNodeCallbacks {
   treeWalker: TreeWalkerGenerator
   width?: number | string
   overscanCount?: number
-  selectedId?: string
+  selectedIds?: Set<string>
   autoEditNodeId?: string
 }
 
@@ -54,7 +54,7 @@ export const VirtualizedSegmentTree = ({
   width = '100%',
   overscanCount = 2,
   onToggle,
-  selectedId,
+  selectedIds,
   onSelect,
   onAddChild,
   onRequestDelete,
@@ -88,7 +88,7 @@ export const VirtualizedSegmentTree = ({
       segmentState,
       rowHeight,
       onToggle,
-      selectedId,
+      selectedIds,
       onSelect,
       onAddChild,
       onRequestDelete,
@@ -101,7 +101,7 @@ export const VirtualizedSegmentTree = ({
       segmentState,
       rowHeight,
       onToggle,
-      selectedId,
+      selectedIds,
       onSelect,
       onAddChild,
       onRequestDelete,

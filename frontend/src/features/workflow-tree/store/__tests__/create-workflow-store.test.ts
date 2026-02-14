@@ -28,7 +28,7 @@ const mockFormatMessage: FormatMessage = (d: { id: string }) => d.id
 
 describe('createWorkflowStore', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
   })
 
   it('initializes with loading false and empty state', () => {
@@ -177,5 +177,114 @@ describe('createWorkflowStore', () => {
     await actions.load()
 
     expect(store.getState().selectedId).toBe('some-node')
+  })
+
+  describe('selectedIds', () => {
+    it('select syncs selectedIds to a singleton set', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+
+      actions.select('a')
+
+      expect(store.getState().selectedIds).toEqual(new Set(['a']))
+    })
+
+    it('select with undefined clears selectedIds', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      actions.select('a')
+
+      actions.select(undefined)
+
+      expect(store.getState().selectedIds.size).toBe(0)
+    })
+
+    it('toggleSelect adds node to selectedIds', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      actions.select('a')
+
+      actions.toggleSelect('b')
+
+      expect(store.getState().selectedIds).toEqual(new Set(['a', 'b']))
+    })
+
+    it('toggleSelect on empty selection adds first node', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+
+      actions.toggleSelect('x')
+
+      expect(store.getState().selectedIds).toEqual(new Set(['x']))
+      expect(store.getState().selectedId).toBe('x')
+    })
+
+    it('toggleSelect removes already-selected node', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      actions.select('a')
+      actions.toggleSelect('b')
+
+      actions.toggleSelect('a')
+
+      expect(store.getState().selectedIds).toEqual(new Set(['b']))
+    })
+
+    it('toggleSelect updates selectedId to last-in-set', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      actions.select('a')
+
+      actions.toggleSelect('b')
+
+      expect(store.getState().selectedId).toBe('b')
+    })
+
+    it('toggleSelect clears selectedId when set becomes empty', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      actions.select('a')
+
+      actions.toggleSelect('a')
+
+      expect(store.getState().selectedId).toBeUndefined()
+      expect(store.getState().selectedIds.size).toBe(0)
+    })
+
+    it('select after multi-selection resets to singleton', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      actions.select('a')
+      actions.toggleSelect('b')
+      actions.toggleSelect('c')
+      expect(store.getState().selectedIds.size).toBe(3)
+
+      actions.select('b')
+
+      expect(store.getState().selectedIds).toEqual(new Set(['b']))
+      expect(store.getState().selectedId).toBe('b')
+    })
+
+    it('load evicts stale ids from selectedIds', async () => {
+      vi.mocked(apiFetch).mockResolvedValueOnce(mockApiResponse)
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      store.setState({ selectedIds: new Set(['root', 'gone']) })
+
+      await actions.load()
+
+      expect(store.getState().selectedIds).toEqual(new Set(['root']))
+    })
+
+    it('load preserves selectedIds when all nodes exist', async () => {
+      vi.mocked(apiFetch).mockResolvedValueOnce(mockApiResponse)
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      store.setState({ selectedIds: new Set(['root', 'c1']) })
+
+      await actions.load()
+
+      expect(store.getState().selectedIds).toEqual(new Set(['root', 'c1']))
+    })
+
+    it('load error does not modify selectedIds', async () => {
+      vi.mocked(apiFetch).mockRejectedValueOnce(new Error('Network error'))
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      store.setState({ selectedIds: new Set(['a', 'b']) })
+
+      await actions.load()
+
+      expect(store.getState().selectedIds).toEqual(new Set(['a', 'b']))
+    })
   })
 })

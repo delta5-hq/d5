@@ -13,6 +13,11 @@ export function useWorkflowId(): string {
   return useSelector(store, s => s.workflowId)
 }
 
+export function useWorkflowSelectedIds(): Set<NodeId> {
+  const { store } = useWorkflowStore()
+  return useSelector(store, s => s.selectedIds)
+}
+
 export function useWorkflowNode(nodeId: NodeId | undefined): NodeData | undefined {
   const { store } = useWorkflowStore()
   return useSelector(store, s => (nodeId ? s.nodes[nodeId] : undefined))

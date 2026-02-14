@@ -150,10 +150,13 @@ export const TreeNodeDefault = ({
     [id, sparkDelay, onToggle],
   )
 
-  const handleClick = useCallback(() => {
-    genieRef.current?.flash()
-    onSelect?.(id)
-  }, [id, onSelect])
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      genieRef.current?.flash()
+      onSelect?.(id, e)
+    },
+    [id, onSelect],
+  )
 
   const handleAddChild = useCallback(
     (e: React.MouseEvent) => {

@@ -9,7 +9,7 @@ const EMPTY_STYLE: CSSProperties = {}
 export interface ContainerRendererProps extends TreeNodeCallbacks {
   container: SegmentContainer
   rowHeight: number
-  selectedId?: string
+  selectedIds?: Set<string>
   autoEditNodeId?: string
 }
 
@@ -21,7 +21,7 @@ export const ContainerRenderer = ({
   container,
   rowHeight,
   onToggle,
-  selectedId,
+  selectedIds,
   onSelect,
   onAddChild,
   onRequestDelete,
@@ -44,7 +44,7 @@ export const ContainerRenderer = ({
         data={parentNode}
         id={parentNode.id}
         isOpen={parentNode.isOpen}
-        isSelected={parentNode.id === selectedId}
+        isSelected={selectedIds?.has(parentNode.id) ?? false}
         onAddChild={onAddChild}
         onDuplicateNode={onDuplicateNode}
         onRename={onRename}
@@ -81,7 +81,7 @@ export const ContainerRenderer = ({
               data={childNode}
               id={childNode.id}
               isOpen={childNode.isOpen}
-              isSelected={childNode.id === selectedId}
+              isSelected={selectedIds?.has(childNode.id) ?? false}
               onAddChild={onAddChild}
               onDuplicateNode={onDuplicateNode}
               onRename={onRename}

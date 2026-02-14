@@ -383,6 +383,7 @@ export default {
       noTargetParent: 'Cannot duplicate root without a target parent',
       selfParent: 'Node cannot be its own parent',
       failed: 'Operation failed',
+      bulkDeletePartial: '{removed} removed, {skipped} skipped (in use)',
     },
   },
 }

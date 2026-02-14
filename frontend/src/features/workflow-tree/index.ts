@@ -13,6 +13,7 @@ export type { Segment, SegmentNode, SegmentContainer, ContainerConfig, Container
 export { WorkflowStoreProvider, useWorkflowStore } from './store/workflow-store-provider'
 export {
   useWorkflowSelectedId,
+  useWorkflowSelectedIds,
   useWorkflowNode,
   useWorkflowRoot,
   useWorkflowNodes,

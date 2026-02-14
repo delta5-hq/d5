@@ -10,7 +10,7 @@ const EMPTY_STYLE: CSSProperties = {}
 export interface SegmentRowProps extends TreeNodeCallbacks {
   segment: Segment
   rowHeight: number
-  selectedId?: string
+  selectedIds?: Set<string>
   autoEditNodeId?: string
 }
 
@@ -18,7 +18,7 @@ export const SegmentRow = ({
   segment,
   rowHeight,
   onToggle,
-  selectedId,
+  selectedIds,
   onSelect,
   onAddChild,
   onRequestDelete,
@@ -38,7 +38,7 @@ export const SegmentRow = ({
       <MemoizedTreeNodeDefault
         {...record}
         autoEditNodeId={autoEditNodeId}
-        isSelected={record.id === selectedId}
+        isSelected={selectedIds?.has(record.id) ?? false}
         onAddChild={onAddChild}
         onDuplicateNode={onDuplicateNode}
         onRename={onRename}
@@ -64,7 +64,7 @@ export const SegmentRow = ({
         onSelect={onSelect}
         onToggle={onToggle}
         rowHeight={rowHeight}
-        selectedId={selectedId}
+        selectedIds={selectedIds}
       />
     )
   }

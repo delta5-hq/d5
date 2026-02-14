@@ -401,6 +401,106 @@ describe('bindExecuteAction', () => {
 
       expect(store.getState().selectedId).toBe('n1')
     })
+
+    it('evicts stale selectedIds when nodes removed by merge', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: { n2: { id: 'n2' } } })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: { n2: { id: 'n2' } },
+        edges: {},
+        root: 'n2',
+        share: { access: [] },
+      })
+
+      const store = makeStore({
+        nodes: N1,
+        root: 'n1',
+        selectedIds: new Set(['n1']),
+      })
+      const persister = makePersister()
+      const execute = bindExecuteAction(store, persister)
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().selectedIds.size).toBe(0)
+    })
+
+    it('preserves surviving selectedIds after merge', async () => {
+      const twoNodes = { n1: { id: 'n1' }, n2: { id: 'n2' } } as WorkflowStoreState['nodes']
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: { n1: { id: 'n1' }, n2: { id: 'n2' } },
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({
+        nodes: twoNodes,
+        root: 'n1',
+        selectedIds: new Set(['n1', 'n2']),
+      })
+      const persister = makePersister()
+      const execute = bindExecuteAction(store, persister)
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().selectedIds).toEqual(new Set(['n1', 'n2']))
+    })
+
+    it('partially evicts stale entries from selectedIds after merge', async () => {
+      const threeNodes = {
+        n1: { id: 'n1' },
+        n2: { id: 'n2' },
+        n3: { id: 'n3' },
+      } as WorkflowStoreState['nodes']
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: { n1: { id: 'n1' }, n3: { id: 'n3' } },
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({
+        nodes: threeNodes,
+        root: 'n1',
+        selectedIds: new Set(['n1', 'n2', 'n3']),
+      })
+      const persister = makePersister()
+      const execute = bindExecuteAction(store, persister)
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().selectedIds).toEqual(new Set(['n1', 'n3']))
+    })
+
+    it('keeps empty selectedIds unchanged on execution failure', async () => {
+      vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(new Error('fail'))
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const persister = makePersister()
+      const execute = bindExecuteAction(store, persister)
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().selectedIds.size).toBe(0)
+    })
+
+    it('preserves populated selectedIds on execution failure', async () => {
+      vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(new Error('fail'))
+
+      const store = makeStore({
+        nodes: N1,
+        root: 'n1',
+        selectedIds: new Set(['n1']),
+      })
+      const persister = makePersister()
+      const execute = bindExecuteAction(store, persister)
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().selectedIds).toEqual(new Set(['n1']))
+    })
   })
 
   it('returns true on successful execution', async () => {

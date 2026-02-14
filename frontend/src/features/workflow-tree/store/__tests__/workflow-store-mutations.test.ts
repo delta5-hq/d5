@@ -5,6 +5,8 @@ import { INITIAL_WORKFLOW_STATE } from '../workflow-store-types'
 import { bindMutationActions, type FormatMessage } from '../workflow-store-mutations'
 import type { DebouncedPersister } from '../workflow-store-persistence'
 
+vi.mock('sonner', () => ({ toast: { error: vi.fn(), warning: vi.fn() } }))
+
 const { MockNodeMutationError } = vi.hoisted(() => ({
   MockNodeMutationError: class extends Error {
     code: string
@@ -66,7 +68,7 @@ const mockFormatMessage: FormatMessage = (d: { id: string }) => d.id
 
 describe('bindMutationActions', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
   })
 
   it('createRoot adds node and marks dirty', () => {
@@ -199,6 +201,316 @@ describe('bindMutationActions', () => {
     removeNode('parent')
 
     expect(store.getState().selectedId).toBeUndefined()
+  })
+
+  it('removeNode evicts cascade-removed ids from selectedIds', async () => {
+    const { removeNode: removeNodePure } = await import('@entities/workflow/lib')
+    vi.mocked(removeNodePure).mockReturnValueOnce({
+      nodes: { root: { id: 'root' } },
+      edges: {},
+      removedNodeIds: ['n1', 'child-of-n1'],
+    })
+
+    const store = makeStore({
+      nodes: {
+        root: { id: 'root' },
+        n1: { id: 'n1' },
+        'child-of-n1': { id: 'child-of-n1' },
+      } as WorkflowStoreState['nodes'],
+      selectedIds: new Set(['root', 'n1', 'child-of-n1']),
+    })
+    const persister = makePersister()
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+
+    removeNode('n1')
+
+    expect(store.getState().selectedIds).toEqual(new Set(['root']))
+  })
+
+  describe('removeNodes', () => {
+    it('removes multiple top-level nodes in a single operation', async () => {
+      const { removeNode: removeNodePure } = await import('@entities/workflow/lib')
+      vi.mocked(removeNodePure)
+        .mockReturnValueOnce({
+          nodes: { root: { id: 'root', children: ['b'] }, b: { id: 'b', parent: 'root' } },
+          edges: {},
+          removedNodeIds: ['a'],
+        })
+        .mockReturnValueOnce({ nodes: { root: { id: 'root', children: [] } }, edges: {}, removedNodeIds: ['b'] })
+
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['a', 'b'] },
+          a: { id: 'a', parent: 'root', children: [] },
+          b: { id: 'b', parent: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+      })
+      const persister = makePersister()
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+
+      const count = removeNodes(new Set(['a', 'b']))
+
+      expect(count).toBe(2)
+      expect(store.getState().selectedId).toBeUndefined()
+      expect(store.getState().selectedIds.size).toBe(0)
+      expect(store.getState().isDirty).toBe(true)
+      expect(persister.schedule).toHaveBeenCalledOnce()
+    })
+
+    it('skips root nodes', () => {
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+      })
+      const persister = makePersister()
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+
+      const count = removeNodes(new Set(['root']))
+
+      expect(count).toBe(0)
+      expect(persister.schedule).not.toHaveBeenCalled()
+    })
+
+    it('skips executing nodes', () => {
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['n1'] },
+          n1: { id: 'n1', parent: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+        executingNodeIds: new Set(['n1']),
+      })
+      const persister = makePersister()
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+
+      const count = removeNodes(new Set(['n1']))
+
+      expect(count).toBe(0)
+      expect(persister.schedule).not.toHaveBeenCalled()
+    })
+
+    it('returns 0 for empty set', () => {
+      const store = makeStore()
+      const persister = makePersister()
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+
+      expect(removeNodes(new Set())).toBe(0)
+    })
+
+    it('removes only deletable nodes from mixed input', async () => {
+      const { removeNode: removeNodePure } = await import('@entities/workflow/lib')
+      vi.mocked(removeNodePure).mockReturnValueOnce({
+        nodes: { root: { id: 'root', children: [] } },
+        edges: {},
+        removedNodeIds: ['a'],
+      })
+
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['a', 'b'] },
+          a: { id: 'a', parent: 'root', children: [] },
+          b: { id: 'b', parent: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+        executingNodeIds: new Set(['b']),
+      })
+      const persister = makePersister()
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+
+      const count = removeNodes(new Set(['a', 'b', 'ghost']))
+
+      expect(count).toBe(1)
+      expect(persister.schedule).toHaveBeenCalledOnce()
+    })
+
+    it('handles node already removed by earlier cascade', async () => {
+      const { removeNode: removeNodePure } = await import('@entities/workflow/lib')
+      vi.mocked(removeNodePure)
+        .mockReturnValueOnce({
+          nodes: { root: { id: 'root', children: [] } },
+          edges: {},
+          removedNodeIds: ['a', 'b'],
+        })
+        .mockImplementationOnce(() => {
+          throw new Error('Node not found')
+        })
+
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['a', 'b'] },
+          a: { id: 'a', parent: 'root', children: ['b'] },
+          b: { id: 'b', parent: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+      })
+      const persister = makePersister()
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+
+      const count = removeNodes(new Set(['a', 'b']))
+
+      expect(count).toBe(1)
+      expect(store.getState().isDirty).toBe(true)
+    })
+
+    it('preserves selection on surviving nodes after partial delete', async () => {
+      const { removeNode: removeNodePure } = await import('@entities/workflow/lib')
+      vi.mocked(removeNodePure).mockReturnValueOnce({
+        nodes: {
+          root: { id: 'root', children: ['b'] },
+          b: { id: 'b', parent: 'root' },
+        },
+        edges: {},
+        removedNodeIds: ['a'],
+      })
+
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['a', 'b'] },
+          a: { id: 'a', parent: 'root', children: [] },
+          b: { id: 'b', parent: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+        selectedIds: new Set(['a', 'b']),
+        selectedId: 'b',
+        executingNodeIds: new Set(['b']),
+      })
+      const persister = makePersister()
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+
+      removeNodes(new Set(['a', 'b']))
+
+      expect(store.getState().selectedIds).toEqual(new Set(['b']))
+      expect(store.getState().selectedId).toBe('b')
+    })
+
+    it('updates selectedId to last remaining selection after partial delete', async () => {
+      const { removeNode: removeNodePure } = await import('@entities/workflow/lib')
+      vi.mocked(removeNodePure).mockReturnValueOnce({
+        nodes: {
+          root: { id: 'root', children: ['b', 'c'] },
+          b: { id: 'b', parent: 'root' },
+          c: { id: 'c', parent: 'root' },
+        },
+        edges: {},
+        removedNodeIds: ['a'],
+      })
+
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['a', 'b', 'c'] },
+          a: { id: 'a', parent: 'root', children: [] },
+          b: { id: 'b', parent: 'root', children: [] },
+          c: { id: 'c', parent: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+        selectedIds: new Set(['a', 'b', 'c']),
+        selectedId: 'c',
+      })
+      const persister = makePersister()
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+
+      removeNodes(new Set(['a']))
+
+      expect(store.getState().selectedIds).toEqual(new Set(['b', 'c']))
+      expect(store.getState().selectedId).toBe('c')
+    })
+
+    it('toasts when some nodes were skipped', async () => {
+      const { toast } = await import('sonner')
+      const { removeNode: removeNodePure } = await import('@entities/workflow/lib')
+      vi.mocked(removeNodePure).mockReturnValueOnce({
+        nodes: { root: { id: 'root', children: ['b'] }, b: { id: 'b', parent: 'root' } },
+        edges: {},
+        removedNodeIds: ['a'],
+      })
+
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['a', 'b'] },
+          a: { id: 'a', parent: 'root', children: [] },
+          b: { id: 'b', parent: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+        executingNodeIds: new Set(['b']),
+      })
+      const persister = makePersister()
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+
+      removeNodes(new Set(['a', 'b']))
+
+      expect(toast.warning).toHaveBeenCalledOnce()
+    })
+
+    it('does not toast when all targeted nodes were removed', async () => {
+      const { toast } = await import('sonner')
+      const { removeNode: removeNodePure } = await import('@entities/workflow/lib')
+      vi.mocked(removeNodePure).mockReturnValueOnce({
+        nodes: { root: { id: 'root', children: [] } },
+        edges: {},
+        removedNodeIds: ['a'],
+      })
+
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['a'] },
+          a: { id: 'a', parent: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+      })
+      const persister = makePersister()
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+
+      removeNodes(new Set(['a']))
+
+      expect(toast.warning).not.toHaveBeenCalled()
+    })
+
+    it('does not toast when descendant in selection was cascade-removed', async () => {
+      const { toast } = await import('sonner')
+      const { removeNode: removeNodePure } = await import('@entities/workflow/lib')
+      vi.mocked(removeNodePure).mockReturnValueOnce({
+        nodes: { root: { id: 'root', children: [] } },
+        edges: {},
+        removedNodeIds: ['a', 'a1'],
+      })
+
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['a'] },
+          a: { id: 'a', parent: 'root', children: ['a1'] },
+          a1: { id: 'a1', parent: 'a', children: [] },
+        } as WorkflowStoreState['nodes'],
+      })
+      const persister = makePersister()
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+
+      removeNodes(new Set(['a', 'a1']))
+
+      expect(toast.warning).not.toHaveBeenCalled()
+    })
+
+    it('counts cascade-removed descendants as removed in toast', async () => {
+      const { toast } = await import('sonner')
+      const { removeNode: removeNodePure } = await import('@entities/workflow/lib')
+      vi.mocked(removeNodePure).mockReturnValueOnce({
+        nodes: {
+          root: { id: 'root', children: ['b'] },
+          b: { id: 'b', parent: 'root' },
+        },
+        edges: {},
+        removedNodeIds: ['a', 'a1'],
+      })
+
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['a', 'b'] },
+          a: { id: 'a', parent: 'root', children: ['a1'] },
+          a1: { id: 'a1', parent: 'a', children: [] },
+          b: { id: 'b', parent: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+        executingNodeIds: new Set(['b']),
+      })
+      const persister = makePersister()
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+
+      removeNodes(new Set(['a', 'a1', 'b']))
+
+      expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining('bulkDeletePartial'))
+    })
   })
 
   it('duplicateNode returns new root id', () => {

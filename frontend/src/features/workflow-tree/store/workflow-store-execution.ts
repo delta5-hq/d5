@@ -4,6 +4,7 @@ import { mergeWorkflowChanges } from '@entities/workflow/lib'
 import { executeWorkflowCommand } from '../api/execute-workflow-command'
 import type { WorkflowStoreState } from './workflow-store-types'
 import type { DebouncedPersister } from './workflow-store-persistence'
+import { retainExistingIds } from './workflow-store-set-utils'
 
 function addExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): void {
   store.setState(prev => ({
@@ -50,12 +51,14 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
       }
       const merged = mergeWorkflowChanges(currentData, response)
       const selectionStale = current.selectedId !== undefined && !(current.selectedId in merged.nodes)
+      const cleanedIds = retainExistingIds(current.selectedIds, merged.nodes)
       store.setState({
         nodes: merged.nodes,
         edges: merged.edges ?? {},
         root: merged.root,
         isDirty: true,
         ...(selectionStale ? { selectedId: undefined } : {}),
+        ...(cleanedIds !== current.selectedIds ? { selectedIds: cleanedIds } : {}),
       })
 
       await persister.flush()

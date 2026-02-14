@@ -9,12 +9,14 @@ import {
   duplicateNode as duplicateNodePure,
   NodeMutationError,
   resolveSelectionAfterDelete,
+  getTopLevelIds,
 } from '@entities/workflow/lib'
 import { toast } from 'sonner'
 import type { WorkflowStoreState } from './workflow-store-types'
 import type { DebouncedPersister } from './workflow-store-persistence'
+import { excludeIds } from './workflow-store-set-utils'
 
-export type FormatMessage = (descriptor: { id: string }) => string
+export type FormatMessage = (descriptor: { id: string }, values?: Record<string, string | number>) => string
 
 const MUTATION_ERROR_KEYS: Record<string, string> = {
   INVALID_NODE_DATA: 'workflowTree.mutation.invalidNodeData',
@@ -79,21 +81,78 @@ export function bindMutationActions(
     ) !== null
 
   const removeNode = (nodeId: NodeId): boolean => {
-    const { nodes, edges, selectedId } = store.getState()
+    const { nodes, edges, selectedId, selectedIds } = store.getState()
     const nextSelectedId = selectedId !== undefined ? resolveSelectionAfterDelete(nodes, nodeId) : undefined
     return (
       applyMutation(
         () => removeNodePure(nodes, edges, nodeId),
         result => {
-          const selectionAffected = selectedId !== undefined && result.removedNodeIds.includes(selectedId)
+          const removedSet = new Set(result.removedNodeIds)
+          const selectionAffected = selectedId !== undefined && removedSet.has(selectedId)
+          const cleanedIds = excludeIds(selectedIds, removedSet)
           store.setState({
             nodes: result.nodes,
             edges: result.edges,
             ...(selectionAffected && { selectedId: nextSelectedId }),
+            ...(cleanedIds !== selectedIds && { selectedIds: cleanedIds }),
           })
         },
       ) !== null
     )
+  }
+
+  const removeNodes = (targetIds: Set<NodeId>): number => {
+    if (targetIds.size === 0) return 0
+
+    const { nodes, edges, executingNodeIds, selectedIds } = store.getState()
+
+    const deletableIds = getTopLevelIds(nodes, targetIds).filter(id => nodes[id]?.parent && !executingNodeIds.has(id))
+
+    if (deletableIds.length === 0) return 0
+
+    let currentNodes = nodes
+    let currentEdges = edges
+    let totalRemoved = 0
+    const removedSet = new Set<NodeId>()
+
+    for (const id of deletableIds) {
+      if (!(id in currentNodes)) continue
+      try {
+        const result = removeNodePure(currentNodes, currentEdges, id)
+        for (const rid of result.removedNodeIds) removedSet.add(rid)
+        currentNodes = result.nodes
+        currentEdges = result.edges
+        totalRemoved++
+      } catch {
+        /* node already gone via cascade — skip */
+      }
+    }
+
+    if (totalRemoved === 0) return 0
+
+    const survivorIds = excludeIds(selectedIds, removedSet)
+    const lastSurvivor = survivorIds.size > 0 ? [...survivorIds].at(-1) : undefined
+
+    store.setState({
+      nodes: currentNodes,
+      edges: currentEdges,
+      selectedId: lastSurvivor,
+      selectedIds: survivorIds,
+      isDirty: true,
+    })
+    persister.schedule()
+
+    let removed = 0
+    let skipped = 0
+    for (const id of targetIds) {
+      if (removedSet.has(id)) removed++
+      else if (id in currentNodes) skipped++
+    }
+    if (skipped > 0) {
+      toast.warning(formatMessage({ id: 'workflowTree.mutation.bulkDeletePartial' }, { removed, skipped }))
+    }
+
+    return totalRemoved
   }
 
   const moveNode = (nodeId: NodeId, newParentId: NodeId): boolean =>
@@ -112,5 +171,5 @@ export function bindMutationActions(
     )
   }
 
-  return { createRoot, addChild, updateNode, removeNode, moveNode, duplicateNode }
+  return { createRoot, addChild, updateNode, removeNode, removeNodes, moveNode, duplicateNode }
 }

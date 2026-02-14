@@ -1,8 +1,9 @@
-import { useState, useCallback, useMemo, type KeyboardEvent } from 'react'
+import { useState, useCallback, useMemo, type KeyboardEvent, type MouseEvent } from 'react'
 import {
   WorkflowSegmentTree,
   WorkflowStoreProvider,
   useWorkflowSelectedId,
+  useWorkflowSelectedIds,
   useWorkflowNode,
   useWorkflowNodes,
   useWorkflowRoot,
@@ -41,6 +42,7 @@ const WorkflowContent = () => {
   const { formatMessage } = useIntl()
 
   const selectedId = useWorkflowSelectedId()
+  const selectedIds = useWorkflowSelectedIds()
   const selectedNode = useWorkflowNode(selectedId)
   const isSelectedNodeExecuting = useIsNodeExecuting(selectedId)
   const [autoEditNodeId, setAutoEditNodeId] = useState<string | undefined>()
@@ -56,8 +58,12 @@ const WorkflowContent = () => {
   )
 
   const handleSelect = useCallback(
-    (id: string) => {
-      actions.select(id)
+    (id: string, _node: unknown, event?: MouseEvent) => {
+      if (event && (event.ctrlKey || event.metaKey)) {
+        actions.toggleSelect(id)
+      } else {
+        actions.select(id)
+      }
       setAutoEditNodeId(undefined)
     },
     [actions],
@@ -118,13 +124,20 @@ const WorkflowContent = () => {
     (e: KeyboardEvent) => {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return
       if (isEditableElementFocused()) return
+
+      if (selectedIds.size > 1) {
+        e.preventDefault()
+        actions.removeNodes(selectedIds)
+        return
+      }
+
       if (!selectedId || !selectedNode?.parent) return
       if (isSelectedNodeExecuting) return
 
       e.preventDefault()
       actions.removeNode(selectedId)
     },
-    [selectedId, selectedNode?.parent, isSelectedNodeExecuting, actions],
+    [selectedIds, selectedId, selectedNode?.parent, isSelectedNodeExecuting, actions],
   )
 
   const handleDuplicateNode = useCallback(
@@ -199,7 +212,7 @@ const WorkflowContent = () => {
             onRequestRename={handleRequestRename}
             onSelect={handleSelect}
             rootId={root}
-            selectedId={selectedId}
+            selectedIds={selectedIds}
           />
         </CardContent>
       </Card>

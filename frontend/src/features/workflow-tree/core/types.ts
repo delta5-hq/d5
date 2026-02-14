@@ -1,9 +1,9 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, MouseEvent } from 'react'
 import type { NodeData, NodeId } from '@/shared/base-types/workflow'
 
 export interface TreeNodeCallbacks {
   onToggle?: (id: string, sparkDelay?: number) => void
-  onSelect?: (id: string) => void
+  onSelect?: (id: string, event?: MouseEvent) => void
   onAddChild?: (parentId: string) => void
   onRequestDelete?: (nodeId: string) => void
   onDuplicateNode?: (nodeId: string) => void
