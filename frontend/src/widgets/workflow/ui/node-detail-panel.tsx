@@ -81,7 +81,10 @@ export const NodeDetailPanel = ({
   return (
     <div className="space-y-4 text-sm" data-testid="node-detail-panel">
       <Collapsible defaultOpen={!isPrompt}>
-        <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors [&[data-state=open]>svg]:rotate-90">
+        <CollapsibleTrigger
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors [&[data-state=open]>svg]:rotate-90"
+          data-testid="settings-trigger"
+        >
           <ChevronRight className="h-3 w-3 transition-transform" />
           <FormattedMessage id="workflowTree.node.command" />
         </CollapsibleTrigger>
@@ -141,19 +144,31 @@ export const NodeDetailPanel = ({
                   <FormattedMessage id="workflowTree.node.addChild" />
                 </Button>
 
-                <Button disabled={isRoot || mutationDisabled} onClick={handleDuplicate} size="sm" variant="ghost">
+                <Button
+                  data-testid="duplicate-node-button"
+                  disabled={isRoot || mutationDisabled}
+                  onClick={handleDuplicate}
+                  size="sm"
+                  variant="ghost"
+                >
                   <Copy className="mr-1 h-3 w-3" />
                   <FormattedMessage id="workflowTree.node.duplicate" />
                 </Button>
 
-                <Button disabled={isRoot || mutationDisabled} onClick={handleDelete} size="sm" variant="danger">
+                <Button
+                  data-testid="delete-node-button"
+                  disabled={isRoot || mutationDisabled}
+                  onClick={handleDelete}
+                  size="sm"
+                  variant="danger"
+                >
                   <Trash2 className="mr-1 h-3 w-3" />
                   <FormattedMessage id="delete" />
                 </Button>
               </div>
             </div>
 
-            <div className="flex-shrink-0">
+            <div className="flex-shrink-0" data-testid="node-genie">
               <Genie
                 clipboardEdge="#424242"
                 clipboardFill="#ffffff"
