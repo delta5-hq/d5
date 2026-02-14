@@ -23,5 +23,6 @@ export {
   useWorkflowStatus,
   useIsNodeExecuting,
   useWorkflowId,
+  useIsPromptNode,
 } from './store/workflow-selectors'
 export type { WorkflowStoreState, WorkflowStoreActions, WorkflowStore } from './store'

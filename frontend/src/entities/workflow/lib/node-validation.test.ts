@@ -8,6 +8,7 @@ import {
   findRootId,
   hasCircularReference,
   hasUsableRoot,
+  isPromptNode,
 } from './node-validation'
 
 const createTestTree = (): Record<string, NodeData> => ({
@@ -276,5 +277,82 @@ describe('hasUsableRoot', () => {
     const nodes = createTestTree()
     expect(hasUsableRoot('nonexistent', nodes)).toBe(false)
     expect(hasUsableRoot('root', {})).toBe(false)
+  })
+})
+
+describe('isPromptNode', () => {
+  const createPromptTree = (): Record<string, NodeData> => ({
+    root: { id: 'root', title: 'Root', children: ['a', 'b'] },
+    a: { id: 'a', title: 'Step A', parent: 'root', children: ['p1', 'p2', 'c1'], prompts: ['p1', 'p2'] },
+    b: { id: 'b', title: 'Step B', parent: 'root', children: ['c2'] },
+    p1: { id: 'p1', title: 'Prompt 1', parent: 'a', children: [] },
+    p2: { id: 'p2', title: 'Prompt 2', parent: 'a', children: ['p3'], prompts: ['p3'] },
+    c1: { id: 'c1', title: 'Regular Child', parent: 'a', children: [] },
+    c2: { id: 'c2', title: 'Regular Child 2', parent: 'b', children: [] },
+    p3: { id: 'p3', title: 'Nested Prompt', parent: 'p2', children: [] },
+  })
+
+  it('identifies direct prompt children', () => {
+    const nodes = createPromptTree()
+    expect(isPromptNode('p1', nodes)).toBe(true)
+    expect(isPromptNode('p2', nodes)).toBe(true)
+  })
+
+  it('identifies nested prompt children', () => {
+    const nodes = createPromptTree()
+    expect(isPromptNode('p3', nodes)).toBe(true)
+  })
+
+  it('rejects regular children of prompt-bearing parents', () => {
+    const nodes = createPromptTree()
+    expect(isPromptNode('c1', nodes)).toBe(false)
+  })
+
+  it('rejects children of parents without prompts', () => {
+    const nodes = createPromptTree()
+    expect(isPromptNode('c2', nodes)).toBe(false)
+  })
+
+  it('checks parent prompts array, not node own prompts', () => {
+    const nodes = createPromptTree()
+    /* 'a' has prompts field but root does not list 'a' → not a prompt */
+    expect(isPromptNode('a', nodes)).toBe(false)
+    /* 'p2' has own prompts AND is listed in a.prompts → is a prompt */
+    expect(isPromptNode('p2', nodes)).toBe(true)
+  })
+
+  it('rejects root nodes', () => {
+    const nodes = createPromptTree()
+    expect(isPromptNode('root', nodes)).toBe(false)
+  })
+
+  it('returns false for non-existent node', () => {
+    expect(isPromptNode('ghost', createPromptTree())).toBe(false)
+  })
+
+  it('returns false in empty nodes map', () => {
+    expect(isPromptNode('any', {})).toBe(false)
+  })
+
+  it('returns false when parent is missing from map', () => {
+    const nodes: Record<string, NodeData> = {
+      orphan: { id: 'orphan', title: 'Orphan', parent: 'deleted', children: [] },
+    }
+    expect(isPromptNode('orphan', nodes)).toBe(false)
+  })
+
+  it('returns false when parent prompts array is empty', () => {
+    const nodes: Record<string, NodeData> = {
+      parent: { id: 'parent', title: 'Parent', children: ['c1'], prompts: [] },
+      c1: { id: 'c1', title: 'Child', parent: 'parent', children: [] },
+    }
+    expect(isPromptNode('c1', nodes)).toBe(false)
+  })
+
+  it('returns false for all nodes in tree without prompts', () => {
+    const nodes = createTestTree()
+    for (const id of Object.keys(nodes)) {
+      expect(isPromptNode(id, nodes)).toBe(false)
+    }
   })
 })

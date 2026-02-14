@@ -2,6 +2,7 @@ import { useSelector, shallowEqual } from '@shared/lib/store'
 import type { NodeData, NodeId, EdgeData, EdgeId } from '@shared/base-types'
 import type { WorkflowStoreState, WorkflowStoreActions } from './workflow-store-types'
 import { useWorkflowStore } from './workflow-store-provider'
+import { isPromptNode } from '@entities/workflow/lib'
 
 export function useWorkflowSelectedId(): NodeId | undefined {
   const { store } = useWorkflowStore()
@@ -62,4 +63,9 @@ export function useWorkflowStatus(): Pick<WorkflowStoreState, 'isLoading' | 'err
     s => ({ isLoading: s.isLoading, error: s.error, isSaving: s.isSaving, isExecuting: s.executingNodeIds.size > 0 }),
     shallowEqual,
   )
+}
+
+export function useIsPromptNode(nodeId: NodeId | undefined): boolean {
+  const { store } = useWorkflowStore()
+  return useSelector(store, s => (nodeId ? isPromptNode(nodeId, s.nodes) : false))
 }

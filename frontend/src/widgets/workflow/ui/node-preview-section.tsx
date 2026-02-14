@@ -7,20 +7,27 @@ import { useWorkflowNodes, useWorkflowEdges, useWorkflowId } from '@features/wor
 interface NodePreviewSectionProps {
   nodeId: NodeId
   command: string | undefined
+  promptTitle?: string
 }
 
-export const NodePreviewSection = ({ nodeId, command }: NodePreviewSectionProps) => {
+export const NodePreviewSection = ({ nodeId, command, promptTitle }: NodePreviewSectionProps) => {
   const nodes = useWorkflowNodes()
   const edges = useWorkflowEdges()
   const workflowId = useWorkflowId()
 
-  const { previewText, isLoading, error } = useNodePreview({
+  const {
+    previewText: resolvedText,
+    isLoading,
+    error,
+  } = useNodePreview({
     nodeId,
     command,
     nodes,
     edges,
     workflowId,
   })
+
+  const previewText = resolvedText || promptTitle || ''
 
   return (
     <div className="grid grid-cols-[100px_1fr] gap-2 items-start">

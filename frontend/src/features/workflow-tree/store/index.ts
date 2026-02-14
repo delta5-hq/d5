@@ -14,4 +14,5 @@ export {
   useWorkflowStatus,
   useIsNodeExecuting,
   useWorkflowId,
+  useIsPromptNode,
 } from './workflow-selectors'

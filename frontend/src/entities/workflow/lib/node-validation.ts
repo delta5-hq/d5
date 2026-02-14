@@ -74,3 +74,9 @@ export const hasCircularReference = (nodes: Record<NodeId, NodeData>, nodeId: No
   if (nodeId === newParentId) return true
   return isDescendantOf(nodes, newParentId, nodeId)
 }
+
+export const isPromptNode = (nodeId: NodeId, nodes: Record<NodeId, NodeData>): boolean => {
+  const node = nodes[nodeId]
+  if (!node?.parent) return false
+  return nodes[node.parent]?.prompts?.includes(nodeId) ?? false
+}
