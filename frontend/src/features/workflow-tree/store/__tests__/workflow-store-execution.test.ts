@@ -501,6 +501,70 @@ describe('bindExecuteAction', () => {
 
       expect(store.getState().selectedIds).toEqual(new Set(['n1']))
     })
+
+    it('clears anchorId when anchor node removed by merge', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: { n2: { id: 'n2' } },
+        edges: {},
+        root: 'n2',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: N1, root: 'n1', anchorId: 'n1' })
+      const persister = makePersister()
+      const execute = bindExecuteAction(store, persister)
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().anchorId).toBeUndefined()
+    })
+
+    it('preserves anchorId when anchor node survives merge', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: { n1: { id: 'n1', title: 'Updated' }, n2: { id: 'n2' } },
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({
+        nodes: { n1: { id: 'n1' }, n2: { id: 'n2' } } as WorkflowStoreState['nodes'],
+        root: 'n1',
+        anchorId: 'n1',
+      })
+      const persister = makePersister()
+      const execute = bindExecuteAction(store, persister)
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().anchorId).toBe('n1')
+    })
+
+    it('leaves anchorId undefined when no anchor was set', async () => {
+      mockIdentityExecution(N1)
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const persister = makePersister()
+      const execute = bindExecuteAction(store, persister)
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().anchorId).toBeUndefined()
+    })
+
+    it('preserves anchorId on execution failure', async () => {
+      vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(new Error('server error'))
+
+      const store = makeStore({ nodes: N1, root: 'n1', anchorId: 'n1' })
+      const persister = makePersister()
+      const execute = bindExecuteAction(store, persister)
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().anchorId).toBe('n1')
+    })
   })
 
   it('returns true on successful execution', async () => {

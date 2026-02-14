@@ -45,6 +45,7 @@ interface VirtualizedSegmentTreeProps extends TreeNodeCallbacks {
   overscanCount?: number
   selectedIds?: Set<string>
   autoEditNodeId?: string
+  onVisibleOrderChange?: (order: readonly string[]) => void
 }
 
 export const VirtualizedSegmentTree = ({
@@ -62,6 +63,7 @@ export const VirtualizedSegmentTree = ({
   onRename,
   onRequestRename,
   autoEditNodeId,
+  onVisibleOrderChange,
 }: VirtualizedSegmentTreeProps) => {
   const listRef = useRef<ListImperativeAPI | null>(null)
   const prevTreeWalkerRef = useRef<TreeWalkerGenerator | null>(null)
@@ -80,6 +82,10 @@ export const VirtualizedSegmentTree = ({
       setSegmentState(computeSegments(newTreeState, { rowHeight }))
     }
   }, [treeWalker, treeState, rowHeight])
+
+  useEffect(() => {
+    onVisibleOrderChange?.(treeState.order)
+  }, [treeState.order, onVisibleOrderChange])
 
   const getRowHeight = useCallback((index: number) => getSegmentHeight(segmentState, index), [segmentState])
 

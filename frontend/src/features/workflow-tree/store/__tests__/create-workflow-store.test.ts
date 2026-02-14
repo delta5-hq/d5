@@ -287,4 +287,127 @@ describe('createWorkflowStore', () => {
       expect(store.getState().selectedIds).toEqual(new Set(['a', 'b']))
     })
   })
+
+  describe('anchorId and rangeSelect', () => {
+    it('select sets anchorId to selected node', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+
+      actions.select('a')
+
+      expect(store.getState().anchorId).toBe('a')
+    })
+
+    it('select(undefined) clears anchorId', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      actions.select('a')
+
+      actions.select(undefined)
+
+      expect(store.getState().anchorId).toBeUndefined()
+    })
+
+    it('toggleSelect does not change anchorId', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      actions.select('a')
+
+      actions.toggleSelect('b')
+
+      expect(store.getState().anchorId).toBe('a')
+    })
+
+    it('rangeSelect selects forward range from anchor to target', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      actions.select('b')
+
+      actions.rangeSelect('d', ['a', 'b', 'c', 'd', 'e'])
+
+      expect(store.getState().selectedIds).toEqual(new Set(['b', 'c', 'd']))
+      expect(store.getState().selectedId).toBe('d')
+      expect(store.getState().anchorId).toBe('b')
+    })
+
+    it('rangeSelect selects backward range from anchor to target', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      actions.select('d')
+
+      actions.rangeSelect('b', ['a', 'b', 'c', 'd', 'e'])
+
+      expect(store.getState().selectedIds).toEqual(new Set(['b', 'c', 'd']))
+      expect(store.getState().selectedId).toBe('b')
+      expect(store.getState().anchorId).toBe('d')
+    })
+
+    it('rangeSelect falls back to select when no anchor', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+
+      actions.rangeSelect('c', ['a', 'b', 'c', 'd'])
+
+      expect(store.getState().selectedIds).toEqual(new Set(['c']))
+      expect(store.getState().selectedId).toBe('c')
+      expect(store.getState().anchorId).toBe('c')
+    })
+
+    it('rangeSelect falls back to select when anchor not in visible order', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      actions.select('hidden')
+
+      actions.rangeSelect('c', ['a', 'b', 'c', 'd'])
+
+      expect(store.getState().selectedIds).toEqual(new Set(['c']))
+      expect(store.getState().selectedId).toBe('c')
+      expect(store.getState().anchorId).toBe('c')
+    })
+
+    it('consecutive rangeSelects re-range from stable anchor', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      const order = ['a', 'b', 'c', 'd', 'e']
+      actions.select('b')
+
+      actions.rangeSelect('d', order)
+      expect(store.getState().selectedIds).toEqual(new Set(['b', 'c', 'd']))
+
+      actions.rangeSelect('e', order)
+      expect(store.getState().selectedIds).toEqual(new Set(['b', 'c', 'd', 'e']))
+      expect(store.getState().anchorId).toBe('b')
+    })
+
+    it('rangeSelect with target equal to anchor selects single node', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      actions.select('b')
+
+      actions.rangeSelect('b', ['a', 'b', 'c'])
+
+      expect(store.getState().selectedIds).toEqual(new Set(['b']))
+    })
+
+    it('load clears stale anchorId', async () => {
+      vi.mocked(apiFetch).mockResolvedValueOnce(mockApiResponse)
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      store.setState({ anchorId: 'deleted-node' })
+
+      await actions.load()
+
+      expect(store.getState().anchorId).toBeUndefined()
+    })
+
+    it('load preserves anchorId when node exists', async () => {
+      vi.mocked(apiFetch).mockResolvedValueOnce(mockApiResponse)
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      store.setState({ anchorId: 'root' })
+
+      await actions.load()
+
+      expect(store.getState().anchorId).toBe('root')
+    })
+
+    it('load error does not modify anchorId', async () => {
+      vi.mocked(apiFetch).mockRejectedValueOnce(new Error('Network error'))
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      store.setState({ anchorId: 'some-node' })
+
+      await actions.load()
+
+      expect(store.getState().anchorId).toBe('some-node')
+    })
+  })
 })

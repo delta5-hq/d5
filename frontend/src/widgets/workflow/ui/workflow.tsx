@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, type KeyboardEvent, type MouseEvent } from 'react'
+import { useState, useCallback, useMemo, useRef, type KeyboardEvent, type MouseEvent } from 'react'
 import {
   WorkflowSegmentTree,
   WorkflowStoreProvider,
@@ -49,7 +49,11 @@ const WorkflowContent = () => {
   const isSelectedNodePrompt = useIsPromptNode(selectedId)
   const [autoEditNodeId, setAutoEditNodeId] = useState<string | undefined>()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>()
+  const visibleOrderRef = useRef<readonly string[]>([])
 
+  const handleVisibleOrderChange = useCallback((order: readonly string[]) => {
+    visibleOrderRef.current = order
+  }, [])
   const pendingDeleteNode = useMemo(
     () => (pendingDeleteId ? nodes[pendingDeleteId] : undefined),
     [pendingDeleteId, nodes],
@@ -61,7 +65,9 @@ const WorkflowContent = () => {
 
   const handleSelect = useCallback(
     (id: string, _node: unknown, event?: MouseEvent) => {
-      if (event && (event.ctrlKey || event.metaKey)) {
+      if (event?.shiftKey) {
+        actions.rangeSelect(id, visibleOrderRef.current)
+      } else if (event && (event.ctrlKey || event.metaKey)) {
         actions.toggleSelect(id)
       } else {
         actions.select(id)
@@ -213,6 +219,7 @@ const WorkflowContent = () => {
             onRequestDelete={handleRequestDelete}
             onRequestRename={handleRequestRename}
             onSelect={handleSelect}
+            onVisibleOrderChange={handleVisibleOrderChange}
             rootId={root}
             selectedIds={selectedIds}
           />

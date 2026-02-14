@@ -51,6 +51,7 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
       }
       const merged = mergeWorkflowChanges(currentData, response)
       const selectionStale = current.selectedId !== undefined && !(current.selectedId in merged.nodes)
+      const anchorStale = current.anchorId !== undefined && !(current.anchorId in merged.nodes)
       const cleanedIds = retainExistingIds(current.selectedIds, merged.nodes)
       store.setState({
         nodes: merged.nodes,
@@ -58,6 +59,7 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
         root: merged.root,
         isDirty: true,
         ...(selectionStale ? { selectedId: undefined } : {}),
+        ...(anchorStale ? { anchorId: undefined } : {}),
         ...(cleanedIds !== current.selectedIds ? { selectedIds: cleanedIds } : {}),
       })
 

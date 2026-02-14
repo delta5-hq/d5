@@ -8,6 +8,7 @@ export interface WorkflowStoreState {
   share: Share | undefined
   selectedId: NodeId | undefined
   selectedIds: Set<NodeId>
+  anchorId: NodeId | undefined
 
   isLoading: boolean
   error: Error | null
@@ -25,6 +26,7 @@ export interface WorkflowStoreActions {
 
   select: (nodeId: NodeId | undefined) => void
   toggleSelect: (nodeId: NodeId) => void
+  rangeSelect: (targetId: NodeId, visibleOrder: readonly string[]) => void
   createRoot: (nodeData: Partial<NodeData>) => NodeId | null
   addChild: (parentId: NodeId, nodeData: Partial<NodeData>) => NodeId | null
   updateNode: (nodeId: NodeId, updates: Partial<Omit<NodeData, 'id' | 'parent'>>) => boolean
@@ -43,6 +45,7 @@ export const INITIAL_WORKFLOW_STATE: Omit<WorkflowStoreState, 'workflowId'> = {
   share: undefined,
   selectedId: undefined,
   selectedIds: new Set<NodeId>(),
+  anchorId: undefined,
   isLoading: false,
   error: null,
   isDirty: false,

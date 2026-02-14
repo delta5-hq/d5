@@ -81,7 +81,7 @@ export function bindMutationActions(
     ) !== null
 
   const removeNode = (nodeId: NodeId): boolean => {
-    const { nodes, edges, selectedId, selectedIds } = store.getState()
+    const { nodes, edges, selectedId, selectedIds, anchorId } = store.getState()
     const nextSelectedId = selectedId !== undefined ? resolveSelectionAfterDelete(nodes, nodeId) : undefined
     return (
       applyMutation(
@@ -90,11 +90,13 @@ export function bindMutationActions(
           const removedSet = new Set(result.removedNodeIds)
           const selectionAffected = selectedId !== undefined && removedSet.has(selectedId)
           const cleanedIds = excludeIds(selectedIds, removedSet)
+          const anchorAffected = anchorId !== undefined && removedSet.has(anchorId)
           store.setState({
             nodes: result.nodes,
             edges: result.edges,
             ...(selectionAffected && { selectedId: nextSelectedId }),
             ...(cleanedIds !== selectedIds && { selectedIds: cleanedIds }),
+            ...(anchorAffected && { anchorId: undefined }),
           })
         },
       ) !== null
@@ -104,7 +106,7 @@ export function bindMutationActions(
   const removeNodes = (targetIds: Set<NodeId>): number => {
     if (targetIds.size === 0) return 0
 
-    const { nodes, edges, executingNodeIds, selectedIds } = store.getState()
+    const { nodes, edges, executingNodeIds, selectedIds, anchorId } = store.getState()
 
     const deletableIds = getTopLevelIds(nodes, targetIds).filter(id => nodes[id]?.parent && !executingNodeIds.has(id))
 
@@ -132,12 +134,14 @@ export function bindMutationActions(
 
     const survivorIds = excludeIds(selectedIds, removedSet)
     const lastSurvivor = survivorIds.size > 0 ? [...survivorIds].at(-1) : undefined
+    const anchorAffected = anchorId !== undefined && removedSet.has(anchorId)
 
     store.setState({
       nodes: currentNodes,
       edges: currentEdges,
       selectedId: lastSurvivor,
       selectedIds: survivorIds,
+      ...(anchorAffected && { anchorId: undefined }),
       isDirty: true,
     })
     persister.schedule()

@@ -227,6 +227,67 @@ describe('bindMutationActions', () => {
     expect(store.getState().selectedIds).toEqual(new Set(['root']))
   })
 
+  it('removeNode clears anchorId when anchor is among removed nodes', () => {
+    const store = makeStore({
+      nodes: { n1: { id: 'n1', parent: 'root' } } as WorkflowStoreState['nodes'],
+      anchorId: 'n1',
+    })
+    const persister = makePersister()
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+
+    removeNode('n1')
+
+    expect(store.getState().anchorId).toBeUndefined()
+  })
+
+  it('removeNode clears anchorId when anchor is cascade-removed', async () => {
+    const { removeNode: removeNodePure } = await import('@entities/workflow/lib')
+    vi.mocked(removeNodePure).mockReturnValueOnce({
+      nodes: {},
+      edges: {},
+      removedNodeIds: ['parent', 'child'],
+    })
+
+    const store = makeStore({
+      nodes: {
+        parent: { id: 'parent' },
+        child: { id: 'child' },
+      } as WorkflowStoreState['nodes'],
+      anchorId: 'child',
+    })
+    const persister = makePersister()
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+
+    removeNode('parent')
+
+    expect(store.getState().anchorId).toBeUndefined()
+  })
+
+  it('removeNode preserves anchorId when anchor is not among removed nodes', () => {
+    const store = makeStore({
+      nodes: { n1: { id: 'n1', parent: 'root' }, n2: { id: 'n2', parent: 'root' } } as WorkflowStoreState['nodes'],
+      anchorId: 'n2',
+    })
+    const persister = makePersister()
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+
+    removeNode('n1')
+
+    expect(store.getState().anchorId).toBe('n2')
+  })
+
+  it('removeNode leaves anchorId undefined when no anchor was set', () => {
+    const store = makeStore({
+      nodes: { n1: { id: 'n1', parent: 'root' } } as WorkflowStoreState['nodes'],
+    })
+    const persister = makePersister()
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+
+    removeNode('n1')
+
+    expect(store.getState().anchorId).toBeUndefined()
+  })
+
   describe('removeNodes', () => {
     it('removes multiple top-level nodes in a single operation', async () => {
       const { removeNode: removeNodePure } = await import('@entities/workflow/lib')
@@ -409,6 +470,54 @@ describe('bindMutationActions', () => {
 
       expect(store.getState().selectedIds).toEqual(new Set(['b', 'c']))
       expect(store.getState().selectedId).toBe('c')
+    })
+
+    it('clears anchorId when anchor is among removed nodes', async () => {
+      const { removeNode: removeNodePure } = await import('@entities/workflow/lib')
+      vi.mocked(removeNodePure).mockReturnValueOnce({
+        nodes: { root: { id: 'root', children: ['b'] }, b: { id: 'b', parent: 'root' } },
+        edges: {},
+        removedNodeIds: ['a'],
+      })
+
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['a', 'b'] },
+          a: { id: 'a', parent: 'root', children: [] },
+          b: { id: 'b', parent: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+        anchorId: 'a',
+      })
+      const persister = makePersister()
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+
+      removeNodes(new Set(['a']))
+
+      expect(store.getState().anchorId).toBeUndefined()
+    })
+
+    it('preserves anchorId when anchor survives deletion', async () => {
+      const { removeNode: removeNodePure } = await import('@entities/workflow/lib')
+      vi.mocked(removeNodePure).mockReturnValueOnce({
+        nodes: { root: { id: 'root', children: ['b'] }, b: { id: 'b', parent: 'root' } },
+        edges: {},
+        removedNodeIds: ['a'],
+      })
+
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['a', 'b'] },
+          a: { id: 'a', parent: 'root', children: [] },
+          b: { id: 'b', parent: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+        anchorId: 'b',
+      })
+      const persister = makePersister()
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+
+      removeNodes(new Set(['a']))
+
+      expect(store.getState().anchorId).toBe('b')
     })
 
     it('toasts when some nodes were skipped', async () => {

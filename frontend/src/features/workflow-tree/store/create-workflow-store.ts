@@ -6,6 +6,7 @@ import { createDebouncedPersister } from './workflow-store-persistence'
 import { bindMutationActions, type FormatMessage } from './workflow-store-mutations'
 import { bindExecuteAction } from './workflow-store-execution'
 import { retainExistingIds } from './workflow-store-set-utils'
+import { computeRangeSelection } from './workflow-store-range-select'
 
 interface WorkflowApiResponse {
   _id: string
@@ -46,8 +47,9 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     try {
       const data = await apiFetch<WorkflowApiResponse>(`/workflow/${workflowId}`)
       const newNodes = (data.nodes ?? {}) as WorkflowStoreState['nodes']
-      const { selectedId, selectedIds } = store.getState()
+      const { selectedId, selectedIds, anchorId } = store.getState()
       const selectionStale = selectedId !== undefined && !(selectedId in newNodes)
+      const anchorStale = anchorId !== undefined && !(anchorId in newNodes)
       const cleanedIds = retainExistingIds(selectedIds, newNodes)
       store.setState({
         nodes: newNodes,
@@ -58,6 +60,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
         isDirty: false,
         ...(selectionStale ? { selectedId: undefined } : {}),
         ...(cleanedIds !== selectedIds ? { selectedIds: cleanedIds } : {}),
+        ...(anchorStale ? { anchorId: undefined } : {}),
       })
     } catch (err) {
       store.setState({
@@ -71,6 +74,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     store.setState({
       selectedId: nodeId,
       selectedIds: nodeId ? new Set([nodeId]) : new Set<string>(),
+      anchorId: nodeId,
     })
   }
 
@@ -84,6 +88,16 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     }
     const lastId = [...next].at(-1)
     store.setState({ selectedId: lastId, selectedIds: next })
+  }
+
+  const rangeSelect = (targetId: string, visibleOrder: readonly string[]) => {
+    const { anchorId } = store.getState()
+    const result = computeRangeSelection(anchorId, targetId, visibleOrder)
+    if (result) {
+      store.setState({ selectedId: result.selectedId, selectedIds: result.selectedIds })
+    } else {
+      select(targetId)
+    }
   }
 
   const discard = () => {
@@ -102,6 +116,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     persistNow: persister.flush,
     select,
     toggleSelect,
+    rangeSelect,
     discard,
     destroy,
     executeCommand,

@@ -23,6 +23,7 @@ export interface WorkflowSegmentTreeProps {
   onDuplicateNode?: (nodeId: string) => void
   onRename?: (nodeId: string, newTitle: string) => void
   onRequestRename?: (nodeId: string) => void
+  onVisibleOrderChange?: (order: readonly string[]) => void
 }
 
 const WorkflowSegmentTreeInner = ({
@@ -39,6 +40,7 @@ const WorkflowSegmentTreeInner = ({
   onDuplicateNode,
   onRename,
   onRequestRename,
+  onVisibleOrderChange,
 }: WorkflowSegmentTreeProps) => {
   const nodeIds = useMemo(() => new Set(Object.keys(nodes)), [nodes])
   useNodeCacheCleanup(nodeIds)
@@ -78,6 +80,7 @@ const WorkflowSegmentTreeInner = ({
               onRequestRename={onRequestRename}
               onSelect={handleSelect}
               onToggle={handleToggle}
+              onVisibleOrderChange={onVisibleOrderChange}
               overscanCount={overscanCount}
               rowHeight={rowHeight}
               selectedIds={selectedIds}
