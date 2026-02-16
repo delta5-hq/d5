@@ -19,6 +19,7 @@ function defaultParams(overrides: Partial<Parameters<typeof useNodePreview>[0]> 
   return {
     nodeId: 'n1',
     command: 'plain text',
+    title: undefined,
     nodes: { n1: makeNode('n1') } as Record<string, NodeData>,
     edges: {} as Record<string, EdgeData>,
     workflowId: 'wf-1',
@@ -116,6 +117,7 @@ describe('useNodePreview', () => {
         useNodePreview({
           nodeId: 'n1',
           command: '@@ref',
+          title: undefined,
           nodes,
           edges,
           workflowId: 'wf-42',
@@ -291,6 +293,141 @@ describe('useNodePreview', () => {
 
       expect(result.current.error).toBeUndefined()
       expect(result.current.previewText).toBe('success')
+    })
+  })
+
+  describe('title reference handling', () => {
+    describe('text source priority', () => {
+      it('uses command when both command and title are plain text', async () => {
+        const { result } = renderHook(() => useNodePreview(defaultParams({ command: 'cmd', title: 'ttl' })))
+        await advanceDebounce()
+
+        expect(result.current.previewText).toBe('cmd')
+        expect(resolveNodePreview).not.toHaveBeenCalled()
+      })
+
+      it('uses title when command is undefined', async () => {
+        const { result } = renderHook(() => useNodePreview(defaultParams({ command: undefined, title: 'fallback' })))
+        await advanceDebounce()
+
+        expect(result.current.previewText).toBe('fallback')
+        expect(resolveNodePreview).not.toHaveBeenCalled()
+      })
+
+      it('uses empty string when both command and title are undefined', async () => {
+        const { result } = renderHook(() => useNodePreview(defaultParams({ command: undefined, title: undefined })))
+        await advanceDebounce()
+
+        expect(result.current.previewText).toBe('')
+        expect(resolveNodePreview).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('reference detection in title', () => {
+      it('calls API when title has @@ references but command does not', async () => {
+        vi.mocked(resolveNodePreview).mockResolvedValue({ resolvedCommand: 'title resolved' })
+
+        const { result } = renderHook(() =>
+          useNodePreview(defaultParams({ command: undefined, title: 'use @@ref in title' })),
+        )
+        await advanceDebounce()
+
+        expect(resolveNodePreview).toHaveBeenCalledTimes(1)
+        expect(result.current.previewText).toBe('title resolved')
+      })
+
+      it('calls API when title has ## references but command does not', async () => {
+        vi.mocked(resolveNodePreview).mockResolvedValue({ resolvedCommand: 'hashref in title resolved' })
+
+        const { result } = renderHook(() =>
+          useNodePreview(defaultParams({ command: 'plain', title: '##_var in title' })),
+        )
+        await advanceDebounce()
+
+        expect(resolveNodePreview).toHaveBeenCalledTimes(1)
+        expect(result.current.previewText).toBe('hashref in title resolved')
+      })
+
+      it('calls API when title has mixed references', async () => {
+        vi.mocked(resolveNodePreview).mockResolvedValue({ resolvedCommand: 'mixed refs resolved' })
+
+        const { result } = renderHook(() =>
+          useNodePreview(defaultParams({ command: undefined, title: '@@ref and ##_var' })),
+        )
+        await advanceDebounce()
+
+        expect(resolveNodePreview).toHaveBeenCalledTimes(1)
+        expect(result.current.previewText).toBe('mixed refs resolved')
+      })
+    })
+
+    describe('reference detection in both fields', () => {
+      it('calls API when both command and title have references', async () => {
+        vi.mocked(resolveNodePreview).mockResolvedValue({ resolvedCommand: 'both resolved' })
+
+        const { result } = renderHook(() => useNodePreview(defaultParams({ command: '@@cmdRef', title: '##titleRef' })))
+        await advanceDebounce()
+
+        expect(resolveNodePreview).toHaveBeenCalledTimes(1)
+        expect(result.current.previewText).toBe('both resolved')
+      })
+
+      it('calls API when command has references and title is plain', async () => {
+        vi.mocked(resolveNodePreview).mockResolvedValue({ resolvedCommand: 'command resolved' })
+
+        const { result } = renderHook(() =>
+          useNodePreview(defaultParams({ command: '@@cmdRef', title: 'plain title' })),
+        )
+        await advanceDebounce()
+
+        expect(resolveNodePreview).toHaveBeenCalledTimes(1)
+        expect(result.current.previewText).toBe('command resolved')
+      })
+    })
+
+    describe('no references in either field', () => {
+      it('returns command as-is when neither command nor title has references', async () => {
+        const { result } = renderHook(() => useNodePreview(defaultParams({ command: 'plain', title: 'also plain' })))
+        await advanceDebounce()
+
+        expect(result.current.previewText).toBe('plain')
+        expect(resolveNodePreview).not.toHaveBeenCalled()
+      })
+
+      it('returns title as-is when command is undefined and title has no references', async () => {
+        const { result } = renderHook(() => useNodePreview(defaultParams({ command: undefined, title: 'plain title' })))
+        await advanceDebounce()
+
+        expect(result.current.previewText).toBe('plain title')
+        expect(resolveNodePreview).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('edge cases', () => {
+      it('handles empty strings correctly', async () => {
+        const { result } = renderHook(() => useNodePreview(defaultParams({ command: '', title: '' })))
+        await advanceDebounce()
+
+        expect(result.current.previewText).toBe('')
+        expect(resolveNodePreview).not.toHaveBeenCalled()
+      })
+
+      it('handles whitespace-only strings', async () => {
+        const { result } = renderHook(() => useNodePreview(defaultParams({ command: '   ', title: '  ' })))
+        await advanceDebounce()
+
+        expect(result.current.previewText).toBe('   ')
+        expect(resolveNodePreview).not.toHaveBeenCalled()
+      })
+
+      it('detects references in whitespace-padded text', async () => {
+        vi.mocked(resolveNodePreview).mockResolvedValue({ resolvedCommand: 'padded resolved' })
+
+        renderHook(() => useNodePreview(defaultParams({ command: undefined, title: '  @@ref  ' })))
+        await advanceDebounce()
+
+        expect(resolveNodePreview).toHaveBeenCalledTimes(1)
+      })
     })
   })
 

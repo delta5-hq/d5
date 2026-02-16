@@ -7,11 +7,11 @@ import { getCommandRole } from '@shared/constants/command-roles'
 import { getColorForRole } from '@shared/ui/genie/role-colors'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
+import { hasReferencesInAny } from '@shared/lib/reference-detection'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@shared/ui/collapsible'
 import { FileText, Folder, Loader2, Play, Copy, Trash2, Plus, ChevronRight } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
-import { hasReferences } from '@features/workflow-tree'
 import { NodeTitleEditor } from './node-title-editor'
 import { NodePreviewSection } from './node-preview-section'
 
@@ -45,7 +45,7 @@ export const NodeDetailPanel = ({
   const isRoot = !node.parent
   const mutationDisabled = isExecuting
   const { formatMessage } = useIntl()
-  const showPreview = isPrompt || hasReferences(node.command)
+  const showPreview = isPrompt || hasReferencesInAny(node.command, node.title)
 
   const handleTitleChange = useCallback(
     (title: string) => {
@@ -187,6 +187,7 @@ export const NodeDetailPanel = ({
           command={node.command}
           nodeId={node.id}
           promptTitle={isPrompt ? normalizeNodeTitle(node.title) : undefined}
+          title={node.title}
         />
       ) : null}
     </div>

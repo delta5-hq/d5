@@ -256,4 +256,51 @@ test.describe('Node detail panel — Auto-collapse for prompt nodes', () => {
 
     await expect(detail.previewText).toContainText('Prompt Child')
   })
+
+  test('shows resolved preview when prompt title contains references', async ({ page }) => {
+    const tree = new WorkflowTreePage(page)
+    const detail = new NodeDetailPanelPage(page)
+    const promptWithRefsId = 'prompt-with-refs'
+
+    await page.route('**/api/v2/execute/preview', async route => {
+      if (route.request().method() !== 'POST') return route.continue()
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ resolvedCommand: 'Resolved from title @@ref' }),
+      })
+    })
+
+    await page.route('**/api/v2/execute', async route => {
+      if (route.request().method() !== 'POST') return route.continue()
+      const rootId = await tree.rootNodeId()
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          nodesChanged: [
+            {
+              id: rootId,
+              title: 'Root',
+              children: [promptChildId, regularChildId, promptWithRefsId],
+              prompts: [promptChildId, promptWithRefsId],
+            },
+            { id: promptChildId, title: 'Prompt Child', parent: rootId, children: [] },
+            { id: regularChildId, title: 'Regular Child', parent: rootId, children: [] },
+            { id: promptWithRefsId, title: 'Title with @@ref', parent: rootId, children: [] },
+          ],
+        }),
+      })
+    })
+
+    await detail.execute()
+    await tree.nodeByTitle('Title with @@ref').waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
+
+    await tree.selectNode(promptWithRefsId)
+    await detail.waitForComponent()
+
+    expect(await detail.settingsState()).toBe('closed')
+    await expect(detail.previewSection).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
+    await expect(detail.previewText).toContainText('Resolved from title @@ref')
+  })
 })

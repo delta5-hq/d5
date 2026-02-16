@@ -7,10 +7,11 @@ import { useWorkflowNodes, useWorkflowEdges, useWorkflowId } from '@features/wor
 interface NodePreviewSectionProps {
   nodeId: NodeId
   command: string | undefined
+  title: string | undefined
   promptTitle?: string
 }
 
-export const NodePreviewSection = ({ nodeId, command, promptTitle }: NodePreviewSectionProps) => {
+export const NodePreviewSection = ({ nodeId, command, title, promptTitle }: NodePreviewSectionProps) => {
   const nodes = useWorkflowNodes()
   const edges = useWorkflowEdges()
   const workflowId = useWorkflowId()
@@ -22,6 +23,7 @@ export const NodePreviewSection = ({ nodeId, command, promptTitle }: NodePreview
   } = useNodePreview({
     nodeId,
     command,
+    title,
     nodes,
     edges,
     workflowId,

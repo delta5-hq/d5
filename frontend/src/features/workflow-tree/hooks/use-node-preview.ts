@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { NodeData, NodeId, EdgeData, EdgeId } from '@shared/base-types'
 import { DEBOUNCE_TIMEOUT } from '@shared/config'
+import { hasReferencesInAny } from '@shared/lib/reference-detection'
 import { resolveNodePreview } from '../api/resolve-node-preview'
 
 interface UseNodePreviewParams {
   nodeId: NodeId
   command: string | undefined
+  title: string | undefined
   nodes: Record<NodeId, NodeData>
   edges: Record<EdgeId, EdgeData>
   workflowId: string
@@ -18,12 +20,14 @@ interface UseNodePreviewResult {
   refresh: () => void
 }
 
+/** @deprecated Use hasReferencesInAny from @shared/lib/reference-detection instead */
 export const hasReferences = (command: string | undefined): boolean =>
   Boolean(command && (/@@/.test(command) || /##/.test(command)))
 
 export function useNodePreview({
   nodeId,
   command,
+  title,
   nodes,
   edges,
   workflowId,
@@ -35,8 +39,10 @@ export function useNodePreview({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchPreview = useCallback(async () => {
-    if (!hasReferences(command)) {
-      setPreviewText(command ?? '')
+    const textToResolve = command || title
+
+    if (!hasReferencesInAny(command, title)) {
+      setPreviewText(textToResolve ?? '')
       setError(undefined)
       return
     }
@@ -67,7 +73,7 @@ export function useNodePreview({
         setIsLoading(false)
       }
     }
-  }, [nodeId, command, nodes, edges, workflowId])
+  }, [nodeId, command, title, nodes, edges, workflowId])
 
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
