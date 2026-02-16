@@ -5,6 +5,7 @@
 # Project metadata (workspace-specific)
 .github
 !.github/workflows/ci.yml
+contribot.state.json
 
 # Editor/IDE (global for all subdirs)
 .vscode

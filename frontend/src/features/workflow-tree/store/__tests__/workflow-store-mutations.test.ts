@@ -96,6 +96,66 @@ describe('bindMutationActions', () => {
     expect(store.getState().isDirty).toBe(true)
   })
 
+  describe('addSibling', () => {
+    it('adds sibling by creating child under parent', () => {
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['n1'] },
+          n1: { id: 'n1', parent: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+      })
+      const persister = makePersister()
+      const { addSibling } = bindMutationActions(store, persister, mockFormatMessage)
+
+      const newId = addSibling('n1', { title: 'Sibling' })
+
+      expect(newId).toBe('new-child')
+      expect(store.getState().isDirty).toBe(true)
+      expect(persister.schedule).toHaveBeenCalledOnce()
+    })
+
+    it('returns null when node has no parent', () => {
+      const store = makeStore({
+        nodes: { root: { id: 'root', children: [] } } as WorkflowStoreState['nodes'],
+      })
+      const persister = makePersister()
+      const { addSibling } = bindMutationActions(store, persister, mockFormatMessage)
+
+      const newId = addSibling('root', { title: 'Sibling' })
+
+      expect(newId).toBeNull()
+      expect(store.getState().isDirty).toBe(false)
+      expect(persister.schedule).not.toHaveBeenCalled()
+    })
+
+    it('returns null when node does not exist', () => {
+      const store = makeStore({ nodes: {} })
+      const persister = makePersister()
+      const { addSibling } = bindMutationActions(store, persister, mockFormatMessage)
+
+      const newId = addSibling('ghost', { title: 'Sibling' })
+
+      expect(newId).toBeNull()
+      expect(persister.schedule).not.toHaveBeenCalled()
+    })
+
+    it('creates sibling with provided data', () => {
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['n1'] },
+          n1: { id: 'n1', parent: 'root', command: '/test', children: [] },
+        } as WorkflowStoreState['nodes'],
+      })
+      const persister = makePersister()
+      const { addSibling } = bindMutationActions(store, persister, mockFormatMessage)
+
+      const newId = addSibling('n1', { title: 'New Sibling', command: '/new' })
+
+      expect(newId).toBe('new-child')
+      expect(store.getState().isDirty).toBe(true)
+    })
+  })
+
   it('updateNode modifies node fields', () => {
     const store = makeStore({
       nodes: { n1: { id: 'n1', title: 'old' } } as WorkflowStoreState['nodes'],

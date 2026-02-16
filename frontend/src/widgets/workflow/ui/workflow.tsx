@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef, type KeyboardEvent, type MouseEvent } from 'react'
+import { useState, useCallback, useMemo, useRef, type MouseEvent } from 'react'
 import {
   WorkflowSegmentTree,
   WorkflowStoreProvider,
@@ -12,13 +12,14 @@ import {
   useWorkflowIsDirty,
   useIsNodeExecuting,
   useIsPromptNode,
+  useTreeKeyboardNavigation,
+  useWorkflowExecutingNodeIds,
 } from '@features/workflow-tree'
 import { Card, CardContent, CardHeader, CardTitle } from '@shared/ui/card'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@shared/ui/button'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { getDescendantIds, normalizeNodeTitle, hasUsableRoot } from '@entities/workflow/lib'
-import { isEditableElementFocused } from '@shared/lib/dom'
 import { EmptyWorkflowView } from './empty-workflow-view'
 import { DirtyIndicator } from './dirty-indicator'
 import { NodeDetailPanel } from './node-detail-panel'
@@ -47,13 +48,27 @@ const WorkflowContent = () => {
   const selectedNode = useWorkflowNode(selectedId)
   const isSelectedNodeExecuting = useIsNodeExecuting(selectedId)
   const isSelectedNodePrompt = useIsPromptNode(selectedId)
+  const executingNodeIds = useWorkflowExecutingNodeIds()
   const [autoEditNodeId, setAutoEditNodeId] = useState<string | undefined>()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>()
   const visibleOrderRef = useRef<readonly string[]>([])
+  const treeContainerRef = useRef<HTMLDivElement>(null)
 
   const handleVisibleOrderChange = useCallback((order: readonly string[]) => {
     visibleOrderRef.current = order
   }, [])
+
+  useTreeKeyboardNavigation({
+    nodes,
+    visibleOrderRef,
+    selectedId,
+    selectedIds,
+    executingNodeIds,
+    actions,
+    containerRef: treeContainerRef,
+    enabled: hasUsableRoot(root, nodes),
+  })
+
   const pendingDeleteNode = useMemo(
     () => (pendingDeleteId ? nodes[pendingDeleteId] : undefined),
     [pendingDeleteId, nodes],
@@ -128,26 +143,6 @@ const WorkflowContent = () => {
     setPendingDeleteId(undefined)
   }, [actions, pendingDeleteId])
 
-  const handleTreeKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key !== 'Delete' && e.key !== 'Backspace') return
-      if (isEditableElementFocused()) return
-
-      if (selectedIds.size > 1) {
-        e.preventDefault()
-        actions.removeNodes(selectedIds)
-        return
-      }
-
-      if (!selectedId || !selectedNode?.parent) return
-      if (isSelectedNodeExecuting) return
-
-      e.preventDefault()
-      actions.removeNode(selectedId)
-    },
-    [selectedIds, selectedId, selectedNode?.parent, isSelectedNodeExecuting, actions],
-  )
-
   const handleDuplicateNode = useCallback(
     (nodeId: string) => {
       const newId = actions.duplicateNode(nodeId)
@@ -202,7 +197,7 @@ const WorkflowContent = () => {
       <Card
         className="w-80 flex flex-col min-h-0 focus:outline-none"
         data-testid="workflow-tree-panel"
-        onKeyDown={handleTreeKeyDown}
+        ref={treeContainerRef}
         tabIndex={0}
       >
         <CardHeader className="pb-2 flex-shrink-0">
@@ -216,7 +211,6 @@ const WorkflowContent = () => {
         <CardContent className="flex-1 p-0 overflow-hidden min-h-0">
           <WorkflowSegmentTree
             autoEditNodeId={autoEditNodeId}
-            initialExpandedIds={new Set([root])}
             nodes={nodes}
             onAddChild={handleAddChild}
             onDuplicateNode={handleDuplicateNode}

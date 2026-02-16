@@ -5,15 +5,14 @@ import { useStableCallback } from '@shared/lib/hooks'
 import { useNodeCacheCleanup } from '@shared/lib/use-node-cache-cleanup'
 import { VirtualizedSegmentTree } from '../virtualization/virtualized-segment-tree'
 import { useTreeWalker } from '../hooks/use-tree-walker'
-import { useTreeExpansion } from '../hooks/use-tree-expansion'
 import { useAnimatedToggle } from '../hooks/use-animated-toggle'
 import { TreeAnimationProvider } from '../context'
+import { useWorkflowExpandedIds, useWorkflowActions } from '../store'
 
 export interface WorkflowSegmentTreeProps {
   nodes: Record<string, NodeData>
   rootId: string
   rowHeight?: number
-  initialExpandedIds?: Set<string>
   overscanCount?: number
   selectedIds?: Set<string>
   autoEditNodeId?: string
@@ -30,7 +29,6 @@ const WorkflowSegmentTreeInner = ({
   nodes,
   rootId,
   rowHeight = 48,
-  initialExpandedIds,
   overscanCount = 5,
   selectedIds,
   autoEditNodeId,
@@ -45,7 +43,8 @@ const WorkflowSegmentTreeInner = ({
   const nodeIds = useMemo(() => new Set(Object.keys(nodes)), [nodes])
   useNodeCacheCleanup(nodeIds)
 
-  const { expandedIds, toggleNode, expandNode } = useTreeExpansion(initialExpandedIds)
+  const expandedIds = useWorkflowExpandedIds()
+  const { toggleExpanded, expandNode } = useWorkflowActions()
   const treeWalker = useTreeWalker({ nodes, rootId, expandedIds })
 
   const handleSelect = useStableCallback((id: string, event?: MouseEvent) => {
@@ -55,7 +54,7 @@ const WorkflowSegmentTreeInner = ({
     }
   })
 
-  const handleToggle = useAnimatedToggle(nodes, expandedIds, toggleNode)
+  const handleToggle = useAnimatedToggle(nodes, expandedIds, toggleExpanded)
 
   const handleAddChild = useCallback(
     (parentId: string) => {

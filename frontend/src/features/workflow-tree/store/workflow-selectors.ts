@@ -19,6 +19,11 @@ export function useWorkflowSelectedIds(): Set<NodeId> {
   return useSelector(store, s => s.selectedIds)
 }
 
+export function useWorkflowExpandedIds(): Set<NodeId> {
+  const { store } = useWorkflowStore()
+  return useSelector(store, s => s.expandedIds)
+}
+
 export function useWorkflowNode(nodeId: NodeId | undefined): NodeData | undefined {
   const { store } = useWorkflowStore()
   return useSelector(store, s => (nodeId ? s.nodes[nodeId] : undefined))
@@ -52,6 +57,11 @@ export function useWorkflowIsDirty(): boolean {
 export function useIsNodeExecuting(nodeId: NodeId | undefined): boolean {
   const { store } = useWorkflowStore()
   return useSelector(store, s => nodeId !== undefined && s.executingNodeIds.has(nodeId))
+}
+
+export function useWorkflowExecutingNodeIds(): Set<NodeId> {
+  const { store } = useWorkflowStore()
+  return useSelector(store, s => s.executingNodeIds)
 }
 
 export function useWorkflowStatus(): Pick<WorkflowStoreState, 'isLoading' | 'error' | 'isSaving'> & {

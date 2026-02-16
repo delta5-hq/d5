@@ -76,6 +76,13 @@ export function bindMutationActions(
     )
   }
 
+  const addSibling = (nodeId: NodeId, nodeData: Partial<NodeData>): NodeId | null => {
+    const { nodes } = store.getState()
+    const node = nodes[nodeId]
+    if (!node?.parent) return null
+    return addChild(node.parent, nodeData)
+  }
+
   const updateNode = (nodeId: NodeId, updates: Partial<Omit<NodeData, 'id' | 'parent'>>): boolean =>
     applyMutation(
       () => updateNodePure(store.getState().nodes, nodeId, updates),
@@ -203,6 +210,7 @@ export function bindMutationActions(
   return {
     createRoot,
     addChild,
+    addSibling,
     addPromptChild,
     removePromptChildren,
     updateNode,

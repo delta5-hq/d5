@@ -5,6 +5,7 @@ export { WorkflowStoreProvider, useWorkflowStore } from './workflow-store-provid
 export {
   useWorkflowSelectedId,
   useWorkflowSelectedIds,
+  useWorkflowExpandedIds,
   useWorkflowNode,
   useWorkflowRoot,
   useWorkflowNodes,
@@ -13,6 +14,7 @@ export {
   useWorkflowIsDirty,
   useWorkflowStatus,
   useIsNodeExecuting,
+  useWorkflowExecutingNodeIds,
   useWorkflowId,
   useIsPromptNode,
 } from './workflow-selectors'

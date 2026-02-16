@@ -5,8 +5,10 @@ import { INITIAL_WORKFLOW_STATE } from './workflow-store-types'
 import { createDebouncedPersister } from './workflow-store-persistence'
 import { bindMutationActions, type FormatMessage } from './workflow-store-mutations'
 import { bindExecuteAction } from './workflow-store-execution'
+import { bindExpansionActions } from './workflow-store-expansion'
 import { retainExistingIds } from './workflow-store-set-utils'
 import { computeRangeSelection } from './workflow-store-range-select'
+import { deriveExpandedIdsFromNodes } from '../hooks/use-tree-expansion'
 
 interface WorkflowApiResponse {
   _id: string
@@ -41,6 +43,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
 
   const mutations = bindMutationActions(store, persister, formatMessage)
   const executeCommand = bindExecuteAction(store, persister)
+  const expansion = bindExpansionActions(store, persister)
 
   const load = async () => {
     store.setState({ isLoading: true, error: null })
@@ -51,11 +54,13 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
       const selectionStale = selectedId !== undefined && !(selectedId in newNodes)
       const anchorStale = anchorId !== undefined && !(anchorId in newNodes)
       const cleanedIds = retainExistingIds(selectedIds, newNodes)
+      const expandedIds = data.root ? deriveExpandedIdsFromNodes(newNodes, data.root) : new Set<string>()
       store.setState({
         nodes: newNodes,
         edges: (data.edges ?? {}) as WorkflowStoreState['edges'],
         root: data.root,
         share: data.share as WorkflowStoreState['share'],
+        expandedIds,
         isLoading: false,
         isDirty: false,
         ...(selectionStale ? { selectedId: undefined } : {}),
@@ -120,6 +125,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     discard,
     destroy,
     executeCommand,
+    ...expansion,
     ...mutations,
   }
 

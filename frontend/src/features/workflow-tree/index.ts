@@ -1,19 +1,19 @@
-export { WorkflowTree } from './components/workflow-tree'
 export { WorkflowSegmentTree } from './components/workflow-segment-tree'
 export { TreeNodeDefault } from './components/tree-node-default'
-export type { WorkflowTreeProps } from './components/workflow-tree'
 export type { WorkflowSegmentTreeProps } from './components/workflow-segment-tree'
 export type { TreeNodeProps } from './components/tree-node-default'
-export { useTreeExpansion, deriveExpandedIdsFromNodes } from './hooks/use-tree-expansion'
+export { deriveExpandedIdsFromNodes } from './hooks/use-tree-expansion'
 export { useTreeWalker } from './hooks/use-tree-walker'
 export { useNodePreview, hasReferences } from './hooks/use-node-preview'
-export type { UseTreeExpansionReturn } from './hooks/use-tree-expansion'
+export { useTreeKeyboardNavigation } from './hooks/use-tree-keyboard-navigation'
 export type { UseTreeWalkerOptions } from './hooks/use-tree-walker'
+export type { UseTreeKeyboardNavigationOptions } from './hooks/use-tree-keyboard-navigation'
 export type { Segment, SegmentNode, SegmentContainer, ContainerConfig, ContainerProps } from './segments'
 export { WorkflowStoreProvider, useWorkflowStore } from './store/workflow-store-provider'
 export {
   useWorkflowSelectedId,
   useWorkflowSelectedIds,
+  useWorkflowExpandedIds,
   useWorkflowNode,
   useWorkflowRoot,
   useWorkflowNodes,
@@ -22,6 +22,7 @@ export {
   useWorkflowIsDirty,
   useWorkflowStatus,
   useIsNodeExecuting,
+  useWorkflowExecutingNodeIds,
   useWorkflowId,
   useIsPromptNode,
 } from './store/workflow-selectors'
