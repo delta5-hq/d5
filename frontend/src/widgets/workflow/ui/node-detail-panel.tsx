@@ -8,6 +8,7 @@ import { getColorForRole } from '@shared/ui/genie/role-colors'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import { hasReferencesInAny } from '@shared/lib/reference-detection'
+import { canExecuteNode } from '@shared/lib/commands/command-validator'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@shared/ui/collapsible'
 import { FileText, Folder, Loader2, Play, Copy, Trash2, Plus, ChevronRight } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
@@ -46,6 +47,7 @@ export const NodeDetailPanel = ({
   const mutationDisabled = isExecuting
   const { formatMessage } = useIntl()
   const showPreview = isPrompt || hasReferencesInAny(node.command, node.title)
+  const canExecute = canExecuteNode(node.command, executeDisabled)
 
   const handleTitleChange = useCallback(
     (title: string) => {
@@ -119,7 +121,7 @@ export const NodeDetailPanel = ({
               </div>
 
               <div className="flex flex-wrap gap-2 pt-2">
-                <Button data-testid="execute-node-button" disabled={executeDisabled} onClick={handleExecute} size="sm">
+                <Button data-testid="execute-node-button" disabled={!canExecute} onClick={handleExecute} size="sm">
                   {isExecuting ? (
                     <>
                       <Loader2 className="mr-1 h-3 w-3 animate-spin" />
