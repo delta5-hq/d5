@@ -249,7 +249,7 @@ describe('useTreeKeyboardNavigation', () => {
       expect(actions.select).toHaveBeenCalledWith('new-child')
     })
 
-    it('Enter creates sibling node', () => {
+    it('Ctrl+N creates sibling node', () => {
       const actions = makeActions()
       const nodes = makeNodes()
 
@@ -265,7 +265,30 @@ describe('useTreeKeyboardNavigation', () => {
         }),
       )
 
-      const event = new KeyboardEvent('keydown', { key: 'Enter' })
+      const event = new KeyboardEvent('keydown', { key: 'n', ctrlKey: true })
+      containerRef.current?.dispatchEvent(event)
+
+      expect(actions.addSibling).toHaveBeenCalledWith('n1', { title: '' })
+      expect(actions.select).toHaveBeenCalledWith('new-sibling')
+    })
+
+    it('Cmd+N creates sibling node on Mac', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1']),
+          selectedId: 'n1',
+          selectedIds: new Set(['n1']),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+        }),
+      )
+
+      const event = new KeyboardEvent('keydown', { key: 'n', metaKey: true })
       containerRef.current?.dispatchEvent(event)
 
       expect(actions.addSibling).toHaveBeenCalledWith('n1', { title: '' })

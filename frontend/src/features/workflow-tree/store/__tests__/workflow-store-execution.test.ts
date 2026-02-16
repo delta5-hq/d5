@@ -13,8 +13,14 @@ vi.mock('../../api/execute-workflow-command', () => ({
   executeWorkflowCommand: vi.fn(),
 }))
 
+vi.mock('../execution-genie-bridge', () => ({
+  notifyExecutionStarted: vi.fn(),
+  notifyExecutionCompleted: vi.fn(),
+}))
+
 import { mergeWorkflowChanges } from '@entities/workflow/lib'
 import { executeWorkflowCommand } from '../../api/execute-workflow-command'
+import { notifyExecutionStarted, notifyExecutionCompleted } from '../execution-genie-bridge'
 
 function makeStore(overrides: Partial<WorkflowStoreState> = {}) {
   return createStore<WorkflowStoreState>({
@@ -589,5 +595,164 @@ describe('bindExecuteAction', () => {
     const result = await execute(stubNode, 'query')
 
     expect(result).toBe(false)
+  })
+
+  describe('genie state bridge integration', () => {
+    it('notifies bridge of execution start', async () => {
+      mockIdentityExecution(N1)
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const persister = makePersister()
+      const execute = bindExecuteAction(store, persister)
+
+      await execute(stubNode, 'query')
+
+      expect(notifyExecutionStarted).toHaveBeenCalledWith('n1')
+    })
+
+    it('notifies bridge of successful completion', async () => {
+      mockIdentityExecution(N1)
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const persister = makePersister()
+      const execute = bindExecuteAction(store, persister)
+
+      await execute(stubNode, 'query')
+
+      expect(notifyExecutionCompleted).toHaveBeenCalledWith('n1', true)
+    })
+
+    it('notifies bridge of failed completion on API error', async () => {
+      vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(new Error('boom'))
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const persister = makePersister()
+      const execute = bindExecuteAction(store, persister)
+
+      await execute(stubNode, 'query')
+
+      expect(notifyExecutionCompleted).toHaveBeenCalledWith('n1', false)
+    })
+
+    it('notifies bridge of failed completion on merge error', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+      vi.mocked(mergeWorkflowChanges).mockImplementation(() => {
+        throw new Error('merge explosion')
+      })
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const persister = makePersister()
+      const execute = bindExecuteAction(store, persister)
+
+      await execute(stubNode, 'query')
+
+      expect(notifyExecutionCompleted).toHaveBeenCalledWith('n1', false)
+    })
+
+    it('notifies bridge of failed completion when post-persist throws', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({ nodes: N1, edges: {}, root: 'n1', share: { access: [] } })
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const persister = makePersister()
+      vi.mocked(persister.flush).mockRejectedValueOnce(new Error('persist failed'))
+      const execute = bindExecuteAction(store, persister)
+
+      await execute(stubNode, 'query')
+
+      expect(notifyExecutionCompleted).toHaveBeenCalledWith('n1', false)
+    })
+
+    it('invokes bridge notifications in correct order', async () => {
+      const callOrder: string[] = []
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const persister = makePersister()
+
+      vi.mocked(notifyExecutionStarted).mockImplementation(() => {
+        callOrder.push('bridge:started')
+      })
+
+      vi.mocked(executeWorkflowCommand).mockImplementation(async () => {
+        callOrder.push('api:execute')
+        return { nodesChanged: {} }
+      })
+
+      vi.mocked(mergeWorkflowChanges).mockImplementation((current, _response) => {
+        callOrder.push('store:merge')
+        return current
+      })
+
+      vi.mocked(persister.flush).mockImplementation(async () => {
+        callOrder.push('store:persist')
+        return true
+      })
+
+      vi.mocked(notifyExecutionCompleted).mockImplementation(() => {
+        callOrder.push('bridge:completed')
+      })
+
+      const execute = bindExecuteAction(store, persister)
+
+      await execute(stubNode, 'query')
+
+      expect(callOrder).toEqual(['bridge:started', 'api:execute', 'store:merge', 'store:persist', 'bridge:completed'])
+    })
+
+    it('handles concurrent executions with independent genie notifications', async () => {
+      let resolveFirst!: (value: { nodesChanged: Record<string, never> }) => void
+      let resolveSecond!: (value: { nodesChanged: Record<string, never> }) => void
+
+      vi.mocked(executeWorkflowCommand)
+        .mockImplementationOnce(
+          () =>
+            new Promise(resolve => {
+              resolveFirst = resolve
+            }),
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise(resolve => {
+              resolveSecond = resolve
+            }),
+        )
+
+      const twoNodes = {
+        n1: { id: 'n1' } as WorkflowStoreState['nodes'][''],
+        n2: { id: 'n2' } as WorkflowStoreState['nodes'][''],
+      }
+      const store = makeStore({ nodes: twoNodes, root: 'n1' })
+      const persister = makePersister()
+      const execute = bindExecuteAction(store, persister)
+
+      const first = execute(stubNode, 'query')
+      const second = execute(stubNodeB, 'query')
+
+      expect(notifyExecutionStarted).toHaveBeenCalledWith('n1')
+      expect(notifyExecutionStarted).toHaveBeenCalledWith('n2')
+      expect(notifyExecutionStarted).toHaveBeenCalledTimes(2)
+
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: twoNodes,
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+      resolveFirst({ nodesChanged: {} })
+      await first
+
+      expect(notifyExecutionCompleted).toHaveBeenCalledWith('n1', true)
+
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: twoNodes,
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+      resolveSecond({ nodesChanged: {} })
+      await second
+
+      expect(notifyExecutionCompleted).toHaveBeenCalledWith('n2', true)
+      expect(notifyExecutionCompleted).toHaveBeenCalledTimes(2)
+    })
   })
 })

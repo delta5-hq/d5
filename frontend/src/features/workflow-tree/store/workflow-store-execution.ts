@@ -5,6 +5,7 @@ import { executeWorkflowCommand } from '../api/execute-workflow-command'
 import type { WorkflowStoreState } from './workflow-store-types'
 import type { DebouncedPersister } from './workflow-store-persistence'
 import { retainExistingIds } from './workflow-store-set-utils'
+import { notifyExecutionStarted, notifyExecutionCompleted } from './execution-genie-bridge'
 
 function addExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): void {
   store.setState(prev => ({
@@ -30,6 +31,7 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
     }
 
     addExecutingNode(store, node.id)
+    notifyExecutionStarted(node.id)
 
     try {
       const { workflowId, nodes, edges } = store.getState()
@@ -64,8 +66,10 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
       })
 
       await persister.flush()
+      notifyExecutionCompleted(node.id, true)
       return true
     } catch {
+      notifyExecutionCompleted(node.id, false)
       return false
     } finally {
       removeExecutingNode(store, node.id)

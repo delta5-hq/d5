@@ -94,7 +94,7 @@ export function useTreeKeyboardNavigation({
         return
       }
 
-      if (key === 'Enter') {
+      if (isCtrl && key.toLowerCase() === 'n') {
         event.preventDefault()
         const newId = actions.addSibling(selectedId, { title: '' })
         if (newId) {
