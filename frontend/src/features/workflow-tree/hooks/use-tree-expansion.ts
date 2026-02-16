@@ -100,11 +100,10 @@ export function useTreeExpansion(initialExpandedIds: Set<string> = new Set()): U
 
 export function deriveExpandedIdsFromNodes(nodes: Record<string, NodeData>, rootId: string): Set<string> {
   const expandedIds = new Set<string>()
-
   expandedIds.add(rootId)
 
   for (const [nodeId, node] of Object.entries(nodes)) {
-    if (node.collapsed !== true && node.children?.length) {
+    if (node.collapsed === false && node.children?.length) {
       expandedIds.add(nodeId)
     }
   }

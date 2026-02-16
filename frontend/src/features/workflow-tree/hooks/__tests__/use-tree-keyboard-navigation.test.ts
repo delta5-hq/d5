@@ -660,4 +660,102 @@ describe('useTreeKeyboardNavigation', () => {
       expect(removeEventListenerSpy).toHaveBeenCalledWith('keydown', expect.any(Function))
     })
   })
+
+  describe('Enter key', () => {
+    it('calls onRequestEdit when Enter pressed on selected node', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+      const onRequestEdit = vi.fn()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1']),
+          selectedId: 'n1',
+          selectedIds: new Set(['n1']),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+          onRequestEdit,
+        }),
+      )
+
+      const event = new KeyboardEvent('keydown', { key: 'Enter' })
+      containerRef.current?.dispatchEvent(event)
+
+      expect(onRequestEdit).toHaveBeenCalledTimes(1)
+      expect(onRequestEdit).toHaveBeenCalledWith('n1')
+    })
+
+    it('does not call onRequestEdit when no node selected', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+      const onRequestEdit = vi.fn()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1']),
+          selectedId: undefined,
+          selectedIds: new Set(),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+          onRequestEdit,
+        }),
+      )
+
+      const event = new KeyboardEvent('keydown', { key: 'Enter' })
+      containerRef.current?.dispatchEvent(event)
+
+      expect(onRequestEdit).not.toHaveBeenCalled()
+    })
+
+    it('does nothing when onRequestEdit not provided', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1']),
+          selectedId: 'n1',
+          selectedIds: new Set(['n1']),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+        }),
+      )
+
+      const event = new KeyboardEvent('keydown', { key: 'Enter' })
+      expect(() => containerRef.current?.dispatchEvent(event)).not.toThrow()
+    })
+
+    it('does not call onRequestEdit when editable element focused', async () => {
+      const { isEditableElementFocused } = await import('@shared/lib/dom')
+      vi.mocked(isEditableElementFocused).mockReturnValueOnce(true)
+
+      const actions = makeActions()
+      const nodes = makeNodes()
+      const onRequestEdit = vi.fn()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1']),
+          selectedId: 'n1',
+          selectedIds: new Set(['n1']),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+          onRequestEdit,
+        }),
+      )
+
+      const event = new KeyboardEvent('keydown', { key: 'Enter' })
+      containerRef.current?.dispatchEvent(event)
+
+      expect(onRequestEdit).not.toHaveBeenCalled()
+    })
+  })
 })

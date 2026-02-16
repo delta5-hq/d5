@@ -20,6 +20,7 @@ import { Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@shared/ui/button'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { getDescendantIds, normalizeNodeTitle, hasUsableRoot } from '@entities/workflow/lib'
+import { useClickOutside } from '@shared/lib/hooks'
 import { EmptyWorkflowView } from './empty-workflow-view'
 import { DirtyIndicator } from './dirty-indicator'
 import { NodeDetailPanel } from './node-detail-panel'
@@ -53,10 +54,17 @@ const WorkflowContent = () => {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>()
   const visibleOrderRef = useRef<readonly string[]>([])
   const treeContainerRef = useRef<HTMLDivElement>(null)
+  const workspaceContainerRef = useRef<HTMLDivElement>(null)
 
   const handleVisibleOrderChange = useCallback((order: readonly string[]) => {
     visibleOrderRef.current = order
   }, [])
+
+  const handleClickOutside = useCallback(() => {
+    if (selectedId !== undefined && !pendingDeleteId) {
+      actions.select(undefined)
+    }
+  }, [selectedId, pendingDeleteId, actions])
 
   useTreeKeyboardNavigation({
     nodes,
@@ -66,6 +74,13 @@ const WorkflowContent = () => {
     executingNodeIds,
     actions,
     containerRef: treeContainerRef,
+    enabled: hasUsableRoot(root, nodes),
+    onRequestEdit: setAutoEditNodeId,
+  })
+
+  useClickOutside({
+    ref: workspaceContainerRef,
+    onClickOutside: handleClickOutside,
     enabled: hasUsableRoot(root, nodes),
   })
 
@@ -193,7 +208,7 @@ const WorkflowContent = () => {
   }
 
   return (
-    <div className="flex h-full min-h-[400px] gap-4 p-4">
+    <div className="flex h-full min-h-[400px] gap-4 p-4" ref={workspaceContainerRef}>
       <Card
         className="w-80 flex flex-col min-h-0 focus:outline-none"
         data-testid="workflow-tree-panel"

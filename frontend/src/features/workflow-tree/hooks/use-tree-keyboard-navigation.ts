@@ -12,6 +12,7 @@ export interface UseTreeKeyboardNavigationOptions {
   actions: WorkflowStoreActions
   containerRef: RefObject<HTMLElement | null>
   enabled?: boolean
+  onRequestEdit?: (nodeId: NodeId) => void
 }
 
 export function useTreeKeyboardNavigation({
@@ -23,6 +24,7 @@ export function useTreeKeyboardNavigation({
   actions,
   containerRef,
   enabled = true,
+  onRequestEdit,
 }: UseTreeKeyboardNavigationOptions): void {
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
@@ -117,8 +119,14 @@ export function useTreeKeyboardNavigation({
         }
         return
       }
+
+      if (key === 'Enter') {
+        event.preventDefault()
+        onRequestEdit?.(selectedId)
+        return
+      }
     },
-    [enabled, nodes, visibleOrderRef, selectedId, selectedIds, executingNodeIds, actions],
+    [enabled, nodes, visibleOrderRef, selectedId, selectedIds, executingNodeIds, actions, onRequestEdit],
   )
 
   useEffect(() => {
