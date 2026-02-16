@@ -200,6 +200,7 @@ test.describe('Node detail panel — Auto-collapse for prompt nodes', () => {
       })
     })
 
+    await detail.fillCommand('/chatgpt test')
     await detail.execute()
     await tree.nodeByTitle('Prompt Child').waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
   })
@@ -293,6 +294,7 @@ test.describe('Node detail panel — Auto-collapse for prompt nodes', () => {
       })
     })
 
+    await detail.fillCommand('/chatgpt test')
     await detail.execute()
     await tree.nodeByTitle('Title with @@ref').waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
 

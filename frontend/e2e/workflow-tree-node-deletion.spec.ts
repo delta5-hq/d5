@@ -80,6 +80,7 @@ test.describe('Workflow tree node deletion', () => {
         await new Promise(() => {})
       })
 
+      await detail.fillCommand('/chatgpt test')
       await detail.execute()
       await expect(detail.executeButton).toBeDisabled()
 

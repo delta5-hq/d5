@@ -37,6 +37,7 @@ test.describe('Workflow execution merge pipeline', () => {
       })
     })
 
+    await detail.fillCommand('/chatgpt test')
     await detail.execute()
 
     await expect(tree.nodeByTitle('Generated Alpha')).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
@@ -76,6 +77,7 @@ test.describe('Workflow execution merge pipeline', () => {
       })
     })
 
+    await detail.fillCommand('/chatgpt test')
     await detail.execute()
 
     await expect(tree.nodeByTitle('Newly Generated')).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
@@ -108,6 +110,7 @@ test.describe('Workflow execution merge pipeline', () => {
       })
     })
 
+    await detail.fillCommand('/chatgpt test')
     await detail.execute()
 
     await expect(tree.nodeByTitle('Orphan Reconciled')).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
