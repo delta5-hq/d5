@@ -18,6 +18,7 @@ const makeTreeNode = (overrides: Partial<TreeNode> = {}): TreeNode => ({
   isOpen: false,
   isOpenByDefault: false,
   hasChildren: false,
+  isPrompt: false,
   ancestorContinuation: [true, false],
   hasMoreSiblings: false,
   rowsFromParent: 1,

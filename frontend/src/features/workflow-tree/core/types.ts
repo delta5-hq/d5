@@ -18,6 +18,7 @@ export interface TreeNode {
   isOpen: boolean
   isOpenByDefault: boolean
   hasChildren: boolean
+  isPrompt: boolean
   /** Wire continuation: at each ancestor depth, does that level need a vertical continuation line? */
   ancestorContinuation: boolean[]
   /** Does this node have more siblings after it? (should extend vertical line below) */
@@ -54,6 +55,7 @@ export interface TreeWalkerYield {
   isOpen: boolean
   isOpenByDefault: boolean
   hasChildren: boolean
+  isPrompt: boolean
   /** Wire continuation: at each ancestor depth, does that level need a vertical continuation line? */
   ancestorContinuation: boolean[]
   /** Does this node have more siblings after it? (should extend vertical line below) */

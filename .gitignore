@@ -35,6 +35,8 @@ nohup.out
 # MongoDB data directories (dev and E2E)
 data/
 
+transcripts/
+
 # Test artifacts (if running from root)
 test-results/
 playwright-report/

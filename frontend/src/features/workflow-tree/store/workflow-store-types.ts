@@ -29,6 +29,8 @@ export interface WorkflowStoreActions {
   rangeSelect: (targetId: NodeId, visibleOrder: readonly string[]) => void
   createRoot: (nodeData: Partial<NodeData>) => NodeId | null
   addChild: (parentId: NodeId, nodeData: Partial<NodeData>) => NodeId | null
+  addPromptChild: (parentId: NodeId, nodeData: Partial<NodeData>) => NodeId | null
+  removePromptChildren: (parentId: NodeId) => boolean
   updateNode: (nodeId: NodeId, updates: Partial<Omit<NodeData, 'id' | 'parent'>>) => boolean
   removeNode: (nodeId: NodeId) => boolean
   removeNodes: (nodeIds: Set<NodeId>) => number

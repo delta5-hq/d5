@@ -3,6 +3,8 @@ import type { NodeData, NodeId } from '@shared/base-types'
 import {
   createRootNode,
   addChildNode,
+  addPromptChild as addPromptChildPure,
+  removePromptChildren as removePromptChildrenPure,
   updateNode as updateNodePure,
   removeNode as removeNodePure,
   moveNode as moveNodePure,
@@ -172,6 +174,22 @@ export function bindMutationActions(
       result => store.setState({ nodes: result }),
     ) !== null
 
+  const addPromptChild = (parentId: NodeId, nodeData: Partial<NodeData>): NodeId | null => {
+    const { nodes } = store.getState()
+    return (
+      applyMutation(
+        () => addPromptChildPure(nodes, parentId, nodeData),
+        result => store.setState({ nodes: result.nodes }),
+      )?.newId ?? null
+    )
+  }
+
+  const removePromptChildren = (parentId: NodeId): boolean =>
+    applyMutation(
+      () => removePromptChildrenPure(store.getState().nodes, parentId),
+      result => store.setState({ nodes: result }),
+    ) !== null
+
   const duplicateNode = (nodeId: NodeId, targetParentId?: NodeId): NodeId | null => {
     const { nodes, edges } = store.getState()
     return (
@@ -182,5 +200,15 @@ export function bindMutationActions(
     )
   }
 
-  return { createRoot, addChild, updateNode, removeNode, removeNodes, moveNode, duplicateNode }
+  return {
+    createRoot,
+    addChild,
+    addPromptChild,
+    removePromptChildren,
+    updateNode,
+    removeNode,
+    removeNodes,
+    moveNode,
+    duplicateNode,
+  }
 }

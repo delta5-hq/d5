@@ -2,6 +2,7 @@ import type { NodeData } from '@/shared/base-types/workflow'
 import type { FlatTreeData } from './types'
 import { ROW_HEIGHT, INDENT_PER_LEVEL, WIRE_PADDING, SPARK_DURATION_MS } from './constants'
 import { computeCornerArrivalMs } from './spark-delay'
+import { isPromptNode } from '@entities/workflow/lib'
 
 interface StackEntry {
   node: NodeData
@@ -62,6 +63,7 @@ export function* createTreeWalker(treeData: FlatTreeData, refresh: boolean) {
     const isRootNode = node.id === rootId
     const isOpen = isRootNode || expandedIds.has(node.id)
     const hasChildren = Boolean(node.children?.length)
+    const isPrompt = isPromptNode(node.id, nodes)
     const thisRowIndex = currentRowIndex
     currentRowIndex++
 
@@ -80,6 +82,7 @@ export function* createTreeWalker(treeData: FlatTreeData, refresh: boolean) {
         isOpen,
         isOpenByDefault: isRootNode,
         hasChildren,
+        isPrompt,
         ancestorContinuation,
         hasMoreSiblings,
         rowsFromParent,

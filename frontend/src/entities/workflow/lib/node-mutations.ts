@@ -217,6 +217,58 @@ export const moveNode = (
   return newNodes
 }
 
+export const addPromptChild = (
+  nodes: Record<NodeId, NodeData>,
+  parentId: NodeId,
+  nodeData: Partial<NodeData>,
+): NodeMutationResult => {
+  const result = addChildNode(nodes, parentId, nodeData)
+  const parentNode = result.nodes[parentId]
+
+  result.nodes[parentId] = {
+    ...parentNode,
+    prompts: [...(parentNode.prompts ?? []), result.newId],
+  }
+
+  return result
+}
+
+export const removePromptChildren = (nodes: Record<NodeId, NodeData>, parentId: NodeId): Record<NodeId, NodeData> => {
+  const parentNode = nodes[parentId]
+  if (!parentNode) {
+    throw new NodeMutationError(`Parent node "${parentId}" not found`, 'PARENT_NOT_FOUND')
+  }
+
+  const promptIds = parentNode.prompts ?? []
+  if (promptIds.length === 0) {
+    return nodes
+  }
+
+  const promptIdSet = new Set(promptIds)
+  const allRemovedIds = new Set<NodeId>()
+
+  for (const promptId of promptIds) {
+    allRemovedIds.add(promptId)
+    for (const descendantId of getDescendantIds(nodes, promptId)) {
+      allRemovedIds.add(descendantId)
+    }
+  }
+
+  const newNodes = { ...nodes }
+
+  for (const id of allRemovedIds) {
+    delete newNodes[id]
+  }
+
+  newNodes[parentId] = {
+    ...parentNode,
+    children: (parentNode.children ?? []).filter(childId => !promptIdSet.has(childId)),
+    prompts: [],
+  }
+
+  return newNodes
+}
+
 export const duplicateNode = (
   nodes: Record<NodeId, NodeData>,
   edges: Record<EdgeId, EdgeData>,

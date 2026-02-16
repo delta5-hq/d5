@@ -610,3 +610,89 @@ describe('createTreeWalker — hasChildren', () => {
     expect(results[0].hasChildren).toBe(false)
   })
 })
+
+/* ─────────────────────────────────────────────────────
+ * isPrompt detection
+ * ─────────────────────────────────────────────────────*/
+
+describe('createTreeWalker — isPrompt', () => {
+  it('node is prompt when parent.prompts includes node id', () => {
+    const nodes: Record<string, NodeData> = {
+      r: { id: 'r', children: ['p1'], prompts: ['p1'] },
+      p1: { id: 'p1', parent: 'r', children: [] },
+    }
+    const data: FlatTreeData = { nodes, rootId: 'r', expandedIds: new Set() }
+    const results = collectWalker(data)
+    expect(results.find(n => n.id === 'p1')!.isPrompt).toBe(true)
+  })
+
+  it('node is not prompt when parent.prompts does not include node id', () => {
+    const nodes: Record<string, NodeData> = {
+      r: { id: 'r', children: ['a'], prompts: [] },
+      a: { id: 'a', parent: 'r', children: [] },
+    }
+    const data: FlatTreeData = { nodes, rootId: 'r', expandedIds: new Set() }
+    const results = collectWalker(data)
+    expect(results.find(n => n.id === 'a')!.isPrompt).toBe(false)
+  })
+
+  it('node is not prompt when parent has no prompts array', () => {
+    const nodes: Record<string, NodeData> = {
+      r: { id: 'r', children: ['a'] },
+      a: { id: 'a', parent: 'r', children: [] },
+    }
+    const data: FlatTreeData = { nodes, rootId: 'r', expandedIds: new Set() }
+    const results = collectWalker(data)
+    expect(results.find(n => n.id === 'a')!.isPrompt).toBe(false)
+  })
+
+  it('root node is never prompt', () => {
+    const nodes: Record<string, NodeData> = {
+      r: { id: 'r', children: [] },
+    }
+    const data: FlatTreeData = { nodes, rootId: 'r', expandedIds: new Set() }
+    const results = collectWalker(data)
+    expect(results[0].isPrompt).toBe(false)
+  })
+
+  it('mixed prompt and regular children', () => {
+    const nodes: Record<string, NodeData> = {
+      r: { id: 'r', children: ['regular', 'p1', 'p2'], prompts: ['p1', 'p2'] },
+      regular: { id: 'regular', parent: 'r', children: [] },
+      p1: { id: 'p1', parent: 'r', children: [] },
+      p2: { id: 'p2', parent: 'r', children: [] },
+    }
+    const data: FlatTreeData = { nodes, rootId: 'r', expandedIds: new Set() }
+    const results = collectWalker(data)
+
+    expect(results.find(n => n.id === 'regular')!.isPrompt).toBe(false)
+    expect(results.find(n => n.id === 'p1')!.isPrompt).toBe(true)
+    expect(results.find(n => n.id === 'p2')!.isPrompt).toBe(true)
+  })
+
+  it('nested prompt node is detected', () => {
+    const nodes: Record<string, NodeData> = {
+      r: { id: 'r', children: ['a'] },
+      a: { id: 'a', parent: 'r', children: ['p1'], prompts: ['p1'] },
+      p1: { id: 'p1', parent: 'a', children: [] },
+    }
+    const data: FlatTreeData = { nodes, rootId: 'r', expandedIds: new Set(['a']) }
+    const results = collectWalker(data)
+
+    expect(results.find(n => n.id === 'a')!.isPrompt).toBe(false)
+    expect(results.find(n => n.id === 'p1')!.isPrompt).toBe(true)
+  })
+
+  it('prompt with children is still marked as prompt', () => {
+    const nodes: Record<string, NodeData> = {
+      r: { id: 'r', children: ['p1'], prompts: ['p1'] },
+      p1: { id: 'p1', parent: 'r', children: ['child'] },
+      child: { id: 'child', parent: 'p1', children: [] },
+    }
+    const data: FlatTreeData = { nodes, rootId: 'r', expandedIds: new Set(['p1']) }
+    const results = collectWalker(data)
+
+    expect(results.find(n => n.id === 'p1')!.isPrompt).toBe(true)
+    expect(results.find(n => n.id === 'child')!.isPrompt).toBe(false)
+  })
+})

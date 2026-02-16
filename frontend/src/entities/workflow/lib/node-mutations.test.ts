@@ -7,6 +7,8 @@ import {
   removeNode,
   moveNode,
   duplicateNode,
+  addPromptChild,
+  removePromptChildren,
   NodeMutationError,
 } from './node-mutations'
 
@@ -476,5 +478,161 @@ describe('duplicateNode - Deep Subtrees', () => {
     for (const newId of Object.values(result.idMapping)) {
       expect(originalIds.has(newId)).toBe(false)
     }
+  })
+})
+
+describe('addPromptChild', () => {
+  it('registers new child in both children and prompts arrays', () => {
+    const nodes = createSimpleTree()
+    const result = addPromptChild(nodes, 'a', { title: 'Prompt Result' })
+
+    expect(result.nodes[result.newId].parent).toBe('a')
+    expect(result.nodes[result.newId].title).toBe('Prompt Result')
+    expect(result.nodes.a.children).toContain(result.newId)
+    expect(result.nodes.a.prompts).toContain(result.newId)
+  })
+
+  it('appends to existing prompts array', () => {
+    const nodes = createSimpleTree()
+    nodes.a.prompts = ['existing-prompt']
+    const result = addPromptChild(nodes, 'a', { title: 'New' })
+
+    expect(result.nodes.a.prompts).toEqual(['existing-prompt', result.newId])
+  })
+
+  it('initializes prompts array when undefined', () => {
+    const nodes = createSimpleTree()
+    delete nodes.a.prompts
+    const result = addPromptChild(nodes, 'a', { title: 'Test' })
+
+    expect(result.nodes.a.prompts).toEqual([result.newId])
+  })
+
+  it('does not modify input prompts', () => {
+    const nodes = createSimpleTree()
+    addPromptChild(nodes, 'a', { title: 'Test' })
+
+    expect(nodes.a.prompts).toBeUndefined()
+  })
+})
+
+describe('removePromptChildren', () => {
+  it('removes prompt nodes and cleans parent arrays', () => {
+    const nodes: Record<string, NodeData> = {
+      parent: { id: 'parent', children: ['regular', 'p1', 'p2'], prompts: ['p1', 'p2'] },
+      regular: { id: 'regular', parent: 'parent', children: [] },
+      p1: { id: 'p1', parent: 'parent', children: [] },
+      p2: { id: 'p2', parent: 'parent', children: [] },
+    }
+
+    const result = removePromptChildren(nodes, 'parent')
+
+    expect(result.p1).toBeUndefined()
+    expect(result.p2).toBeUndefined()
+    expect(result.regular).toBeDefined()
+    expect(result.parent.children).toEqual(['regular'])
+    expect(result.parent.prompts).toEqual([])
+  })
+
+  it('preserves non-prompt children order', () => {
+    const nodes: Record<string, NodeData> = {
+      parent: { id: 'parent', children: ['c1', 'p1', 'c2', 'p2', 'c3'], prompts: ['p1', 'p2'] },
+      c1: { id: 'c1', parent: 'parent', children: [] },
+      c2: { id: 'c2', parent: 'parent', children: [] },
+      c3: { id: 'c3', parent: 'parent', children: [] },
+      p1: { id: 'p1', parent: 'parent', children: [] },
+      p2: { id: 'p2', parent: 'parent', children: [] },
+    }
+
+    const result = removePromptChildren(nodes, 'parent')
+
+    expect(result.parent.children).toEqual(['c1', 'c2', 'c3'])
+  })
+
+  it('cascade-deletes prompt descendants', () => {
+    const nodes: Record<string, NodeData> = {
+      parent: { id: 'parent', children: ['p1'], prompts: ['p1'] },
+      p1: { id: 'p1', parent: 'parent', children: ['grandchild'] },
+      grandchild: { id: 'grandchild', parent: 'p1', children: ['deep'] },
+      deep: { id: 'deep', parent: 'grandchild', children: [] },
+    }
+
+    const result = removePromptChildren(nodes, 'parent')
+
+    expect(result.p1).toBeUndefined()
+    expect(result.grandchild).toBeUndefined()
+    expect(result.deep).toBeUndefined()
+  })
+
+  it('returns same reference when no prompts exist', () => {
+    const nodes: Record<string, NodeData> = {
+      parent: { id: 'parent', children: ['regular'] },
+      regular: { id: 'regular', parent: 'parent', children: [] },
+    }
+
+    expect(removePromptChildren(nodes, 'parent')).toBe(nodes)
+  })
+
+  it('returns same reference for empty prompts array', () => {
+    const nodes: Record<string, NodeData> = {
+      parent: { id: 'parent', children: [], prompts: [] },
+    }
+
+    expect(removePromptChildren(nodes, 'parent')).toBe(nodes)
+  })
+
+  it('handles prompt listed in prompts but not in children', () => {
+    const nodes: Record<string, NodeData> = {
+      parent: { id: 'parent', children: ['regular'], prompts: ['orphan'] },
+      regular: { id: 'regular', parent: 'parent', children: [] },
+      orphan: { id: 'orphan', parent: 'parent', children: [] },
+    }
+
+    const result = removePromptChildren(nodes, 'parent')
+
+    expect(result.orphan).toBeUndefined()
+    expect(result.parent.children).toEqual(['regular'])
+  })
+
+  it('handles prompt ID pointing to nonexistent node', () => {
+    const nodes: Record<string, NodeData> = {
+      parent: { id: 'parent', children: ['ghost'], prompts: ['ghost'] },
+    }
+
+    const result = removePromptChildren(nodes, 'parent')
+
+    expect(result.parent.children).toEqual([])
+    expect(result.parent.prompts).toEqual([])
+  })
+
+  it('does not modify input nodes', () => {
+    const nodes: Record<string, NodeData> = {
+      parent: { id: 'parent', children: ['p1'], prompts: ['p1'] },
+      p1: { id: 'p1', parent: 'parent', children: [] },
+    }
+
+    removePromptChildren(nodes, 'parent')
+
+    expect(nodes.parent.children).toEqual(['p1'])
+    expect(nodes.parent.prompts).toEqual(['p1'])
+    expect(nodes.p1).toBeDefined()
+  })
+
+  it('preserves unrelated nodes', () => {
+    const nodes: Record<string, NodeData> = {
+      parent: { id: 'parent', children: ['p1'], prompts: ['p1'] },
+      p1: { id: 'p1', parent: 'parent', children: [] },
+      sibling: { id: 'sibling', children: [] },
+    }
+
+    const result = removePromptChildren(nodes, 'parent')
+
+    expect(result.sibling).toBe(nodes.sibling)
+  })
+
+  it('throws PARENT_NOT_FOUND when parent not found', () => {
+    const err = getError(() => removePromptChildren({}, 'missing'))
+    expect(err).toBeInstanceOf(NodeMutationError)
+    expect(err.code).toBe('PARENT_NOT_FOUND')
   })
 })

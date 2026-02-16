@@ -118,7 +118,15 @@ export const TreeNodeDefault = ({
   onDuplicateNode,
   onRequestRename,
 }: TreeNodeProps) => {
-  const { node, depth, ancestorContinuation = [], hasMoreSiblings = false, rowsFromParent = 1, sparkDelay = 0 } = data
+  const {
+    node,
+    depth,
+    isPrompt,
+    ancestorContinuation = [],
+    hasMoreSiblings = false,
+    rowsFromParent = 1,
+    sparkDelay = 0,
+  } = data
   const hasChildren = node.children && node.children.length > 0
   const paddingLeft = BASE_PADDING + depth * INDENT_PER_LEVEL
 
@@ -202,10 +210,12 @@ export const TreeNodeDefault = ({
             'hover:bg-accent/50 active:bg-accent/70 transition-colors duration-150',
             'text-sm text-foreground/90',
             isSelected && 'bg-accent',
+            isPrompt && 'opacity-60',
           )}
           data-node-depth={depth}
           data-node-id={id}
           data-node-selected={isSelected || undefined}
+          data-prompt-node={isPrompt || undefined}
           onClick={handleClick}
           style={{ ...style, paddingLeft, overflow: 'visible' }}
         >
