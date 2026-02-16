@@ -17,6 +17,7 @@ import { toast } from 'sonner'
 import type { WorkflowStoreState } from './workflow-store-types'
 import type { DebouncedPersister } from './workflow-store-persistence'
 import { excludeIds } from './workflow-store-set-utils'
+import { createPromptNodesFromText } from './text-to-prompts-splitter'
 
 export type FormatMessage = (descriptor: { id: string }, values?: Record<string, string | number>) => string
 
@@ -207,6 +208,22 @@ export function bindMutationActions(
     )
   }
 
+  const importTextAsPrompts = (parentId: NodeId, text: string): number => {
+    if (!text.trim()) return 0
+
+    if (!removePromptChildren(parentId)) return 0
+
+    const promptNodes = createPromptNodesFromText(parentId, text)
+    let imported = 0
+
+    for (const promptData of promptNodes) {
+      const newId = addPromptChild(parentId, promptData)
+      if (newId) imported++
+    }
+
+    return imported
+  }
+
   return {
     createRoot,
     addChild,
@@ -218,5 +235,6 @@ export function bindMutationActions(
     removeNodes,
     moveNode,
     duplicateNode,
+    importTextAsPrompts,
   }
 }

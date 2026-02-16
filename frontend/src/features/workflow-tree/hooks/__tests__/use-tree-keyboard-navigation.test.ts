@@ -32,6 +32,7 @@ function makeActions(): WorkflowStoreActions {
     removeNodes: vi.fn(),
     moveNode: vi.fn(),
     duplicateNode: vi.fn(() => 'dup-node'),
+    importTextAsPrompts: vi.fn(),
     executeCommand: vi.fn(),
   }
 }

@@ -21,6 +21,7 @@ import { Button } from '@shared/ui/button'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { getDescendantIds, normalizeNodeTitle, hasUsableRoot } from '@entities/workflow/lib'
 import { useClickOutside } from '@shared/lib/hooks'
+import { matchesAnyCommandWithOrder } from '@shared/lib/command-validation'
 import { EmptyWorkflowView } from './empty-workflow-view'
 import { DirtyIndicator } from './dirty-indicator'
 import { NodeDetailPanel } from './node-detail-panel'
@@ -52,6 +53,11 @@ const WorkflowContent = () => {
   const executingNodeIds = useWorkflowExecutingNodeIds()
   const [autoEditNodeId, setAutoEditNodeId] = useState<string | undefined>()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>()
+
+  const hasValidCommand = useMemo(() => {
+    if (!selectedNode?.command?.trim()) return false
+    return matchesAnyCommandWithOrder(selectedNode.command)
+  }, [selectedNode?.command])
   const visibleOrderRef = useRef<readonly string[]>([])
   const treeContainerRef = useRef<HTMLDivElement>(null)
   const workspaceContainerRef = useRef<HTMLDivElement>(null)
@@ -250,7 +256,7 @@ const WorkflowContent = () => {
           {selectedNode ? (
             <NodeDetailPanel
               autoFocusTitle={autoEditNodeId === selectedId}
-              executeDisabled={isSelectedNodeExecuting}
+              executeDisabled={isSelectedNodeExecuting || !hasValidCommand}
               isExecuting={isSelectedNodeExecuting}
               isPrompt={isSelectedNodePrompt}
               key={selectedNode.id}

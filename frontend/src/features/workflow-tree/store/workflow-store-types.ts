@@ -43,6 +43,7 @@ export interface WorkflowStoreActions {
   removeNodes: (nodeIds: Set<NodeId>) => number
   moveNode: (nodeId: NodeId, newParentId: NodeId) => boolean
   duplicateNode: (nodeId: NodeId, targetParentId?: NodeId) => NodeId | null
+  importTextAsPrompts: (parentId: NodeId, text: string) => number
 
   executeCommand: (node: NodeData, queryType: string) => Promise<boolean>
 }

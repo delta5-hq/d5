@@ -6,6 +6,7 @@ import { Genie, type GenieRef } from '@shared/ui/genie'
 import { EditableText } from '@shared/ui/editable-field'
 import { getCommandRole } from '@shared/constants/command-roles'
 import { getColorForRole } from '@shared/ui/genie/role-colors'
+import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -264,7 +265,7 @@ export const TreeNodeDefault = ({
           <span className="relative z-10 flex-shrink-0 ml-1.5 transition-transform duration-150 group-hover:scale-110">
             {depth > 0 && depth <= 4 ? (
               <Genie
-                color={getColorForRole(getCommandRole(node.command))}
+                color={getColorForRole(getCommandRole(extractQueryTypeFromCommand(node.command)))}
                 nodeId={id}
                 ref={genieRef}
                 showHandRibs={getShowHandRibsFromDepth(depth)}

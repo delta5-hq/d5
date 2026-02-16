@@ -174,7 +174,7 @@ export const NodeDetailPanel = ({
               <Genie
                 clipboardEdge="#424242"
                 clipboardFill="#ffffff"
-                color={getColorForRole(getCommandRole(node.command))}
+                color={getColorForRole(getCommandRole(extractQueryTypeFromCommand(node.command)))}
                 showHandRibs={Boolean(node.command)}
                 size={80}
                 state={genieState}

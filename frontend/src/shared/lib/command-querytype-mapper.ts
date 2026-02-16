@@ -1,4 +1,4 @@
-const COMMAND_TO_QUERYTYPE_MAP: Record<string, string> = {
+export const COMMAND_TO_QUERYTYPE_MAP: Record<string, string> = {
   '/instruct': 'chat',
   '/reason': 'chat',
   '/chatgpt': 'chat',
