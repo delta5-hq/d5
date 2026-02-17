@@ -95,13 +95,13 @@ export function useEditableField({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (commitOnEnter && e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault()
-        commitEdit()
-      } else if (!commitOnEnter && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
         e.preventDefault()
         commitEdit()
         onCommitAndCreateSiblingRef.current?.()
+      } else if (commitOnEnter && e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault()
+        commitEdit()
       } else if (e.key === 'Escape') {
         e.preventDefault()
         cancelEdit()

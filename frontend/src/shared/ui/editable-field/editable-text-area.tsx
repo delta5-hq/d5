@@ -23,7 +23,7 @@ export const EditableTextArea = ({
     value,
     onChange,
     autoFocus,
-    commitOnEnter: false,
+    commitOnEnter: true,
     onCommitAndCreateSibling,
   })
 
