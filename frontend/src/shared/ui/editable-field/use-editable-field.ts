@@ -5,6 +5,7 @@ export interface UseEditableFieldOptions {
   onChange: (value: string) => void
   autoFocus?: boolean
   commitOnEnter?: boolean
+  onCommitAndCreateSibling?: () => void
 }
 
 export interface UseEditableFieldReturn {
@@ -23,6 +24,7 @@ export function useEditableField({
   onChange,
   autoFocus = false,
   commitOnEnter = true,
+  onCommitAndCreateSibling,
 }: UseEditableFieldOptions): UseEditableFieldReturn {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValueState] = useState(value)
@@ -32,11 +34,13 @@ export function useEditableField({
   const editValueRef = useRef(editValue)
   const valueRef = useRef(value)
   const onChangeRef = useRef(onChange)
+  const onCommitAndCreateSiblingRef = useRef(onCommitAndCreateSibling)
 
   isEditingRef.current = isEditing
   editValueRef.current = editValue
   valueRef.current = value
   onChangeRef.current = onChange
+  onCommitAndCreateSiblingRef.current = onCommitAndCreateSibling
 
   const setEditValue = useCallback((v: string) => {
     editValueRef.current = v
@@ -97,6 +101,7 @@ export function useEditableField({
       } else if (!commitOnEnter && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault()
         commitEdit()
+        onCommitAndCreateSiblingRef.current?.()
       } else if (e.key === 'Escape') {
         e.preventDefault()
         cancelEdit()

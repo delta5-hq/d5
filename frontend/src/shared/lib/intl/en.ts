@@ -349,6 +349,8 @@ export default {
       execute: 'Execute',
       executing: 'Executing...',
       addChild: 'Add Child',
+      addSibling: 'Add Sibling',
+      close: 'Back',
       duplicate: 'Duplicate',
       untitled: 'Untitled',
       rename: 'Rename',

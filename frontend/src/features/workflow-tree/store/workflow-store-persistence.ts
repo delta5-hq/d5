@@ -38,7 +38,7 @@ export function createDebouncedPersister(
       await saveFn({ nodes, edges, root })
       store.setState({ isDirty: false, isSaving: false })
       return true
-    } catch (err) {
+    } catch {
       store.setState({ isSaving: false })
       return false
     }

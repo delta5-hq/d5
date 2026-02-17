@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { computeSegments, getSegmentHeight, getSegmentCount, getSegmentByNodeId } from './segment-computer'
-import type { TreeState } from '../core/types'
-import type { SegmentComputeOptions } from './types'
+import type { TreeState, TreeNode } from '../core/types'
+import type { SegmentComputeOptions, Segment, ContainerConfig } from './types'
 import type { NodeData } from '@/shared/base-types/workflow'
 
 const DEFAULT_OPTIONS: SegmentComputeOptions = {
@@ -478,8 +478,8 @@ describe('computeSegments - Edge Cases', () => {
             node: {
               id: 'parent',
               children: ['child1'],
-              container: { component: 'Card' },
-            } as any,
+              container: { component: 'Card' } as unknown as ContainerConfig,
+            } as NodeData,
           },
         },
         child1: {
@@ -554,7 +554,7 @@ describe('getSegmentHeight', () => {
 describe('getSegmentCount', () => {
   it('should return correct segment count', () => {
     const segmentState = {
-      segments: [{} as any, {} as any, {} as any],
+      segments: [{} as unknown as Segment, {} as unknown as Segment, {} as unknown as Segment],
       segmentHeights: [32, 32, 32],
       nodeToSegmentIndex: new Map(),
     }
@@ -575,7 +575,7 @@ describe('getSegmentCount', () => {
 
 describe('getSegmentByNodeId', () => {
   it('should return segment and index for existing node', () => {
-    const segment = { type: 'node' as const, data: { id: 'test' } as any, rowIndex: 0 }
+    const segment = { type: 'node' as const, data: { id: 'test' } as unknown as TreeNode, rowIndex: 0 }
     const segmentState = {
       segments: [segment],
       segmentHeights: [32],
@@ -651,7 +651,6 @@ describe('computeSegments - Partial Container Children', () => {
 
     const result = computeSegments(treeState, DEFAULT_OPTIONS)
 
-    /* Container with parent + c1 + c2 */
     expect(result.segments[0]?.type).toBe('container')
     if (result.segments[0]?.type === 'container') {
       expect(result.segments[0].children).toHaveLength(2)
@@ -659,7 +658,6 @@ describe('computeSegments - Partial Container Children', () => {
       expect(result.segments[0].children[1].id).toBe('c2')
     }
 
-    /* c3 should be a separate segment */
     expect(result.segments[1]?.type).toBe('node')
     if (result.segments[1]?.type === 'node') {
       expect(result.segments[1].data.id).toBe('c3')
@@ -704,9 +702,7 @@ describe('computeSegments - Partial Container Children', () => {
 
     const result = computeSegments(treeState, { rowHeight: 32 })
 
-    /* Container: parent(32) + paddingTop(4) + 2*children(64) + paddingBottom(4) = 104 */
     expect(result.segmentHeights[0]).toBe(104)
-    /* c3 node: 32 */
     expect(result.segmentHeights[1]).toBe(32)
   })
 })
@@ -809,7 +805,6 @@ describe('computeSegments — Implicit Container from Command', () => {
 
     const result = computeSegments(treeState, DEFAULT_OPTIONS)
 
-    /* Synthetic config: paddingTop=6, paddingBottom=6 */
     const expectedHeight = 32 + 6 + 32 + 6
     expect(result.segmentHeights[0]).toBe(expectedHeight)
   })
@@ -886,7 +881,6 @@ describe('computeSegments — Implicit Container from Command', () => {
     if (result.segments[0]?.type === 'container') {
       expect(result.segments[0].children.map(c => c.id)).toEqual(['c1'])
     }
-    /* c2 becomes its own container */
     expect(result.segments[1]?.type).toBe('container')
     if (result.segments[1]?.type === 'container') {
       expect(result.segments[1].parentNode.id).toBe('c2')
@@ -985,7 +979,6 @@ describe('computeSegments — Mixed Implicit and Explicit Containers', () => {
 
     const result = computeSegments(treeState, DEFAULT_OPTIONS)
 
-    /* root is a plain node, fe is container, ex is container */
     expect(result.segments[0]?.type).toBe('node')
     expect(result.segments[1]?.type).toBe('container')
     expect(result.segments[2]?.type).toBe('container')

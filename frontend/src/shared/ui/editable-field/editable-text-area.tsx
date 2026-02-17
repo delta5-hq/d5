@@ -8,14 +8,23 @@ export interface EditableTextAreaProps {
   placeholder?: string
   className?: string
   autoFocus?: boolean
+  onCommitAndCreateSibling?: () => void
 }
 
-export const EditableTextArea = ({ value, onChange, placeholder, className, autoFocus }: EditableTextAreaProps) => {
+export const EditableTextArea = ({
+  value,
+  onChange,
+  placeholder,
+  className,
+  autoFocus,
+  onCommitAndCreateSibling,
+}: EditableTextAreaProps) => {
   const { editValue, inputRef, setEditValue, commitEdit, handleKeyDown } = useEditableField({
     value,
     onChange,
     autoFocus,
     commitOnEnter: false,
+    onCommitAndCreateSibling,
   })
 
   return (

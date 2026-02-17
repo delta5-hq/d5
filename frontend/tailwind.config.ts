@@ -7,7 +7,11 @@ const config: Config = {
         "./src/**/*.{ts,tsx}",
     ],
     theme: {
-        extend: {},
+        extend: {
+            screens: {
+                '3xl': '1921px',
+            },
+        },
     },
     plugins: [],
 };

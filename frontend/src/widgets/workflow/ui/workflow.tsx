@@ -175,6 +175,21 @@ const WorkflowContent = () => {
     [actions],
   )
 
+  const handleAddSibling = useCallback(
+    (nodeId: string) => {
+      const newId = actions.addSibling(nodeId, { title: '' })
+      if (newId) {
+        actions.select(newId)
+        setAutoEditNodeId(newId)
+      }
+    },
+    [actions],
+  )
+
+  const handleCloseDetailPanel = useCallback(() => {
+    actions.select(undefined)
+  }, [actions])
+
   const handleExecute = useCallback(
     async (node: Parameters<typeof actions.executeCommand>[0], queryType: string) => {
       await actions.executeCommand(node, queryType)
@@ -262,6 +277,8 @@ const WorkflowContent = () => {
               key={selectedNode.id}
               node={selectedNode}
               onAddChild={handleAddChild}
+              onAddSibling={handleAddSibling}
+              onClose={handleCloseDetailPanel}
               onDuplicateNode={handleDuplicateNode}
               onExecute={handleExecute}
               onRequestDelete={handleRequestDelete}
