@@ -8,11 +8,20 @@ interface ExecuteChanges {
 function mergeNode(existing: NodeData, incoming: NodeData): NodeData {
   const existingChildren = existing.children ?? []
   const incomingChildren = incoming.children ?? []
+  const hasChildren = existingChildren.length > 0 || incomingChildren.length > 0
 
-  if (!existingChildren.length && !incomingChildren.length) return incoming
+  const existingPrompts = existing.prompts
+  const incomingPrompts = incoming.prompts
+  const mergedPrompts = incomingPrompts !== undefined ? incomingPrompts : existingPrompts
+  const hasPrompts = mergedPrompts !== undefined
 
-  const unionChildren = [...new Set([...existingChildren, ...incomingChildren])]
-  return { ...incoming, children: unionChildren }
+  if (!hasChildren && !hasPrompts) return incoming
+
+  const result: NodeData = { ...incoming }
+  if (hasChildren) result.children = [...new Set([...existingChildren, ...incomingChildren])]
+  if (hasPrompts) result.prompts = mergedPrompts
+
+  return result
 }
 
 function reconcileParentChildren(nodes: Record<string, NodeData>, incomingIds: string[]): Record<string, NodeData> {

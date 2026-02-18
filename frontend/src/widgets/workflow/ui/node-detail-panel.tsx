@@ -16,8 +16,6 @@ import { normalizeNodeTitle } from '@entities/workflow/lib'
 import { NodeTitleEditor } from './node-title-editor'
 import { NodePreviewSection } from './node-preview-section'
 
-const NOOP = () => {}
-
 interface NodeDetailPanelProps {
   node: NodeData
   isPrompt: boolean
@@ -26,12 +24,14 @@ interface NodeDetailPanelProps {
   onDuplicateNode: (nodeId: NodeId) => void
   onAddChild: (parentId: NodeId) => void
   onAddSibling: (nodeId: NodeId) => void
+  onEnterInCommand: (nodeId: NodeId) => void
   onClose: () => void
   onExecute: (node: NodeData, queryType: string) => Promise<void>
   onAbort: (nodeId: NodeId) => void
   isExecuting: boolean
   executeDisabled: boolean
   autoFocusTitle?: boolean
+  autoFocusCommand?: boolean
 }
 
 export const NodeDetailPanel = ({
@@ -42,12 +42,14 @@ export const NodeDetailPanel = ({
   onDuplicateNode,
   onAddChild,
   onAddSibling,
+  onEnterInCommand,
   onClose,
   onExecute,
   onAbort,
   isExecuting,
   executeDisabled,
   autoFocusTitle,
+  autoFocusCommand,
 }: NodeDetailPanelProps) => {
   const genieState = useGenieState(node.id)
   const hasChildren = Boolean(node.children?.length)
@@ -56,6 +58,7 @@ export const NodeDetailPanel = ({
   const { formatMessage } = useIntl()
   const showPreview = isPrompt || hasReferencesInAny(node.command, node.title)
   const canExecute = canExecuteNode(node.command, executeDisabled)
+  const siblingActionsEnabled = !isRoot && canExecute
 
   const handleTitleChange = useCallback(
     (title: string) => {
@@ -96,6 +99,10 @@ export const NodeDetailPanel = ({
     onAddSibling(node.id)
   }, [node.id, onAddSibling])
 
+  const handleEnterInCommand = useCallback(() => {
+    onEnterInCommand(node.id)
+  }, [node.id, onEnterInCommand])
+
   return (
     <div className="text-sm 3xl:flex 3xl:gap-6 3xl:items-start" data-testid="node-detail-panel">
       <div className="flex-1 space-y-4">
@@ -116,7 +123,7 @@ export const NodeDetailPanel = ({
             data-testid="settings-trigger"
           >
             <ChevronRight className="h-3 w-3 transition-transform" />
-            <FormattedMessage id="workflowTree.node.command" />
+            <FormattedMessage id="workflowTree.node.settings" />
           </CollapsibleTrigger>
 
           <CollapsibleContent>
@@ -141,10 +148,11 @@ export const NodeDetailPanel = ({
                     <FormattedMessage id="workflowTree.node.command" />
                   </span>
                   <EditableTextArea
+                    autoFocus={autoFocusCommand}
                     className="min-h-[80px] text-xs font-mono w-full"
                     onChange={handleCommandChange}
-                    onCtrlEnter={isRoot ? undefined : handleAddSibling}
-                    onEnterCommit={NOOP}
+                    onCtrlEnter={siblingActionsEnabled ? handleAddSibling : undefined}
+                    onEnterCommit={siblingActionsEnabled ? handleEnterInCommand : undefined}
                     placeholder={formatMessage({ id: 'workflowTree.node.commandPlaceholder' })}
                     value={node.command ?? ''}
                   />

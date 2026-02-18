@@ -103,6 +103,77 @@ describe('EditableTextArea', () => {
     })
   })
 
+  describe('onEnterCommit — fires only on plain Enter', () => {
+    it('fires on plain Enter and commits value', () => {
+      const onChange = vi.fn()
+      const onEnterCommit = vi.fn()
+      render(<EditableTextArea onChange={onChange} onEnterCommit={onEnterCommit} value="old" />)
+
+      const textarea = screen.getByRole('textbox')
+      fireEvent.change(textarea, { target: { value: 'new' } })
+      fireEvent.keyDown(textarea, { key: 'Enter' })
+
+      expect(onChange).toHaveBeenCalledWith('new')
+      expect(onEnterCommit).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not fire on Shift+Enter (Shift+Enter is newline)', () => {
+      const onChange = vi.fn()
+      const onEnterCommit = vi.fn()
+      render(<EditableTextArea onChange={onChange} onEnterCommit={onEnterCommit} value="old" />)
+
+      const textarea = screen.getByRole('textbox')
+      fireEvent.change(textarea, { target: { value: 'new' } })
+      fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: true })
+
+      expect(onChange).not.toHaveBeenCalled()
+      expect(onEnterCommit).not.toHaveBeenCalled()
+    })
+
+    it('does not fire on Ctrl+Enter (routes to onCtrlEnter instead)', () => {
+      const onChange = vi.fn()
+      const onEnterCommit = vi.fn()
+      render(<EditableTextArea onChange={onChange} onEnterCommit={onEnterCommit} value="old" />)
+
+      const textarea = screen.getByRole('textbox')
+      fireEvent.change(textarea, { target: { value: 'new' } })
+      fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true })
+
+      expect(onEnterCommit).not.toHaveBeenCalled()
+    })
+
+    it('commits without throwing when onEnterCommit is absent', () => {
+      const onChange = vi.fn()
+      render(<EditableTextArea onChange={onChange} value="old" />)
+
+      const textarea = screen.getByRole('textbox')
+      fireEvent.change(textarea, { target: { value: 'new' } })
+      expect(() => fireEvent.keyDown(textarea, { key: 'Enter' })).not.toThrow()
+    })
+
+    it('plain Enter triggers onEnterCommit but not onCtrlEnter when both provided', () => {
+      const onEnterCommit = vi.fn()
+      const onCtrlEnter = vi.fn()
+      render(<EditableTextArea onChange={vi.fn()} onCtrlEnter={onCtrlEnter} onEnterCommit={onEnterCommit} value="v" />)
+
+      fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' })
+
+      expect(onEnterCommit).toHaveBeenCalledTimes(1)
+      expect(onCtrlEnter).not.toHaveBeenCalled()
+    })
+
+    it('Ctrl+Enter triggers onCtrlEnter but not onEnterCommit when both provided', () => {
+      const onEnterCommit = vi.fn()
+      const onCtrlEnter = vi.fn()
+      render(<EditableTextArea onChange={vi.fn()} onCtrlEnter={onCtrlEnter} onEnterCommit={onEnterCommit} value="v" />)
+
+      fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter', ctrlKey: true })
+
+      expect(onCtrlEnter).toHaveBeenCalledTimes(1)
+      expect(onEnterCommit).not.toHaveBeenCalled()
+    })
+  })
+
   describe('onCtrlEnter — fires only on Ctrl/Meta+Enter', () => {
     it('fires on Ctrl+Enter and commits value', () => {
       const onChange = vi.fn()

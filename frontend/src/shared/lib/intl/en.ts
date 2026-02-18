@@ -344,6 +344,7 @@ export default {
     },
 
     node: {
+      settings: 'Settings',
       command: 'Command',
       commandPlaceholder: 'Enter command...',
       execute: 'Execute',

@@ -22,6 +22,7 @@ import { FormattedMessage, useIntl } from 'react-intl'
 import { getDescendantIds, normalizeNodeTitle, hasUsableRoot } from '@entities/workflow/lib'
 import { useClickOutside } from '@shared/lib/hooks'
 import { matchesAnyCommandWithOrder } from '@shared/lib/command-validation'
+import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import { EmptyWorkflowView } from './empty-workflow-view'
 import { DirtyIndicator } from './dirty-indicator'
 import { NodeDetailPanel } from './node-detail-panel'
@@ -52,12 +53,17 @@ const WorkflowContent = () => {
   const isSelectedNodePrompt = useIsPromptNode(selectedId)
   const executingNodeIds = useWorkflowExecutingNodeIds()
   const [autoEditNodeId, setAutoEditNodeId] = useState<string | undefined>()
+  const [autoFocusCommandNodeId, setAutoFocusCommandNodeId] = useState<string | undefined>()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>()
   const [flashNodeId, setFlashNodeId] = useState<string | undefined>()
 
   useEffect(() => {
     if (flashNodeId) setFlashNodeId(undefined)
   }, [flashNodeId])
+
+  useEffect(() => {
+    if (autoFocusCommandNodeId) setAutoFocusCommandNodeId(undefined)
+  }, [autoFocusCommandNodeId])
 
   const hasValidCommand = useMemo(() => {
     if (!selectedNode?.command?.trim()) return false
@@ -219,6 +225,22 @@ const WorkflowContent = () => {
     [actions],
   )
 
+  const handleEnterInCommand = useCallback(
+    (nodeId: string) => {
+      const node = nodes[nodeId]
+      if (!node) return
+      const queryType = extractQueryTypeFromCommand(node.command)
+      void actions.executeCommand(node, queryType)
+      const newId = actions.addSibling(nodeId, { title: '' })
+      if (newId) {
+        actions.select(newId)
+        setAutoFocusCommandNodeId(newId)
+        setFlashNodeId(newId)
+      }
+    },
+    [actions, nodes],
+  )
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -294,6 +316,7 @@ const WorkflowContent = () => {
         <CardContent>
           {selectedNode ? (
             <NodeDetailPanel
+              autoFocusCommand={autoFocusCommandNodeId === selectedId}
               autoFocusTitle={autoEditNodeId === selectedId}
               executeDisabled={isSelectedNodeExecuting || !hasValidCommand}
               isExecuting={isSelectedNodeExecuting}
@@ -305,6 +328,7 @@ const WorkflowContent = () => {
               onAddSibling={handleAddSibling}
               onClose={handleCloseDetailPanel}
               onDuplicateNode={handleDuplicateNode}
+              onEnterInCommand={handleEnterInCommand}
               onExecute={handleExecute}
               onRequestDelete={handleRequestDelete}
               onUpdateNode={handleUpdateNode}

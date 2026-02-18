@@ -546,4 +546,80 @@ describe('mergeWorkflowChanges', () => {
       expect(state.edges).toEqual(snapshot)
     })
   })
+
+  describe('prompts preservation', () => {
+    it('preserves existing prompts when incoming node has no prompts field', () => {
+      const state = createState({ p: { id: 'p', prompts: ['old1', 'old2'] } })
+
+      const result = mergeWorkflowChanges(state, {
+        nodesChanged: { p: { id: 'p', title: 'Updated' } },
+      })
+
+      expect(result.nodes.p.prompts).toEqual(['old1', 'old2'])
+    })
+
+    it('uses incoming prompts when incoming node has prompts field', () => {
+      const state = createState({ p: { id: 'p', prompts: ['old1'] } })
+
+      const result = mergeWorkflowChanges(state, {
+        nodesChanged: { p: { id: 'p', prompts: ['new1', 'new2'] } },
+      })
+
+      expect(result.nodes.p.prompts).toEqual(['new1', 'new2'])
+    })
+
+    it('clears prompts when incoming node explicitly sets prompts to empty array', () => {
+      const state = createState({ p: { id: 'p', prompts: ['old1'] } })
+
+      const result = mergeWorkflowChanges(state, {
+        nodesChanged: { p: { id: 'p', prompts: [] } },
+      })
+
+      expect(result.nodes.p.prompts).toEqual([])
+    })
+
+    it('leaves prompts undefined when neither existing nor incoming has prompts', () => {
+      const state = createState({ p: { id: 'p', title: 'Parent' } })
+
+      const result = mergeWorkflowChanges(state, {
+        nodesChanged: { p: { id: 'p', title: 'Updated' } },
+      })
+
+      expect(result.nodes.p.prompts).toBeUndefined()
+    })
+
+    it('sets prompts from incoming when existing node has no prompts', () => {
+      const state = createState({ p: { id: 'p' } })
+
+      const result = mergeWorkflowChanges(state, {
+        nodesChanged: { p: { id: 'p', prompts: ['new1'] } },
+      })
+
+      expect(result.nodes.p.prompts).toEqual(['new1'])
+    })
+  })
+
+  describe('prompts and children coexistence', () => {
+    it('preserves both children union and existing prompts when incoming has neither', () => {
+      const state = createState({ n: { id: 'n', children: ['c1'], prompts: ['p1'] } })
+
+      const result = mergeWorkflowChanges(state, {
+        nodesChanged: { n: { id: 'n', title: 'Updated' } },
+      })
+
+      expect(result.nodes.n.children).toEqual(['c1'])
+      expect(result.nodes.n.prompts).toEqual(['p1'])
+    })
+
+    it('unions children and accepts incoming prompts when both are present in incoming', () => {
+      const state = createState({ n: { id: 'n', children: ['c1'], prompts: ['p1'] } })
+
+      const result = mergeWorkflowChanges(state, {
+        nodesChanged: { n: { id: 'n', children: ['c2'], prompts: ['p2'] } },
+      })
+
+      expect(result.nodes.n.children).toEqual(['c1', 'c2'])
+      expect(result.nodes.n.prompts).toEqual(['p2'])
+    })
+  })
 })
