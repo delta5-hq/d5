@@ -16,6 +16,8 @@ import { normalizeNodeTitle } from '@entities/workflow/lib'
 import { NodeTitleEditor } from './node-title-editor'
 import { NodePreviewSection } from './node-preview-section'
 
+const NOOP = () => {}
+
 interface NodeDetailPanelProps {
   node: NodeData
   isPrompt: boolean
@@ -142,6 +144,7 @@ export const NodeDetailPanel = ({
                     className="min-h-[80px] text-xs font-mono w-full"
                     onChange={handleCommandChange}
                     onCtrlEnter={isRoot ? undefined : handleAddSibling}
+                    onEnterCommit={NOOP}
                     placeholder={formatMessage({ id: 'workflowTree.node.commandPlaceholder' })}
                     value={node.command ?? ''}
                   />

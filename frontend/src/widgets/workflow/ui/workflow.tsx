@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef, type MouseEvent } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef, type MouseEvent } from 'react'
 import {
   WorkflowSegmentTree,
   WorkflowStoreProvider,
@@ -53,6 +53,11 @@ const WorkflowContent = () => {
   const executingNodeIds = useWorkflowExecutingNodeIds()
   const [autoEditNodeId, setAutoEditNodeId] = useState<string | undefined>()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>()
+  const [flashNodeId, setFlashNodeId] = useState<string | undefined>()
+
+  useEffect(() => {
+    if (flashNodeId) setFlashNodeId(undefined)
+  }, [flashNodeId])
 
   const hasValidCommand = useMemo(() => {
     if (!selectedNode?.command?.trim()) return false
@@ -127,6 +132,7 @@ const WorkflowContent = () => {
       if (newId) {
         actions.select(newId)
         setAutoEditNodeId(newId)
+        setFlashNodeId(newId)
       }
     },
     [actions],
@@ -138,6 +144,7 @@ const WorkflowContent = () => {
       if (newId) {
         actions.select(newId)
         setAutoEditNodeId(newId)
+        setFlashNodeId(newId)
       }
     },
     [actions],
@@ -175,12 +182,20 @@ const WorkflowContent = () => {
     setPendingDeleteId(undefined)
   }, [actions, pendingDeleteId])
 
+  const handleDirectDelete = useCallback(
+    (nodeId: string) => {
+      actions.removeNode(nodeId)
+    },
+    [actions],
+  )
+
   const handleDuplicateNode = useCallback(
     (nodeId: string) => {
       const newId = actions.duplicateNode(nodeId)
       if (newId) {
         actions.select(newId)
         setAutoEditNodeId(newId)
+        setFlashNodeId(newId)
       }
     },
     [actions],
@@ -254,8 +269,10 @@ const WorkflowContent = () => {
         <CardContent className="flex-1 p-0 overflow-hidden min-h-0">
           <WorkflowSegmentTree
             autoEditNodeId={autoEditNodeId}
+            flashNodeId={flashNodeId}
             nodes={nodes}
             onAddChild={handleAddChild}
+            onDirectDelete={handleDirectDelete}
             onDuplicateNode={handleDuplicateNode}
             onRename={handleRename}
             onRequestDelete={handleRequestDelete}

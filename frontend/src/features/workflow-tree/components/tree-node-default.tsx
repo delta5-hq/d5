@@ -116,6 +116,7 @@ export const TreeNodeDefault = ({
   wireExtendUp = 0,
   onAddChild,
   onRequestDelete,
+  onDirectDelete,
   onDuplicateNode,
   onRequestRename,
 }: TreeNodeProps) => {
@@ -130,12 +131,14 @@ export const TreeNodeDefault = ({
   } = data
   const hasChildren = node.children && node.children.length > 0
   const paddingLeft = BASE_PADDING + depth * INDENT_PER_LEVEL
+  const isRoot = depth === 0
 
+  const rowRef = useRef<HTMLDivElement>(null)
   const sparkRef = useRef<HTMLDivElement>(null)
   const genieRef = useRef<GenieRef>(null)
   const genieState = useGenieState(id)
   const wireRef = useRef<SVGPathElement>(null)
-  const { shouldAnimate, getBaseDelay, clearAnimation } = useTreeAnimation()
+  const { shouldAnimate, getBaseDelay, clearAnimation, consumeNewNodeFlash } = useTreeAnimation()
   const { formatMessage } = useIntl()
 
   useEffect(() => {
@@ -149,6 +152,14 @@ export const TreeNodeDefault = ({
       return () => clearTimeout(timer)
     }
   }, [id, depth, sparkDelay, shouldAnimate, getBaseDelay, clearAnimation])
+
+  useEffect(() => {
+    if (consumeNewNodeFlash(id) && rowRef.current) {
+      rowRef.current.classList.add('wire-tree-node--created')
+      const timer = setTimeout(() => rowRef.current?.classList.remove('wire-tree-node--created'), 500)
+      return () => clearTimeout(timer)
+    }
+  }, [id, consumeNewNodeFlash])
 
   const handleToggle = useCallback(
     (e: React.MouseEvent) => {
@@ -175,14 +186,20 @@ export const TreeNodeDefault = ({
     [id, onAddChild],
   )
 
+  const handleDirectDelete = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      onDirectDelete?.(id)
+    },
+    [id, onDirectDelete],
+  )
+
   const handleRename = useCallback(
     (newTitle: string) => {
       onRename?.(id, newTitle)
     },
     [id, onRename],
   )
-
-  const isRoot = depth === 0
 
   const wireIndentX = BASE_PADDING + (depth - 1) * INDENT_PER_LEVEL
   const isExpandedWithChildren = Boolean(isOpen && hasChildren)
@@ -218,6 +235,7 @@ export const TreeNodeDefault = ({
           data-node-selected={isSelected || undefined}
           data-prompt-node={isPrompt || undefined}
           onClick={handleClick}
+          ref={rowRef}
           style={{ ...style, paddingLeft, overflow: 'visible' }}
         >
           {depth > 0 ? (
@@ -302,15 +320,31 @@ export const TreeNodeDefault = ({
           {onAddChild ? (
             <button
               className={cn(
-                'relative z-10 w-6 h-6 flex items-center justify-center rounded-sm mr-1',
+                'relative z-10 w-6 h-6 flex items-center justify-center rounded-sm',
                 'text-muted-foreground hover:text-foreground hover:bg-accent',
                 'opacity-0 group-hover:opacity-100 transition-opacity duration-150',
               )}
               onClick={handleAddChild}
-              title="Add child"
+              title={formatMessage({ id: 'workflowTree.node.addChild' })}
               type="button"
             >
               <Plus className="w-3.5 h-3.5" />
+            </button>
+          ) : null}
+
+          {onDirectDelete && !isRoot ? (
+            <button
+              className={cn(
+                'relative z-10 w-6 h-6 flex items-center justify-center rounded-sm mr-1',
+                'text-muted-foreground hover:text-destructive hover:bg-destructive/10',
+                'opacity-0 group-hover:opacity-100 transition-opacity duration-150',
+              )}
+              data-testid="node-direct-delete"
+              onClick={handleDirectDelete}
+              title={formatMessage({ id: 'delete' })}
+              type="button"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           ) : null}
         </div>

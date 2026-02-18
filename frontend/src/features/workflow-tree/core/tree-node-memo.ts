@@ -48,6 +48,7 @@ type ComparedKeys =
   | 'onSelect'
   | 'onAddChild'
   | 'onRequestDelete'
+  | 'onDirectDelete'
   | 'onDuplicateNode'
   | 'onRename'
   | 'onRequestRename'
@@ -56,7 +57,7 @@ type ComparedKeys =
 type ExhaustiveCompareResult = Exclude<keyof TreeNodeProps, ComparedKeys> extends never ? boolean : never
 
 /**
- * Explicit enumeration of all 15 TreeNodeProps keys — zero per-call allocation.
+ * Explicit enumeration of all 16 TreeNodeProps keys — zero per-call allocation.
  * Return type is `ExhaustiveCompareResult`: resolves to `boolean` when ComparedKeys
  * covers every TreeNodeProps key. Adding a new prop without listing it makes the
  * return type `never`, erroring every `return` statement in this function.
@@ -80,6 +81,7 @@ export function areTreeNodePropsEqual(
   if (prev.onSelect !== next.onSelect) return false
   if (prev.onAddChild !== next.onAddChild) return false
   if (prev.onRequestDelete !== next.onRequestDelete) return false
+  if (prev.onDirectDelete !== next.onDirectDelete) return false
   if (prev.onDuplicateNode !== next.onDuplicateNode) return false
   if (prev.onRename !== next.onRename) return false
   if (prev.onRequestRename !== next.onRequestRename) return false

@@ -6,6 +6,8 @@ export interface EditableTextAreaProps {
   value: string
   onChange: (value: string) => void
   onCtrlEnter?: () => void
+  /** Enables single-line commit semantics: plain Enter commits, Shift+Enter inserts a newline */
+  onEnterCommit?: () => void
   placeholder?: string
   className?: string
   autoFocus?: boolean
@@ -15,6 +17,7 @@ export const EditableTextArea = ({
   value,
   onChange,
   onCtrlEnter,
+  onEnterCommit,
   placeholder,
   className,
   autoFocus,
@@ -25,6 +28,7 @@ export const EditableTextArea = ({
     autoFocus,
     commitOnEnter: false,
     onCtrlEnter,
+    onEnterCommit,
   })
 
   return (

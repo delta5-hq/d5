@@ -1,12 +1,12 @@
 import { AutoSizer } from 'react-virtualized-auto-sizer'
-import { useCallback, useMemo, type MouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, type MouseEvent } from 'react'
 import type { NodeData } from '@/shared/base-types/workflow'
 import { useStableCallback } from '@shared/lib/hooks'
 import { useNodeCacheCleanup } from '@shared/lib/use-node-cache-cleanup'
 import { VirtualizedSegmentTree } from '../virtualization/virtualized-segment-tree'
 import { useTreeWalker } from '../hooks/use-tree-walker'
 import { useAnimatedToggle } from '../hooks/use-animated-toggle'
-import { TreeAnimationProvider } from '../context'
+import { TreeAnimationProvider, useTreeAnimation } from '../context'
 import { useWorkflowExpandedIds, useWorkflowActions } from '../store'
 
 export interface WorkflowSegmentTreeProps {
@@ -19,10 +19,13 @@ export interface WorkflowSegmentTreeProps {
   onSelect?: (id: string, node: NodeData, event?: MouseEvent) => void
   onAddChild?: (parentId: string) => void
   onRequestDelete?: (nodeId: string) => void
+  onDirectDelete?: (nodeId: string) => void
   onDuplicateNode?: (nodeId: string) => void
   onRename?: (nodeId: string, newTitle: string) => void
   onRequestRename?: (nodeId: string) => void
   onVisibleOrderChange?: (order: readonly string[]) => void
+  /** Newly created node ID — signals the tree to flash it on mount */
+  flashNodeId?: string
 }
 
 const WorkflowSegmentTreeInner = ({
@@ -35,10 +38,12 @@ const WorkflowSegmentTreeInner = ({
   onSelect,
   onAddChild,
   onRequestDelete,
+  onDirectDelete,
   onDuplicateNode,
   onRename,
   onRequestRename,
   onVisibleOrderChange,
+  flashNodeId,
 }: WorkflowSegmentTreeProps) => {
   const nodeIds = useMemo(() => new Set(Object.keys(nodes)), [nodes])
   useNodeCacheCleanup(nodeIds)
@@ -46,6 +51,11 @@ const WorkflowSegmentTreeInner = ({
   const expandedIds = useWorkflowExpandedIds()
   const { toggleExpanded, expandNode } = useWorkflowActions()
   const treeWalker = useTreeWalker({ nodes, rootId, expandedIds })
+  const { scheduleNewNodeFlash } = useTreeAnimation()
+
+  useEffect(() => {
+    if (flashNodeId) scheduleNewNodeFlash(flashNodeId)
+  }, [flashNodeId, scheduleNewNodeFlash])
 
   const handleSelect = useStableCallback((id: string, event?: MouseEvent) => {
     const node = nodes[id]
@@ -73,6 +83,7 @@ const WorkflowSegmentTreeInner = ({
               autoEditNodeId={autoEditNodeId}
               height={height}
               onAddChild={handleAddChild}
+              onDirectDelete={onDirectDelete}
               onDuplicateNode={onDuplicateNode}
               onRename={onRename}
               onRequestDelete={onRequestDelete}

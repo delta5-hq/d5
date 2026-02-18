@@ -9,6 +9,10 @@ interface AnimationContextValue {
   getBaseDelay: (nodeId: string) => number
   /** Clear animation flag for a node (called after animation completes) */
   clearAnimation: (nodeId: string) => void
+  /** Signal that a node was just created so it flashes on first mount */
+  scheduleNewNodeFlash: (nodeId: string) => void
+  /** Read-once: returns true the first time, false on every subsequent call */
+  consumeNewNodeFlash: (nodeId: string) => boolean
 }
 
 const AnimationContext = createContext<AnimationContextValue | null>(null)
@@ -34,6 +38,7 @@ export const TreeAnimationProvider = ({ children }: TreeAnimationProviderProps) 
    * Map value = baseDelay (trigger node's sparkDelay) for relative offset.
    */
   const pendingRef = useRef<Map<string, number>>(new Map())
+  const newNodeRef = useRef<Set<string>>(new Set())
 
   const shouldAnimate = useCallback((nodeId: string) => pendingRef.current.has(nodeId), [])
 
@@ -47,9 +52,26 @@ export const TreeAnimationProvider = ({ children }: TreeAnimationProviderProps) 
     pendingRef.current.delete(nodeId)
   }, [])
 
+  const scheduleNewNodeFlash = useCallback((nodeId: string) => {
+    newNodeRef.current.add(nodeId)
+  }, [])
+
+  const consumeNewNodeFlash = useCallback((nodeId: string): boolean => {
+    if (!newNodeRef.current.has(nodeId)) return false
+    newNodeRef.current.delete(nodeId)
+    return true
+  }, [])
+
   const value = useMemo(
-    () => ({ shouldAnimate, scheduleAnimation, getBaseDelay, clearAnimation }),
-    [shouldAnimate, scheduleAnimation, getBaseDelay, clearAnimation],
+    () => ({
+      shouldAnimate,
+      scheduleAnimation,
+      getBaseDelay,
+      clearAnimation,
+      scheduleNewNodeFlash,
+      consumeNewNodeFlash,
+    }),
+    [shouldAnimate, scheduleAnimation, getBaseDelay, clearAnimation, scheduleNewNodeFlash, consumeNewNodeFlash],
   )
 
   return <AnimationContext.Provider value={value}>{children}</AnimationContext.Provider>

@@ -303,6 +303,224 @@ describe('useEditableField', () => {
       })
     })
 
+    describe('onEnterCommit callback', () => {
+      describe('trigger conditions', () => {
+        it('invokes onEnterCommit and commits on plain Enter', () => {
+          const onChange = vi.fn()
+          const onEnterCommit = vi.fn()
+          const { result } = renderHook(() =>
+            useEditableField({ value: 'old', onChange, commitOnEnter: false, onEnterCommit }),
+          )
+
+          act(() => {
+            result.current.startEditing()
+            result.current.setEditValue('new')
+            result.current.handleKeyDown({
+              key: 'Enter',
+              preventDefault: vi.fn(),
+            } as unknown as KeyboardEvent)
+          })
+
+          expect(onChange).toHaveBeenCalledWith('new')
+          expect(onEnterCommit).toHaveBeenCalledTimes(1)
+          expect(result.current.isEditing).toBe(false)
+        })
+
+        it('invokes onEnterCommit even when value is unchanged', () => {
+          const onChange = vi.fn()
+          const onEnterCommit = vi.fn()
+          const { result } = renderHook(() =>
+            useEditableField({ value: 'same', onChange, commitOnEnter: false, onEnterCommit }),
+          )
+
+          act(() => {
+            result.current.startEditing()
+            result.current.handleKeyDown({
+              key: 'Enter',
+              preventDefault: vi.fn(),
+            } as unknown as KeyboardEvent)
+          })
+
+          expect(onChange).not.toHaveBeenCalled()
+          expect(onEnterCommit).toHaveBeenCalledTimes(1)
+        })
+
+        it('invokes onEnterCommit regardless of commitOnEnter setting when plain Enter pressed', () => {
+          const onEnterCommit = vi.fn()
+          const { result } = renderHook(() =>
+            useEditableField({ value: 'old', onChange: vi.fn(), commitOnEnter: true, onEnterCommit }),
+          )
+
+          act(() => {
+            result.current.startEditing()
+            result.current.handleKeyDown({
+              key: 'Enter',
+              preventDefault: vi.fn(),
+            } as unknown as KeyboardEvent)
+          })
+
+          expect(onEnterCommit).toHaveBeenCalledTimes(1)
+        })
+
+        it('prevents default on plain Enter when onEnterCommit provided', () => {
+          const preventDefault = vi.fn()
+          const { result } = renderHook(() =>
+            useEditableField({ value: 'old', onChange: vi.fn(), commitOnEnter: false, onEnterCommit: vi.fn() }),
+          )
+
+          act(() => {
+            result.current.startEditing()
+            result.current.handleKeyDown({
+              key: 'Enter',
+              preventDefault,
+            } as unknown as KeyboardEvent)
+          })
+
+          expect(preventDefault).toHaveBeenCalled()
+        })
+      })
+
+      describe('non-trigger conditions', () => {
+        it('does not invoke onEnterCommit on Shift+Enter (multiline behavior)', () => {
+          const onEnterCommit = vi.fn()
+          const { result } = renderHook(() =>
+            useEditableField({ value: 'old', onChange: vi.fn(), commitOnEnter: false, onEnterCommit }),
+          )
+
+          act(() => {
+            result.current.startEditing()
+            result.current.handleKeyDown({
+              key: 'Enter',
+              shiftKey: true,
+              preventDefault: vi.fn(),
+            } as unknown as KeyboardEvent)
+          })
+
+          expect(onEnterCommit).not.toHaveBeenCalled()
+          expect(result.current.isEditing).toBe(true)
+        })
+
+        it('does not invoke onEnterCommit on Ctrl+Enter (routes to onCtrlEnter instead)', () => {
+          const onEnterCommit = vi.fn()
+          const { result } = renderHook(() =>
+            useEditableField({ value: 'old', onChange: vi.fn(), commitOnEnter: false, onEnterCommit }),
+          )
+
+          act(() => {
+            result.current.startEditing()
+            result.current.handleKeyDown({
+              key: 'Enter',
+              ctrlKey: true,
+              preventDefault: vi.fn(),
+            } as unknown as KeyboardEvent)
+          })
+
+          expect(onEnterCommit).not.toHaveBeenCalled()
+        })
+
+        it('does not invoke onEnterCommit on Meta+Enter', () => {
+          const onEnterCommit = vi.fn()
+          const { result } = renderHook(() =>
+            useEditableField({ value: 'old', onChange: vi.fn(), commitOnEnter: false, onEnterCommit }),
+          )
+
+          act(() => {
+            result.current.startEditing()
+            result.current.handleKeyDown({
+              key: 'Enter',
+              metaKey: true,
+              preventDefault: vi.fn(),
+            } as unknown as KeyboardEvent)
+          })
+
+          expect(onEnterCommit).not.toHaveBeenCalled()
+        })
+
+        it('does not invoke onEnterCommit when not provided and plain Enter pressed', () => {
+          const { result } = renderHook(() =>
+            useEditableField({ value: 'old', onChange: vi.fn(), commitOnEnter: false }),
+          )
+
+          expect(() =>
+            act(() => {
+              result.current.startEditing()
+              result.current.handleKeyDown({
+                key: 'Enter',
+                preventDefault: vi.fn(),
+              } as unknown as KeyboardEvent)
+            }),
+          ).not.toThrow()
+        })
+      })
+
+      describe('coexistence with onCtrlEnter', () => {
+        it('plain Enter triggers onEnterCommit but not onCtrlEnter', () => {
+          const onEnterCommit = vi.fn()
+          const onCtrlEnter = vi.fn()
+          const { result } = renderHook(() =>
+            useEditableField({ value: 'v', onChange: vi.fn(), onEnterCommit, onCtrlEnter }),
+          )
+
+          act(() => {
+            result.current.startEditing()
+            result.current.handleKeyDown({
+              key: 'Enter',
+              preventDefault: vi.fn(),
+            } as unknown as KeyboardEvent)
+          })
+
+          expect(onEnterCommit).toHaveBeenCalledTimes(1)
+          expect(onCtrlEnter).not.toHaveBeenCalled()
+        })
+
+        it('Ctrl+Enter triggers onCtrlEnter but not onEnterCommit', () => {
+          const onEnterCommit = vi.fn()
+          const onCtrlEnter = vi.fn()
+          const { result } = renderHook(() =>
+            useEditableField({ value: 'v', onChange: vi.fn(), onEnterCommit, onCtrlEnter }),
+          )
+
+          act(() => {
+            result.current.startEditing()
+            result.current.handleKeyDown({
+              key: 'Enter',
+              ctrlKey: true,
+              preventDefault: vi.fn(),
+            } as unknown as KeyboardEvent)
+          })
+
+          expect(onCtrlEnter).toHaveBeenCalledTimes(1)
+          expect(onEnterCommit).not.toHaveBeenCalled()
+        })
+      })
+
+      describe('callback freshness', () => {
+        it('uses the latest onEnterCommit reference after a rerender', () => {
+          const first = vi.fn()
+          const second = vi.fn()
+
+          const { result, rerender } = renderHook(
+            ({ onEnterCommit }) =>
+              useEditableField({ value: 'v', onChange: vi.fn(), commitOnEnter: false, onEnterCommit }),
+            { initialProps: { onEnterCommit: first } },
+          )
+
+          rerender({ onEnterCommit: second })
+
+          act(() => {
+            result.current.startEditing()
+            result.current.handleKeyDown({
+              key: 'Enter',
+              preventDefault: vi.fn(),
+            } as unknown as KeyboardEvent)
+          })
+
+          expect(first).not.toHaveBeenCalled()
+          expect(second).toHaveBeenCalledTimes(1)
+        })
+      })
+    })
+
     describe('onCtrlEnter callback', () => {
       describe('trigger conditions', () => {
         it('invokes onCtrlEnter and commits on Ctrl+Enter', () => {

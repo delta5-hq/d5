@@ -6,6 +6,7 @@ export interface TreeNodeCallbacks {
   onSelect?: (id: string, event?: MouseEvent) => void
   onAddChild?: (parentId: string) => void
   onRequestDelete?: (nodeId: string) => void
+  onDirectDelete?: (nodeId: string) => void
   onDuplicateNode?: (nodeId: string) => void
   onRename?: (nodeId: string, newTitle: string) => void
   onRequestRename?: (nodeId: string) => void

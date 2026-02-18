@@ -1,6 +1,7 @@
 export { WorkflowSegmentTree } from './components/workflow-segment-tree'
 export { TreeNodeDefault } from './components/tree-node-default'
 export type { WorkflowSegmentTreeProps } from './components/workflow-segment-tree'
+export { TreeAnimationProvider, useTreeAnimation } from './context'
 export type { TreeNodeProps } from './components/tree-node-default'
 export { deriveExpandedIdsFromNodes } from './hooks/use-tree-expansion'
 export { useTreeWalker } from './hooks/use-tree-walker'

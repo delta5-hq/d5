@@ -6,6 +6,8 @@ export interface UseEditableFieldOptions {
   autoFocus?: boolean
   commitOnEnter?: boolean
   onCtrlEnter?: () => void
+  /** Enables single-line commit semantics: plain Enter commits, Shift+Enter inserts a newline */
+  onEnterCommit?: () => void
 }
 
 export interface UseEditableFieldReturn {
@@ -25,6 +27,7 @@ export function useEditableField({
   autoFocus = false,
   commitOnEnter = true,
   onCtrlEnter,
+  onEnterCommit,
 }: UseEditableFieldOptions): UseEditableFieldReturn {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValueState] = useState(value)
@@ -35,12 +38,14 @@ export function useEditableField({
   const valueRef = useRef(value)
   const onChangeRef = useRef(onChange)
   const onCtrlEnterRef = useRef(onCtrlEnter)
+  const onEnterCommitRef = useRef(onEnterCommit)
 
   isEditingRef.current = isEditing
   editValueRef.current = editValue
   valueRef.current = value
   onChangeRef.current = onChange
   onCtrlEnterRef.current = onCtrlEnter
+  onEnterCommitRef.current = onEnterCommit
 
   const setEditValue = useCallback((v: string) => {
     editValueRef.current = v
@@ -97,13 +102,17 @@ export function useEditableField({
     (e: KeyboardEvent) => {
       const isCtrlOrMeta = e.ctrlKey || e.metaKey
 
-      if (commitOnEnter && e.key === 'Enter' && !e.shiftKey && !isCtrlOrMeta) {
-        e.preventDefault()
-        commitEdit()
-      } else if (e.key === 'Enter' && isCtrlOrMeta && !e.shiftKey) {
+      if (e.key === 'Enter' && isCtrlOrMeta && !e.shiftKey) {
         e.preventDefault()
         commitEdit()
         onCtrlEnterRef.current?.()
+      } else if (onEnterCommitRef.current && e.key === 'Enter' && !e.shiftKey && !isCtrlOrMeta) {
+        e.preventDefault()
+        commitEdit()
+        onEnterCommitRef.current()
+      } else if (commitOnEnter && e.key === 'Enter' && !e.shiftKey && !isCtrlOrMeta) {
+        e.preventDefault()
+        commitEdit()
       } else if (e.key === 'Escape') {
         e.preventDefault()
         cancelEdit()
