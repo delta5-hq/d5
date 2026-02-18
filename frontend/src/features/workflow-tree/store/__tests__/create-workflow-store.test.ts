@@ -103,6 +103,26 @@ describe('createWorkflowStore', () => {
     expect(vi.mocked(apiFetch)).toHaveBeenCalledTimes(2)
   })
 
+  it('load clears dirtyNodeIds on success', async () => {
+    vi.mocked(apiFetch).mockResolvedValueOnce(mockApiResponse)
+    const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+    store.setState({ dirtyNodeIds: new Set(['root', 'c1']) })
+
+    await actions.load()
+
+    expect(store.getState().dirtyNodeIds).toEqual(new Set())
+  })
+
+  it('load error does not modify dirtyNodeIds', async () => {
+    vi.mocked(apiFetch).mockRejectedValueOnce(new Error('Network error'))
+    const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+    store.setState({ dirtyNodeIds: new Set(['root']) })
+
+    await actions.load()
+
+    expect(store.getState().dirtyNodeIds).toEqual(new Set(['root']))
+  })
+
   it('load can be called multiple times', async () => {
     vi.mocked(apiFetch).mockResolvedValue(mockApiResponse)
     const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)

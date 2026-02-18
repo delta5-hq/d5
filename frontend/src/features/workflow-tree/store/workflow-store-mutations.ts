@@ -88,7 +88,10 @@ export function bindMutationActions(
   const updateNode = (nodeId: NodeId, updates: Partial<Omit<NodeData, 'id' | 'parent'>>): boolean =>
     applyMutation(
       () => updateNodePure(store.getState().nodes, nodeId, updates),
-      result => store.setState({ nodes: result }),
+      result => {
+        const { dirtyNodeIds } = store.getState()
+        store.setState({ nodes: result, dirtyNodeIds: new Set([...dirtyNodeIds, nodeId]) })
+      },
     ) !== null
 
   const removeNode = (nodeId: NodeId): boolean => {
@@ -108,12 +111,15 @@ export function bindMutationActions(
               : new Set<NodeId>()
             : excludeIds(selectedIds, removedSet)
 
+          const { dirtyNodeIds } = store.getState()
+          const cleanedDirtyIds = excludeIds(dirtyNodeIds, removedSet)
           store.setState({
             nodes: result.nodes,
             edges: result.edges,
             ...(selectionAffected && { selectedId: nextSelectedId }),
             ...(newSelectedIds !== selectedIds && { selectedIds: newSelectedIds }),
             ...(anchorAffected && { anchorId: nextSelectedId }),
+            ...(cleanedDirtyIds !== dirtyNodeIds && { dirtyNodeIds: cleanedDirtyIds }),
           })
         },
       ) !== null
@@ -153,6 +159,8 @@ export function bindMutationActions(
     const survivorIds = excludeIds(selectedIds, removedSet)
     const lastSurvivor = survivorIds.size > 0 ? [...survivorIds].at(-1) : undefined
     const anchorAffected = anchorId !== undefined && removedSet.has(anchorId)
+    const { dirtyNodeIds } = store.getState()
+    const cleanedDirtyIds = excludeIds(dirtyNodeIds, removedSet)
 
     store.setState({
       nodes: currentNodes,
@@ -160,6 +168,7 @@ export function bindMutationActions(
       selectedId: lastSurvivor,
       selectedIds: survivorIds,
       ...(anchorAffected && { anchorId: undefined }),
+      ...(cleanedDirtyIds !== dirtyNodeIds && { dirtyNodeIds: cleanedDirtyIds }),
       isDirty: true,
     })
     persister.schedule()

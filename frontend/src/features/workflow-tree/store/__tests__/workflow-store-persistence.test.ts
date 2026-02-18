@@ -41,8 +41,22 @@ describe('createDebouncedPersister', () => {
     expect(store.getState().isSaving).toBe(false)
   })
 
-  it('returns false and preserves dirty on save failure', async () => {
-    const store = makeStore({ isDirty: true })
+  it('flush clears dirtyNodeIds on success', async () => {
+    const store = makeStore({
+      isDirty: true,
+      dirtyNodeIds: new Set(['n1', 'n2']),
+      nodes: { n1: { id: 'n1' } } as WorkflowStoreState['nodes'],
+    })
+    const saveFn = vi.fn().mockResolvedValue({})
+    const persister = createDebouncedPersister(store, saveFn)
+
+    await persister.flush()
+
+    expect(store.getState().dirtyNodeIds).toEqual(new Set())
+  })
+
+  it('returns false and preserves isDirty and dirtyNodeIds on save failure', async () => {
+    const store = makeStore({ isDirty: true, dirtyNodeIds: new Set(['n1']) })
     const saveFn = vi.fn().mockRejectedValue(new Error('network'))
     const persister = createDebouncedPersister(store, saveFn)
 
@@ -50,6 +64,7 @@ describe('createDebouncedPersister', () => {
 
     expect(result).toBe(false)
     expect(store.getState().isDirty).toBe(true)
+    expect(store.getState().dirtyNodeIds).toEqual(new Set(['n1']))
     expect(store.getState().isSaving).toBe(false)
   })
 

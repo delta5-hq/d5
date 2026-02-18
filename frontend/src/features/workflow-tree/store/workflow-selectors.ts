@@ -79,3 +79,8 @@ export function useIsPromptNode(nodeId: NodeId | undefined): boolean {
   const { store } = useWorkflowStore()
   return useSelector(store, s => (nodeId ? isPromptNode(nodeId, s.nodes) : false))
 }
+
+export function useIsNodeDirty(nodeId: NodeId | undefined): boolean {
+  const { store } = useWorkflowStore()
+  return useSelector(store, s => (nodeId !== undefined ? s.dirtyNodeIds.has(nodeId) : false))
+}

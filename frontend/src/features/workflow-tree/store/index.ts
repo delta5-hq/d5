@@ -17,4 +17,5 @@ export {
   useWorkflowExecutingNodeIds,
   useWorkflowId,
   useIsPromptNode,
+  useIsNodeDirty,
 } from './workflow-selectors'

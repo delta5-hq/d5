@@ -20,6 +20,7 @@ import type { TreeNodeProps } from '../core/types'
 import { INDENT_PER_LEVEL, ROW_HEIGHT, WIRE_PADDING, BASE_PADDING } from '../core/constants'
 import { areTreeNodePropsEqual } from '../core/tree-node-memo'
 import { useTreeAnimation } from '../context'
+import { useIsNodeDirty } from '../store/workflow-selectors'
 import '../styles/wire-tree.css'
 
 export type { TreeNodeProps }
@@ -137,6 +138,7 @@ export const TreeNodeDefault = ({
   const sparkRef = useRef<HTMLDivElement>(null)
   const genieRef = useRef<GenieRef>(null)
   const genieState = useGenieState(id)
+  const isDirty = useIsNodeDirty(id)
   const wireRef = useRef<SVGPathElement>(null)
   const { shouldAnimate, getBaseDelay, clearAnimation, consumeNewNodeFlash } = useTreeAnimation()
   const { formatMessage } = useIntl()
@@ -301,20 +303,29 @@ export const TreeNodeDefault = ({
             )}
           </span>
 
-          <span className="relative z-10 flex-1 truncate ml-2 pr-2">
-            {onRename ? (
-              <EditableText
-                autoFocus={autoEditNodeId === id}
-                className="truncate text-sm"
-                onChange={handleRename}
-                placeholder={formatMessage({ id: 'workflowTree.node.untitled' })}
-                readOnlyClassName="block truncate"
-                title={formatMessage({ id: 'workflowTree.node.editHint' })}
-                value={normalizeNodeTitle(node.title)}
+          <span className="relative z-10 flex-1 flex items-center gap-1 min-w-0 ml-2 pr-2">
+            <span className="flex-1 truncate">
+              {onRename ? (
+                <EditableText
+                  autoFocus={autoEditNodeId === id}
+                  className="truncate text-sm"
+                  onChange={handleRename}
+                  placeholder={formatMessage({ id: 'workflowTree.node.untitled' })}
+                  readOnlyClassName="block truncate"
+                  title={formatMessage({ id: 'workflowTree.node.editHint' })}
+                  value={normalizeNodeTitle(node.title)}
+                />
+              ) : (
+                normalizeNodeTitle(node.title) || node.id
+              )}
+            </span>
+            {isDirty ? (
+              <span
+                aria-label={formatMessage({ id: 'workflowTree.status.unsaved' })}
+                className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-amber-500"
+                data-testid="node-dirty-indicator"
               />
-            ) : (
-              normalizeNodeTitle(node.title) || node.id
-            )}
+            ) : null}
           </span>
 
           {onAddChild ? (

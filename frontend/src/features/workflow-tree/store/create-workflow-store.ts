@@ -63,6 +63,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
         expandedIds,
         isLoading: false,
         isDirty: false,
+        dirtyNodeIds: new Set<string>(),
         ...(selectionStale ? { selectedId: undefined } : {}),
         ...(cleanedIds !== selectedIds ? { selectedIds: cleanedIds } : {}),
         ...(anchorStale ? { anchorId: undefined } : {}),

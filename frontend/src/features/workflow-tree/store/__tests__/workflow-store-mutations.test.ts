@@ -156,17 +156,143 @@ describe('bindMutationActions', () => {
     })
   })
 
-  it('updateNode modifies node fields', () => {
-    const store = makeStore({
-      nodes: { n1: { id: 'n1', title: 'old' } } as WorkflowStoreState['nodes'],
+  describe('updateNode', () => {
+    it('applies field changes, marks store dirty, and adds nodeId to dirtyNodeIds', () => {
+      const store = makeStore({
+        nodes: { n1: { id: 'n1', title: 'old' } } as WorkflowStoreState['nodes'],
+      })
+      const persister = makePersister()
+      const { updateNode } = bindMutationActions(store, persister, mockFormatMessage)
+
+      const ok = updateNode('n1', { title: 'new' })
+
+      expect(ok).toBe(true)
+      expect(store.getState().isDirty).toBe(true)
+      expect(store.getState().dirtyNodeIds).toEqual(new Set(['n1']))
     })
-    const persister = makePersister()
-    const { updateNode } = bindMutationActions(store, persister, mockFormatMessage)
 
-    const ok = updateNode('n1', { title: 'new' })
+    it('accumulates dirtyNodeIds across distinct nodes', () => {
+      const store = makeStore({
+        nodes: {
+          n1: { id: 'n1', title: 'a' },
+          n2: { id: 'n2', title: 'b' },
+        } as WorkflowStoreState['nodes'],
+      })
+      const persister = makePersister()
+      const { updateNode } = bindMutationActions(store, persister, mockFormatMessage)
 
-    expect(ok).toBe(true)
-    expect(store.getState().isDirty).toBe(true)
+      updateNode('n1', { title: 'a2' })
+      updateNode('n2', { title: 'b2' })
+
+      expect(store.getState().dirtyNodeIds).toEqual(new Set(['n1', 'n2']))
+    })
+
+    it('is idempotent when the same node is updated multiple times', () => {
+      const store = makeStore({
+        nodes: { n1: { id: 'n1', title: 'a' } } as WorkflowStoreState['nodes'],
+      })
+      const persister = makePersister()
+      const { updateNode } = bindMutationActions(store, persister, mockFormatMessage)
+
+      updateNode('n1', { title: 'b' })
+      updateNode('n1', { title: 'c' })
+
+      expect(store.getState().dirtyNodeIds).toEqual(new Set(['n1']))
+    })
+
+    it('does not modify dirtyNodeIds when the mutation throws', async () => {
+      const { updateNode: updateNodePure } = await import('@entities/workflow/lib')
+      vi.mocked(updateNodePure).mockImplementationOnce(() => {
+        throw new MockNodeMutationError('not found', 'NODE_NOT_FOUND')
+      })
+
+      const store = makeStore({
+        nodes: { n1: { id: 'n1' } } as WorkflowStoreState['nodes'],
+      })
+      const persister = makePersister()
+      const { updateNode } = bindMutationActions(store, persister, mockFormatMessage)
+
+      updateNode('n1', { title: 'x' })
+
+      expect(store.getState().dirtyNodeIds).toEqual(new Set())
+    })
+  })
+
+  describe('removeNode dirtyNodeIds eviction', () => {
+    it('removes the deleted nodeId from dirtyNodeIds while preserving others', () => {
+      const store = makeStore({
+        nodes: { n1: { id: 'n1', parent: 'root' } } as WorkflowStoreState['nodes'],
+        dirtyNodeIds: new Set(['n1', 'n2']),
+      })
+      const persister = makePersister()
+      const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+
+      removeNode('n1')
+
+      expect(store.getState().dirtyNodeIds).toEqual(new Set(['n2']))
+    })
+
+    it('leaves dirtyNodeIds unchanged when the deleted node was not dirty', () => {
+      const initialDirtyNodeIds = new Set(['n2'])
+      const store = makeStore({
+        nodes: { n1: { id: 'n1', parent: 'root' } } as WorkflowStoreState['nodes'],
+        dirtyNodeIds: initialDirtyNodeIds,
+      })
+      const persister = makePersister()
+      const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+
+      removeNode('n1')
+
+      expect(store.getState().dirtyNodeIds).toEqual(new Set(['n2']))
+    })
+  })
+
+  describe('removeNodes dirtyNodeIds eviction', () => {
+    it('evicts all cascade-removed nodeIds and preserves surviving dirty nodes', async () => {
+      const { removeNode: removeNodePure } = await import('@entities/workflow/lib')
+      vi.mocked(removeNodePure).mockReturnValueOnce({
+        nodes: { root: { id: 'root', children: [] } },
+        edges: {},
+        removedNodeIds: ['a', 'b'],
+      })
+
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['a', 'b'] },
+          a: { id: 'a', parent: 'root', children: [] },
+          b: { id: 'b', parent: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+        dirtyNodeIds: new Set(['a', 'b', 'c']),
+      })
+      const persister = makePersister()
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+
+      removeNodes(new Set(['a', 'b']))
+
+      expect(store.getState().dirtyNodeIds).toEqual(new Set(['c']))
+    })
+
+    it('leaves dirtyNodeIds empty when no dirty nodes existed before removal', async () => {
+      const { removeNode: removeNodePure } = await import('@entities/workflow/lib')
+      vi.mocked(removeNodePure).mockReturnValueOnce({
+        nodes: { root: { id: 'root', children: [] } },
+        edges: {},
+        removedNodeIds: ['a'],
+      })
+
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['a'] },
+          a: { id: 'a', parent: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+      })
+      const persister = makePersister()
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+
+      removeNodes(new Set(['a']))
+
+      expect(store.getState().dirtyNodeIds).toEqual(new Set())
+    })
   })
 
   it('removeNode removes node', () => {
