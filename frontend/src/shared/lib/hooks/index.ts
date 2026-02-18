@@ -1,3 +1,5 @@
 export { useDialogAnimation } from './use-dialog-animation'
 export { useStableCallback } from './use-stable-callback'
 export { useClickOutside } from './use-click-outside'
+export { useFieldDraft } from './use-field-draft'
+export type { UseFieldDraftOptions, UseFieldDraftResult } from './use-field-draft'

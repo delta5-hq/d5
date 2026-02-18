@@ -706,6 +706,174 @@ describe('useEditableField', () => {
       })
     })
 
+    describe('onEscape callback', () => {
+      describe('trigger conditions', () => {
+        it('invokes onEscape and cancels on Escape', () => {
+          const onChange = vi.fn()
+          const onEscape = vi.fn()
+          const { result } = renderHook(() => useEditableField({ value: 'original', onChange, onEscape }))
+
+          act(() => {
+            result.current.startEditing()
+            result.current.setEditValue('modified')
+            result.current.handleKeyDown({
+              key: 'Escape',
+              preventDefault: vi.fn(),
+            } as unknown as KeyboardEvent)
+          })
+
+          expect(onEscape).toHaveBeenCalledTimes(1)
+          expect(onChange).not.toHaveBeenCalled()
+          expect(result.current.isEditing).toBe(false)
+          expect(result.current.editValue).toBe('original')
+        })
+
+        it('invokes onEscape even when value is unchanged', () => {
+          const onEscape = vi.fn()
+          const { result } = renderHook(() => useEditableField({ value: 'same', onChange: vi.fn(), onEscape }))
+
+          act(() => {
+            result.current.startEditing()
+            result.current.handleKeyDown({
+              key: 'Escape',
+              preventDefault: vi.fn(),
+            } as unknown as KeyboardEvent)
+          })
+
+          expect(onEscape).toHaveBeenCalledTimes(1)
+        })
+
+        it('prevents default on Escape', () => {
+          const preventDefault = vi.fn()
+          const { result } = renderHook(() => useEditableField({ value: 'old', onChange: vi.fn(), onEscape: vi.fn() }))
+
+          act(() => {
+            result.current.startEditing()
+            result.current.handleKeyDown({
+              key: 'Escape',
+              preventDefault,
+            } as unknown as KeyboardEvent)
+          })
+
+          expect(preventDefault).toHaveBeenCalled()
+        })
+      })
+
+      describe('non-trigger conditions', () => {
+        it('does not invoke onEscape on plain Enter', () => {
+          const onEscape = vi.fn()
+          const { result } = renderHook(() =>
+            useEditableField({ value: 'old', onChange: vi.fn(), commitOnEnter: true, onEscape }),
+          )
+
+          act(() => {
+            result.current.startEditing()
+            result.current.handleKeyDown({
+              key: 'Enter',
+              preventDefault: vi.fn(),
+            } as unknown as KeyboardEvent)
+          })
+
+          expect(onEscape).not.toHaveBeenCalled()
+        })
+
+        it('does not invoke onEscape on Ctrl+Enter', () => {
+          const onEscape = vi.fn()
+          const { result } = renderHook(() => useEditableField({ value: 'old', onChange: vi.fn(), onEscape }))
+
+          act(() => {
+            result.current.startEditing()
+            result.current.handleKeyDown({
+              key: 'Enter',
+              ctrlKey: true,
+              preventDefault: vi.fn(),
+            } as unknown as KeyboardEvent)
+          })
+
+          expect(onEscape).not.toHaveBeenCalled()
+        })
+
+        it('does not invoke onEscape when not provided and Escape pressed', () => {
+          const { result } = renderHook(() => useEditableField({ value: 'old', onChange: vi.fn() }))
+
+          expect(() =>
+            act(() => {
+              result.current.startEditing()
+              result.current.handleKeyDown({
+                key: 'Escape',
+                preventDefault: vi.fn(),
+              } as unknown as KeyboardEvent)
+            }),
+          ).not.toThrow()
+        })
+      })
+
+      describe('coexistence with onEnterCommit and onCtrlEnter', () => {
+        it('Escape triggers onEscape but not onEnterCommit', () => {
+          const onEscape = vi.fn()
+          const onEnterCommit = vi.fn()
+          const { result } = renderHook(() =>
+            useEditableField({ value: 'v', onChange: vi.fn(), onEscape, onEnterCommit }),
+          )
+
+          act(() => {
+            result.current.startEditing()
+            result.current.handleKeyDown({
+              key: 'Escape',
+              preventDefault: vi.fn(),
+            } as unknown as KeyboardEvent)
+          })
+
+          expect(onEscape).toHaveBeenCalledTimes(1)
+          expect(onEnterCommit).not.toHaveBeenCalled()
+        })
+
+        it('Escape triggers onEscape but not onCtrlEnter', () => {
+          const onEscape = vi.fn()
+          const onCtrlEnter = vi.fn()
+          const { result } = renderHook(() =>
+            useEditableField({ value: 'v', onChange: vi.fn(), onEscape, onCtrlEnter }),
+          )
+
+          act(() => {
+            result.current.startEditing()
+            result.current.handleKeyDown({
+              key: 'Escape',
+              preventDefault: vi.fn(),
+            } as unknown as KeyboardEvent)
+          })
+
+          expect(onEscape).toHaveBeenCalledTimes(1)
+          expect(onCtrlEnter).not.toHaveBeenCalled()
+        })
+      })
+
+      describe('callback freshness', () => {
+        it('uses the latest onEscape reference after a rerender', () => {
+          const first = vi.fn()
+          const second = vi.fn()
+
+          const { result, rerender } = renderHook(
+            ({ onEscape }) => useEditableField({ value: 'v', onChange: vi.fn(), onEscape }),
+            { initialProps: { onEscape: first } },
+          )
+
+          rerender({ onEscape: second })
+
+          act(() => {
+            result.current.startEditing()
+            result.current.handleKeyDown({
+              key: 'Escape',
+              preventDefault: vi.fn(),
+            } as unknown as KeyboardEvent)
+          })
+
+          expect(first).not.toHaveBeenCalled()
+          expect(second).toHaveBeenCalledTimes(1)
+        })
+      })
+    })
+
     it('prevents default behavior for handled keys', () => {
       const { result } = renderHook(() => useEditableField({ value: 'test', onChange: vi.fn(), commitOnEnter: true }))
 
@@ -1080,6 +1248,53 @@ describe('useEditableField', () => {
 
       expect(onChange).toHaveBeenCalledTimes(1)
       expect(onChange).toHaveBeenCalledWith('final')
+    })
+  })
+
+  describe('onInput callback', () => {
+    it('invokes onInput on every handleInput call', () => {
+      const onInput = vi.fn()
+      const { result } = renderHook(() => useEditableField({ value: 'start', onChange: vi.fn(), onInput }))
+      act(() => result.current.handleInput('s'))
+      act(() => result.current.handleInput('se'))
+      act(() => result.current.handleInput('sen'))
+      expect(onInput).toHaveBeenCalledTimes(3)
+      expect(onInput).toHaveBeenLastCalledWith('sen')
+    })
+
+    it('updates editValue on handleInput', () => {
+      const { result } = renderHook(() => useEditableField({ value: 'start', onChange: vi.fn() }))
+      act(() => result.current.handleInput('typed'))
+      expect(result.current.editValue).toBe('typed')
+    })
+
+    it('does not invoke onChange on handleInput — only onInput', () => {
+      const onChange = vi.fn()
+      const onInput = vi.fn()
+      const { result } = renderHook(() => useEditableField({ value: 'start', onChange, onInput }))
+      act(() => result.current.handleInput('x'))
+      expect(onChange).not.toHaveBeenCalled()
+      expect(onInput).toHaveBeenCalledWith('x')
+    })
+
+    it('works independently of onInput being absent', () => {
+      const onChange = vi.fn()
+      const { result } = renderHook(() => useEditableField({ value: 'start', onChange }))
+      expect(() => act(() => result.current.handleInput('x'))).not.toThrow()
+      expect(result.current.editValue).toBe('x')
+    })
+
+    it('uses the latest onInput reference after a rerender', () => {
+      const first = vi.fn()
+      const second = vi.fn()
+      const { result, rerender } = renderHook(
+        ({ onInput }) => useEditableField({ value: 'v', onChange: vi.fn(), onInput }),
+        { initialProps: { onInput: first } },
+      )
+      rerender({ onInput: second })
+      act(() => result.current.handleInput('x'))
+      expect(first).not.toHaveBeenCalled()
+      expect(second).toHaveBeenCalledWith('x')
     })
   })
 })

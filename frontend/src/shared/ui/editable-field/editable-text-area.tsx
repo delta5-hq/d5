@@ -6,8 +6,9 @@ export interface EditableTextAreaProps {
   value: string
   onChange: (value: string) => void
   onCtrlEnter?: () => void
-  /** Enables single-line commit semantics: plain Enter commits, Shift+Enter inserts a newline */
   onEnterCommit?: () => void
+  onEscape?: () => void
+  onInput?: (value: string) => void
   placeholder?: string
   className?: string
   autoFocus?: boolean
@@ -18,17 +19,21 @@ export const EditableTextArea = ({
   onChange,
   onCtrlEnter,
   onEnterCommit,
+  onEscape,
+  onInput,
   placeholder,
   className,
   autoFocus,
 }: EditableTextAreaProps) => {
-  const { editValue, inputRef, setEditValue, commitEdit, handleKeyDown } = useEditableField({
+  const { editValue, inputRef, handleInput, commitEdit, handleKeyDown } = useEditableField({
     value,
     onChange,
     autoFocus,
     commitOnEnter: false,
     onCtrlEnter,
     onEnterCommit,
+    onEscape,
+    onInput,
   })
 
   return (
@@ -41,7 +46,7 @@ export const EditableTextArea = ({
         className,
       )}
       onBlur={commitEdit}
-      onChange={e => setEditValue(e.target.value)}
+      onChange={e => handleInput(e.target.value)}
       onKeyDown={handleKeyDown}
       placeholder={placeholder}
       ref={inputRef as RefObject<HTMLTextAreaElement>}

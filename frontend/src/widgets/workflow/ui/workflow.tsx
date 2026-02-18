@@ -145,13 +145,14 @@ const WorkflowContent = () => {
   )
 
   const handleAddSibling = useCallback(
-    (nodeId: string) => {
+    (nodeId: string): string | null => {
       const newId = actions.addSibling(nodeId, { title: '' })
       if (newId) {
         actions.select(newId)
         setAutoEditNodeId(newId)
         setFlashNodeId(newId)
       }
+      return newId
     },
     [actions],
   )
@@ -212,9 +213,8 @@ const WorkflowContent = () => {
   }, [actions])
 
   const handleExecute = useCallback(
-    async (node: Parameters<typeof actions.executeCommand>[0], queryType: string) => {
-      await actions.executeCommand(node, queryType)
-    },
+    (node: Parameters<typeof actions.executeCommand>[0], queryType: string): Promise<boolean> =>
+      actions.executeCommand(node, queryType),
     [actions],
   )
 

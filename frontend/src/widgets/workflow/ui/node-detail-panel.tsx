@@ -1,8 +1,7 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { NodeData, NodeId } from '@shared/base-types'
 import { Button } from '@shared/ui/button'
 import { Genie } from '@shared/ui/genie'
-import { EditableTextArea } from '@shared/ui/editable-field'
 import { getCommandRole } from '@shared/constants/command-roles'
 import { getColorForRole } from '@shared/ui/genie/role-colors'
 import { useGenieState } from '@shared/lib/use-genie-state'
@@ -15,6 +14,7 @@ import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
 import { NodeTitleEditor } from './node-title-editor'
 import { NodePreviewSection } from './node-preview-section'
+import { CommandField } from './command-field'
 
 interface NodeDetailPanelProps {
   node: NodeData
@@ -23,10 +23,10 @@ interface NodeDetailPanelProps {
   onRequestDelete: (nodeId: NodeId) => void
   onDuplicateNode: (nodeId: NodeId) => void
   onAddChild: (parentId: NodeId) => void
-  onAddSibling: (nodeId: NodeId) => void
+  onAddSibling: (nodeId: NodeId) => NodeId | null
   onEnterInCommand: (nodeId: NodeId) => void
   onClose: () => void
-  onExecute: (node: NodeData, queryType: string) => Promise<void>
+  onExecute: (node: NodeData, queryType: string) => Promise<boolean>
   onAbort: (nodeId: NodeId) => void
   isExecuting: boolean
   executeDisabled: boolean
@@ -59,6 +59,11 @@ export const NodeDetailPanel = ({
   const showPreview = isPrompt || hasReferencesInAny(node.command, node.title)
   const canExecute = canExecuteNode(node.command, executeDisabled)
   const siblingActionsEnabled = !isRoot && canExecute
+
+  const [settingsOpen, setSettingsOpen] = useState(!isPrompt)
+  useEffect(() => {
+    setSettingsOpen(!isPrompt)
+  }, [isPrompt])
 
   const handleTitleChange = useCallback(
     (title: string) => {
@@ -117,7 +122,7 @@ export const NodeDetailPanel = ({
           <FormattedMessage id="workflowTree.node.close" />
         </button>
 
-        <Collapsible defaultOpen={!isPrompt}>
+        <Collapsible onOpenChange={setSettingsOpen} open={settingsOpen}>
           <CollapsibleTrigger
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors [&[data-state=open]>svg]:rotate-90"
             data-testid="settings-trigger"
@@ -147,9 +152,10 @@ export const NodeDetailPanel = ({
                   <span className="text-muted-foreground text-xs pt-2">
                     <FormattedMessage id="workflowTree.node.command" />
                   </span>
-                  <EditableTextArea
+                  <CommandField
                     autoFocus={autoFocusCommand}
                     className="min-h-[80px] text-xs font-mono w-full"
+                    nodeId={node.id}
                     onChange={handleCommandChange}
                     onCtrlEnter={siblingActionsEnabled ? handleAddSibling : undefined}
                     onEnterCommit={siblingActionsEnabled ? handleEnterInCommand : undefined}

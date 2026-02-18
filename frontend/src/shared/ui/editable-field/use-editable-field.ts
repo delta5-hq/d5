@@ -6,8 +6,9 @@ export interface UseEditableFieldOptions {
   autoFocus?: boolean
   commitOnEnter?: boolean
   onCtrlEnter?: () => void
-  /** Enables single-line commit semantics: plain Enter commits, Shift+Enter inserts a newline */
   onEnterCommit?: () => void
+  onEscape?: () => void
+  onInput?: (value: string) => void
 }
 
 export interface UseEditableFieldReturn {
@@ -19,6 +20,7 @@ export interface UseEditableFieldReturn {
   commitEdit: () => void
   cancelEdit: () => void
   handleKeyDown: (e: KeyboardEvent) => void
+  handleInput: (value: string) => void
 }
 
 export function useEditableField({
@@ -28,6 +30,8 @@ export function useEditableField({
   commitOnEnter = true,
   onCtrlEnter,
   onEnterCommit,
+  onEscape,
+  onInput,
 }: UseEditableFieldOptions): UseEditableFieldReturn {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValueState] = useState(value)
@@ -39,6 +43,8 @@ export function useEditableField({
   const onChangeRef = useRef(onChange)
   const onCtrlEnterRef = useRef(onCtrlEnter)
   const onEnterCommitRef = useRef(onEnterCommit)
+  const onEscapeRef = useRef(onEscape)
+  const onInputRef = useRef(onInput)
 
   isEditingRef.current = isEditing
   editValueRef.current = editValue
@@ -46,11 +52,21 @@ export function useEditableField({
   onChangeRef.current = onChange
   onCtrlEnterRef.current = onCtrlEnter
   onEnterCommitRef.current = onEnterCommit
+  onEscapeRef.current = onEscape
+  onInputRef.current = onInput
 
   const setEditValue = useCallback((v: string) => {
     editValueRef.current = v
     setEditValueState(v)
   }, [])
+
+  const handleInput = useCallback(
+    (v: string) => {
+      setEditValue(v)
+      onInputRef.current?.(v)
+    },
+    [setEditValue],
+  )
 
   useEffect(() => {
     if (!isEditing) {
@@ -116,6 +132,7 @@ export function useEditableField({
       } else if (e.key === 'Escape') {
         e.preventDefault()
         cancelEdit()
+        onEscapeRef.current?.()
       }
     },
     [commitOnEnter, commitEdit, cancelEdit],
@@ -130,5 +147,6 @@ export function useEditableField({
     commitEdit,
     cancelEdit,
     handleKeyDown,
+    handleInput,
   }
 }
