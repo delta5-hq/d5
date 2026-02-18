@@ -12,11 +12,22 @@ export class GenieStateStore {
   private listenersByNodeId = new Map<string, Set<Listener>>()
   private globalListeners = new Set<Listener>()
   private streamClient: ProgressStreamClient | null = null
+  private suppressedNodes = new Set<string>()
+
+  suppressNode(nodeId: string): void {
+    this.suppressedNodes.add(nodeId)
+  }
+
+  unsuppressNode(nodeId: string): void {
+    this.suppressedNodes.delete(nodeId)
+  }
 
   connectToProgressStream(baseUrl: string): void {
     if (this.streamClient) return
 
     this.streamClient = new ProgressStreamClient(baseUrl, (nodeId, state, error) => {
+      if (this.suppressedNodes.has(nodeId)) return
+
       this.setState(nodeId, state)
       if (error) {
         this.setError(nodeId, error)
@@ -105,12 +116,14 @@ export class GenieStateStore {
     this.stateMap.delete(nodeId)
     this.errorMap.delete(nodeId)
     this.listenersByNodeId.delete(nodeId)
+    this.suppressedNodes.delete(nodeId)
   }
 
   clearAll(): void {
     this.stateMap.clear()
     this.errorMap.clear()
     this.listenersByNodeId.clear()
+    this.suppressedNodes.clear()
   }
 
   getError(nodeId: string): string | undefined {
