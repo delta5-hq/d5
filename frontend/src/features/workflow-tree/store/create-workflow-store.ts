@@ -42,7 +42,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
   )
 
   const mutations = bindMutationActions(store, persister, formatMessage)
-  const executeCommand = bindExecuteAction(store, persister)
+  const execution = bindExecuteAction(store, persister)
   const expansion = bindExpansionActions(store, persister)
 
   const load = async () => {
@@ -124,7 +124,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     rangeSelect,
     discard,
     destroy,
-    executeCommand,
+    ...execution,
     ...expansion,
     ...mutations,
   }

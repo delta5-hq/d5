@@ -12,6 +12,7 @@ interface ExecuteRequest {
   workflowId?: string
   context?: unknown
   prompt?: string
+  signal?: AbortSignal
 }
 
 interface BackendExecuteResponse {
@@ -26,14 +27,13 @@ interface ExecuteResponse {
   cell?: NodeData
 }
 
-export const executeWorkflowCommand = async (request: ExecuteRequest): Promise<ExecuteResponse> => {
+export const executeWorkflowCommand = async ({ signal, ...request }: ExecuteRequest): Promise<ExecuteResponse> => {
   try {
     const raw = await apiFetch<BackendExecuteResponse>('/execute', {
       method: 'POST',
       body: JSON.stringify(request),
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
+      signal,
     })
     return {
       ...raw,
@@ -41,6 +41,7 @@ export const executeWorkflowCommand = async (request: ExecuteRequest): Promise<E
       edgesChanged: normalizeToRecord(raw.edgesChanged),
     }
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
     toast.error(`Execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     throw error
   }

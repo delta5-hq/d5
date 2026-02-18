@@ -9,6 +9,7 @@ import {
   duplicateNode,
   addPromptChild,
   removePromptChildren,
+  orphanMatchingPromptChildren,
   NodeMutationError,
 } from './node-mutations'
 
@@ -634,5 +635,137 @@ describe('removePromptChildren', () => {
     const err = getError(() => removePromptChildren({}, 'missing'))
     expect(err).toBeInstanceOf(NodeMutationError)
     expect(err.code).toBe('PARENT_NOT_FOUND')
+  })
+})
+
+describe('orphanMatchingPromptChildren', () => {
+  function makeTreeWithPrompts(): Record<string, NodeData> {
+    return {
+      root: { id: 'root', title: 'Root', children: ['p1', 'p2', 'regular'], prompts: ['p1', 'p2'] },
+      p1: { id: 'p1', title: 'Paragraph one', parent: 'root', children: [] },
+      p2: { id: 'p2', title: 'Paragraph two', parent: 'root', children: [] },
+      regular: { id: 'regular', title: 'Regular child', parent: 'root', children: [] },
+    }
+  }
+
+  describe('prompt tracking update', () => {
+    it('removes matched prompt id from parent.prompts while keeping unmatched ids', () => {
+      const nodes = makeTreeWithPrompts()
+      const result = orphanMatchingPromptChildren(nodes, 'root', new Set(['Paragraph one']))
+      expect(result['root'].prompts).toEqual(['p2'])
+    })
+
+    it('clears parent.prompts entirely when every prompt title matches', () => {
+      const nodes = makeTreeWithPrompts()
+      const result = orphanMatchingPromptChildren(nodes, 'root', new Set(['Paragraph one', 'Paragraph two']))
+      expect(result['root'].prompts).toEqual([])
+    })
+  })
+
+  describe('node and children preservation', () => {
+    it('retains matched prompt node in nodes map after orphaning', () => {
+      const nodes = makeTreeWithPrompts()
+      const result = orphanMatchingPromptChildren(nodes, 'root', new Set(['Paragraph one']))
+      expect(result['p1']).toBeDefined()
+    })
+
+    it('retains matched prompt node in parent.children after orphaning', () => {
+      const nodes = makeTreeWithPrompts()
+      const result = orphanMatchingPromptChildren(nodes, 'root', new Set(['Paragraph one']))
+      expect(result['root'].children).toContain('p1')
+    })
+
+    it('does not cascade into descendants of an orphaned prompt node', () => {
+      const nodes: Record<string, NodeData> = {
+        root: { id: 'root', title: 'Root', children: ['p1'], prompts: ['p1'] },
+        p1: { id: 'p1', title: 'Para', parent: 'root', children: ['p1child'] },
+        p1child: { id: 'p1child', title: 'Deep', parent: 'p1', children: [] },
+      }
+      const result = orphanMatchingPromptChildren(nodes, 'root', new Set(['Para']))
+      expect(result['p1child']).toBeDefined()
+    })
+
+    it('leaves non-prompt children in parent.children and nodes map untouched', () => {
+      const nodes = makeTreeWithPrompts()
+      const result = orphanMatchingPromptChildren(nodes, 'root', new Set(['Paragraph one']))
+      expect(result['root'].children).toContain('regular')
+      expect(result['regular']).toBe(nodes['regular'])
+    })
+
+    it('leaves unrelated sibling nodes untouched', () => {
+      const nodes = makeTreeWithPrompts()
+      const unrelated: Record<string, NodeData> = { ...nodes, sibling: { id: 'sibling', children: [] } }
+      const result = orphanMatchingPromptChildren(unrelated, 'root', new Set(['Paragraph one']))
+      expect(result['sibling']).toBe(unrelated['sibling'])
+    })
+
+    it('handles prompt id listed in prompts but absent from nodes map', () => {
+      const nodes: Record<string, NodeData> = {
+        root: { id: 'root', title: 'Root', children: [], prompts: ['ghost'] },
+      }
+      const result = orphanMatchingPromptChildren(nodes, 'root', new Set(['any title']))
+      expect(result).toBe(nodes)
+    })
+  })
+
+  describe('identity / no-op conditions', () => {
+    it('returns same reference when no prompts match', () => {
+      const nodes = makeTreeWithPrompts()
+      expect(orphanMatchingPromptChildren(nodes, 'root', new Set(['No match']))).toBe(nodes)
+    })
+
+    it('returns same reference when incoming title set is empty', () => {
+      const nodes = makeTreeWithPrompts()
+      expect(orphanMatchingPromptChildren(nodes, 'root', new Set())).toBe(nodes)
+    })
+
+    it('returns same reference when parent.prompts is absent', () => {
+      const nodes: Record<string, NodeData> = {
+        root: { id: 'root', title: 'Root', children: ['c1'] },
+        c1: { id: 'c1', title: 'Child', parent: 'root', children: [] },
+      }
+      expect(orphanMatchingPromptChildren(nodes, 'root', new Set(['Child']))).toBe(nodes)
+    })
+
+    it('returns same reference when parent.prompts is an empty array', () => {
+      const nodes: Record<string, NodeData> = {
+        root: { id: 'root', title: 'Root', children: [], prompts: [] },
+      }
+      expect(orphanMatchingPromptChildren(nodes, 'root', new Set(['anything']))).toBe(nodes)
+    })
+
+    it('does not match on title substring — only exact match', () => {
+      const nodes = makeTreeWithPrompts()
+      expect(orphanMatchingPromptChildren(nodes, 'root', new Set(['Paragraph']))).toBe(nodes)
+    })
+
+    it('does not match on title superset — only exact match', () => {
+      const nodes = makeTreeWithPrompts()
+      expect(orphanMatchingPromptChildren(nodes, 'root', new Set(['Paragraph one extra']))).toBe(nodes)
+    })
+  })
+
+  describe('immutability', () => {
+    it('does not mutate parent.prompts on the original nodes', () => {
+      const nodes = makeTreeWithPrompts()
+      const originalPrompts = [...(nodes['root'].prompts ?? [])]
+      orphanMatchingPromptChildren(nodes, 'root', new Set(['Paragraph one']))
+      expect(nodes['root'].prompts).toEqual(originalPrompts)
+    })
+
+    it('does not mutate parent.children on the original nodes', () => {
+      const nodes = makeTreeWithPrompts()
+      const originalChildren = [...(nodes['root'].children ?? [])]
+      orphanMatchingPromptChildren(nodes, 'root', new Set(['Paragraph one']))
+      expect(nodes['root'].children).toEqual(originalChildren)
+    })
+  })
+
+  describe('error handling', () => {
+    it('throws PARENT_NOT_FOUND when parent does not exist', () => {
+      const err = getError(() => orphanMatchingPromptChildren({}, 'missing', new Set(['x'])))
+      expect(err).toBeInstanceOf(NodeMutationError)
+      expect(err.code).toBe('PARENT_NOT_FOUND')
+    })
   })
 })

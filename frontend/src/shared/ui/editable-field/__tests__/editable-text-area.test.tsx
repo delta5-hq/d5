@@ -54,7 +54,7 @@ describe('EditableTextArea', () => {
       fireEvent.change(textarea, { target: { value: 'new' } })
       fireEvent.keyDown(textarea, { key: 'Enter' })
 
-      expect(onChange).toHaveBeenCalledWith('new')
+      expect(onChange).not.toHaveBeenCalled()
     })
 
     it('does not commit on Shift+Enter (allows newline insertion)', () => {
@@ -103,60 +103,60 @@ describe('EditableTextArea', () => {
     })
   })
 
-  describe('onCommitAndCreateSibling — fires only on Ctrl/Meta+Enter', () => {
+  describe('onCtrlEnter — fires only on Ctrl/Meta+Enter', () => {
     it('fires on Ctrl+Enter and commits value', () => {
       const onChange = vi.fn()
-      const onCommitAndCreateSibling = vi.fn()
-      render(<EditableTextArea onChange={onChange} onCommitAndCreateSibling={onCommitAndCreateSibling} value="old" />)
+      const onCtrlEnter = vi.fn()
+      render(<EditableTextArea onChange={onChange} onCtrlEnter={onCtrlEnter} value="old" />)
 
       const textarea = screen.getByRole('textbox')
       fireEvent.change(textarea, { target: { value: 'new' } })
       fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true })
 
       expect(onChange).toHaveBeenCalledWith('new')
-      expect(onCommitAndCreateSibling).toHaveBeenCalledTimes(1)
+      expect(onCtrlEnter).toHaveBeenCalledTimes(1)
     })
 
     it('fires on Meta+Enter and commits value (macOS)', () => {
       const onChange = vi.fn()
-      const onCommitAndCreateSibling = vi.fn()
-      render(<EditableTextArea onChange={onChange} onCommitAndCreateSibling={onCommitAndCreateSibling} value="old" />)
+      const onCtrlEnter = vi.fn()
+      render(<EditableTextArea onChange={onChange} onCtrlEnter={onCtrlEnter} value="old" />)
 
       const textarea = screen.getByRole('textbox')
       fireEvent.change(textarea, { target: { value: 'new' } })
       fireEvent.keyDown(textarea, { key: 'Enter', metaKey: true })
 
       expect(onChange).toHaveBeenCalledWith('new')
-      expect(onCommitAndCreateSibling).toHaveBeenCalledTimes(1)
+      expect(onCtrlEnter).toHaveBeenCalledTimes(1)
     })
 
     it('does not fire on plain Enter (plain Enter only commits)', () => {
       const onChange = vi.fn()
-      const onCommitAndCreateSibling = vi.fn()
-      render(<EditableTextArea onChange={onChange} onCommitAndCreateSibling={onCommitAndCreateSibling} value="old" />)
+      const onCtrlEnter = vi.fn()
+      render(<EditableTextArea onChange={onChange} onCtrlEnter={onCtrlEnter} value="old" />)
 
       const textarea = screen.getByRole('textbox')
       fireEvent.change(textarea, { target: { value: 'new' } })
       fireEvent.keyDown(textarea, { key: 'Enter' })
 
-      expect(onChange).toHaveBeenCalledWith('new')
-      expect(onCommitAndCreateSibling).not.toHaveBeenCalled()
+      expect(onChange).not.toHaveBeenCalled()
+      expect(onCtrlEnter).not.toHaveBeenCalled()
     })
 
     it('does not fire on Shift+Enter (Shift+Enter is newline — no commit, no sibling)', () => {
       const onChange = vi.fn()
-      const onCommitAndCreateSibling = vi.fn()
-      render(<EditableTextArea onChange={onChange} onCommitAndCreateSibling={onCommitAndCreateSibling} value="old" />)
+      const onCtrlEnter = vi.fn()
+      render(<EditableTextArea onChange={onChange} onCtrlEnter={onCtrlEnter} value="old" />)
 
       const textarea = screen.getByRole('textbox')
       fireEvent.change(textarea, { target: { value: 'new' } })
       fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: true })
 
       expect(onChange).not.toHaveBeenCalled()
-      expect(onCommitAndCreateSibling).not.toHaveBeenCalled()
+      expect(onCtrlEnter).not.toHaveBeenCalled()
     })
 
-    it('commits without throwing when onCommitAndCreateSibling is absent', () => {
+    it('commits without throwing when onCtrlEnter is absent', () => {
       const onChange = vi.fn()
       render(<EditableTextArea onChange={onChange} value="old" />)
 

@@ -46,6 +46,7 @@ export interface WorkflowStoreActions {
   importTextAsPrompts: (parentId: NodeId, text: string) => number
 
   executeCommand: (node: NodeData, queryType: string) => Promise<boolean>
+  abortExecution: (nodeId: NodeId) => void
 }
 
 export const INITIAL_WORKFLOW_STATE: Omit<WorkflowStoreState, 'workflowId'> = {

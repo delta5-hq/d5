@@ -5,26 +5,26 @@ import { useEditableField } from './use-editable-field'
 export interface EditableTextAreaProps {
   value: string
   onChange: (value: string) => void
+  onCtrlEnter?: () => void
   placeholder?: string
   className?: string
   autoFocus?: boolean
-  onCommitAndCreateSibling?: () => void
 }
 
 export const EditableTextArea = ({
   value,
   onChange,
+  onCtrlEnter,
   placeholder,
   className,
   autoFocus,
-  onCommitAndCreateSibling,
 }: EditableTextAreaProps) => {
   const { editValue, inputRef, setEditValue, commitEdit, handleKeyDown } = useEditableField({
     value,
     onChange,
     autoFocus,
-    commitOnEnter: true,
-    onCommitAndCreateSibling,
+    commitOnEnter: false,
+    onCtrlEnter,
   })
 
   return (

@@ -347,7 +347,7 @@ export default {
       command: 'Command',
       commandPlaceholder: 'Enter command...',
       execute: 'Execute',
-      executing: 'Executing...',
+      abort: 'Abort',
       addChild: 'Add Child',
       addSibling: 'Add Sibling',
       close: 'Back',

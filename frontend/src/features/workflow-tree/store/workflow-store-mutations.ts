@@ -5,6 +5,7 @@ import {
   addChildNode,
   addPromptChild as addPromptChildPure,
   removePromptChildren as removePromptChildrenPure,
+  orphanMatchingPromptChildren as orphanMatchingPromptChildrenPure,
   updateNode as updateNodePure,
   removeNode as removeNodePure,
   moveNode as moveNodePure,
@@ -211,11 +212,19 @@ export function bindMutationActions(
   const importTextAsPrompts = (parentId: NodeId, text: string): number => {
     if (!text.trim()) return 0
 
+    const promptNodes = createPromptNodesFromText(parentId, text)
+    const incomingTitles = new Set(promptNodes.map(n => n.title ?? ''))
+
+    try {
+      const orphaned = orphanMatchingPromptChildrenPure(store.getState().nodes, parentId, incomingTitles)
+      store.setState({ nodes: orphaned })
+    } catch {
+      return 0
+    }
+
     if (!removePromptChildren(parentId)) return 0
 
-    const promptNodes = createPromptNodesFromText(parentId, text)
     let imported = 0
-
     for (const promptData of promptNodes) {
       const newId = addPromptChild(parentId, promptData)
       if (newId) imported++

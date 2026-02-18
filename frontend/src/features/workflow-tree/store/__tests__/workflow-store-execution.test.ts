@@ -16,11 +16,12 @@ vi.mock('../../api/execute-workflow-command', () => ({
 vi.mock('../execution-genie-bridge', () => ({
   notifyExecutionStarted: vi.fn(),
   notifyExecutionCompleted: vi.fn(),
+  notifyExecutionAborted: vi.fn(),
 }))
 
 import { mergeWorkflowChanges } from '@entities/workflow/lib'
 import { executeWorkflowCommand } from '../../api/execute-workflow-command'
-import { notifyExecutionStarted, notifyExecutionCompleted } from '../execution-genie-bridge'
+import { notifyExecutionStarted, notifyExecutionCompleted, notifyExecutionAborted } from '../execution-genie-bridge'
 
 function makeStore(overrides: Partial<WorkflowStoreState> = {}) {
   return createStore<WorkflowStoreState>({
@@ -32,6 +33,10 @@ function makeStore(overrides: Partial<WorkflowStoreState> = {}) {
 
 function makePersister(): DebouncedPersister {
   return { schedule: vi.fn(), flush: vi.fn().mockResolvedValue(true), cancel: vi.fn(), destroy: vi.fn() }
+}
+
+function makeExecute(store: ReturnType<typeof makeStore>, persister: DebouncedPersister) {
+  return bindExecuteAction(store, persister).executeCommand
 }
 
 function mockIdentityExecution(nodes: WorkflowStoreState['nodes']) {
@@ -47,6 +52,10 @@ function mockIdentityExecution(nodes: WorkflowStoreState['nodes']) {
 const stubNode = { id: 'n1', title: 'Node 1', children: [] }
 const stubNodeB = { id: 'n2', title: 'Node 2', children: [] }
 const N1 = { n1: { id: 'n1' } } as WorkflowStoreState['nodes']
+const N2 = {
+  n1: { id: 'n1' } as WorkflowStoreState['nodes'][''],
+  n2: { id: 'n2' } as WorkflowStoreState['nodes'][''],
+}
 
 describe('bindExecuteAction', () => {
   beforeEach(() => {
@@ -65,7 +74,7 @@ describe('bindExecuteAction', () => {
 
       const store = makeStore({ nodes: N1, root: 'n1' })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       const first = execute(stubNode, 'query')
 
@@ -98,13 +107,9 @@ describe('bindExecuteAction', () => {
             }),
         )
 
-      const twoNodes = {
-        n1: { id: 'n1' } as WorkflowStoreState['nodes'][''],
-        n2: { id: 'n2' } as WorkflowStoreState['nodes'][''],
-      }
-      const store = makeStore({ nodes: twoNodes, root: 'n1' })
+      const store = makeStore({ nodes: N2, root: 'n1' })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       const first = execute(stubNode, 'query')
       const second = execute(stubNodeB, 'query')
@@ -147,7 +152,7 @@ describe('bindExecuteAction', () => {
 
       const store = makeStore({ nodes: N1, root: 'n1' })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -160,7 +165,7 @@ describe('bindExecuteAction', () => {
 
       const store = makeStore({ nodes: N1, root: 'n1' })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -174,7 +179,7 @@ describe('bindExecuteAction', () => {
 
       const store = makeStore({ nodes: N1, root: 'n1', isDirty: true })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -186,11 +191,10 @@ describe('bindExecuteAction', () => {
 
       const store = makeStore({ nodes: N1, root: 'n1', isDirty: false })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
-      /* only post-execution flush */
       expect(persister.flush).toHaveBeenCalledTimes(1)
     })
 
@@ -198,7 +202,7 @@ describe('bindExecuteAction', () => {
       const store = makeStore({ nodes: N1, root: 'n1', isDirty: true })
       const persister = makePersister()
       vi.mocked(persister.flush).mockResolvedValueOnce(false)
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       const result = await execute(stubNode, 'query')
 
@@ -225,7 +229,7 @@ describe('bindExecuteAction', () => {
         store.setState({ nodes: { n1: { id: 'n1', title: 'post-flush' } } as WorkflowStoreState['nodes'] })
         return true
       })
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -249,7 +253,7 @@ describe('bindExecuteAction', () => {
 
       const store = makeStore({ nodes: N1, edges: {}, root: 'n1', isDirty: false })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -277,13 +281,9 @@ describe('bindExecuteAction', () => {
             }),
         )
 
-      const twoNodes = {
-        n1: { id: 'n1' } as WorkflowStoreState['nodes'][''],
-        n2: { id: 'n2' } as WorkflowStoreState['nodes'][''],
-      }
-      const store = makeStore({ nodes: twoNodes, root: 'n1' })
+      const store = makeStore({ nodes: N2, root: 'n1' })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       const first = execute(stubNode, 'query')
       const second = execute(stubNodeB, 'query')
@@ -316,7 +316,7 @@ describe('bindExecuteAction', () => {
 
       const store = makeStore({ nodes: N1, root: 'n1', isDirty: false })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -330,7 +330,7 @@ describe('bindExecuteAction', () => {
       const store = makeStore({ nodes: N1, root: 'n1' })
       const persister = makePersister()
       vi.mocked(persister.flush).mockRejectedValueOnce(new Error('persist failed'))
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       const result = await execute(stubNode, 'query')
 
@@ -353,7 +353,7 @@ describe('bindExecuteAction', () => {
 
       const store = makeStore({ nodes: N1, root: 'n1', selectedId: 'n1' })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -377,7 +377,7 @@ describe('bindExecuteAction', () => {
         selectedId: 'n1',
       })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -389,7 +389,7 @@ describe('bindExecuteAction', () => {
 
       const store = makeStore({ nodes: N1, root: 'n1' })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -401,7 +401,7 @@ describe('bindExecuteAction', () => {
 
       const store = makeStore({ nodes: N1, root: 'n1', selectedId: 'n1' })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -423,7 +423,7 @@ describe('bindExecuteAction', () => {
         selectedIds: new Set(['n1']),
       })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -431,7 +431,6 @@ describe('bindExecuteAction', () => {
     })
 
     it('preserves surviving selectedIds after merge', async () => {
-      const twoNodes = { n1: { id: 'n1' }, n2: { id: 'n2' } } as WorkflowStoreState['nodes']
       vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
       vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
         nodes: { n1: { id: 'n1' }, n2: { id: 'n2' } },
@@ -441,12 +440,12 @@ describe('bindExecuteAction', () => {
       })
 
       const store = makeStore({
-        nodes: twoNodes,
+        nodes: N2,
         root: 'n1',
         selectedIds: new Set(['n1', 'n2']),
       })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -473,7 +472,7 @@ describe('bindExecuteAction', () => {
         selectedIds: new Set(['n1', 'n2', 'n3']),
       })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -485,7 +484,7 @@ describe('bindExecuteAction', () => {
 
       const store = makeStore({ nodes: N1, root: 'n1' })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -501,7 +500,7 @@ describe('bindExecuteAction', () => {
         selectedIds: new Set(['n1']),
       })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -519,7 +518,7 @@ describe('bindExecuteAction', () => {
 
       const store = makeStore({ nodes: N1, root: 'n1', anchorId: 'n1' })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -541,7 +540,7 @@ describe('bindExecuteAction', () => {
         anchorId: 'n1',
       })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -553,7 +552,7 @@ describe('bindExecuteAction', () => {
 
       const store = makeStore({ nodes: N1, root: 'n1' })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -565,7 +564,7 @@ describe('bindExecuteAction', () => {
 
       const store = makeStore({ nodes: N1, root: 'n1', anchorId: 'n1' })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -578,7 +577,7 @@ describe('bindExecuteAction', () => {
 
     const store = makeStore({ nodes: N1, root: 'n1' })
     const persister = makePersister()
-    const execute = bindExecuteAction(store, persister)
+    const execute = makeExecute(store, persister)
 
     const result = await execute(stubNode, 'query')
 
@@ -590,7 +589,7 @@ describe('bindExecuteAction', () => {
 
     const store = makeStore({ nodes: N1, root: 'n1' })
     const persister = makePersister()
-    const execute = bindExecuteAction(store, persister)
+    const execute = makeExecute(store, persister)
 
     const result = await execute(stubNode, 'query')
 
@@ -603,11 +602,12 @@ describe('bindExecuteAction', () => {
 
       const store = makeStore({ nodes: N1, root: 'n1' })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
       expect(notifyExecutionStarted).toHaveBeenCalledWith('n1')
+      expect(notifyExecutionStarted).toHaveBeenCalledTimes(1)
     })
 
     it('notifies bridge of successful completion', async () => {
@@ -615,11 +615,12 @@ describe('bindExecuteAction', () => {
 
       const store = makeStore({ nodes: N1, root: 'n1' })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
       expect(notifyExecutionCompleted).toHaveBeenCalledWith('n1', true)
+      expect(notifyExecutionCompleted).toHaveBeenCalledTimes(1)
     })
 
     it('notifies bridge of failed completion on API error', async () => {
@@ -627,7 +628,7 @@ describe('bindExecuteAction', () => {
 
       const store = makeStore({ nodes: N1, root: 'n1' })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -642,7 +643,7 @@ describe('bindExecuteAction', () => {
 
       const store = makeStore({ nodes: N1, root: 'n1' })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -656,11 +657,40 @@ describe('bindExecuteAction', () => {
       const store = makeStore({ nodes: N1, root: 'n1' })
       const persister = makePersister()
       vi.mocked(persister.flush).mockRejectedValueOnce(new Error('persist failed'))
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
       expect(notifyExecutionCompleted).toHaveBeenCalledWith('n1', false)
+    })
+
+    it('notifies abort (not failure) when AbortError is thrown', async () => {
+      vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(new DOMException('aborted', 'AbortError'))
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(stubNode, 'query')
+
+      expect(notifyExecutionAborted).toHaveBeenCalledWith('n1')
+      expect(notifyExecutionAborted).toHaveBeenCalledTimes(1)
+      expect(notifyExecutionCompleted).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['Error', new Error('network error')],
+      ['DOMException with non-AbortError name', new DOMException('not allowed', 'NotAllowedError')],
+      ['TypeError', new TypeError('unexpected')],
+    ])('notifies failure (not abort) when a %s is thrown', async (_label, error) => {
+      vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(error)
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(stubNode, 'query')
+
+      expect(notifyExecutionCompleted).toHaveBeenCalledWith('n1', false)
+      expect(notifyExecutionAborted).not.toHaveBeenCalled()
     })
 
     it('invokes bridge notifications in correct order', async () => {
@@ -691,7 +721,7 @@ describe('bindExecuteAction', () => {
         callOrder.push('bridge:completed')
       })
 
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       await execute(stubNode, 'query')
 
@@ -716,13 +746,9 @@ describe('bindExecuteAction', () => {
             }),
         )
 
-      const twoNodes = {
-        n1: { id: 'n1' } as WorkflowStoreState['nodes'][''],
-        n2: { id: 'n2' } as WorkflowStoreState['nodes'][''],
-      }
-      const store = makeStore({ nodes: twoNodes, root: 'n1' })
+      const store = makeStore({ nodes: N2, root: 'n1' })
       const persister = makePersister()
-      const execute = bindExecuteAction(store, persister)
+      const execute = makeExecute(store, persister)
 
       const first = execute(stubNode, 'query')
       const second = execute(stubNodeB, 'query')
@@ -732,7 +758,7 @@ describe('bindExecuteAction', () => {
       expect(notifyExecutionStarted).toHaveBeenCalledTimes(2)
 
       vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
-        nodes: twoNodes,
+        nodes: N2,
         edges: {},
         root: 'n1',
         share: { access: [] },
@@ -743,7 +769,7 @@ describe('bindExecuteAction', () => {
       expect(notifyExecutionCompleted).toHaveBeenCalledWith('n1', true)
 
       vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
-        nodes: twoNodes,
+        nodes: N2,
         edges: {},
         root: 'n1',
         share: { access: [] },
@@ -753,6 +779,199 @@ describe('bindExecuteAction', () => {
 
       expect(notifyExecutionCompleted).toHaveBeenCalledWith('n2', true)
       expect(notifyExecutionCompleted).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('abortExecution', () => {
+    describe('AbortSignal delivery', () => {
+      it('passes a fresh non-aborted AbortSignal to executeWorkflowCommand', async () => {
+        let capturedSignal: AbortSignal | undefined
+        vi.mocked(executeWorkflowCommand).mockImplementationOnce(async req => {
+          capturedSignal = (req as { signal?: AbortSignal }).signal
+          return { nodesChanged: {} }
+        })
+        vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+          nodes: N1,
+          edges: {},
+          root: 'n1',
+          share: { access: [] },
+        })
+
+        const store = makeStore({ nodes: N1, root: 'n1' })
+        const execute = makeExecute(store, makePersister())
+        await execute(stubNode, 'query')
+
+        expect(capturedSignal).toBeInstanceOf(AbortSignal)
+        expect(capturedSignal?.aborted).toBe(false)
+      })
+
+      it('each concurrent execution receives a distinct AbortSignal', async () => {
+        const capturedSignals: AbortSignal[] = []
+        let resolveFirst!: (value: { nodesChanged: Record<string, never> }) => void
+        let resolveSecond!: (value: { nodesChanged: Record<string, never> }) => void
+
+        vi.mocked(executeWorkflowCommand)
+          .mockImplementationOnce(
+            req =>
+              new Promise(resolve => {
+                capturedSignals.push((req as { signal?: AbortSignal }).signal!)
+                resolveFirst = resolve
+              }),
+          )
+          .mockImplementationOnce(
+            req =>
+              new Promise(resolve => {
+                capturedSignals.push((req as { signal?: AbortSignal }).signal!)
+                resolveSecond = resolve
+              }),
+          )
+
+        const store = makeStore({ nodes: N2, root: 'n1' })
+        const { executeCommand } = bindExecuteAction(store, makePersister())
+
+        const first = executeCommand(stubNode, 'query')
+        const second = executeCommand(stubNodeB, 'query')
+
+        expect(capturedSignals[0]).not.toBe(capturedSignals[1])
+
+        vi.mocked(mergeWorkflowChanges).mockReturnValue({
+          nodes: N2,
+          edges: {},
+          root: 'n1',
+          share: { access: [] },
+        })
+        resolveFirst({ nodesChanged: {} })
+        resolveSecond({ nodesChanged: {} })
+        await Promise.all([first, second])
+      })
+    })
+
+    describe('abort signal propagation', () => {
+      it('marks signal as aborted immediately when abortExecution is called mid-flight', async () => {
+        let capturedSignal: AbortSignal | undefined
+        let resolveExec!: (value: { nodesChanged: Record<string, never> }) => void
+
+        vi.mocked(executeWorkflowCommand).mockImplementationOnce(
+          req =>
+            new Promise(resolve => {
+              capturedSignal = (req as { signal?: AbortSignal }).signal
+              resolveExec = resolve
+            }),
+        )
+
+        const store = makeStore({ nodes: N1, root: 'n1' })
+        const { executeCommand, abortExecution } = bindExecuteAction(store, makePersister())
+
+        const pending = executeCommand(stubNode, 'query')
+        abortExecution('n1')
+
+        expect(capturedSignal?.aborted).toBe(true)
+
+        resolveExec({ nodesChanged: {} })
+        await pending
+      })
+
+      it('aborting one node does not abort the signal for a concurrently executing node', async () => {
+        const capturedSignals: AbortSignal[] = []
+        let resolveFirst!: (value: { nodesChanged: Record<string, never> }) => void
+        let resolveSecond!: (value: { nodesChanged: Record<string, never> }) => void
+
+        vi.mocked(executeWorkflowCommand)
+          .mockImplementationOnce(
+            req =>
+              new Promise(resolve => {
+                capturedSignals.push((req as { signal?: AbortSignal }).signal!)
+                resolveFirst = resolve
+              }),
+          )
+          .mockImplementationOnce(
+            req =>
+              new Promise(resolve => {
+                capturedSignals.push((req as { signal?: AbortSignal }).signal!)
+                resolveSecond = resolve
+              }),
+          )
+
+        const store = makeStore({ nodes: N2, root: 'n1' })
+        const { executeCommand, abortExecution } = bindExecuteAction(store, makePersister())
+
+        const first = executeCommand(stubNode, 'query')
+        const second = executeCommand(stubNodeB, 'query')
+
+        abortExecution('n1')
+
+        expect(capturedSignals[0]?.aborted).toBe(true)
+        expect(capturedSignals[1]?.aborted).toBe(false)
+
+        vi.mocked(mergeWorkflowChanges).mockReturnValue({
+          nodes: N2,
+          edges: {},
+          root: 'n1',
+          share: { access: [] },
+        })
+        resolveFirst({ nodesChanged: {} })
+        resolveSecond({ nodesChanged: {} })
+        await Promise.all([first, second])
+      })
+    })
+
+    describe('controller lifecycle', () => {
+      it('removes node from executingNodeIds after aborted execution resolves', async () => {
+        let resolveExec!: (value: { nodesChanged: Record<string, never> }) => void
+        vi.mocked(executeWorkflowCommand).mockImplementationOnce(
+          () =>
+            new Promise(resolve => {
+              resolveExec = resolve
+            }),
+        )
+
+        const store = makeStore({ nodes: N1, root: 'n1' })
+        const { executeCommand, abortExecution } = bindExecuteAction(store, makePersister())
+
+        const pending = executeCommand(stubNode, 'query')
+        abortExecution('n1')
+        resolveExec({ nodesChanged: {} })
+        await pending
+
+        expect(store.getState().executingNodeIds.size).toBe(0)
+      })
+
+      it('allows the same node to be re-executed after a completed abort', async () => {
+        let resolveFirst!: (value: { nodesChanged: Record<string, never> }) => void
+        vi.mocked(executeWorkflowCommand).mockImplementationOnce(
+          () =>
+            new Promise(resolve => {
+              resolveFirst = resolve
+            }),
+        )
+
+        const store = makeStore({ nodes: N1, root: 'n1' })
+        const { executeCommand, abortExecution } = bindExecuteAction(store, makePersister())
+
+        const first = executeCommand(stubNode, 'query')
+        abortExecution('n1')
+        resolveFirst({ nodesChanged: {} })
+        await first
+
+        mockIdentityExecution(N1)
+        const second = await executeCommand(stubNode, 'query')
+        expect(second).toBe(true)
+      })
+
+      it('is safe to call abortExecution for a node that has never executed', () => {
+        const { abortExecution } = bindExecuteAction(makeStore({ nodes: N1, root: 'n1' }), makePersister())
+        expect(() => abortExecution('unknown-node')).not.toThrow()
+      })
+
+      it('is safe to call abortExecution for a node after its execution completed normally', async () => {
+        mockIdentityExecution(N1)
+        const store = makeStore({ nodes: N1, root: 'n1' })
+        const { executeCommand, abortExecution } = bindExecuteAction(store, makePersister())
+
+        await executeCommand(stubNode, 'query')
+
+        expect(() => abortExecution('n1')).not.toThrow()
+      })
     })
   })
 })

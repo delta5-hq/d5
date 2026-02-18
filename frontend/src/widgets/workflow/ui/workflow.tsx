@@ -132,6 +132,17 @@ const WorkflowContent = () => {
     [actions],
   )
 
+  const handleAddSibling = useCallback(
+    (nodeId: string) => {
+      const newId = actions.addSibling(nodeId, { title: '' })
+      if (newId) {
+        actions.select(newId)
+        setAutoEditNodeId(newId)
+      }
+    },
+    [actions],
+  )
+
   const handleUpdateNode = useCallback(
     (nodeId: string, updates: Parameters<typeof actions.updateNode>[1]) => {
       actions.updateNode(nodeId, updates)
@@ -175,17 +186,6 @@ const WorkflowContent = () => {
     [actions],
   )
 
-  const handleAddSibling = useCallback(
-    (nodeId: string) => {
-      const newId = actions.addSibling(nodeId, { title: '' })
-      if (newId) {
-        actions.select(newId)
-        setAutoEditNodeId(newId)
-      }
-    },
-    [actions],
-  )
-
   const handleCloseDetailPanel = useCallback(() => {
     actions.select(undefined)
   }, [actions])
@@ -193,6 +193,13 @@ const WorkflowContent = () => {
   const handleExecute = useCallback(
     async (node: Parameters<typeof actions.executeCommand>[0], queryType: string) => {
       await actions.executeCommand(node, queryType)
+    },
+    [actions],
+  )
+
+  const handleAbort = useCallback(
+    (nodeId: string) => {
+      actions.abortExecution(nodeId)
     },
     [actions],
   )
@@ -276,6 +283,7 @@ const WorkflowContent = () => {
               isPrompt={isSelectedNodePrompt}
               key={selectedNode.id}
               node={selectedNode}
+              onAbort={handleAbort}
               onAddChild={handleAddChild}
               onAddSibling={handleAddSibling}
               onClose={handleCloseDetailPanel}

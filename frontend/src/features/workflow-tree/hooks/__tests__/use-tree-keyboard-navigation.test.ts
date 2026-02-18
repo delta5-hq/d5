@@ -34,6 +34,7 @@ function makeActions(): WorkflowStoreActions {
     duplicateNode: vi.fn(() => 'dup-node'),
     importTextAsPrompts: vi.fn(),
     executeCommand: vi.fn(),
+    abortExecution: vi.fn(),
   }
 }
 

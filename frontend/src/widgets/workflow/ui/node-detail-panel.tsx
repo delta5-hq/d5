@@ -10,7 +10,7 @@ import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mappe
 import { hasReferencesInAny } from '@shared/lib/reference-detection'
 import { canExecuteNode } from '@shared/lib/commands/command-validator'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@shared/ui/collapsible'
-import { FileText, Folder, Loader2, Play, Copy, Trash2, Plus, ChevronRight, ArrowLeft } from 'lucide-react'
+import { FileText, Folder, Loader2, Play, Square, Copy, Trash2, Plus, ChevronRight, ArrowLeft } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
 import { NodeTitleEditor } from './node-title-editor'
@@ -26,6 +26,7 @@ interface NodeDetailPanelProps {
   onAddSibling: (nodeId: NodeId) => void
   onClose: () => void
   onExecute: (node: NodeData, queryType: string) => Promise<void>
+  onAbort: (nodeId: NodeId) => void
   isExecuting: boolean
   executeDisabled: boolean
   autoFocusTitle?: boolean
@@ -41,6 +42,7 @@ export const NodeDetailPanel = ({
   onAddSibling,
   onClose,
   onExecute,
+  onAbort,
   isExecuting,
   executeDisabled,
   autoFocusTitle,
@@ -71,6 +73,10 @@ export const NodeDetailPanel = ({
     const queryType = extractQueryTypeFromCommand(node.command)
     await onExecute(node, queryType)
   }, [node, onExecute])
+
+  const handleAbort = useCallback(() => {
+    onAbort(node.id)
+  }, [node.id, onAbort])
 
   const handleDelete = useCallback(() => {
     onRequestDelete(node.id)
@@ -135,7 +141,7 @@ export const NodeDetailPanel = ({
                   <EditableTextArea
                     className="min-h-[80px] text-xs font-mono w-full"
                     onChange={handleCommandChange}
-                    onCommitAndCreateSibling={isRoot ? undefined : handleAddSibling}
+                    onCtrlEnter={isRoot ? undefined : handleAddSibling}
                     placeholder={formatMessage({ id: 'workflowTree.node.commandPlaceholder' })}
                     value={node.command ?? ''}
                   />
@@ -155,6 +161,13 @@ export const NodeDetailPanel = ({
                       </>
                     )}
                   </Button>
+
+                  {isExecuting ? (
+                    <Button data-testid="abort-node-button" onClick={handleAbort} size="sm" variant="danger">
+                      <Square className="mr-1 h-3 w-3" />
+                      <FormattedMessage id="workflowTree.node.abort" />
+                    </Button>
+                  ) : null}
 
                   <Button
                     data-testid="add-child-node-button"

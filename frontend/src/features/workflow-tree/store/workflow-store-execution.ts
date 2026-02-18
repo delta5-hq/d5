@@ -5,7 +5,7 @@ import { executeWorkflowCommand } from '../api/execute-workflow-command'
 import type { WorkflowStoreState } from './workflow-store-types'
 import type { DebouncedPersister } from './workflow-store-persistence'
 import { retainExistingIds } from './workflow-store-set-utils'
-import { notifyExecutionStarted, notifyExecutionCompleted } from './execution-genie-bridge'
+import { notifyExecutionStarted, notifyExecutionCompleted, notifyExecutionAborted } from './execution-genie-bridge'
 
 function addExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): void {
   store.setState(prev => ({
@@ -21,8 +21,19 @@ function removeExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): 
   })
 }
 
-export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: DebouncedPersister) {
-  return async (node: NodeData, queryType: string): Promise<boolean> => {
+export interface ExecutionActions {
+  executeCommand: (node: NodeData, queryType: string) => Promise<boolean>
+  abortExecution: (nodeId: NodeId) => void
+}
+
+export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: DebouncedPersister): ExecutionActions {
+  const abortControllers = new Map<NodeId, AbortController>()
+
+  const abortExecution = (nodeId: NodeId): void => {
+    abortControllers.get(nodeId)?.abort()
+  }
+
+  const executeCommand = async (node: NodeData, queryType: string): Promise<boolean> => {
     if (store.getState().executingNodeIds.has(node.id)) return false
 
     if (store.getState().isDirty) {
@@ -30,6 +41,8 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
       if (!saved) return false
     }
 
+    const controller = new AbortController()
+    abortControllers.set(node.id, controller)
     addExecutingNode(store, node.id)
     notifyExecutionStarted(node.id)
 
@@ -42,6 +55,7 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
         workflowNodes: nodes,
         workflowEdges: edges,
         workflowId,
+        signal: controller.signal,
       })
 
       const current = store.getState()
@@ -68,11 +82,18 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
       await persister.flush()
       notifyExecutionCompleted(node.id, true)
       return true
-    } catch {
-      notifyExecutionCompleted(node.id, false)
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        notifyExecutionAborted(node.id)
+      } else {
+        notifyExecutionCompleted(node.id, false)
+      }
       return false
     } finally {
+      abortControllers.delete(node.id)
       removeExecutingNode(store, node.id)
     }
   }
+
+  return { executeCommand, abortExecution }
 }

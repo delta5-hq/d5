@@ -269,6 +269,37 @@ export const removePromptChildren = (nodes: Record<NodeId, NodeData>, parentId: 
   return newNodes
 }
 
+export const orphanMatchingPromptChildren = (
+  nodes: Record<NodeId, NodeData>,
+  parentId: NodeId,
+  incomingTitles: Readonly<Set<string>>,
+): Record<NodeId, NodeData> => {
+  const parentNode = nodes[parentId]
+  if (!parentNode) {
+    throw new NodeMutationError(`Parent node "${parentId}" not found`, 'PARENT_NOT_FOUND')
+  }
+
+  const promptIds = parentNode.prompts ?? []
+  if (promptIds.length === 0) return nodes
+
+  const matchingPromptIds = promptIds.filter(id => {
+    const child = nodes[id]
+    return child && incomingTitles.has(child.title ?? '')
+  })
+
+  if (matchingPromptIds.length === 0) return nodes
+
+  const matchingSet = new Set(matchingPromptIds)
+
+  return {
+    ...nodes,
+    [parentId]: {
+      ...parentNode,
+      prompts: promptIds.filter(id => !matchingSet.has(id)),
+    },
+  }
+}
+
 export const duplicateNode = (
   nodes: Record<NodeId, NodeData>,
   edges: Record<EdgeId, EdgeData>,

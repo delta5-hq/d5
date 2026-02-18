@@ -10,3 +10,7 @@ export function notifyExecutionCompleted(nodeId: NodeId, success: boolean): void
   const finalState: GenieState = success ? 'done-success' : 'done-failure'
   updateGenieState(nodeId, finalState)
 }
+
+export function notifyExecutionAborted(nodeId: NodeId): void {
+  updateGenieState(nodeId, 'idle')
+}
