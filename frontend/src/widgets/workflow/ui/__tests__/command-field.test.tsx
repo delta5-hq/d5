@@ -2,6 +2,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { CommandField } from '../command-field'
 
+type ComboCase = readonly [
+  label: string,
+  modifiers: Record<string, boolean>,
+  callbackProp: 'onEnter' | 'onCtrlEnter' | 'onShiftCtrlEnter',
+  blursOnCommit: boolean,
+]
+
+const KEY_COMBOS: readonly ComboCase[] = [
+  ['Enter', {}, 'onEnter', true],
+  ['Ctrl+Enter', { ctrlKey: true }, 'onCtrlEnter', false],
+  ['Shift+Ctrl+Enter', { ctrlKey: true, shiftKey: true }, 'onShiftCtrlEnter', false],
+] as const
+
 const storage: Record<string, string> = {}
 
 vi.mock('@shared/lib/storage', () => ({
@@ -91,6 +104,26 @@ describe('CommandField', () => {
     })
   })
 
+  describe('Props forwarding', () => {
+    it('forwards the placeholder to the textarea', () => {
+      renderField({ placeholder: 'Type a command…' })
+      expect(screen.getByPlaceholderText('Type a command…')).toBeInTheDocument()
+    })
+
+    it('forwards a custom className to the textarea', () => {
+      renderField({ className: 'my-custom-class' })
+      expect(screen.getByRole('textbox').className).toContain('my-custom-class')
+    })
+
+    it('preserves the custom className alongside the dirty border class', () => {
+      renderField({ value: 'original', className: 'my-custom-class' })
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'modified' } })
+      const ta = screen.getByRole('textbox')
+      expect(ta.className).toContain('my-custom-class')
+      expect(ta.className).toContain('border-amber-400')
+    })
+  })
+
   describe('localStorage draft persistence', () => {
     it('writes typed text to localStorage when it differs from the committed value', () => {
       renderField({ value: 'original' })
@@ -115,11 +148,27 @@ describe('CommandField', () => {
       expect(storage[KEY_A]).toBe('abc')
     })
 
-    it('scopes localStorage entries to the nodeId — a different node does not share storage', () => {
+    it('scopes entries to the nodeId — a different node does not share storage', () => {
       storage[KEY_B] = 'node-b-draft'
       renderField({ nodeId: NODE_A, value: 'original' })
       fireEvent.change(screen.getByRole('textbox'), { target: { value: 'typed' } })
       expect(storage[KEY_B]).toBe('node-b-draft')
+    })
+
+    it('uses the workflow:node:{nodeId}:command key format', () => {
+      renderField({ nodeId: NODE_A, value: 'original' })
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'typed' } })
+      expect(storage[KEY_A]).toBe('typed')
+      expect(Object.keys(storage).every(k => k === KEY_A)).toBe(true)
+    })
+
+    it('resolves to separate keys for distinct nodeIds', () => {
+      storage[KEY_A] = 'draft-a'
+      storage[KEY_B] = 'draft-b'
+      const { rerender, textarea } = renderField({ nodeId: NODE_A, value: '' })
+      expect(textarea()).toHaveValue('draft-a')
+      rerender(<CommandField nodeId={NODE_B} onChange={vi.fn()} value="" />)
+      expect(textarea()).toHaveValue('draft-b')
     })
   })
 
@@ -143,9 +192,18 @@ describe('CommandField', () => {
       renderField({ value: 'committed' })
       expect(screen.getByRole('textbox').className).toContain('border-amber-400')
     })
+
+    it('amber border persists after blur until the parent re-renders with the committed value as the new value prop', () => {
+      const { textarea, rerender } = renderField({ value: 'original' })
+      fireEvent.change(textarea(), { target: { value: 'modified' } })
+      fireEvent.blur(textarea())
+      expect(textarea().className).toContain('border-amber-400')
+      rerender(<CommandField nodeId={NODE_A} onChange={vi.fn()} value="modified" />)
+      expect(textarea().className).not.toContain('border-amber-400')
+    })
   })
 
-  describe('Commit contract — onChange is called exactly once with the latest draft', () => {
+  describe('Commit contract', () => {
     describe('via blur', () => {
       it('calls onChange with the current draft on blur when dirty', () => {
         const { onChange, textarea } = renderField({ value: 'old' })
@@ -193,26 +251,16 @@ describe('CommandField', () => {
       })
     })
 
-    describe('idempotency — onChange fires exactly once regardless of commit path sequence', () => {
-      it('does not double-commit when Enter fires before blur', () => {
-        const onEnterCommit = vi.fn()
-        const { onChange, textarea } = renderField({ value: 'old', onEnterCommit })
+    describe('idempotency', () => {
+      it.each(KEY_COMBOS)('%s before blur does not cause a second commit', (_label, modifiers, callbackProp) => {
+        const { onChange, textarea } = renderField({ value: 'old', [callbackProp]: vi.fn() })
         fireEvent.change(textarea(), { target: { value: 'new' } })
-        fireEvent.keyDown(textarea(), { key: 'Enter' })
+        fireEvent.keyDown(textarea(), { key: 'Enter', ...modifiers })
         fireEvent.blur(textarea())
         expect(onChange).toHaveBeenCalledTimes(1)
       })
 
-      it('does not double-commit when Ctrl+Enter fires before blur', () => {
-        const onCtrlEnter = vi.fn()
-        const { onChange, textarea } = renderField({ value: 'old', onCtrlEnter })
-        fireEvent.change(textarea(), { target: { value: 'new' } })
-        fireEvent.keyDown(textarea(), { key: 'Enter', ctrlKey: true })
-        fireEvent.blur(textarea())
-        expect(onChange).toHaveBeenCalledTimes(1)
-      })
-
-      it('does not double-commit when blur fires before unmount', () => {
+      it('blur before unmount does not cause a second commit', () => {
         const { onChange, textarea, unmount } = renderField({ value: 'old' })
         fireEvent.change(textarea(), { target: { value: 'new' } })
         fireEvent.blur(textarea())
@@ -220,7 +268,7 @@ describe('CommandField', () => {
         expect(onChange).toHaveBeenCalledTimes(1)
       })
 
-      it('does not commit on unmount after Escape discards the draft', () => {
+      it('Escape before unmount does not commit at all', () => {
         const { onChange, textarea, unmount } = renderField({ value: 'original' })
         fireEvent.change(textarea(), { target: { value: 'typed' } })
         fireEvent.keyDown(textarea(), { key: 'Escape' })
@@ -230,177 +278,176 @@ describe('CommandField', () => {
     })
   })
 
-  describe('Keyboard — Enter (plain)', () => {
-    it('commits and calls onEnterCommit when onEnterCommit is provided', () => {
-      const onEnterCommit = vi.fn()
-      const { onChange, textarea } = renderField({ value: 'old', onEnterCommit })
-      fireEvent.change(textarea(), { target: { value: 'new' } })
-      fireEvent.keyDown(textarea(), { key: 'Enter' })
-      expect(onChange).toHaveBeenCalledWith('new')
-      expect(onEnterCommit).toHaveBeenCalledTimes(1)
+  describe('Keyboard — key combo dispatch', () => {
+    describe('each combo commits the draft and calls only its own callback', () => {
+      it.each(KEY_COMBOS)('%s commits the draft and delivers it to the callback', (_label, modifiers, callbackProp) => {
+        const cb = vi.fn()
+        const { onChange, textarea } = renderField({ value: 'old', [callbackProp]: cb })
+        fireEvent.change(textarea(), { target: { value: 'new' } })
+        fireEvent.keyDown(textarea(), { key: 'Enter', ...modifiers })
+        expect(cb).toHaveBeenCalledTimes(1)
+        expect(cb).toHaveBeenCalledWith('new')
+        expect(onChange).toHaveBeenCalledWith('new')
+      })
+
+      it.each(KEY_COMBOS)('%s — Meta key (macOS) triggers the same callback', (_label, modifiers, callbackProp) => {
+        if (Object.keys(modifiers).length === 0) return
+        const metaModifiers = { ...modifiers, ctrlKey: false, metaKey: true }
+        const cb = vi.fn()
+        const { onChange, textarea } = renderField({ value: 'old', [callbackProp]: cb })
+        fireEvent.change(textarea(), { target: { value: 'new' } })
+        fireEvent.keyDown(textarea(), { key: 'Enter', ...metaModifiers })
+        expect(cb).toHaveBeenCalledTimes(1)
+        expect(cb).toHaveBeenCalledWith('new')
+        expect(onChange).toHaveBeenCalledWith('new')
+      })
+
+      it.each(KEY_COMBOS)(
+        '%s calls the callback with the current value even when the draft equals the committed value',
+        (_label, modifiers, callbackProp) => {
+          const cb = vi.fn()
+          const { onChange, textarea } = renderField({ value: 'same', [callbackProp]: cb })
+          fireEvent.keyDown(textarea(), { key: 'Enter', ...modifiers })
+          expect(cb).toHaveBeenCalledTimes(1)
+          expect(cb).toHaveBeenCalledWith('same')
+          expect(onChange).not.toHaveBeenCalled()
+        },
+      )
+
+      it.each(KEY_COMBOS)(
+        '%s delivers the last typed value after multiple intermediate edits without a prior commit',
+        (_label, modifiers, callbackProp) => {
+          const cb = vi.fn()
+          const { textarea } = renderField({ value: 'start', [callbackProp]: cb })
+          const ta = textarea()
+          fireEvent.change(ta, { target: { value: 'a' } })
+          fireEvent.change(ta, { target: { value: 'ab' } })
+          fireEvent.change(ta, { target: { value: '/chat final' } })
+          fireEvent.keyDown(ta, { key: 'Enter', ...modifiers })
+          expect(cb).toHaveBeenCalledWith('/chat final')
+        },
+      )
+
+      it.each(KEY_COMBOS)('%s does not trigger any other combo callback', (_label, modifiers, callbackProp) => {
+        const all = { onEnter: vi.fn(), onCtrlEnter: vi.fn(), onShiftCtrlEnter: vi.fn() }
+        const { textarea } = renderField({ value: 'v', ...all })
+        fireEvent.keyDown(textarea(), { key: 'Enter', ...modifiers })
+        Object.entries(all)
+          .filter(([k]) => k !== callbackProp)
+          .forEach(([, fn]) => expect(fn).not.toHaveBeenCalled())
+      })
     })
 
-    it('calls onEnterCommit even when the draft equals the committed value', () => {
-      const onEnterCommit = vi.fn()
-      const { onChange, textarea } = renderField({ value: 'same', onEnterCommit })
-      fireEvent.keyDown(textarea(), { key: 'Enter' })
-      expect(onChange).not.toHaveBeenCalled()
-      expect(onEnterCommit).toHaveBeenCalledTimes(1)
+    describe('absent callback behaviour', () => {
+      it('Enter does nothing when onEnter is absent — no commit, no throw, draft preserved', () => {
+        const { onChange, textarea } = renderField({ value: 'old' })
+        fireEvent.change(textarea(), { target: { value: 'new' } })
+        expect(() => fireEvent.keyDown(textarea(), { key: 'Enter' })).not.toThrow()
+        expect(onChange).not.toHaveBeenCalled()
+        expect(textarea()).toHaveValue('new')
+      })
+
+      it('Enter when onEnter is absent does not call preventDefault — the browser default is preserved', () => {
+        const { textarea } = renderField({ value: 'old' })
+        const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+        const preventDefaultSpy = vi.spyOn(event, 'preventDefault')
+        textarea().dispatchEvent(event)
+        expect(preventDefaultSpy).not.toHaveBeenCalled()
+      })
+
+      it.each([
+        ['Ctrl+Enter', { ctrlKey: true }] as const,
+        ['Shift+Ctrl+Enter', { ctrlKey: true, shiftKey: true }] as const,
+      ])('%s always commits even when its callback is absent', (_label, modifiers) => {
+        const { onChange, textarea } = renderField({ value: 'old' })
+        fireEvent.change(textarea(), { target: { value: 'new' } })
+        expect(() => fireEvent.keyDown(textarea(), { key: 'Enter', ...modifiers })).not.toThrow()
+        expect(onChange).toHaveBeenCalledWith('new')
+      })
     })
 
-    it('does not commit or throw when onEnterCommit is absent', () => {
-      const { onChange, textarea } = renderField({ value: 'old' })
-      fireEvent.change(textarea(), { target: { value: 'new' } })
-      expect(() => fireEvent.keyDown(textarea(), { key: 'Enter' })).not.toThrow()
-      expect(onChange).not.toHaveBeenCalled()
+    describe('focus behaviour after commit', () => {
+      it.each(KEY_COMBOS)('%s — textarea %s focus after commit', (_label, modifiers, callbackProp, blursOnCommit) => {
+        const { textarea } = renderField({ value: 'old', [callbackProp]: vi.fn() })
+        textarea().focus()
+        fireEvent.keyDown(textarea(), { key: 'Enter', ...modifiers })
+        const remainsFocused = document.activeElement === textarea()
+        expect(remainsFocused).toBe(!blursOnCommit)
+      })
+
+      it('Enter blurs before the callback receives control', () => {
+        let isBlurredWhenCallbackFires = false
+        const { textarea } = renderField({
+          value: 'old',
+          onEnter: () => {
+            isBlurredWhenCallbackFires = document.activeElement !== textarea()
+          },
+        })
+        textarea().focus()
+        fireEvent.change(textarea(), { target: { value: 'new' } })
+        fireEvent.keyDown(textarea(), { key: 'Enter' })
+        expect(isBlurredWhenCallbackFires).toBe(true)
+      })
+
+      it('Enter without onEnter does not blur — focus is preserved', () => {
+        const { textarea } = renderField({ value: 'old' })
+        textarea().focus()
+        fireEvent.keyDown(textarea(), { key: 'Enter' })
+        expect(document.activeElement).toBe(textarea())
+      })
     })
 
-    it('does not trigger onCtrlEnter on plain Enter', () => {
-      const onCtrlEnter = vi.fn()
-      const onEnterCommit = vi.fn()
-      const { textarea } = renderField({ value: 'old', onCtrlEnter, onEnterCommit })
-      fireEvent.keyDown(textarea(), { key: 'Enter' })
-      expect(onCtrlEnter).not.toHaveBeenCalled()
+    describe('Shift+Enter — newline insertion', () => {
+      it('does not commit and does not call any callback', () => {
+        const all = { onEnter: vi.fn(), onCtrlEnter: vi.fn(), onShiftCtrlEnter: vi.fn() }
+        const { onChange, textarea } = renderField({ value: 'old', ...all })
+        fireEvent.change(textarea(), { target: { value: 'new' } })
+        fireEvent.keyDown(textarea(), { key: 'Enter', shiftKey: true })
+        expect(onChange).not.toHaveBeenCalled()
+        Object.values(all).forEach(fn => expect(fn).not.toHaveBeenCalled())
+      })
     })
 
-    it('uses the latest onEnterCommit reference after a prop change', () => {
-      const first = vi.fn()
-      const second = vi.fn()
-      const { rerender, textarea } = renderField({ value: 'v', onEnterCommit: first })
-      rerender(<CommandField nodeId={NODE_A} onChange={vi.fn()} onEnterCommit={second} value="v" />)
-      fireEvent.keyDown(textarea(), { key: 'Enter' })
-      expect(first).not.toHaveBeenCalled()
-      expect(second).toHaveBeenCalledTimes(1)
-    })
-  })
+    describe('Escape — discard draft', () => {
+      it('restores the committed value', () => {
+        const { textarea } = renderField({ value: 'original' })
+        fireEvent.change(textarea(), { target: { value: 'modified' } })
+        fireEvent.keyDown(textarea(), { key: 'Escape' })
+        expect(textarea()).toHaveValue('original')
+      })
 
-  describe('Keyboard — Shift+Enter', () => {
-    it('does not commit and does not call onEnterCommit (Shift+Enter inserts a newline)', () => {
-      const onEnterCommit = vi.fn()
-      const { onChange, textarea } = renderField({ value: 'old', onEnterCommit })
-      fireEvent.change(textarea(), { target: { value: 'new' } })
-      fireEvent.keyDown(textarea(), { key: 'Enter', shiftKey: true })
-      expect(onChange).not.toHaveBeenCalled()
-      expect(onEnterCommit).not.toHaveBeenCalled()
-    })
+      it('does not call onChange', () => {
+        const { onChange, textarea } = renderField({ value: 'original' })
+        fireEvent.change(textarea(), { target: { value: 'modified' } })
+        fireEvent.keyDown(textarea(), { key: 'Escape' })
+        expect(onChange).not.toHaveBeenCalled()
+      })
 
-    it('does not call onCtrlEnter on Shift+Enter', () => {
-      const onCtrlEnter = vi.fn()
-      const { textarea } = renderField({ value: 'old', onCtrlEnter })
-      fireEvent.keyDown(textarea(), { key: 'Enter', shiftKey: true })
-      expect(onCtrlEnter).not.toHaveBeenCalled()
-    })
-  })
+      it('clears the localStorage entry', () => {
+        renderField({ value: 'original' })
+        const ta = screen.getByRole('textbox')
+        fireEvent.change(ta, { target: { value: 'modified' } })
+        fireEvent.keyDown(ta, { key: 'Escape' })
+        expect(storage[KEY_A]).toBeUndefined()
+      })
 
-  describe('Keyboard — Ctrl+Enter / Meta+Enter', () => {
-    it.each([
-      ['Ctrl+Enter', { ctrlKey: true }],
-      ['Meta+Enter (macOS)', { metaKey: true }],
-    ] as const)('%s commits and calls onCtrlEnter', (_label, modifiers) => {
-      const onCtrlEnter = vi.fn()
-      const { onChange, textarea } = renderField({ value: 'old', onCtrlEnter })
-      fireEvent.change(textarea(), { target: { value: 'new' } })
-      fireEvent.keyDown(textarea(), { key: 'Enter', ...modifiers })
-      expect(onChange).toHaveBeenCalledWith('new')
-      expect(onCtrlEnter).toHaveBeenCalledTimes(1)
-    })
+      it('is a no-op when the field is already clean', () => {
+        const { onChange, textarea } = renderField({ value: 'clean' })
+        expect(() => fireEvent.keyDown(textarea(), { key: 'Escape' })).not.toThrow()
+        expect(onChange).not.toHaveBeenCalled()
+        expect(textarea()).toHaveValue('clean')
+      })
 
-    it('calls onCtrlEnter even when the draft equals the committed value', () => {
-      const onCtrlEnter = vi.fn()
-      const { onChange, textarea } = renderField({ value: 'same', onCtrlEnter })
-      fireEvent.keyDown(textarea(), { key: 'Enter', ctrlKey: true })
-      expect(onChange).not.toHaveBeenCalled()
-      expect(onCtrlEnter).toHaveBeenCalledTimes(1)
-    })
-
-    it('does not throw when onCtrlEnter is absent and Ctrl+Enter is pressed', () => {
-      const { onChange, textarea } = renderField({ value: 'old' })
-      fireEvent.change(textarea(), { target: { value: 'new' } })
-      expect(() => fireEvent.keyDown(textarea(), { key: 'Enter', ctrlKey: true })).not.toThrow()
-      expect(onChange).toHaveBeenCalledWith('new')
-    })
-
-    it('does not trigger onEnterCommit on Ctrl+Enter', () => {
-      const onEnterCommit = vi.fn()
-      const onCtrlEnter = vi.fn()
-      const { textarea } = renderField({ value: 'old', onEnterCommit, onCtrlEnter })
-      fireEvent.keyDown(textarea(), { key: 'Enter', ctrlKey: true })
-      expect(onEnterCommit).not.toHaveBeenCalled()
-    })
-
-    it('does not fire on Shift+Ctrl+Enter', () => {
-      const onCtrlEnter = vi.fn()
-      const { onChange, textarea } = renderField({ value: 'old', onCtrlEnter })
-      fireEvent.change(textarea(), { target: { value: 'new' } })
-      fireEvent.keyDown(textarea(), { key: 'Enter', ctrlKey: true, shiftKey: true })
-      expect(onCtrlEnter).not.toHaveBeenCalled()
-      expect(onChange).not.toHaveBeenCalled()
-    })
-
-    it('uses the latest onCtrlEnter reference after a prop change', () => {
-      const first = vi.fn()
-      const second = vi.fn()
-      const { rerender, textarea } = renderField({ value: 'v', onCtrlEnter: first })
-      rerender(<CommandField nodeId={NODE_A} onChange={vi.fn()} onCtrlEnter={second} value="v" />)
-      fireEvent.keyDown(textarea(), { key: 'Enter', ctrlKey: true })
-      expect(first).not.toHaveBeenCalled()
-      expect(second).toHaveBeenCalledTimes(1)
-    })
-  })
-
-  describe('Keyboard — Escape (discard)', () => {
-    it('restores the committed value and discards the draft', () => {
-      const { textarea } = renderField({ value: 'original' })
-      fireEvent.change(textarea(), { target: { value: 'modified' } })
-      fireEvent.keyDown(textarea(), { key: 'Escape' })
-      expect(screen.getByDisplayValue('original')).toBeInTheDocument()
-    })
-
-    it('does not call onChange on Escape', () => {
-      const { onChange, textarea } = renderField({ value: 'original' })
-      fireEvent.change(textarea(), { target: { value: 'modified' } })
-      fireEvent.keyDown(textarea(), { key: 'Escape' })
-      expect(onChange).not.toHaveBeenCalled()
-    })
-
-    it('clears the localStorage entry on Escape', () => {
-      renderField({ value: 'original' })
-      const ta = screen.getByRole('textbox')
-      fireEvent.change(ta, { target: { value: 'modified' } })
-      fireEvent.keyDown(ta, { key: 'Escape' })
-      expect(storage[KEY_A]).toBeUndefined()
-    })
-
-    it('is a no-op when the field is already clean', () => {
-      const { onChange, textarea } = renderField({ value: 'clean' })
-      expect(() => fireEvent.keyDown(textarea(), { key: 'Escape' })).not.toThrow()
-      expect(onChange).not.toHaveBeenCalled()
-      expect(textarea()).toHaveValue('clean')
-    })
-
-    it('does not call onEnterCommit on Escape', () => {
-      const onEnterCommit = vi.fn()
-      const { textarea } = renderField({ value: 'old', onEnterCommit })
-      fireEvent.keyDown(textarea(), { key: 'Escape' })
-      expect(onEnterCommit).not.toHaveBeenCalled()
-    })
-
-    it('does not call onCtrlEnter on Escape', () => {
-      const onCtrlEnter = vi.fn()
-      const { textarea } = renderField({ value: 'old', onCtrlEnter })
-      fireEvent.keyDown(textarea(), { key: 'Escape' })
-      expect(onCtrlEnter).not.toHaveBeenCalled()
+      it('does not call any keyboard callback', () => {
+        const all = { onEnter: vi.fn(), onCtrlEnter: vi.fn(), onShiftCtrlEnter: vi.fn() }
+        const { textarea } = renderField({ value: 'old', ...all })
+        fireEvent.keyDown(textarea(), { key: 'Escape' })
+        Object.values(all).forEach(fn => expect(fn).not.toHaveBeenCalled())
+      })
     })
   })
 
   describe('Value edge cases', () => {
-    it('handles empty string as a valid committed value', () => {
-      const { onChange, textarea } = renderField({ value: '' })
-      fireEvent.change(textarea(), { target: { value: 'typed' } })
-      fireEvent.blur(textarea())
-      expect(onChange).toHaveBeenCalledWith('typed')
-    })
-
     it('handles committing to an empty string', () => {
       const { onChange, textarea } = renderField({ value: 'content' })
       fireEvent.change(textarea(), { target: { value: '' } })
@@ -441,7 +488,7 @@ describe('CommandField', () => {
     })
   })
 
-  describe('Idle-commit — commits to store after 3 s of typing inactivity', () => {
+  describe('Idle-commit', () => {
     beforeEach(() => {
       vi.useFakeTimers()
     })
@@ -516,26 +563,43 @@ describe('CommandField', () => {
       expect(onChange).toHaveBeenCalledTimes(1)
     })
 
-    it('is idempotent with Enter — onChange fires exactly once when Enter precedes the idle timer', async () => {
-      const onEnterCommit = vi.fn()
-      const { onChange, textarea } = renderField({ value: 'original', onEnterCommit })
-      fireEvent.change(textarea(), { target: { value: 'typed' } })
-      fireEvent.keyDown(textarea(), { key: 'Enter' })
-      await advanceIdleTimer()
-      expect(onChange).toHaveBeenCalledTimes(1)
-    })
+    it.each(KEY_COMBOS)(
+      'is idempotent with %s — onChange fires exactly once when the combo precedes the idle timer',
+      async (_label, modifiers, callbackProp) => {
+        const { onChange, textarea } = renderField({ value: 'original', [callbackProp]: vi.fn() })
+        fireEvent.change(textarea(), { target: { value: 'typed' } })
+        fireEvent.keyDown(textarea(), { key: 'Enter', ...modifiers })
+        await advanceIdleTimer()
+        expect(onChange).toHaveBeenCalledTimes(1)
+      },
+    )
 
-    it('is idempotent with Ctrl+Enter — onChange fires exactly once when Ctrl+Enter precedes the idle timer', async () => {
-      const onCtrlEnter = vi.fn()
-      const { onChange, textarea } = renderField({ value: 'original', onCtrlEnter })
-      fireEvent.change(textarea(), { target: { value: 'typed' } })
-      fireEvent.keyDown(textarea(), { key: 'Enter', ctrlKey: true })
+    it('uses the latest onChange reference when committing via idle timer', async () => {
+      const first = vi.fn()
+      const second = vi.fn()
+      const { textarea, rerender } = renderField({ value: 'old', onChange: first })
+      fireEvent.change(textarea(), { target: { value: 'new' } })
+      rerender(<CommandField nodeId={NODE_A} onChange={second} value="old" />)
       await advanceIdleTimer()
-      expect(onChange).toHaveBeenCalledTimes(1)
+      expect(first).not.toHaveBeenCalled()
+      expect(second).toHaveBeenCalledWith('new')
     })
   })
 
   describe('Callback freshness — always uses the latest prop reference', () => {
+    it.each(KEY_COMBOS)(
+      '%s uses the latest callback reference after a prop change',
+      (_label, modifiers, callbackProp) => {
+        const first = vi.fn()
+        const second = vi.fn()
+        const { rerender, textarea } = renderField({ value: 'v', [callbackProp]: first })
+        rerender(<CommandField nodeId={NODE_A} onChange={vi.fn()} {...{ [callbackProp]: second }} value="v" />)
+        fireEvent.keyDown(textarea(), { key: 'Enter', ...modifiers })
+        expect(first).not.toHaveBeenCalled()
+        expect(second).toHaveBeenCalledTimes(1)
+      },
+    )
+
     it('uses the latest onChange reference when committing via blur', () => {
       const first = vi.fn()
       const second = vi.fn()
@@ -565,6 +629,15 @@ describe('CommandField', () => {
       rerender(<CommandField nodeId={NODE_B} onChange={onChange} value="v" />)
       unmount()
       expect(storage[KEY_B]).toBeUndefined()
+    })
+
+    it('nodeId change mid-mount flushes the old draft to onChange before switching to the new node', () => {
+      const onChange = vi.fn()
+      const { textarea, rerender } = renderField({ nodeId: NODE_A, value: 'committed-a', onChange })
+      fireEvent.change(textarea(), { target: { value: 'draft-a' } })
+      fireEvent.blur(textarea())
+      rerender(<CommandField nodeId={NODE_B} onChange={onChange} value="committed-b" />)
+      expect(onChange).toHaveBeenCalledWith('draft-a')
     })
   })
 })

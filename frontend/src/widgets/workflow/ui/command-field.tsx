@@ -7,8 +7,9 @@ interface CommandFieldProps {
   nodeId: string
   value: string
   onChange: (value: string) => void
-  onEnterCommit?: () => void
-  onCtrlEnter?: () => void
+  onEnter?: (committedValue: string) => void
+  onCtrlEnter?: (committedValue: string) => void
+  onShiftCtrlEnter?: (committedValue: string) => void
   placeholder?: string
   className?: string
   autoFocus?: boolean
@@ -21,23 +22,27 @@ export const CommandField = ({
   nodeId,
   value,
   onChange,
-  onEnterCommit,
+  onEnter,
   onCtrlEnter,
+  onShiftCtrlEnter,
   placeholder,
   className,
   autoFocus,
 }: CommandFieldProps) => {
   const storageKey = buildStorageKey(nodeId)
 
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const valueRef = useRef(value)
   const textRef = useRef(value)
   const onChangeRef = useRef(onChange)
-  const onEnterCommitRef = useRef(onEnterCommit)
+  const onEnterRef = useRef(onEnter)
   const onCtrlEnterRef = useRef(onCtrlEnter)
-  const commitRef = useRef<() => void>(() => {})
+  const onShiftCtrlEnterRef = useRef(onShiftCtrlEnter)
+  const commitRef = useRef<() => string>(() => textRef.current)
   onChangeRef.current = onChange
-  onEnterCommitRef.current = onEnterCommit
+  onEnterRef.current = onEnter
   onCtrlEnterRef.current = onCtrlEnter
+  onShiftCtrlEnterRef.current = onShiftCtrlEnter
 
   const [text, setText] = useState<string>(() => {
     const stored = safeLocalStorage.getItem(storageKey)
@@ -51,7 +56,7 @@ export const CommandField = ({
     setText(stored !== null ? stored : value)
   }, [storageKey, value])
 
-  const commit = useCallback(() => {
+  const commit = useCallback((): string => {
     const current = textRef.current
     const committed = valueRef.current
     safeLocalStorage.removeItem(storageKey)
@@ -59,10 +64,11 @@ export const CommandField = ({
       valueRef.current = current
       onChangeRef.current(current)
     }
+    return current
   }, [storageKey])
   commitRef.current = commit
 
-  useEffect(() => () => commitRef.current(), [])
+  useEffect(() => () => void commitRef.current(), [])
 
   useEffect(() => {
     if (text === value) return
@@ -88,20 +94,20 @@ export const CommandField = ({
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
       const isCtrlOrMeta = e.ctrlKey || e.metaKey
-      if (e.key === 'Enter' && isCtrlOrMeta && !e.shiftKey) {
+      if (e.key === 'Enter' && isCtrlOrMeta && e.shiftKey) {
         e.preventDefault()
-        commit()
-        onCtrlEnterRef.current?.()
-      } else if (
-        onEnterCommitRef.current !== null &&
-        onEnterCommitRef.current !== undefined &&
-        e.key === 'Enter' &&
-        !e.shiftKey &&
-        !isCtrlOrMeta
-      ) {
+        const v = commit()
+        onShiftCtrlEnterRef.current?.(v)
+      } else if (e.key === 'Enter' && isCtrlOrMeta && !e.shiftKey) {
         e.preventDefault()
-        commit()
-        onEnterCommitRef.current()
+        const v = commit()
+        onCtrlEnterRef.current?.(v)
+      } else if (e.key === 'Enter' && !e.shiftKey && !isCtrlOrMeta) {
+        if (!onEnterRef.current) return
+        e.preventDefault()
+        const v = commit()
+        textareaRef.current?.blur()
+        onEnterRef.current(v)
       } else if (e.key === 'Escape') {
         e.preventDefault()
         safeLocalStorage.removeItem(storageKey)
@@ -122,10 +128,11 @@ export const CommandField = ({
         isDirty && 'border-amber-400 focus-visible:ring-amber-400',
         className,
       )}
-      onBlur={commit}
+      onBlur={() => commit()}
       onChange={handleChange}
       onKeyDown={handleKeyDown}
       placeholder={placeholder}
+      ref={textareaRef}
       value={text}
     />
   )

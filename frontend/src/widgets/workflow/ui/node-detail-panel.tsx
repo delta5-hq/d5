@@ -25,7 +25,9 @@ interface NodeDetailPanelProps {
   onDuplicateNode: (nodeId: NodeId) => void
   onAddChild: (parentId: NodeId) => void
   onAddSibling: (nodeId: NodeId) => NodeId | null
-  onEnterInCommand: (nodeId: NodeId) => void
+  onEnterInCommand: (nodeId: NodeId, committedCommand: string) => void
+  onCtrlEnterInCommand: (nodeId: NodeId, committedCommand: string) => void
+  onShiftCtrlEnterInCommand: (nodeId: NodeId, committedCommand: string) => void
   onClose: () => void
   onExecute: (node: NodeData, queryType: string) => Promise<boolean>
   onAbort: (nodeId: NodeId) => void
@@ -44,6 +46,8 @@ export const NodeDetailPanel = ({
   onAddChild,
   onAddSibling,
   onEnterInCommand,
+  onCtrlEnterInCommand,
+  onShiftCtrlEnterInCommand,
   onClose,
   onExecute,
   onAbort,
@@ -105,9 +109,20 @@ export const NodeDetailPanel = ({
     onAddSibling(node.id)
   }, [node.id, onAddSibling])
 
-  const handleEnterInCommand = useCallback(() => {
-    onEnterInCommand(node.id)
-  }, [node.id, onEnterInCommand])
+  const handleEnterInCommand = useCallback(
+    (committedCommand: string) => onEnterInCommand(node.id, committedCommand),
+    [node.id, onEnterInCommand],
+  )
+
+  const handleCtrlEnterInCommand = useCallback(
+    (committedCommand: string) => onCtrlEnterInCommand(node.id, committedCommand),
+    [node.id, onCtrlEnterInCommand],
+  )
+
+  const handleShiftCtrlEnterInCommand = useCallback(
+    (committedCommand: string) => onShiftCtrlEnterInCommand(node.id, committedCommand),
+    [node.id, onShiftCtrlEnterInCommand],
+  )
 
   return (
     <div className="text-sm 3xl:flex 3xl:gap-6 3xl:items-start" data-testid="node-detail-panel">
@@ -158,8 +173,9 @@ export const NodeDetailPanel = ({
                     className="min-h-[80px] text-xs font-mono w-full"
                     nodeId={node.id}
                     onChange={handleCommandChange}
-                    onCtrlEnter={siblingActionsEnabled ? handleAddSibling : undefined}
-                    onEnterCommit={siblingActionsEnabled ? handleEnterInCommand : undefined}
+                    onCtrlEnter={siblingActionsEnabled ? handleCtrlEnterInCommand : undefined}
+                    onEnter={handleEnterInCommand}
+                    onShiftCtrlEnter={siblingActionsEnabled ? handleShiftCtrlEnterInCommand : undefined}
                     placeholder={formatMessage({ id: 'workflowTree.node.commandPlaceholder' })}
                     value={node.command ?? ''}
                   />

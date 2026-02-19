@@ -226,11 +226,21 @@ const WorkflowContent = () => {
   )
 
   const handleEnterInCommand = useCallback(
-    (nodeId: string) => {
+    (nodeId: string, committedCommand: string) => {
       const node = nodes[nodeId]
       if (!node) return
-      const queryType = extractQueryTypeFromCommand(node.command)
-      void actions.executeCommand(node, queryType)
+      const queryType = extractQueryTypeFromCommand(committedCommand)
+      void actions.executeCommand({ ...node, command: committedCommand }, queryType)
+    },
+    [actions, nodes],
+  )
+
+  const handleCtrlEnterInCommand = useCallback(
+    (nodeId: string, committedCommand: string) => {
+      const node = nodes[nodeId]
+      if (!node) return
+      const queryType = extractQueryTypeFromCommand(committedCommand)
+      void actions.executeCommand({ ...node, command: committedCommand }, queryType)
       const newId = actions.addSibling(nodeId, { title: '' })
       if (newId) {
         actions.select(newId)
@@ -239,6 +249,18 @@ const WorkflowContent = () => {
       }
     },
     [actions, nodes],
+  )
+
+  const handleShiftCtrlEnterInCommand = useCallback(
+    (nodeId: string, _committedCommand: string) => {
+      const newId = actions.addSibling(nodeId, { title: '' })
+      if (newId) {
+        actions.select(newId)
+        setAutoFocusCommandNodeId(newId)
+        setFlashNodeId(newId)
+      }
+    },
+    [actions],
   )
 
   if (isLoading) {
@@ -327,10 +349,12 @@ const WorkflowContent = () => {
               onAddChild={handleAddChild}
               onAddSibling={handleAddSibling}
               onClose={handleCloseDetailPanel}
+              onCtrlEnterInCommand={handleCtrlEnterInCommand}
               onDuplicateNode={handleDuplicateNode}
               onEnterInCommand={handleEnterInCommand}
               onExecute={handleExecute}
               onRequestDelete={handleRequestDelete}
+              onShiftCtrlEnterInCommand={handleShiftCtrlEnterInCommand}
               onUpdateNode={handleUpdateNode}
             />
           ) : (
