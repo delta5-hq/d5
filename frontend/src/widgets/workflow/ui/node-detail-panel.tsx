@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { cn } from '@shared/lib/utils'
 import type { NodeData, NodeId } from '@shared/base-types'
 import { Button } from '@shared/ui/button'
 import { Genie } from '@shared/ui/genie'
@@ -113,7 +114,7 @@ export const NodeDetailPanel = ({
       <div className="flex-1 space-y-4">
         <button
           aria-label={formatMessage({ id: 'workflowTree.node.close' })}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors 3xl:hidden"
           data-testid="close-detail-panel-button"
           onClick={onClose}
           type="button"
@@ -247,16 +248,14 @@ export const NodeDetailPanel = ({
         </Collapsible>
       </div>
 
-      {showPreview ? (
-        <div className="3xl:w-96 3xl:flex-shrink-0">
-          <NodePreviewSection
-            command={node.command}
-            nodeId={node.id}
-            promptTitle={isPrompt ? normalizeNodeTitle(node.title) : undefined}
-            title={node.title}
-          />
-        </div>
-      ) : null}
+      <div className={cn('3xl:w-96 3xl:flex-shrink-0', !showPreview && 'hidden 3xl:block')}>
+        <NodePreviewSection
+          command={node.command}
+          nodeId={node.id}
+          promptTitle={isPrompt ? normalizeNodeTitle(node.title) : undefined}
+          title={node.title}
+        />
+      </div>
     </div>
   )
 }

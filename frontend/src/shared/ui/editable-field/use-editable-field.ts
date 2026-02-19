@@ -6,7 +6,8 @@ export interface UseEditableFieldOptions {
   autoFocus?: boolean
   commitOnEnter?: boolean
   onCtrlEnter?: () => void
-  onEnterCommit?: () => void
+  /** Enables single-line commit semantics: plain Enter commits, Shift+Enter inserts a newline */
+  onEnterCommit?: (committedValue: string) => void
   onEscape?: () => void
   onInput?: (value: string) => void
 }
@@ -125,7 +126,7 @@ export function useEditableField({
       } else if (onEnterCommitRef.current && e.key === 'Enter' && !e.shiftKey && !isCtrlOrMeta) {
         e.preventDefault()
         commitEdit()
-        onEnterCommitRef.current()
+        onEnterCommitRef.current(editValueRef.current)
       } else if (commitOnEnter && e.key === 'Enter' && !e.shiftKey && !isCtrlOrMeta) {
         e.preventDefault()
         commitEdit()
