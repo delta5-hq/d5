@@ -18,8 +18,7 @@ export interface WorkflowSegmentTreeProps {
   autoEditNodeId?: string
   onSelect?: (id: string, node: NodeData, event?: MouseEvent) => void
   onAddChild?: (parentId: string) => void
-  onRequestDelete?: (nodeId: string) => void
-  onDirectDelete?: (nodeId: string) => void
+  onDelete?: (nodeId: string) => void
   onDuplicateNode?: (nodeId: string) => void
   onRename?: (nodeId: string, newTitle: string) => void
   onRequestRename?: (nodeId: string) => void
@@ -37,8 +36,7 @@ const WorkflowSegmentTreeInner = ({
   autoEditNodeId,
   onSelect,
   onAddChild,
-  onRequestDelete,
-  onDirectDelete,
+  onDelete,
   onDuplicateNode,
   onRename,
   onRequestRename,
@@ -83,10 +81,9 @@ const WorkflowSegmentTreeInner = ({
               autoEditNodeId={autoEditNodeId}
               height={height}
               onAddChild={handleAddChild}
-              onDirectDelete={onDirectDelete}
+              onDelete={onDelete}
               onDuplicateNode={onDuplicateNode}
               onRename={onRename}
-              onRequestDelete={onRequestDelete}
               onRequestRename={onRequestRename}
               onSelect={handleSelect}
               onToggle={handleToggle}

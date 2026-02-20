@@ -98,6 +98,21 @@ describe('compareTreeNodeData', () => {
     ).toBe(false)
   })
 
+  it.each([
+    { field: 'sparkDelay', a: 0, b: 100 },
+    { field: 'isPrompt', a: false, b: true },
+    { field: 'hasChildren', a: false, b: true },
+    { field: 'isOpenByDefault', a: false, b: true },
+  ] as const)('different $field → equal (display-only, does not affect rendering)', ({ field, a, b }) => {
+    const sharedNode = makeNode()
+    expect(
+      compareTreeNodeData(
+        makeTreeNode({ node: sharedNode, [field]: a }),
+        makeTreeNode({ node: sharedNode, [field]: b }),
+      ),
+    ).toBe(true)
+  })
+
   it('different ancestorContinuation values → not equal', () => {
     const sharedNode = makeNode()
     const a = makeTreeNode({ node: sharedNode, ancestorContinuation: [true, false] })
@@ -153,8 +168,7 @@ describe('areTreeNodePropsEqual', () => {
     onToggle: noop,
     onSelect: noop,
     onAddChild: noop,
-    onRequestDelete: noop,
-    onDirectDelete: noop,
+    onDelete: noop,
     onDuplicateNode: noop,
     onRename: noop,
     onRequestRename: noop,
@@ -227,10 +241,6 @@ describe('areTreeNodePropsEqual', () => {
       const next = { ...baseProps(), autoEditNodeId: 'n1' }
       expect(areTreeNodePropsEqual(prev, next)).toBe(true)
     })
-
-    it('both undefined → equal', () => {
-      expect(areTreeNodePropsEqual(baseProps(), baseProps())).toBe(true)
-    })
   })
 
   describe('scalar prop identity', () => {
@@ -250,8 +260,7 @@ describe('areTreeNodePropsEqual', () => {
       { callback: 'onToggle' },
       { callback: 'onSelect' },
       { callback: 'onAddChild' },
-      { callback: 'onRequestDelete' },
-      { callback: 'onDirectDelete' },
+      { callback: 'onDelete' },
       { callback: 'onDuplicateNode' },
       { callback: 'onRename' },
       { callback: 'onRequestRename' },
@@ -263,8 +272,7 @@ describe('areTreeNodePropsEqual', () => {
       const withUndefined = {
         ...baseProps(),
         onAddChild: undefined,
-        onRequestDelete: undefined,
-        onDirectDelete: undefined,
+        onDelete: undefined,
         onDuplicateNode: undefined,
         onRename: undefined,
         onRequestRename: undefined,

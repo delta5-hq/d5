@@ -547,19 +547,19 @@ describe('mergeWorkflowChanges', () => {
     })
   })
 
-  describe('prompts preservation', () => {
-    it('preserves existing prompts when incoming node has no prompts field', () => {
-      const state = createState({ p: { id: 'p', prompts: ['old1', 'old2'] } })
+  describe('prompts field merge semantics', () => {
+    it('keeps existing prompts when incoming node omits the prompts field', () => {
+      const state = createState({ p: { id: 'p', prompts: ['a', 'b'] } })
 
       const result = mergeWorkflowChanges(state, {
         nodesChanged: { p: { id: 'p', title: 'Updated' } },
       })
 
-      expect(result.nodes.p.prompts).toEqual(['old1', 'old2'])
+      expect(result.nodes.p.prompts).toEqual(['a', 'b'])
     })
 
-    it('uses incoming prompts when incoming node has prompts field', () => {
-      const state = createState({ p: { id: 'p', prompts: ['old1'] } })
+    it('replaces existing prompts with incoming prompts array', () => {
+      const state = createState({ p: { id: 'p', prompts: ['old'] } })
 
       const result = mergeWorkflowChanges(state, {
         nodesChanged: { p: { id: 'p', prompts: ['new1', 'new2'] } },
@@ -568,8 +568,18 @@ describe('mergeWorkflowChanges', () => {
       expect(result.nodes.p.prompts).toEqual(['new1', 'new2'])
     })
 
-    it('clears prompts when incoming node explicitly sets prompts to empty array', () => {
-      const state = createState({ p: { id: 'p', prompts: ['old1'] } })
+    it('sets prompts when existing node has no prompts field', () => {
+      const state = createState({ p: { id: 'p' } })
+
+      const result = mergeWorkflowChanges(state, {
+        nodesChanged: { p: { id: 'p', prompts: ['new1'] } },
+      })
+
+      expect(result.nodes.p.prompts).toEqual(['new1'])
+    })
+
+    it('accepts empty prompts array from incoming, clearing all prompts', () => {
+      const state = createState({ p: { id: 'p', prompts: ['old'] } })
 
       const result = mergeWorkflowChanges(state, {
         nodesChanged: { p: { id: 'p', prompts: [] } },
@@ -579,7 +589,7 @@ describe('mergeWorkflowChanges', () => {
     })
 
     it('leaves prompts undefined when neither existing nor incoming has prompts', () => {
-      const state = createState({ p: { id: 'p', title: 'Parent' } })
+      const state = createState({ p: { id: 'p' } })
 
       const result = mergeWorkflowChanges(state, {
         nodesChanged: { p: { id: 'p', title: 'Updated' } },
@@ -588,19 +598,7 @@ describe('mergeWorkflowChanges', () => {
       expect(result.nodes.p.prompts).toBeUndefined()
     })
 
-    it('sets prompts from incoming when existing node has no prompts', () => {
-      const state = createState({ p: { id: 'p' } })
-
-      const result = mergeWorkflowChanges(state, {
-        nodesChanged: { p: { id: 'p', prompts: ['new1'] } },
-      })
-
-      expect(result.nodes.p.prompts).toEqual(['new1'])
-    })
-  })
-
-  describe('prompts and children coexistence', () => {
-    it('preserves both children union and existing prompts when incoming has neither', () => {
+    it('preserves both children and prompts when incoming omits both fields', () => {
       const state = createState({ n: { id: 'n', children: ['c1'], prompts: ['p1'] } })
 
       const result = mergeWorkflowChanges(state, {
@@ -610,16 +608,148 @@ describe('mergeWorkflowChanges', () => {
       expect(result.nodes.n.children).toEqual(['c1'])
       expect(result.nodes.n.prompts).toEqual(['p1'])
     })
+  })
 
-    it('unions children and accepts incoming prompts when both are present in incoming', () => {
-      const state = createState({ n: { id: 'n', children: ['c1'], prompts: ['p1'] } })
-
-      const result = mergeWorkflowChanges(state, {
-        nodesChanged: { n: { id: 'n', children: ['c2'], prompts: ['p2'] } },
+  describe('prompt eviction', () => {
+    it('removes evicted prompt id from the parent children array', () => {
+      const state = createState({
+        n: { id: 'n', children: ['c1', 'p1'], prompts: ['p1'] },
+        c1: { id: 'c1', parent: 'n' },
+        p1: { id: 'p1', parent: 'n' },
       })
 
-      expect(result.nodes.n.children).toEqual(['c1', 'c2'])
-      expect(result.nodes.n.prompts).toEqual(['p2'])
+      const result = mergeWorkflowChanges(state, {
+        nodesChanged: {
+          n: { id: 'n', children: ['c1', 'p2'], prompts: ['p2'] },
+          p2: { id: 'p2', parent: 'n' },
+        },
+      })
+
+      expect(result.nodes.n.children).not.toContain('p1')
+      expect(result.nodes.n.children).toContain('p2')
+    })
+
+    it('removes evicted prompt node from the store', () => {
+      const state = createState({
+        n: { id: 'n', children: ['p1'], prompts: ['p1'] },
+        p1: { id: 'p1', parent: 'n' },
+      })
+
+      const result = mergeWorkflowChanges(state, {
+        nodesChanged: { n: { id: 'n', children: [], prompts: [] } },
+      })
+
+      expect(result.nodes.p1).toBeUndefined()
+    })
+
+    it('does not evict non-prompt children', () => {
+      const state = createState({
+        n: { id: 'n', children: ['c1', 'p1'], prompts: ['p1'] },
+        c1: { id: 'c1', parent: 'n' },
+        p1: { id: 'p1', parent: 'n' },
+      })
+
+      const result = mergeWorkflowChanges(state, {
+        nodesChanged: {
+          n: { id: 'n', children: ['c1', 'p2'], prompts: ['p2'] },
+          p2: { id: 'p2', parent: 'n' },
+        },
+      })
+
+      expect(result.nodes.c1).toBeDefined()
+    })
+
+    it('recursively removes all descendants of an evicted prompt node', () => {
+      const state = createState({
+        n: { id: 'n', children: ['p1'], prompts: ['p1'] },
+        p1: { id: 'p1', parent: 'n', children: ['p1a'] },
+        p1a: { id: 'p1a', parent: 'p1', children: ['p1a1'] },
+        p1a1: { id: 'p1a1', parent: 'p1a' },
+      })
+
+      const result = mergeWorkflowChanges(state, {
+        nodesChanged: { n: { id: 'n', children: [], prompts: [] } },
+      })
+
+      expect(result.nodes.p1).toBeUndefined()
+      expect(result.nodes.p1a).toBeUndefined()
+      expect(result.nodes.p1a1).toBeUndefined()
+    })
+
+    it('evicts all prompts when incoming replaces with a fully disjoint set', () => {
+      const state = createState({
+        n: { id: 'n', children: ['p1', 'p2'], prompts: ['p1', 'p2'] },
+        p1: { id: 'p1', parent: 'n' },
+        p2: { id: 'p2', parent: 'n' },
+      })
+
+      const result = mergeWorkflowChanges(state, {
+        nodesChanged: {
+          n: { id: 'n', children: ['p3', 'p4'], prompts: ['p3', 'p4'] },
+          p3: { id: 'p3', parent: 'n' },
+          p4: { id: 'p4', parent: 'n' },
+        },
+      })
+
+      expect(result.nodes.p1).toBeUndefined()
+      expect(result.nodes.p2).toBeUndefined()
+      expect(result.nodes.p3).toBeDefined()
+      expect(result.nodes.p4).toBeDefined()
+    })
+
+    it('retains a prompt id that appears in both existing and incoming prompts', () => {
+      const state = createState({
+        n: { id: 'n', children: ['p1', 'p2'], prompts: ['p1', 'p2'] },
+        p1: { id: 'p1', parent: 'n' },
+        p2: { id: 'p2', parent: 'n' },
+      })
+
+      const result = mergeWorkflowChanges(state, {
+        nodesChanged: { n: { id: 'n', children: ['p1'], prompts: ['p1'] } },
+      })
+
+      expect(result.nodes.p1).toBeDefined()
+      expect(result.nodes.n.children).toContain('p1')
+      expect(result.nodes.p2).toBeUndefined()
+      expect(result.nodes.n.children).not.toContain('p2')
+    })
+
+    it('does not evict anything when incoming omits the prompts field', () => {
+      const state = createState({
+        n: { id: 'n', children: ['c1', 'p1'], prompts: ['p1'] },
+        c1: { id: 'c1', parent: 'n' },
+        p1: { id: 'p1', parent: 'n' },
+      })
+
+      const result = mergeWorkflowChanges(state, {
+        nodesChanged: { n: { id: 'n', title: 'Updated' } },
+      })
+
+      expect(result.nodes.p1).toBeDefined()
+      expect(result.nodes.n.children).toContain('p1')
+    })
+
+    it('evicts prompt nodes independently across multiple parents in one batch', () => {
+      const state = createState({
+        a: { id: 'a', children: ['ap1'], prompts: ['ap1'] },
+        ap1: { id: 'ap1', parent: 'a' },
+        b: { id: 'b', children: ['bp1'], prompts: ['bp1'] },
+        bp1: { id: 'bp1', parent: 'b' },
+      })
+
+      const result = mergeWorkflowChanges(state, {
+        nodesChanged: {
+          a: { id: 'a', children: ['ap2'], prompts: ['ap2'] },
+          ap2: { id: 'ap2', parent: 'a' },
+          b: { id: 'b', children: ['bp2'], prompts: ['bp2'] },
+          bp2: { id: 'bp2', parent: 'b' },
+        },
+      })
+
+      expect(result.nodes.ap1).toBeUndefined()
+      expect(result.nodes.bp1).toBeUndefined()
+      expect(result.nodes.ap2).toBeDefined()
+      expect(result.nodes.bp2).toBeDefined()
     })
   })
 })

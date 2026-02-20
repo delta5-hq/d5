@@ -13,6 +13,8 @@ export interface UseTreeKeyboardNavigationOptions {
   containerRef: RefObject<HTMLElement | null>
   enabled?: boolean
   onRequestEdit?: (nodeId: NodeId) => void
+  onRequestDelete?: (nodeId: NodeId) => void
+  onRequestDeleteMultiple?: (nodeIds: Set<NodeId>) => void
 }
 
 export function useTreeKeyboardNavigation({
@@ -25,6 +27,8 @@ export function useTreeKeyboardNavigation({
   containerRef,
   enabled = true,
   onRequestEdit,
+  onRequestDelete,
+  onRequestDeleteMultiple,
 }: UseTreeKeyboardNavigationOptions): void {
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
@@ -37,7 +41,17 @@ export function useTreeKeyboardNavigation({
       if (key === 'Delete' || key === 'Backspace') {
         if (selectedIds.size > 1) {
           event.preventDefault()
-          actions.removeNodes(selectedIds)
+
+          const hasAnyChildren = Array.from(selectedIds).some(id => {
+            const node = nodes[id]
+            return node?.children?.length
+          })
+
+          if (hasAnyChildren && onRequestDeleteMultiple) {
+            onRequestDeleteMultiple(selectedIds)
+          } else {
+            actions.removeNodes(selectedIds)
+          }
           return
         }
 
@@ -45,7 +59,11 @@ export function useTreeKeyboardNavigation({
           const node = nodes[selectedId]
           if (node?.parent && !executingNodeIds.has(selectedId)) {
             event.preventDefault()
-            actions.removeNode(selectedId)
+            if (node.children?.length && onRequestDelete) {
+              onRequestDelete(selectedId)
+            } else {
+              actions.removeNode(selectedId)
+            }
           }
         }
         return
@@ -126,7 +144,18 @@ export function useTreeKeyboardNavigation({
         return
       }
     },
-    [enabled, nodes, visibleOrderRef, selectedId, selectedIds, executingNodeIds, actions, onRequestEdit],
+    [
+      enabled,
+      nodes,
+      visibleOrderRef,
+      selectedId,
+      selectedIds,
+      executingNodeIds,
+      actions,
+      onRequestEdit,
+      onRequestDelete,
+      onRequestDeleteMultiple,
+    ],
   )
 
   useEffect(() => {

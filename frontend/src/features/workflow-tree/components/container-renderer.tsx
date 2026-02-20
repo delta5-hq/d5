@@ -24,8 +24,7 @@ export const ContainerRenderer = ({
   selectedIds,
   onSelect,
   onAddChild,
-  onRequestDelete,
-  onDirectDelete,
+  onDelete,
   onDuplicateNode,
   onRename,
   onRequestRename,
@@ -47,10 +46,9 @@ export const ContainerRenderer = ({
         isOpen={parentNode.isOpen}
         isSelected={selectedIds?.has(parentNode.id) ?? false}
         onAddChild={onAddChild}
-        onDirectDelete={onDirectDelete}
+        onDelete={onDelete}
         onDuplicateNode={onDuplicateNode}
         onRename={onRename}
-        onRequestDelete={onRequestDelete}
         onRequestRename={onRequestRename}
         onSelect={onSelect}
         onToggle={onToggle}
@@ -85,10 +83,9 @@ export const ContainerRenderer = ({
               isOpen={childNode.isOpen}
               isSelected={selectedIds?.has(childNode.id) ?? false}
               onAddChild={onAddChild}
-              onDirectDelete={onDirectDelete}
+              onDelete={onDelete}
               onDuplicateNode={onDuplicateNode}
               onRename={onRename}
-              onRequestDelete={onRequestDelete}
               onRequestRename={onRequestRename}
               onSelect={onSelect}
               onToggle={onToggle}

@@ -372,6 +372,10 @@ export default {
       descriptionWithChildren:
         'Delete "{title}" and {count} child {count, plural, one {node} other {nodes}}? This action cannot be undone.',
       description: 'Delete "{title}"? This action cannot be undone.',
+      descriptionMultipleWithChildren:
+        'Delete {nodeCount} {nodeCount, plural, one {node} other {nodes}} and {descendantCount} child {descendantCount, plural, one {node} other {nodes}}? This action cannot be undone.',
+      descriptionMultiple:
+        'Delete {nodeCount} {nodeCount, plural, one {node} other {nodes}}? This action cannot be undone.',
     },
 
     mutation: {

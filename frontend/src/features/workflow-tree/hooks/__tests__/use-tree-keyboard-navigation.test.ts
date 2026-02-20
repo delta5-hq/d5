@@ -322,7 +322,7 @@ describe('useTreeKeyboardNavigation', () => {
   })
 
   describe('delete keys', () => {
-    it('Delete removes single selected node', () => {
+    it('Delete removes a node with children when onRequestDelete is not provided', () => {
       const actions = makeActions()
       const nodes = makeNodes()
 
@@ -344,7 +344,7 @@ describe('useTreeKeyboardNavigation', () => {
       expect(actions.removeNode).toHaveBeenCalledWith('n1')
     })
 
-    it('Backspace removes single selected node', () => {
+    it('Backspace removes a node with children when onRequestDelete is not provided', () => {
       const actions = makeActions()
       const nodes = makeNodes()
 
@@ -366,7 +366,160 @@ describe('useTreeKeyboardNavigation', () => {
       expect(actions.removeNode).toHaveBeenCalledWith('n1')
     })
 
-    it('Delete bulk removes multi-selection', () => {
+    it('Delete removes a leaf node directly regardless of onRequestDelete', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+      const onRequestDelete = vi.fn()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1', 'n2']),
+          selectedId: 'n2',
+          selectedIds: new Set(['n2']),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+          onRequestDelete,
+        }),
+      )
+
+      const event = new KeyboardEvent('keydown', { key: 'Delete' })
+      containerRef.current?.dispatchEvent(event)
+
+      expect(actions.removeNode).toHaveBeenCalledWith('n2')
+      expect(onRequestDelete).not.toHaveBeenCalled()
+    })
+
+    it('Delete delegates to onRequestDelete when node has children and callback is provided', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+      const onRequestDelete = vi.fn()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1']),
+          selectedId: 'n1',
+          selectedIds: new Set(['n1']),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+          onRequestDelete,
+        }),
+      )
+
+      const event = new KeyboardEvent('keydown', { key: 'Delete' })
+      containerRef.current?.dispatchEvent(event)
+
+      expect(onRequestDelete).toHaveBeenCalledWith('n1')
+      expect(actions.removeNode).not.toHaveBeenCalled()
+    })
+
+    it('Backspace delegates to onRequestDelete when node has children and callback is provided', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+      const onRequestDelete = vi.fn()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1']),
+          selectedId: 'n1',
+          selectedIds: new Set(['n1']),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+          onRequestDelete,
+        }),
+      )
+
+      const event = new KeyboardEvent('keydown', { key: 'Backspace' })
+      containerRef.current?.dispatchEvent(event)
+
+      expect(onRequestDelete).toHaveBeenCalledWith('n1')
+      expect(actions.removeNode).not.toHaveBeenCalled()
+    })
+
+    it('Delete bulk removes multi-selection when none have children', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+      const selectedIds = new Set(['n1a', 'n2'])
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1', 'n1a', 'n2']),
+          selectedId: 'n2',
+          selectedIds,
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+        }),
+      )
+
+      const event = new KeyboardEvent('keydown', { key: 'Delete' })
+      containerRef.current?.dispatchEvent(event)
+
+      expect(actions.removeNodes).toHaveBeenCalledWith(selectedIds)
+      expect(actions.removeNode).not.toHaveBeenCalled()
+    })
+
+    it('Delete bulk requests confirmation when any node has children', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+      const selectedIds = new Set(['n1', 'n2'])
+      const onRequestDeleteMultiple = vi.fn()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1', 'n2']),
+          selectedId: 'n2',
+          selectedIds,
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+          onRequestDeleteMultiple,
+        }),
+      )
+
+      const event = new KeyboardEvent('keydown', { key: 'Delete' })
+      containerRef.current?.dispatchEvent(event)
+
+      expect(onRequestDeleteMultiple).toHaveBeenCalledWith(selectedIds)
+      expect(actions.removeNodes).not.toHaveBeenCalled()
+      expect(actions.removeNode).not.toHaveBeenCalled()
+    })
+
+    it('Backspace bulk requests confirmation when any node has children', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+      const selectedIds = new Set(['n1', 'n2'])
+      const onRequestDeleteMultiple = vi.fn()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1', 'n2']),
+          selectedId: 'n2',
+          selectedIds,
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+          onRequestDeleteMultiple,
+        }),
+      )
+
+      const event = new KeyboardEvent('keydown', { key: 'Backspace' })
+      containerRef.current?.dispatchEvent(event)
+
+      expect(onRequestDeleteMultiple).toHaveBeenCalledWith(selectedIds)
+      expect(actions.removeNodes).not.toHaveBeenCalled()
+      expect(actions.removeNode).not.toHaveBeenCalled()
+    })
+
+    it('Delete bulk removes immediately when onRequestDeleteMultiple not provided even if nodes have children', () => {
       const actions = makeActions()
       const nodes = makeNodes()
       const selectedIds = new Set(['n1', 'n2'])
@@ -387,7 +540,69 @@ describe('useTreeKeyboardNavigation', () => {
       containerRef.current?.dispatchEvent(event)
 
       expect(actions.removeNodes).toHaveBeenCalledWith(selectedIds)
-      expect(actions.removeNode).not.toHaveBeenCalled()
+    })
+
+    it('Delete bulk removes immediately when all selected nodes are leaf nodes', () => {
+      const actions = makeActions()
+      const nodes = {
+        root: { id: 'root', children: ['a', 'b', 'c'] },
+        a: { id: 'a', parent: 'root', children: [] },
+        b: { id: 'b', parent: 'root', children: [] },
+        c: { id: 'c', parent: 'root', children: [] },
+      }
+      const selectedIds = new Set(['a', 'b', 'c'])
+      const onRequestDeleteMultiple = vi.fn()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'a', 'b', 'c']),
+          selectedId: 'c',
+          selectedIds,
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+          onRequestDeleteMultiple,
+        }),
+      )
+
+      const event = new KeyboardEvent('keydown', { key: 'Delete' })
+      containerRef.current?.dispatchEvent(event)
+
+      expect(actions.removeNodes).toHaveBeenCalledWith(selectedIds)
+      expect(onRequestDeleteMultiple).not.toHaveBeenCalled()
+    })
+
+    it('Delete bulk requests confirmation when only one of many selected nodes has children', () => {
+      const actions = makeActions()
+      const nodes = {
+        root: { id: 'root', children: ['a', 'b', 'c'] },
+        a: { id: 'a', parent: 'root', children: [] },
+        b: { id: 'b', parent: 'root', children: ['b1'] },
+        b1: { id: 'b1', parent: 'b', children: [] },
+        c: { id: 'c', parent: 'root', children: [] },
+      }
+      const selectedIds = new Set(['a', 'b', 'c'])
+      const onRequestDeleteMultiple = vi.fn()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'a', 'b', 'c']),
+          selectedId: 'c',
+          selectedIds,
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+          onRequestDeleteMultiple,
+        }),
+      )
+
+      const event = new KeyboardEvent('keydown', { key: 'Delete' })
+      containerRef.current?.dispatchEvent(event)
+
+      expect(onRequestDeleteMultiple).toHaveBeenCalledWith(selectedIds)
+      expect(actions.removeNodes).not.toHaveBeenCalled()
     })
 
     it('Delete ignores root node', () => {

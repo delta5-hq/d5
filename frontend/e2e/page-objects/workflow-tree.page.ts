@@ -52,6 +52,10 @@ export class WorkflowTreePage {
     await this.treePanel.press('Delete')
   }
 
+  async confirmDelete(): Promise<void> {
+    await this.confirmDialog.getByRole('button', { name: /delete/i }).click()
+  }
+
   async pressBackspace(): Promise<void> {
     await this.treePanel.press('Backspace')
   }

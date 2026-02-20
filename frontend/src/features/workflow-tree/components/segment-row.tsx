@@ -21,8 +21,7 @@ export const SegmentRow = ({
   selectedIds,
   onSelect,
   onAddChild,
-  onRequestDelete,
-  onDirectDelete,
+  onDelete,
   onDuplicateNode,
   onRename,
   onRequestRename,
@@ -41,10 +40,9 @@ export const SegmentRow = ({
         autoEditNodeId={autoEditNodeId}
         isSelected={selectedIds?.has(record.id) ?? false}
         onAddChild={onAddChild}
-        onDirectDelete={onDirectDelete}
+        onDelete={onDelete}
         onDuplicateNode={onDuplicateNode}
         onRename={onRename}
-        onRequestDelete={onRequestDelete}
         onRequestRename={onRequestRename}
         onSelect={onSelect}
         onToggle={onToggle}
@@ -59,10 +57,9 @@ export const SegmentRow = ({
         autoEditNodeId={autoEditNodeId}
         container={segment}
         onAddChild={onAddChild}
-        onDirectDelete={onDirectDelete}
+        onDelete={onDelete}
         onDuplicateNode={onDuplicateNode}
         onRename={onRename}
-        onRequestDelete={onRequestDelete}
         onRequestRename={onRequestRename}
         onSelect={onSelect}
         onToggle={onToggle}

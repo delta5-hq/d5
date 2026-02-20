@@ -14,7 +14,8 @@ interface DeleteConfirmDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: () => void
-  nodeTitle: string
+  nodeTitle?: string
+  nodeCount?: number
   descendantCount: number
 }
 
@@ -23,12 +24,15 @@ export const DeleteConfirmDialog = ({
   onOpenChange,
   onConfirm,
   nodeTitle,
+  nodeCount,
   descendantCount,
 }: DeleteConfirmDialogProps) => {
   const handleConfirm = () => {
     onConfirm()
     onOpenChange(false)
   }
+
+  const isMultiple = nodeCount !== undefined && nodeCount > 1
 
   return (
     <AlertDialog onOpenChange={onOpenChange} open={open}>
@@ -38,7 +42,24 @@ export const DeleteConfirmDialog = ({
             <FormattedMessage id="workflowTree.deleteDialog.title" />
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {descendantCount > 0 ? (
+            {isMultiple ? (
+              descendantCount > 0 ? (
+                <FormattedMessage
+                  id="workflowTree.deleteDialog.descriptionMultipleWithChildren"
+                  values={{
+                    nodeCount,
+                    descendantCount,
+                  }}
+                />
+              ) : (
+                <FormattedMessage
+                  id="workflowTree.deleteDialog.descriptionMultiple"
+                  values={{
+                    nodeCount,
+                  }}
+                />
+              )
+            ) : descendantCount > 0 ? (
               <FormattedMessage
                 id="workflowTree.deleteDialog.descriptionWithChildren"
                 values={{

@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
-import { cn } from '@shared/lib/utils'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { NodeData, NodeId } from '@shared/base-types'
 import { Button } from '@shared/ui/button'
 import { Genie } from '@shared/ui/genie'
@@ -7,10 +6,9 @@ import { getCommandRole } from '@shared/constants/command-roles'
 import { getColorForRole } from '@shared/ui/genie/role-colors'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
-import { hasReferencesInAny } from '@shared/lib/reference-detection'
 import { canExecuteNode } from '@shared/lib/commands/command-validator'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@shared/ui/collapsible'
-import { FileText, Folder, Loader2, Play, Square, Copy, Trash2, Plus, ChevronRight, ArrowLeft } from 'lucide-react'
+import { Eye, FileText, Folder, Play, Loader2, Square, Copy, Trash2, Plus, ChevronRight, ArrowLeft } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
 import { NodeTitleEditor } from './node-title-editor'
@@ -21,7 +19,7 @@ interface NodeDetailPanelProps {
   node: NodeData
   isPrompt: boolean
   onUpdateNode: (nodeId: NodeId, updates: Partial<Omit<NodeData, 'id' | 'parent'>>) => void
-  onRequestDelete: (nodeId: NodeId) => void
+  onDelete: (nodeId: NodeId) => void
   onDuplicateNode: (nodeId: NodeId) => void
   onAddChild: (parentId: NodeId) => void
   onAddSibling: (nodeId: NodeId) => NodeId | null
@@ -41,7 +39,7 @@ export const NodeDetailPanel = ({
   node,
   isPrompt,
   onUpdateNode,
-  onRequestDelete,
+  onDelete,
   onDuplicateNode,
   onAddChild,
   onAddSibling,
@@ -61,14 +59,27 @@ export const NodeDetailPanel = ({
   const isRoot = !node.parent
   const mutationDisabled = isExecuting
   const { formatMessage } = useIntl()
-  const showPreview = isPrompt || hasReferencesInAny(node.command, node.title)
+  const showPreview = isPrompt || Boolean(node.command) || Boolean(node.title)
   const canExecute = canExecuteNode(node.command, executeDisabled)
   const siblingActionsEnabled = !isRoot && canExecute
 
   const [settingsOpen, setSettingsOpen] = useState(!isPrompt)
+  const [previewOpen, setPreviewOpen] = useState(isPrompt)
+  const previousExecutingRef = useRef(isExecuting)
+
   useEffect(() => {
     setSettingsOpen(!isPrompt)
+    setPreviewOpen(isPrompt)
   }, [isPrompt])
+
+  useEffect(() => {
+    const wasExecuting = previousExecutingRef.current
+    previousExecutingRef.current = isExecuting
+
+    if (wasExecuting && !isExecuting) {
+      setPreviewOpen(true)
+    }
+  }, [isExecuting])
 
   const handleTitleChange = useCallback(
     (title: string) => {
@@ -94,8 +105,8 @@ export const NodeDetailPanel = ({
   }, [node.id, onAbort])
 
   const handleDelete = useCallback(() => {
-    onRequestDelete(node.id)
-  }, [node.id, onRequestDelete])
+    onDelete(node.id)
+  }, [node.id, onDelete])
 
   const handleDuplicate = useCallback(() => {
     onDuplicateNode(node.id)
@@ -264,14 +275,21 @@ export const NodeDetailPanel = ({
         </Collapsible>
       </div>
 
-      <div className={cn('3xl:w-96 3xl:flex-shrink-0', !showPreview && 'hidden 3xl:block')}>
-        <NodePreviewSection
-          command={node.command}
-          nodeId={node.id}
-          promptTitle={isPrompt ? normalizeNodeTitle(node.title) : undefined}
-          title={node.title}
-        />
-      </div>
+      {showPreview ? (
+        <Collapsible className="mt-4 3xl:w-96 3xl:flex-shrink-0" onOpenChange={setPreviewOpen} open={previewOpen}>
+          <CollapsibleTrigger
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors [&[data-state=open]>svg]:rotate-90"
+            data-testid="preview-trigger"
+          >
+            <ChevronRight className="h-3 w-3 transition-transform" />
+            <Eye className="h-3 w-3" />
+            <FormattedMessage id="workflowTree.node.preview" />
+          </CollapsibleTrigger>
+          <CollapsibleContent data-testid="node-preview-section">
+            <NodePreviewSection nodeId={node.id} />
+          </CollapsibleContent>
+        </Collapsible>
+      ) : null}
     </div>
   )
 }

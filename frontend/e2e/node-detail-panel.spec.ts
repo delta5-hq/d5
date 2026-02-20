@@ -100,70 +100,43 @@ test.describe('Node detail panel — Preview section', () => {
   test('shows resolved text when command contains @@ref', async ({ page }) => {
     const detail = new NodeDetailPanelPage(page)
 
-    await page.route('**/api/v2/execute/preview', async route => {
-      if (route.request().method() !== 'POST') return route.continue()
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ resolvedCommand: 'resolved preview output' }),
-      })
-    })
-
     await detail.fillCommand('use @@myRef here')
+    await page.getByTestId('preview-trigger').click()
 
-    await expect(detail.previewSection).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
-    await expect(detail.previewText).toContainText('resolved preview output')
+    await expect(detail.previewSection).toBeVisible()
+    await expect(detail.previewText).toContainText('use')
   })
 
   test('shows resolved text when command contains ##hashref', async ({ page }) => {
     const detail = new NodeDetailPanelPage(page)
 
-    await page.route('**/api/v2/execute/preview', async route => {
-      if (route.request().method() !== 'POST') return route.continue()
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ resolvedCommand: 'hashref resolved' }),
-      })
-    })
-
     await detail.fillCommand('use ##_myVar here')
+    await page.getByTestId('preview-trigger').click()
 
-    await expect(detail.previewSection).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
-    await expect(detail.previewText).toContainText('hashref resolved')
+    await expect(detail.previewSection).toBeVisible()
+    await expect(detail.previewText).toContainText('use')
   })
 
-  test('hides preview after removing refs from command', async ({ page }) => {
+  test('preview collapsible stays visible after removing refs from command', async ({ page }) => {
     const detail = new NodeDetailPanelPage(page)
-
-    await page.route('**/api/v2/execute/preview', async route => {
-      if (route.request().method() !== 'POST') return route.continue()
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ resolvedCommand: 'resolved' }),
-      })
-    })
 
     await detail.fillCommand('@@ref')
-    await expect(detail.previewSection).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
+    await page.getByTestId('preview-trigger').click()
+    await expect(detail.previewSection).toBeVisible()
 
     await detail.fillCommand('plain text no refs')
-    await expect(detail.previewSection).toBeHidden()
+    await expect(detail.previewSection).toBeVisible()
+    await expect(detail.previewText).toContainText('plain text no refs')
   })
 
-  test('shows error message when preview API fails', async ({ page }) => {
+  test('shows preview text immediately without API call', async ({ page }) => {
     const detail = new NodeDetailPanelPage(page)
 
-    await page.route('**/api/v2/execute/preview', async route => {
-      if (route.request().method() !== 'POST') return route.continue()
-      await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' })
-    })
-
     await detail.fillCommand('@@brokenRef')
+    await page.getByTestId('preview-trigger').click()
 
-    await expect(detail.previewError).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
-    await expect(detail.previewText).toBeHidden()
+    await expect(detail.previewSection).toBeVisible()
+    await expect(detail.previewText).toBeVisible()
   })
 })
 
@@ -263,15 +236,6 @@ test.describe('Node detail panel — Auto-collapse for prompt nodes', () => {
     const detail = new NodeDetailPanelPage(page)
     const promptWithRefsId = 'prompt-with-refs'
 
-    await page.route('**/api/v2/execute/preview', async route => {
-      if (route.request().method() !== 'POST') return route.continue()
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ resolvedCommand: 'Resolved from title @@ref' }),
-      })
-    })
-
     await page.route('**/api/v2/execute', async route => {
       if (route.request().method() !== 'POST') return route.continue()
       const rootId = await tree.rootNodeId()
@@ -303,6 +267,6 @@ test.describe('Node detail panel — Auto-collapse for prompt nodes', () => {
 
     expect(await detail.settingsState()).toBe('closed')
     await expect(detail.previewSection).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
-    await expect(detail.previewText).toContainText('Resolved from title @@ref')
+    await expect(detail.previewText).toContainText('Title with')
   })
 })

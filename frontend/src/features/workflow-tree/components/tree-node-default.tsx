@@ -116,8 +116,7 @@ export const TreeNodeDefault = ({
   wireExtendDown = 0,
   wireExtendUp = 0,
   onAddChild,
-  onRequestDelete,
-  onDirectDelete,
+  onDelete,
   onDuplicateNode,
   onRequestRename,
 }: TreeNodeProps) => {
@@ -188,12 +187,12 @@ export const TreeNodeDefault = ({
     [id, onAddChild],
   )
 
-  const handleDirectDelete = useCallback(
+  const handleDelete = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      onDirectDelete?.(id)
+      onDelete?.(id)
     },
-    [id, onDirectDelete],
+    [id, onDelete],
   )
 
   const handleRename = useCallback(
@@ -343,15 +342,15 @@ export const TreeNodeDefault = ({
             </button>
           ) : null}
 
-          {onDirectDelete && !isRoot ? (
+          {onDelete && !isRoot ? (
             <button
               className={cn(
                 'relative z-10 w-6 h-6 flex items-center justify-center rounded-sm mr-1',
                 'text-muted-foreground hover:text-destructive hover:bg-destructive/10',
                 'opacity-0 group-hover:opacity-100 transition-opacity duration-150',
               )}
-              data-testid="node-direct-delete"
-              onClick={handleDirectDelete}
+              data-testid="node-delete"
+              onClick={handleDelete}
               title={formatMessage({ id: 'delete' })}
               type="button"
             >
@@ -375,7 +374,7 @@ export const TreeNodeDefault = ({
           <FormattedMessage id="workflowTree.node.duplicate" />
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem disabled={isRoot} onClick={() => onRequestDelete?.(id)} variant="destructive">
+        <ContextMenuItem disabled={isRoot} onClick={() => onDelete?.(id)} variant="destructive">
           <Trash2 className="mr-2 h-4 w-4" />
           <FormattedMessage id="delete" />
         </ContextMenuItem>

@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef, type MouseEvent } from 'react'
+import type { NodeId } from '@shared/base-types'
 import {
   WorkflowSegmentTree,
   WorkflowStoreProvider,
@@ -55,6 +56,7 @@ const WorkflowContent = () => {
   const [autoEditNodeId, setAutoEditNodeId] = useState<string | undefined>()
   const [autoFocusCommandNodeId, setAutoFocusCommandNodeId] = useState<string | undefined>()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>()
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<NodeId>>(new Set())
   const [flashNodeId, setFlashNodeId] = useState<string | undefined>()
 
   useEffect(() => {
@@ -78,10 +80,10 @@ const WorkflowContent = () => {
   }, [])
 
   const handleClickOutside = useCallback(() => {
-    if (selectedId !== undefined && !pendingDeleteId) {
+    if (selectedId !== undefined && !pendingDeleteId && pendingDeleteIds.size === 0) {
       actions.select(undefined)
     }
-  }, [selectedId, pendingDeleteId, actions])
+  }, [selectedId, pendingDeleteId, pendingDeleteIds, actions])
 
   useTreeKeyboardNavigation({
     nodes,
@@ -93,6 +95,8 @@ const WorkflowContent = () => {
     containerRef: treeContainerRef,
     enabled: hasUsableRoot(root, nodes),
     onRequestEdit: setAutoEditNodeId,
+    onRequestDelete: setPendingDeleteId,
+    onRequestDeleteMultiple: setPendingDeleteIds,
   })
 
   useClickOutside({
@@ -109,6 +113,11 @@ const WorkflowContent = () => {
     () => (pendingDeleteId ? getDescendantIds(nodes, pendingDeleteId).length : 0),
     [pendingDeleteId, nodes],
   )
+
+  const pendingDeleteMultipleDescendantCount = useMemo(() => {
+    if (pendingDeleteIds.size === 0) return 0
+    return Array.from(pendingDeleteIds).reduce((total, id) => total + getDescendantIds(nodes, id).length, 0)
+  }, [pendingDeleteIds, nodes])
 
   const handleSelect = useCallback(
     (id: string, _node: unknown, event?: MouseEvent) => {
@@ -171,9 +180,17 @@ const WorkflowContent = () => {
     [actions],
   )
 
-  const handleRequestDelete = useCallback((nodeId: string) => {
-    setPendingDeleteId(nodeId)
-  }, [])
+  const handleDelete = useCallback(
+    (nodeId: string) => {
+      const node = nodes[nodeId]
+      if (node?.children?.length) {
+        setPendingDeleteId(nodeId)
+      } else {
+        actions.removeNode(nodeId)
+      }
+    },
+    [actions, nodes],
+  )
 
   const handleRequestRename = useCallback(
     (nodeId: string) => {
@@ -189,12 +206,11 @@ const WorkflowContent = () => {
     setPendingDeleteId(undefined)
   }, [actions, pendingDeleteId])
 
-  const handleDirectDelete = useCallback(
-    (nodeId: string) => {
-      actions.removeNode(nodeId)
-    },
-    [actions],
-  )
+  const handleConfirmDeleteMultiple = useCallback(() => {
+    if (pendingDeleteIds.size === 0) return
+    actions.removeNodes(pendingDeleteIds)
+    setPendingDeleteIds(new Set())
+  }, [actions, pendingDeleteIds])
 
   const handleDuplicateNode = useCallback(
     (nodeId: string) => {
@@ -316,10 +332,9 @@ const WorkflowContent = () => {
             flashNodeId={flashNodeId}
             nodes={nodes}
             onAddChild={handleAddChild}
-            onDirectDelete={handleDirectDelete}
+            onDelete={handleDelete}
             onDuplicateNode={handleDuplicateNode}
             onRename={handleRename}
-            onRequestDelete={handleRequestDelete}
             onRequestRename={handleRequestRename}
             onSelect={handleSelect}
             onVisibleOrderChange={handleVisibleOrderChange}
@@ -350,10 +365,10 @@ const WorkflowContent = () => {
               onAddSibling={handleAddSibling}
               onClose={handleCloseDetailPanel}
               onCtrlEnterInCommand={handleCtrlEnterInCommand}
+              onDelete={handleDelete}
               onDuplicateNode={handleDuplicateNode}
               onEnterInCommand={handleEnterInCommand}
               onExecute={handleExecute}
-              onRequestDelete={handleRequestDelete}
               onShiftCtrlEnterInCommand={handleShiftCtrlEnterInCommand}
               onUpdateNode={handleUpdateNode}
             />
@@ -373,6 +388,16 @@ const WorkflowContent = () => {
           if (!open) setPendingDeleteId(undefined)
         }}
         open={Boolean(pendingDeleteId)}
+      />
+
+      <DeleteConfirmDialog
+        descendantCount={pendingDeleteMultipleDescendantCount}
+        nodeCount={pendingDeleteIds.size}
+        onConfirm={handleConfirmDeleteMultiple}
+        onOpenChange={open => {
+          if (!open) setPendingDeleteIds(new Set())
+        }}
+        open={pendingDeleteIds.size > 0}
       />
     </div>
   )

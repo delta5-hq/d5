@@ -158,6 +158,7 @@ test.describe('Workflow tree node deletion', () => {
       await expect(tree.selectedNodes).toHaveCount(2)
 
       await tree.pressDelete()
+      await tree.confirmDelete()
 
       await expect(tree.node(rootId)).toBeVisible()
       await expect(tree.node(childIds[0])).toHaveCount(0, { timeout: TIMEOUTS.UI_UPDATE })
@@ -185,6 +186,7 @@ test.describe('Workflow tree node deletion', () => {
       await expect(tree.selectedNodes).toHaveCount(2)
 
       await tree.pressDelete()
+      await tree.confirmDelete()
 
       await expect(tree.node(childA)).toHaveCount(0, { timeout: TIMEOUTS.UI_UPDATE })
       await expect(tree.node(grandchildId)).toHaveCount(0)
