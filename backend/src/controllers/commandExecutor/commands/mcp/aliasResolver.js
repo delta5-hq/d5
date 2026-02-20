@@ -4,13 +4,17 @@ import {queryCommands} from '../../constants/commandRegExp'
 /**
  * @typedef {Object} MCPAliasConfig
  * @property {string} alias
- * @property {string} serverUrl
  * @property {string} transport
  * @property {string} toolName
+ * @property {string} [serverUrl]
  * @property {string} [toolInputField]
  * @property {Object} [toolStaticArgs]
  * @property {Object} [headers]
  * @property {string} [description]
+ * @property {number} [timeoutMs]
+ * @property {string} [command]
+ * @property {string[]} [args]
+ * @property {Object} [env]
  */
 
 /**

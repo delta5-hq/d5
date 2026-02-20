@@ -43,13 +43,17 @@ type CustomLLMConfig struct {
 
 type MCPIntegrationConfig struct {
 	Alias          string                 `json:"alias" bson:"alias"`
-	ServerURL      string                 `json:"serverUrl" bson:"serverUrl"`
+	ServerURL      string                 `json:"serverUrl,omitempty" bson:"serverUrl,omitempty"`
 	Transport      string                 `json:"transport" bson:"transport"`
 	ToolName       string                 `json:"toolName" bson:"toolName"`
 	ToolInputField string                 `json:"toolInputField,omitempty" bson:"toolInputField,omitempty"`
 	ToolStaticArgs map[string]interface{} `json:"toolStaticArgs,omitempty" bson:"toolStaticArgs,omitempty"`
 	Headers        map[string]string      `json:"headers,omitempty" bson:"headers,omitempty"`
 	Description    string                 `json:"description,omitempty" bson:"description,omitempty"`
+	TimeoutMs      *int                   `json:"timeoutMs,omitempty" bson:"timeoutMs,omitempty"`
+	Command        string                 `json:"command,omitempty" bson:"command,omitempty"`
+	Args           []string               `json:"args,omitempty" bson:"args,omitempty"`
+	Env            map[string]string      `json:"env,omitempty" bson:"env,omitempty"`
 }
 
 type Integration struct {

@@ -83,13 +83,17 @@ const CustomLLM = createSchema(
 const MCPIntegration = createSchema(
   {
     alias: {type: String, required: true},
-    serverUrl: {type: String, required: true},
-    transport: {type: String, required: true, enum: ['streamable-http']},
+    serverUrl: {type: String},
+    transport: {type: String, required: true, enum: ['streamable-http', 'stdio']},
     toolName: {type: String, required: true},
     toolInputField: {type: String, default: 'prompt'},
     toolStaticArgs: {type: mongoose.Schema.Types.Mixed},
     headers: {type: mongoose.Schema.Types.Mixed},
     description: String,
+    timeoutMs: {type: Number, min: 5000, max: 3_600_000},
+    command: {type: String},
+    args: {type: [String]},
+    env: {type: mongoose.Schema.Types.Mixed},
   },
   {_id: false, timestamps: false},
 )

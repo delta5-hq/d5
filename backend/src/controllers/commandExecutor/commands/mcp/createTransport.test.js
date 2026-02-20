@@ -1,29 +1,22 @@
 import {MCP_TRANSPORT} from '../../constants/mcp'
 import {createTransport} from './createTransport'
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js'
 
 jest.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
   StreamableHTTPClientTransport: jest.fn().mockImplementation(url => ({url, type: 'streamable-http'})),
+}))
+
+jest.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
+  StdioClientTransport: jest.fn().mockImplementation(params => ({params, type: 'stdio'})),
 }))
 
 describe('createTransport', () => {
   afterEach(() => jest.clearAllMocks())
 
   describe('streamable-http transport', () => {
-    it('creates StreamableHTTPClientTransport instance', () => {
-      const transport = createTransport({
-        serverUrl: 'http://localhost:3100/mcp',
-        transport: MCP_TRANSPORT.STREAMABLE_HTTP,
-      })
-
-      expect(transport.type).toBe('streamable-http')
-    })
-
-    it('passes URL object to transport constructor', () => {
-      createTransport({
-        serverUrl: 'http://localhost:3100/mcp',
-        transport: MCP_TRANSPORT.STREAMABLE_HTTP,
-      })
+    it('passes a URL object constructed from serverUrl', () => {
+      createTransport({serverUrl: 'http://localhost:3100/mcp', transport: MCP_TRANSPORT.STREAMABLE_HTTP})
 
       expect(StreamableHTTPClientTransport).toHaveBeenCalledTimes(1)
       const urlArg = StreamableHTTPClientTransport.mock.calls[0][0]
@@ -32,86 +25,67 @@ describe('createTransport', () => {
     })
 
     it('passes no options when headers are absent', () => {
-      createTransport({
-        serverUrl: 'http://localhost:3100/mcp',
-        transport: MCP_TRANSPORT.STREAMABLE_HTTP,
-      })
+      createTransport({serverUrl: 'http://localhost:3100/mcp', transport: MCP_TRANSPORT.STREAMABLE_HTTP})
 
       expect(StreamableHTTPClientTransport).toHaveBeenCalledWith(expect.any(URL), undefined)
     })
 
-    it('passes requestInit with headers when provided', () => {
+    it.each([
+      ['single header', {Authorization: 'Bearer tok'}],
+      ['multiple headers', {Authorization: 'Bearer tok', 'X-Api-Key': 'abc'}],
+      ['empty headers object', {}],
+    ])('wraps headers in requestInit when provided — %s', (_label, headers) => {
+      createTransport({serverUrl: 'http://localhost:3100/mcp', transport: MCP_TRANSPORT.STREAMABLE_HTTP, headers})
+
+      expect(StreamableHTTPClientTransport).toHaveBeenCalledWith(expect.any(URL), {requestInit: {headers}})
+    })
+
+    it('throws on an unparseable serverUrl', () => {
+      expect(() => createTransport({serverUrl: 'not a url', transport: MCP_TRANSPORT.STREAMABLE_HTTP})).toThrow()
+    })
+  })
+
+  describe('stdio transport', () => {
+    it('passes command, args and env directly to StdioClientTransport', () => {
       createTransport({
-        serverUrl: 'http://localhost:3100/mcp',
-        transport: MCP_TRANSPORT.STREAMABLE_HTTP,
-        headers: {Authorization: 'Bearer tok'},
+        transport: MCP_TRANSPORT.STDIO,
+        command: 'npx',
+        args: ['-y', '@anthropic/mcp-server'],
+        env: {API_KEY: 'secret'},
       })
 
-      expect(StreamableHTTPClientTransport).toHaveBeenCalledWith(expect.any(URL), {
-        requestInit: {headers: {Authorization: 'Bearer tok'}},
+      expect(StdioClientTransport).toHaveBeenCalledWith({
+        command: 'npx',
+        args: ['-y', '@anthropic/mcp-server'],
+        env: {API_KEY: 'secret'},
       })
     })
 
-    it('passes requestInit when headers is empty object', () => {
-      createTransport({
-        serverUrl: 'http://localhost:3100/mcp',
-        transport: MCP_TRANSPORT.STREAMABLE_HTTP,
-        headers: {},
-      })
+    it.each([
+      ['args omitted', {command: 'agent'}],
+      ['env omitted', {command: 'agent', args: ['--run']}],
+      ['both omitted', {command: 'agent'}],
+    ])('passes undefined for omitted optional stdio params — %s', (_label, extra) => {
+      createTransport({transport: MCP_TRANSPORT.STDIO, ...extra})
 
-      expect(StreamableHTTPClientTransport).toHaveBeenCalledWith(expect.any(URL), {
-        requestInit: {headers: {}},
-      })
+      expect(StdioClientTransport).toHaveBeenCalledWith(expect.objectContaining({command: 'agent'}))
     })
 
-    it('passes multiple headers through requestInit', () => {
-      createTransport({
-        serverUrl: 'http://localhost:3100/mcp',
-        transport: MCP_TRANSPORT.STREAMABLE_HTTP,
-        headers: {Authorization: 'Bearer tok', 'X-Api-Key': 'abc'},
-      })
+    it('does not use serverUrl', () => {
+      createTransport({transport: MCP_TRANSPORT.STDIO, command: 'agent'})
 
-      expect(StreamableHTTPClientTransport).toHaveBeenCalledWith(expect.any(URL), {
-        requestInit: {headers: {Authorization: 'Bearer tok', 'X-Api-Key': 'abc'}},
-      })
-    })
-
-    it('throws on invalid URL', () => {
-      expect(() =>
-        createTransport({
-          serverUrl: 'not a url',
-          transport: MCP_TRANSPORT.STREAMABLE_HTTP,
-        }),
-      ).toThrow()
+      expect(StdioClientTransport).toHaveBeenCalledTimes(1)
+      expect(StreamableHTTPClientTransport).not.toHaveBeenCalled()
     })
   })
 
   describe('unknown transport', () => {
-    it('throws with the unrecognized transport type in the message', () => {
-      expect(() =>
-        createTransport({
-          serverUrl: 'http://localhost:3100',
-          transport: 'carrier-pigeon',
-        }),
-      ).toThrow('Unknown MCP transport: carrier-pigeon')
-    })
-
-    it('throws for empty transport string', () => {
-      expect(() =>
-        createTransport({
-          serverUrl: 'http://localhost:3100',
-          transport: '',
-        }),
-      ).toThrow('Unknown MCP transport: ')
-    })
-
-    it('throws for undefined transport', () => {
-      expect(() =>
-        createTransport({
-          serverUrl: 'http://localhost:3100',
-          transport: undefined,
-        }),
-      ).toThrow('Unknown MCP transport')
+    it.each([
+      ['unrecognized name', 'carrier-pigeon', 'Unknown MCP transport: carrier-pigeon'],
+      ['empty string', '', 'Unknown MCP transport: '],
+      ['undefined', undefined, 'Unknown MCP transport'],
+    ])('throws for %s', (_label, transport, expectedMessage) => {
+      expect(() => createTransport({serverUrl: 'http://localhost:3100', transport})).toThrow(expectedMessage)
     })
   })
 })

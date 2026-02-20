@@ -1,7 +1,12 @@
 import debug from 'debug'
-import {callTool} from './mcp/MCPClientManager'
+import {callTool, withClient} from './mcp/MCPClientManager'
+import {MCPToolAdapter} from './mcp/MCPToolAdapter'
+import {determineLLMType, getIntegrationSettings, getLLM} from './utils/langchain/getLLM'
+import {createSimpleAgentExecutor} from './utils/langchain/getAgentExecutor'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
+
+const MCP_TOOL_NAME_AUTO = 'auto'
 
 const log = debug('delta5:app:Command:MCP')
 
@@ -32,18 +37,46 @@ export class MCPCommand {
     }
   }
 
+  transportConfig() {
+    const {serverUrl, transport, headers, command, args, env} = this.aliasConfig
+    return {serverUrl, transport, headers, command, args, env}
+  }
+
+  async runAgentMode(prompt) {
+    const settings = await getIntegrationSettings(this.userId)
+    const llmType = determineLLMType(undefined, settings)
+    const {llm} = getLLM({settings, type: llmType})
+    const {timeoutMs} = this.aliasConfig
+
+    return withClient(this.transportConfig(), async client => {
+      const {tools: toolDescriptors} = await client.listTools()
+      const tools = toolDescriptors.map(toolDescriptor => new MCPToolAdapter({toolDescriptor, client, timeoutMs}))
+      const executor = createSimpleAgentExecutor(llm, tools)
+      return (await executor.call({input: prompt})).output
+    })
+  }
+
+  async runDirectMode(prompt) {
+    return callTool({
+      ...this.transportConfig(),
+      toolName: this.aliasConfig.toolName,
+      toolArguments: this.buildToolArguments(prompt),
+      timeoutMs: this.aliasConfig.timeoutMs,
+    })
+  }
+
   async run(node, context, originalPrompt) {
     const prompt = this.extractPrompt(node, originalPrompt)
     const fullPrompt = context ? context + prompt : prompt
 
     try {
-      const result = await callTool({
-        serverUrl: this.aliasConfig.serverUrl,
-        transport: this.aliasConfig.transport,
-        toolName: this.aliasConfig.toolName,
-        toolArguments: this.buildToolArguments(fullPrompt),
-        headers: this.aliasConfig.headers,
-      })
+      if (this.aliasConfig.toolName === MCP_TOOL_NAME_AUTO) {
+        const text = await this.runAgentMode(fullPrompt)
+        this.store.importer.createNodes(text || '(empty MCP response)', node.id)
+        return
+      }
+
+      const result = await this.runDirectMode(fullPrompt)
 
       if (result.isError) {
         this.logError(result.content)

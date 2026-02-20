@@ -1,264 +1,435 @@
 import {MCPCommand} from './MCPCommand'
 import Store from './utils/Store'
 import * as MCPClientManager from './mcp/MCPClientManager'
+import * as getLLMModule from './utils/langchain/getLLM'
+import * as getAgentExecutorModule from './utils/langchain/getAgentExecutor'
+import {MCPToolAdapter} from './mcp/MCPToolAdapter'
 
 /* Manual mock factory — auto-mock triggers zod ESM crash in Jest 27 */
 jest.mock('./mcp/MCPClientManager', () => ({
   callTool: jest.fn(),
   listTools: jest.fn(),
+  withClient: jest.fn(),
+  formatToolResult: jest.fn(),
 }))
 
-describe('MCPCommand', () => {
-  const userId = 'userId'
-  const workflowId = 'workflowId'
-  const aliasConfig = {
-    alias: '/coder1',
-    serverUrl: 'http://localhost:3100',
-    transport: 'streamable-http',
-    toolName: 'run_vm',
-    description: 'Test coder',
-  }
-  const mockStore = new Store({
+jest.mock('./utils/langchain/getLLM', () => ({
+  getIntegrationSettings: jest.fn(),
+  determineLLMType: jest.fn().mockReturnValue('OpenAI'),
+  getLLM: jest.fn().mockReturnValue({llm: {}, chunkSize: 4096}),
+}))
+
+jest.mock('./utils/langchain/getAgentExecutor', () => ({
+  createSimpleAgentExecutor: jest.fn(),
+}))
+
+jest.mock('./mcp/MCPToolAdapter', () => ({
+  MCPToolAdapter: jest.fn().mockImplementation(({toolDescriptor}) => ({name: toolDescriptor.name})),
+}))
+
+const userId = 'userId'
+const workflowId = 'workflowId'
+
+const makeStore = () =>
+  new Store({
     userId,
     workflowId,
     nodes: {},
   })
-  const command = new MCPCommand(userId, workflowId, mockStore, aliasConfig)
+
+const httpAliasConfig = {
+  alias: '/coder1',
+  serverUrl: 'http://localhost:3100',
+  transport: 'streamable-http',
+  toolName: 'run_vm',
+  description: 'Test coder',
+}
+
+const stdioAliasConfig = {
+  alias: '/coder1',
+  transport: 'stdio',
+  toolName: 'run',
+  command: 'claude',
+  args: ['mcp', 'serve'],
+  env: {API_KEY: 'x'},
+}
+
+const mockToolDescriptors = [
+  {name: 'read_file', description: 'read a file', inputSchema: {type: 'object', properties: {path: {type: 'string'}}}},
+  {
+    name: 'write_file',
+    description: 'write a file',
+    inputSchema: {type: 'object', properties: {path: {type: 'string'}, content: {type: 'string'}}},
+  },
+]
+
+describe('MCPCommand', () => {
+  let mockStore
 
   beforeEach(() => {
     jest.clearAllMocks()
+    mockStore = makeStore()
     mockStore.importer.createNodes = jest.fn()
     MCPClientManager.callTool.mockResolvedValue({isError: false, content: 'MCP result text'})
+    getLLMModule.getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'key'}})
   })
 
-  describe('run', () => {
+  const setupAgentMocks = agentOutput => {
+    const mockClient = {listTools: jest.fn().mockResolvedValue({tools: mockToolDescriptors})}
+    MCPClientManager.withClient.mockImplementation(async (_config, fn) => fn(mockClient))
+    const executor = {call: jest.fn().mockResolvedValue({output: agentOutput})}
+    getAgentExecutorModule.createSimpleAgentExecutor.mockReturnValue(executor)
+    return {mockClient, executor}
+  }
+
+  describe('transportConfig', () => {
+    it.each([
+      [
+        'streamable-http — includes serverUrl and headers, no stdio fields',
+        {...httpAliasConfig, headers: {Auth: 'tok'}},
+        {
+          transport: 'streamable-http',
+          serverUrl: 'http://localhost:3100',
+          headers: {Auth: 'tok'},
+          command: undefined,
+          args: undefined,
+          env: undefined,
+        },
+      ],
+      [
+        'stdio — includes command/args/env, no serverUrl',
+        stdioAliasConfig,
+        {
+          transport: 'stdio',
+          command: 'claude',
+          args: ['mcp', 'serve'],
+          env: {API_KEY: 'x'},
+          serverUrl: undefined,
+          headers: undefined,
+        },
+      ],
+    ])('%s', (_label, aliasConfig, expected) => {
+      const cmd = new MCPCommand(userId, workflowId, mockStore, aliasConfig)
+      expect(cmd.transportConfig()).toEqual(expected)
+    })
+  })
+
+  describe('run — direct mode (toolName !== "auto")', () => {
     const node = {id: 'node', command: '/coder1 write tests'}
 
-    it('should call callTool with aliasConfig fields and stripped prompt', async () => {
-      await command.run(node, undefined, '/coder1 write tests')
+    it('routes to callTool, not withClient', async () => {
+      const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
+      await cmd.run(node, undefined, '/coder1 test')
 
-      expect(MCPClientManager.callTool).toHaveBeenCalledWith({
-        serverUrl: 'http://localhost:3100',
-        transport: 'streamable-http',
-        toolName: 'run_vm',
-        toolArguments: {prompt: 'write tests'},
-      })
+      expect(MCPClientManager.callTool).toHaveBeenCalledTimes(1)
+      expect(MCPClientManager.withClient).not.toHaveBeenCalled()
     })
 
-    it('should create nodes from tool response content', async () => {
-      await command.run(node, undefined, '/coder1 test')
-
-      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('MCP result text', 'node')
-    })
-
-    it('should prepend context to prompt when provided', async () => {
-      await command.run(node, 'Context:\nprevious result\n', '/coder1 hello')
+    it('passes all transport config fields from aliasConfig to callTool', async () => {
+      const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
+      await cmd.run(node, undefined, '/coder1 write tests')
 
       expect(MCPClientManager.callTool).toHaveBeenCalledWith(
         expect.objectContaining({
-          toolArguments: {prompt: 'Context:\nprevious result\nhello'},
+          serverUrl: 'http://localhost:3100',
+          transport: 'streamable-http',
+          toolName: 'run_vm',
         }),
       )
     })
 
-    it.each([
-      ['empty string', ''],
-      ['null', null],
-      ['undefined', undefined],
-    ])('should send raw prompt when context is %s', async (_label, context) => {
-      await command.run(node, context, '/coder1 hello')
-
-      expect(MCPClientManager.callTool).toHaveBeenCalledWith(
-        expect.objectContaining({
-          toolArguments: {prompt: 'hello'},
-        }),
-      )
-    })
-
-    it('should preserve multiline prompt after alias stripping', async () => {
-      await command.run(node, undefined, '/coder1 line1\nline2\nline3')
-
-      expect(MCPClientManager.callTool).toHaveBeenCalledWith(
-        expect.objectContaining({
-          toolArguments: {prompt: 'line1\nline2\nline3'},
-        }),
-      )
-    })
-
-    it('should create nodes with isError content when tool reports error', async () => {
-      MCPClientManager.callTool.mockResolvedValue({isError: true, content: 'tool error detail'})
-
-      await command.run(node, undefined, '/coder1 test')
-
-      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('tool error detail', 'node')
-    })
-
-    it('should create error node when callTool throws', async () => {
-      MCPClientManager.callTool.mockRejectedValue(new Error('connection refused'))
-
-      await command.run(node, undefined, '/coder1 test')
-
-      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: connection refused', 'node')
-    })
-
-    it.each([
-      ['empty string', ''],
-      ['null', null],
-      ['undefined', undefined],
-    ])('should create fallback node when content is %s', async (_label, content) => {
-      MCPClientManager.callTool.mockResolvedValue({isError: false, content})
-
-      await command.run(node, undefined, '/coder1 test')
-
-      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('(empty MCP response)', 'node')
-    })
-    it('should pass headers from aliasConfig to callTool', async () => {
-      const headersConfig = {...aliasConfig, headers: {Authorization: 'Bearer tok'}}
-      const cmd = new MCPCommand(userId, workflowId, mockStore, headersConfig)
-
+    it('passes stdio transport fields to callTool', async () => {
+      const cmd = new MCPCommand(userId, workflowId, mockStore, stdioAliasConfig)
       await cmd.run(node, undefined, '/coder1 test')
 
       expect(MCPClientManager.callTool).toHaveBeenCalledWith(
-        expect.objectContaining({headers: {Authorization: 'Bearer tok'}}),
+        expect.objectContaining({transport: 'stdio', command: 'claude', args: ['mcp', 'serve'], env: {API_KEY: 'x'}}),
       )
     })
 
-    it('should use custom toolInputField in callTool arguments', async () => {
-      const customConfig = {...aliasConfig, toolInputField: 'query'}
-      const cmd = new MCPCommand(userId, workflowId, mockStore, customConfig)
+    it('passes timeoutMs from aliasConfig to callTool', async () => {
+      const cmd = new MCPCommand(userId, workflowId, mockStore, {...httpAliasConfig, timeoutMs: 300_000})
+      await cmd.run(node, undefined, '/coder1 test')
 
-      await cmd.run(node, undefined, '/coder1 search term')
+      expect(MCPClientManager.callTool).toHaveBeenCalledWith(expect.objectContaining({timeoutMs: 300_000}))
+    })
 
-      expect(MCPClientManager.callTool).toHaveBeenCalledWith(
-        expect.objectContaining({toolArguments: {query: 'search term'}}),
+    describe('prompt assembly', () => {
+      it('strips alias prefix and passes remaining text as the input field', async () => {
+        const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
+        await cmd.run(node, undefined, '/coder1 write tests')
+
+        expect(MCPClientManager.callTool).toHaveBeenCalledWith(
+          expect.objectContaining({toolArguments: {prompt: 'write tests'}}),
+        )
+      })
+
+      it('prepends context to the stripped prompt', async () => {
+        const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
+        await cmd.run(node, 'ctx\n', '/coder1 hello')
+
+        expect(MCPClientManager.callTool).toHaveBeenCalledWith(
+          expect.objectContaining({toolArguments: {prompt: 'ctx\nhello'}}),
+        )
+      })
+
+      it.each([
+        ['empty string', ''],
+        ['null', null],
+        ['undefined', undefined],
+      ])('omits context when it is %s', async (_label, context) => {
+        const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
+        await cmd.run(node, context, '/coder1 hello')
+
+        expect(MCPClientManager.callTool).toHaveBeenCalledWith(
+          expect.objectContaining({toolArguments: {prompt: 'hello'}}),
+        )
+      })
+
+      it('preserves multiline content in the prompt', async () => {
+        const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
+        await cmd.run(node, undefined, '/coder1 line1\nline2\nline3')
+
+        expect(MCPClientManager.callTool).toHaveBeenCalledWith(
+          expect.objectContaining({toolArguments: {prompt: 'line1\nline2\nline3'}}),
+        )
+      })
+    })
+
+    describe('toolArguments mapping', () => {
+      it('uses custom toolInputField as the argument key', async () => {
+        const cmd = new MCPCommand(userId, workflowId, mockStore, {...httpAliasConfig, toolInputField: 'query'})
+        await cmd.run(node, undefined, '/coder1 search term')
+
+        expect(MCPClientManager.callTool).toHaveBeenCalledWith(
+          expect.objectContaining({toolArguments: {query: 'search term'}}),
+        )
+      })
+
+      it('merges toolStaticArgs with the dynamic prompt field', async () => {
+        const cmd = new MCPCommand(userId, workflowId, mockStore, {...httpAliasConfig, toolStaticArgs: {lang: 'en'}})
+        await cmd.run(node, undefined, '/coder1 hello')
+
+        expect(MCPClientManager.callTool).toHaveBeenCalledWith(
+          expect.objectContaining({toolArguments: {prompt: 'hello', lang: 'en'}}),
+        )
+      })
+    })
+
+    describe('result → node output', () => {
+      it('creates a node with the content returned by the tool', async () => {
+        const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
+        await cmd.run(node, undefined, '/coder1 test')
+
+        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('MCP result text', 'node')
+      })
+
+      it.each([
+        ['empty string', ''],
+        ['null', null],
+        ['undefined', undefined],
+      ])('creates fallback node when content is %s', async (_label, content) => {
+        MCPClientManager.callTool.mockResolvedValue({isError: false, content})
+        const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
+        await cmd.run(node, undefined, '/coder1 test')
+
+        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('(empty MCP response)', 'node')
+      })
+
+      it('still creates a node when the tool reports isError', async () => {
+        MCPClientManager.callTool.mockResolvedValue({isError: true, content: 'tool error detail'})
+        const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
+        await cmd.run(node, undefined, '/coder1 test')
+
+        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('tool error detail', 'node')
+      })
+
+      it('creates an error node when callTool throws', async () => {
+        MCPClientManager.callTool.mockRejectedValue(new Error('connection refused'))
+        const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
+        await cmd.run(node, undefined, '/coder1 test')
+
+        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: connection refused', 'node')
+      })
+    })
+  })
+
+  describe('run — agent mode (toolName === "auto")', () => {
+    const autoConfig = {...httpAliasConfig, toolName: 'auto'}
+    const node = {id: 'node', command: '/coder1 build a feature'}
+
+    it('routes to withClient, not callTool', async () => {
+      setupAgentMocks('done')
+      const cmd = new MCPCommand(userId, workflowId, mockStore, autoConfig)
+      await cmd.run(node, undefined, '/coder1 build a feature')
+
+      expect(MCPClientManager.withClient).toHaveBeenCalledTimes(1)
+      expect(MCPClientManager.callTool).not.toHaveBeenCalled()
+    })
+
+    it('discovers tools via listTools on the shared client', async () => {
+      const {mockClient} = setupAgentMocks('done')
+      const cmd = new MCPCommand(userId, workflowId, mockStore, autoConfig)
+      await cmd.run(node, undefined, '/coder1 build a feature')
+
+      expect(mockClient.listTools).toHaveBeenCalledTimes(1)
+    })
+
+    it('wraps each discovered tool descriptor in MCPToolAdapter', async () => {
+      setupAgentMocks('done')
+      const cmd = new MCPCommand(userId, workflowId, mockStore, autoConfig)
+      await cmd.run(node, undefined, '/coder1 build a feature')
+
+      expect(MCPToolAdapter).toHaveBeenCalledTimes(mockToolDescriptors.length)
+      mockToolDescriptors.forEach(descriptor => {
+        expect(MCPToolAdapter).toHaveBeenCalledWith(expect.objectContaining({toolDescriptor: descriptor}))
+      })
+    })
+
+    it('forwards timeoutMs to every MCPToolAdapter instance', async () => {
+      setupAgentMocks('done')
+      const cmd = new MCPCommand(userId, workflowId, mockStore, {...autoConfig, timeoutMs: 900_000})
+      await cmd.run(node, undefined, '/coder1 task')
+
+      expect(MCPToolAdapter).toHaveBeenCalledWith(expect.objectContaining({timeoutMs: 900_000}))
+    })
+
+    it('passes the LLM and adapter tools to createSimpleAgentExecutor', async () => {
+      setupAgentMocks('done')
+      const cmd = new MCPCommand(userId, workflowId, mockStore, autoConfig)
+      await cmd.run(node, undefined, '/coder1 build a feature')
+
+      expect(getAgentExecutorModule.createSimpleAgentExecutor).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.arrayContaining([expect.objectContaining({name: 'read_file'})]),
       )
     })
 
-    it('should merge toolStaticArgs into callTool arguments', async () => {
-      const customConfig = {...aliasConfig, toolStaticArgs: {lang: 'en'}}
-      const cmd = new MCPCommand(userId, workflowId, mockStore, customConfig)
+    describe('prompt assembly', () => {
+      it('passes the full prompt including prepended context to the agent', async () => {
+        const {executor} = setupAgentMocks('ok')
+        const cmd = new MCPCommand(userId, workflowId, mockStore, autoConfig)
+        await cmd.run(node, 'context text\n', '/coder1 task')
 
-      await cmd.run(node, undefined, '/coder1 hello')
+        expect(executor.call).toHaveBeenCalledWith({input: 'context text\ntask'})
+      })
+    })
 
-      expect(MCPClientManager.callTool).toHaveBeenCalledWith(
-        expect.objectContaining({toolArguments: {prompt: 'hello', lang: 'en'}}),
-      )
+    describe('result → node output', () => {
+      it('creates a node with the agent output', async () => {
+        setupAgentMocks('agent produced this')
+        const cmd = new MCPCommand(userId, workflowId, mockStore, autoConfig)
+        await cmd.run(node, undefined, '/coder1 build a feature')
+
+        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('agent produced this', 'node')
+      })
+
+      it('creates fallback node when agent output is empty', async () => {
+        setupAgentMocks('')
+        const cmd = new MCPCommand(userId, workflowId, mockStore, autoConfig)
+        await cmd.run(node, undefined, '/coder1 build')
+
+        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('(empty MCP response)', 'node')
+      })
+
+      it('creates an error node when the agent run throws', async () => {
+        MCPClientManager.withClient.mockRejectedValue(new Error('server unreachable'))
+        const cmd = new MCPCommand(userId, workflowId, mockStore, autoConfig)
+        await cmd.run(node, undefined, '/coder1 build')
+
+        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: server unreachable', 'node')
+      })
     })
   })
 
   describe('buildToolArguments', () => {
-    it('should default inputField to "prompt"', () => {
-      expect(command.buildToolArguments('hello')).toEqual({prompt: 'hello'})
+    const cmd = () => new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
+
+    it('defaults the input field name to "prompt"', () => {
+      expect(cmd().buildToolArguments('hello')).toEqual({prompt: 'hello'})
     })
 
-    it('should use custom toolInputField', () => {
-      const cmd = new MCPCommand(userId, workflowId, mockStore, {...aliasConfig, toolInputField: 'query'})
-      expect(cmd.buildToolArguments('hello')).toEqual({query: 'hello'})
+    it('uses a custom toolInputField name when specified', () => {
+      const c = new MCPCommand(userId, workflowId, mockStore, {...httpAliasConfig, toolInputField: 'query'})
+      expect(c.buildToolArguments('hello')).toEqual({query: 'hello'})
     })
 
-    it('should merge toolStaticArgs with dynamic input', () => {
-      const cmd = new MCPCommand(userId, workflowId, mockStore, {
-        ...aliasConfig,
+    it('treats empty string toolInputField as absent and falls back to "prompt"', () => {
+      const c = new MCPCommand(userId, workflowId, mockStore, {...httpAliasConfig, toolInputField: ''})
+      expect(c.buildToolArguments('hello')).toEqual({prompt: 'hello'})
+    })
+
+    it('merges toolStaticArgs underneath the dynamic input', () => {
+      const c = new MCPCommand(userId, workflowId, mockStore, {
+        ...httpAliasConfig,
         toolStaticArgs: {format: 'json', verbose: true},
       })
-      expect(cmd.buildToolArguments('hello')).toEqual({prompt: 'hello', format: 'json', verbose: true})
+      expect(c.buildToolArguments('hello')).toEqual({prompt: 'hello', format: 'json', verbose: true})
     })
 
-    it('should let dynamic input override colliding static arg', () => {
-      const cmd = new MCPCommand(userId, workflowId, mockStore, {
-        ...aliasConfig,
-        toolStaticArgs: {prompt: 'should-be-overridden'},
+    it('dynamic input field overrides a colliding key in toolStaticArgs', () => {
+      const c = new MCPCommand(userId, workflowId, mockStore, {
+        ...httpAliasConfig,
+        toolStaticArgs: {prompt: 'overridden'},
       })
-      expect(cmd.buildToolArguments('actual')).toEqual({prompt: 'actual'})
+      expect(c.buildToolArguments('actual')).toEqual({prompt: 'actual'})
     })
 
-    it('should combine custom toolInputField with toolStaticArgs', () => {
-      const cmd = new MCPCommand(userId, workflowId, mockStore, {
-        ...aliasConfig,
-        toolInputField: 'query',
-        toolStaticArgs: {format: 'markdown'},
-      })
-      expect(cmd.buildToolArguments('search term')).toEqual({query: 'search term', format: 'markdown'})
-    })
-
-    it('should treat empty string toolInputField as falsy and default to prompt', () => {
-      const cmd = new MCPCommand(userId, workflowId, mockStore, {...aliasConfig, toolInputField: ''})
-      expect(cmd.buildToolArguments('hello')).toEqual({prompt: 'hello'})
-    })
-
-    it('should handle empty toolStaticArgs object', () => {
-      const cmd = new MCPCommand(userId, workflowId, mockStore, {...aliasConfig, toolStaticArgs: {}})
-      expect(cmd.buildToolArguments('hello')).toEqual({prompt: 'hello'})
-    })
-
-    it('should handle undefined toolStaticArgs gracefully', () => {
-      expect(command.buildToolArguments('test')).toEqual({prompt: 'test'})
+    it.each([
+      ['empty toolStaticArgs', {}],
+      ['undefined toolStaticArgs', undefined],
+    ])('handles %s without error', (_label, toolStaticArgs) => {
+      const c = new MCPCommand(userId, workflowId, mockStore, {...httpAliasConfig, toolStaticArgs})
+      expect(c.buildToolArguments('hello')).toEqual({prompt: 'hello'})
     })
   })
 
   describe('extractPrompt', () => {
-    it('should prefer originalPrompt over node fields', () => {
-      expect(command.extractPrompt({command: '/coder1 from-node'}, '/coder1 from-original')).toBe('from-original')
+    const cmd = new MCPCommand(userId, workflowId, makeStore(), httpAliasConfig)
+
+    it('prefers originalPrompt over node.command and node.title', () => {
+      expect(cmd.extractPrompt({command: '/coder1 from-node'}, '/coder1 from-original')).toBe('from-original')
     })
 
-    it('should fall back to node.command when originalPrompt is undefined', () => {
-      expect(command.extractPrompt({command: '/coder1 from-node', title: '/coder1 from-title'}, undefined)).toBe(
+    it('falls back to node.command when originalPrompt is absent', () => {
+      expect(cmd.extractPrompt({command: '/coder1 from-node', title: '/coder1 from-title'}, undefined)).toBe(
         'from-node',
       )
     })
 
-    it('should fall back to node.title when node.command is absent', () => {
-      expect(command.extractPrompt({title: '/coder1 from-title'}, undefined)).toBe('from-title')
+    it('falls back to node.title when node.command is absent', () => {
+      expect(cmd.extractPrompt({title: '/coder1 from-title'}, undefined)).toBe('from-title')
     })
 
-    it('should return empty string when node has neither command nor title', () => {
-      expect(command.extractPrompt({id: 'node'}, undefined)).toBe('')
-    })
-
-    it('should return empty string when node is null', () => {
-      expect(command.extractPrompt(null, undefined)).toBe('')
-    })
-
-    it('should use node.command when originalPrompt is empty string', () => {
-      expect(command.extractPrompt({command: '/coder1 fallback'}, '')).toBe('fallback')
+    it.each([
+      ['node with neither command nor title', {id: 'n'}, undefined, ''],
+      ['null node', null, undefined, ''],
+      ['empty string originalPrompt', {command: '/coder1 fallback'}, '', 'fallback'],
+    ])('returns expected result for %s', (_label, node, originalPrompt, expected) => {
+      expect(cmd.extractPrompt(node, originalPrompt)).toBe(expected)
     })
   })
 
   describe('stripAliasPrefix', () => {
-    it('should remove alias prefix and return trailing content', () => {
-      expect(command.stripAliasPrefix('/coder1 do something')).toBe('do something')
+    const cmd = new MCPCommand(userId, workflowId, makeStore(), httpAliasConfig)
+
+    it.each([
+      ['alias followed by space and content', '/coder1 do something', 'do something'],
+      ['alias with leading whitespace', '  /coder1 task', 'task'],
+      ['alias only (no trailing content)', '/coder1', ''],
+      ['alias followed by multiple spaces', '/coder1   spaced', 'spaced'],
+      ['alias followed by tab', '/coder1\ttabbed', 'tabbed'],
+    ])('strips alias prefix — %s', (_label, input, expected) => {
+      expect(cmd.stripAliasPrefix(input)).toBe(expected)
     })
 
-    it('should handle leading whitespace before alias', () => {
-      expect(command.stripAliasPrefix('  /coder1 task')).toBe('task')
-    })
-
-    it('should return trimmed text when alias is not present', () => {
-      expect(command.stripAliasPrefix('  plain text  ')).toBe('plain text  ')
-    })
-
-    it('should return empty string when text is only the alias', () => {
-      expect(command.stripAliasPrefix('/coder1')).toBe('')
-    })
-
-    it('should return empty string for empty input', () => {
-      expect(command.stripAliasPrefix('')).toBe('')
-    })
-
-    it('should not strip partial alias match (superset)', () => {
-      expect(command.stripAliasPrefix('/coder10 extra')).toBe('/coder10 extra')
-    })
-
-    it('should be case-sensitive', () => {
-      expect(command.stripAliasPrefix('/Coder1 test')).toBe('/Coder1 test')
-    })
-
-    it('should strip alias with multiple spaces after prefix', () => {
-      expect(command.stripAliasPrefix('/coder1   spaced')).toBe('spaced')
-    })
-
-    it('should strip alias followed by tab', () => {
-      expect(command.stripAliasPrefix('/coder1\ttabbed')).toBe('tabbed')
+    it.each([
+      ['text without the alias', '  plain text  ', 'plain text  '],
+      ['superset of alias (/coder10)', '/coder10 extra', '/coder10 extra'],
+      ['wrong case', '/Coder1 test', '/Coder1 test'],
+      ['empty string', '', ''],
+    ])('does not strip — %s', (_label, input, expected) => {
+      expect(cmd.stripAliasPrefix(input)).toBe(expected)
     })
   })
 })

@@ -5,12 +5,25 @@ import {MCP_DEFAULT_TIMEOUT_MS} from '../../constants/mcp'
 const CLIENT_INFO = {name: 'delta5-executor', version: '1.0.0'}
 
 /**
+ * @typedef {Object} MCPTransportConfig
+ * @property {string} transport
+ * @property {string} [serverUrl]
+ * @property {Object} [headers]
+ * @property {string} [command]
+ * @property {string[]} [args]
+ * @property {Object} [env]
+ */
+
+/**
  * @typedef {Object} MCPToolRequest
- * @property {string} serverUrl
  * @property {string} transport
  * @property {string} toolName
  * @property {Object} [toolArguments]
+ * @property {string} [serverUrl]
  * @property {Object} [headers]
+ * @property {string} [command]
+ * @property {string[]} [args]
+ * @property {Object} [env]
  * @property {number} [timeoutMs]
  */
 
@@ -21,13 +34,13 @@ const CLIENT_INFO = {name: 'delta5-executor', version: '1.0.0'}
  */
 
 /**
- * @param {{serverUrl: string, transport: string, headers?: Object}} config
+ * @param {MCPTransportConfig} config
  * @param {(client: Client) => Promise<T>} fn
  * @returns {Promise<T>}
  * @template T
  */
-const withClient = async ({serverUrl, transport, headers}, fn) => {
-  const clientTransport = createTransport({serverUrl, transport, headers})
+export const withClient = async ({serverUrl, transport, headers, command, args, env}, fn) => {
+  const clientTransport = createTransport({serverUrl, transport, headers, command, args, env})
   const client = new Client(CLIENT_INFO)
 
   try {
@@ -48,9 +61,12 @@ export const callTool = async ({
   toolName,
   toolArguments = {},
   headers,
+  command,
+  args,
+  env,
   timeoutMs = MCP_DEFAULT_TIMEOUT_MS,
 }) =>
-  withClient({serverUrl, transport, headers}, async client => {
+  withClient({serverUrl, transport, headers, command, args, env}, async client => {
     const result = await client.callTool({name: toolName, arguments: toolArguments}, undefined, {
       timeout: timeoutMs,
     })
@@ -58,24 +74,31 @@ export const callTool = async ({
   })
 
 /**
- * @param {{serverUrl: string, transport: string, headers?: Object}} config
+ * @param {MCPTransportConfig} config
  * @returns {Promise<Array<{name: string, description: string, inputSchema: Object}>>}
  */
-export const listTools = async ({serverUrl, transport, headers}) =>
-  withClient({serverUrl, transport, headers}, async client => {
+export const listTools = async ({serverUrl, transport, headers, command, args, env}) =>
+  withClient({serverUrl, transport, headers, command, args, env}, async client => {
     const {tools} = await client.listTools()
     return tools
   })
 
-const formatToolResult = result => {
+const serializeContentPart = part => {
+  if (part.type === 'text') return part.text
+  if (part.type === 'image') return `![image](data:${part.mimeType};base64,${part.data})`
+  if (part.type === 'resource') return `[resource: ${part.resource?.uri ?? ''}]`
+  return null
+}
+
+export const formatToolResult = result => {
   if (!result?.content?.length) {
     return {isError: !!result?.isError, content: ''}
   }
 
-  const textParts = result.content.filter(part => part.type === 'text').map(part => part.text)
+  const parts = result.content.map(serializeContentPart).filter(p => p !== null)
 
   return {
     isError: !!result.isError,
-    content: textParts.join('\n'),
+    content: parts.join('\n'),
   }
 }
