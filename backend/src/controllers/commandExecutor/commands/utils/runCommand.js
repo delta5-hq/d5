@@ -38,6 +38,7 @@ import {SwitchCommand} from '../SwitchCommand'
 import {WebCommand} from '../WebCommand'
 import {YandexCommand} from '../YandexCommand'
 import {MCPCommand} from '../MCPCommand'
+import {RPCCommand} from '../RPCCommand'
 // eslint-disable-next-line no-unused-vars
 import Store from './Store'
 
@@ -61,13 +62,14 @@ import Store from './Store'
  *  cell: import('./Store').NodeData,
  *  store: Store,
  *  preventPostProcess: boolean,
- *  mcpAlias: import('../mcp/aliasResolver').MCPAliasConfig
+ *  mcpAlias: import('../mcp/aliasResolver').MCPAliasConfig,
+ *  rpcAlias: Object
  * }} params
  * @param {ProgressReporter} progress
  * @returns
  */
 export const runCommand = async (
-  {queryType, context, prompt, cell, store, preventPostProcess = false, mcpAlias},
+  {queryType, context, prompt, cell, store, preventPostProcess = false, mcpAlias, rpcAlias},
   progress,
 ) => {
   let runPostProccess = !preventPostProcess
@@ -253,6 +255,11 @@ export const runCommand = async (
     const command = new MCPCommand(store._userId, store._workflowId, store, mcpAlias)
 
     runCommandTracker = await runCommandProgress.add('MCPCommand.run')
+    await command.run(cell, context, prompt)
+  } else if (rpcAlias) {
+    const command = new RPCCommand(store._userId, store._workflowId, store, rpcAlias)
+
+    runCommandTracker = await runCommandProgress.add('RPCCommand.run')
     await command.run(cell, context, prompt)
   }
 

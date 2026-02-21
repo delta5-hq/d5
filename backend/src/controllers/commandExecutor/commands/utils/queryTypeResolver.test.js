@@ -4,6 +4,7 @@ import {
   resolveQueryType,
   findMCPAliasByQueryType,
   findRPCAliasByQueryType,
+  resolveCommand,
 } from './queryTypeResolver'
 
 const mkMCPAlias = alias => ({alias})
@@ -194,6 +195,57 @@ describe('queryTypeResolver', () => {
 
     it('returns undefined for empty aliases array', () => {
       expect(findRPCAliasByQueryType([], 'rpc:vm1')).toBeUndefined()
+    })
+  })
+
+  describe('resolveCommand', () => {
+    const mcpAliases = [mkMCPAlias('/coder1'), mkMCPAlias('/agent')]
+    const rpcAliases = [mkRPCAlias('/vm3'), mkRPCAlias('/deploy')]
+    const aliases = {mcp: mcpAliases, rpc: rpcAliases}
+
+    it('returns queryType and mcpAlias for MCP command', () => {
+      const result = resolveCommand('/coder1 fix bug', aliases)
+      expect(result.queryType).toBe('mcp:coder1')
+      expect(result.mcpAlias).toEqual(mkMCPAlias('/coder1'))
+      expect(result.rpcAlias).toBeUndefined()
+    })
+
+    it('returns queryType and rpcAlias for RPC command', () => {
+      const result = resolveCommand('/vm3 ls', aliases)
+      expect(result.queryType).toBe('rpc:vm3')
+      expect(result.mcpAlias).toBeUndefined()
+      expect(result.rpcAlias).toEqual(mkRPCAlias('/vm3'))
+    })
+
+    it('returns queryType only for built-in command', () => {
+      const result = resolveCommand('/chatgpt hello', aliases)
+      expect(result.queryType).toBe('chat')
+      expect(result.mcpAlias).toBeUndefined()
+      expect(result.rpcAlias).toBeUndefined()
+    })
+
+    it('returns all undefined for unrecognized command', () => {
+      const result = resolveCommand('/unknown cmd', aliases)
+      expect(result.queryType).toBeUndefined()
+      expect(result.mcpAlias).toBeUndefined()
+      expect(result.rpcAlias).toBeUndefined()
+    })
+
+    it('works without aliases parameter', () => {
+      const result = resolveCommand('/chatgpt hello')
+      expect(result.queryType).toBe('chat')
+    })
+
+    it('works with empty aliases', () => {
+      const result = resolveCommand('/chatgpt hello', {mcp: [], rpc: []})
+      expect(result.queryType).toBe('chat')
+    })
+
+    it.each([[null], [undefined], ['']])('handles %s input', input => {
+      const result = resolveCommand(input, aliases)
+      expect(result.queryType).toBeUndefined()
+      expect(result.mcpAlias).toBeUndefined()
+      expect(result.rpcAlias).toBeUndefined()
     })
   })
 

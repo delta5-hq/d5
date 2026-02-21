@@ -56,6 +56,26 @@ type MCPIntegrationConfig struct {
 	Env            map[string]string      `json:"env,omitempty" bson:"env,omitempty"`
 }
 
+type RPCIntegrationConfig struct {
+	Alias           string            `json:"alias" bson:"alias"`
+	Protocol        string            `json:"protocol" bson:"protocol"`
+	Description     string            `json:"description,omitempty" bson:"description,omitempty"`
+	TimeoutMs       *int              `json:"timeoutMs,omitempty" bson:"timeoutMs,omitempty"`
+	Host            string            `json:"host,omitempty" bson:"host,omitempty"`
+	Port            *int              `json:"port,omitempty" bson:"port,omitempty"`
+	Username        string            `json:"username,omitempty" bson:"username,omitempty"`
+	PrivateKey      string            `json:"privateKey,omitempty" bson:"privateKey,omitempty"`
+	Passphrase      string            `json:"passphrase,omitempty" bson:"passphrase,omitempty"`
+	CommandTemplate string            `json:"commandTemplate,omitempty" bson:"commandTemplate,omitempty"`
+	WorkingDir      string            `json:"workingDir,omitempty" bson:"workingDir,omitempty"`
+	URL             string            `json:"url,omitempty" bson:"url,omitempty"`
+	Method          string            `json:"method,omitempty" bson:"method,omitempty"`
+	Headers         map[string]string `json:"headers,omitempty" bson:"headers,omitempty"`
+	BodyTemplate    string            `json:"bodyTemplate,omitempty" bson:"bodyTemplate,omitempty"`
+	OutputFormat    string            `json:"outputFormat,omitempty" bson:"outputFormat,omitempty"`
+	OutputField     string            `json:"outputField,omitempty" bson:"outputField,omitempty"`
+}
+
 type Integration struct {
 	ID         string                 `json:"_id,omitempty" bson:"_id,omitempty"`
 	UserID     string                 `json:"userId" bson:"userId"`
@@ -69,4 +89,5 @@ type Integration struct {
 	Lang       string                 `json:"lang" bson:"lang"`
 	Model      string                 `json:"model" bson:"model"`
 	MCP        []MCPIntegrationConfig `json:"mcp,omitempty" bson:"mcp,omitempty"`
+	RPC        []RPCIntegrationConfig `json:"rpc,omitempty" bson:"rpc,omitempty"`
 }

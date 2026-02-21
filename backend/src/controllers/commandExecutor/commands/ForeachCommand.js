@@ -1,8 +1,7 @@
 import debug from 'debug'
 import {REF_PREFIX, clearCommandsWithParams} from '../constants'
 import {commandRegExp} from '../constants/commandRegExp'
-import {resolveQueryType, findMCPAliasByQueryType} from './utils/queryTypeResolver'
-import {loadMCPAliases} from './mcp/aliasResolver'
+import {resolveCommand} from './utils/queryTypeResolver'
 import {
   FOREACH_FILE_PARAM,
   FOREACH_PARAM_PARALLEL,
@@ -172,13 +171,6 @@ export class ForeachCommand {
   }
 
   async executePrompts(nodes, isParallel = true) {
-    let mcpAliases = []
-    try {
-      mcpAliases = await loadMCPAliases(this.userId)
-    } catch (e) {
-      this.log('loadMCPAliases failed, continuing without dynamic aliases:', e.message)
-    }
-
     if (isParallel) {
       const parallelProgress = new ProgressReporter({title: 'parallel'}, this.progress)
 
@@ -186,13 +178,10 @@ export class ForeachCommand {
         nodes.map(async ({node, promptString}) => {
           try {
             const parallelTracker = await parallelProgress.add('child')
-            const queryType = resolveQueryType(promptString, {mcpAliases})
+            const {queryType, mcpAlias, rpcAlias} = resolveCommand(promptString, this.store._aliases)
 
             if (queryType) {
-              // update previous node in workflowNodes
               this.store.editNode({...node, command: promptString})
-
-              const mcpAlias = findMCPAliasByQueryType(mcpAliases, queryType)
 
               await runCommand(
                 {
@@ -200,6 +189,7 @@ export class ForeachCommand {
                   cell: {...node, command: promptString},
                   store: this.store,
                   mcpAlias,
+                  rpcAlias,
                 },
                 parallelProgress,
               )
@@ -223,13 +213,10 @@ export class ForeachCommand {
 
           const {node, promptString} = nodes[i]
 
-          const queryType = resolveQueryType(promptString, {mcpAliases})
-          // update previous node in workflowNodes
+          const {queryType, mcpAlias, rpcAlias} = resolveCommand(promptString, this.store._aliases)
           this.store.editNode({...node, command: promptString})
 
           if (queryType) {
-            const mcpAlias = findMCPAliasByQueryType(mcpAliases, queryType)
-
             await runCommand(
               {
                 queryType,
@@ -238,6 +225,7 @@ export class ForeachCommand {
                 userId: this.userId,
                 store: this.store,
                 mcpAlias,
+                rpcAlias,
               },
               sequentialProgress,
             )

@@ -3,8 +3,12 @@ import {getWorkflowData} from './commands/utils/getWorkflowData'
 import {runCommand} from './commands/utils/runCommand'
 import Store from './commands/utils/Store'
 import {allowedCommands} from './constants'
-import {loadMCPAliases, findAliasByQueryType} from './commands/mcp/aliasResolver'
+import {findAliasByQueryType} from './commands/mcp/aliasResolver'
+import {loadUserAliases} from './commands/aliases/loadUserAliases'
+import {findRPCAliasByQueryType} from './commands/utils/queryTypeResolver'
 import ProgressReporter from './ProgressReporter'
+
+const logError = debug('delta5:app:ExecutorController')
 
 const ExecutorController = {
   execute: async ctx => {
@@ -17,12 +21,22 @@ const ExecutorController = {
     }
 
     let mcpAlias
+    let rpcAlias
+    let aliases = {mcp: [], rpc: []}
+
+    try {
+      aliases = await loadUserAliases(userId)
+    } catch (e) {
+      logError('Failed to load user aliases, continuing with empty aliases:', e.message)
+    }
 
     if (!allowedCommands.includes(queryType)) {
-      const mcpAliases = await loadMCPAliases(userId)
-      mcpAlias = findAliasByQueryType(mcpAliases, queryType)
+      mcpAlias = findAliasByQueryType(aliases.mcp, queryType)
       if (!mcpAlias) {
-        ctx.throw(400, 'Not allowed query')
+        rpcAlias = findRPCAliasByQueryType(aliases.rpc, queryType)
+        if (!rpcAlias) {
+          ctx.throw(400, 'Not allowed query')
+        }
       }
     }
 
@@ -40,10 +54,10 @@ const ExecutorController = {
       }
 
       const store = new Store(
-        {...body, userId, nodes: workflowNodes, edges: workflowEdges, files: workflowFiles},
+        {...body, userId, nodes: workflowNodes, edges: workflowEdges, files: workflowFiles, aliases},
         progress,
       )
-      await runCommand({...otherData, store, mcpAlias}, progress)
+      await runCommand({...otherData, store, mcpAlias, rpcAlias}, progress)
 
       const {nodes: nodesChanged, edges: edgesChanged} = store.getOutput()
       ctx.body = {

@@ -98,6 +98,29 @@ const MCPIntegration = createSchema(
   {_id: false, timestamps: false},
 )
 
+const RPCIntegration = createSchema(
+  {
+    alias: {type: String, required: true},
+    protocol: {type: String, required: true, enum: ['ssh', 'http']},
+    description: String,
+    timeoutMs: {type: Number, min: 5000, max: 7_200_000},
+    host: String,
+    port: {type: Number, default: 22},
+    username: String,
+    privateKey: String,
+    passphrase: String,
+    commandTemplate: String,
+    workingDir: String,
+    url: String,
+    method: {type: String, default: 'POST', enum: ['GET', 'POST', 'PUT']},
+    headers: {type: mongoose.Schema.Types.Mixed},
+    bodyTemplate: String,
+    outputFormat: {type: String, default: 'text', enum: ['text', 'json']},
+    outputField: String,
+  },
+  {_id: false, timestamps: false},
+)
+
 const IntegrationSchema = createSchema({
   userId: {type: String, required: true, index: true},
   openai: Openai,
@@ -111,6 +134,7 @@ const IntegrationSchema = createSchema({
   model: {type: String, default: 'auto'},
   perplexity: Perplexity,
   mcp: [MCPIntegration],
+  rpc: [RPCIntegration],
 })
 
 const Integration = mongoose.model('Integration', IntegrationSchema)

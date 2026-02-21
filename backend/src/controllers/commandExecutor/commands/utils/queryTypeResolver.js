@@ -69,3 +69,17 @@ export const findRPCAliasByQueryType = (aliases, queryType) => {
   const expectedAlias = `/${queryType.replace(/^rpc:/, '')}`
   return aliases.find(a => a.alias === expectedAlias)
 }
+
+/**
+ * @param {string} title
+ * @param {{mcp: DynamicAlias[], rpc: DynamicAlias[]}} aliases
+ * @returns {{queryType: string|undefined, mcpAlias: DynamicAlias|undefined, rpcAlias: DynamicAlias|undefined}}
+ */
+export const resolveCommand = (title, {mcp = [], rpc = []} = {}) => {
+  const queryType = resolveQueryType(title, {mcpAliases: mcp, rpcAliases: rpc})
+  return {
+    queryType,
+    mcpAlias: findMCPAliasByQueryType(mcp, queryType),
+    rpcAlias: findRPCAliasByQueryType(rpc, queryType),
+  }
+}

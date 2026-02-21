@@ -1,8 +1,7 @@
 import debug from 'debug'
 import {runCommand} from './utils/runCommand'
 import {StepsNodeTraverser} from './utils/StepsNodeTraverser'
-import {resolveQueryType, findMCPAliasByQueryType} from './utils/queryTypeResolver'
-import {loadMCPAliases} from './mcp/aliasResolver'
+import {resolveCommand} from './utils/queryTypeResolver'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 // eslint-disable-next-line no-unused-vars
@@ -34,23 +33,16 @@ export class StepsCommand {
   }
 
   findMatchingNodes = async node => {
-    let mcpAliases = []
-    try {
-      mcpAliases = await loadMCPAliases(this.userId)
-    } catch (e) {
-      this.log('loadMCPAliases failed, continuing without dynamic aliases:', e.message)
-    }
-    const allDynamicAliases = [...mcpAliases]
+    const allDynamicAliases = [...this.store._aliases.mcp, ...this.store._aliases.rpc]
     const traverser = new StepsNodeTraverser(this.store._nodes, allDynamicAliases)
     traverser.traverse(node)
     return {
       nodesByOrder: traverser.nodesByOrder,
       nodesWithoutOrder: traverser.nodesWithoutOrder,
-      dynamicAliases: allDynamicAliases,
     }
   }
 
-  executePrompts = async (nodes, dynamicAliases = []) => {
+  executePrompts = async nodes => {
     const parallelProgress = new ProgressReporter({title: 'parallel'}, this.progress)
 
     await Promise.all(
@@ -60,8 +52,7 @@ export class StepsCommand {
 
           this.store.editNode({...node, command: promptString})
 
-          const queryType = resolveQueryType(promptString, {mcpAliases: dynamicAliases})
-          const mcpAlias = findMCPAliasByQueryType(dynamicAliases, queryType)
+          const {queryType, mcpAlias, rpcAlias} = resolveCommand(promptString, this.store._aliases)
 
           const result = await runCommand(
             {
@@ -69,6 +60,7 @@ export class StepsCommand {
               cell: {...node, command: promptString},
               store: this.store,
               mcpAlias,
+              rpcAlias,
             },
             parallelProgress,
           )
@@ -84,19 +76,18 @@ export class StepsCommand {
     )
   }
 
-  async executePromptsByOrder(nodes, dynamicAliases = []) {
+  async executePromptsByOrder(nodes) {
     const orderNumbers = Object.keys(nodes)
       .map(Number)
       .sort((a, b) => a - b)
 
     const orderedProgress = new ProgressReporter({title: 'ordered'}, this.progress)
 
-    // Execute command by order
     for (let i = 0; i < orderNumbers.length; i += 1) {
       const orderedTracker = await orderedProgress.add('group')
 
       const currentOrder = nodes[orderNumbers[i]]
-      await this.executePrompts(currentOrder, dynamicAliases)
+      await this.executePrompts(currentOrder)
 
       orderedProgress.remove(orderedTracker)
     }
@@ -106,13 +97,11 @@ export class StepsCommand {
 
   async run(node) {
     try {
-      const {nodesByOrder, nodesWithoutOrder, dynamicAliases} = await this.findMatchingNodes(node)
+      const {nodesByOrder, nodesWithoutOrder} = await this.findMatchingNodes(node)
 
-      // Execute command by order
-      await this.executePromptsByOrder(nodesByOrder, dynamicAliases)
+      await this.executePromptsByOrder(nodesByOrder)
 
-      // Execute command without order
-      await this.executePrompts(nodesWithoutOrder, dynamicAliases)
+      await this.executePrompts(nodesWithoutOrder)
     } catch (e) {
       this.logError(e)
     }

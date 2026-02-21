@@ -9,8 +9,7 @@ import {clearReferences} from './references/utils/referenceUtils' // Direct impo
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
 import {CASE_QUERY} from '../constants/switch'
 import {isAnyCommand} from './utils/commandRecognition'
-import {resolveQueryType, findMCPAliasByQueryType} from './utils/queryTypeResolver'
-import {loadMCPAliases} from './mcp/aliasResolver'
+import {resolveCommand} from './utils/queryTypeResolver'
 import {determineLLMType, getIntegrationSettings, getLLM} from './utils/langchain/getLLM'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
@@ -93,20 +92,14 @@ export class SwitchCommand {
       const {children = []} = caseNode
       const caseNodeChildren = children.map(id => this.store.getNode(id)).filter(Boolean)
 
-      let mcpAliases = []
-      try {
-        mcpAliases = await loadMCPAliases(this.userId)
-      } catch (e) {
-        this.log('loadMCPAliases failed, continuing without dynamic aliases:', e.message)
-      }
+      const allDynamicAliases = [...this.store._aliases.mcp, ...this.store._aliases.rpc]
 
       for (let i = 0; i < caseNodeChildren.length; i += 1) {
         const executeNode = caseNodeChildren[i]
         const command = executeNode.command || executeNode.title
-        const queryType = resolveQueryType(command, {mcpAliases})
 
-        if (command && isAnyCommand(command, mcpAliases)) {
-          const mcpAlias = findMCPAliasByQueryType(mcpAliases, queryType)
+        if (command && isAnyCommand(command, allDynamicAliases)) {
+          const {queryType, mcpAlias, rpcAlias} = resolveCommand(command, this.store._aliases)
 
           await runCommand(
             {
@@ -114,6 +107,7 @@ export class SwitchCommand {
               cell: executeNode,
               store: this.store,
               mcpAlias,
+              rpcAlias,
             },
             this.progress,
           )

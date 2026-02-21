@@ -37,6 +37,10 @@ import {SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
 import {COMPLETION_QUERY_TYPE} from '../../constants/completion'
 import {MEMORIZE_QUERY_TYPE} from '../../constants/memorize'
 import * as MCPClientManager from '../mcp/MCPClientManager'
+/* eslint-disable no-unused-vars */
+import {SSHExecutor} from '../rpc/SSHExecutor'
+import {HTTPExecutor} from '../rpc/HTTPExecutor'
+/* eslint-enable no-unused-vars */
 
 jest.mock('debug', () => {
   const fn = jest.fn(() => fn) // debug() возвращает саму функцию
@@ -63,6 +67,21 @@ jest.mock('../../../integrations/claude/ClaudeService', () => ({
 jest.mock('../mcp/MCPClientManager', () => ({
   callTool: jest.fn(),
   listTools: jest.fn(),
+}))
+
+const mockSSHExecute = jest.fn()
+const mockHTTPExecute = jest.fn()
+
+jest.mock('../rpc/SSHExecutor', () => ({
+  SSHExecutor: jest.fn().mockImplementation(() => ({
+    execute: mockSSHExecute,
+  })),
+}))
+
+jest.mock('../rpc/HTTPExecutor', () => ({
+  HTTPExecutor: jest.fn().mockImplementation(() => ({
+    execute: mockHTTPExecute,
+  })),
 }))
 
 jest.useFakeTimers()
@@ -1972,6 +1991,132 @@ describe('MCPCommand run test', () => {
         expect.objectContaining({
           title: 'Error: Connection refused',
           parent: mcpNode.id,
+        }),
+      ]),
+    )
+  })
+})
+
+describe('RPCCommand run test', () => {
+  const sshAlias = {
+    alias: '/ssh1',
+    protocol: 'ssh',
+    host: 'vm1.example.com',
+    port: 22,
+    username: 'deploy',
+    privateKey: 'fake-key',
+    commandTemplate: 'run-script "{{prompt}}"',
+    outputFormat: 'text',
+  }
+
+  const httpAlias = {
+    alias: '/api1',
+    protocol: 'http',
+    url: 'https://api.example.com/exec',
+    method: 'POST',
+    bodyTemplate: '{"cmd":"{{prompt}}"}',
+    outputFormat: 'json',
+    outputField: 'result',
+  }
+
+  beforeEach(() => {
+    mockSSHExecute.mockResolvedValue({stdout: 'SSH execution result', stderr: '', exitCode: 0})
+    mockHTTPExecute.mockResolvedValue({body: '{"result":"HTTP response"}', status: 200, isError: false})
+  })
+
+  it('should execute SSH command and create nodes from output', async () => {
+    const rpcNode = {id: 'rpcNode', title: '/ssh1 deploy app', command: '/ssh1 deploy app'}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [rpcNode.id]}
+    rpcNode.parent = rootNode.id
+
+    const mockStore = new Store({
+      userId,
+      workflowId,
+      nodes: {
+        rpcNode,
+        rootNode,
+      },
+    })
+
+    await runCommand({
+      cell: rpcNode,
+      store: mockStore,
+      rpcAlias: sshAlias,
+    })
+
+    const output = mockStore.getOutput()
+
+    expect(output.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'SSH execution result',
+          parent: rpcNode.id,
+        }),
+      ]),
+    )
+  })
+
+  it('should execute HTTP request and extract JSON field', async () => {
+    const rpcNode = {id: 'rpcNode', title: '/api1 run task', command: '/api1 run task'}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [rpcNode.id]}
+    rpcNode.parent = rootNode.id
+
+    const mockStore = new Store({
+      userId,
+      workflowId,
+      nodes: {
+        rpcNode,
+        rootNode,
+      },
+    })
+
+    await runCommand({
+      cell: rpcNode,
+      store: mockStore,
+      rpcAlias: httpAlias,
+    })
+
+    const output = mockStore.getOutput()
+
+    expect(output.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'HTTP response',
+          parent: rpcNode.id,
+        }),
+      ]),
+    )
+  })
+
+  it('should create error node when SSH execution fails', async () => {
+    mockSSHExecute.mockRejectedValueOnce(new Error('SSH connection failed'))
+
+    const rpcNode = {id: 'rpcNode', title: '/ssh1 deploy', command: '/ssh1 deploy'}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [rpcNode.id]}
+    rpcNode.parent = rootNode.id
+
+    const mockStore = new Store({
+      userId,
+      workflowId,
+      nodes: {
+        rpcNode,
+        rootNode,
+      },
+    })
+
+    await runCommand({
+      cell: rpcNode,
+      store: mockStore,
+      rpcAlias: sshAlias,
+    })
+
+    const output = mockStore.getOutput()
+
+    expect(output.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'Error: SSH connection failed',
+          parent: rpcNode.id,
         }),
       ]),
     )
