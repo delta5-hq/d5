@@ -18,6 +18,10 @@ jest.mock('../../ProgressReporter', () => {
     })),
   }
 })
+jest.mock('../mcp/aliasResolver', () => ({
+  loadMCPAliases: jest.fn().mockResolvedValue([]),
+  findAliasByQueryType: jest.fn().mockReturnValue(undefined),
+}))
 
 describe('runCommand', () => {
   afterEach(() => {

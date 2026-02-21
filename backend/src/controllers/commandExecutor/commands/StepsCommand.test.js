@@ -7,6 +7,9 @@ import {YandexCommand} from './YandexCommand'
 
 jest.useFakeTimers()
 jest.mock('./utils/runCommand')
+jest.mock('./mcp/aliasResolver', () => ({
+  loadMCPAliases: jest.fn().mockResolvedValue([]),
+}))
 
 jest.mock('../ProgressReporter', () => {
   return {
@@ -56,7 +59,7 @@ describe('StepsCommand', () => {
       [node.id]: node,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(node)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(node)
 
     expect(nodesByOrder).toEqual({1: [{node: child1, promptString: child1.command}]})
     expect(nodesWithoutOrder).toEqual([{node: child2, promptString: child2.command}])
@@ -73,7 +76,7 @@ describe('StepsCommand', () => {
       [node.id]: node,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(node)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(node)
 
     expect(nodesByOrder).toEqual({1: [{node: child1, promptString: child1.title}]})
     expect(nodesWithoutOrder).toEqual([{node: child2, promptString: child2.command}])
@@ -94,7 +97,7 @@ describe('StepsCommand', () => {
       [node.id]: node,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(node)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(node)
 
     const first = [{node: child1, promptString: child1.command}]
     const second = [{node: child2, promptString: child2.command}]
@@ -246,7 +249,7 @@ describe('StepsCommand', () => {
       [node.id]: node,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(node)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(node)
 
     expect(nodesByOrder).toEqual({1: [{node: child1, promptString: child1.command}]})
     expect(nodesWithoutOrder).toEqual([])
@@ -263,7 +266,7 @@ describe('StepsCommand', () => {
       [node.id]: node,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(node, mockStore._nodes)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(node, mockStore._nodes)
 
     expect(nodesByOrder).toEqual({1: [{node: child1, promptString: child1.command}]})
     expect(nodesWithoutOrder).toEqual([])
@@ -280,7 +283,7 @@ describe('StepsCommand', () => {
       [node.id]: node,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(node)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(node)
 
     expect(nodesByOrder).toEqual({
       1: [{node: child1, promptString: child1.command}],
@@ -300,7 +303,7 @@ describe('StepsCommand', () => {
       [node.id]: node,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(node)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(node)
 
     expect(nodesByOrder).toEqual({
       1: [{node: child1, promptString: child1.command}],
@@ -327,7 +330,7 @@ describe('StepsCommand', () => {
       [node.id]: node,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(node)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(node)
 
     expect(nodesByOrder).toEqual({1: [{node: node1, promptString: node1.command}]})
     expect(nodesWithoutOrder).toEqual([{node: node2, promptString: node2.command}])
@@ -386,7 +389,7 @@ describe('StepsCommand', () => {
       [node.id]: node,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(node)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(node)
 
     expect(nodesByOrder).toEqual({1: [{node: child, promptString: child.command}]})
     expect(nodesWithoutOrder).toEqual([])
@@ -403,7 +406,7 @@ describe('StepsCommand', () => {
       [root.id]: root,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(root)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(root)
 
     expect(nodesByOrder).toEqual({})
     expect(nodesWithoutOrder).toEqual([{node: grandchild, promptString: grandchild.command}])
@@ -425,7 +428,7 @@ describe('StepsCommand', () => {
       [root.id]: root,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(root)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(root)
 
     expect(nodesByOrder).toEqual({
       10: [{node: grandchild1, promptString: grandchild1.command}],
@@ -449,7 +452,7 @@ describe('StepsCommand', () => {
       [root.id]: root,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(root)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(root)
 
     expect(nodesByOrder).toEqual({
       10: [{node: grandchild1, promptString: grandchild1.command}],
@@ -479,7 +482,7 @@ describe('StepsCommand', () => {
       [root.id]: root,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(root)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(root)
 
     expect(nodesByOrder).toEqual({})
     expect(nodesWithoutOrder).toEqual([{node: grandchild, promptString: grandchild.command}])
@@ -510,7 +513,7 @@ describe('StepsCommand', () => {
       [root.id]: root,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(root)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(root)
 
     expect(nodesByOrder).toEqual({})
     expect(nodesWithoutOrder).toEqual([{node: grandchild, promptString: grandchild.command}])
@@ -541,7 +544,7 @@ describe('StepsCommand', () => {
       [root.id]: root,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(root)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(root)
 
     expect(nodesByOrder).toEqual({})
     expect(nodesWithoutOrder).toEqual([{node: grandchild, promptString: grandchild.command}])
@@ -577,7 +580,7 @@ describe('StepsCommand', () => {
       [root.id]: root,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(root)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(root)
 
     // traverse only those children, which it is a closest parent to
     expect(nodesByOrder).toEqual({})
@@ -615,7 +618,7 @@ describe('StepsCommand', () => {
       [root.id]: root,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(root)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(root)
 
     // traverse only those children, which it is a closest parent to
     expect(nodesByOrder).toEqual({})
@@ -693,7 +696,7 @@ describe('StepsCommand', () => {
     }
 
     // Execute the test
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(swotNode)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(swotNode)
 
     // Verify nodes were found with correct orders
     expect(Object.keys(nodesByOrder)).toContain('1')

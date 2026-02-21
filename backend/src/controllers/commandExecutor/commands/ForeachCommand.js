@@ -1,6 +1,8 @@
 import debug from 'debug'
-import {REF_PREFIX, clearCommandsWithParams, getQueryType} from '../constants'
+import {REF_PREFIX, clearCommandsWithParams} from '../constants'
 import {commandRegExp} from '../constants/commandRegExp'
+import {resolveQueryType, findMCPAliasByQueryType} from './utils/queryTypeResolver'
+import {loadMCPAliases} from './mcp/aliasResolver'
 import {
   FOREACH_FILE_PARAM,
   FOREACH_PARAM_PARALLEL,
@@ -170,6 +172,13 @@ export class ForeachCommand {
   }
 
   async executePrompts(nodes, isParallel = true) {
+    let mcpAliases = []
+    try {
+      mcpAliases = await loadMCPAliases(this.userId)
+    } catch (e) {
+      this.log('loadMCPAliases failed, continuing without dynamic aliases:', e.message)
+    }
+
     if (isParallel) {
       const parallelProgress = new ProgressReporter({title: 'parallel'}, this.progress)
 
@@ -177,17 +186,20 @@ export class ForeachCommand {
         nodes.map(async ({node, promptString}) => {
           try {
             const parallelTracker = await parallelProgress.add('child')
-            const queryType = getQueryType(promptString)
+            const queryType = resolveQueryType(promptString, {mcpAliases})
 
             if (queryType) {
               // update previous node in workflowNodes
               this.store.editNode({...node, command: promptString})
+
+              const mcpAlias = findMCPAliasByQueryType(mcpAliases, queryType)
 
               await runCommand(
                 {
                   queryType,
                   cell: {...node, command: promptString},
                   store: this.store,
+                  mcpAlias,
                 },
                 parallelProgress,
               )
@@ -211,11 +223,13 @@ export class ForeachCommand {
 
           const {node, promptString} = nodes[i]
 
-          const queryType = getQueryType(promptString)
+          const queryType = resolveQueryType(promptString, {mcpAliases})
           // update previous node in workflowNodes
           this.store.editNode({...node, command: promptString})
 
           if (queryType) {
+            const mcpAlias = findMCPAliasByQueryType(mcpAliases, queryType)
+
             await runCommand(
               {
                 queryType,
@@ -223,6 +237,7 @@ export class ForeachCommand {
                 workflowId: this.workflowId,
                 userId: this.userId,
                 store: this.store,
+                mcpAlias,
               },
               sequentialProgress,
             )
@@ -278,7 +293,7 @@ export class ForeachCommand {
 
   runSteps = async (node, params) => {
     const stepsCommand = new StepsCommand(this.userId, this.workflowId, this.store)
-    const {nodesByOrder, nodesWithoutOrder} = stepsCommand.findMatchingNodes(node)
+    const {nodesByOrder, nodesWithoutOrder} = await stepsCommand.findMatchingNodes(node)
 
     const matchingNodes = [
       ...Object.entries(nodesByOrder)
@@ -293,7 +308,6 @@ export class ForeachCommand {
 
     let stepsTitle = `${STEPS_QUERY} @@`
     const rootStepsTitle = node.command ? clearCommandsWithParams(node.command) : ''
-    console.log(rootStepsTitle)
     if (rootStepsTitle) stepsTitle += ` ${rootStepsTitle}`
 
     const leafs = this.findLeafs(this.store.getNode(node.parent), stepsTitle, params.useFile)
