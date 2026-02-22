@@ -132,7 +132,7 @@ describe('RPCCommand', () => {
         username: 'deploy',
         privateKey: 'fake-key-data',
         passphrase: undefined,
-        command: "cd /app && ./run.sh \"test'\\''s prompt\"",
+        command: 'cd /app && ./run.sh "test\'s prompt"',
         workingDir: undefined,
         timeoutMs: 60000,
       })
@@ -308,7 +308,7 @@ describe('RPCCommand', () => {
       await command.executeSSH("prompt with 'quotes'")
 
       const call = mockSSHExecutor.execute.mock.calls[0][0]
-      expect(call.command).toContain("'\\''")
+      expect(call.command).toBe('cd /app && ./run.sh "prompt with \'quotes\'"')
     })
 
     it('HTTP uses JSON escaping for body template', async () => {
