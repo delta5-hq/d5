@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { NodeData, NodeId, EdgeData, EdgeId } from '@shared/base-types'
-import { resolveNodeReferences, makeNodeStore } from '@entities/workflow/lib'
+import { resolveNodeReferences, makeNodeStore, buildPreviewParams } from '@entities/workflow/lib'
 
 interface UseNodePreviewParams {
   nodeId: NodeId
@@ -17,7 +17,7 @@ export function useNodePreview({ nodeId, nodes, edges }: UseNodePreviewParams): 
     const store = makeNodeStore(nodes, edges)
     const node = store.getNode(nodeId)
     if (!node) return ''
-    return resolveNodeReferences(node, store)
+    return resolveNodeReferences(node, store, buildPreviewParams())
   }, [nodeId, nodes, edges])
 
   return { previewText }

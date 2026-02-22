@@ -16,126 +16,97 @@ function renderPreview(nodeId: string, nodes: Record<string, NodeData>, edges: R
 }
 
 describe('useNodePreview', () => {
-  describe('plain text nodes (no references)', () => {
-    it('returns node title when no command is set', () => {
-      const nodes = makeNodes([['n1', { title: 'hello world' }]])
+  describe('preview semantics', () => {
+    it('uses node title not command for display', () => {
+      const nodes = makeNodes([['n1', { title: 'Task Title', command: '/chatgpt execute' }]])
       const { result } = renderPreview('n1', nodes)
-      expect(result.current.previewText).toBe('hello world')
+      expect(result.current.previewText).toBe('Task Title')
+      expect(result.current.previewText).not.toContain('/chatgpt')
     })
 
-    it('returns command when command is set with no references', () => {
-      const nodes = makeNodes([['n1', { title: 'title', command: '/chatgpt summarize this' }]])
-      const { result } = renderPreview('n1', nodes)
-      expect(result.current.previewText).toBe('/chatgpt summarize this')
+    it('includes prompt children in output', () => {
+      const nodes = makeNodes([
+        ['parent', { children: ['regular', 'prompt'], prompts: ['prompt'], title: 'Parent' }],
+        ['regular', { parent: 'parent', title: 'Regular child' }],
+        ['prompt', { parent: 'parent', title: 'Prompt child' }],
+      ])
+      const { result } = renderPreview('parent', nodes)
+      expect(result.current.previewText).toContain('Regular child')
+      expect(result.current.previewText).toContain('Prompt child')
     })
 
+    it('shows command-bearing child nodes by title in hierarchical preview', () => {
+      const nodes = makeNodes([
+        ['root', { children: ['cmd-child', 'plain'], title: 'Root' }],
+        ['cmd-child', { parent: 'root', title: 'Child Title', command: '/custom process' }],
+        ['plain', { parent: 'root', title: 'Plain text' }],
+      ])
+      const { result } = renderPreview('root', nodes)
+      expect(result.current.previewText).toContain('Child Title')
+      expect(result.current.previewText).not.toContain('/custom')
+      expect(result.current.previewText).toContain('Plain text')
+    })
+  })
+
+  describe('reference resolution in titles', () => {
+    it('resolves @@ references in node title', () => {
+      const nodes = makeNodes([
+        ['root', { children: ['def', 'user'], title: 'root' }],
+        ['def', { parent: 'root', title: '@var content' }],
+        ['user', { parent: 'root', title: 'Text with @@var' }],
+      ])
+      const { result } = renderPreview('user', nodes)
+      expect(result.current.previewText).toContain('content')
+      expect(result.current.previewText).not.toContain('@@')
+    })
+
+    it('resolves ##_ references in node title', () => {
+      const nodes = makeNodes([
+        ['root', { children: ['def', 'user'], title: 'root' }],
+        ['def', { parent: 'root', title: '#_key payload' }],
+        ['user', { parent: 'root', title: 'Result: ##_key' }],
+      ])
+      const { result } = renderPreview('user', nodes)
+      expect(result.current.previewText).toContain('payload')
+      expect(result.current.previewText).not.toContain('##_')
+    })
+
+    it('resolves mixed @@ and ##_ references in single title', () => {
+      const nodes = makeNodes([
+        ['root', { children: ['ref', 'hash', 'user'], title: 'root' }],
+        ['ref', { parent: 'root', title: '@r alpha' }],
+        ['hash', { parent: 'root', title: '#_h beta' }],
+        ['user', { parent: 'root', title: 'Combine @@r and ##_h' }],
+      ])
+      const { result } = renderPreview('user', nodes)
+      expect(result.current.previewText).toContain('alpha')
+      expect(result.current.previewText).toContain('beta')
+    })
+  })
+
+  describe('edge cases', () => {
     it('returns empty string for unknown nodeId', () => {
       const { result } = renderPreview('missing', {})
       expect(result.current.previewText).toBe('')
     })
-  })
 
-  describe('@@ reference resolution', () => {
-    it('substitutes @@ reference with referenced node content', () => {
-      const nodes = makeNodes([
-        ['root', { children: ['n1', 'n2'], title: 'root' }],
-        ['n1', { parent: 'root', title: '@ref_data some text' }],
-        ['n2', { parent: 'root', title: '@@ref_data', command: '@@ref_data' }],
-      ])
-      const { result } = renderPreview('n2', nodes)
-      expect(result.current.previewText).toContain('some text')
-    })
-
-    it('strips @@ marker when no matching reference found', () => {
-      const nodes = makeNodes([['n1', { title: 'no refs', command: '@@nonexistent' }]])
+    it('handles nodes with empty title', () => {
+      const nodes = makeNodes([['n1', { title: '' }]])
       const { result } = renderPreview('n1', nodes)
-      expect(result.current.previewText).not.toContain('@@')
+      expect(result.current.previewText).toBe('')
     })
-  })
 
-  describe('##_ hashref resolution', () => {
-    it('substitutes ##_ usage with content of matching #_ definition node', () => {
+    it('preserves indentation hierarchy', () => {
       const nodes = makeNodes([
-        ['root', { children: ['def', 'user'], title: 'root' }],
-        ['def', { parent: 'root', title: '#_data_key the payload' }],
-        ['user', { parent: 'root', title: 'query', command: '##_data_key' }],
-      ])
-      const { result } = renderPreview('user', nodes)
-      expect(result.current.previewText).toContain('the payload')
-    })
-
-    it('strips ##_ marker when no matching definition found', () => {
-      const nodes = makeNodes([['n1', { title: 'no refs', command: '##_nonexistent' }]])
-      const { result } = renderPreview('n1', nodes)
-      expect(result.current.previewText).not.toContain('##_')
-    })
-  })
-
-  describe('@@ and ##_ combined resolution', () => {
-    it('resolves both @@ and ##_ references present in the same command', () => {
-      const nodes = makeNodes([
-        ['root', { children: ['ref_node', 'data_node', 'user'], title: 'root' }],
-        ['ref_node', { parent: 'root', title: '@var1 the ref value' }],
-        ['data_node', { parent: 'root', title: '#_var2 the hash value' }],
-        ['user', { parent: 'root', title: 'query', command: '/custom use @@var1 and ##_var2 together' }],
-      ])
-      const { result } = renderPreview('user', nodes)
-      expect(result.current.previewText).toContain('the ref value')
-      expect(result.current.previewText).toContain('the hash value')
-      expect(result.current.previewText).not.toContain('@@')
-      expect(result.current.previewText).not.toContain('##_')
-    })
-
-    it('resolves both references when ##_ appears before @@ in the command string', () => {
-      const nodes = makeNodes([
-        ['root', { children: ['ref_node', 'data_node', 'user'], title: 'root' }],
-        ['ref_node', { parent: 'root', title: '@var1 the ref value' }],
-        ['data_node', { parent: 'root', title: '#_var2 the hash value' }],
-        ['user', { parent: 'root', title: 'query', command: '/custom use ##_var2 and @@var1 in that order' }],
-      ])
-      const { result } = renderPreview('user', nodes)
-      expect(result.current.previewText).toContain('the ref value')
-      expect(result.current.previewText).toContain('the hash value')
-      expect(result.current.previewText).not.toContain('@@')
-      expect(result.current.previewText).not.toContain('##_')
-    })
-  })
-
-  describe('prompt filtering', () => {
-    it('excludes prompt children from output', () => {
-      const promptId = 'prompt1'
-      const nodes = makeNodes([
-        ['root', { children: ['parent'], title: 'root' }],
-        [
-          'parent',
-          {
-            parent: 'root',
-            children: ['child', promptId],
-            prompts: [promptId],
-            title: 'parent',
-            command: '/chatgpt do work',
-          },
-        ],
-        ['child', { parent: 'parent', title: 'child text' }],
-        [promptId, { parent: 'parent', title: 'prompt output text' }],
-      ])
-      const { result } = renderPreview('parent', nodes)
-      expect(result.current.previewText).not.toContain('prompt output text')
-    })
-  })
-
-  describe('node depth enrichment', () => {
-    it('produces greater indentation for deeper nesting levels', () => {
-      const nodes = makeNodes([
-        ['root', { children: ['n1'], title: 'root', command: '/chatgpt test' }],
-        ['n1', { parent: 'root', children: ['n2'], title: 'level one' }],
-        ['n2', { parent: 'n1', children: [], title: 'level two' }],
+        ['root', { children: ['mid'], title: 'Root' }],
+        ['mid', { parent: 'root', children: ['deep'], title: 'Mid' }],
+        ['deep', { parent: 'mid', title: 'Deep' }],
       ])
       const { result } = renderPreview('root', nodes)
       const lines = result.current.previewText.split('\n')
-      const levelOneIndent = lines.find(l => l.includes('level one'))!.match(/^(\s*)/)?.[1].length ?? 0
-      const levelTwoIndent = lines.find(l => l.includes('level two'))!.match(/^(\s*)/)?.[1].length ?? 0
-      expect(levelTwoIndent).toBeGreaterThan(levelOneIndent)
+      const midIndent = lines.find(l => l.includes('Mid'))!.match(/^(\s*)/)?.[1].length ?? 0
+      const deepIndent = lines.find(l => l.includes('Deep'))!.match(/^(\s*)/)?.[1].length ?? 0
+      expect(deepIndent).toBeGreaterThan(midIndent)
     })
   })
 

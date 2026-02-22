@@ -104,7 +104,7 @@ test.describe('Node detail panel — Preview section', () => {
     await page.getByTestId('preview-trigger').click()
 
     await expect(detail.previewSection).toBeVisible()
-    await expect(detail.previewText).toContainText('use')
+    await expect(detail.previewText).toContainText('Root Node')
   })
 
   test('shows resolved text when command contains ##hashref', async ({ page }) => {
@@ -114,7 +114,7 @@ test.describe('Node detail panel — Preview section', () => {
     await page.getByTestId('preview-trigger').click()
 
     await expect(detail.previewSection).toBeVisible()
-    await expect(detail.previewText).toContainText('use')
+    await expect(detail.previewText).toContainText('Root Node')
   })
 
   test('preview collapsible stays visible after removing refs from command', async ({ page }) => {
@@ -126,7 +126,7 @@ test.describe('Node detail panel — Preview section', () => {
 
     await detail.fillCommand('plain text no refs')
     await expect(detail.previewSection).toBeVisible()
-    await expect(detail.previewText).toContainText('plain text no refs')
+    await expect(detail.previewText).toContainText('Root Node')
   })
 
   test('shows preview text immediately without API call', async ({ page }) => {
