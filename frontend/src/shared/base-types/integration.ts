@@ -50,6 +50,43 @@ export enum Model {
   CustomLLM = 'CustomLLM',
 }
 
+export interface MCPIntegration {
+  alias: string
+  transport: 'stdio' | 'streamable-http'
+  toolName: string
+  toolInputField?: string
+  toolStaticArgs?: Record<string, unknown>
+  description?: string
+  serverUrl?: string
+  headers?: Record<string, string>
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  timeoutMs?: number
+}
+
+export interface RPCIntegration {
+  alias: string
+  protocol: 'ssh' | 'http'
+  description?: string
+  timeoutMs?: number
+  host?: string
+  port?: number
+  username?: string
+  privateKey?: string
+  passphrase?: string
+  commandTemplate?: string
+  workingDir?: string
+  url?: string
+  method?: 'GET' | 'POST' | 'PUT'
+  headers?: Record<string, string>
+  bodyTemplate?: string
+  outputFormat?: 'text' | 'json'
+  outputField?: string
+  sessionIdField?: string
+  lastSessionId?: string
+}
+
 export type IntegrationSettings = Partial<{
   openai: Openai
   google: Google
@@ -61,6 +98,8 @@ export type IntegrationSettings = Partial<{
   lang: string
   model: string
   perplexity: Perplexity
+  mcp: MCPIntegration[]
+  rpc: RPCIntegration[]
 }>
 
 export interface Language {

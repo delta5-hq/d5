@@ -4,6 +4,9 @@ import {HTTPExecutor} from './rpc/HTTPExecutor'
 import {interpolateTemplate} from './shared/interpolateTemplate'
 import {parseOutput} from './shared/parseOutput'
 import {RPC_PROTOCOL} from '../constants/rpc'
+import {SessionIdExtractor} from './rpc/SessionIdExtractor'
+import {SessionIdInjector} from './rpc/SessionIdInjector'
+import Integration from '../../../models/Integration'
 
 const log = debug('delta5:app:Command:RPC')
 
@@ -21,9 +24,12 @@ export class RPCCommand {
   }
 
   async executeSSH(prompt) {
-    const {host, port, username, privateKey, passphrase, commandTemplate, workingDir, timeoutMs} = this.aliasConfig
+    const {host, port, username, privateKey, passphrase, commandTemplate, workingDir, timeoutMs, lastSessionId} =
+      this.aliasConfig
 
-    const command = interpolateTemplate(commandTemplate, prompt, {escapeMode: 'shell'})
+    const injector = new SessionIdInjector(commandTemplate, lastSessionId)
+    const templateWithSession = injector.inject()
+    const command = interpolateTemplate(templateWithSession, prompt, {escapeMode: 'shell'})
 
     const executor = new SSHExecutor()
     const {stdout, stderr, exitCode} = await executor.execute({
@@ -45,9 +51,19 @@ export class RPCCommand {
   }
 
   async executeHTTP(prompt) {
-    const {url, method, headers, bodyTemplate, timeoutMs} = this.aliasConfig
+    const {url, method, headers, bodyTemplate, timeoutMs, lastSessionId} = this.aliasConfig
 
-    const body = bodyTemplate ? interpolateTemplate(bodyTemplate, prompt, {escapeMode: 'json'}) : null
+    const injector = new SessionIdInjector(bodyTemplate, lastSessionId)
+    const templateWithSession = injector.inject()
+    const body = templateWithSession ? interpolateTemplate(templateWithSession, prompt, {escapeMode: 'json'}) : null
+
+    const injectedUrl = new SessionIdInjector(url, lastSessionId).inject()
+
+    const injectedHeaders = headers
+      ? Object.fromEntries(
+          Object.entries(headers).map(([key, value]) => [key, new SessionIdInjector(value, lastSessionId).inject()]),
+        )
+      : headers
 
     const executor = new HTTPExecutor()
     const {
@@ -55,9 +71,9 @@ export class RPCCommand {
       status,
       isError,
     } = await executor.execute({
-      url,
+      url: injectedUrl,
       method,
-      headers,
+      headers: injectedHeaders,
       body,
       timeoutMs,
     })
@@ -89,10 +105,31 @@ export class RPCCommand {
         outputField: this.aliasConfig.outputField,
       })
 
+      await this.extractAndPersistSessionId(rawOutput)
+
       this.store.importer.createNodes(parsedOutput || '(empty RPC response)', node.id)
     } catch (e) {
       this.logError(e)
       this.store.importer.createNodes(`Error: ${e.message}`, node.id)
+    }
+  }
+
+  async extractAndPersistSessionId(rawOutput) {
+    const {outputFormat, sessionIdField, alias} = this.aliasConfig
+
+    const extractor = new SessionIdExtractor(outputFormat, sessionIdField)
+    const sessionId = extractor.extract(rawOutput)
+
+    if (sessionId) {
+      try {
+        await Integration.updateOne(
+          {userId: this.userId, 'rpc.alias': alias},
+          {$set: {'rpc.$.lastSessionId': sessionId}},
+        )
+        this.log(`Persisted session ID: ${sessionId}`)
+      } catch (error) {
+        this.logError(`Failed to persist session ID: ${error.message}`)
+      }
     }
   }
 

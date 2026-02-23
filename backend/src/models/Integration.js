@@ -117,6 +117,8 @@ const RPCIntegration = createSchema(
     bodyTemplate: String,
     outputFormat: {type: String, default: 'text', enum: ['text', 'json']},
     outputField: String,
+    sessionIdField: {type: String, default: 'session_id'},
+    lastSessionId: String,
   },
   {_id: false, timestamps: false},
 )

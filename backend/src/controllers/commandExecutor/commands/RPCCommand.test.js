@@ -2,9 +2,13 @@ import {RPCCommand} from './RPCCommand'
 import Store from './utils/Store'
 import {SSHExecutor} from './rpc/SSHExecutor'
 import {HTTPExecutor} from './rpc/HTTPExecutor'
+import Integration from '../../../models/Integration'
 
 jest.mock('./rpc/SSHExecutor')
 jest.mock('./rpc/HTTPExecutor')
+jest.mock('../../../models/Integration', () => ({
+  updateOne: jest.fn(),
+}))
 
 const userId = 'userId'
 const workflowId = 'workflowId'
@@ -359,6 +363,410 @@ describe('RPCCommand', () => {
 
       const call = mockStore.importer.createNodes.mock.calls[0][0]
       expect(JSON.parse(call)).toEqual({other: 'data'})
+    })
+  })
+
+  describe('session management', () => {
+    beforeEach(() => {
+      Integration.updateOne = jest.fn().mockResolvedValue({})
+    })
+
+    it('extracts and persists session_id from JSON output', async () => {
+      mockSSHExecutor.execute.mockResolvedValue({
+        stdout: JSON.stringify({session_id: 'abc-123', result: 'output'}),
+        stderr: '',
+        exitCode: 0,
+      })
+      const config = {...sshAliasConfig, outputFormat: 'json'}
+      const command = new RPCCommand(userId, workflowId, mockStore, config)
+      const node = {id: 'node1'}
+
+      await command.run(node, null, 'test')
+
+      expect(Integration.updateOne).toHaveBeenCalledWith(
+        {userId: 'userId', 'rpc.alias': '/vm1'},
+        {$set: {'rpc.$.lastSessionId': 'abc-123'}},
+      )
+    })
+
+    it('does not persist session_id when output format is text', async () => {
+      mockSSHExecutor.execute.mockResolvedValue({
+        stdout: JSON.stringify({session_id: 'abc-123'}),
+        stderr: '',
+        exitCode: 0,
+      })
+      const config = {...sshAliasConfig, outputFormat: 'text'}
+      const command = new RPCCommand(userId, workflowId, mockStore, config)
+      const node = {id: 'node2'}
+
+      await command.run(node, null, 'test')
+
+      expect(Integration.updateOne).not.toHaveBeenCalled()
+    })
+
+    it('does not persist when session_id field is missing', async () => {
+      mockSSHExecutor.execute.mockResolvedValue({
+        stdout: JSON.stringify({result: 'output'}),
+        stderr: '',
+        exitCode: 0,
+      })
+      const config = {...sshAliasConfig, outputFormat: 'json'}
+      const command = new RPCCommand(userId, workflowId, mockStore, config)
+      const node = {id: 'node3'}
+
+      await command.run(node, null, 'test')
+
+      expect(Integration.updateOne).not.toHaveBeenCalled()
+    })
+
+    it('injects lastSessionId into command template when present', async () => {
+      const config = {
+        ...sshAliasConfig,
+        commandTemplate: 'claude -p "{{prompt}}" --resume {{sessionId}}',
+        lastSessionId: 'prev-session-123',
+      }
+      const command = new RPCCommand(userId, workflowId, mockStore, config)
+
+      await command.executeSSH('test prompt')
+
+      const call = mockSSHExecutor.execute.mock.calls[0][0]
+      expect(call.command).toContain('--resume prev-session-123')
+    })
+
+    it('removes --resume flag when lastSessionId is absent', async () => {
+      const config = {
+        ...sshAliasConfig,
+        commandTemplate: 'claude -p "{{prompt}}" --resume {{sessionId}}',
+        lastSessionId: null,
+      }
+      const command = new RPCCommand(userId, workflowId, mockStore, config)
+
+      await command.executeSSH('test prompt')
+
+      const call = mockSSHExecutor.execute.mock.calls[0][0]
+      expect(call.command).not.toContain('--resume')
+      expect(call.command).not.toContain('{{sessionId}}')
+    })
+
+    it('handles persistence failure gracefully without throwing', async () => {
+      Integration.updateOne = jest.fn().mockRejectedValue(new Error('DB error'))
+      mockSSHExecutor.execute.mockResolvedValue({
+        stdout: JSON.stringify({session_id: 'abc-123', result: 'output'}),
+        stderr: '',
+        exitCode: 0,
+      })
+      const config = {...sshAliasConfig, outputFormat: 'json', outputField: 'result'}
+      const command = new RPCCommand(userId, workflowId, mockStore, config)
+      const node = {id: 'node4'}
+
+      await expect(command.run(node, null, 'test')).resolves.not.toThrow()
+
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('output', 'node4')
+    })
+
+    it('supports round-trip session workflow', async () => {
+      const config = {
+        ...sshAliasConfig,
+        commandTemplate: 'claude -p "{{prompt}}" --output-format json --resume {{sessionId}}',
+        outputFormat: 'json',
+        outputField: 'result',
+        lastSessionId: 'first-session',
+      }
+
+      mockSSHExecutor.execute.mockResolvedValue({
+        stdout: JSON.stringify({session_id: 'second-session', result: 'continued output'}),
+        stderr: '',
+        exitCode: 0,
+      })
+
+      const command = new RPCCommand(userId, workflowId, mockStore, config)
+      const node = {id: 'node5'}
+
+      await command.run(node, null, 'continue conversation')
+
+      const sshCall = mockSSHExecutor.execute.mock.calls[0][0]
+      expect(sshCall.command).toContain('--resume first-session')
+
+      expect(Integration.updateOne).toHaveBeenCalledWith(
+        {userId: 'userId', 'rpc.alias': '/vm1'},
+        {$set: {'rpc.$.lastSessionId': 'second-session'}},
+      )
+
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('continued output', 'node5')
+    })
+
+    describe('HTTP protocol session injection', () => {
+      it('injects sessionId into bodyTemplate', async () => {
+        const config = {
+          ...httpAliasConfig,
+          bodyTemplate: '{"query":"{{prompt}}","session":"{{sessionId}}"}',
+          lastSessionId: 'http-session-123',
+        }
+        const command = new RPCCommand(userId, workflowId, mockStore, config)
+
+        await command.executeHTTP('test prompt')
+
+        const call = mockHTTPExecutor.execute.mock.calls[0][0]
+        expect(call.body).toContain('"session":"http-session-123"')
+        expect(call.body).not.toContain('{{sessionId}}')
+      })
+
+      it('injects sessionId into url query parameters', async () => {
+        const config = {
+          ...httpAliasConfig,
+          url: 'https://api.example.com/chat?session={{sessionId}}',
+          lastSessionId: 'url-session-456',
+        }
+        const command = new RPCCommand(userId, workflowId, mockStore, config)
+
+        await command.executeHTTP('test prompt')
+
+        const call = mockHTTPExecutor.execute.mock.calls[0][0]
+        expect(call.url).toBe('https://api.example.com/chat?session=url-session-456')
+      })
+
+      it('injects sessionId into header values', async () => {
+        const config = {
+          ...httpAliasConfig,
+          headers: {
+            Authorization: 'Bearer {{sessionId}}',
+            'X-Session-Id': '{{sessionId}}',
+          },
+          lastSessionId: 'header-session-789',
+        }
+        const command = new RPCCommand(userId, workflowId, mockStore, config)
+
+        await command.executeHTTP('test prompt')
+
+        const call = mockHTTPExecutor.execute.mock.calls[0][0]
+        expect(call.headers.Authorization).toBe('Bearer header-session-789')
+        expect(call.headers['X-Session-Id']).toBe('header-session-789')
+      })
+
+      it('removes sessionId placeholder when session is absent', async () => {
+        const config = {
+          ...httpAliasConfig,
+          url: 'https://api.example.com/chat?session={{sessionId}}',
+          bodyTemplate: '{"query":"{{prompt}}","session":"{{sessionId}}"}',
+          headers: {Authorization: 'Bearer {{sessionId}}'},
+          lastSessionId: null,
+        }
+        const command = new RPCCommand(userId, workflowId, mockStore, config)
+
+        await command.executeHTTP('test prompt')
+
+        const call = mockHTTPExecutor.execute.mock.calls[0][0]
+        expect(call.url).not.toContain('{{sessionId}}')
+        expect(call.body).not.toContain('{{sessionId}}')
+        expect(call.headers.Authorization).not.toContain('{{sessionId}}')
+      })
+
+      it('handles undefined sessionId same as null', async () => {
+        const config = {
+          ...httpAliasConfig,
+          bodyTemplate: '{"session":"{{sessionId}}"}',
+          lastSessionId: undefined,
+        }
+        const command = new RPCCommand(userId, workflowId, mockStore, config)
+
+        await command.executeHTTP('test prompt')
+
+        const call = mockHTTPExecutor.execute.mock.calls[0][0]
+        expect(call.body).not.toContain('{{sessionId}}')
+      })
+
+      it('handles empty string sessionId', async () => {
+        const config = {
+          ...httpAliasConfig,
+          bodyTemplate: '{"session":"{{sessionId}}"}',
+          lastSessionId: '',
+        }
+        const command = new RPCCommand(userId, workflowId, mockStore, config)
+
+        await command.executeHTTP('test prompt')
+
+        const call = mockHTTPExecutor.execute.mock.calls[0][0]
+        expect(call.body).not.toContain('{{sessionId}}')
+      })
+    })
+
+    describe('protocol-agnostic session behavior', () => {
+      it('processes full session lifecycle for SSH protocol', async () => {
+        const config = {
+          ...sshAliasConfig,
+          commandTemplate: 'agent -p "{{prompt}}" --session {{sessionId}}',
+          outputFormat: 'json',
+          sessionIdField: 'session_id',
+          lastSessionId: 'session-1',
+        }
+
+        mockSSHExecutor.execute.mockResolvedValue({
+          stdout: JSON.stringify({session_id: 'session-2', result: 'output'}),
+          stderr: '',
+          exitCode: 0,
+        })
+
+        const command = new RPCCommand(userId, workflowId, mockStore, config)
+        const node = {id: 'lifecycle-ssh'}
+
+        await command.run(node, null, 'test')
+
+        const call = mockSSHExecutor.execute.mock.calls[0][0]
+        expect(call.command).toContain('session-1')
+        expect(Integration.updateOne).toHaveBeenCalledWith(
+          {userId: 'userId', 'rpc.alias': '/vm1'},
+          {$set: {'rpc.$.lastSessionId': 'session-2'}},
+        )
+      })
+
+      it('processes full session lifecycle for HTTP protocol', async () => {
+        const config = {
+          ...httpAliasConfig,
+          bodyTemplate: '{"query":"{{prompt}}","session":"{{sessionId}}"}',
+          outputFormat: 'json',
+          sessionIdField: 'session_id',
+          lastSessionId: 'http-session-1',
+        }
+
+        mockHTTPExecutor.execute.mockResolvedValue({
+          body: JSON.stringify({session_id: 'http-session-2', result: {data: 'output'}}),
+          status: 200,
+          isError: false,
+        })
+
+        const command = new RPCCommand(userId, workflowId, mockStore, config)
+        const node = {id: 'lifecycle-http'}
+
+        await command.run(node, null, 'test')
+
+        const call = mockHTTPExecutor.execute.mock.calls[0][0]
+        expect(call.body).toContain('"session":"http-session-1"')
+        expect(Integration.updateOne).toHaveBeenCalledWith(
+          {userId: 'userId', 'rpc.alias': '/webhook1'},
+          {$set: {'rpc.$.lastSessionId': 'http-session-2'}},
+        )
+      })
+
+      it('handles first session creation without prior sessionId', async () => {
+        const config = {
+          ...sshAliasConfig,
+          commandTemplate: 'agent -p "{{prompt}}" --session {{sessionId}}',
+          outputFormat: 'json',
+          lastSessionId: null,
+        }
+
+        mockSSHExecutor.execute.mockResolvedValue({
+          stdout: JSON.stringify({session_id: 'new-session', result: 'output'}),
+          stderr: '',
+          exitCode: 0,
+        })
+
+        const command = new RPCCommand(userId, workflowId, mockStore, config)
+        const node = {id: 'first-session'}
+
+        await command.run(node, null, 'test')
+
+        const call = mockSSHExecutor.execute.mock.calls[0][0]
+        expect(call.command).not.toContain('{{sessionId}}')
+        expect(Integration.updateOne).toHaveBeenCalledWith(
+          {userId: 'userId', 'rpc.alias': '/vm1'},
+          {$set: {'rpc.$.lastSessionId': 'new-session'}},
+        )
+      })
+    })
+
+    describe('session field extraction', () => {
+      it('extracts from default session_id field', async () => {
+        mockSSHExecutor.execute.mockResolvedValue({
+          stdout: JSON.stringify({session_id: 'default-789', result: 'output'}),
+          stderr: '',
+          exitCode: 0,
+        })
+        const config = {...sshAliasConfig, outputFormat: 'json'}
+        const command = new RPCCommand(userId, workflowId, mockStore, config)
+        const node = {id: 'node-default'}
+
+        await command.run(node, null, 'test')
+
+        expect(Integration.updateOne).toHaveBeenCalledWith(
+          {userId: 'userId', 'rpc.alias': '/vm1'},
+          {$set: {'rpc.$.lastSessionId': 'default-789'}},
+        )
+      })
+
+      it('extracts from custom top-level field', async () => {
+        mockHTTPExecutor.execute.mockResolvedValue({
+          body: JSON.stringify({conversation_id: 'custom-123', response: 'output'}),
+          status: 200,
+          isError: false,
+        })
+        const config = {
+          ...httpAliasConfig,
+          outputFormat: 'json',
+          sessionIdField: 'conversation_id',
+        }
+        const command = new RPCCommand(userId, workflowId, mockStore, config)
+        const node = {id: 'node-custom'}
+
+        await command.run(node, null, 'test')
+
+        expect(Integration.updateOne).toHaveBeenCalledWith(
+          {userId: 'userId', 'rpc.alias': '/webhook1'},
+          {$set: {'rpc.$.lastSessionId': 'custom-123'}},
+        )
+      })
+
+      it('extracts from nested field path', async () => {
+        mockHTTPExecutor.execute.mockResolvedValue({
+          body: JSON.stringify({meta: {session: {id: 'nested-456'}}, data: 'output'}),
+          status: 200,
+          isError: false,
+        })
+        const config = {
+          ...httpAliasConfig,
+          outputFormat: 'json',
+          sessionIdField: 'meta.session.id',
+        }
+        const command = new RPCCommand(userId, workflowId, mockStore, config)
+        const node = {id: 'node-nested'}
+
+        await command.run(node, null, 'test')
+
+        expect(Integration.updateOne).toHaveBeenCalledWith(
+          {userId: 'userId', 'rpc.alias': '/webhook1'},
+          {$set: {'rpc.$.lastSessionId': 'nested-456'}},
+        )
+      })
+
+      it('does not extract when field value is non-string', async () => {
+        mockHTTPExecutor.execute.mockResolvedValue({
+          body: JSON.stringify({session_id: 12345, data: 'output'}),
+          status: 200,
+          isError: false,
+        })
+        const config = {...httpAliasConfig, outputFormat: 'json'}
+        const command = new RPCCommand(userId, workflowId, mockStore, config)
+        const node = {id: 'node-number'}
+
+        await command.run(node, null, 'test')
+
+        expect(Integration.updateOne).not.toHaveBeenCalled()
+      })
+
+      it('does not extract when field is missing', async () => {
+        mockHTTPExecutor.execute.mockResolvedValue({
+          body: JSON.stringify({data: 'output'}),
+          status: 200,
+          isError: false,
+        })
+        const config = {...httpAliasConfig, outputFormat: 'json', sessionIdField: 'missing.field'}
+        const command = new RPCCommand(userId, workflowId, mockStore, config)
+        const node = {id: 'node-missing'}
+
+        await command.run(node, null, 'test')
+
+        expect(Integration.updateOne).not.toHaveBeenCalled()
+      })
     })
   })
 })
