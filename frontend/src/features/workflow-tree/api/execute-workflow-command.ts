@@ -1,5 +1,6 @@
 import { apiFetch } from '@shared/lib/base-api'
 import { normalizeToRecord } from '@shared/lib/normalize-to-record'
+import { enrichNodesWithParents } from '@entities/workflow/lib'
 import type { NodeData, EdgeData } from '@shared/base-types'
 import { toast } from 'sonner'
 
@@ -18,6 +19,7 @@ interface ExecuteRequest {
 interface BackendExecuteResponse {
   nodesChanged?: NodeData[] | Record<string, NodeData>
   edgesChanged?: EdgeData[] | Record<string, EdgeData>
+  workflowNodes?: Record<string, NodeData>
   cell?: NodeData
 }
 
@@ -35,9 +37,14 @@ export const executeWorkflowCommand = async ({ signal, ...request }: ExecuteRequ
       headers: { 'Content-Type': 'application/json' },
       signal,
     })
+
+    const normalizedChanges = normalizeToRecord(raw.nodesChanged)
+    const completeNodeMap = raw.workflowNodes ?? {}
+    const enrichedChanges = enrichNodesWithParents(normalizedChanges ?? {}, completeNodeMap)
+
     return {
       ...raw,
-      nodesChanged: normalizeToRecord(raw.nodesChanged),
+      nodesChanged: enrichedChanges,
       edgesChanged: normalizeToRecord(raw.edgesChanged),
     }
   } catch (error) {
