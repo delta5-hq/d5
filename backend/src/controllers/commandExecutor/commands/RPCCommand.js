@@ -1,6 +1,8 @@
 import debug from 'debug'
 import {SSHExecutor} from './rpc/SSHExecutor'
 import {HTTPExecutor} from './rpc/HTTPExecutor'
+import {ACPExecutor} from './rpc/acp/ACPExecutor'
+import {ACPPermissionPolicy} from './rpc/acp/ACPPermissionPolicy'
 import {interpolateTemplate} from './shared/interpolateTemplate'
 import {parseOutput} from './shared/parseOutput'
 import {RPC_PROTOCOL} from '../constants/rpc'
@@ -85,17 +87,45 @@ export class RPCCommand {
     return responseBody
   }
 
+  async executeACP(prompt) {
+    const {command, args, env, timeoutMs, workingDir, autoApprove, allowedTools} = this.aliasConfig
+
+    const permissionPolicy = ACPPermissionPolicy.fromIntegrationConfig({autoApprove, allowedTools})
+    const executor = new ACPExecutor()
+
+    const result = await executor.execute({
+      command,
+      args,
+      env,
+      timeoutMs,
+      cwd: workingDir,
+      permissionPolicy,
+      prompt,
+    })
+
+    return {
+      output: result.output,
+      sessionId: result.sessionId,
+      exitCode: result.exitCode,
+    }
+  }
+
   async run(node, context, originalPrompt) {
     const prompt = this.extractPrompt(node, originalPrompt)
     const fullPrompt = context ? context + prompt : prompt
 
     try {
       let rawOutput
+      let sessionId = null
 
       if (this.aliasConfig.protocol === RPC_PROTOCOL.SSH) {
         rawOutput = await this.executeSSH(fullPrompt)
       } else if (this.aliasConfig.protocol === RPC_PROTOCOL.HTTP) {
         rawOutput = await this.executeHTTP(fullPrompt)
+      } else if (this.aliasConfig.protocol === RPC_PROTOCOL.ACP_LOCAL) {
+        const result = await this.executeACP(fullPrompt)
+        rawOutput = result.output
+        sessionId = result.sessionId
       } else {
         throw new Error(`Unknown RPC protocol: ${this.aliasConfig.protocol}`)
       }
@@ -105,7 +135,11 @@ export class RPCCommand {
         outputField: this.aliasConfig.outputField,
       })
 
-      await this.extractAndPersistSessionId(rawOutput)
+      if (sessionId) {
+        await this.persistSessionId(sessionId)
+      } else {
+        await this.extractAndPersistSessionId(rawOutput)
+      }
 
       this.store.importer.createNodes(parsedOutput || '(empty RPC response)', node.id)
     } catch (e) {
@@ -114,23 +148,26 @@ export class RPCCommand {
     }
   }
 
+  async persistSessionId(sessionId) {
+    const {alias} = this.aliasConfig
+
+    if (!sessionId) return
+
+    try {
+      await Integration.updateOne({userId: this.userId, 'rpc.alias': alias}, {$set: {'rpc.$.lastSessionId': sessionId}})
+      this.log(`Persisted session ID: ${sessionId}`)
+    } catch (error) {
+      this.logError(`Failed to persist session ID: ${error.message}`)
+    }
+  }
+
   async extractAndPersistSessionId(rawOutput) {
-    const {outputFormat, sessionIdField, alias} = this.aliasConfig
+    const {outputFormat, sessionIdField} = this.aliasConfig
 
     const extractor = new SessionIdExtractor(outputFormat, sessionIdField)
     const sessionId = extractor.extract(rawOutput)
 
-    if (sessionId) {
-      try {
-        await Integration.updateOne(
-          {userId: this.userId, 'rpc.alias': alias},
-          {$set: {'rpc.$.lastSessionId': sessionId}},
-        )
-        this.log(`Persisted session ID: ${sessionId}`)
-      } catch (error) {
-        this.logError(`Failed to persist session ID: ${error.message}`)
-      }
-    }
+    await this.persistSessionId(sessionId)
   }
 
   extractPrompt(node, originalPrompt) {

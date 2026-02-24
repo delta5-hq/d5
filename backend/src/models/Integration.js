@@ -101,7 +101,7 @@ const MCPIntegration = createSchema(
 const RPCIntegration = createSchema(
   {
     alias: {type: String, required: true},
-    protocol: {type: String, required: true, enum: ['ssh', 'http']},
+    protocol: {type: String, required: true, enum: ['ssh', 'http', 'acp-local']},
     description: String,
     timeoutMs: {type: Number, min: 5000, max: 7_200_000},
     host: String,
@@ -119,6 +119,11 @@ const RPCIntegration = createSchema(
     outputField: String,
     sessionIdField: {type: String, default: 'session_id'},
     lastSessionId: String,
+    command: String,
+    args: [String],
+    env: {type: mongoose.Schema.Types.Mixed},
+    autoApprove: {type: String, enum: ['all', 'none', 'whitelist'], default: 'none'},
+    allowedTools: [String],
   },
   {_id: false, timestamps: false},
 )
