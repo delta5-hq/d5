@@ -64,7 +64,7 @@ export class ClaudeCommand {
       )
     }
 
-    prompt = context ? context + prompt : createContextForChat(node, {allNodes: this.store._nodes}) + prompt
+    prompt = context ? context + prompt : createContextForChat(node, {store: this.store}) + prompt
 
     const userMessage = {
       content: prompt,

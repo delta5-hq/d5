@@ -72,7 +72,7 @@ export class ChatCommand {
       )
     }
 
-    prompt = context ? context + prompt : createContextForChat(node, {allNodes: this.store._nodes}) + prompt
+    prompt = context ? context + prompt : createContextForChat(node, {store: this.store}) + prompt
 
     if (readTableParam(title)) {
       const messages = [

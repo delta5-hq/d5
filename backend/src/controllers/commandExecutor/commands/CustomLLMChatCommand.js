@@ -72,7 +72,7 @@ export class CustomLLMChatCommand {
       )
     }
 
-    prompt = context ? context + prompt : createContextForChat(node, {allNodes: this.store._nodes}) + prompt
+    prompt = context ? context + prompt : createContextForChat(node, {store: this.store}) + prompt
 
     const text = await this.replyChat([{role: 'user', content: prompt}])
 

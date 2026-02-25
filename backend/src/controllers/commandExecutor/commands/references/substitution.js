@@ -1,4 +1,3 @@
-import {commandRegExp} from '../../constants/commandRegExp'
 import {FOREACH_QUERY} from '../../constants/foreach'
 import {clearStepsPrefix} from '../../constants/steps'
 import {checkIsPostProccess} from '../utils/checkIsPostProccess'
@@ -9,6 +8,8 @@ import {
   findAllSiblingsMatch,
   findAllInNodeArray,
 } from './utils/referenceUtils'
+import {isAnyCommand} from '../utils/commandRecognition'
+import {composeAllDynamicAliases} from '../utils/aliasComposition'
 import {clearCommandsWithParams} from '../../constants'
 import {referencePatterns} from './utils/referencePatterns'
 import {REF_DEF_PREFIX, REF_PREFIX, HASHREF_DEF_PREFIX, HASHREF_PREFIX} from './referenceConstants'
@@ -133,7 +134,8 @@ export const indentedText = (startNode, store, params) => {
   const rawTitle = getTitle(startNode, useCommand)
   const headTitle = rawTitle ? clearStepsPrefix(rawTitle) : ''
 
-  if (saveFirst || !commandRegExp.any.test(headTitle)) {
+  const dynamicAliases = composeAllDynamicAliases(store._aliases)
+  if (saveFirst || !isAnyCommand(headTitle, dynamicAliases)) {
     head.text = headTitle
   }
 
@@ -142,7 +144,7 @@ export const indentedText = (startNode, store, params) => {
     const title = getTitle(node, useCommand)
     const clearedTitle = title ? clearStepsPrefix(title) : ''
 
-    if (!commandRegExp.any.test(clearedTitle) && node.id !== startNode.id) {
+    if (!isAnyCommand(clearedTitle, dynamicAliases) && node.id !== startNode.id) {
       const indentation = (node.depth - startNode.depth + parentIndentation) * 2
 
       let text = `${' '.repeat(indentation)}${clearedTitle}`

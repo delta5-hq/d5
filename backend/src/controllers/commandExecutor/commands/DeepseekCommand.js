@@ -72,7 +72,7 @@ export class DeepseekCommand {
       )
     }
 
-    prompt = context ? context + prompt : createContextForChat(node, {allNodes: this.store._nodes}) + prompt
+    prompt = context ? context + prompt : createContextForChat(node, {store: this.store}) + prompt
 
     const text = (await this.replyDeepseek(prompt, this.userId))?.replaceAll('**', '')
 
