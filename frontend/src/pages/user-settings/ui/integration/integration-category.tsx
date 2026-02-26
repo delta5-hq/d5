@@ -22,6 +22,9 @@ import { PerplexityDialog } from './dialogs/perplexity-dialog'
 import { QwenDialog } from './dialogs/qwen-dialog'
 import { DeepseekDialog } from './dialogs/deepseek-dialog'
 import CustomLLMDialog from './dialogs/custom-llm-dialog'
+import MCPDialog from './dialogs/mcp-dialog'
+import RPCDialog from './dialogs/rpc-dialog'
+import ArrayIntegrationSection from './components/array-integration-section'
 
 interface IntegrationCategoryProps {
   showDialog: ShowDialogFn
@@ -60,72 +63,104 @@ const IntegrationCard: React.FC<{
   </Card>
 )
 
-const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({ showDialog, data, showAll, refresh }) => (
-  <div className="flex flex-wrap justify-start w-full">
-    {data?.openai || showAll ? (
-      <IntegrationCard
-        icon={OpenaiLogo}
-        installed={!!data?.openai}
-        installedId="integration.openai.installed"
-        onClick={() => showDialog(OpenaiDialog, { refresh, data: data?.openai })}
-        titleId="integration.openai.title"
+const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({ showDialog, data, showAll, refresh }) => {
+  const existingMCPAliases = React.useMemo(() => (data?.mcp || []).map(m => m.alias), [data?.mcp])
+  const existingRPCAliases = React.useMemo(() => (data?.rpc || []).map(r => r.alias), [data?.rpc])
+
+  return (
+    <div className="w-full space-y-6">
+      {/* MCP Integrations */}
+      <ArrayIntegrationSection
+        fieldName="mcp"
+        items={data?.mcp || []}
+        onAdd={() => showDialog(MCPDialog, { refresh, existingAliases: existingMCPAliases })}
+        onEdit={item =>
+          showDialog(MCPDialog, { refresh, data: item, existingAliases: existingMCPAliases, isEdit: true })
+        }
+        refresh={refresh}
+        titleId="integration.mcp.title"
       />
-    ) : null}
-    {data?.yandex || showAll ? (
-      <IntegrationCard
-        icon={YandexGPTLogo}
-        installed={!!data?.yandex?.apiKey}
-        installedId="integration.openai.installed"
-        onClick={() => showDialog(YandexDialog, { refresh, data: data?.yandex })}
-        titleId="integration.yandex.title"
+
+      {/* RPC Integrations */}
+      <ArrayIntegrationSection
+        fieldName="rpc"
+        items={data?.rpc || []}
+        onAdd={() => showDialog(RPCDialog, { refresh, existingAliases: existingRPCAliases })}
+        onEdit={item =>
+          showDialog(RPCDialog, { refresh, data: item, existingAliases: existingRPCAliases, isEdit: true })
+        }
+        refresh={refresh}
+        titleId="integration.rpc.title"
       />
-    ) : null}
-    {data?.claude || showAll ? (
-      <IntegrationCard
-        icon={ClaudeLogo}
-        installed={!!data?.claude?.apiKey}
-        installedId="integration.claude.installed"
-        onClick={() => showDialog(ClaudeDialog, { refresh, data: data?.claude })}
-        titleId="integration.claude.title"
-      />
-    ) : null}
-    {data?.perplexity || showAll ? (
-      <IntegrationCard
-        icon={PerplexityLogo}
-        installed={!!data?.perplexity?.apiKey}
-        installedId="integration.perplexity.installed"
-        onClick={() => showDialog(PerplexityDialog, { refresh, data: data?.perplexity })}
-        titleId="integration.perplexity.title"
-      />
-    ) : null}
-    {data?.qwen || showAll ? (
-      <IntegrationCard
-        icon={QwenLogo}
-        installed={!!data?.qwen?.apiKey}
-        installedId="integration.qwen.installed"
-        onClick={() => showDialog(QwenDialog, { refresh, data: data?.qwen })}
-        titleId="integration.qwen.title"
-      />
-    ) : null}
-    {data?.deepseek || showAll ? (
-      <IntegrationCard
-        icon={DeepseekLogo}
-        installed={!!data?.deepseek?.apiKey}
-        installedId="integration.deepseek.installed"
-        onClick={() => showDialog(DeepseekDialog, { refresh, data: data?.deepseek })}
-        titleId="integration.deepseek.title"
-      />
-    ) : null}
-    {data?.custom_llm || showAll ? (
-      <IntegrationCard
-        icon={CustomLLMLogo}
-        installed={!!data?.custom_llm}
-        installedId="integration.installed"
-        onClick={() => showDialog(CustomLLMDialog, { refresh, data: data?.custom_llm })}
-        titleId="integration.custom_llm.title"
-      />
-    ) : null}
-  </div>
-)
+
+      {/* LLM Integrations */}
+      <div className="flex flex-wrap justify-start w-full">
+        {data?.openai || showAll ? (
+          <IntegrationCard
+            icon={OpenaiLogo}
+            installed={!!data?.openai}
+            installedId="integration.openai.installed"
+            onClick={() => showDialog(OpenaiDialog, { refresh, data: data?.openai })}
+            titleId="integration.openai.title"
+          />
+        ) : null}
+        {data?.yandex || showAll ? (
+          <IntegrationCard
+            icon={YandexGPTLogo}
+            installed={!!data?.yandex?.apiKey}
+            installedId="integration.openai.installed"
+            onClick={() => showDialog(YandexDialog, { refresh, data: data?.yandex })}
+            titleId="integration.yandex.title"
+          />
+        ) : null}
+        {data?.claude || showAll ? (
+          <IntegrationCard
+            icon={ClaudeLogo}
+            installed={!!data?.claude?.apiKey}
+            installedId="integration.claude.installed"
+            onClick={() => showDialog(ClaudeDialog, { refresh, data: data?.claude })}
+            titleId="integration.claude.title"
+          />
+        ) : null}
+        {data?.perplexity || showAll ? (
+          <IntegrationCard
+            icon={PerplexityLogo}
+            installed={!!data?.perplexity?.apiKey}
+            installedId="integration.perplexity.installed"
+            onClick={() => showDialog(PerplexityDialog, { refresh, data: data?.perplexity })}
+            titleId="integration.perplexity.title"
+          />
+        ) : null}
+        {data?.qwen || showAll ? (
+          <IntegrationCard
+            icon={QwenLogo}
+            installed={!!data?.qwen?.apiKey}
+            installedId="integration.qwen.installed"
+            onClick={() => showDialog(QwenDialog, { refresh, data: data?.qwen })}
+            titleId="integration.qwen.title"
+          />
+        ) : null}
+        {data?.deepseek || showAll ? (
+          <IntegrationCard
+            icon={DeepseekLogo}
+            installed={!!data?.deepseek?.apiKey}
+            installedId="integration.deepseek.installed"
+            onClick={() => showDialog(DeepseekDialog, { refresh, data: data?.deepseek })}
+            titleId="integration.deepseek.title"
+          />
+        ) : null}
+        {data?.custom_llm || showAll ? (
+          <IntegrationCard
+            icon={CustomLLMLogo}
+            installed={!!data?.custom_llm}
+            installedId="integration.installed"
+            onClick={() => showDialog(CustomLLMDialog, { refresh, data: data?.custom_llm })}
+            titleId="integration.custom_llm.title"
+          />
+        ) : null}
+      </div>
+    </div>
+  )
+}
 
 export default IntegrationCategory

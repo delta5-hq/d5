@@ -67,7 +67,7 @@ export interface MCPIntegration {
 
 export interface RPCIntegration {
   alias: string
-  protocol: 'ssh' | 'http'
+  protocol: 'ssh' | 'http' | 'acp-local'
   description?: string
   timeoutMs?: number
   host?: string
@@ -85,6 +85,11 @@ export interface RPCIntegration {
   outputField?: string
   sessionIdField?: string
   lastSessionId?: string
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  autoApprove?: 'all' | 'none' | 'whitelist'
+  allowedTools?: string[]
 }
 
 export type IntegrationSettings = Partial<{

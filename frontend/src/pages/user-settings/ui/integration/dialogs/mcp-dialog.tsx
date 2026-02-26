@@ -68,12 +68,13 @@ interface Props extends DialogProps {
   data?: Partial<MCPFormValues>
   refresh: () => Promise<void>
   existingAliases?: string[]
+  isEdit?: boolean
 }
 
-const MCPDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAliases = [] }) => {
-  const { mutateAsync: save } = useApiMutation<MCPFormValues[], HttpError, { mcp: MCPFormValues[] }>({
-    url: '/integration/mcp/update',
-    method: 'PUT',
+const MCPDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAliases = [], isEdit = false }) => {
+  const { mutateAsync: save } = useApiMutation<MCPFormValues, HttpError, MCPFormValues>({
+    url: isEdit ? `/integration/mcp/items/${data?.alias}` : '/integration/mcp/items',
+    method: isEdit ? 'PUT' : 'POST',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => {
       const { message } = err
@@ -103,7 +104,7 @@ const MCPDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
 
   const onSubmit = async (values: MCPFormFlat) => {
     try {
-      if (!data && existingAliases.includes(values.alias)) {
+      if (!isEdit && existingAliases.includes(values.alias)) {
         toast.error('Alias already exists')
         return
       }
@@ -114,7 +115,7 @@ const MCPDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
         ;(payload as any).args = values.args.split(' ').filter(Boolean)
       }
 
-      await save({ mcp: [payload as unknown as MCPFormValues] })
+      await save(payload as unknown as MCPFormValues)
       await refresh()
       onClose?.()
     } catch {

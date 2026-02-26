@@ -87,12 +87,13 @@ interface Props extends DialogProps {
   data?: Partial<RPCFormValues>
   refresh: () => Promise<void>
   existingAliases?: string[]
+  isEdit?: boolean
 }
 
-const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAliases = [] }) => {
-  const { mutateAsync: save } = useApiMutation<RPCFormValues[], HttpError, { rpc: RPCFormValues[] }>({
-    url: '/integration/rpc/update',
-    method: 'PUT',
+const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAliases = [], isEdit = false }) => {
+  const { mutateAsync: save } = useApiMutation<RPCFormValues, HttpError, RPCFormValues>({
+    url: isEdit ? `/integration/rpc/items/${data?.alias}` : '/integration/rpc/items',
+    method: isEdit ? 'PUT' : 'POST',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => {
       const { message } = err
@@ -123,14 +124,21 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
 
   const protocol = watch('protocol')
 
+  const fillClaudePreset = () => {
+    setValue('commandTemplate', 'claude -p "{{prompt}}" --output-format json --dangerously-skip-permissions')
+    setValue('outputFormat', 'json')
+    setValue('outputField', 'output')
+    setValue('sessionIdField', 'session_id')
+  }
+
   const onSubmit = async (values: RPCFormFlat) => {
     try {
-      if (!data && existingAliases.includes(values.alias)) {
+      if (!isEdit && existingAliases.includes(values.alias)) {
         toast.error('Alias already exists')
         return
       }
 
-      await save({ rpc: [values as RPCFormValues] })
+      await save(values as RPCFormValues)
       await refresh()
       onClose?.()
     } catch {
@@ -260,9 +268,14 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="commandTemplate">
-                  Command Template <span className="text-destructive">*</span>
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="commandTemplate">
+                    Command Template <span className="text-destructive">*</span>
+                  </Label>
+                  <Button disabled={isSubmitting} onClick={fillClaudePreset} size="sm" type="button" variant="default">
+                    🤖 Claude CLI Preset
+                  </Button>
+                </div>
                 <Textarea
                   id="commandTemplate"
                   {...register('commandTemplate')}
