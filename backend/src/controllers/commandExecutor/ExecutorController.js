@@ -3,9 +3,8 @@ import {getWorkflowData} from './commands/utils/getWorkflowData'
 import {runCommand} from './commands/utils/runCommand'
 import Store from './commands/utils/Store'
 import {allowedCommands} from './constants'
-import {findAliasByQueryType} from './commands/mcp/aliasResolver'
 import {loadUserAliases} from './commands/aliases/loadUserAliases'
-import {findRPCAliasByQueryType} from './commands/utils/queryTypeResolver'
+import {findMCPAliasByQueryType, findRPCAliasByQueryType} from './commands/utils/queryTypeResolver'
 import ProgressReporter from './ProgressReporter'
 
 const logError = debug('delta5:app:ExecutorController')
@@ -31,7 +30,7 @@ const ExecutorController = {
     }
 
     if (!allowedCommands.includes(queryType)) {
-      mcpAlias = findAliasByQueryType(aliases.mcp, queryType)
+      mcpAlias = findMCPAliasByQueryType(aliases.mcp, queryType)
       if (!mcpAlias) {
         rpcAlias = findRPCAliasByQueryType(aliases.rpc, queryType)
         if (!rpcAlias) {

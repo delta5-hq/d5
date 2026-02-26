@@ -274,5 +274,24 @@ describe('queryTypeResolver', () => {
       const converted = mcpAliasToQueryType(found.alias)
       expect(converted).toBe(original)
     })
+
+    it('preserves all config fields for downstream dispatch', () => {
+      const richAliases = {
+        mcp: [
+          {
+            alias: '/coder1',
+            toolName: 'code',
+            transport: 'stdio',
+            command: 'claude-code',
+            args: ['--model', 'opus'],
+            timeoutMs: 30000,
+          },
+        ],
+        rpc: [],
+      }
+
+      const result = resolveCommand('/coder1 task', richAliases)
+      expect(result.mcpAlias).toEqual(richAliases.mcp[0])
+    })
   })
 })

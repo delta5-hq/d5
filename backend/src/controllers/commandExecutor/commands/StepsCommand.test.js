@@ -7,9 +7,6 @@ import {YandexCommand} from './YandexCommand'
 
 jest.useFakeTimers()
 jest.mock('./utils/runCommand')
-jest.mock('./mcp/aliasResolver', () => ({
-  loadMCPAliases: jest.fn().mockResolvedValue([]),
-}))
 
 jest.mock('../ProgressReporter', () => {
   return {
