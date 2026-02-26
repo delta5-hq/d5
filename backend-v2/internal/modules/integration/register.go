@@ -55,6 +55,11 @@ func Register(router fiber.Router, db *qmgo.Database, services *container.Servic
 	protectedGroup.Get("/icons/freepik", freepikCtrl.Icons)
 	protectedGroup.Post("/icons/download", freepikCtrl.DownloadIcon)
 
+	/* Array field item operations (mcp, rpc) */
+	protectedGroup.Post("/:field/items", baseCtrl.AddArrayItem)
+	protectedGroup.Put("/:field/items/:alias", baseCtrl.UpdateArrayItem)
+	protectedGroup.Delete("/:field/items/:alias", baseCtrl.DeleteArrayItem)
+
 	/* Parameterized routes LAST - catches remaining requests */
 	protectedGroup.Get("/:service", baseCtrl.GetService)
 	protectedGroup.Put("/:service/update", baseCtrl.UpdateService)
