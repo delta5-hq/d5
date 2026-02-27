@@ -129,6 +129,7 @@ const RPCIntegration = createSchema(
 
 const IntegrationSchema = createSchema({
   userId: {type: String, required: true, index: true},
+  workflowId: {type: String, index: true, default: null},
   openai: Openai,
   google: Google,
   yandex: Yandex,
@@ -142,6 +143,8 @@ const IntegrationSchema = createSchema({
   mcp: [MCPIntegration],
   rpc: [RPCIntegration],
 })
+
+IntegrationSchema.index({userId: 1, workflowId: 1}, {unique: true})
 
 export const INTEGRATION_ENCRYPTION_CONFIG = {
   fields: [

@@ -9,6 +9,8 @@ import {encryptFields, decryptFields} from '../models/utils/fieldEncryption'
 import {LANGUAGES, MODELS, USER_DEFAULT_LANGUAGE, USER_DEFAULT_MODEL} from '../shared/config/constants'
 import {PhraseChunkBuilderV2, scrapeFiles, fetchAsString} from './utils/scrape'
 import LLMVector from '../models/LLMVector'
+import IntegrationRepository from '../repositories/IntegrationRepository'
+import {normalizeWorkflowId} from './utils/normalizeWorkflowId'
 
 const IntegrationController = {
   authorization: async (ctx, next) => {
@@ -22,8 +24,9 @@ const IntegrationController = {
   },
   getAll: async ctx => {
     const {userId} = ctx.state
+    const workflowId = normalizeWorkflowId(ctx.query.workflowId)
 
-    const integration = await Integration.findOne({userId}).lean()
+    const integration = await IntegrationRepository.findWithFallback(userId, workflowId)
     if (!integration) {
       ctx.throw(404, 'Integration not found')
     }
@@ -32,16 +35,18 @@ const IntegrationController = {
   getService: async ctx => {
     const {userId} = ctx.state
     const {service} = ctx.params
+    const workflowId = normalizeWorkflowId(ctx.query.workflowId)
 
-    const integration = await Integration.findOne({userId}, {[service]: 1, _id: 0}).lean()
-    if (!integration) {
+    const integration = await IntegrationRepository.findWithFallback(userId, workflowId)
+    if (!integration || !integration[service]) {
       ctx.throw(404, 'Integration for the called application was not found')
     }
-    ctx.body = decryptFields(integration, INTEGRATION_ENCRYPTION_CONFIG)
+    ctx.body = decryptFields({[service]: integration[service]}, INTEGRATION_ENCRYPTION_CONFIG)
   },
   updateService: async ctx => {
     const {userId} = ctx.state
     const {service} = ctx.params
+    const workflowId = normalizeWorkflowId(ctx.query.workflowId)
     const integration = await ctx.request.json()
 
     if (!integration) {
@@ -72,9 +77,9 @@ const IntegrationController = {
     }
 
     const encryptedData = encryptFields({[service]: integration}, INTEGRATION_ENCRYPTION_CONFIG)
-    const update = {$set: {userId, ...encryptedData}}
+    const update = {$set: {userId, workflowId, ...encryptedData}}
     const options = {upsert: true}
-    await Integration.updateOne({userId}, update, options)
+    await Integration.updateOne({userId, workflowId}, update, options)
 
     ctx.body = {vectors}
   },
