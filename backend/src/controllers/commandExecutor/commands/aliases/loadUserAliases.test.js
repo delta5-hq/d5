@@ -1,8 +1,21 @@
 import {loadUserAliases} from './loadUserAliases'
-import Integration from '../../../../models/Integration'
+import Integration, {INTEGRATION_ENCRYPTION_CONFIG} from '../../../../models/Integration'
+import {decryptFields} from '../../../../models/utils/fieldEncryption'
 
 jest.mock('../../../../models/Integration', () => ({
-  findOne: jest.fn(),
+  __esModule: true,
+  default: {
+    findOne: jest.fn(),
+  },
+  INTEGRATION_ENCRYPTION_CONFIG: {
+    fields: [],
+    arrayFields: {},
+  },
+}))
+
+jest.mock('../../../../models/utils/fieldEncryption', () => ({
+  decryptFields: jest.fn(data => data),
+  encryptFields: jest.fn(data => data),
 }))
 
 describe('loadUserAliases', () => {
@@ -64,12 +77,14 @@ describe('loadUserAliases', () => {
   })
 
   it('returns both MCP and RPC aliases', async () => {
+    const dbData = {
+      userId: 'user-1',
+      mcp: [{alias: '/coder1'}, {alias: '/agent2'}],
+      rpc: [{alias: '/vm3'}, {alias: '/ssh1'}],
+    }
+
     Integration.findOne.mockReturnValue({
-      lean: jest.fn().mockResolvedValue({
-        userId: 'user-1',
-        mcp: [{alias: '/coder1'}, {alias: '/agent2'}],
-        rpc: [{alias: '/vm3'}, {alias: '/ssh1'}],
-      }),
+      lean: jest.fn().mockResolvedValue(dbData),
     })
 
     const result = await loadUserAliases('user-1')
@@ -78,6 +93,7 @@ describe('loadUserAliases', () => {
       mcp: [{alias: '/coder1'}, {alias: '/agent2'}],
       rpc: [{alias: '/vm3'}, {alias: '/ssh1'}],
     })
+    expect(decryptFields).toHaveBeenCalledWith(dbData, INTEGRATION_ENCRYPTION_CONFIG)
   })
 
   it('propagates database errors', async () => {

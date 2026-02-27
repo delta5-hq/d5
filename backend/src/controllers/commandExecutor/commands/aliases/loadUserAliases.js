@@ -1,5 +1,6 @@
-import Integration from '../../../../models/Integration'
+import Integration, {INTEGRATION_ENCRYPTION_CONFIG} from '../../../../models/Integration'
 import {isValidAlias} from './aliasValidation'
+import {decryptFields} from '../../../../models/utils/fieldEncryption'
 
 export const loadUserAliases = async userId => {
   const integration = await Integration.findOne({userId}).lean()
@@ -8,8 +9,10 @@ export const loadUserAliases = async userId => {
     return {mcp: [], rpc: []}
   }
 
+  const decrypted = decryptFields(integration, INTEGRATION_ENCRYPTION_CONFIG)
+
   return {
-    mcp: (integration.mcp || []).filter(entry => isValidAlias(entry.alias)),
-    rpc: (integration.rpc || []).filter(entry => isValidAlias(entry.alias)),
+    mcp: (decrypted.mcp || []).filter(entry => isValidAlias(entry.alias)),
+    rpc: (decrypted.rpc || []).filter(entry => isValidAlias(entry.alias)),
   }
 }

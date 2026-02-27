@@ -1,4 +1,5 @@
-import Integration from '../../../../../models/Integration'
+import Integration, {INTEGRATION_ENCRYPTION_CONFIG} from '../../../../../models/Integration'
+import {decryptFields} from '../../../../../models/utils/fieldEncryption'
 import {YandexGPT, YandexGPTEmbeddings} from './YandexGPT'
 import {
   getClaudeMaxTokens,
@@ -60,7 +61,7 @@ export const getIntegrationSettings = async userId => {
     throw Error('Integration not found')
   }
 
-  return settings
+  return decryptFields(settings, INTEGRATION_ENCRYPTION_CONFIG)
 }
 
 export const getLLM = ({type, settings, log}) => {
