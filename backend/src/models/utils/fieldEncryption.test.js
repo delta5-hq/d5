@@ -462,5 +462,213 @@ describe('Field Encryption', () => {
         expect(decrypted.rpc[2].alias).toBe('/http1')
       })
     })
+
+    describe('serialized field encryption', () => {
+      it('encrypts and decrypts object values in array fields', () => {
+        const data = {
+          items: [{metadata: {key1: 'value1', key2: 'value2'}}],
+        }
+
+        const config = {
+          arrayFields: {items: ['metadata']},
+          serializedFields: {items: ['metadata']},
+        }
+
+        const encrypted = encryptFields(data, config)
+        const decrypted = decryptFields(encrypted, config)
+
+        expect(encrypted.items[0].metadata).toMatch(/^__encrypted__/)
+        expect(encrypted.items[0].metadata).not.toBe(data.items[0].metadata)
+        expect(decrypted.items[0].metadata).toEqual(data.items[0].metadata)
+      })
+
+      it('encrypts multiple object fields within same array item', () => {
+        const data = {
+          configs: [{settings: {a: 1}, options: {b: 2}}],
+        }
+
+        const config = {
+          arrayFields: {configs: ['settings', 'options']},
+          serializedFields: {configs: ['settings', 'options']},
+        }
+
+        const encrypted = encryptFields(data, config)
+        const decrypted = decryptFields(encrypted, config)
+
+        expect(encrypted.configs[0].settings).toMatch(/^__encrypted__/)
+        expect(encrypted.configs[0].options).toMatch(/^__encrypted__/)
+        expect(decrypted.configs[0].settings).toEqual({a: 1})
+        expect(decrypted.configs[0].options).toEqual({b: 2})
+      })
+
+      it('handles mix of scalar and serialized fields in same array', () => {
+        const data = {
+          items: [
+            {
+              stringField: 'plain-text',
+              objectField: {nested: 'object'},
+            },
+          ],
+        }
+
+        const config = {
+          arrayFields: {items: ['stringField', 'objectField']},
+          serializedFields: {items: ['objectField']},
+        }
+
+        const encrypted = encryptFields(data, config)
+        const decrypted = decryptFields(encrypted, config)
+
+        expect(typeof encrypted.items[0].stringField).toBe('string')
+        expect(typeof encrypted.items[0].objectField).toBe('string')
+        expect(decrypted.items[0].stringField).toBe('plain-text')
+        expect(decrypted.items[0].objectField).toEqual({nested: 'object'})
+      })
+
+      it('preserves null values in serialized fields', () => {
+        const data = {
+          items: [{field1: null, field2: {key: 'value'}}],
+        }
+
+        const config = {
+          arrayFields: {items: ['field1', 'field2']},
+          serializedFields: {items: ['field1', 'field2']},
+        }
+
+        const encrypted = encryptFields(data, config)
+        const decrypted = decryptFields(encrypted, config)
+
+        expect(decrypted.items[0].field1).toBeNull()
+        expect(decrypted.items[0].field2).toEqual({key: 'value'})
+      })
+
+      it('preserves empty objects in serialized fields', () => {
+        const data = {
+          items: [{emptyObj: {}}],
+        }
+
+        const config = {
+          arrayFields: {items: ['emptyObj']},
+          serializedFields: {items: ['emptyObj']},
+        }
+
+        const encrypted = encryptFields(data, config)
+        const decrypted = decryptFields(encrypted, config)
+
+        expect(decrypted.items[0].emptyObj).toEqual({})
+      })
+
+      it('handles deeply nested object structures', () => {
+        const data = {
+          items: [
+            {
+              complex: {
+                level1: {
+                  level2: {
+                    level3: 'deep-value',
+                  },
+                },
+              },
+            },
+          ],
+        }
+
+        const config = {
+          arrayFields: {items: ['complex']},
+          serializedFields: {items: ['complex']},
+        }
+
+        const encrypted = encryptFields(data, config)
+        const decrypted = decryptFields(encrypted, config)
+
+        expect(decrypted).toEqual(data)
+      })
+
+      it('preserves object key ordering', () => {
+        const data = {
+          items: [{obj: {z: 1, a: 2, m: 3}}],
+        }
+
+        const config = {
+          arrayFields: {items: ['obj']},
+          serializedFields: {items: ['obj']},
+        }
+
+        const encrypted = encryptFields(data, config)
+        const decrypted = decryptFields(encrypted, config)
+
+        expect(Object.keys(decrypted.items[0].obj)).toEqual(['z', 'a', 'm'])
+      })
+
+      it('handles objects with various data types', () => {
+        const data = {
+          items: [
+            {
+              mixed: {
+                string: 'text',
+                number: 42,
+                boolean: true,
+                null: null,
+                array: [1, 2, 3],
+                nested: {key: 'value'},
+              },
+            },
+          ],
+        }
+
+        const config = {
+          arrayFields: {items: ['mixed']},
+          serializedFields: {items: ['mixed']},
+        }
+
+        const encrypted = encryptFields(data, config)
+        const decrypted = decryptFields(encrypted, config)
+
+        expect(decrypted).toEqual(data)
+      })
+
+      it('handles multiple array paths with different serialization configs', () => {
+        const data = {
+          arrayA: [{objField: {key: 'val'}}],
+          arrayB: [{strField: 'text'}],
+        }
+
+        const config = {
+          arrayFields: {
+            arrayA: ['objField'],
+            arrayB: ['strField'],
+          },
+          serializedFields: {
+            arrayA: ['objField'],
+          },
+        }
+
+        const encrypted = encryptFields(data, config)
+        const decrypted = decryptFields(encrypted, config)
+
+        expect(decrypted.arrayA[0].objField).toEqual({key: 'val'})
+        expect(decrypted.arrayB[0].strField).toBe('text')
+      })
+
+      it('handles multiple items in array with serialized fields', () => {
+        const data = {
+          items: [{obj: {a: 1}}, {obj: {b: 2}}, {obj: {c: 3}}],
+        }
+
+        const config = {
+          arrayFields: {items: ['obj']},
+          serializedFields: {items: ['obj']},
+        }
+
+        const encrypted = encryptFields(data, config)
+        const decrypted = decryptFields(encrypted, config)
+
+        expect(encrypted.items[0].obj).toMatch(/^__encrypted__/)
+        expect(encrypted.items[1].obj).toMatch(/^__encrypted__/)
+        expect(encrypted.items[2].obj).toMatch(/^__encrypted__/)
+        expect(encrypted.items[0].obj).not.toBe(encrypted.items[1].obj)
+        expect(decrypted.items).toEqual(data.items)
+      })
+    })
   })
 })

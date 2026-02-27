@@ -118,7 +118,6 @@ const RPCIntegration = createSchema(
     outputFormat: {type: String, default: 'text', enum: ['text', 'json']},
     outputField: String,
     sessionIdField: {type: String, default: 'session_id'},
-    lastSessionId: String,
     command: String,
     args: [String],
     env: {type: mongoose.Schema.Types.Mixed},
@@ -155,7 +154,12 @@ export const INTEGRATION_ENCRYPTION_CONFIG = {
     'custom_llm.apiKey',
   ],
   arrayFields: {
-    rpc: ['privateKey', 'passphrase'],
+    rpc: ['privateKey', 'passphrase', 'headers', 'env'],
+    mcp: ['headers', 'env'],
+  },
+  serializedFields: {
+    rpc: ['headers', 'env'],
+    mcp: ['headers', 'env'],
   },
 }
 

@@ -84,7 +84,6 @@ export interface RPCIntegration {
   outputFormat?: 'text' | 'json'
   outputField?: string
   sessionIdField?: string
-  lastSessionId?: string
   command?: string
   args?: string[]
   env?: Record<string, string>
