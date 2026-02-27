@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@shared/ui/textarea'
 import { useApiMutation } from '@shared/composables'
 import type { HttpError } from '@shared/lib/error'
+import { serializeArrayToSpaceSeparated, deserializeSpaceSeparatedToArray } from './form-serialization'
 
 const mcpTransports = ['stdio', 'streamable-http'] as const
 
@@ -83,13 +84,25 @@ const MCPDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
     },
   })
 
+  const formDefaults = React.useMemo(() => {
+    if (!data) {
+      return {
+        transport: 'stdio' as const,
+        toolInputField: 'prompt',
+      }
+    }
+
+    const serialized: Partial<MCPFormFlat> = { ...data }
+
+    serialized.args = serializeArrayToSpaceSeparated((data as any).args)
+
+    return serialized
+  }, [data])
+
   const form = useForm<MCPFormFlat>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(mcpSchema) as any,
-    defaultValues: data || {
-      transport: 'stdio',
-      toolInputField: 'prompt',
-    },
+    defaultValues: formDefaults,
   })
 
   const {
@@ -110,9 +123,9 @@ const MCPDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
       }
 
       const payload = { ...values }
-      if (transport === 'stdio' && values.args) {
+      if (transport === 'stdio') {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ;(payload as any).args = values.args.split(' ').filter(Boolean)
+        ;(payload as any).args = deserializeSpaceSeparatedToArray(values.args)
       }
 
       await save(payload as unknown as MCPFormValues)

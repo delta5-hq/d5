@@ -23,8 +23,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@shared/ui/textarea'
 import { useApiMutation } from '@shared/composables'
 import type { HttpError } from '@shared/lib/error'
+import {
+  serializeArrayToSpaceSeparated,
+  serializeArrayToCommaSeparated,
+  serializeObjectToKeyValueLines,
+  deserializeSpaceSeparatedToArray,
+  deserializeCommaSeparatedToArray,
+  deserializeKeyValueLinesToObject,
+} from './form-serialization'
 
-const rpcProtocols = ['ssh', 'http'] as const
+const rpcProtocols = ['ssh', 'http', 'acp-local'] as const
+const acpAutoApproveOptions = ['all', 'none', 'whitelist'] as const
 const rpcMethods = ['GET', 'POST', 'PUT'] as const
 const rpcOutputFormats = ['text', 'json'] as const
 
@@ -58,19 +67,32 @@ const httpSchema = z.object({
   sessionIdField: z.string().default('session_id'),
 })
 
-const rpcSchema = z.discriminatedUnion('protocol', [sshSchema, httpSchema])
+const acpLocalSchema = z.object({
+  alias: z.string().regex(/^\/[a-zA-Z][a-zA-Z0-9_-]*$/, 'Alias must start with / followed by alphanumeric'),
+  protocol: z.literal('acp-local'),
+  description: z.string().optional(),
+  command: z.string().min(1, 'Command is required'),
+  args: z.string().optional(),
+  env: z.string().optional(),
+  workingDir: z.string().optional(),
+  timeoutMs: z.number().int().min(5000).max(7200000).optional(),
+  autoApprove: z.enum(acpAutoApproveOptions).default('none'),
+  allowedTools: z.string().optional(),
+})
+
+const rpcSchema = z.discriminatedUnion('protocol', [sshSchema, httpSchema, acpLocalSchema])
 
 type RPCFormValues = z.infer<typeof rpcSchema>
 
 /* Flat merged type so react-hook-form resolves all fields without union ambiguity */
 type RPCFormFlat = {
   alias: string
-  protocol: 'ssh' | 'http'
+  protocol: 'ssh' | 'http' | 'acp-local'
   description?: string
   timeoutMs?: number
-  outputFormat: 'text' | 'json'
+  outputFormat?: 'text' | 'json'
   outputField?: string
-  sessionIdField: string
+  sessionIdField?: string
   host?: string
   port?: number
   username?: string
@@ -81,6 +103,11 @@ type RPCFormFlat = {
   url?: string
   method?: 'GET' | 'POST' | 'PUT'
   bodyTemplate?: string
+  command?: string
+  args?: string
+  env?: string
+  autoApprove?: 'all' | 'none' | 'whitelist'
+  allowedTools?: string
 }
 
 interface Props extends DialogProps {
@@ -102,16 +129,30 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
     },
   })
 
+  const formDefaults = React.useMemo(() => {
+    if (!data) {
+      return {
+        protocol: 'ssh' as const,
+        port: 22,
+        method: 'POST' as const,
+        outputFormat: 'text' as const,
+        sessionIdField: 'session_id',
+      }
+    }
+
+    const serialized: Partial<RPCFormFlat> = { ...data }
+
+    serialized.args = serializeArrayToSpaceSeparated((data as any).args)
+    serialized.env = serializeObjectToKeyValueLines((data as any).env)
+    serialized.allowedTools = serializeArrayToCommaSeparated((data as any).allowedTools)
+
+    return serialized
+  }, [data])
+
   const form = useForm<RPCFormFlat>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(rpcSchema) as any,
-    defaultValues: data || {
-      protocol: 'ssh',
-      port: 22,
-      method: 'POST',
-      outputFormat: 'text',
-      sessionIdField: 'session_id',
-    },
+    defaultValues: formDefaults,
   })
 
   const {
@@ -138,7 +179,17 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
         return
       }
 
-      await save(values as RPCFormValues)
+      const payload = { ...values }
+      if (protocol === 'acp-local') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(payload as any).args = deserializeSpaceSeparatedToArray(values.args)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(payload as any).env = deserializeKeyValueLinesToObject(values.env)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(payload as any).allowedTools = deserializeCommaSeparatedToArray(values.allowedTools)
+      }
+
+      await save(payload as RPCFormValues)
       await refresh()
       onClose?.()
     } catch {
@@ -294,7 +345,7 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
                 <Input id="workingDir" {...register('workingDir')} disabled={isSubmitting} />
               </div>
             </>
-          ) : (
+          ) : protocol === 'http' ? (
             <>
               {/* HTTP Fields */}
               <div className="flex flex-col gap-2">
@@ -343,45 +394,135 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
                 <span className="text-xs text-muted-foreground">Use {`{{prompt}}`} as placeholder</span>
               </div>
             </>
+          ) : (
+            <>
+              {/* ACP-Local Fields */}
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="command">
+                  Command <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="command"
+                  {...register('command')}
+                  disabled={isSubmitting}
+                  error={!!errors.command}
+                  errorHelper={errors.command?.message?.toString()}
+                  placeholder="cline"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="args">Arguments</Label>
+                <Textarea
+                  id="args"
+                  {...register('args')}
+                  className="font-mono text-xs"
+                  disabled={isSubmitting}
+                  placeholder="--acp"
+                  rows={2}
+                />
+                <span className="text-xs text-muted-foreground">Space-separated arguments</span>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="env">Environment Variables</Label>
+                <Textarea
+                  id="env"
+                  {...register('env')}
+                  className="font-mono text-xs"
+                  disabled={isSubmitting}
+                  placeholder="PATH=/usr/local/bin&#10;NODE_ENV=production"
+                  rows={3}
+                />
+                <span className="text-xs text-muted-foreground">One KEY=VALUE per line</span>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="workingDir">Working Directory</Label>
+                <Input id="workingDir" {...register('workingDir')} disabled={isSubmitting} />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="autoApprove">Auto-approve Mode</Label>
+                <Select
+                  disabled={isSubmitting}
+                  onValueChange={(val: (typeof acpAutoApproveOptions)[number]) => setValue('autoApprove', val)}
+                  value={watch('autoApprove')}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {acpAutoApproveOptions.map(opt => (
+                      <SelectItem key={opt} value={opt}>
+                        {opt}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="allowedTools">Allowed Tools (whitelist mode)</Label>
+                <Textarea
+                  id="allowedTools"
+                  {...register('allowedTools')}
+                  className="font-mono text-xs"
+                  disabled={isSubmitting}
+                  placeholder="read_file,write_file,execute_command"
+                  rows={2}
+                />
+                <span className="text-xs text-muted-foreground">Comma-separated tool names</span>
+              </div>
+            </>
           )}
 
-          {/* Common Fields */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="outputFormat">Output Format</Label>
-              <Select
-                disabled={isSubmitting}
-                onValueChange={(val: (typeof rpcOutputFormats)[number]) => setValue('outputFormat', val)}
-                value={watch('outputFormat')}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {rpcOutputFormats.map(f => (
-                    <SelectItem key={f} value={f}>
-                      {f.toUpperCase()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Common Fields (SSH/HTTP only) */}
+          {protocol !== 'acp-local' ? (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="outputFormat">Output Format</Label>
+                  <Select
+                    disabled={isSubmitting}
+                    onValueChange={(val: (typeof rpcOutputFormats)[number]) => setValue('outputFormat', val)}
+                    value={watch('outputFormat')}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {rpcOutputFormats.map(f => (
+                        <SelectItem key={f} value={f}>
+                          {f.toUpperCase()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="outputField">Output Field (JSON path)</Label>
-              <Input id="outputField" {...register('outputField')} disabled={isSubmitting} placeholder="result.data" />
-            </div>
-          </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="outputField">Output Field (JSON path)</Label>
+                  <Input
+                    id="outputField"
+                    {...register('outputField')}
+                    disabled={isSubmitting}
+                    placeholder="result.data"
+                  />
+                </div>
+              </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="sessionIdField">Session ID Field (JSON path)</Label>
-            <Input
-              id="sessionIdField"
-              {...register('sessionIdField')}
-              disabled={isSubmitting}
-              placeholder="session_id"
-            />
-          </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="sessionIdField">Session ID Field (JSON path)</Label>
+                <Input
+                  id="sessionIdField"
+                  {...register('sessionIdField')}
+                  disabled={isSubmitting}
+                  placeholder="session_id"
+                />
+              </div>
+            </>
+          ) : null}
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="timeoutMs">Timeout (ms)</Label>

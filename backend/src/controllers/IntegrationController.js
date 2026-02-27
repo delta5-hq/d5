@@ -1,10 +1,11 @@
 import googleTranslate from '@iamtraction/google-translate'
-import Integration from '../models/Integration'
+import Integration, {INTEGRATION_ENCRYPTION_CONFIG} from '../models/Integration'
 import {SERP_API_KEY} from '../constants'
 import querystring from 'querystring'
 import fetch from 'node-fetch'
 import sharp from 'sharp'
 import {validateLang} from './utils/validateLang'
+import {encryptFields, decryptFields} from '../models/utils/fieldEncryption'
 import {LANGUAGES, MODELS, USER_DEFAULT_LANGUAGE, USER_DEFAULT_MODEL} from '../shared/config/constants'
 import {PhraseChunkBuilderV2, scrapeFiles, fetchAsString} from './utils/scrape'
 import LLMVector from '../models/LLMVector'
@@ -22,21 +23,21 @@ const IntegrationController = {
   getAll: async ctx => {
     const {userId} = ctx.state
 
-    const integration = await Integration.findOne({userId})
+    const integration = await Integration.findOne({userId}).lean()
     if (!integration) {
       ctx.throw(404, 'Integration not found')
     }
-    ctx.body = integration
+    ctx.body = decryptFields(integration, INTEGRATION_ENCRYPTION_CONFIG)
   },
   getService: async ctx => {
     const {userId} = ctx.state
     const {service} = ctx.params
 
-    const integration = await Integration.findOne({userId}, {[service]: 1, _id: 0})
+    const integration = await Integration.findOne({userId}, {[service]: 1, _id: 0}).lean()
     if (!integration) {
       ctx.throw(404, 'Integration for the called application was not found')
     }
-    ctx.body = integration
+    ctx.body = decryptFields(integration, INTEGRATION_ENCRYPTION_CONFIG)
   },
   updateService: async ctx => {
     const {userId} = ctx.state
@@ -70,7 +71,8 @@ const IntegrationController = {
       await vectors.save()
     }
 
-    const update = {$set: {userId, [service]: integration}}
+    const encryptedData = encryptFields({[service]: integration}, INTEGRATION_ENCRYPTION_CONFIG)
+    const update = {$set: {userId, ...encryptedData}}
     const options = {upsert: true}
     await Integration.updateOne({userId}, update, options)
 

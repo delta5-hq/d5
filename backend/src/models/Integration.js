@@ -144,6 +144,21 @@ const IntegrationSchema = createSchema({
   rpc: [RPCIntegration],
 })
 
+export const INTEGRATION_ENCRYPTION_CONFIG = {
+  fields: [
+    'openai.apiKey',
+    'yandex.apiKey',
+    'claude.apiKey',
+    'perplexity.apiKey',
+    'qwen.apiKey',
+    'deepseek.apiKey',
+    'custom_llm.apiKey',
+  ],
+  arrayFields: {
+    rpc: ['privateKey', 'passphrase'],
+  },
+}
+
 const Integration = mongoose.model('Integration', IntegrationSchema)
 
 export default Integration
