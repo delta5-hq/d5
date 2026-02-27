@@ -23,27 +23,27 @@ const ExecutorController = {
     let rpcAlias
     let aliases = {mcp: [], rpc: []}
 
-    try {
-      aliases = await loadUserAliases(userId)
-    } catch (e) {
-      logError('Failed to load user aliases, continuing with empty aliases:', e.message)
-    }
-
-    if (!allowedCommands.includes(queryType)) {
-      mcpAlias = findMCPAliasByQueryType(aliases.mcp, queryType)
-      if (!mcpAlias) {
-        rpcAlias = findRPCAliasByQueryType(aliases.rpc, queryType)
-        if (!rpcAlias) {
-          ctx.throw(400, 'Not allowed query')
-        }
-      }
-    }
-
     const log = debug('delta5:app:ProgressReporter').extend(userId, '/')
     const progress = new ProgressReporter({title: 'root', log, outputInterval: 60000})
     try {
       // queryType, context, prompt, cell, userId, workflowId, workflowNodes, workflowFiles
       let {workflowNodes, workflowEdges, workflowId, workflowFiles, ...otherData} = body
+
+      try {
+        aliases = await loadUserAliases(userId, workflowId)
+      } catch (e) {
+        logError('Failed to load user aliases, continuing with empty aliases:', e.message)
+      }
+
+      if (!allowedCommands.includes(queryType)) {
+        mcpAlias = findMCPAliasByQueryType(aliases.mcp, queryType)
+        if (!mcpAlias) {
+          rpcAlias = findRPCAliasByQueryType(aliases.rpc, queryType)
+          if (!rpcAlias) {
+            ctx.throw(400, 'Not allowed query')
+          }
+        }
+      }
 
       if (!workflowNodes && workflowId) {
         const {nodes, edges} = await getWorkflowData(workflowId)

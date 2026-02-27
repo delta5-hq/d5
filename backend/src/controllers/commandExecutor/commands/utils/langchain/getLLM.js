@@ -1,5 +1,6 @@
-import Integration, {INTEGRATION_ENCRYPTION_CONFIG} from '../../../../../models/Integration'
+import {INTEGRATION_ENCRYPTION_CONFIG} from '../../../../../models/Integration'
 import {decryptFields} from '../../../../../models/utils/fieldEncryption'
+import IntegrationRepository from '../../../../../repositories/IntegrationRepository'
 import {YandexGPT, YandexGPTEmbeddings} from './YandexGPT'
 import {
   getClaudeMaxTokens,
@@ -55,8 +56,8 @@ export const determineLLMType = (command, settings) => {
   return Model.OpenAI
 }
 
-export const getIntegrationSettings = async userId => {
-  const settings = await Integration.findOne({userId}).lean()
+export const getIntegrationSettings = async (userId, workflowId = null) => {
+  const settings = await IntegrationRepository.findWithFallback(userId, workflowId)
   if (!settings) {
     throw Error('Integration not found')
   }
