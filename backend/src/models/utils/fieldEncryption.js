@@ -123,6 +123,45 @@ class FieldPathNavigator {
   }
 }
 
+class ObjectSerializer {
+  static serialize(value) {
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      return JSON.stringify(value)
+    }
+    return value
+  }
+
+  static deserialize(value) {
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value)
+        if (typeof parsed === 'object' && parsed !== null) {
+          return parsed
+        }
+      } catch {
+        return value
+      }
+    }
+    return value
+  }
+}
+
+class ValueTransformer {
+  static createEncryptTransform(service, shouldSerialize) {
+    return value => {
+      const serialized = shouldSerialize ? ObjectSerializer.serialize(value) : value
+      return service.encrypt(serialized)
+    }
+  }
+
+  static createDecryptTransform(service, shouldDeserialize) {
+    return value => {
+      const decrypted = service.decrypt(value)
+      return shouldDeserialize ? ObjectSerializer.deserialize(decrypted) : decrypted
+    }
+  }
+}
+
 const transformField = (obj, fieldPath, transformFn) => {
   const navigation = FieldPathNavigator.navigate(obj, fieldPath)
   if (!navigation) return
@@ -135,20 +174,33 @@ const transformField = (obj, fieldPath, transformFn) => {
   }
 }
 
-const transformArrayFields = (items, fieldPaths, transformFn) => {
+const transformArrayFields = (items, fieldConfig, service, isEncryption) => {
   if (!Array.isArray(items)) return
 
   items.forEach(item => {
-    fieldPaths.forEach(path => {
+    fieldConfig.forEach(({path, serialize}) => {
+      const transformFn = isEncryption
+        ? ValueTransformer.createEncryptTransform(service, serialize)
+        : ValueTransformer.createDecryptTransform(service, serialize)
+
       transformField(item, path, transformFn)
     })
   })
 }
 
+class ArrayFieldConfigBuilder {
+  static build(fieldPaths, serializedFields) {
+    return fieldPaths.map(path => ({
+      path,
+      serialize: serializedFields.includes(path),
+    }))
+  }
+}
+
 export const encryptFields = (data, config) => {
   if (!data) return data
 
-  const {fields = [], arrayFields = {}} = config
+  const {fields = [], arrayFields = {}, serializedFields = {}} = config
   const service = getEncryptionService()
   const dataCopy = JSON.parse(JSON.stringify(data))
 
@@ -159,7 +211,9 @@ export const encryptFields = (data, config) => {
   Object.entries(arrayFields).forEach(([arrayPath, fieldPaths]) => {
     const navigation = FieldPathNavigator.navigate(dataCopy, arrayPath)
     if (navigation?.parent[navigation.fieldName]) {
-      transformArrayFields(navigation.parent[navigation.fieldName], fieldPaths, value => service.encrypt(value))
+      const arraySerializedFields = serializedFields[arrayPath] || []
+      const fieldConfig = ArrayFieldConfigBuilder.build(fieldPaths, arraySerializedFields)
+      transformArrayFields(navigation.parent[navigation.fieldName], fieldConfig, service, true)
     }
   })
 
@@ -169,7 +223,7 @@ export const encryptFields = (data, config) => {
 export const decryptFields = (data, config) => {
   if (!data) return data
 
-  const {fields = [], arrayFields = {}} = config
+  const {fields = [], arrayFields = {}, serializedFields = {}} = config
   const service = getEncryptionService()
   const dataCopy = JSON.parse(JSON.stringify(data))
 
@@ -180,7 +234,9 @@ export const decryptFields = (data, config) => {
   Object.entries(arrayFields).forEach(([arrayPath, fieldPaths]) => {
     const navigation = FieldPathNavigator.navigate(dataCopy, arrayPath)
     if (navigation?.parent[navigation.fieldName]) {
-      transformArrayFields(navigation.parent[navigation.fieldName], fieldPaths, value => service.decrypt(value))
+      const arraySerializedFields = serializedFields[arrayPath] || []
+      const fieldConfig = ArrayFieldConfigBuilder.build(fieldPaths, arraySerializedFields)
+      transformArrayFields(navigation.parent[navigation.fieldName], fieldConfig, service, false)
     }
   })
 

@@ -2,12 +2,14 @@ import {RPCCommand} from './RPCCommand'
 import Store from './utils/Store'
 import {SSHExecutor} from './rpc/SSHExecutor'
 import {HTTPExecutor} from './rpc/HTTPExecutor'
-import Integration from '../../../models/Integration'
+import IntegrationSessionRepository from '../../../repositories/IntegrationSessionRepository'
 
 jest.mock('./rpc/SSHExecutor')
 jest.mock('./rpc/HTTPExecutor')
-jest.mock('../../../models/Integration', () => ({
-  updateOne: jest.fn(),
+jest.mock('../../../repositories/IntegrationSessionRepository', () => ({
+  upsertSessionId: jest.fn(),
+  getLastSessionId: jest.fn(),
+  findSession: jest.fn(),
 }))
 
 const userId = 'userId'
@@ -67,6 +69,9 @@ describe('RPCCommand', () => {
       }),
     }
     HTTPExecutor.mockImplementation(() => mockHTTPExecutor)
+
+    IntegrationSessionRepository.upsertSessionId.mockResolvedValue({})
+    IntegrationSessionRepository.getLastSessionId.mockResolvedValue(null)
   })
 
   describe('constructor', () => {
@@ -368,7 +373,7 @@ describe('RPCCommand', () => {
 
   describe('session management', () => {
     beforeEach(() => {
-      Integration.updateOne = jest.fn().mockResolvedValue({})
+      IntegrationSessionRepository.upsertSessionId = jest.fn().mockResolvedValue({})
     })
 
     it('extracts and persists session_id from JSON output', async () => {
@@ -383,10 +388,7 @@ describe('RPCCommand', () => {
 
       await command.run(node, null, 'test')
 
-      expect(Integration.updateOne).toHaveBeenCalledWith(
-        {userId: 'userId', 'rpc.alias': '/vm1'},
-        {$set: {'rpc.$.lastSessionId': 'abc-123'}},
-      )
+      expect(IntegrationSessionRepository.upsertSessionId).toHaveBeenCalledWith('userId', '/vm1', 'rpc', 'abc-123')
     })
 
     it('does not persist session_id when output format is text', async () => {
@@ -401,7 +403,7 @@ describe('RPCCommand', () => {
 
       await command.run(node, null, 'test')
 
-      expect(Integration.updateOne).not.toHaveBeenCalled()
+      expect(IntegrationSessionRepository.upsertSessionId).not.toHaveBeenCalled()
     })
 
     it('does not persist when session_id field is missing', async () => {
@@ -416,7 +418,7 @@ describe('RPCCommand', () => {
 
       await command.run(node, null, 'test')
 
-      expect(Integration.updateOne).not.toHaveBeenCalled()
+      expect(IntegrationSessionRepository.upsertSessionId).not.toHaveBeenCalled()
     })
 
     it('injects lastSessionId into command template when present', async () => {
@@ -449,7 +451,7 @@ describe('RPCCommand', () => {
     })
 
     it('handles persistence failure gracefully without throwing', async () => {
-      Integration.updateOne = jest.fn().mockRejectedValue(new Error('DB error'))
+      IntegrationSessionRepository.upsertSessionId = jest.fn().mockRejectedValue(new Error('DB error'))
       mockSSHExecutor.execute.mockResolvedValue({
         stdout: JSON.stringify({session_id: 'abc-123', result: 'output'}),
         stderr: '',
@@ -487,9 +489,11 @@ describe('RPCCommand', () => {
       const sshCall = mockSSHExecutor.execute.mock.calls[0][0]
       expect(sshCall.command).toContain('--resume first-session')
 
-      expect(Integration.updateOne).toHaveBeenCalledWith(
-        {userId: 'userId', 'rpc.alias': '/vm1'},
-        {$set: {'rpc.$.lastSessionId': 'second-session'}},
+      expect(IntegrationSessionRepository.upsertSessionId).toHaveBeenCalledWith(
+        'userId',
+        '/vm1',
+        'rpc',
+        'second-session',
       )
 
       expect(mockStore.importer.createNodes).toHaveBeenCalledWith('continued output', 'node5')
@@ -613,10 +617,7 @@ describe('RPCCommand', () => {
 
         const call = mockSSHExecutor.execute.mock.calls[0][0]
         expect(call.command).toContain('session-1')
-        expect(Integration.updateOne).toHaveBeenCalledWith(
-          {userId: 'userId', 'rpc.alias': '/vm1'},
-          {$set: {'rpc.$.lastSessionId': 'session-2'}},
-        )
+        expect(IntegrationSessionRepository.upsertSessionId).toHaveBeenCalledWith('userId', '/vm1', 'rpc', 'session-2')
       })
 
       it('processes full session lifecycle for HTTP protocol', async () => {
@@ -641,9 +642,11 @@ describe('RPCCommand', () => {
 
         const call = mockHTTPExecutor.execute.mock.calls[0][0]
         expect(call.body).toContain('"session":"http-session-1"')
-        expect(Integration.updateOne).toHaveBeenCalledWith(
-          {userId: 'userId', 'rpc.alias': '/webhook1'},
-          {$set: {'rpc.$.lastSessionId': 'http-session-2'}},
+        expect(IntegrationSessionRepository.upsertSessionId).toHaveBeenCalledWith(
+          'userId',
+          '/webhook1',
+          'rpc',
+          'http-session-2',
         )
       })
 
@@ -668,9 +671,11 @@ describe('RPCCommand', () => {
 
         const call = mockSSHExecutor.execute.mock.calls[0][0]
         expect(call.command).not.toContain('{{sessionId}}')
-        expect(Integration.updateOne).toHaveBeenCalledWith(
-          {userId: 'userId', 'rpc.alias': '/vm1'},
-          {$set: {'rpc.$.lastSessionId': 'new-session'}},
+        expect(IntegrationSessionRepository.upsertSessionId).toHaveBeenCalledWith(
+          'userId',
+          '/vm1',
+          'rpc',
+          'new-session',
         )
       })
     })
@@ -688,9 +693,11 @@ describe('RPCCommand', () => {
 
         await command.run(node, null, 'test')
 
-        expect(Integration.updateOne).toHaveBeenCalledWith(
-          {userId: 'userId', 'rpc.alias': '/vm1'},
-          {$set: {'rpc.$.lastSessionId': 'default-789'}},
+        expect(IntegrationSessionRepository.upsertSessionId).toHaveBeenCalledWith(
+          'userId',
+          '/vm1',
+          'rpc',
+          'default-789',
         )
       })
 
@@ -710,9 +717,11 @@ describe('RPCCommand', () => {
 
         await command.run(node, null, 'test')
 
-        expect(Integration.updateOne).toHaveBeenCalledWith(
-          {userId: 'userId', 'rpc.alias': '/webhook1'},
-          {$set: {'rpc.$.lastSessionId': 'custom-123'}},
+        expect(IntegrationSessionRepository.upsertSessionId).toHaveBeenCalledWith(
+          'userId',
+          '/webhook1',
+          'rpc',
+          'custom-123',
         )
       })
 
@@ -732,9 +741,11 @@ describe('RPCCommand', () => {
 
         await command.run(node, null, 'test')
 
-        expect(Integration.updateOne).toHaveBeenCalledWith(
-          {userId: 'userId', 'rpc.alias': '/webhook1'},
-          {$set: {'rpc.$.lastSessionId': 'nested-456'}},
+        expect(IntegrationSessionRepository.upsertSessionId).toHaveBeenCalledWith(
+          'userId',
+          '/webhook1',
+          'rpc',
+          'nested-456',
         )
       })
 
@@ -750,7 +761,7 @@ describe('RPCCommand', () => {
 
         await command.run(node, null, 'test')
 
-        expect(Integration.updateOne).not.toHaveBeenCalled()
+        expect(IntegrationSessionRepository.upsertSessionId).not.toHaveBeenCalled()
       })
 
       it('does not extract when field is missing', async () => {
@@ -765,7 +776,7 @@ describe('RPCCommand', () => {
 
         await command.run(node, null, 'test')
 
-        expect(Integration.updateOne).not.toHaveBeenCalled()
+        expect(IntegrationSessionRepository.upsertSessionId).not.toHaveBeenCalled()
       })
     })
   })

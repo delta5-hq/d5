@@ -8,7 +8,7 @@ import {parseOutput} from './shared/parseOutput'
 import {RPC_PROTOCOL} from '../constants/rpc'
 import {SessionIdExtractor} from './rpc/SessionIdExtractor'
 import {SessionIdInjector} from './rpc/SessionIdInjector'
-import Integration from '../../../models/Integration'
+import IntegrationSessionRepository from '../../../repositories/IntegrationSessionRepository'
 
 const log = debug('delta5:app:Command:RPC')
 
@@ -154,7 +154,7 @@ export class RPCCommand {
     if (!sessionId) return
 
     try {
-      await Integration.updateOne({userId: this.userId, 'rpc.alias': alias}, {$set: {'rpc.$.lastSessionId': sessionId}})
+      await IntegrationSessionRepository.upsertSessionId(this.userId, alias, 'rpc', sessionId)
       this.log(`Persisted session ID: ${sessionId}`)
     } catch (error) {
       this.logError(`Failed to persist session ID: ${error.message}`)

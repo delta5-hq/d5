@@ -75,7 +75,6 @@ type RPCIntegrationConfig struct {
 	OutputFormat    string            `json:"outputFormat,omitempty" bson:"outputFormat,omitempty"`
 	OutputField     string            `json:"outputField,omitempty" bson:"outputField,omitempty"`
 	SessionIdField  string            `json:"sessionIdField,omitempty" bson:"sessionIdField,omitempty"`
-	LastSessionId   string            `json:"lastSessionId,omitempty" bson:"lastSessionId,omitempty"`
 	Command         string            `json:"command,omitempty" bson:"command,omitempty"`
 	Args            []string          `json:"args,omitempty" bson:"args,omitempty"`
 	Env             map[string]string `json:"env,omitempty" bson:"env,omitempty"`

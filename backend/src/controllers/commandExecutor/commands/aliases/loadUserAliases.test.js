@@ -18,6 +18,13 @@ jest.mock('../../../../models/utils/fieldEncryption', () => ({
   encryptFields: jest.fn(data => data),
 }))
 
+jest.mock('./SessionHydrator', () => ({
+  __esModule: true,
+  default: {
+    hydrateAll: jest.fn((userId, aliases) => Promise.resolve(aliases)),
+  },
+}))
+
 describe('loadUserAliases', () => {
   beforeEach(() => {
     jest.clearAllMocks()
