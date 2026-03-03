@@ -129,6 +129,60 @@ describe('ForeachCommand', () => {
 
       expect(result).toBe('ParentNode2, ParentNode1')
     })
+
+    it('should skip dynamic alias parent titles when collecting context', () => {
+      mockStore._aliases = {
+        mcp: [{alias: '/coder1'}],
+        rpc: [{alias: '/vm3'}],
+      }
+
+      const root = {id: 'root'}
+      const parentNode4 = {id: 'p4', title: '/coder1 refactor code', parent: root.id}
+      const parentNode3 = {id: 'p3', title: 'Context A', parent: parentNode4.id}
+      const parentNode2 = {id: 'p2', title: '/vm3 deploy app', parent: parentNode3.id}
+      const parentNode1 = {id: 'p1', title: 'Context B', parent: parentNode2.id}
+
+      const node = {id: 'n', title: 'Node', parent: parentNode1.id}
+
+      mockStore._nodes = {
+        [root.id]: root,
+        [parentNode4.id]: parentNode4,
+        [parentNode3.id]: parentNode3,
+        [parentNode2.id]: parentNode2,
+        [parentNode1.id]: parentNode1,
+        [node.id]: node,
+      }
+
+      const result = command.getParentsTitles(node)
+
+      expect(result).toBe('Context A, Context B')
+    })
+
+    it('should handle mixed built-in and dynamic alias parents', () => {
+      mockStore._aliases = {
+        mcp: [{alias: '/agent'}],
+        rpc: [],
+      }
+
+      const root = {id: 'root'}
+      const parentNode3 = {id: 'p3', title: '/chatgpt analyze', parent: root.id}
+      const parentNode2 = {id: 'p2', title: 'Real Context', parent: parentNode3.id}
+      const parentNode1 = {id: 'p1', title: '/agent fix bugs', parent: parentNode2.id}
+
+      const node = {id: 'n', title: 'Node', parent: parentNode1.id}
+
+      mockStore._nodes = {
+        [root.id]: root,
+        [parentNode3.id]: parentNode3,
+        [parentNode2.id]: parentNode2,
+        [parentNode1.id]: parentNode1,
+        [node.id]: node,
+      }
+
+      const result = command.getParentsTitles(node)
+
+      expect(result).toBe('Real Context')
+    })
   })
 
   describe('substituteParentsTitles', () => {
@@ -206,6 +260,56 @@ describe('ForeachCommand', () => {
 
       const result = command.substituteParentsTitles(title, child, 2)
       expect(result).toEqual('Child Parent Node')
+    })
+
+    it('should exclude dynamic aliases when substituting parent context', () => {
+      mockStore._aliases = {
+        mcp: [{alias: '/coder1'}],
+        rpc: [{alias: '/vm3'}],
+      }
+
+      const root = {id: 'root'}
+      const grandparent = {id: 'gp', title: '/coder1 implement feature', parent: root.id, childNodes: ['parent']}
+      const parent = {id: 'parent', title: 'User Story', parent: grandparent.id, childNodes: ['node']}
+      const node = {id: 'node', title: '/vm3 deploy service', parent: parent.id, children: ['child']}
+      const child = {id: 'child', title: 'Child', parent: node.id}
+
+      const title = 'Task @@parents'
+
+      mockStore._nodes = {
+        [root.id]: root,
+        [grandparent.id]: grandparent,
+        [parent.id]: parent,
+        [node.id]: node,
+        [child.id]: child,
+      }
+
+      const result = command.substituteParentsTitles(title, child, 3)
+      expect(result).toEqual('Task User Story')
+    })
+
+    it('should handle empty aliases when substituting parents', () => {
+      mockStore._aliases = {
+        mcp: [],
+        rpc: [],
+      }
+
+      const root = {id: 'root'}
+      const parent = {id: 'parent', title: '/chatgpt Context', parent: root.id, childNodes: ['node']}
+      const node = {id: 'node', title: 'Regular Node', parent: parent.id, children: ['child']}
+      const child = {id: 'child', title: 'Child', parent: node.id}
+
+      const title = 'Task @@parents'
+
+      mockStore._nodes = {
+        [root.id]: root,
+        [parent.id]: parent,
+        [node.id]: node,
+        [child.id]: child,
+      }
+
+      const result = command.substituteParentsTitles(title, child, 2)
+      expect(result).toEqual('Task Regular Node')
     })
   })
 

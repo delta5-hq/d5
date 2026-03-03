@@ -9,6 +9,7 @@ import {clearReferences} from './references/utils/referenceUtils' // Direct impo
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
 import {CASE_QUERY} from '../constants/switch'
 import {isAnyCommand} from './utils/commandRecognition'
+import {composeAllDynamicAliases} from './utils/aliasComposition'
 import {resolveCommand} from './utils/queryTypeResolver'
 import {determineLLMType, getIntegrationSettings, getLLM} from './utils/langchain/getLLM'
 // eslint-disable-next-line no-unused-vars
@@ -92,7 +93,7 @@ export class SwitchCommand {
       const {children = []} = caseNode
       const caseNodeChildren = children.map(id => this.store.getNode(id)).filter(Boolean)
 
-      const allDynamicAliases = [...this.store._aliases.mcp, ...this.store._aliases.rpc]
+      const allDynamicAliases = composeAllDynamicAliases(this.store._aliases)
 
       for (let i = 0; i < caseNodeChildren.length; i += 1) {
         const executeNode = caseNodeChildren[i]

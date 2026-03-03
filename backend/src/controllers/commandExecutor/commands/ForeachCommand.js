@@ -2,6 +2,8 @@ import debug from 'debug'
 import {REF_PREFIX, clearCommandsWithParams} from '../constants'
 import {commandRegExp} from '../constants/commandRegExp'
 import {resolveCommand} from './utils/queryTypeResolver'
+import {isAnyCommand} from './utils/commandRecognition'
+import {composeAllDynamicAliases} from './utils/aliasComposition'
 import {
   FOREACH_FILE_PARAM,
   FOREACH_PARAM_PARALLEL,
@@ -70,11 +72,13 @@ export class ForeachCommand {
 
     let loopIteration = 0
 
+    const allDynamicAliases = composeAllDynamicAliases(this.store._aliases)
+
     while (currentNode && loopIteration < parent && currentNode.parent) {
       const newTitle = currentNode.title?.trim()
       currentNode = this.store.getNode(currentNode.parent)
 
-      if (newTitle && !commandRegExp.any.test(newTitle)) {
+      if (newTitle && !isAnyCommand(newTitle, allDynamicAliases)) {
         texts.unshift(newTitle)
       }
 
@@ -91,8 +95,10 @@ export class ForeachCommand {
     let depth = parentDepth
     let pNode = this.store.getNode(node?.parent || '')
 
+    const allDynamicAliases = composeAllDynamicAliases(this.store._aliases)
+
     while (pNode && pNode.parent && depth) {
-      if (pNode.title && !commandRegExp.any.test(pNode.title)) {
+      if (pNode.title && !isAnyCommand(pNode.title, allDynamicAliases)) {
         parentsTitles.push(pNode.title)
       }
       pNode = this.store.getNode(pNode.parent || '')
