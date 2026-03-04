@@ -174,6 +174,16 @@ export default {
     custom_llm: {
       title: 'Custom LLM',
     },
+    mcp: {
+      title: 'MCP Servers',
+      add: 'Add MCP Server',
+      edit: 'Edit MCP Server',
+    },
+    rpc: {
+      title: 'RPC Integrations',
+      add: 'Add RPC Integration',
+      edit: 'Edit RPC Integration',
+    },
     installed: 'Installed',
   },
 
@@ -185,6 +195,7 @@ export default {
       model: 'Model',
       otherSettings: 'Other settings',
       saveSuccess: 'Integration changes have been applied successfully!',
+      deleteSuccess: 'Integration deleted successfully',
       authenticationError: 'Please double-check your API key and its validity',
       genericError: "Something went wrong. Please check the Network logs in  your browser's developer tools",
       rateLimitExceeded: 'You have exceeded your current quota, please check your plan and billing details',

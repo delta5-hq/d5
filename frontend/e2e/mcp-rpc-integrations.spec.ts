@@ -289,4 +289,66 @@ test.describe.serial('Array Integration CRUD', () => {
     expect(item.toolName).toBe('original')
     expect(item.command).toBe('npx')
   })
+
+  test('HTTP RPC with headers object stores and retrieves correctly', async ({ page }) => {
+    const headers = {
+      Authorization: 'Bearer secret-token',
+      'Content-Type': 'application/json',
+      'X-Custom-Header': 'value with spaces',
+    }
+
+    await addArrayItem(page, 'rpc', {
+      alias: '/api',
+      protocol: 'http',
+      url: 'https://example.com/api',
+      method: 'POST',
+      headers,
+    })
+
+    const integration = await getIntegration(page)
+    expect(integration.rpc[0].headers).toEqual(headers)
+  })
+
+  test('Update HTTP RPC headers preserves other fields', async ({ page }) => {
+    await addArrayItem(page, 'rpc', {
+      alias: '/api',
+      protocol: 'http',
+      url: 'https://example.com/api',
+      method: 'POST',
+      headers: { 'X-Old': 'old-value' },
+      bodyTemplate: '{"data":"{{prompt}}"}',
+    })
+
+    await updateArrayItem(page, 'rpc', '/api', {
+      headers: { 'X-New': 'new-value' },
+    })
+
+    const integration = await getIntegration(page)
+    const item = integration.rpc[0]
+    expect(item.headers).toEqual({ 'X-New': 'new-value' })
+    expect(item.bodyTemplate).toBe('{"data":"{{prompt}}"}')
+    expect(item.method).toBe('POST')
+  })
+
+  test('Empty array fields return empty arrays not undefined', async ({ page }) => {
+    const integration = await getIntegration(page)
+    expect(integration.mcp || []).toEqual([])
+    expect(integration.rpc || []).toEqual([])
+  })
+
+  test('MCP and RPC arrays remain independent during concurrent modifications', async ({ page }) => {
+    await addArrayItem(page, 'mcp', { alias: '/mcp1', transport: 'stdio', toolName: 'test' })
+    await addArrayItem(page, 'rpc', { alias: '/rpc1', protocol: 'ssh', host: '127.0.0.1' })
+
+    await Promise.all([
+      addArrayItem(page, 'mcp', { alias: '/mcp2', transport: 'stdio', toolName: 'test2' }),
+      addArrayItem(page, 'rpc', { alias: '/rpc2', protocol: 'ssh', host: '127.0.0.2' }),
+    ])
+
+    const integration = await getIntegration(page)
+    expect(integration.mcp).toHaveLength(2)
+    expect(integration.rpc).toHaveLength(2)
+    expect(integration.mcp.map((i: { alias: string }) => i.alias).sort()).toEqual(['/mcp1', '/mcp2'])
+    expect(integration.rpc.map((i: { alias: string }) => i.alias).sort()).toEqual(['/rpc1', '/rpc2'])
+  })
 })

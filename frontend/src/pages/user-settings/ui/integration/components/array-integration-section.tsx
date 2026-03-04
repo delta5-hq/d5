@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Button } from '@shared/ui/button'
 import { Card, CardContent } from '@shared/ui/card'
 import { apiFetch } from '@shared/lib/base-api'
+import ArrayIntegrationEmptyState from './array-integration-empty-state'
 
 interface ArrayIntegrationItem {
   alias: string
@@ -36,7 +37,9 @@ const ArrayIntegrationSection: React.FC<Props> = ({ fieldName, titleId, items, o
     }
   }
 
-  if (items.length === 0) return null
+  if (items.length === 0) {
+    return <ArrayIntegrationEmptyState fieldName={fieldName} onAdd={onAdd} titleId={titleId} />
+  }
 
   return (
     <div className="w-full mb-6">
@@ -51,12 +54,7 @@ const ArrayIntegrationSection: React.FC<Props> = ({ fieldName, titleId, items, o
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {items.map(item => (
-          <Card
-            className="hover:shadow-md transition-shadow"
-            data-alias={item.alias}
-            glassEffect={false}
-            key={item.alias}
-          >
+          <Card className="hover:shadow-md transition-shadow" data-alias={item.alias} key={item.alias}>
             <CardContent className="p-4">
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">

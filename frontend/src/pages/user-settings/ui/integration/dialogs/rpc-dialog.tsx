@@ -102,6 +102,7 @@ type RPCFormFlat = {
   workingDir?: string
   url?: string
   method?: 'GET' | 'POST' | 'PUT'
+  headers?: string
   bodyTemplate?: string
   command?: string
   args?: string
@@ -144,6 +145,7 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
 
     serialized.args = serializeArrayToSpaceSeparated((data as any).args)
     serialized.env = serializeObjectToKeyValueLines((data as any).env)
+    serialized.headers = serializeObjectToKeyValueLines((data as any).headers)
     serialized.allowedTools = serializeArrayToCommaSeparated((data as any).allowedTools)
 
     return serialized
@@ -187,6 +189,9 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
         ;(payload as any).env = deserializeKeyValueLinesToObject(values.env)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ;(payload as any).allowedTools = deserializeCommaSeparatedToArray(values.allowedTools)
+      } else if (protocol === 'http') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(payload as any).headers = deserializeKeyValueLinesToObject(values.headers)
       }
 
       await save(payload as RPCFormValues)
@@ -380,6 +385,19 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="headers">Headers</Label>
+                <Textarea
+                  id="headers"
+                  {...register('headers')}
+                  className="font-mono text-xs"
+                  disabled={isSubmitting}
+                  placeholder="Authorization=Bearer token&#10;Content-Type=application/json"
+                  rows={3}
+                />
+                <span className="text-xs text-muted-foreground">One KEY=VALUE per line</span>
               </div>
 
               <div className="flex flex-col gap-2">

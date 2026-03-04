@@ -278,4 +278,17 @@ describe('Form Serialization', () => {
       expect(deserializeKeyValueLinesToObject('')).toEqual({})
     })
   })
+
+  describe('key-value line case sensitivity', () => {
+    it('preserves mixed-case keys through roundtrip', () => {
+      const original = {
+        'Content-Type': 'application/json',
+        'content-type': 'text/plain',
+      }
+      const serialized = serializeObjectToKeyValueLines(original)
+      const deserialized = deserializeKeyValueLinesToObject(serialized!)
+      expect(deserialized).toHaveProperty('Content-Type')
+      expect(deserialized).toHaveProperty('content-type')
+    })
+  })
 })
