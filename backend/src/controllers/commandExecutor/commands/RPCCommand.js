@@ -88,7 +88,7 @@ export class RPCCommand {
   }
 
   async executeACP(prompt) {
-    const {command, args, env, timeoutMs, workingDir, autoApprove, allowedTools} = this.aliasConfig
+    const {command, args, env, timeoutMs, workingDir, autoApprove, allowedTools, lastSessionId} = this.aliasConfig
 
     const permissionPolicy = ACPPermissionPolicy.fromIntegrationConfig({autoApprove, allowedTools})
     const executor = new ACPExecutor()
@@ -101,6 +101,7 @@ export class RPCCommand {
       cwd: workingDir,
       permissionPolicy,
       prompt,
+      lastSessionId,
     })
 
     return {
