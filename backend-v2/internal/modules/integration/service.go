@@ -15,13 +15,27 @@ const (
 )
 
 type Service struct {
-	collection *qmgo.Collection
+	collection  *qmgo.Collection
+	encryptor   *DocumentEncryptor
+	fieldCrypto *FieldCrypto
 }
 
-func NewService(db *qmgo.Database) *Service {
-	return &Service{
-		collection: db.Collection("integrations"),
+func NewService(db *qmgo.Database) (*Service, error) {
+	encryptor, err := NewDocumentEncryptor()
+	if err != nil {
+		return nil, err
 	}
+
+	fieldCrypto, err := NewFieldCrypto()
+	if err != nil {
+		return nil, err
+	}
+
+	return &Service{
+		collection:  db.Collection("integrations"),
+		encryptor:   encryptor,
+		fieldCrypto: fieldCrypto,
+	}, nil
 }
 
 func (s *Service) FindByUserID(ctx context.Context, userID string) (*models.Integration, error) {
@@ -39,6 +53,10 @@ func (s *Service) Upsert(ctx context.Context, userID string, update map[string]i
 	updateDoc := bson.M{}
 	for k, v := range update {
 		updateDoc[k] = v
+	}
+
+	if err := s.encryptor.Encrypt(updateDoc); err != nil {
+		return err
 	}
 
 	filter := qmgo.M{"userId": userID}
@@ -68,6 +86,34 @@ func (s *Service) setDefaultFields(fields map[string]interface{}, userID string)
 	if _, exists := fields["model"]; !exists {
 		fields["model"] = defaultModel
 	}
+}
+
+func (s *Service) DecryptIntegration(integration *models.Integration) (*models.Integration, error) {
+	integrationBytes, err := bson.Marshal(integration)
+	if err != nil {
+		return nil, err
+	}
+
+	var integrationMap map[string]interface{}
+	if err := bson.Unmarshal(integrationBytes, &integrationMap); err != nil {
+		return nil, err
+	}
+
+	if err := s.encryptor.Decrypt(integrationMap); err != nil {
+		return nil, err
+	}
+
+	decryptedBytes, err := bson.Marshal(integrationMap)
+	if err != nil {
+		return nil, err
+	}
+
+	var decrypted models.Integration
+	if err := bson.Unmarshal(decryptedBytes, &decrypted); err != nil {
+		return nil, err
+	}
+
+	return &decrypted, nil
 }
 
 func (s *Service) Delete(ctx context.Context, userID string) error {

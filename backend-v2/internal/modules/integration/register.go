@@ -9,7 +9,10 @@ import (
 )
 
 func Register(router fiber.Router, db *qmgo.Database, services *container.ServiceContainer) {
-	service := NewService(db)
+	service, err := NewService(db)
+	if err != nil {
+		panic("failed to initialize integration service: " + err.Error())
+	}
 
 	/* Core integration CRUD controller */
 	baseCtrl := NewController(service, db)

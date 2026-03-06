@@ -18,18 +18,23 @@ func (s *Service) AddArrayItem(ctx context.Context, userID, fieldName string, it
 		return err
 	}
 
+	encryptedItem, err := s.encryptArrayItem(fieldName, item)
+	if err != nil {
+		return err
+	}
+
 	filter := qmgo.M{"userId": userID}
-	update := bson.M{"$push": bson.M{fieldName: item}}
+	update := bson.M{"$push": bson.M{fieldName: encryptedItem}}
 
 	var existing map[string]interface{}
-	err := s.collection.Find(ctx, filter).One(&existing)
+	err = s.collection.Find(ctx, filter).One(&existing)
 
 	if err == qmgo.ErrNoSuchDocuments {
 		newDoc := bson.M{
 			"userId":  userID,
 			"lang":    defaultLanguage,
 			"model":   defaultModel,
-			fieldName: []interface{}{item},
+			fieldName: []interface{}{encryptedItem},
 		}
 		_, insertErr := s.collection.InsertOne(ctx, newDoc)
 		return insertErr
@@ -40,6 +45,28 @@ func (s *Service) AddArrayItem(ctx context.Context, userID, fieldName string, it
 	}
 
 	return s.collection.UpdateOne(ctx, filter, update)
+}
+
+func (s *Service) encryptArrayItem(arrayName string, item map[string]interface{}) (map[string]interface{}, error) {
+	tempDoc := map[string]interface{}{
+		arrayName: []interface{}{item},
+	}
+
+	if err := s.encryptor.Encrypt(tempDoc); err != nil {
+		return nil, err
+	}
+
+	encryptedArray, ok := tempDoc[arrayName].([]interface{})
+	if !ok || len(encryptedArray) == 0 {
+		return item, nil
+	}
+
+	encryptedItem, ok := encryptedArray[0].(map[string]interface{})
+	if !ok {
+		return item, nil
+	}
+
+	return encryptedItem, nil
 }
 
 func (s *Service) UpdateArrayItem(ctx context.Context, userID, fieldName, alias string, updates map[string]interface{}) error {
@@ -55,7 +82,11 @@ func (s *Service) UpdateArrayItem(ctx context.Context, userID, fieldName, alias 
 	setFields := bson.M{}
 	for key, value := range updates {
 		if key != "alias" {
-			setFields[fieldName+".$."+key] = value
+			encryptedValue, err := s.fieldCrypto.EncryptArrayFieldUpdate(fieldName, key, value)
+			if err != nil {
+				return err
+			}
+			setFields[fieldName+".$."+key] = encryptedValue
 		}
 	}
 

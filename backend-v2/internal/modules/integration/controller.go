@@ -57,7 +57,13 @@ func (ctrl *Controller) GetAll(c *fiber.Ctx) error {
 		return response.InternalError(c, err.Error())
 	}
 
-	return c.JSON(integration)
+	decrypted, err := ctrl.service.DecryptIntegration(integration)
+	if err != nil {
+		log.Error("GetAll: decrypt failed: %v", err)
+		return response.InternalError(c, err.Error())
+	}
+
+	return c.JSON(decrypted)
 }
 
 func (ctrl *Controller) GetService(c *fiber.Ctx) error {
@@ -69,7 +75,13 @@ func (ctrl *Controller) GetService(c *fiber.Ctx) error {
 		return err
 	}
 
-	integrationBytes, _ := json.Marshal(integration)
+	decrypted, err := ctrl.service.DecryptIntegration(integration)
+	if err != nil {
+		log.Error("GetService: decrypt failed: %v", err)
+		return response.InternalError(c, err.Error())
+	}
+
+	integrationBytes, _ := json.Marshal(decrypted)
 	var integrationMap map[string]interface{}
 	if err := json.Unmarshal(integrationBytes, &integrationMap); err != nil {
 		return response.InternalError(c, "failed to parse integration")
