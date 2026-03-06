@@ -1,6 +1,4 @@
-import {INTEGRATION_ENCRYPTION_CONFIG} from '../../../../../models/Integration'
-import {decryptFields} from '../../../../../models/utils/fieldEncryption'
-import IntegrationRepository from '../../../../../repositories/IntegrationRepository'
+import IntegrationFacade from '../../../../../repositories/IntegrationFacade'
 import {YandexGPT, YandexGPTEmbeddings} from './YandexGPT'
 import {
   getClaudeMaxTokens,
@@ -57,12 +55,7 @@ export const determineLLMType = (command, settings) => {
 }
 
 export const getIntegrationSettings = async (userId, workflowId = null) => {
-  const settings = await IntegrationRepository.findWithFallback(userId, workflowId)
-  if (!settings) {
-    throw Error('Integration not found')
-  }
-
-  return decryptFields(settings, INTEGRATION_ENCRYPTION_CONFIG)
+  return IntegrationFacade.findDecryptedOrThrow(userId, workflowId)
 }
 
 export const getLLM = ({type, settings, log}) => {
