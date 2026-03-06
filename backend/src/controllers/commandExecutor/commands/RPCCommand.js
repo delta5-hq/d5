@@ -13,11 +13,12 @@ import IntegrationSessionRepository from '../../../repositories/IntegrationSessi
 const log = debug('delta5:app:Command:RPC')
 
 export class RPCCommand {
-  constructor(userId, workflowId, store, aliasConfig) {
+  constructor(userId, workflowId, store, aliasConfig, progressReporter = null) {
     this.store = store
     this.userId = userId
     this.workflowId = workflowId
     this.aliasConfig = aliasConfig
+    this.progressReporter = progressReporter
     this.log = log.extend(userId, '/')
     if (this.workflowId) {
       this.log = this.log.extend(workflowId, '#')
@@ -87,11 +88,13 @@ export class RPCCommand {
     return responseBody
   }
 
-  async executeACP(prompt) {
+  async executeACP(prompt, progressReporter = null) {
     const {command, args, env, timeoutMs, workingDir, autoApprove, allowedTools, lastSessionId} = this.aliasConfig
 
     const permissionPolicy = ACPPermissionPolicy.fromIntegrationConfig({autoApprove, allowedTools})
     const executor = new ACPExecutor()
+
+    const onUpdate = progressReporter?.emitUpdate ? update => progressReporter.emitUpdate(update) : null
 
     const result = await executor.execute({
       command,
@@ -102,6 +105,7 @@ export class RPCCommand {
       permissionPolicy,
       prompt,
       lastSessionId,
+      onUpdate,
     })
 
     return {
@@ -124,7 +128,7 @@ export class RPCCommand {
       } else if (this.aliasConfig.protocol === RPC_PROTOCOL.HTTP) {
         rawOutput = await this.executeHTTP(fullPrompt)
       } else if (this.aliasConfig.protocol === RPC_PROTOCOL.ACP_LOCAL) {
-        const result = await this.executeACP(fullPrompt)
+        const result = await this.executeACP(fullPrompt, this.progressReporter)
         rawOutput = result.output
         sessionId = result.sessionId
       } else {
