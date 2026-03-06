@@ -265,6 +265,12 @@ export class ArrayIntegrationPage {
       .filter({ has: this.page.locator('svg') })
       .nth(1)
 
+    await deleteButton.click()
+
+    const confirmDialog = this.page.locator('.max-w-md:has-text("Delete Integration")')
+    await confirmDialog.waitFor({ state: 'visible', timeout: TIMEOUTS.cardAppear })
+
+    const confirmButton = confirmDialog.locator('button:has-text("Delete")')
     await Promise.all([
       this.page.waitForResponse(
         resp => {
@@ -276,7 +282,7 @@ export class ArrayIntegrationPage {
         },
         { timeout: TIMEOUTS.apiResponse },
       ),
-      deleteButton.click(),
+      confirmButton.click(),
     ])
 
     await expect(card).not.toBeVisible({ timeout: TIMEOUTS.cardAppear })

@@ -75,7 +75,12 @@ const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({ showDialog, d
         items={data?.mcp || []}
         onAdd={() => showDialog(MCPDialog, { refresh, existingAliases: existingMCPAliases })}
         onEdit={item =>
-          showDialog(MCPDialog, { refresh, data: item, existingAliases: existingMCPAliases, isEdit: true })
+          showDialog(MCPDialog, {
+            refresh,
+            data: item,
+            existingAliases: existingMCPAliases,
+            isEdit: true,
+          })
         }
         refresh={refresh}
         titleId="integration.mcp.title"
@@ -87,7 +92,12 @@ const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({ showDialog, d
         items={data?.rpc || []}
         onAdd={() => showDialog(RPCDialog, { refresh, existingAliases: existingRPCAliases })}
         onEdit={item =>
-          showDialog(RPCDialog, { refresh, data: item, existingAliases: existingRPCAliases, isEdit: true })
+          showDialog(RPCDialog, {
+            refresh,
+            data: item,
+            existingAliases: existingRPCAliases,
+            isEdit: true,
+          })
         }
         refresh={refresh}
         titleId="integration.rpc.title"

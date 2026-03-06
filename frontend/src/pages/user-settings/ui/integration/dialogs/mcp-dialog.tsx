@@ -18,11 +18,11 @@ import {
   DialogTitle,
 } from '@shared/ui/dialog'
 import { Input } from '@shared/ui/input'
-import { Label } from '@shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
 import { Textarea } from '@shared/ui/textarea'
 import { useApiMutation } from '@shared/composables'
 import type { HttpError } from '@shared/lib/error'
+import { FormFieldLabel } from '../components/form-field-label'
 import { serializeArrayToSpaceSeparated, deserializeSpaceSeparatedToArray } from './form-serialization'
 
 const mcpTransports = ['stdio', 'streamable-http'] as const
@@ -138,13 +138,19 @@ const MCPDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
 
   return (
     <Dialog onOpenChange={onClose} open={open}>
-      <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto" data-dialog-name="mcp">
+      <DialogContent
+        className="max-w-[95vw] xs:max-w-md sm:max-w-2xl max-h-[85vh] overflow-y-auto"
+        data-dialog-name="mcp"
+      >
         <DialogHeader>
           <DialogTitle>
             <FormattedMessage id={data ? 'integration.mcp.edit' : 'integration.mcp.add'} />
           </DialogTitle>
           <DialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />
+            <span className="sr-only">
+              <FormattedMessage id="close" />
+            </span>
           </DialogClose>
         </DialogHeader>
 
@@ -153,12 +159,11 @@ const MCPDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
         <div className="flex flex-col gap-4">
           {/* Alias */}
           <div className="flex flex-col gap-2">
-            <Label htmlFor="alias">
-              Alias <span className="text-destructive">*</span>
-            </Label>
+            <FormFieldLabel htmlFor="alias" labelId="dialog.integration.alias" required />
             <Input
               id="alias"
               {...register('alias')}
+              aria-required="true"
               disabled={isSubmitting || !!data}
               error={!!errors.alias}
               errorHelper={errors.alias?.message?.toString()}
@@ -168,9 +173,7 @@ const MCPDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
 
           {/* Transport */}
           <div className="flex flex-col gap-2">
-            <Label htmlFor="transport">
-              Transport <span className="text-destructive">*</span>
-            </Label>
+            <FormFieldLabel htmlFor="transport" labelId="dialog.integration.transport" required />
             <Select
               disabled={isSubmitting || !!data}
               onValueChange={(val: typeof transport) => setValue('transport', val)}
@@ -191,31 +194,27 @@ const MCPDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
 
           {/* Description */}
           <div className="flex flex-col gap-2">
-            <Label htmlFor="description">Description</Label>
+            <FormFieldLabel htmlFor="description" labelId="dialog.integration.description" />
             <Input id="description" {...register('description')} disabled={isSubmitting} />
           </div>
 
           {/* Tool Name */}
           <div className="flex flex-col gap-2">
-            <Label htmlFor="toolName">
-              Tool Name <span className="text-destructive">*</span>
-            </Label>
+            <FormFieldLabel htmlFor="toolName" labelId="dialog.integration.toolName" required />
             <Input
               id="toolName"
               {...register('toolName')}
+              aria-required="true"
               disabled={isSubmitting}
               error={!!errors.toolName}
               errorHelper={errors.toolName?.message?.toString()}
               placeholder="auto"
             />
-            <span className="text-xs text-muted-foreground">
-              Use &quot;auto&quot; for agent mode with tool discovery
-            </span>
           </div>
 
           {/* Tool Input Field */}
           <div className="flex flex-col gap-2">
-            <Label htmlFor="toolInputField">Tool Input Field</Label>
+            <FormFieldLabel htmlFor="toolInputField" labelId="dialog.integration.toolInputField" />
             <Input id="toolInputField" {...register('toolInputField')} disabled={isSubmitting} placeholder="prompt" />
           </div>
 
@@ -223,12 +222,11 @@ const MCPDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
             <>
               {/* STDIO Fields */}
               <div className="flex flex-col gap-2">
-                <Label htmlFor="command">
-                  Command <span className="text-destructive">*</span>
-                </Label>
+                <FormFieldLabel htmlFor="command" labelId="dialog.integration.command" required />
                 <Input
                   id="command"
                   {...register('command')}
+                  aria-required="true"
                   disabled={isSubmitting}
                   error={!!errors.command}
                   errorHelper={errors.command?.message?.toString()}
@@ -237,7 +235,7 @@ const MCPDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="args">Arguments</Label>
+                <FormFieldLabel htmlFor="args" labelId="dialog.integration.arguments" />
                 <Textarea
                   id="args"
                   {...register('args')}
@@ -246,19 +244,17 @@ const MCPDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
                   placeholder="-y @modelcontextprotocol/server-filesystem"
                   rows={2}
                 />
-                <span className="text-xs text-muted-foreground">Space-separated arguments</span>
               </div>
             </>
           ) : (
             <>
               {/* HTTP Fields */}
               <div className="flex flex-col gap-2">
-                <Label htmlFor="serverUrl">
-                  Server URL <span className="text-destructive">*</span>
-                </Label>
+                <FormFieldLabel htmlFor="serverUrl" labelId="dialog.integration.serverUrl" required />
                 <Input
                   id="serverUrl"
                   {...register('serverUrl')}
+                  aria-required="true"
                   disabled={isSubmitting}
                   error={!!errors.serverUrl}
                   errorHelper={errors.serverUrl?.message?.toString()}
@@ -270,7 +266,7 @@ const MCPDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
 
           {/* Timeout */}
           <div className="flex flex-col gap-2">
-            <Label htmlFor="timeoutMs">Timeout (ms)</Label>
+            <FormFieldLabel htmlFor="timeoutMs" labelId="dialog.integration.timeout" />
             <Input
               id="timeoutMs"
               type="number"
