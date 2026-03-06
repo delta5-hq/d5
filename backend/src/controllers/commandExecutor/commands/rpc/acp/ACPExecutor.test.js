@@ -477,4 +477,82 @@ describe('ACPExecutor', () => {
       expect(result.stopReason).toBe('max_turns')
     })
   })
+
+  describe('session resume support', () => {
+    it('passes lastSessionId to createSession when provided', async () => {
+      const mockConnection = {
+        initialize: jest.fn().mockResolvedValue({protocolVersion: 1}),
+        createSession: jest.fn().mockResolvedValue('resumed-session-456'),
+        sendPrompt: jest.fn().mockResolvedValue({stopReason: 'end_turn'}),
+        close: jest.fn().mockResolvedValue(),
+        getSessionId: jest.fn().mockReturnValue('resumed-session-456'),
+      }
+
+      ACPConnection.mockImplementation(() => mockConnection)
+
+      const executor = new ACPExecutor()
+      await executor.execute({
+        command: 'test',
+        prompt: 'test',
+        lastSessionId: 'previous-session-123',
+      })
+
+      expect(mockConnection.createSession).toHaveBeenCalledWith('previous-session-123')
+    })
+
+    it('passes null to createSession when lastSessionId not provided', async () => {
+      const mockConnection = {
+        initialize: jest.fn().mockResolvedValue({protocolVersion: 1}),
+        createSession: jest.fn().mockResolvedValue('new-session-789'),
+        sendPrompt: jest.fn().mockResolvedValue({stopReason: 'end_turn'}),
+        close: jest.fn().mockResolvedValue(),
+        getSessionId: jest.fn().mockReturnValue('new-session-789'),
+      }
+
+      ACPConnection.mockImplementation(() => mockConnection)
+
+      const executor = new ACPExecutor()
+      await executor.execute({command: 'test', prompt: 'test'})
+
+      expect(mockConnection.createSession).toHaveBeenCalledWith(null)
+    })
+
+    it('handles lastSessionId as empty string', async () => {
+      const mockConnection = {
+        initialize: jest.fn().mockResolvedValue({protocolVersion: 1}),
+        createSession: jest.fn().mockResolvedValue('new-session'),
+        sendPrompt: jest.fn().mockResolvedValue({stopReason: 'end_turn'}),
+        close: jest.fn().mockResolvedValue(),
+        getSessionId: jest.fn().mockReturnValue('new-session'),
+      }
+
+      ACPConnection.mockImplementation(() => mockConnection)
+
+      const executor = new ACPExecutor()
+      await executor.execute({command: 'test', prompt: 'test', lastSessionId: ''})
+
+      expect(mockConnection.createSession).toHaveBeenCalledWith('')
+    })
+
+    it('returns new session ID from resumed session', async () => {
+      const mockConnection = {
+        initialize: jest.fn().mockResolvedValue({protocolVersion: 1}),
+        createSession: jest.fn().mockResolvedValue('resumed-session-id'),
+        sendPrompt: jest.fn().mockResolvedValue({stopReason: 'end_turn'}),
+        close: jest.fn().mockResolvedValue(),
+        getSessionId: jest.fn().mockReturnValue('resumed-session-id'),
+      }
+
+      ACPConnection.mockImplementation(() => mockConnection)
+
+      const executor = new ACPExecutor()
+      const result = await executor.execute({
+        command: 'test',
+        prompt: 'test',
+        lastSessionId: 'old-session-id',
+      })
+
+      expect(result.sessionId).toBe('resumed-session-id')
+    })
+  })
 })

@@ -1,6 +1,7 @@
 import {spawn} from 'child_process'
 import {Writable, Readable} from 'stream'
 import {ClientSideConnection, ndJsonStream, PROTOCOL_VERSION} from '@agentclientprotocol/sdk'
+import {SessionResumeStrategy} from './SessionResumeStrategy'
 
 export class ACPConnection {
   constructor({command, args = [], env = {}, timeoutMs = 300_000, cwd = process.cwd()}) {
@@ -14,6 +15,7 @@ export class ACPConnection {
     this.connection = null
     this.client = null
     this.sessionId = null
+    this.agentCapabilities = null
   }
 
   async initialize(client) {
@@ -36,21 +38,21 @@ export class ACPConnection {
       clientCapabilities: {},
     })
 
+    this.agentCapabilities = initResponse.serverCapabilities
+
     return initResponse
   }
 
-  async createSession() {
+  async createSession(lastSessionId = null) {
     if (!this.connection) {
       throw new Error('Connection not initialized')
     }
 
-    const response = await this.connection.newSession({
-      cwd: this.cwd,
-      mcpServers: [],
-    })
+    const strategy = new SessionResumeStrategy(this.connection, this.agentCapabilities)
 
-    this.sessionId = response.sessionId
-    return response.sessionId
+    this.sessionId = await strategy.acquireSession(lastSessionId, this.cwd, [])
+
+    return this.sessionId
   }
 
   async sendPrompt(prompt) {

@@ -6,7 +6,17 @@ import {ACPResponseAggregator} from './ACPResponseAggregator'
 const log = debug('delta5:app:ACPExecutor')
 
 export class ACPExecutor {
-  async execute({command, args = [], env = {}, timeoutMs = 300_000, cwd, permissionPolicy, prompt, onUpdate = null}) {
+  async execute({
+    command,
+    args = [],
+    env = {},
+    timeoutMs = 300_000,
+    cwd,
+    permissionPolicy,
+    prompt,
+    onUpdate = null,
+    lastSessionId = null,
+  }) {
     if (!command) {
       throw new Error('ACP command is required')
     }
@@ -40,8 +50,8 @@ export class ACPExecutor {
       await connection.initialize(client)
       log('ACP connection initialized')
 
-      const sessionId = await connection.createSession()
-      log(`Session created: ${sessionId}`)
+      const sessionId = await connection.createSession(lastSessionId)
+      log(`Session ${lastSessionId ? 'resumed' : 'created'}: ${sessionId}`)
 
       const response = await connection.sendPrompt(prompt)
       log(`Prompt completed with stopReason: ${response.stopReason}`)
