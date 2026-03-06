@@ -16,74 +16,56 @@ func TestDocumentEncryptor_EncryptDecrypt(t *testing.T) {
 		doc  map[string]interface{}
 	}{
 		{
-			name: "encrypts LLM API keys",
+			name: "encrypts all LLM providers",
 			doc: map[string]interface{}{
-				"userId": "user-123",
-				"openai": map[string]interface{}{
-					"apiKey": "sk-openai-key",
-					"model":  "gpt-4",
-				},
-				"claude": map[string]interface{}{
-					"apiKey": "sk-claude-key",
-					"model":  "claude-3",
-				},
+				"openai":     map[string]interface{}{"apiKey": "sk-openai-123", "model": "gpt-4"},
+				"claude":     map[string]interface{}{"apiKey": "sk-claude-456", "model": "claude-3"},
+				"yandex":     map[string]interface{}{"apiKey": "yandex-key", "folder_id": "folder"},
+				"qwen":       map[string]interface{}{"apiKey": "qwen-key"},
+				"deepseek":   map[string]interface{}{"apiKey": "deepseek-key"},
+				"perplexity": map[string]interface{}{"apiKey": "perplexity-key"},
+				"custom_llm": map[string]interface{}{"apiKey": "custom-key"},
 			},
 		},
 		{
-			name: "encrypts RPC secrets",
+			name: "encrypts RPC with all secret fields",
 			doc: map[string]interface{}{
-				"userId": "user-123",
 				"rpc": []interface{}{
 					map[string]interface{}{
 						"alias":      "/ssh1",
-						"privateKey": "-----BEGIN RSA PRIVATE KEY-----",
-						"passphrase": "secret-passphrase",
+						"privateKey": "-----BEGIN RSA PRIVATE KEY-----\ntest",
+						"passphrase": "secret",
+						"headers":    map[string]interface{}{"Authorization": "Bearer token"},
+						"env":        map[string]interface{}{"API_KEY": "secret"},
 						"host":       "example.com",
-						"headers": map[string]string{
-							"Authorization": "Bearer token",
-						},
 					},
 				},
 			},
 		},
 		{
-			name: "encrypts MCP secrets",
+			name: "encrypts MCP with all secret fields",
 			doc: map[string]interface{}{
-				"userId": "user-123",
 				"mcp": []interface{}{
 					map[string]interface{}{
-						"alias": "/tool1",
-						"env": map[string]string{
-							"API_KEY": "secret-key",
-						},
-						"headers": map[string]string{
-							"X-Custom": "value",
-						},
+						"alias":    "/mcp1",
+						"headers":  map[string]interface{}{"X-API-Key": "token"},
+						"env":      map[string]interface{}{"SECRET": "value"},
+						"toolName": "test",
 					},
 				},
 			},
 		},
 		{
-			name: "handles mixed document",
+			name: "handles mixed LLM and array fields",
 			doc: map[string]interface{}{
-				"userId": "user-123",
+				"userId": "user123",
 				"lang":   "en",
-				"openai": map[string]interface{}{
-					"apiKey": "sk-123",
-				},
+				"openai": map[string]interface{}{"apiKey": "sk-123"},
 				"rpc": []interface{}{
-					map[string]interface{}{
-						"alias":      "/rpc1",
-						"privateKey": "key1",
-					},
+					map[string]interface{}{"alias": "/rpc1", "privateKey": "key1"},
 				},
 				"mcp": []interface{}{
-					map[string]interface{}{
-						"alias": "/mcp1",
-						"env": map[string]string{
-							"KEY": "value",
-						},
-					},
+					map[string]interface{}{"alias": "/mcp1", "headers": map[string]interface{}{"Auth": "token"}},
 				},
 			},
 		},
@@ -91,25 +73,20 @@ func TestDocumentEncryptor_EncryptDecrypt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Deep copy doc
 			docCopy := copyDoc(tt.doc)
 
-			// Encrypt
 			if err := encryptor.Encrypt(docCopy); err != nil {
 				t.Fatalf("Encrypt failed: %v", err)
 			}
 
-			// Verify encryption happened
 			if hasPlaintextSecrets(docCopy, tt.doc) {
 				t.Error("expected secrets to be encrypted")
 			}
 
-			// Decrypt
 			if err := encryptor.Decrypt(docCopy); err != nil {
 				t.Fatalf("Decrypt failed: %v", err)
 			}
 
-			// Verify decryption (only check non-serialized fields, serialized ones change type)
 			verifyDecryption(t, docCopy, tt.doc)
 		})
 	}
@@ -127,14 +104,12 @@ func TestDocumentEncryptor_IdempotentEncryption(t *testing.T) {
 		},
 	}
 
-	// Encrypt once
 	if err := encryptor.Encrypt(doc); err != nil {
 		t.Fatalf("first Encrypt failed: %v", err)
 	}
 
 	encryptedOnce := copyDoc(doc)
 
-	// Encrypt again (should be idempotent)
 	if err := encryptor.Encrypt(doc); err != nil {
 		t.Fatalf("second Encrypt failed: %v", err)
 	}
@@ -150,7 +125,6 @@ func TestDocumentEncryptor_MixedState(t *testing.T) {
 		t.Fatalf("NewDocumentEncryptor failed: %v", err)
 	}
 
-	// Create a document with one field already encrypted
 	docForPreEncrypt := map[string]interface{}{
 		"openai": map[string]interface{}{
 			"apiKey": "sk-openai-encrypted",
@@ -161,7 +135,6 @@ func TestDocumentEncryptor_MixedState(t *testing.T) {
 	}
 	preEncryptedKey := docForPreEncrypt["openai"].(map[string]interface{})["apiKey"]
 
-	// Now simulate mixed state: some already encrypted, some plaintext
 	doc := map[string]interface{}{
 		"openai": map[string]interface{}{
 			"apiKey": preEncryptedKey, // Already encrypted
@@ -171,28 +144,22 @@ func TestDocumentEncryptor_MixedState(t *testing.T) {
 		},
 	}
 
-	// Decrypt should handle both
 	if err := encryptor.Decrypt(doc); err != nil {
 		t.Fatalf("Decrypt failed: %v", err)
 	}
 
-	// OpenAI key should be decrypted
 	openaiKey := doc["openai"].(map[string]interface{})["apiKey"]
 	if openaiKey != "sk-openai-encrypted" {
 		t.Errorf("openai key = %v, want sk-openai-encrypted", openaiKey)
 	}
 
-	// Claude key should remain plaintext (wasn't actually encrypted)
 	claudeKey := doc["claude"].(map[string]interface{})["apiKey"]
 	if claudeKey != "sk-plaintext" {
 		t.Errorf("plaintext key = %v, want sk-plaintext", claudeKey)
 	}
 }
 
-// Helper functions
-
 func verifyDecryption(t *testing.T, decrypted, original map[string]interface{}) {
-	// Check simple string fields
 	if openai, ok := original["openai"].(map[string]interface{}); ok {
 		if apiKey, ok := openai["apiKey"].(string); ok {
 			decOpenai := decrypted["openai"].(map[string]interface{})
@@ -203,7 +170,6 @@ func verifyDecryption(t *testing.T, decrypted, original map[string]interface{}) 
 		}
 	}
 
-	// Check RPC privateKey (non-serialized)
 	if rpc, ok := original["rpc"].([]interface{}); ok && len(rpc) > 0 {
 		if item, ok := rpc[0].(map[string]interface{}); ok {
 			if pk, ok := item["privateKey"].(string); ok {
@@ -215,7 +181,6 @@ func verifyDecryption(t *testing.T, decrypted, original map[string]interface{}) 
 				}
 			}
 
-			// Check that serialized fields (headers, env) exist and are maps
 			if _, hasHeaders := item["headers"]; hasHeaders {
 				decItem := decrypted["rpc"].([]interface{})[0].(map[string]interface{})
 				if _, ok := decItem["headers"].(map[string]interface{}); !ok {
@@ -225,7 +190,6 @@ func verifyDecryption(t *testing.T, decrypted, original map[string]interface{}) 
 		}
 	}
 
-	// Check MCP env (serialized)
 	if mcp, ok := original["mcp"].([]interface{}); ok && len(mcp) > 0 {
 		if item, ok := mcp[0].(map[string]interface{}); ok {
 			if _, hasEnv := item["env"]; hasEnv {
@@ -267,7 +231,6 @@ func copyArray(arr []interface{}) []interface{} {
 }
 
 func hasPlaintextSecrets(encrypted, original map[string]interface{}) bool {
-	// Check if OpenAI key is still plaintext
 	if openai, ok := original["openai"].(map[string]interface{}); ok {
 		if apiKey, ok := openai["apiKey"].(string); ok {
 			encOpenai := encrypted["openai"].(map[string]interface{})
@@ -278,7 +241,6 @@ func hasPlaintextSecrets(encrypted, original map[string]interface{}) bool {
 		}
 	}
 
-	// Check RPC privateKey
 	if rpc, ok := original["rpc"].([]interface{}); ok && len(rpc) > 0 {
 		if item, ok := rpc[0].(map[string]interface{}); ok {
 			if pk, ok := item["privateKey"].(string); ok {
