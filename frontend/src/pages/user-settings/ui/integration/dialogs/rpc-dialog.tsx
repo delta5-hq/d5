@@ -18,11 +18,11 @@ import {
   DialogTitle,
 } from '@shared/ui/dialog'
 import { Input } from '@shared/ui/input'
-import { Label } from '@shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
 import { Textarea } from '@shared/ui/textarea'
 import { useApiMutation } from '@shared/composables'
 import type { HttpError } from '@shared/lib/error'
+import { FormFieldLabel } from '../components/form-field-label'
 import {
   serializeArrayToSpaceSeparated,
   serializeArrayToCommaSeparated,
@@ -204,13 +204,19 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
 
   return (
     <Dialog onOpenChange={onClose} open={open}>
-      <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto" data-dialog-name="rpc">
+      <DialogContent
+        className="max-w-[95vw] xs:max-w-md sm:max-w-2xl max-h-[85vh] overflow-y-auto"
+        data-dialog-name="rpc"
+      >
         <DialogHeader>
           <DialogTitle>
             <FormattedMessage id={data ? 'integration.rpc.edit' : 'integration.rpc.add'} />
           </DialogTitle>
           <DialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />
+            <span className="sr-only">
+              <FormattedMessage id="close" />
+            </span>
           </DialogClose>
         </DialogHeader>
 
@@ -219,12 +225,11 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
         <div className="flex flex-col gap-4">
           {/* Alias */}
           <div className="flex flex-col gap-2">
-            <Label htmlFor="alias">
-              Alias <span className="text-destructive">*</span>
-            </Label>
+            <FormFieldLabel htmlFor="alias" labelId="dialog.integration.alias" required />
             <Input
               id="alias"
               {...register('alias')}
+              aria-required="true"
               disabled={isSubmitting || !!data}
               error={!!errors.alias}
               errorHelper={errors.alias?.message?.toString()}
@@ -234,9 +239,7 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
 
           {/* Protocol */}
           <div className="flex flex-col gap-2">
-            <Label htmlFor="protocol">
-              Protocol <span className="text-destructive">*</span>
-            </Label>
+            <FormFieldLabel htmlFor="protocol" labelId="dialog.integration.protocol" required />
             <Select
               disabled={isSubmitting || !!data}
               onValueChange={(val: typeof protocol) => setValue('protocol', val)}
@@ -257,7 +260,7 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
 
           {/* Description */}
           <div className="flex flex-col gap-2">
-            <Label htmlFor="description">Description</Label>
+            <FormFieldLabel htmlFor="description" labelId="dialog.integration.description" />
             <Input id="description" {...register('description')} disabled={isSubmitting} />
           </div>
 
@@ -266,19 +269,18 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
               {/* SSH Fields */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="host">
-                    Host <span className="text-destructive">*</span>
-                  </Label>
+                  <FormFieldLabel htmlFor="host" labelId="dialog.integration.host" required />
                   <Input
                     id="host"
                     {...register('host')}
+                    aria-required="true"
                     disabled={isSubmitting}
                     error={!!errors.host}
                     errorHelper={errors.host?.message?.toString()}
                   />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="port">Port</Label>
+                  <FormFieldLabel htmlFor="port" labelId="dialog.integration.port" />
                   <Input
                     id="port"
                     type="number"
@@ -290,12 +292,11 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="username">
-                  Username <span className="text-destructive">*</span>
-                </Label>
+                <FormFieldLabel htmlFor="username" labelId="dialog.integration.username" required />
                 <Input
                   id="username"
                   {...register('username')}
+                  aria-required="true"
                   disabled={isSubmitting}
                   error={!!errors.username}
                   errorHelper={errors.username?.message?.toString()}
@@ -303,12 +304,11 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="privateKey">
-                  Private Key <span className="text-destructive">*</span>
-                </Label>
+                <FormFieldLabel htmlFor="privateKey" labelId="dialog.integration.privateKey" required />
                 <Textarea
                   id="privateKey"
                   {...register('privateKey')}
+                  aria-required="true"
                   className="font-mono text-xs"
                   disabled={isSubmitting}
                   rows={4}
@@ -319,15 +319,13 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="passphrase">Passphrase (optional)</Label>
+                <FormFieldLabel htmlFor="passphrase" labelId="dialog.integration.passphrase" />
                 <Input id="passphrase" type="password" {...register('passphrase')} disabled={isSubmitting} />
               </div>
 
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="commandTemplate">
-                    Command Template <span className="text-destructive">*</span>
-                  </Label>
+                  <FormFieldLabel htmlFor="commandTemplate" labelId="dialog.integration.commandTemplate" required />
                   <Button disabled={isSubmitting} onClick={fillClaudePreset} size="sm" type="button" variant="default">
                     🤖 Claude CLI Preset
                   </Button>
@@ -335,6 +333,7 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
                 <Textarea
                   id="commandTemplate"
                   {...register('commandTemplate')}
+                  aria-required="true"
                   className="font-mono text-xs"
                   disabled={isSubmitting}
                   placeholder='claude -p "{{prompt}}" --output-format json'
@@ -346,7 +345,7 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="workingDir">Working Directory</Label>
+                <FormFieldLabel htmlFor="workingDir" labelId="dialog.integration.workingDirectory" />
                 <Input id="workingDir" {...register('workingDir')} disabled={isSubmitting} />
               </div>
             </>
@@ -354,12 +353,11 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
             <>
               {/* HTTP Fields */}
               <div className="flex flex-col gap-2">
-                <Label htmlFor="url">
-                  URL <span className="text-destructive">*</span>
-                </Label>
+                <FormFieldLabel htmlFor="url" labelId="dialog.integration.url" required />
                 <Input
                   id="url"
                   {...register('url')}
+                  aria-required="true"
                   disabled={isSubmitting}
                   error={!!errors.url}
                   errorHelper={errors.url?.message?.toString()}
@@ -368,7 +366,7 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="method">Method</Label>
+                <FormFieldLabel htmlFor="method" labelId="dialog.integration.method" />
                 <Select
                   disabled={isSubmitting}
                   onValueChange={(val: (typeof rpcMethods)[number]) => setValue('method', val)}
@@ -388,7 +386,7 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="headers">Headers</Label>
+                <FormFieldLabel htmlFor="headers" labelId="dialog.integration.headers" />
                 <Textarea
                   id="headers"
                   {...register('headers')}
@@ -401,7 +399,7 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="bodyTemplate">Body Template (JSON)</Label>
+                <FormFieldLabel htmlFor="bodyTemplate" labelId="dialog.integration.bodyTemplate" />
                 <Textarea
                   id="bodyTemplate"
                   {...register('bodyTemplate')}
@@ -416,12 +414,11 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
             <>
               {/* ACP-Local Fields */}
               <div className="flex flex-col gap-2">
-                <Label htmlFor="command">
-                  Command <span className="text-destructive">*</span>
-                </Label>
+                <FormFieldLabel htmlFor="command" labelId="dialog.integration.command" required />
                 <Input
                   id="command"
                   {...register('command')}
+                  aria-required="true"
                   disabled={isSubmitting}
                   error={!!errors.command}
                   errorHelper={errors.command?.message?.toString()}
@@ -430,7 +427,7 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="args">Arguments</Label>
+                <FormFieldLabel htmlFor="args" labelId="dialog.integration.arguments" />
                 <Textarea
                   id="args"
                   {...register('args')}
@@ -443,7 +440,7 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="env">Environment Variables</Label>
+                <FormFieldLabel htmlFor="env" labelId="dialog.integration.environmentVariables" />
                 <Textarea
                   id="env"
                   {...register('env')}
@@ -456,12 +453,12 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="workingDir">Working Directory</Label>
+                <FormFieldLabel htmlFor="workingDir" labelId="dialog.integration.workingDirectory" />
                 <Input id="workingDir" {...register('workingDir')} disabled={isSubmitting} />
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="autoApprove">Auto-approve Mode</Label>
+                <FormFieldLabel htmlFor="autoApprove" labelId="dialog.integration.autoApproveMode" />
                 <Select
                   disabled={isSubmitting}
                   onValueChange={(val: (typeof acpAutoApproveOptions)[number]) => setValue('autoApprove', val)}
@@ -481,7 +478,7 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="allowedTools">Allowed Tools (whitelist mode)</Label>
+                <FormFieldLabel htmlFor="allowedTools" labelId="dialog.integration.allowedTools" />
                 <Textarea
                   id="allowedTools"
                   {...register('allowedTools')}
@@ -500,7 +497,7 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
             <>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="outputFormat">Output Format</Label>
+                  <FormFieldLabel htmlFor="outputFormat" labelId="dialog.integration.outputFormat" />
                   <Select
                     disabled={isSubmitting}
                     onValueChange={(val: (typeof rpcOutputFormats)[number]) => setValue('outputFormat', val)}
@@ -520,7 +517,7 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="outputField">Output Field (JSON path)</Label>
+                  <FormFieldLabel htmlFor="outputField" labelId="dialog.integration.outputField" />
                   <Input
                     id="outputField"
                     {...register('outputField')}
@@ -531,7 +528,7 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="sessionIdField">Session ID Field (JSON path)</Label>
+                <FormFieldLabel htmlFor="sessionIdField" labelId="dialog.integration.sessionIdField" />
                 <Input
                   id="sessionIdField"
                   {...register('sessionIdField')}
@@ -543,7 +540,7 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
           ) : null}
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="timeoutMs">Timeout (ms)</Label>
+            <FormFieldLabel htmlFor="timeoutMs" labelId="dialog.integration.timeout" />
             <Input
               id="timeoutMs"
               type="number"
