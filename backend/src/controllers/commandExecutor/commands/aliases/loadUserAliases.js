@@ -1,17 +1,13 @@
-import {INTEGRATION_ENCRYPTION_CONFIG} from '../../../../models/Integration'
 import {isValidAlias} from './aliasValidation'
-import {decryptFields} from '../../../../models/utils/fieldEncryption'
 import SessionHydrator from './SessionHydrator'
-import IntegrationRepository from '../../../../repositories/IntegrationRepository'
+import IntegrationFacade from '../../../../repositories/IntegrationFacade'
 
 export const loadUserAliases = async (userId, workflowId = null) => {
-  const integration = await IntegrationRepository.findWithFallback(userId, workflowId)
+  const decrypted = await IntegrationFacade.findDecrypted(userId, workflowId)
 
-  if (!integration) {
+  if (!decrypted) {
     return {mcp: [], rpc: []}
   }
-
-  const decrypted = decryptFields(integration, INTEGRATION_ENCRYPTION_CONFIG)
 
   const aliases = {
     mcp: (decrypted.mcp || []).filter(entry => isValidAlias(entry.alias)),

@@ -1,26 +1,11 @@
 import {loadUserAliases} from './loadUserAliases'
-import {INTEGRATION_ENCRYPTION_CONFIG} from '../../../../models/Integration'
-import {decryptFields} from '../../../../models/utils/fieldEncryption'
-import IntegrationRepository from '../../../../repositories/IntegrationRepository'
+import IntegrationFacade from '../../../../repositories/IntegrationFacade'
 
-jest.mock('../../../../repositories/IntegrationRepository', () => ({
+jest.mock('../../../../repositories/IntegrationFacade', () => ({
   __esModule: true,
   default: {
-    findWithFallback: jest.fn(),
+    findDecrypted: jest.fn(),
   },
-}))
-
-jest.mock('../../../../models/Integration', () => ({
-  __esModule: true,
-  INTEGRATION_ENCRYPTION_CONFIG: {
-    fields: [],
-    arrayFields: {},
-  },
-}))
-
-jest.mock('../../../../models/utils/fieldEncryption', () => ({
-  decryptFields: jest.fn(data => data),
-  encryptFields: jest.fn(data => data),
 }))
 
 jest.mock('./SessionHydrator', () => ({
@@ -36,16 +21,16 @@ describe('loadUserAliases', () => {
   })
 
   it('returns empty arrays when integration not found', async () => {
-    IntegrationRepository.findWithFallback.mockResolvedValue(null)
+    IntegrationFacade.findDecrypted.mockResolvedValue(null)
 
     const result = await loadUserAliases('user-1')
 
     expect(result).toEqual({mcp: [], rpc: []})
-    expect(IntegrationRepository.findWithFallback).toHaveBeenCalledWith('user-1', null)
+    expect(IntegrationFacade.findDecrypted).toHaveBeenCalledWith('user-1', null)
   })
 
   it('returns empty arrays when mcp and rpc fields are absent', async () => {
-    IntegrationRepository.findWithFallback.mockResolvedValue({userId: 'user-1'})
+    IntegrationFacade.findDecrypted.mockResolvedValue({userId: 'user-1'})
 
     const result = await loadUserAliases('user-1')
 
@@ -53,7 +38,7 @@ describe('loadUserAliases', () => {
   })
 
   it('filters out invalid MCP aliases', async () => {
-    IntegrationRepository.findWithFallback.mockResolvedValue({
+    IntegrationFacade.findDecrypted.mockResolvedValue({
       userId: 'user-1',
       mcp: [{alias: '/valid'}, {alias: 'no-slash'}, {alias: '/web'}, {alias: '/9starts-digit'}, {alias: '/has space'}],
     })
@@ -64,7 +49,7 @@ describe('loadUserAliases', () => {
   })
 
   it('filters out invalid RPC aliases', async () => {
-    IntegrationRepository.findWithFallback.mockResolvedValue({
+    IntegrationFacade.findDecrypted.mockResolvedValue({
       userId: 'user-1',
       rpc: [{alias: '/vm1'}, {alias: '/chatgpt'}, {alias: ''}, {alias: '/ok-name_v2'}],
     })
@@ -75,13 +60,11 @@ describe('loadUserAliases', () => {
   })
 
   it('returns both MCP and RPC aliases', async () => {
-    const dbData = {
+    IntegrationFacade.findDecrypted.mockResolvedValue({
       userId: 'user-1',
       mcp: [{alias: '/coder1'}, {alias: '/agent2'}],
       rpc: [{alias: '/vm3'}, {alias: '/ssh1'}],
-    }
-
-    IntegrationRepository.findWithFallback.mockResolvedValue(dbData)
+    })
 
     const result = await loadUserAliases('user-1')
 
@@ -89,27 +72,24 @@ describe('loadUserAliases', () => {
       mcp: [{alias: '/coder1'}, {alias: '/agent2'}],
       rpc: [{alias: '/vm3'}, {alias: '/ssh1'}],
     })
-    expect(decryptFields).toHaveBeenCalledWith(dbData, INTEGRATION_ENCRYPTION_CONFIG)
   })
 
   it('propagates database errors', async () => {
-    IntegrationRepository.findWithFallback.mockRejectedValue(new Error('DB connection lost'))
+    IntegrationFacade.findDecrypted.mockRejectedValue(new Error('DB connection lost'))
 
     await expect(loadUserAliases('user-1')).rejects.toThrow('DB connection lost')
   })
 
-  it('accepts optional workflowId and passes to repository', async () => {
-    const dbData = {
+  it('accepts optional workflowId and passes to facade', async () => {
+    IntegrationFacade.findDecrypted.mockResolvedValue({
       userId: 'user-1',
       workflowId: 'wf-123',
       mcp: [{alias: '/workflow-specific'}],
-    }
-
-    IntegrationRepository.findWithFallback.mockResolvedValue(dbData)
+    })
 
     const result = await loadUserAliases('user-1', 'wf-123')
 
-    expect(IntegrationRepository.findWithFallback).toHaveBeenCalledWith('user-1', 'wf-123')
+    expect(IntegrationFacade.findDecrypted).toHaveBeenCalledWith('user-1', 'wf-123')
     expect(result.mcp).toEqual([{alias: '/workflow-specific'}])
   })
 })
