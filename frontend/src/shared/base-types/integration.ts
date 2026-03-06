@@ -52,7 +52,7 @@ export enum Model {
 
 export interface MCPIntegration {
   alias: string
-  transport: 'stdio' | 'streamable-http'
+  transport: 'stdio' | 'streamable-http' | 'sse'
   toolName: string
   toolInputField?: string
   toolStaticArgs?: Record<string, unknown>

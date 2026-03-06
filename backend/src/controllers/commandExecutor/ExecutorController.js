@@ -6,13 +6,16 @@ import {allowedCommands} from './constants'
 import {loadUserAliases} from './commands/aliases/loadUserAliases'
 import {findMCPAliasByQueryType, findRPCAliasByQueryType} from './commands/utils/queryTypeResolver'
 import ProgressReporter from './ProgressReporter'
+import StreamableProgressReporter from './streaming/StreamableProgressReporter'
+import StreamBridge from './streaming/StreamBridge'
+import {StreamEvent} from './streaming/StreamEvent'
 
 const logError = debug('delta5:app:ExecutorController')
 
 const ExecutorController = {
   execute: async ctx => {
     const body = await ctx.request.json('infinity')
-    const {queryType, cell} = body
+    const {queryType, cell, streamSessionId} = body
     const {userId} = ctx.state
 
     if (!cell) {
@@ -24,7 +27,8 @@ const ExecutorController = {
     let aliases = {mcp: [], rpc: []}
 
     const log = debug('delta5:app:ProgressReporter').extend(userId, '/')
-    const progress = new ProgressReporter({title: 'root', log, outputInterval: 60000})
+    const ProgressReporterClass = streamSessionId ? StreamableProgressReporter : ProgressReporter
+    const progress = new ProgressReporterClass({title: 'root', log, outputInterval: 60000}, null, streamSessionId)
     try {
       // queryType, context, prompt, cell, userId, workflowId, workflowNodes, workflowFiles
       let {workflowNodes, workflowEdges, workflowId, workflowFiles, ...otherData} = body
@@ -59,7 +63,7 @@ const ExecutorController = {
       await runCommand({...otherData, store, mcpAlias, rpcAlias}, progress)
 
       const {nodes: nodesChanged, edges: edgesChanged} = store.getOutput()
-      ctx.body = {
+      const result = {
         ...otherData,
         nodesChanged,
         edgesChanged,
@@ -69,8 +73,21 @@ const ExecutorController = {
         workflowFiles: store._files,
         workflowEdges: store._edges,
       }
+
+      if (streamSessionId) {
+        StreamBridge.emit(streamSessionId, StreamEvent.complete(result))
+        StreamBridge.closeSession(streamSessionId)
+      }
+
+      ctx.body = result
     } catch (e) {
       console.error(e)
+
+      if (streamSessionId) {
+        StreamBridge.emit(streamSessionId, StreamEvent.error(e))
+        StreamBridge.closeSession(streamSessionId)
+      }
+
       ctx.throw(500, e.message)
     } finally {
       progress.dispose()

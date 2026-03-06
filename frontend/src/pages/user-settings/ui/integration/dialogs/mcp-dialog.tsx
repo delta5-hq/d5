@@ -25,7 +25,7 @@ import type { HttpError } from '@shared/lib/error'
 import { FormFieldLabel } from '../components/form-field-label'
 import { serializeArrayToSpaceSeparated, deserializeSpaceSeparatedToArray } from './form-serialization'
 
-const mcpTransports = ['stdio', 'streamable-http'] as const
+const mcpTransports = ['stdio', 'streamable-http', 'sse'] as const
 
 const stdioSchema = z.object({
   alias: z.string().regex(/^\/[a-zA-Z][a-zA-Z0-9_-]*$/, 'Alias must start with / followed by alphanumeric'),
@@ -38,24 +38,26 @@ const stdioSchema = z.object({
   timeoutMs: z.number().int().min(5000).max(3600000).optional(),
 })
 
-const httpSchema = z.object({
+const urlBasedFields = {
   alias: z.string().regex(/^\/[a-zA-Z][a-zA-Z0-9_-]*$/, 'Alias must start with / followed by alphanumeric'),
-  transport: z.literal('streamable-http'),
   toolName: z.string().min(1, 'Tool name is required'),
   toolInputField: z.string().default('prompt'),
   description: z.string().optional(),
   serverUrl: z.string().url('Must be a valid URL'),
   timeoutMs: z.number().int().min(5000).max(3600000).optional(),
-})
+}
 
-const mcpSchema = z.discriminatedUnion('transport', [stdioSchema, httpSchema])
+const httpSchema = z.object({ ...urlBasedFields, transport: z.literal('streamable-http') })
+const sseSchema = z.object({ ...urlBasedFields, transport: z.literal('sse') })
+
+const mcpSchema = z.discriminatedUnion('transport', [stdioSchema, httpSchema, sseSchema])
 
 type MCPFormValues = z.infer<typeof mcpSchema>
 
 /* Flat merged type so react-hook-form resolves all fields without union ambiguity */
 type MCPFormFlat = {
   alias: string
-  transport: 'stdio' | 'streamable-http'
+  transport: 'stdio' | 'streamable-http' | 'sse'
   toolName: string
   toolInputField: string
   description?: string

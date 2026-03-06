@@ -257,7 +257,7 @@ export const runCommand = async (
     runCommandTracker = await runCommandProgress.add('MCPCommand.run')
     await command.run(cell, context, prompt)
   } else if (rpcAlias) {
-    const command = new RPCCommand(store._userId, store._workflowId, store, rpcAlias)
+    const command = new RPCCommand(store._userId, store._workflowId, store, rpcAlias, runCommandProgress)
 
     runCommandTracker = await runCommandProgress.add('RPCCommand.run')
     await command.run(cell, context, prompt)

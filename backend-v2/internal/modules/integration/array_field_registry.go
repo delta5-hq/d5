@@ -10,7 +10,7 @@ var registeredArrayFields = map[string]ArrayFieldMetadata{
 	"mcp": {
 		FieldName:        "mcp",
 		AliasFieldName:   "alias",
-		AllowedProtocols: []string{"stdio", "streamable-http"},
+		AllowedProtocols: []string{"stdio", "streamable-http", "sse"},
 	},
 	"rpc": {
 		FieldName:        "rpc",
