@@ -39,9 +39,32 @@ func NewService(db *qmgo.Database) (*Service, error) {
 }
 
 func (s *Service) FindByUserID(ctx context.Context, userID string) (*models.Integration, error) {
-	var integration models.Integration
-	err := s.collection.Find(ctx, qmgo.M{"userId": userID}).One(&integration)
+	// Fetch as raw map to handle encrypted fields stored as strings in MongoDB.
+	// Typed decode into models.Integration fails when encrypted string fields
+	// cannot be decoded into typed fields like map[string]string.
+	var raw map[string]interface{}
+	if err := s.collection.Find(ctx, qmgo.M{"userId": userID}).One(&raw); err != nil {
+		return nil, err
+	}
+
+	// Normalize: qmgo/mongo-driver decodes embedded BSON documents as primitive.D
+	// (ordered slice) rather than map[string]interface{}, causing type assertions
+	// inside transformArrayFields to fail silently and skip decryption.
+	// Converting to plain maps/slices first ensures Decrypt works correctly.
+	normalizeBSONDoc(raw)
+
+	// Decrypt in-place so serialised fields (e.g. headers) become their proper
+	// types (map[string]interface{}) before the BSON round-trip below.
+	if err := s.encryptor.Decrypt(raw); err != nil {
+		return nil, err
+	}
+
+	rawBytes, err := bson.Marshal(raw)
 	if err != nil {
+		return nil, err
+	}
+	var integration models.Integration
+	if err := bson.Unmarshal(rawBytes, &integration); err != nil {
 		return nil, err
 	}
 	return &integration, nil
@@ -62,7 +85,7 @@ func (s *Service) Upsert(ctx context.Context, userID string, update map[string]i
 	filter := qmgo.M{"userId": userID}
 	updateOp := bson.M{"$set": updateDoc}
 
-	var existing models.Integration
+	var existing map[string]interface{}
 	err := s.collection.Find(ctx, filter).One(&existing)
 
 	if err == qmgo.ErrNoSuchDocuments {
@@ -124,7 +147,7 @@ func (s *Service) Delete(ctx context.Context, userID string) error {
 func (s *Service) UpdateRaw(ctx context.Context, userID string, update map[string]interface{}) error {
 	filter := qmgo.M{"userId": userID}
 
-	var existing models.Integration
+	var existing map[string]interface{}
 	err := s.collection.Find(ctx, filter).One(&existing)
 
 	if err == qmgo.ErrNoSuchDocuments {
@@ -142,7 +165,7 @@ func (s *Service) UpdateRaw(ctx context.Context, userID string, update map[strin
 	}
 
 	/* Verify deletion completed by reading back */
-	var updated models.Integration
+	var updated map[string]interface{}
 	readErr := s.collection.Find(ctx, filter).One(&updated)
 	if readErr != nil && readErr != qmgo.ErrNoSuchDocuments {
 		return readErr
@@ -191,6 +214,46 @@ func (s *Service) createDefaultVector(ctx context.Context, collection *qmgo.Coll
 
 	vector.ID = result.InsertedID.(primitive.ObjectID)
 	return &vector, nil
+}
+
+// normalizeBSONDoc converts all primitive.D/primitive.A values in a top-level
+// map to plain map[string]interface{}/[]interface{} recursively.
+// This is required because the mongo-driver decodes embedded BSON documents
+// within arrays as primitive.D, not map[string]interface{}, which breaks type
+// assertions in the encryption layer.
+func normalizeBSONDoc(doc map[string]interface{}) {
+	for k, v := range doc {
+		doc[k] = normalizeBSONValue(v)
+	}
+}
+
+func normalizeBSONValue(v interface{}) interface{} {
+	switch val := v.(type) {
+	case primitive.D:
+		m := make(map[string]interface{}, len(val))
+		for _, e := range val {
+			m[e.Key] = normalizeBSONValue(e.Value)
+		}
+		return m
+	case primitive.A:
+		s := make([]interface{}, len(val))
+		for i, e := range val {
+			s[i] = normalizeBSONValue(e)
+		}
+		return s
+	case map[string]interface{}:
+		for k, e := range val {
+			val[k] = normalizeBSONValue(e)
+		}
+		return val
+	case []interface{}:
+		for i, e := range val {
+			val[i] = normalizeBSONValue(e)
+		}
+		return val
+	default:
+		return v
+	}
 }
 
 func (s *Service) ensureServiceStoreExists(ctx context.Context, collection *qmgo.Collection, vector *models.LLMVector, service, userID string) error {

@@ -24,7 +24,13 @@ const ArrayIntegrationEmptyState: React.FC<Props> = ({ fieldName, titleId, onAdd
         <p className="text-sm text-muted-foreground mb-4">
           <FormattedMessage id="integrationSettings.none" />
         </p>
-        <Button data-type={`add-${fieldName}`} onClick={onAdd} size="sm" variant="accent">
+        <Button
+          aria-label={`Add ${fieldName} integration`}
+          data-type={`add-${fieldName}`}
+          onClick={onAdd}
+          size="sm"
+          variant="accent"
+        >
           <Plus className="h-4 w-4 mr-2" />
           <FormattedMessage id={`integration.${fieldName}.add`} />
         </Button>

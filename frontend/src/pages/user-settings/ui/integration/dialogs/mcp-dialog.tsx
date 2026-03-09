@@ -27,6 +27,11 @@ import { serializeArrayToSpaceSeparated, deserializeSpaceSeparatedToArray } from
 
 const mcpTransports = ['stdio', 'streamable-http', 'sse'] as const
 
+const timeoutMsField = z.preprocess(
+  val => (typeof val === 'number' && Number.isNaN(val) ? undefined : val),
+  z.number().int().min(5000).max(3600000).optional(),
+)
+
 const stdioSchema = z.object({
   alias: z.string().regex(/^\/[a-zA-Z][a-zA-Z0-9_-]*$/, 'Alias must start with / followed by alphanumeric'),
   transport: z.literal('stdio'),
@@ -35,7 +40,7 @@ const stdioSchema = z.object({
   description: z.string().optional(),
   command: z.string().min(1, 'Command is required'),
   args: z.string().optional(),
-  timeoutMs: z.number().int().min(5000).max(3600000).optional(),
+  timeoutMs: timeoutMsField,
 })
 
 const urlBasedFields = {
@@ -44,7 +49,7 @@ const urlBasedFields = {
   toolInputField: z.string().default('prompt'),
   description: z.string().optional(),
   serverUrl: z.string().url('Must be a valid URL'),
-  timeoutMs: z.number().int().min(5000).max(3600000).optional(),
+  timeoutMs: timeoutMsField,
 }
 
 const httpSchema = z.object({ ...urlBasedFields, transport: z.literal('streamable-http') })
@@ -76,7 +81,7 @@ interface Props extends DialogProps {
 
 const MCPDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAliases = [], isEdit = false }) => {
   const { mutateAsync: save } = useApiMutation<MCPFormValues, HttpError, MCPFormValues>({
-    url: isEdit ? `/integration/mcp/items/${data?.alias}` : '/integration/mcp/items',
+    url: isEdit ? `/integration/mcp/items/${encodeURIComponent(data?.alias ?? '')}` : '/integration/mcp/items',
     method: isEdit ? 'PUT' : 'POST',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => {

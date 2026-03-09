@@ -67,6 +67,12 @@ export class ArrayIntegrationPage {
   async goto() {
     await this.page.goto('/settings')
     await this.page.waitForLoadState('networkidle')
+    // At mobile viewports the settings page shows Profile/Integrations tabs with Profile
+    // selected by default. Click the Integrations tab so the integration section is visible.
+    const integrationsTab = this.page.locator('[role="tab"]:has-text("Integrations")')
+    if (await integrationsTab.count() > 0) {
+      await integrationsTab.click()
+    }
   }
 
   async openAddDialog(fieldName: 'mcp' | 'rpc'): Promise<void> {
@@ -184,7 +190,7 @@ export class ArrayIntegrationPage {
     await this.fillMCPForm(data)
     await this.submitDialog('mcp', false)
 
-    const card = this.page.locator(SELECTORS.integrationCard(data.alias))
+    const card = this.page.locator(SELECTORS.integrationCard(data.alias)).first()
     await expect(card).toBeVisible({ timeout: TIMEOUTS.cardAppear })
     return card
   }
@@ -194,7 +200,7 @@ export class ArrayIntegrationPage {
     await this.fillRPCForm(data)
     await this.submitDialog('rpc', false)
 
-    const card = this.page.locator(SELECTORS.integrationCard(data.alias))
+    const card = this.page.locator(SELECTORS.integrationCard(data.alias)).first()
     await expect(card).toBeVisible({ timeout: TIMEOUTS.cardAppear })
     return card
   }
@@ -257,7 +263,7 @@ export class ArrayIntegrationPage {
   }
 
   async deleteIntegration(alias: string, fieldName: 'mcp' | 'rpc'): Promise<void> {
-    const card = this.page.locator(SELECTORS.integrationCard(alias))
+    const card = this.page.locator(`[data-alias="${alias}"][data-field="${fieldName}"]`)
     await card.waitFor({ state: 'visible', timeout: TIMEOUTS.cardAppear })
 
     const deleteButton = card
@@ -289,7 +295,7 @@ export class ArrayIntegrationPage {
   }
 
   async verifyCardVisible(alias: string): Promise<Locator> {
-    const card = this.page.locator(SELECTORS.integrationCard(alias))
+    const card = this.page.locator(SELECTORS.integrationCard(alias)).first()
     await expect(card).toBeVisible({ timeout: TIMEOUTS.cardAppear })
     return card
   }
