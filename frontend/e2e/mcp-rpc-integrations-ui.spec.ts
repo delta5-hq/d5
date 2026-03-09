@@ -621,7 +621,7 @@ test.describe.serial('Cross-Field Independence', () => {
     await arrayPage.deleteIntegration('/temp1', 'mcp')
     await arrayPage.deleteIntegration('/temp2', 'mcp')
 
-    const emptyState = page.locator('text=No integrations').or(page.locator('[data-type="add-mcp"]'))
+    const emptyState = page.locator('[data-type="add-mcp"]')
     await expect(emptyState).toBeVisible()
   })
 })

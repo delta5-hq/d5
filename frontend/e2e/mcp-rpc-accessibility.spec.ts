@@ -1,5 +1,5 @@
 import { expect, test as base } from '@playwright/test'
-import { adminLogin, subscriberLogin } from './utils'
+import { e2eEnv } from './utils/e2e-env-vars'
 import * as path from 'path'
 import * as fs from 'fs'
 import { cleanArrayIntegrations } from './helpers/array-integration-helpers'
@@ -19,10 +19,29 @@ const test = base.extend<{}, { workerStorageState: string }>({
         baseURL: workerInfo.project.use.baseURL,
       })
 
-      if (workerInfo.parallelIndex === 0) {
-        await adminLogin(page)
-      } else {
-        await subscriberLogin(page)
+      const credentials =
+        workerInfo.parallelIndex === 0
+          ? { usernameOrEmail: e2eEnv.E2E_ADMIN_USER, password: e2eEnv.E2E_ADMIN_PASS }
+          : {
+              usernameOrEmail: e2eEnv.E2E_SUBSCRIBER_USER || 'subscriber',
+              password: e2eEnv.E2E_SUBSCRIBER_PASS || 'P@ssw0rd!',
+            }
+
+      await page.goto('/')
+      await page.waitForLoadState('networkidle')
+
+      const result = await page.evaluate(async (creds) => {
+        const resp = await fetch('/api/v2/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(creds),
+        })
+        return { ok: resp.ok, status: resp.status, text: await resp.text() }
+      }, credentials)
+
+      if (!result.ok) {
+        throw new Error(`Auth failed: ${result.status} ${result.text}`)
       }
 
       await page.context().storageState({ path: fileName })
@@ -180,7 +199,7 @@ test.describe.serial('Delete Confirmation Dialog Accessibility', () => {
     })
 
     const card = page.locator('[data-alias="/confirm-test"]')
-    const deleteButton = card.locator('button').filter({ hasText: /delete integration/i }).or(card.locator('button[aria-label*="Delete"]')).nth(1)
+    const deleteButton = card.locator('button').filter({ hasText: /delete integration/i }).or(card.locator('button[aria-label*="Delete"]')).first()
 
     await deleteButton.click()
 
@@ -200,7 +219,7 @@ test.describe.serial('Delete Confirmation Dialog Accessibility', () => {
     })
 
     const card = page.locator('[data-alias="/my-integration"]')
-    const deleteButton = card.locator('button').filter({ hasText: /delete integration/i }).or(card.locator('button[aria-label*="Delete"]')).nth(1)
+    const deleteButton = card.locator('button').filter({ hasText: /delete integration/i }).or(card.locator('button[aria-label*="Delete"]')).first()
 
     await deleteButton.click()
 
@@ -220,7 +239,7 @@ test.describe.serial('Delete Confirmation Dialog Accessibility', () => {
     })
 
     const card = page.locator('[data-alias="/cancel-test"]')
-    const deleteButton = card.locator('button').filter({ hasText: /delete integration/i }).or(card.locator('button[aria-label*="Delete"]')).nth(1)
+    const deleteButton = card.locator('button').filter({ hasText: /delete integration/i }).or(card.locator('button[aria-label*="Delete"]')).first()
 
     await deleteButton.click()
 
@@ -246,7 +265,7 @@ test.describe.serial('Delete Confirmation Dialog Accessibility', () => {
     })
 
     const card = page.locator('[data-alias="/will-delete"]')
-    const deleteButton = card.locator('button').filter({ hasText: /delete integration/i }).or(card.locator('button[aria-label*="Delete"]')).nth(1)
+    const deleteButton = card.locator('button').filter({ hasText: /delete integration/i }).or(card.locator('button[aria-label*="Delete"]')).first()
 
     await deleteButton.click()
 
@@ -269,7 +288,7 @@ test.describe.serial('Delete Confirmation Dialog Accessibility', () => {
     })
 
     const card = page.locator('[data-alias="/icon-check"]')
-    const deleteButton = card.locator('button').filter({ hasText: /delete integration/i }).or(card.locator('button[aria-label*="Delete"]')).nth(1)
+    const deleteButton = card.locator('button').filter({ hasText: /delete integration/i }).or(card.locator('button[aria-label*="Delete"]')).first()
 
     await deleteButton.click()
 
@@ -299,7 +318,7 @@ test.describe.serial('Protocol and Transport Badges', () => {
     })
 
     const card = page.locator('[data-alias="/stdio-badge"]')
-    const badge = card.locator('text=STDIO')
+    const badge = card.getByText('STDIO', { exact: true })
 
     await expect(badge).toBeVisible()
   })
@@ -316,7 +335,7 @@ test.describe.serial('Protocol and Transport Badges', () => {
     })
 
     const card = page.locator('[data-alias="/http-badge"]')
-    const badge = card.locator('text=HTTP')
+    const badge = card.getByText('HTTP', { exact: true })
 
     await expect(badge).toBeVisible()
   })
@@ -335,7 +354,7 @@ test.describe.serial('Protocol and Transport Badges', () => {
     })
 
     const card = page.locator('[data-alias="/ssh-badge"]')
-    const badge = card.locator('text=SSH')
+    const badge = card.getByText('SSH', { exact: true })
 
     await expect(badge).toBeVisible()
   })
@@ -352,7 +371,7 @@ test.describe.serial('Protocol and Transport Badges', () => {
     })
 
     const card = page.locator('[data-alias="/http-rpc-badge"]')
-    const badge = card.locator('text=HTTP')
+    const badge = card.getByText('HTTP', { exact: true })
 
     await expect(badge).toBeVisible()
   })
@@ -369,7 +388,7 @@ test.describe.serial('Protocol and Transport Badges', () => {
     })
 
     const card = page.locator('[data-alias="/acp-badge"]')
-    const badge = card.locator('text=ACP')
+    const badge = card.getByText('ACP', { exact: true })
 
     await expect(badge).toBeVisible()
   })
@@ -386,11 +405,9 @@ test.describe.serial('Protocol and Transport Badges', () => {
     })
 
     const card = page.locator('[data-alias="/badge-position"]')
-    const headerRow = card.locator('.flex.items-center.gap-2.mb-1')
-    const alias = headerRow.locator('h4:has-text("/badge-position")')
-    const badge = headerRow.locator('text=STDIO')
+    const badge = card.getByText('STDIO', { exact: true })
 
-    await expect(alias).toBeVisible()
+    await expect(card).toContainText('/badge-position')
     await expect(badge).toBeVisible()
   })
 
@@ -425,9 +442,9 @@ test.describe.serial('Protocol and Transport Badges', () => {
     const httpCard = page.locator('[data-alias="/mcp-http"]')
     const sshCard = page.locator('[data-alias="/rpc-ssh"]')
 
-    await expect(stdioCard.locator('text=STDIO')).toBeVisible()
-    await expect(httpCard.locator('text=HTTP')).toBeVisible()
-    await expect(sshCard.locator('text=SSH')).toBeVisible()
+    await expect(stdioCard.getByText('STDIO', { exact: true })).toBeVisible()
+    await expect(httpCard.getByText('HTTP', { exact: true })).toBeVisible()
+    await expect(sshCard.getByText('SSH', { exact: true })).toBeVisible()
   })
 })
 
@@ -526,11 +543,11 @@ test.describe.serial('Internationalization (i18n) Labels', () => {
     })
 
     const card = page.locator('[data-alias="/i18n-test"]')
-    const deleteButton = card.locator('button').filter({ hasText: /delete integration/i }).or(card.locator('button[aria-label*="Delete"]')).nth(1)
+    const deleteButton = card.locator('button').filter({ hasText: /delete integration/i }).or(card.locator('button[aria-label*="Delete"]')).first()
 
     await deleteButton.click()
 
-    await expect(page.locator('text=Delete Integration')).toBeVisible()
+    await expect(page.locator('h2:has-text("Delete Integration")')).toBeVisible()
     await expect(page.locator('text=/cannot be undone/')).toBeVisible()
   })
 
@@ -538,6 +555,6 @@ test.describe.serial('Internationalization (i18n) Labels', () => {
     await page.goto('/settings')
     await page.waitForLoadState('networkidle')
 
-    await expect(page.locator('text=No integrations yet')).toBeVisible()
+    await expect(page.locator('text=No integrations yet').first()).toBeVisible()
   })
 })

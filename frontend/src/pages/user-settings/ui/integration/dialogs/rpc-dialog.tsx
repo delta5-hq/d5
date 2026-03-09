@@ -37,6 +37,11 @@ const acpAutoApproveOptions = ['all', 'none', 'whitelist'] as const
 const rpcMethods = ['GET', 'POST', 'PUT'] as const
 const rpcOutputFormats = ['text', 'json'] as const
 
+const timeoutMsField = z.preprocess(
+  val => (typeof val === 'number' && Number.isNaN(val) ? undefined : val),
+  z.number().int().min(5000).max(7200000).optional(),
+)
+
 const sshSchema = z.object({
   alias: z.string().regex(/^\/[a-zA-Z][a-zA-Z0-9_-]*$/, 'Alias must start with / followed by alphanumeric'),
   protocol: z.literal('ssh'),
@@ -48,7 +53,7 @@ const sshSchema = z.object({
   passphrase: z.string().optional(),
   commandTemplate: z.string().min(1, 'Command template is required'),
   workingDir: z.string().optional(),
-  timeoutMs: z.number().int().min(5000).max(7200000).optional(),
+  timeoutMs: timeoutMsField,
   outputFormat: z.enum(rpcOutputFormats).default('text'),
   outputField: z.string().optional(),
   sessionIdField: z.string().default('session_id'),
@@ -60,8 +65,9 @@ const httpSchema = z.object({
   description: z.string().optional(),
   url: z.string().url('Must be a valid URL'),
   method: z.enum(rpcMethods).default('POST'),
+  headers: z.string().optional(),
   bodyTemplate: z.string().optional(),
-  timeoutMs: z.number().int().min(5000).max(7200000).optional(),
+  timeoutMs: timeoutMsField,
   outputFormat: z.enum(rpcOutputFormats).default('text'),
   outputField: z.string().optional(),
   sessionIdField: z.string().default('session_id'),
@@ -75,7 +81,7 @@ const acpLocalSchema = z.object({
   args: z.string().optional(),
   env: z.string().optional(),
   workingDir: z.string().optional(),
-  timeoutMs: z.number().int().min(5000).max(7200000).optional(),
+  timeoutMs: timeoutMsField,
   autoApprove: z.enum(acpAutoApproveOptions).default('none'),
   allowedTools: z.string().optional(),
 })
@@ -120,7 +126,7 @@ interface Props extends DialogProps {
 
 const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAliases = [], isEdit = false }) => {
   const { mutateAsync: save } = useApiMutation<RPCFormValues, HttpError, RPCFormValues>({
-    url: isEdit ? `/integration/rpc/items/${data?.alias}` : '/integration/rpc/items',
+    url: isEdit ? `/integration/rpc/items/${encodeURIComponent(data?.alias ?? '')}` : '/integration/rpc/items',
     method: isEdit ? 'PUT' : 'POST',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => {
@@ -372,7 +378,7 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
                   onValueChange={(val: (typeof rpcMethods)[number]) => setValue('method', val)}
                   value={watch('method')}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="method">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -464,7 +470,7 @@ const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAlia
                   onValueChange={(val: (typeof acpAutoApproveOptions)[number]) => setValue('autoApprove', val)}
                   value={watch('autoApprove')}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="autoApprove">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

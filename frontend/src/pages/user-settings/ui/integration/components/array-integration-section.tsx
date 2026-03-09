@@ -79,7 +79,12 @@ const ArrayIntegrationSection: React.FC<Props> = ({ fieldName, titleId, items, o
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {items.map(item => (
-            <Card className="hover:shadow-md transition-shadow" data-alias={item.alias} key={item.alias}>
+            <Card
+              className="hover:shadow-md transition-shadow"
+              data-alias={item.alias}
+              data-field={fieldName}
+              key={item.alias}
+            >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
