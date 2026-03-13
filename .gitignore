@@ -43,3 +43,6 @@ junit.xml
 *-e2e-output.log
 frontend-e2e-output.log
 backend-e2e-output.log
+
+contribot.*.json
+transcripts/

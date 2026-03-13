@@ -1,4 +1,5 @@
-import {LLMChain, PromptTemplate} from 'langchain'
+import {LLMChain} from '@langchain/classic/chains'
+import {PromptTemplate} from '@langchain/core/prompts'
 import {JSKnowledgeMapResultTool} from './JSKnowledgeMapResultTool'
 import {
   getJSKnowledgeMapConvertInstructions,
@@ -6,8 +7,8 @@ import {
   JS_KNOWLEDGE_MAP_DESCRIPTION_EN,
   JS_KNOWLEDGE_MAP_NAME_EN,
 } from '../../../constants/localizedPrompts/JSKnowledgeMapConstants'
-import {HumanMessage} from 'langchain/schema'
-import {BaseLLM} from 'langchain/llms/base'
+import {HumanMessage} from '@langchain/core/messages'
+import {BaseLLM} from '@langchain/core/language_models/llms'
 
 export class JSKnowledgeMapSearch {
   result = ''

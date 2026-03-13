@@ -1,4 +1,4 @@
-import {AgentActionOutputParser} from 'langchain/agents'
+import {AgentActionOutputParser} from '@langchain/classic/agents'
 import {
   FINAL_ANSWER_ACTION_EN,
   FORMAT_INSTRUCTIONS_EN,

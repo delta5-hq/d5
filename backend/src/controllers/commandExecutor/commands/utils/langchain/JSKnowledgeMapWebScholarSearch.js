@@ -1,4 +1,5 @@
-import {PromptTemplate, LLMChain} from 'langchain'
+import {LLMChain} from '@langchain/classic/chains'
+import {PromptTemplate} from '@langchain/core/prompts'
 import {DocumentRetriever} from './DocumentRetriever'
 import {JSKnowledgeMapResultTool} from './JSKnowledgeMapResultTool'
 import {

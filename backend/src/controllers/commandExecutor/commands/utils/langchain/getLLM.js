@@ -15,11 +15,11 @@ import {
   QWEN_DEFAULT_MODEL,
   YANDEX_DEFAULT_MODEL,
 } from '../../../../../constants'
-import {OpenAIEmbeddings} from 'langchain/embeddings/openai'
+import {OpenAIEmbeddings} from '@langchain/openai'
 import {readLangParam} from '../../../constants'
 import {Lang} from '../../../constants/localizedPrompts'
 import {EmbStorageType} from '../../../../../shared/config/constants'
-import {ChatOpenAI} from 'langchain/chat_models/openai'
+import {ChatOpenAI} from '@langchain/openai'
 import {
   QWEN_API_URL,
   DEEPSEEK_API_URL,
@@ -78,8 +78,8 @@ export const getLLM = ({type, settings, log}) => {
       const llm = new ChatOpenAI({
         temperature,
         maxRetries: 20,
-        openAIApiKey,
-        modelName,
+        apiKey: openAIApiKey,
+        model: modelName,
       })
 
       return {llm, chunkSize}
@@ -101,10 +101,10 @@ export const getLLM = ({type, settings, log}) => {
       const chunkSize = getQwenMaxInput(modelName)
 
       const llm = new ChatOpenAI({
-        openAIApiKey: apiKey,
-        modelName,
+        apiKey,
+        model: modelName,
         configuration: {
-          basePath: QWEN_API_URL,
+          baseURL: QWEN_API_URL,
         },
         topP: 0.7,
       })
@@ -115,10 +115,10 @@ export const getLLM = ({type, settings, log}) => {
       const chunkSize = getDeepseekMaxInput()
 
       const llm = new ChatOpenAI({
-        openAIApiKey: apiKey,
-        modelName,
+        apiKey,
+        model: modelName,
         configuration: {
-          basePath: DEEPSEEK_API_URL,
+          baseURL: DEEPSEEK_API_URL,
         },
       })
       return {llm, chunkSize}
@@ -161,7 +161,7 @@ export const getEmbeddings = ({type, settings}) => {
       const {apiKey} = settings?.openai || {}
 
       const embeddings = new OpenAIEmbeddings({
-        openAIApiKey: apiKey || OPENAI_API_KEY,
+        apiKey: apiKey || OPENAI_API_KEY,
       })
 
       const chunkSize = 8191
@@ -184,15 +184,13 @@ export const getEmbeddings = ({type, settings}) => {
     case Model.Qwen: {
       const {apiKey} = settings?.qwen ?? {}
 
-      const embeddings = new OpenAIEmbeddings(
-        {
-          openAIApiKey: apiKey,
-          modelName: 'text-embedding-v3',
+      const embeddings = new OpenAIEmbeddings({
+        apiKey,
+        model: 'text-embedding-v3',
+        configuration: {
+          baseURL: QWEN_API_URL,
         },
-        {
-          basePath: QWEN_API_URL,
-        },
-      )
+      })
 
       const chunkSize = 4096
       const similarityThreshold = 0.75

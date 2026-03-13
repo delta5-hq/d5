@@ -1,4 +1,4 @@
-import {DynamicTool} from 'langchain/tools'
+import {DynamicTool} from '@langchain/core/tools'
 
 export class JSKnowledgeMapResultTool extends DynamicTool {
   constructor(parent, fields) {

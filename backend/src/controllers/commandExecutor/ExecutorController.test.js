@@ -1,5 +1,5 @@
-import {BaseChatModel} from 'langchain/chat_models/base'
-import {LLMChain} from 'langchain'
+import {BaseChatModel} from '@langchain/core/language_models/chat_models'
+import {LLMChain} from '@langchain/classic/chains'
 import {customerRequest} from '../../utils/test/userRequests'
 import {getIntegrationSettings, getLLM} from './commands/utils/langchain/getLLM'
 import {generateNodeId} from '../../shared/utils/generateId'
@@ -9,8 +9,8 @@ jest.mock('../../shared/utils/generateId')
 
 describe('ExecutorController', () => {
   const apiEndpoint = '/execute'
-  const modelCallSpy = jest.spyOn(BaseChatModel.prototype, 'call')
-  const chainCallSpy = jest.spyOn(LLMChain.prototype, 'call')
+  const modelCallSpy = jest.spyOn(BaseChatModel.prototype, 'invoke')
+  const chainCallSpy = jest.spyOn(LLMChain.prototype, 'invoke')
   getIntegrationSettings.mockResolvedValue({
     openai: {apiKey: 'apiKey', model: 'model'},
   })
