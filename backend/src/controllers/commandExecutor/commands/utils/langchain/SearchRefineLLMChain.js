@@ -1,4 +1,4 @@
-import {LLMChain} from 'langchain'
+import {LLMChain} from '@langchain/classic/chains'
 
 export function sanitizeRefineOutput(str) {
   return str

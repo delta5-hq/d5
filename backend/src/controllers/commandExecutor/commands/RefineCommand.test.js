@@ -1,4 +1,4 @@
-import {BaseChatModel} from 'langchain/chat_models/base'
+import {BaseChatModel} from '@langchain/core/language_models/chat_models'
 import {RefineCommand} from './RefineCommand'
 import Store from './utils/Store'
 
@@ -111,7 +111,7 @@ describe('RefineCommand', () => {
       [node.id]: node,
     }
 
-    const spy = jest.spyOn(BaseChatModel, 'call').mockRejectedValue()
+    const spy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValue()
     await command.run(node)
     const result = mockStore.getOutput()
 
@@ -125,7 +125,7 @@ describe('RefineCommand', () => {
       [node.id]: node,
     }
 
-    const spy = jest.spyOn(BaseChatModel, 'call').mockRejectedValue()
+    const spy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValue()
     const getRefineSpy = jest.spyOn(command, 'getRefinePrompt').mockReturnValue(true)
     await command.run(node)
     const result = mockStore.getOutput()

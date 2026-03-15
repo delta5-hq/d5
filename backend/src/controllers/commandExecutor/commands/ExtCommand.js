@@ -83,7 +83,7 @@ export class ExtCommand {
 
       const executor = createSimpleAgentExecutor(llm, tools, lang)
 
-      let result = (await executor.call({input: userInput})).output
+      let result = (await executor.invoke({input: userInput})).output
 
       if (lang && result) {
         result = await this.translate(result, llm, lang)

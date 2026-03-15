@@ -1,5 +1,5 @@
-import {RecursiveCharacterTextSplitter} from 'langchain/text_splitter'
-import {MemoryVectorStore} from 'langchain/vectorstores/memory'
+import {RecursiveCharacterTextSplitter} from '@langchain/textsplitters'
+import {MemoryVectorStore} from '@langchain/classic/vectorstores/memory'
 import {chunk} from './utils/chunk'
 
 const DEFAULT_CHUNK_SIZE = 8191

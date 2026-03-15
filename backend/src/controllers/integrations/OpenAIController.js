@@ -35,7 +35,7 @@ const OpenAIController = {
 
       ctx.body = data
     } catch (error) {
-      const statusCode = error.response ? error.response.status : 500
+      const statusCode = error.status || (error.response ? error.response.status : 500)
       ctx.throw(statusCode, error.message)
     }
   },
@@ -69,7 +69,7 @@ const OpenAIController = {
 
       ctx.body = response
     } catch (error) {
-      const statusCode = error.response ? error.response.status : 500
+      const statusCode = error.status || (error.response ? error.response.status : 500)
       ctx.throw(statusCode, error.message)
     }
   },
@@ -93,7 +93,7 @@ const OpenAIController = {
 
       ctx.body = response
     } catch (error) {
-      const statusCode = error.response ? error.response.status : 500
+      const statusCode = error.status || (error.response ? error.response.status : 500)
       ctx.throw(statusCode, error.message)
     }
   },

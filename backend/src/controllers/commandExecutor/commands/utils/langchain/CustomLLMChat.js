@@ -1,8 +1,8 @@
-import {BaseChatModel} from 'langchain/chat_models/base'
-import {AIMessage} from 'langchain/schema'
+import {BaseChatModel} from '@langchain/core/language_models/chat_models'
+import {AIMessage} from '@langchain/core/messages'
 import fetch from 'node-fetch'
 import {CustomLLMApiType, CUSTOM_LLM_TIMEOUT_MS} from '../../../../../constants'
-import {Embeddings} from 'langchain/embeddings/base'
+import {Embeddings} from '@langchain/core/embeddings'
 import {abortSignalAny, abortSignalTimeout} from './abortSignals'
 
 export function cleanChainOfThoughtText(text) {

@@ -1,4 +1,4 @@
-import {BaseChatModel} from 'langchain/chat_models/base'
+import {BaseChatModel} from '@langchain/core/language_models/chat_models'
 
 // Mock the reference patterns module
 jest.mock('./references/utils/referencePatterns', () => ({
@@ -46,7 +46,7 @@ describe('ExtCommand', () => {
     substituteReferencesAndHashrefsChildrenAndSelf.mockReturnValue('substituted prompt')
   })
 
-  const callSpy = jest.spyOn(BaseChatModel.prototype, 'call')
+  const callSpy = jest.spyOn(BaseChatModel.prototype, 'invoke')
 
   beforeEach(() => {
     callSpy.mockClear()

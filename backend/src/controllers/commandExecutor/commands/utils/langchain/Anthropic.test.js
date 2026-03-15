@@ -1,5 +1,5 @@
 import {ChatClaude, _parseChatHistory} from './Anthropic'
-import {HumanMessage, AIMessage, SystemMessage} from 'langchain/schema'
+import {HumanMessage, AIMessage, SystemMessage} from '@langchain/core/messages'
 import fetch from 'node-fetch'
 
 jest.mock('node-fetch', () => jest.fn())
@@ -50,7 +50,7 @@ describe('ChatClaude request formatting', () => {
 
     const messages = [new SystemMessage('Be concise.'), new HumanMessage('What color is the sky?')]
 
-    await claude.call(messages)
+    await claude.invoke(messages)
 
     const body = JSON.parse(fetch.mock.calls[0][1].body)
 

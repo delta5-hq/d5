@@ -1,8 +1,9 @@
 import debug from 'debug'
 import {substituteReferences, substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
-import {HumanMessage} from 'langchain/schema'
+import {HumanMessage} from '@langchain/core/messages'
 import {determineLLMType, getIntegrationSettings, getLLM} from './utils/langchain/getLLM'
-import {LLMChain, PromptTemplate} from 'langchain'
+import {LLMChain} from '@langchain/classic/chains'
+import {PromptTemplate} from '@langchain/core/prompts'
 import {clearCommandsWithParams, clearReferences, HASHREF_DEF_PREFIX, REF_DEF_PREFIX} from '../constants'
 import {clearStepsPrefix} from '../constants/steps'
 // eslint-disable-next-line no-unused-vars
@@ -85,7 +86,7 @@ export class RefineCommand {
         prompt,
       })
 
-      const {text} = await chain.call({
+      const {text} = await chain.invoke({
         existing_response: content,
         prompt: question,
       })
@@ -105,7 +106,7 @@ export class RefineCommand {
       const llmType = determineLLMType(node.command, settings)
       const {llm} = getLLM({type: llmType, settings})
 
-      const result = await llm.call([new HumanMessage(prompt)])
+      const result = await llm.invoke([new HumanMessage(prompt)])
 
       return result.content
     } catch (error) {

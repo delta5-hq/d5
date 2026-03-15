@@ -1,7 +1,7 @@
 import {QwenCommand} from './QwenCommand'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import {getIntegrationSettings} from './utils/langchain/getLLM'
-import {OpenAIApi} from 'openai'
+import OpenAI from 'openai'
 import {refRegExp} from '../constants'
 import {clearStepsPrefix} from '../constants/steps'
 import Store from './utils/Store'
@@ -9,7 +9,12 @@ import Store from './utils/Store'
 // Mock modules
 jest.mock('./references/substitution')
 jest.mock('./utils/langchain/getLLM')
-jest.mock('openai')
+jest.mock('openai', () => {
+  return {
+    __esModule: true,
+    default: jest.fn(),
+  }
+})
 jest.mock('../constants/steps', () => ({
   clearStepsPrefix: jest.fn(str => `cleared ${str}`),
 }))
@@ -38,13 +43,15 @@ describe('QwenCommand', () => {
       qwen: {apiKey: 'apiKey', model: 'model'},
     })
 
-    // Mock OpenAIApi createChatCompletion method
-    OpenAIApi.mockImplementation(() => ({
-      createChatCompletion: jest.fn().mockResolvedValue({
-        data: {
-          choices: [{message: {content: 'qwen response'}}],
+    // Mock OpenAI chat.completions.create method
+    OpenAI.mockImplementation(() => ({
+      chat: {
+        completions: {
+          create: jest.fn().mockResolvedValue({
+            choices: [{message: {content: 'qwen response'}}],
+          }),
         },
-      }),
+      },
     }))
   })
 
