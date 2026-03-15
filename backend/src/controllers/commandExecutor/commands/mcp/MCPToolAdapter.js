@@ -1,4 +1,4 @@
-import {DynamicTool} from 'langchain/tools'
+import {DynamicTool} from '@langchain/core/tools'
 import {formatToolResult} from './MCPClientManager'
 import {MCP_DEFAULT_TIMEOUT_MS} from '../../constants/mcp'
 
