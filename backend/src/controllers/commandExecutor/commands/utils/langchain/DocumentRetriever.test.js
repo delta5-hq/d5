@@ -3,7 +3,7 @@ import {DocumentRetriever, USEFUL_NUMBER_OF_TOKENS} from './DocumentRetriever'
 import {getEmbeddings, Model} from './getLLM'
 import {SearchScrape} from './SearchScrape'
 import {estimateTokenCount} from './estimateTokenCount'
-import {BaseChain} from 'langchain/chains'
+import {BaseChain} from '@langchain/classic/chains'
 
 jest.mock('./estimateTokenCount')
 

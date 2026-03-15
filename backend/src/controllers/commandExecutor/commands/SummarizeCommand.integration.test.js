@@ -1,4 +1,4 @@
-import {BaseChain} from 'langchain/chains'
+import {BaseChain} from '@langchain/classic/chains'
 import {COMPLETION_QUERY_TYPE} from '../constants/completion'
 import {ChatCommand} from './ChatCommand'
 import {SummarizeCommand} from './SummarizeCommand'

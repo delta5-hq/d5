@@ -1,6 +1,6 @@
 import debug from 'debug'
 import {clearCommandsWithParams} from '../constants'
-import {HumanMessage, SystemMessage} from 'langchain/schema'
+import {HumanMessage, SystemMessage} from '@langchain/core/messages'
 import {clearStepsPrefix} from '../constants/steps'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import {runCommand} from './utils/runCommand'
@@ -61,7 +61,7 @@ export class SwitchCommand {
   async executeSwitch(userPrompt, sysPrompt, llm) {
     try {
       const messages = [new SystemMessage(sysPrompt), new HumanMessage(userPrompt)]
-      const result = await llm.call(messages)
+      const result = await llm.invoke(messages)
 
       return result.content
     } catch (error) {

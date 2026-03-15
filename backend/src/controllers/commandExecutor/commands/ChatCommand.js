@@ -5,8 +5,8 @@ import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/subst
 import {readJoinParam, readTableParam} from '../constants/yandex'
 import {getIntegrationSettings} from './utils/langchain/getLLM'
 import {DEFAULT_OPENAI_MODEL_NAME, OPENAI_API_KEY} from '../../../constants'
-import {ChatOpenAI} from 'langchain/chat_models/openai'
-import {HumanMessage, SystemMessage} from 'langchain/schema'
+import {ChatOpenAI} from '@langchain/openai'
+import {HumanMessage, SystemMessage} from '@langchain/core/messages'
 import {referencePatterns} from './references/utils/referencePatterns'
 import {clearReferences} from './references/utils/referenceUtils'
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
@@ -47,7 +47,7 @@ export class ChatCommand {
         modelName: openai?.model || DEFAULT_OPENAI_MODEL_NAME,
       })
 
-      const result = await llm.call(
+      const result = await llm.invoke(
         messages.map(m => {
           return m.role === 'system' ? new SystemMessage(m.content) : new HumanMessage(m.content)
         }),

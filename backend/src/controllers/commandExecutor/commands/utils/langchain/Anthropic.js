@@ -1,5 +1,5 @@
-import {BaseChatModel} from 'langchain/chat_models/base'
-import {AIMessage} from 'langchain/schema'
+import {BaseChatModel} from '@langchain/core/language_models/chat_models'
+import {AIMessage} from '@langchain/core/messages'
 import {ANTHROPIC_VERSION, CLAUDE_API_URL} from '../../../../../shared/config/constants'
 import fetch from 'node-fetch'
 

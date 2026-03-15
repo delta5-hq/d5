@@ -1,7 +1,7 @@
 import {ForeachCommand} from './ForeachCommand'
 import {runCommand} from './utils/runCommand'
 import Integration from '../../../models/Integration'
-import {RefineDocumentsChain} from 'langchain/chains'
+import {RefineDocumentsChain} from '@langchain/classic/chains'
 import {getLLM, Model} from './utils/langchain/getLLM'
 import {REF_PREFIX} from '../constants'
 import {translate} from './utils/translate'
@@ -662,7 +662,7 @@ describe('ForeachCommand', () => {
         lean: jest.fn().mockReturnValue(settings),
       })
 
-      jest.spyOn(RefineDocumentsChain.prototype, 'call').mockReturnValue({
+      jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockReturnValue({
         output_text: 'translated response',
       })
 
@@ -720,7 +720,7 @@ describe('ForeachCommand', () => {
         lean: jest.fn().mockReturnValue(settings),
       })
 
-      jest.spyOn(RefineDocumentsChain.prototype, 'call').mockReturnValue({
+      jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockReturnValue({
         output_text: 'response',
       })
 

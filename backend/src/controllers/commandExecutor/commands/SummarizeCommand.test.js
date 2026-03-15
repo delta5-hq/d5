@@ -1,7 +1,7 @@
 import {FOREACH_QUERY} from '../constants/foreach'
 import {SUMMARIZE_PARAM_PARENT} from '../constants/summarize'
 import {SummarizeCommand} from './SummarizeCommand'
-import {RefineDocumentsChain} from 'langchain/chains'
+import {RefineDocumentsChain} from '@langchain/classic/chains'
 import {getLLM, Model, getIntegrationSettings} from './utils/langchain/getLLM'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 
@@ -27,7 +27,7 @@ jest.mock('./references/substitution', () => ({
   ...jest.requireActual('./references/substitution'),
   substituteReferencesAndHashrefsChildrenAndSelf: jest.fn(),
 }))
-jest.mock('langchain/chains')
+jest.mock('@langchain/classic/chains')
 
 // Mock the constants module
 jest.mock('../constants/steps', () => ({
@@ -95,7 +95,7 @@ describe('SummarizeCommand', () => {
     // Mock translate for language tests
     command.translate = jest.fn().mockResolvedValue('translated output')
 
-    jest.spyOn(RefineDocumentsChain.prototype, 'call').mockResolvedValue({
+    jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockResolvedValue({
       output_text: 'refined text',
     })
   })

@@ -5,7 +5,7 @@ import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/subst
 import {getIntegrationSettings} from './utils/langchain/getLLM'
 import {PERPLEXITY_DEFAULT_MODEL} from '../../../constants'
 import {PERPLEXITY_API_URL} from '../../../shared/config/constants'
-import {Configuration, OpenAIApi} from 'openai'
+import OpenAI from 'openai'
 import {cleanChainOfThoughtText} from '../../utils/cleanChainOfThoughtText'
 import {referencePatterns} from './references/utils/referencePatterns'
 import {clearReferences} from './references/utils/referenceUtils' // Direct import
@@ -21,9 +21,12 @@ const log = debug('delta5:app:Command:Perplexity')
  */
 export class PerplexityCommand {
   static async call(messages, credentials, callOptions) {
-    const model = new OpenAIApi(new Configuration({apiKey: credentials.apiKey}), PERPLEXITY_API_URL)
+    const client = new OpenAI({
+      apiKey: credentials.apiKey,
+      baseURL: PERPLEXITY_API_URL,
+    })
 
-    const result = await model.createChatCompletion(
+    const result = await client.chat.completions.create(
       {
         messages,
         model: credentials.model || PERPLEXITY_DEFAULT_MODEL,
@@ -31,7 +34,7 @@ export class PerplexityCommand {
       callOptions,
     )
 
-    return result.data
+    return result
   }
 
   /**

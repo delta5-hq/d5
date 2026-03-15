@@ -1,11 +1,11 @@
-import {MemoryVectorStore} from 'langchain/vectorstores/memory'
-import {RecursiveCharacterTextSplitter} from 'langchain/text_splitter'
+import {MemoryVectorStore} from '@langchain/classic/vectorstores/memory'
+import {RecursiveCharacterTextSplitter} from '@langchain/textsplitters'
 import LLMVector from '../models/LLMVector'
 import {EmbStorageType} from '../shared/config/constants'
 import LLMVectorController from './LLMVectorController'
 
-jest.mock('langchain/vectorstores/memory')
-jest.mock('langchain/text_splitter')
+jest.mock('@langchain/classic/vectorstores/memory')
+jest.mock('@langchain/textsplitters')
 jest.mock('../models/LLMVector')
 
 describe('LLMVectorController', () => {
