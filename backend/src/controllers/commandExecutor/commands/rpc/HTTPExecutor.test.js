@@ -1,6 +1,5 @@
 import {HTTPExecutor} from './HTTPExecutor'
 
-/* global fetch */
 global.fetch = jest.fn()
 
 describe('HTTPExecutor', () => {

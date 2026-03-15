@@ -1,7 +1,5 @@
 import {RPC_DEFAULT_TIMEOUT_MS, RPC_HTTP_METHOD} from '../../constants/rpc'
 
-/* global fetch */
-
 export class HTTPExecutor {
   async execute({url, method = RPC_HTTP_METHOD.POST, headers = {}, body = null, timeoutMs = RPC_DEFAULT_TIMEOUT_MS}) {
     const controller = new AbortController()
