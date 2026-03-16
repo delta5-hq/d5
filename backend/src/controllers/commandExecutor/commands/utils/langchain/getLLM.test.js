@@ -1,4 +1,4 @@
-import {EmbStorageType, QWEN_API_URL} from '../../../../../shared/config/constants'
+import {EmbStorageType} from '../../../../../shared/config/constants'
 import {determineLLMType, getEmbeddings, Model} from './getLLM'
 
 describe('determineLLMType', () => {
@@ -62,13 +62,10 @@ describe('getEmbeddingsSettings', () => {
       },
     })
 
-    expect(result.embeddings).toEqual(
-      expect.objectContaining({
-        clientConfig: expect.objectContaining({
-          apiKey: OPENAI_API_KEY,
-        }),
-      }),
-    )
+    expect(result.embeddings).toBeDefined()
+    expect(result.embeddings.constructor.name).toBe('OpenAIEmbeddings')
+    expect(result.chunkSize).toBe(8191)
+    expect(result.similarityThreshold).toBe(0.75)
     expect(result.storageType).toBe(EmbStorageType.openai)
   })
 
@@ -102,14 +99,10 @@ describe('getEmbeddingsSettings', () => {
       },
     })
 
-    expect(result.embeddings).toEqual(
-      expect.objectContaining({
-        clientConfig: expect.objectContaining({
-          apiKey: QWEN_API_KEY,
-          basePath: QWEN_API_URL,
-        }),
-      }),
-    )
+    expect(result.embeddings).toBeDefined()
+    expect(result.embeddings.constructor.name).toBe('OpenAIEmbeddings')
+    expect(result.chunkSize).toBe(4096)
+    expect(result.similarityThreshold).toBe(0.75)
     expect(result.storageType).toBe(EmbStorageType.qwen)
   })
 

@@ -1,5 +1,5 @@
 import {_parseChatHistory, CustomLLMChat} from './CustomLLMChat'
-import {HumanMessage, AIMessage, SystemMessage} from 'langchain/schema'
+import {HumanMessage, AIMessage, SystemMessage} from '@langchain/core/messages'
 import fetch from 'node-fetch'
 import {CustomLLMApiType} from '../../../../../constants'
 
@@ -49,7 +49,7 @@ describe('CustomLLMChat request formatting', () => {
 
     const messages = [new SystemMessage('Be concise.'), new HumanMessage('What color is the sky?')]
 
-    await llm.call(messages)
+    await llm.invoke(messages)
 
     const fetchCall = fetch.mock.calls[0]
     const body = JSON.parse(fetchCall[1].body)

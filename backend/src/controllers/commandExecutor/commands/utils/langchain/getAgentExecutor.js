@@ -7,7 +7,7 @@ import {
   getSimpleStop,
   getSimpleSuffix,
 } from '../../../constants/localizedPrompts/SimpleAgentConstants'
-import {AgentExecutor} from 'langchain/agents'
+import {AgentExecutor} from '@langchain/classic/agents'
 import {JSOutliningAgent} from './JSOutliningAgent'
 import {
   getOutlineFinalAnswer,

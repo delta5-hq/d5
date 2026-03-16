@@ -4,7 +4,7 @@ import {clearStepsPrefix} from '../constants/steps'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import {getIntegrationSettings} from './utils/langchain/getLLM'
 import {QWEN_DEFAULT_MODEL} from '../../../constants'
-import {Configuration, OpenAIApi} from 'openai'
+import OpenAI from 'openai'
 import {QWEN_API_URL} from '../../../shared/config/constants'
 import {referencePatterns} from './references/utils/referencePatterns'
 import {clearReferences} from './references/utils/referenceUtils' // Direct import
@@ -41,13 +41,18 @@ export class QwenCommand {
       const settings = await getIntegrationSettings(this.userId)
       const {apiKey, model = QWEN_DEFAULT_MODEL} = settings?.qwen || {}
 
-      const {data} = await new OpenAIApi(new Configuration({apiKey, basePath: QWEN_API_URL})).createChatCompletion({
+      const client = new OpenAI({
+        apiKey,
+        baseURL: QWEN_API_URL,
+      })
+
+      const response = await client.chat.completions.create({
         messages,
         model,
         top_p: 0.7,
       })
 
-      return data.choices[0].message.content
+      return response.choices[0].message.content
     } catch (e) {
       this.logError(e)
       return ''

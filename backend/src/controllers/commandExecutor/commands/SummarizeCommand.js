@@ -9,12 +9,11 @@ import {
 } from '../constants/summarize'
 import {conditionallyTranslate} from './utils/translate'
 import {FOREACH_QUERY} from '../constants/foreach'
-import {PromptTemplate} from 'langchain'
-import {RefineDocumentsChain} from 'langchain/chains'
-import {ConditionalPromptSelector} from 'langchain/prompts'
-import {RecursiveCharacterTextSplitter} from 'langchain/text_splitter'
-import {AgentExecutor} from 'langchain/agents'
-import {LLMChain} from 'langchain'
+import {PromptTemplate} from '@langchain/core/prompts'
+import {RefineDocumentsChain, LLMChain} from '@langchain/classic/chains'
+import {ConditionalPromptSelector} from '@langchain/core/example_selectors'
+import {RecursiveCharacterTextSplitter} from '@langchain/textsplitters'
+import {AgentExecutor} from '@langchain/classic/agents'
 import {JSKnowledgeMapWebScholarSearch} from './utils/langchain/JSKnowledgeMapWebScholarSearch'
 import {WebVectorStore} from './utils/langchain/vectorStore/WebVectorStore'
 import {getEmbeddings, getIntegrationSettings, determineLLMType, getLLM} from './utils/langchain/getLLM'
@@ -143,7 +142,7 @@ export class SummarizeCommand {
         llm,
       }),
     })
-    const res = await chain.call({
+    const res = await chain.invoke({
       input_documents,
       question,
       signal,

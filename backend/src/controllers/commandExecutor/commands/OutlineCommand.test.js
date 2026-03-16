@@ -1,10 +1,10 @@
-import {LLMChain} from 'langchain'
+import {LLMChain} from '@langchain/classic/chains'
 import {OutlineCommand} from './OutlineCommand'
 import {SummarizeCommand} from './SummarizeCommand'
 import {getIntegrationSettings, getLLM, Model} from './utils/langchain/getLLM'
 import {SUMMARIZE_SIZE_DEFAULT} from '../constants/outline'
 import Integration from '../../../models/Integration'
-import {RefineDocumentsChain} from 'langchain/chains'
+import {RefineDocumentsChain} from '@langchain/classic/chains'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 
 // Mock the reference patterns module
@@ -34,7 +34,7 @@ import {referencePatterns} from './references/utils/referencePatterns'
 import Store from './utils/Store'
 
 // jest.mock('./SummarizeCommand')
-jest.mock('langchain')
+jest.mock('@langchain/classic/chains')
 jest.mock('./utils/langchain/getLLM', () => ({
   ...jest.requireActual('./utils/langchain/getLLM'),
   getLLM: jest.fn(),
@@ -187,7 +187,7 @@ describe('OutlineCommand', () => {
       jest.spyOn(Integration, 'findOne').mockReturnValue({
         lean: jest.fn().mockReturnValue(settings),
       })
-      jest.spyOn(RefineDocumentsChain.prototype, 'call').mockReturnValue({output_text: 'response'})
+      jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockReturnValue({output_text: 'response'})
 
       getLLM.mockImplementationOnce(() => {
         return {llm: {}, chunkSize: 2000}
@@ -212,7 +212,7 @@ describe('OutlineCommand', () => {
       jest.spyOn(Integration, 'findOne').mockReturnValue({
         lean: jest.fn().mockReturnValue(settings),
       })
-      jest.spyOn(RefineDocumentsChain.prototype, 'call').mockReturnValue({output_text: 'response'})
+      jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockReturnValue({output_text: 'response'})
 
       getLLM.mockImplementationOnce(() => {
         return {llm: {}, chunkSize: 2000}

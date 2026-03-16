@@ -22,16 +22,16 @@ import {OutlineCommand} from '../OutlineCommand'
 import {OUTLINE_QUERY_TYPE} from '../../constants/outline'
 import {ExtCommand} from '../ExtCommand'
 import {EXT_QUERY_TYPE} from '../../constants/ext'
-import {BaseChatModel} from 'langchain/chat_models/base'
+import {BaseChatModel} from '@langchain/core/language_models/chat_models'
 import {getIntegrationSettings, Model} from './langchain/getLLM'
 import YandexService from '../../../integrations/yandex/YandexService'
 import ClaudeService from '../../../integrations/claude/ClaudeService'
-import {OpenAIApi} from 'openai'
+import OpenAI from 'openai'
 import {ExtVectorStore} from './langchain/vectorStore/ExtVectorStore'
 import {DownloadCommand} from '../DownloadCommand'
 import {DOWNLOAD_QUERY_TYPE} from '../../constants/download'
 import {REFINE_QUERY_TYPE} from '../../constants/refine'
-import {LLMChain} from 'langchain/chains'
+import {LLMChain} from '@langchain/classic/chains'
 import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
 import {COMPLETION_QUERY_TYPE} from '../../constants/completion'
@@ -433,8 +433,8 @@ describe('QwenCommand run test', () => {
       },
     })
 
-    const openApi = new OpenAIApi()
-    const chatRunSpy = jest.spyOn(openApi, 'createChatCompletion').mockRejectedValueOnce(new Error('Api Error'))
+    const openApi = new OpenAI()
+    const chatRunSpy = jest.spyOn(openApi.chat.completions, 'create').mockRejectedValueOnce(new Error('Api Error'))
 
     await runCommand({
       cell: chatNode,
@@ -509,8 +509,8 @@ describe('PerplexityCommand run test', () => {
       },
     })
 
-    const openApi = new OpenAIApi()
-    const chatRunSpy = jest.spyOn(openApi, 'createChatCompletion').mockRejectedValueOnce(new Error('Api Error'))
+    const openApi = new OpenAI()
+    const chatRunSpy = jest.spyOn(openApi.chat.completions, 'create').mockRejectedValueOnce(new Error('Api Error'))
 
     await runCommand({
       cell: chatNode,

@@ -3,7 +3,7 @@ import {clearCommandsWithParams} from '../constants'
 import {clearStepsPrefix} from '../constants/steps'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import {getIntegrationSettings} from './utils/langchain/getLLM'
-import {HumanMessage, SystemMessage} from 'langchain/schema'
+import {HumanMessage, SystemMessage} from '@langchain/core/messages'
 import {referencePatterns} from './references/utils/referencePatterns'
 import {clearReferences} from './references/utils/referenceUtils'
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
@@ -46,7 +46,7 @@ export class CustomLLMChatCommand {
         apiKey: custom_llm.apiKey,
       })
 
-      const result = await llm.call(
+      const result = await llm.invoke(
         messages.map(m => {
           return m.role === 'system' ? new SystemMessage(m.content) : new HumanMessage(m.content)
         }),

@@ -1,7 +1,8 @@
-import {Tool} from 'langchain/tools'
-import {RecursiveCharacterTextSplitter} from 'langchain/text_splitter'
-import {RefineDocumentsChain} from 'langchain/chains'
-import {ConditionalPromptSelector, PromptTemplate} from 'langchain/prompts'
+import {Tool} from '@langchain/core/tools'
+import {RecursiveCharacterTextSplitter} from '@langchain/textsplitters'
+import {RefineDocumentsChain} from '@langchain/classic/chains'
+import {ConditionalPromptSelector} from '@langchain/core/example_selectors'
+import {PromptTemplate} from '@langchain/core/prompts'
 import {SearchRefineLLMChain} from './SearchRefineLLMChain'
 import {
   getSearchScrapeDescription,

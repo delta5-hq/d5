@@ -1,6 +1,6 @@
 import {getIntegrationSettings, getLLM, Model, getEmbeddings} from './utils/langchain/getLLM'
 import Integration from '../../../models/Integration'
-import {RefineDocumentsChain} from 'langchain/chains'
+import {RefineDocumentsChain} from '@langchain/classic/chains'
 
 jest.mock('../constants/steps', () => ({
   clearStepsPrefix: jest.fn(str => `cleared ${str}`),
@@ -22,7 +22,7 @@ import {createSimpleAgentExecutor} from './utils/langchain/getAgentExecutor'
 import {conditionallyTranslate} from './utils/translate'
 import Store from './utils/Store'
 
-jest.mock('langchain')
+jest.mock('@langchain/classic/chains')
 jest.mock('./utils/langchain/getLLM', () => ({
   ...jest.requireActual('./utils/langchain/getLLM'),
   getLLM: jest.fn(),
@@ -72,7 +72,7 @@ describe('WebCommand', () => {
     getLLM.mockReturnValue({llm: {}, chunkSize: 2000})
     getEmbeddings.mockReturnValue({})
     createSimpleAgentExecutor.mockReturnValue({
-      call: jest.fn().mockResolvedValue({output: 'agent output'}),
+      invoke: jest.fn().mockResolvedValue({output: 'agent output'}),
     })
     conditionallyTranslate.mockResolvedValue('translated output')
   })
@@ -95,7 +95,7 @@ describe('WebCommand', () => {
       jest.spyOn(Integration, 'findOne').mockReturnValue({
         lean: jest.fn().mockReturnValue(settings),
       })
-      jest.spyOn(RefineDocumentsChain.prototype, 'call').mockReturnValue({output_text: 'response'})
+      jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockReturnValue({output_text: 'response'})
 
       getLLM.mockImplementationOnce(() => {
         return {llm: {}, chunkSize: 2000}
@@ -120,7 +120,7 @@ describe('WebCommand', () => {
       jest.spyOn(Integration, 'findOne').mockReturnValue({
         lean: jest.fn().mockReturnValue(settings),
       })
-      jest.spyOn(RefineDocumentsChain.prototype, 'call').mockReturnValue({output_text: 'response'})
+      jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockReturnValue({output_text: 'response'})
 
       getLLM.mockImplementationOnce(() => {
         return {llm: {}, chunkSize: 2000}
