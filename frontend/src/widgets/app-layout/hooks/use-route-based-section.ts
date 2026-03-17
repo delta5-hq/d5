@@ -5,7 +5,7 @@ import { deriveActiveSectionFromRoute } from '../lib/route-to-section-mapper'
 interface UseRouteBasedSectionParams {
   currentActiveSection: string | null
   onSectionChange: (section: string | null) => void
-  onSecondaryOpen: () => void
+  onSecondaryOpen?: () => void
   isMobile: boolean
 }
 
@@ -21,12 +21,10 @@ export function useRouteBasedSection({
     const derivedSection = deriveActiveSectionFromRoute(location.pathname)
 
     if (derivedSection && derivedSection !== currentActiveSection) {
-      const actualIsMobile = typeof window !== 'undefined' && window.innerWidth < 768
-
       onSectionChange(derivedSection)
-
-      if (!actualIsMobile) {
-        onSecondaryOpen()
+      /* Open sidebar only on first section detection (no prior section in localStorage) */
+      if (currentActiveSection === null) {
+        onSecondaryOpen?.()
       }
     }
   }, [location.pathname, currentActiveSection, onSectionChange, onSecondaryOpen, isMobile])
