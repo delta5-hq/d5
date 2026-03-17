@@ -202,6 +202,7 @@ test.describe('Dual sidebar system', () => {
       await adminLogin(page)
       await page.goto('/')
       await page.waitForLoadState('networkidle')
+      await page.waitForURL(/\/workflows/, { timeout: TEST_TIMEOUTS.NAVIGATION })
     })
 
     const sectionsWithActions = [
