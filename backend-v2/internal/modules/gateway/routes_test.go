@@ -43,6 +43,7 @@ func TestRouteRegistry_RegisterNodeJSRoutes(t *testing.T) {
 
 	expectedPaths := map[string]bool{
 		"/api/v2/execute":                        false,
+		"/api/v2/execute/stream":                 false,
 		"/api/v2/integration/scrape_v2":          false,
 		"/api/v2/integration/scrape_files":       false,
 		"/api/v2/integration/translate":          false,

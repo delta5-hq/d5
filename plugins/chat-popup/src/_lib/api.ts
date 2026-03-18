@@ -1,6 +1,5 @@
 import { DeltaFiveApiParams, DeltaFiveConfiguration, EventType, LikeStatus, MessageType } from "../_interfaces"
 import axios from "axios"
-import { EventSourcePolyfill } from "event-source-polyfill"
 import qs from "qs"
 import { API_ROOT } from "../configuration"
 
@@ -13,6 +12,14 @@ export default class DeltaFiveApi {
 
   get sourcePattern(): string {
     return this._config.sourcePattern
+  }
+
+  get apiVersion(): string {
+    return this._config.apiVersion
+  }
+
+  get authToken(): string {
+    return this._config.token
   }
 
   public async createApiRequest<T>({

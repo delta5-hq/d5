@@ -55,9 +55,7 @@ const ArrayIntegrationSection: React.FC<Props> = ({ fieldName, titleId, items, o
     return <ArrayIntegrationEmptyState fieldName={fieldName} onAdd={onAdd} titleId={titleId} />
   }
 
-  const getIntegrationType = (item: ArrayIntegrationItem): string | null => {
-    return item.transport || item.protocol || null
-  }
+  const getIntegrationType = (item: ArrayIntegrationItem): string | null => item.transport || item.protocol || null
 
   return (
     <>
