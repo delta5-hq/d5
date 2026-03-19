@@ -24,6 +24,7 @@ import { Label } from '@shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
 import { toast } from 'sonner'
 import type { HttpError } from '@shared/lib/error'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
 
 const YandexModelNames: Record<YandexGPTModel, string> = {
   [YandexGPTModel.GPT_PRO_LATEST]: 'YandexGPT 5 Pro',
@@ -51,11 +52,14 @@ type YandexFormValues = z.infer<typeof yandexSchema>
 interface Props extends DialogProps {
   data: Yandex | undefined
   refresh: () => Promise<void>
+  workflowId?: string | null
 }
 
-export const YandexDialog: React.FC<Props> = ({ data, open, onClose, refresh }) => {
+export const YandexDialog: React.FC<Props> = ({ data, open, onClose, refresh, workflowId }) => {
+  const url = buildIntegrationUrl('/integration/yandex/update', workflowId)
+
   const { mutateAsync: save } = useApiMutation<Yandex, HttpError, Yandex>({
-    url: '/integration/yandex/update',
+    url,
     method: 'PUT',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => toast.error(err.message || 'Server error'),

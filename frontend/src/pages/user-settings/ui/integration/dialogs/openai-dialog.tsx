@@ -23,6 +23,7 @@ import type { ApiError, DialogProps, Openai } from '@shared/base-types'
 import { useApiMutation } from '@shared/composables'
 import { OpenaiModels } from '@shared/config'
 import type { HttpError } from '@shared/lib/error'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
 import { createResponseChat } from '@shared/lib/llm'
 import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
 import { X } from 'lucide-react'
@@ -40,11 +41,14 @@ export type OpenaiFormValues = z.infer<typeof openaiSchema>
 interface Props extends DialogProps {
   data: Openai | undefined
   refresh: () => Promise<void>
+  workflowId?: string | null
 }
 
-const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
+const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data, workflowId }) => {
+  const url = buildIntegrationUrl('/integration/openai/update', workflowId)
+
   const { mutateAsync: save } = useApiMutation<Openai, HttpError, Openai>({
-    url: '/integration/openai/update',
+    url,
     method: 'PUT',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => {

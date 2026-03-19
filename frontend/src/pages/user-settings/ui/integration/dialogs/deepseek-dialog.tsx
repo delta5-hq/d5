@@ -21,6 +21,7 @@ import { Button } from '@shared/ui/button'
 import { useApiMutation } from '@shared/composables'
 import type { Deepseek, DialogProps } from '@shared/base-types'
 import type { HttpError } from '@shared/lib/error'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
 import { DEEPSEEK_DEFAULT_MODEL, DeepseekModels } from '@shared/config'
 import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
 import { createResponseDeepseek } from '@shared/lib/llm'
@@ -38,11 +39,14 @@ type DeepseekFormValues = z.infer<typeof deepseekSchema>
 interface DeepseekDialogProps extends DialogProps {
   data: Deepseek | undefined
   refresh: () => Promise<void>
+  workflowId?: string | null
 }
 
-export const DeepseekDialog: React.FC<DeepseekDialogProps> = ({ data, open, onClose, refresh }) => {
+export const DeepseekDialog: React.FC<DeepseekDialogProps> = ({ data, open, onClose, refresh, workflowId }) => {
+  const url = buildIntegrationUrl('/integration/deepseek/update', workflowId)
+
   const { mutateAsync: save } = useApiMutation<Deepseek, HttpError, Deepseek>({
-    url: '/integration/deepseek/update',
+    url,
     method: 'PUT',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => toast.error(err?.message || 'Server error'),

@@ -22,6 +22,7 @@ import { Button } from '@shared/ui/button'
 import { useApiMutation } from '@shared/composables'
 import type { CustomLLM, DialogProps } from '@shared/base-types'
 import type { HttpError } from '@shared/lib/error'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
 import { CustomLLMApiType, CUSTOM_LLM_CHAT_COMPLETIONS_PATH } from '@shared/config'
 import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
 
@@ -41,11 +42,14 @@ type CustomLLMFormValues = z.infer<typeof customLLMSchema>
 interface CustomLLMDialogProps extends DialogProps {
   data: CustomLLM | undefined
   refresh: () => Promise<void>
+  workflowId?: string | null
 }
 
-export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, onClose, refresh }) => {
+export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, onClose, refresh, workflowId }) => {
+  const url = buildIntegrationUrl('/integration/custom_llm/update', workflowId)
+
   const { mutateAsync: save } = useApiMutation<CustomLLM, HttpError, CustomLLM>({
-    url: '/integration/custom_llm/update',
+    url,
     method: 'PUT',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: err => toast.error(err?.message || 'Server error'),

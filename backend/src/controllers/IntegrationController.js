@@ -234,8 +234,9 @@ const IntegrationController = {
   },
   deleteIntegration: async ctx => {
     const {userId} = ctx.state
+    const workflowId = normalizeWorkflowId(ctx.query.workflowId)
 
-    await Integration.deleteOne({userId})
+    await Integration.deleteOne({userId, workflowId})
 
     ctx.status = 204
     ctx.body = null

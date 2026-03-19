@@ -15,9 +15,10 @@ const (
 )
 
 type Service struct {
-	collection  *qmgo.Collection
-	encryptor   *DocumentEncryptor
-	fieldCrypto *FieldCrypto
+	collection     *qmgo.Collection
+	encryptor      *DocumentEncryptor
+	fieldCrypto    *FieldCrypto
+	fallbackFinder *FallbackFinder
 }
 
 func NewService(db *qmgo.Database) (*Service, error) {
@@ -31,47 +32,27 @@ func NewService(db *qmgo.Database) (*Service, error) {
 		return nil, err
 	}
 
+	collection := db.Collection("integrations")
+	fallbackFinder := newFallbackFinder(collection, encryptor)
+
 	return &Service{
-		collection:  db.Collection("integrations"),
-		encryptor:   encryptor,
-		fieldCrypto: fieldCrypto,
+		collection:     collection,
+		encryptor:      encryptor,
+		fieldCrypto:    fieldCrypto,
+		fallbackFinder: fallbackFinder,
 	}, nil
 }
 
 func (s *Service) FindByUserID(ctx context.Context, userID string) (*models.Integration, error) {
-	// Fetch as raw map to handle encrypted fields stored as strings in MongoDB.
-	// Typed decode into models.Integration fails when encrypted string fields
-	// cannot be decoded into typed fields like map[string]string.
-	var raw map[string]interface{}
-	if err := s.collection.Find(ctx, qmgo.M{"userId": userID}).One(&raw); err != nil {
-		return nil, err
-	}
-
-	// Normalize: qmgo/mongo-driver decodes embedded BSON documents as primitive.D
-	// (ordered slice) rather than map[string]interface{}, causing type assertions
-	// inside transformArrayFields to fail silently and skip decryption.
-	// Converting to plain maps/slices first ensures Decrypt works correctly.
-	normalizeBSONDoc(raw)
-
-	// Decrypt in-place so serialised fields (e.g. headers) become their proper
-	// types (map[string]interface{}) before the BSON round-trip below.
-	if err := s.encryptor.Decrypt(raw); err != nil {
-		return nil, err
-	}
-
-	rawBytes, err := bson.Marshal(raw)
-	if err != nil {
-		return nil, err
-	}
-	var integration models.Integration
-	if err := bson.Unmarshal(rawBytes, &integration); err != nil {
-		return nil, err
-	}
-	return &integration, nil
+	return s.FindWithFallback(ctx, ScopeIdentifier{UserID: userID, WorkflowID: nil})
 }
 
-func (s *Service) Upsert(ctx context.Context, userID string, update map[string]interface{}) error {
-	s.setDefaultFields(update, userID)
+func (s *Service) FindWithFallback(ctx context.Context, scope ScopeIdentifier) (*models.Integration, error) {
+	return s.fallbackFinder.findWithFallback(ctx, scope)
+}
+
+func (s *Service) Upsert(ctx context.Context, scope ScopeIdentifier, update map[string]interface{}) error {
+	s.setDefaultFields(update, scope)
 
 	updateDoc := bson.M{}
 	for k, v := range update {
@@ -82,7 +63,7 @@ func (s *Service) Upsert(ctx context.Context, userID string, update map[string]i
 		return err
 	}
 
-	filter := qmgo.M{"userId": userID}
+	filter := buildScopeFilter(scope)
 	updateOp := bson.M{"$set": updateDoc}
 
 	var existing map[string]interface{}
@@ -100,8 +81,9 @@ func (s *Service) Upsert(ctx context.Context, userID string, update map[string]i
 	return s.collection.UpdateOne(ctx, filter, updateOp)
 }
 
-func (s *Service) setDefaultFields(fields map[string]interface{}, userID string) {
-	fields["userId"] = userID
+func (s *Service) setDefaultFields(fields map[string]interface{}, scope ScopeIdentifier) {
+	fields["userId"] = scope.UserID
+	fields["workflowId"] = scope.WorkflowID
 
 	if _, exists := fields["lang"]; !exists {
 		fields["lang"] = defaultLanguage
@@ -139,32 +121,30 @@ func (s *Service) DecryptIntegration(integration *models.Integration) (*models.I
 	return &decrypted, nil
 }
 
-func (s *Service) Delete(ctx context.Context, userID string) error {
-	return s.collection.Remove(ctx, qmgo.M{"userId": userID})
+func (s *Service) Delete(ctx context.Context, scope ScopeIdentifier) error {
+	filter := buildScopeFilter(scope)
+	return s.collection.Remove(ctx, filter)
 }
 
-/* UpdateRaw applies raw MongoDB update operations (e.g., $unset) without setDefaultFields */
-func (s *Service) UpdateRaw(ctx context.Context, userID string, update map[string]interface{}) error {
-	filter := qmgo.M{"userId": userID}
+func (s *Service) UpdateRaw(ctx context.Context, scope ScopeIdentifier, update map[string]interface{}) error {
+	filter := buildScopeFilter(scope)
 
 	var existing map[string]interface{}
 	err := s.collection.Find(ctx, filter).One(&existing)
 
 	if err == qmgo.ErrNoSuchDocuments {
-		return nil /* No document to update - DELETE on non-existent is success */
+		return nil
 	}
 
 	if err != nil {
 		return err
 	}
 
-	/* Force synchronous write - wait for MongoDB acknowledgment before returning */
 	err = s.collection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return err
 	}
 
-	/* Verify deletion completed by reading back */
 	var updated map[string]interface{}
 	readErr := s.collection.Find(ctx, filter).One(&updated)
 	if readErr != nil && readErr != qmgo.ErrNoSuchDocuments {
@@ -214,46 +194,6 @@ func (s *Service) createDefaultVector(ctx context.Context, collection *qmgo.Coll
 
 	vector.ID = result.InsertedID.(primitive.ObjectID)
 	return &vector, nil
-}
-
-// normalizeBSONDoc converts all primitive.D/primitive.A values in a top-level
-// map to plain map[string]interface{}/[]interface{} recursively.
-// This is required because the mongo-driver decodes embedded BSON documents
-// within arrays as primitive.D, not map[string]interface{}, which breaks type
-// assertions in the encryption layer.
-func normalizeBSONDoc(doc map[string]interface{}) {
-	for k, v := range doc {
-		doc[k] = normalizeBSONValue(v)
-	}
-}
-
-func normalizeBSONValue(v interface{}) interface{} {
-	switch val := v.(type) {
-	case primitive.D:
-		m := make(map[string]interface{}, len(val))
-		for _, e := range val {
-			m[e.Key] = normalizeBSONValue(e.Value)
-		}
-		return m
-	case primitive.A:
-		s := make([]interface{}, len(val))
-		for i, e := range val {
-			s[i] = normalizeBSONValue(e)
-		}
-		return s
-	case map[string]interface{}:
-		for k, e := range val {
-			val[k] = normalizeBSONValue(e)
-		}
-		return val
-	case []interface{}:
-		for i, e := range val {
-			val[i] = normalizeBSONValue(e)
-		}
-		return val
-	default:
-		return v
-	}
 }
 
 func (s *Service) ensureServiceStoreExists(ctx context.Context, collection *qmgo.Collection, vector *models.LLMVector, service, userID string) error {

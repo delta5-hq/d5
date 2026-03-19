@@ -21,6 +21,7 @@ import { useApiMutation } from '@shared/composables'
 import type { DialogProps, Qwen } from '@shared/base-types'
 import { QWEN_DEFAULT_MODEL, QwenModels } from '@shared/config'
 import type { HttpError } from '@shared/lib/error'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
 import { createResponseQwen } from '@shared/lib/llm'
 import { X } from 'lucide-react'
 
@@ -36,11 +37,14 @@ type QwenFormValues = z.infer<typeof qwenSchema>
 interface QwenDialogProps extends DialogProps {
   data: Qwen | undefined
   refresh: () => Promise<void>
+  workflowId?: string | null
 }
 
-export const QwenDialog: React.FC<QwenDialogProps> = ({ data, open, onClose, refresh }) => {
+export const QwenDialog: React.FC<QwenDialogProps> = ({ data, open, onClose, refresh, workflowId }) => {
+  const url = buildIntegrationUrl('/integration/qwen/update', workflowId)
+
   const { mutateAsync: save } = useApiMutation<Qwen, HttpError, Qwen>({
-    url: '/integration/qwen/update',
+    url,
     method: 'PUT',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => {

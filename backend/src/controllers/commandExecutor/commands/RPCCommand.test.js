@@ -144,6 +144,7 @@ describe('RPCCommand', () => {
         command: 'cd /app && ./run.sh "test\'s prompt"',
         workingDir: undefined,
         timeoutMs: 60000,
+        client: null,
       })
     })
 
@@ -177,6 +178,7 @@ describe('RPCCommand', () => {
       expect(mockSSHExecutor.execute).toHaveBeenCalledWith(
         expect.objectContaining({
           workingDir: '/home/user',
+          client: null,
         }),
       )
     })
@@ -190,6 +192,7 @@ describe('RPCCommand', () => {
       expect(mockSSHExecutor.execute).toHaveBeenCalledWith(
         expect.objectContaining({
           passphrase: 'secret',
+          client: null,
         }),
       )
     })
@@ -778,6 +781,158 @@ describe('RPCCommand', () => {
 
         expect(IntegrationSessionRepository.upsertSessionId).not.toHaveBeenCalled()
       })
+    })
+  })
+
+  describe('SSH client pool integration', () => {
+    let mockPool
+    let mockSharedClient
+
+    beforeEach(() => {
+      mockSharedClient = {
+        exec: jest.fn(),
+      }
+
+      mockPool = {
+        getOrCreate: jest.fn().mockResolvedValue(mockSharedClient),
+      }
+
+      mockSSHExecutor.execute.mockResolvedValue({stdout: 'pooled output', stderr: '', exitCode: 0})
+    })
+
+    it('uses pool to get shared client when pool is provided', async () => {
+      const command = new RPCCommand(userId, workflowId, mockStore, sshAliasConfig, null, mockPool)
+
+      await command.executeSSH('test')
+
+      expect(mockPool.getOrCreate).toHaveBeenCalledWith({
+        host: 'vm1.example.com',
+        port: 22,
+        username: 'deploy',
+        privateKey: 'fake-key-data',
+        passphrase: undefined,
+      })
+
+      expect(mockSSHExecutor.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          client: mockSharedClient,
+        }),
+      )
+    })
+
+    it('does not use pool when pool is not provided', async () => {
+      const command = new RPCCommand(userId, workflowId, mockStore, sshAliasConfig)
+
+      await command.executeSSH('test')
+
+      expect(mockSSHExecutor.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          client: null,
+        }),
+      )
+    })
+
+    it('falls back to own connection when pool fails', async () => {
+      mockPool.getOrCreate.mockRejectedValue(new Error('Pool error'))
+
+      const command = new RPCCommand(userId, workflowId, mockStore, sshAliasConfig, null, mockPool)
+
+      await command.executeSSH('test')
+
+      expect(mockSSHExecutor.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          client: null,
+        }),
+      )
+    })
+
+    it('passes passphrase to pool', async () => {
+      const config = {...sshAliasConfig, passphrase: 'secret-phrase'}
+      const command = new RPCCommand(userId, workflowId, mockStore, config, null, mockPool)
+
+      await command.executeSSH('test')
+
+      expect(mockPool.getOrCreate).toHaveBeenCalledWith({
+        host: 'vm1.example.com',
+        port: 22,
+        username: 'deploy',
+        privateKey: 'fake-key-data',
+        passphrase: 'secret-phrase',
+      })
+    })
+
+    it('handles pool returning same client for multiple calls', async () => {
+      const command = new RPCCommand(userId, workflowId, mockStore, sshAliasConfig, null, mockPool)
+
+      await command.executeSSH('test1')
+      await command.executeSSH('test2')
+
+      expect(mockPool.getOrCreate).toHaveBeenCalledTimes(2)
+      expect(mockSSHExecutor.execute).toHaveBeenCalledTimes(2)
+
+      expect(mockSSHExecutor.execute).toHaveBeenNthCalledWith(1, expect.objectContaining({client: mockSharedClient}))
+      expect(mockSSHExecutor.execute).toHaveBeenNthCalledWith(2, expect.objectContaining({client: mockSharedClient}))
+    })
+
+    it('continues executing after pool error on first command', async () => {
+      mockPool.getOrCreate.mockRejectedValueOnce(new Error('Pool error')).mockResolvedValueOnce(mockSharedClient)
+
+      const command = new RPCCommand(userId, workflowId, mockStore, sshAliasConfig, null, mockPool)
+
+      await command.executeSSH('test1')
+      expect(mockSSHExecutor.execute).toHaveBeenNthCalledWith(1, expect.objectContaining({client: null}))
+
+      await command.executeSSH('test2')
+      expect(mockSSHExecutor.execute).toHaveBeenNthCalledWith(2, expect.objectContaining({client: mockSharedClient}))
+    })
+
+    it('passes all connection parameters to pool', async () => {
+      const config = {
+        ...sshAliasConfig,
+        port: 2222,
+        username: 'admin',
+        privateKey: 'special-key',
+        passphrase: 'secret',
+      }
+
+      const command = new RPCCommand(userId, workflowId, mockStore, config, null, mockPool)
+
+      await command.executeSSH('test')
+
+      expect(mockPool.getOrCreate).toHaveBeenCalledWith({
+        host: 'vm1.example.com',
+        port: 2222,
+        username: 'admin',
+        privateKey: 'special-key',
+        passphrase: 'secret',
+      })
+    })
+
+    it('does not pass workingDir or timeoutMs to pool', async () => {
+      const config = {
+        ...sshAliasConfig,
+        workingDir: '/home/user',
+        timeoutMs: 120000,
+      }
+
+      const command = new RPCCommand(userId, workflowId, mockStore, config, null, mockPool)
+
+      await command.executeSSH('test')
+
+      expect(mockPool.getOrCreate).toHaveBeenCalledWith({
+        host: 'vm1.example.com',
+        port: 22,
+        username: 'deploy',
+        privateKey: 'fake-key-data',
+        passphrase: undefined,
+      })
+
+      expect(mockSSHExecutor.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workingDir: '/home/user',
+          timeoutMs: 120000,
+        }),
+      )
     })
   })
 })

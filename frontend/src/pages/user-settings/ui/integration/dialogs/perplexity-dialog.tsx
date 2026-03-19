@@ -9,6 +9,7 @@ import type { DialogProps, Perplexity } from '@shared/base-types'
 import { useApiMutation } from '@shared/composables'
 import { PERPLEXITY_DEFAULT_MODEL, PerplexityModels } from '@shared/config'
 import type { HttpError } from '@shared/lib/error'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
 import { createPerplexityResponse } from '@shared/lib/llm'
 import { Button } from '@shared/ui/button'
 import {
@@ -37,11 +38,14 @@ type PerplexityFormValues = z.infer<typeof perplexitySchema>
 interface Props extends DialogProps {
   data: Perplexity | undefined
   refresh: () => Promise<void>
+  workflowId?: string | null
 }
 
-export const PerplexityDialog: React.FC<Props> = ({ data, open, onClose, refresh }) => {
+export const PerplexityDialog: React.FC<Props> = ({ data, open, onClose, refresh, workflowId }) => {
+  const url = buildIntegrationUrl('/integration/perplexity/update', workflowId)
+
   const { mutateAsync: save } = useApiMutation<Perplexity, HttpError, Perplexity>({
-    url: '/integration/perplexity/update',
+    url,
     method: 'PUT',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => toast.error(err.message || 'Server error'),

@@ -8,13 +8,13 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func (s *Service) AddArrayItem(ctx context.Context, userID, fieldName string, item map[string]interface{}) error {
+func (s *Service) AddArrayItem(ctx context.Context, scope ScopeIdentifier, fieldName string, item map[string]interface{}) error {
 	alias, ok := item["alias"].(string)
 	if !ok || alias == "" {
 		return fmt.Errorf("alias is required")
 	}
 
-	if err := s.validateArrayItemDoesNotExist(ctx, userID, fieldName, alias); err != nil {
+	if err := s.validateArrayItemDoesNotExist(ctx, scope, fieldName, alias); err != nil {
 		return err
 	}
 
@@ -23,7 +23,7 @@ func (s *Service) AddArrayItem(ctx context.Context, userID, fieldName string, it
 		return err
 	}
 
-	filter := qmgo.M{"userId": userID}
+	filter := buildScopeFilter(scope)
 	update := bson.M{"$push": bson.M{fieldName: encryptedItem}}
 
 	var existing map[string]interface{}
@@ -31,10 +31,11 @@ func (s *Service) AddArrayItem(ctx context.Context, userID, fieldName string, it
 
 	if err == qmgo.ErrNoSuchDocuments {
 		newDoc := bson.M{
-			"userId":  userID,
-			"lang":    defaultLanguage,
-			"model":   defaultModel,
-			fieldName: []interface{}{encryptedItem},
+			"userId":     scope.UserID,
+			"workflowId": scope.WorkflowID,
+			"lang":       defaultLanguage,
+			"model":      defaultModel,
+			fieldName:    []interface{}{encryptedItem},
 		}
 		_, insertErr := s.collection.InsertOne(ctx, newDoc)
 		return insertErr
@@ -69,13 +70,14 @@ func (s *Service) encryptArrayItem(arrayName string, item map[string]interface{}
 	return encryptedItem, nil
 }
 
-func (s *Service) UpdateArrayItem(ctx context.Context, userID, fieldName, alias string, updates map[string]interface{}) error {
-	if err := s.validateArrayItemExists(ctx, userID, fieldName, alias); err != nil {
+func (s *Service) UpdateArrayItem(ctx context.Context, scope ScopeIdentifier, fieldName, alias string, updates map[string]interface{}) error {
+	if err := s.validateArrayItemExists(ctx, scope, fieldName, alias); err != nil {
 		return err
 	}
 
 	filter := bson.M{
-		"userId":             userID,
+		"userId":             scope.UserID,
+		"workflowId":         scope.WorkflowID,
 		fieldName + ".alias": alias,
 	}
 
@@ -95,8 +97,8 @@ func (s *Service) UpdateArrayItem(ctx context.Context, userID, fieldName, alias 
 	return s.collection.UpdateOne(ctx, filter, update)
 }
 
-func (s *Service) DeleteArrayItem(ctx context.Context, userID, fieldName, alias string) error {
-	filter := qmgo.M{"userId": userID}
+func (s *Service) DeleteArrayItem(ctx context.Context, scope ScopeIdentifier, fieldName, alias string) error {
+	filter := buildScopeFilter(scope)
 	update := bson.M{
 		"$pull": bson.M{
 			fieldName: bson.M{"alias": alias},
@@ -106,9 +108,10 @@ func (s *Service) DeleteArrayItem(ctx context.Context, userID, fieldName, alias 
 	return s.collection.UpdateOne(ctx, filter, update)
 }
 
-func (s *Service) validateArrayItemExists(ctx context.Context, userID, fieldName, alias string) error {
+func (s *Service) validateArrayItemExists(ctx context.Context, scope ScopeIdentifier, fieldName, alias string) error {
 	filter := bson.M{
-		"userId":             userID,
+		"userId":             scope.UserID,
+		"workflowId":         scope.WorkflowID,
 		fieldName + ".alias": alias,
 	}
 
@@ -122,9 +125,10 @@ func (s *Service) validateArrayItemExists(ctx context.Context, userID, fieldName
 	return err
 }
 
-func (s *Service) validateArrayItemDoesNotExist(ctx context.Context, userID, fieldName, alias string) error {
+func (s *Service) validateArrayItemDoesNotExist(ctx context.Context, scope ScopeIdentifier, fieldName, alias string) error {
 	filter := bson.M{
-		"userId":             userID,
+		"userId":             scope.UserID,
+		"workflowId":         scope.WorkflowID,
 		fieldName + ".alias": alias,
 	}
 

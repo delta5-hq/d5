@@ -10,9 +10,10 @@ jest.mock('../repositories/IntegrationRepository', () => ({
 }))
 jest.mock('../models/Integration', () => {
   const updateOne = jest.fn()
+  const deleteOne = jest.fn()
   return {
     __esModule: true,
-    default: {updateOne},
+    default: {updateOne, deleteOne},
     INTEGRATION_ENCRYPTION_CONFIG: {fields: ['openai']},
   }
 })
@@ -299,6 +300,36 @@ describe('IntegrationController', () => {
       await IntegrationController.updateService(ctx)
 
       expect(ctx.body).toHaveProperty('vectors')
+    })
+  })
+
+  describe('deleteIntegration', () => {
+    it('deletes user-level integration when workflowId is not provided', async () => {
+      const ctx = createCtx({query: {}})
+
+      await IntegrationController.deleteIntegration(ctx)
+
+      expect(Integration.deleteOne).toHaveBeenCalledWith({userId: 'user-1', workflowId: null})
+      expect(ctx.status).toBe(204)
+      expect(ctx.body).toBeNull()
+    })
+
+    it('deletes workflow-scoped integration when workflowId is provided', async () => {
+      const ctx = createCtx({query: {workflowId: 'workflow-123'}})
+
+      await IntegrationController.deleteIntegration(ctx)
+
+      expect(Integration.deleteOne).toHaveBeenCalledWith({userId: 'user-1', workflowId: 'workflow-123'})
+      expect(ctx.status).toBe(204)
+      expect(ctx.body).toBeNull()
+    })
+
+    it('normalizes empty workflowId to null', async () => {
+      const ctx = createCtx({query: {workflowId: ''}})
+
+      await IntegrationController.deleteIntegration(ctx)
+
+      expect(Integration.deleteOne).toHaveBeenCalledWith({userId: 'user-1', workflowId: null})
     })
   })
 })
