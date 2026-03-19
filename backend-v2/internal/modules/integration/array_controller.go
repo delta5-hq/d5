@@ -9,7 +9,7 @@ import (
 )
 
 func (ctrl *Controller) AddArrayItem(c *fiber.Ctx) error {
-	userID := ctrl.getUserID(c)
+	scope := extractScopeFromRequest(c, ctrl.getUserID)
 	fieldName := c.Params("field")
 
 	if !IsArrayFieldRegistered(fieldName) {
@@ -21,7 +21,7 @@ func (ctrl *Controller) AddArrayItem(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Invalid request body")
 	}
 
-	if err := ctrl.service.AddArrayItem(c.Context(), userID, fieldName, item); err != nil {
+	if err := ctrl.service.AddArrayItem(c.Context(), scope, fieldName, item); err != nil {
 		if strings.Contains(err.Error(), "already exists in field") ||
 			strings.Contains(err.Error(), "alias is required") {
 			return response.BadRequest(c, err.Error())
@@ -33,7 +33,7 @@ func (ctrl *Controller) AddArrayItem(c *fiber.Ctx) error {
 }
 
 func (ctrl *Controller) UpdateArrayItem(c *fiber.Ctx) error {
-	userID := ctrl.getUserID(c)
+	scope := extractScopeFromRequest(c, ctrl.getUserID)
 	fieldName := c.Params("field")
 	rawAlias := c.Params("alias")
 	alias, err := url.PathUnescape(rawAlias)
@@ -50,7 +50,7 @@ func (ctrl *Controller) UpdateArrayItem(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Invalid request body")
 	}
 
-	if err := ctrl.service.UpdateArrayItem(c.Context(), userID, fieldName, alias, updates); err != nil {
+	if err := ctrl.service.UpdateArrayItem(c.Context(), scope, fieldName, alias, updates); err != nil {
 		if strings.Contains(err.Error(), "not found in field") {
 			return response.NotFound(c, err.Error())
 		}
@@ -61,7 +61,7 @@ func (ctrl *Controller) UpdateArrayItem(c *fiber.Ctx) error {
 }
 
 func (ctrl *Controller) DeleteArrayItem(c *fiber.Ctx) error {
-	userID := ctrl.getUserID(c)
+	scope := extractScopeFromRequest(c, ctrl.getUserID)
 	fieldName := c.Params("field")
 	rawAlias := c.Params("alias")
 	alias, err := url.PathUnescape(rawAlias)
@@ -73,7 +73,7 @@ func (ctrl *Controller) DeleteArrayItem(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Invalid array field name")
 	}
 
-	if err := ctrl.service.DeleteArrayItem(c.Context(), userID, fieldName, alias); err != nil {
+	if err := ctrl.service.DeleteArrayItem(c.Context(), scope, fieldName, alias); err != nil {
 		return response.InternalError(c, err.Error())
 	}
 

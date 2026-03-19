@@ -23,6 +23,7 @@ import { Textarea } from '@shared/ui/textarea'
 import { useApiMutation } from '@shared/composables'
 import type { HttpError } from '@shared/lib/error'
 import { FormFieldLabel } from '../components/form-field-label'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
 import {
   serializeArrayToSpaceSeparated,
   serializeArrayToCommaSeparated,
@@ -122,11 +123,23 @@ interface Props extends DialogProps {
   refresh: () => Promise<void>
   existingAliases?: string[]
   isEdit?: boolean
+  workflowId?: string | null
 }
 
-const RPCDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAliases = [], isEdit = false }) => {
+const RPCDialog: React.FC<Props> = ({
+  open,
+  onClose,
+  refresh,
+  data,
+  existingAliases = [],
+  isEdit = false,
+  workflowId,
+}) => {
+  const baseUrl = isEdit ? `/integration/rpc/items/${encodeURIComponent(data?.alias ?? '')}` : '/integration/rpc/items'
+  const url = buildIntegrationUrl(baseUrl, workflowId)
+
   const { mutateAsync: save } = useApiMutation<RPCFormValues, HttpError, RPCFormValues>({
-    url: isEdit ? `/integration/rpc/items/${encodeURIComponent(data?.alias ?? '')}` : '/integration/rpc/items',
+    url,
     method: isEdit ? 'PUT' : 'POST',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => {

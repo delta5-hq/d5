@@ -185,6 +185,11 @@ export default {
       edit: 'Edit RPC Integration',
     },
     installed: 'Installed',
+    workflowScope: {
+      label: 'Workflow Scope',
+      userLevel: 'All workflows (user-level)',
+      description: 'Choose whether this integration applies to all workflows or only a specific one',
+    },
   },
 
   dialog: {

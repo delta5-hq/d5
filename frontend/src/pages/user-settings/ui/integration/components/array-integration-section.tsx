@@ -9,6 +9,7 @@ import { apiFetch } from '@shared/lib/base-api'
 import ArrayIntegrationEmptyState from './array-integration-empty-state'
 import { IntegrationTypeBadge } from './integration-type-badge'
 import { DeleteConfirmationDialog } from './delete-confirmation-dialog'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
 
 interface ArrayIntegrationItem {
   alias: string
@@ -24,9 +25,18 @@ interface Props {
   onAdd: () => void
   onEdit: (item: ArrayIntegrationItem) => void
   refresh: () => Promise<void>
+  workflowId?: string | null
 }
 
-const ArrayIntegrationSection: React.FC<Props> = ({ fieldName, titleId, items, onAdd, onEdit, refresh }) => {
+const ArrayIntegrationSection: React.FC<Props> = ({
+  fieldName,
+  titleId,
+  items,
+  onAdd,
+  onEdit,
+  refresh,
+  workflowId,
+}) => {
   const [deleteTarget, setDeleteTarget] = React.useState<string | null>(null)
 
   const handleDeleteRequest = (alias: string) => {
@@ -37,7 +47,8 @@ const ArrayIntegrationSection: React.FC<Props> = ({ fieldName, titleId, items, o
     if (!deleteTarget) return
 
     try {
-      await apiFetch(`/integration/${fieldName}/items/${encodeURIComponent(deleteTarget)}`, { method: 'DELETE' })
+      const url = buildIntegrationUrl(`/integration/${fieldName}/items/${encodeURIComponent(deleteTarget)}`, workflowId)
+      await apiFetch(url, { method: 'DELETE' })
       toast.success(<FormattedMessage id="dialog.integration.deleteSuccess" />)
       await refresh()
     } catch {

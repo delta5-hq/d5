@@ -13,12 +13,13 @@ import IntegrationSessionRepository from '../../../repositories/IntegrationSessi
 const log = debug('delta5:app:Command:RPC')
 
 export class RPCCommand {
-  constructor(userId, workflowId, store, aliasConfig, progressReporter = null) {
+  constructor(userId, workflowId, store, aliasConfig, progressReporter = null, sshClientPool = null) {
     this.store = store
     this.userId = userId
     this.workflowId = workflowId
     this.aliasConfig = aliasConfig
     this.progressReporter = progressReporter
+    this.sshClientPool = sshClientPool
     this.log = log.extend(userId, '/')
     if (this.workflowId) {
       this.log = this.log.extend(workflowId, '#')
@@ -35,6 +36,16 @@ export class RPCCommand {
     const command = interpolateTemplate(templateWithSession, prompt, {escapeMode: 'shell'})
 
     const executor = new SSHExecutor()
+
+    let client = null
+    if (this.sshClientPool) {
+      try {
+        client = await this.sshClientPool.getOrCreate({host, port, username, privateKey, passphrase})
+      } catch (err) {
+        this.logError(`Failed to get shared SSH client, falling back to own connection: ${err.message}`)
+      }
+    }
+
     const {stdout, stderr, exitCode} = await executor.execute({
       host,
       port,
@@ -44,6 +55,7 @@ export class RPCCommand {
       command,
       workingDir,
       timeoutMs,
+      client,
     })
 
     if (exitCode !== 0) {

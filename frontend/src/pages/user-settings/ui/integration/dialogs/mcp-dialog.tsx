@@ -24,6 +24,7 @@ import { useApiMutation } from '@shared/composables'
 import type { HttpError } from '@shared/lib/error'
 import { FormFieldLabel } from '../components/form-field-label'
 import { serializeArrayToSpaceSeparated, deserializeSpaceSeparatedToArray } from './form-serialization'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
 
 const mcpTransports = ['stdio', 'streamable-http', 'sse'] as const
 
@@ -77,11 +78,23 @@ interface Props extends DialogProps {
   refresh: () => Promise<void>
   existingAliases?: string[]
   isEdit?: boolean
+  workflowId?: string | null
 }
 
-const MCPDialog: React.FC<Props> = ({ open, onClose, refresh, data, existingAliases = [], isEdit = false }) => {
+const MCPDialog: React.FC<Props> = ({
+  open,
+  onClose,
+  refresh,
+  data,
+  existingAliases = [],
+  isEdit = false,
+  workflowId,
+}) => {
+  const baseUrl = isEdit ? `/integration/mcp/items/${encodeURIComponent(data?.alias ?? '')}` : '/integration/mcp/items'
+  const url = buildIntegrationUrl(baseUrl, workflowId)
+
   const { mutateAsync: save } = useApiMutation<MCPFormValues, HttpError, MCPFormValues>({
-    url: isEdit ? `/integration/mcp/items/${encodeURIComponent(data?.alias ?? '')}` : '/integration/mcp/items',
+    url,
     method: isEdit ? 'PUT' : 'POST',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => {

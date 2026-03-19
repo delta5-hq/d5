@@ -19,6 +19,7 @@ import {CHAT_PARAM_PARENTS} from '../constants/chat'
 import {runCommand} from './utils/runCommand'
 import {StepsCommand} from './StepsCommand'
 import {createDeepClone} from './utils/createDeepClone'
+import {SSHClientPool} from './rpc/SSHClientPool'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 // eslint-disable-next-line no-unused-vars
@@ -177,74 +178,90 @@ export class ForeachCommand {
   }
 
   async executePrompts(nodes, isParallel = true) {
-    if (isParallel) {
-      const parallelProgress = new ProgressReporter({title: 'parallel'}, this.progress)
+    const sshClientPool = new SSHClientPool()
 
-      await Promise.allSettled(
-        nodes.map(async ({node, promptString}) => {
-          try {
-            const parallelTracker = await parallelProgress.add('child')
-            const {queryType, mcpAlias, rpcAlias} = resolveCommand(promptString, this.store._aliases)
+    try {
+      if (isParallel) {
+        await this._executePromptsParallel(nodes, sshClientPool)
+      } else {
+        await this._executePromptsSequential(nodes, sshClientPool)
+      }
+    } finally {
+      sshClientPool.disposeAll()
+    }
+  }
 
-            if (queryType) {
-              this.store.editNode({...node, command: promptString})
+  async _executePromptsParallel(nodes, sshClientPool) {
+    const parallelProgress = new ProgressReporter({title: 'parallel'}, this.progress)
 
-              await runCommand(
-                {
-                  queryType,
-                  cell: {...node, command: promptString},
-                  store: this.store,
-                  mcpAlias,
-                  rpcAlias,
-                },
-                parallelProgress,
-              )
-
-              parallelProgress.remove(parallelTracker)
-            }
-          } catch (e) {
-            this.logError(e)
-            throw e
-          }
-        }),
-      )
-
-      parallelProgress.dispose()
-    } else {
-      const sequentialProgress = new ProgressReporter({title: 'sequential'}, this.progress)
-
-      for (let i = 0; i < nodes.length; i += 1) {
+    await Promise.allSettled(
+      nodes.map(async ({node, promptString}) => {
         try {
-          const sequentialTracker = await sequentialProgress.add('child')
-
-          const {node, promptString} = nodes[i]
-
+          const parallelTracker = await parallelProgress.add('child')
           const {queryType, mcpAlias, rpcAlias} = resolveCommand(promptString, this.store._aliases)
-          this.store.editNode({...node, command: promptString})
 
           if (queryType) {
+            this.store.editNode({...node, command: promptString})
+
             await runCommand(
               {
                 queryType,
-                cell: this.store.getNode(node.id),
-                workflowId: this.workflowId,
-                userId: this.userId,
+                cell: {...node, command: promptString},
                 store: this.store,
                 mcpAlias,
                 rpcAlias,
+                sshClientPool,
               },
-              sequentialProgress,
+              parallelProgress,
             )
-          }
 
-          sequentialProgress.remove(sequentialTracker)
+            parallelProgress.remove(parallelTracker)
+          }
         } catch (e) {
           this.logError(e)
+          throw e
         }
-      }
+      }),
+    )
 
-      sequentialProgress.dispose()
+    parallelProgress.dispose()
+  }
+
+  async _executePromptsSequential(nodes, sshClientPool) {
+    const sequentialProgress = new ProgressReporter({title: 'sequential'}, this.progress)
+
+    for (let i = 0; i < nodes.length; i += 1) {
+      try {
+        const sequentialTracker = await sequentialProgress.add('child')
+
+        const {node, promptString} = nodes[i]
+
+        const {queryType, mcpAlias, rpcAlias} = resolveCommand(promptString, this.store._aliases)
+        this.store.editNode({...node, command: promptString})
+
+        if (queryType) {
+          await runCommand(
+            {
+              queryType,
+              cell: this.store.getNode(node.id),
+              workflowId: this.workflowId,
+              userId: this.userId,
+              store: this.store,
+              mcpAlias,
+              rpcAlias,
+              sshClientPool,
+            },
+            sequentialProgress,
+          )
+        }
+
+        sequentialProgress.remove(sequentialTracker)
+      } catch (e) {
+        this.logError(e)
+      }
     }
+
+    sequentialProgress.dispose()
   }
 
   runDefault = async (node, command, params) => {

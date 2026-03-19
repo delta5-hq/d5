@@ -63,13 +63,14 @@ import Store from './Store'
  *  store: Store,
  *  preventPostProcess: boolean,
  *  mcpAlias: import('../mcp/aliasResolver').MCPAliasConfig,
- *  rpcAlias: Object
+ *  rpcAlias: Object,
+ *  sshClientPool: Object
  * }} params
  * @param {ProgressReporter} progress
  * @returns
  */
 export const runCommand = async (
-  {queryType, context, prompt, cell, store, preventPostProcess = false, mcpAlias, rpcAlias},
+  {queryType, context, prompt, cell, store, preventPostProcess = false, mcpAlias, rpcAlias, sshClientPool = null},
   progress,
 ) => {
   let runPostProccess = !preventPostProcess
@@ -257,7 +258,7 @@ export const runCommand = async (
     runCommandTracker = await runCommandProgress.add('MCPCommand.run')
     await command.run(cell, context, prompt)
   } else if (rpcAlias) {
-    const command = new RPCCommand(store._userId, store._workflowId, store, rpcAlias, runCommandProgress)
+    const command = new RPCCommand(store._userId, store._workflowId, store, rpcAlias, runCommandProgress, sshClientPool)
 
     runCommandTracker = await runCommandProgress.add('RPCCommand.run')
     await command.run(cell, context, prompt)

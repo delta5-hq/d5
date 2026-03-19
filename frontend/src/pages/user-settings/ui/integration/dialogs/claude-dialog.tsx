@@ -25,6 +25,7 @@ import { Label } from '@shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
 import { toast } from 'sonner'
 import type { HttpError } from '@shared/lib/error'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
 
 const claudeSchema = z.object({
   apiKey: z.string().min(1, 'API Key is required'),
@@ -38,11 +39,14 @@ type ClaudeFormValues = z.infer<typeof claudeSchema>
 interface Props extends DialogProps {
   data: Claude | undefined
   refresh: () => Promise<void>
+  workflowId?: string | null
 }
 
-export const ClaudeDialog: React.FC<Props> = ({ data, open, onClose, refresh }) => {
+export const ClaudeDialog: React.FC<Props> = ({ data, open, onClose, refresh, workflowId }) => {
+  const url = buildIntegrationUrl('/integration/claude/update', workflowId)
+
   const { mutateAsync: save } = useApiMutation<Claude, HttpError, Claude>({
-    url: '/integration/claude/update',
+    url,
     method: 'PUT',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => toast.error(err.message || 'Server error'),

@@ -2,6 +2,7 @@ import debug from 'debug'
 import {runCommand} from './utils/runCommand'
 import {StepsNodeTraverser} from './utils/StepsNodeTraverser'
 import {resolveCommand} from './utils/queryTypeResolver'
+import {SSHClientPool} from './rpc/SSHClientPool'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 // eslint-disable-next-line no-unused-vars
@@ -42,7 +43,7 @@ export class StepsCommand {
     }
   }
 
-  executePrompts = async nodes => {
+  executePrompts = async (nodes, sshClientPool) => {
     const parallelProgress = new ProgressReporter({title: 'parallel'}, this.progress)
 
     await Promise.all(
@@ -61,6 +62,7 @@ export class StepsCommand {
               store: this.store,
               mcpAlias,
               rpcAlias,
+              sshClientPool,
             },
             parallelProgress,
           )
@@ -76,7 +78,7 @@ export class StepsCommand {
     )
   }
 
-  async executePromptsByOrder(nodes) {
+  async executePromptsByOrder(nodes, sshClientPool) {
     const orderNumbers = Object.keys(nodes)
       .map(Number)
       .sort((a, b) => a - b)
@@ -87,7 +89,7 @@ export class StepsCommand {
       const orderedTracker = await orderedProgress.add('group')
 
       const currentOrder = nodes[orderNumbers[i]]
-      await this.executePrompts(currentOrder)
+      await this.executePrompts(currentOrder, sshClientPool)
 
       orderedProgress.remove(orderedTracker)
     }
@@ -96,14 +98,18 @@ export class StepsCommand {
   }
 
   async run(node) {
+    const sshClientPool = new SSHClientPool()
+
     try {
       const {nodesByOrder, nodesWithoutOrder} = await this.findMatchingNodes(node)
 
-      await this.executePromptsByOrder(nodesByOrder)
+      await this.executePromptsByOrder(nodesByOrder, sshClientPool)
 
-      await this.executePrompts(nodesWithoutOrder)
+      await this.executePrompts(nodesWithoutOrder, sshClientPool)
     } catch (e) {
       this.logError(e)
+    } finally {
+      sshClientPool.disposeAll()
     }
   }
 }

@@ -85,6 +85,7 @@ type RPCIntegrationConfig struct {
 type Integration struct {
 	ID         string                 `json:"_id,omitempty" bson:"_id,omitempty"`
 	UserID     string                 `json:"userId" bson:"userId"`
+	WorkflowID *string                `json:"workflowId,omitempty" bson:"workflowId,omitempty"`
 	OpenAI     *OpenAIConfig          `json:"openai,omitempty" bson:"openai,omitempty"`
 	Yandex     *YandexConfig          `json:"yandex,omitempty" bson:"yandex,omitempty"`
 	Claude     *ClaudeConfig          `json:"claude,omitempty" bson:"claude,omitempty"`

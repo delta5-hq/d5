@@ -31,6 +31,7 @@ interface IntegrationCategoryProps {
   data: IntegrationSettings | undefined
   showAll?: boolean
   refresh: () => Promise<void>
+  workflowId?: string | null
 }
 
 const IntegrationCard: React.FC<{
@@ -63,7 +64,13 @@ const IntegrationCard: React.FC<{
   </Card>
 )
 
-const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({ showDialog, data, showAll, refresh }) => {
+const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({
+  showDialog,
+  data,
+  showAll,
+  refresh,
+  workflowId,
+}) => {
   const existingMCPAliases = React.useMemo(() => (data?.mcp || []).map(m => m.alias), [data?.mcp])
   const existingRPCAliases = React.useMemo(() => (data?.rpc || []).map(r => r.alias), [data?.rpc])
 
@@ -73,34 +80,38 @@ const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({ showDialog, d
       <ArrayIntegrationSection
         fieldName="mcp"
         items={data?.mcp || []}
-        onAdd={() => showDialog(MCPDialog, { refresh, existingAliases: existingMCPAliases })}
+        onAdd={() => showDialog(MCPDialog, { refresh, existingAliases: existingMCPAliases, workflowId })}
         onEdit={item =>
           showDialog(MCPDialog, {
             refresh,
             data: item,
             existingAliases: existingMCPAliases,
             isEdit: true,
+            workflowId,
           })
         }
         refresh={refresh}
         titleId="integration.mcp.title"
+        workflowId={workflowId}
       />
 
       {/* RPC Integrations */}
       <ArrayIntegrationSection
         fieldName="rpc"
         items={data?.rpc || []}
-        onAdd={() => showDialog(RPCDialog, { refresh, existingAliases: existingRPCAliases })}
+        onAdd={() => showDialog(RPCDialog, { refresh, existingAliases: existingRPCAliases, workflowId })}
         onEdit={item =>
           showDialog(RPCDialog, {
             refresh,
             data: item,
             existingAliases: existingRPCAliases,
             isEdit: true,
+            workflowId,
           })
         }
         refresh={refresh}
         titleId="integration.rpc.title"
+        workflowId={workflowId}
       />
 
       {/* LLM Integrations */}
@@ -110,7 +121,7 @@ const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({ showDialog, d
             icon={OpenaiLogo}
             installed={!!data?.openai}
             installedId="integration.openai.installed"
-            onClick={() => showDialog(OpenaiDialog, { refresh, data: data?.openai })}
+            onClick={() => showDialog(OpenaiDialog, { refresh, data: data?.openai, workflowId })}
             titleId="integration.openai.title"
           />
         ) : null}
@@ -119,7 +130,7 @@ const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({ showDialog, d
             icon={YandexGPTLogo}
             installed={!!data?.yandex?.apiKey}
             installedId="integration.openai.installed"
-            onClick={() => showDialog(YandexDialog, { refresh, data: data?.yandex })}
+            onClick={() => showDialog(YandexDialog, { refresh, data: data?.yandex, workflowId })}
             titleId="integration.yandex.title"
           />
         ) : null}
@@ -128,7 +139,7 @@ const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({ showDialog, d
             icon={ClaudeLogo}
             installed={!!data?.claude?.apiKey}
             installedId="integration.claude.installed"
-            onClick={() => showDialog(ClaudeDialog, { refresh, data: data?.claude })}
+            onClick={() => showDialog(ClaudeDialog, { refresh, data: data?.claude, workflowId })}
             titleId="integration.claude.title"
           />
         ) : null}
@@ -137,7 +148,7 @@ const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({ showDialog, d
             icon={PerplexityLogo}
             installed={!!data?.perplexity?.apiKey}
             installedId="integration.perplexity.installed"
-            onClick={() => showDialog(PerplexityDialog, { refresh, data: data?.perplexity })}
+            onClick={() => showDialog(PerplexityDialog, { refresh, data: data?.perplexity, workflowId })}
             titleId="integration.perplexity.title"
           />
         ) : null}
@@ -146,7 +157,7 @@ const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({ showDialog, d
             icon={QwenLogo}
             installed={!!data?.qwen?.apiKey}
             installedId="integration.qwen.installed"
-            onClick={() => showDialog(QwenDialog, { refresh, data: data?.qwen })}
+            onClick={() => showDialog(QwenDialog, { refresh, data: data?.qwen, workflowId })}
             titleId="integration.qwen.title"
           />
         ) : null}
@@ -155,7 +166,7 @@ const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({ showDialog, d
             icon={DeepseekLogo}
             installed={!!data?.deepseek?.apiKey}
             installedId="integration.deepseek.installed"
-            onClick={() => showDialog(DeepseekDialog, { refresh, data: data?.deepseek })}
+            onClick={() => showDialog(DeepseekDialog, { refresh, data: data?.deepseek, workflowId })}
             titleId="integration.deepseek.title"
           />
         ) : null}
@@ -164,7 +175,7 @@ const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({ showDialog, d
             icon={CustomLLMLogo}
             installed={!!data?.custom_llm}
             installedId="integration.installed"
-            onClick={() => showDialog(CustomLLMDialog, { refresh, data: data?.custom_llm })}
+            onClick={() => showDialog(CustomLLMDialog, { refresh, data: data?.custom_llm, workflowId })}
             titleId="integration.custom_llm.title"
           />
         ) : null}
