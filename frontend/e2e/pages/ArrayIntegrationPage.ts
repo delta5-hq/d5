@@ -1,4 +1,5 @@
 import { type Page, type Locator, expect } from '@playwright/test'
+import { selectRadixOption } from '../helpers/radix-select-helper'
 
 const TIMEOUTS = {
   dialogAppear: 10000,
@@ -87,8 +88,10 @@ export class ArrayIntegrationPage {
   }
 
   async fillMCPForm(data: MCPIntegrationData): Promise<void> {
+    const dialogScope = this.page.locator(SELECTORS.dialogContent('mcp'))
+
     await this.page.locator('#alias').fill(data.alias)
-    await this.selectOption(/stdio|streamable-http/i, data.transport)
+    await this.selectOption(/stdio|streamable-http/i, data.transport, dialogScope)
     await this.page.locator('#toolName').fill(data.toolName)
 
     if (data.toolInputField !== undefined) {
@@ -115,8 +118,10 @@ export class ArrayIntegrationPage {
   }
 
   async fillRPCForm(data: RPCIntegrationData): Promise<void> {
+    const dialogScope = this.page.locator(SELECTORS.dialogContent('rpc'))
+
     await this.page.locator('#alias').fill(data.alias)
-    await this.selectOption(/ssh|http|acp-local/i, data.protocol.toUpperCase())
+    await this.selectOption(/ssh|http|acp-local/i, data.protocol.toUpperCase(), dialogScope)
 
     if (data.description !== undefined) {
       await this.page.locator('#description').fill(data.description)
@@ -130,15 +135,15 @@ export class ArrayIntegrationPage {
       if (data.passphrase) await this.page.locator('#passphrase').fill(data.passphrase)
       if (data.commandTemplate) await this.page.locator('#commandTemplate').fill(data.commandTemplate)
       if (data.workingDir) await this.page.locator('#workingDir').fill(data.workingDir)
-      if (data.outputFormat) await this.selectOption(/text|json/i, data.outputFormat.toUpperCase())
+      if (data.outputFormat) await this.selectOption(/text|json/i, data.outputFormat.toUpperCase(), dialogScope)
       if (data.outputField) await this.page.locator('#outputField').fill(data.outputField)
       if (data.sessionIdField) await this.page.locator('#sessionIdField').fill(data.sessionIdField)
     } else if (data.protocol === 'http') {
       if (data.url) await this.page.locator('#url').fill(data.url)
-      if (data.method) await this.selectOption(/GET|POST|PUT/i, data.method)
+      if (data.method) await this.selectOption(/GET|POST|PUT/i, data.method, dialogScope)
       if (data.headers) await this.page.locator('#headers').fill(data.headers)
       if (data.bodyTemplate) await this.page.locator('#bodyTemplate').fill(data.bodyTemplate)
-      if (data.outputFormat) await this.selectOption(/text|json/i, data.outputFormat.toUpperCase())
+      if (data.outputFormat) await this.selectOption(/text|json/i, data.outputFormat.toUpperCase(), dialogScope)
       if (data.outputField) await this.page.locator('#outputField').fill(data.outputField)
       if (data.sessionIdField) await this.page.locator('#sessionIdField').fill(data.sessionIdField)
     } else if (data.protocol === 'acp-local') {
@@ -146,7 +151,7 @@ export class ArrayIntegrationPage {
       if (data.args) await this.page.locator('#args').fill(data.args)
       if (data.env) await this.page.locator('#env').fill(data.env)
       if (data.workingDir) await this.page.locator('#workingDir').fill(data.workingDir)
-      if (data.autoApprove) await this.selectOption(/all|none|whitelist/i, data.autoApprove)
+      if (data.autoApprove) await this.selectOption(/all|none|whitelist/i, data.autoApprove, dialogScope)
       if (data.allowedTools) await this.page.locator('#allowedTools').fill(data.allowedTools)
     }
 
@@ -310,12 +315,15 @@ export class ArrayIntegrationPage {
     await expect(card).toContainText(description)
   }
 
-  private async selectOption(currentTextPattern: RegExp, optionText: string): Promise<void> {
-    const combobox = this.page.locator('[role="combobox"]').filter({ hasText: currentTextPattern }).first()
-
-    if ((await combobox.count()) > 0) {
-      await combobox.click()
-      await this.page.locator(`[role="option"]:has-text("${optionText}")`).click()
-    }
+  private async selectOption(
+    currentTextPattern: RegExp,
+    optionText: string,
+    scope?: Locator,
+  ): Promise<void> {
+    await selectRadixOption(this.page, {
+      triggerTextPattern: currentTextPattern,
+      optionText,
+      triggerScope: scope,
+    })
   }
 }

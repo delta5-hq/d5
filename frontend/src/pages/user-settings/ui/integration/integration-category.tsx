@@ -137,9 +137,16 @@ const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({
         {data?.claude || showAll ? (
           <IntegrationCard
             icon={ClaudeLogo}
-            installed={!!data?.claude?.apiKey}
+            installed={!!data?.secretsMeta?.claude?.apiKey}
             installedId="integration.claude.installed"
-            onClick={() => showDialog(ClaudeDialog, { refresh, data: data?.claude, workflowId })}
+            onClick={() =>
+              showDialog(ClaudeDialog, {
+                refresh,
+                data: data?.claude,
+                secretMeta: data?.secretsMeta?.claude,
+                workflowId,
+              })
+            }
             titleId="integration.claude.title"
           />
         ) : null}

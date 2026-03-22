@@ -19,6 +19,7 @@ type Service struct {
 	encryptor      *DocumentEncryptor
 	fieldCrypto    *FieldCrypto
 	fallbackFinder *FallbackFinder
+	secretRedactor *SecretRedactor
 }
 
 func NewService(db *qmgo.Database) (*Service, error) {
@@ -34,12 +35,14 @@ func NewService(db *qmgo.Database) (*Service, error) {
 
 	collection := db.Collection("integrations")
 	fallbackFinder := newFallbackFinder(collection, encryptor)
+	secretRedactor := NewSecretRedactor()
 
 	return &Service{
 		collection:     collection,
 		encryptor:      encryptor,
 		fieldCrypto:    fieldCrypto,
 		fallbackFinder: fallbackFinder,
+		secretRedactor: secretRedactor,
 	}, nil
 }
 
@@ -119,6 +122,21 @@ func (s *Service) DecryptIntegration(integration *models.Integration) (*models.I
 	}
 
 	return &decrypted, nil
+}
+
+func (s *Service) PrepareSecureIntegrationResponse(integration *models.Integration) (*models.IntegrationWithMetadata, error) {
+	decrypted, err := s.DecryptIntegration(integration)
+	if err != nil {
+		return nil, err
+	}
+
+	metadata := s.secretRedactor.BuildMetadataFromIntegration(decrypted)
+	s.secretRedactor.RedactSecretsFromIntegration(decrypted)
+
+	return &models.IntegrationWithMetadata{
+		Integration: decrypted,
+		SecretsMeta: metadata,
+	}, nil
 }
 
 func (s *Service) Delete(ctx context.Context, scope ScopeIdentifier) error {

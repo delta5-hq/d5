@@ -4,6 +4,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { cleanArrayIntegrations } from './helpers/array-integration-helpers'
 import { ArrayIntegrationPage } from './pages/ArrayIntegrationPage'
+import { selectRadixOption } from './helpers/radix-select-helper'
 
 const test = base.extend<{}, { workerStorageState: string }>({
   storageState: ({ workerStorageState }, use) => use(workerStorageState),
@@ -522,9 +523,12 @@ test.describe.serial('Internationalization (i18n) Labels', () => {
     await arrayPage.goto()
     await arrayPage.openAddDialog('rpc')
 
-    const protocolSelect = page.locator('[role="combobox"]').filter({ hasText: /ssh|http|acp-local/i }).first()
-    await protocolSelect.click()
-    await page.locator('[role="option"]:has-text("SSH")').click()
+    const dialogScope = page.locator('[data-dialog-name="rpc"]')
+    await selectRadixOption(page, {
+      triggerTextPattern: /ssh|http|acp-local/i,
+      optionText: 'SSH',
+      triggerScope: dialogScope,
+    })
 
     await expect(page.locator('label[for="alias"]:has-text("Alias")')).toBeVisible()
     await expect(page.locator('label[for="protocol"]:has-text("Protocol")')).toBeVisible()

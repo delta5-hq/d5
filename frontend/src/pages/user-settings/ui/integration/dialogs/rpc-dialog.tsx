@@ -9,14 +9,14 @@ import { z } from 'zod'
 import type { DialogProps } from '@shared/base-types'
 import { Button } from '@shared/ui/button'
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@shared/ui/dialog'
+  GlassDialog,
+  GlassDialogClose,
+  GlassDialogContent,
+  GlassDialogDescription,
+  GlassDialogFooter,
+  GlassDialogHeader,
+  GlassDialogTitle,
+} from '@shared/ui/glass-dialog'
 import { Input } from '@shared/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
 import { Textarea } from '@shared/ui/textarea'
@@ -157,6 +157,7 @@ const RPCDialog: React.FC<Props> = ({
         method: 'POST' as const,
         outputFormat: 'text' as const,
         sessionIdField: 'session_id',
+        autoApprove: 'none' as const,
       }
     }
 
@@ -222,24 +223,25 @@ const RPCDialog: React.FC<Props> = ({
   }
 
   return (
-    <Dialog onOpenChange={onClose} open={open}>
-      <DialogContent
+    <GlassDialog onOpenChange={onClose} open={open}>
+      <GlassDialogContent
         className="max-w-[95vw] xs:max-w-md sm:max-w-2xl max-h-[85vh] overflow-y-auto"
         data-dialog-name="rpc"
+        dismissible={false}
       >
-        <DialogHeader>
-          <DialogTitle>
+        <GlassDialogHeader>
+          <GlassDialogTitle>
             <FormattedMessage id={data ? 'integration.rpc.edit' : 'integration.rpc.add'} />
-          </DialogTitle>
-          <DialogClose className="absolute right-4 top-4">
+          </GlassDialogTitle>
+          <GlassDialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />
             <span className="sr-only">
               <FormattedMessage id="close" />
             </span>
-          </DialogClose>
-        </DialogHeader>
+          </GlassDialogClose>
+        </GlassDialogHeader>
 
-        <DialogDescription />
+        <GlassDialogDescription />
 
         <div className="flex flex-col gap-4">
           {/* Alias */}
@@ -570,19 +572,19 @@ const RPCDialog: React.FC<Props> = ({
           </div>
         </div>
 
-        <DialogFooter className="mt-4 flex justify-end gap-2">
+        <GlassDialogFooter className="mt-4 flex justify-end gap-2">
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           <Button disabled={isSubmitting} onClick={handleSubmit(onSubmit as any)} type="submit" variant="accent">
             <FormattedMessage id="save" />
           </Button>
-          <DialogClose asChild>
+          <GlassDialogClose asChild>
             <Button variant="default">
               <FormattedMessage id="cancel" />
             </Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </GlassDialogClose>
+        </GlassDialogFooter>
+      </GlassDialogContent>
+    </GlassDialog>
   )
 }
 

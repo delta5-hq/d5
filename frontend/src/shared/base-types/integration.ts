@@ -91,6 +91,29 @@ export interface RPCIntegration {
   allowedTools?: string[]
 }
 
+export interface LLMSecretMetadata {
+  apiKey?: boolean
+}
+
+export interface ArrayItemSecretMetadata {
+  privateKey?: boolean
+  passphrase?: boolean
+  headers?: boolean
+  env?: boolean
+}
+
+export interface SecretMetadata {
+  openai?: LLMSecretMetadata
+  yandex?: LLMSecretMetadata
+  claude?: LLMSecretMetadata
+  qwen?: LLMSecretMetadata
+  deepseek?: LLMSecretMetadata
+  custom_llm?: LLMSecretMetadata
+  perplexity?: LLMSecretMetadata
+  mcp?: Record<string, ArrayItemSecretMetadata>
+  rpc?: Record<string, ArrayItemSecretMetadata>
+}
+
 export type IntegrationSettings = Partial<{
   openai: Openai
   google: Google
@@ -104,6 +127,7 @@ export type IntegrationSettings = Partial<{
   perplexity: Perplexity
   mcp: MCPIntegration[]
   rpc: RPCIntegration[]
+  secretsMeta: SecretMetadata
 }>
 
 export interface Language {

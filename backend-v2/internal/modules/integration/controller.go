@@ -57,13 +57,13 @@ func (ctrl *Controller) GetAll(c *fiber.Ctx) error {
 		return response.InternalError(c, err.Error())
 	}
 
-	decrypted, err := ctrl.service.DecryptIntegration(integration)
+	secureResponse, err := ctrl.service.PrepareSecureIntegrationResponse(integration)
 	if err != nil {
-		log.Error("GetAll: decrypt failed: %v", err)
+		log.Error("GetAll: prepare secure response failed: %v", err)
 		return response.InternalError(c, err.Error())
 	}
 
-	return c.JSON(decrypted)
+	return c.JSON(secureResponse)
 }
 
 func (ctrl *Controller) GetService(c *fiber.Ctx) error {
