@@ -11,6 +11,8 @@ import {
   deleteRPCItemAtScope,
   type ScopeDescriptor,
 } from './helpers/workflow-scoped-cleanup'
+import { ArrayIntegrationPage } from './pages/ArrayIntegrationPage'
+import { TIMEOUTS } from './config/test-timeouts'
 
 const test = base.extend<{}, { workerStorageState: string }>({
   storageState: ({ workerStorageState }, use) => use(workerStorageState),
@@ -41,8 +43,10 @@ test.describe.serial('Workflow-scoped integrations', () => {
   let workflow1Id: string
   let workflow2Id: string
 
-  test.beforeAll(async ({ browser }) => {
-    const page = await browser.newPage()
+  test.beforeAll(async ({ browser }, testInfo) => {
+    const page = await browser.newPage({
+      baseURL: testInfo.project.use.baseURL,
+    })
     await adminLogin(page)
 
     /* Create two test workflows */
@@ -59,8 +63,10 @@ test.describe.serial('Workflow-scoped integrations', () => {
     await page.close()
   })
 
-  test.afterAll(async ({ browser }) => {
-    const page = await browser.newPage()
+  test.afterAll(async ({ browser }, testInfo) => {
+    const page = await browser.newPage({
+      baseURL: testInfo.project.use.baseURL,
+    })
     await adminLogin(page)
 
     /* Cleanup: delete test workflows */
@@ -70,9 +76,18 @@ test.describe.serial('Workflow-scoped integrations', () => {
     await page.close()
   })
 
+  async function ensureIntegrationsTabActive(page: any) {
+    const integrationsTab = page.locator('[role="tab"]:has-text("Integrations")')
+    if ((await integrationsTab.count()) > 0) {
+      await integrationsTab.click()
+      await page.waitForTimeout(TIMEOUTS.SIDEBAR_TRANSITION)
+    }
+  }
+
   test.beforeEach(async ({ page }) => {
     await page.goto('/settings')
     await page.waitForLoadState('networkidle')
+    await ensureIntegrationsTabActive(page)
 
     const scopes: ScopeDescriptor[] = [
       { label: 'user-level', workflowId: undefined },
@@ -85,6 +100,7 @@ test.describe.serial('Workflow-scoped integrations', () => {
 
   test('workflow selector is visible on integrations page', async ({ page }) => {
     await page.goto('/settings')
+    await ensureIntegrationsTabActive(page)
     await page.waitForSelector('[data-type="workflow-scope-selector"]', { state: 'visible' })
 
     const selector = page.locator('[data-type="workflow-scope-selector"]')
@@ -93,12 +109,14 @@ test.describe.serial('Workflow-scoped integrations', () => {
 
   test('workflow selector shows user-level as default', async ({ page }) => {
     await page.goto('/settings')
+    await ensureIntegrationsTabActive(page)
     const selector = page.locator('[data-type="workflow-scope-selector"]')
     await expect(selector).toContainText(/All workflows|user-level/i)
   })
 
   test('workflow selector lists user workflows', async ({ page }) => {
     await page.goto('/settings')
+    await ensureIntegrationsTabActive(page)
 
     const selector = page.locator('[data-type="workflow-scope-selector"]')
     await selector.click()
@@ -110,6 +128,7 @@ test.describe.serial('Workflow-scoped integrations', () => {
 
   test('switching workflow scope refetches integrations with correct query param', async ({ page }) => {
     await page.goto('/settings')
+    await ensureIntegrationsTabActive(page)
 
     /* Monitor API calls */
     const apiCalls: string[] = []
@@ -131,6 +150,7 @@ test.describe.serial('Workflow-scoped integrations', () => {
 
   test('user-level integration is created without workflowId', async ({ page }) => {
     await page.goto('/settings')
+    await ensureIntegrationsTabActive(page)
 
     /* Ensure user-level scope is selected */
     const selector = page.locator('[data-type="workflow-scope-selector"]')
@@ -156,6 +176,7 @@ test.describe.serial('Workflow-scoped integrations', () => {
 
   test('workflow-scoped integration is created with correct workflowId', async ({ page }) => {
     await page.goto('/settings')
+    await ensureIntegrationsTabActive(page)
 
     /* Select workflow1 scope */
     const selector = page.locator('[data-type="workflow-scope-selector"]')
@@ -271,23 +292,22 @@ test.describe.serial('Workflow-scoped integrations', () => {
   })
 
   test('MCP integration: workflow-scoped CRUD', async ({ page }) => {
+    const integrationPage = new ArrayIntegrationPage(page)
     await page.goto('/settings')
+    await ensureIntegrationsTabActive(page)
 
     /* Select workflow1 scope */
     const selector = page.locator('[data-type="workflow-scope-selector"]')
     await selector.click()
     await page.locator(`[data-type="scope-workflow-${workflow1Id}"]`).click()
 
-    /* Add MCP integration */
-    await page.locator('[data-type="add-mcp"]').click()
-
-    await page.fill('input[name="alias"]', '/test-mcp-workflow1')
-    await page.selectOption('select[name="transport"]', 'stdio')
-    await page.fill('input[name="toolName"]', 'test-tool')
-    await page.fill('input[name="command"]', 'node')
-    await page.locator('button[type="submit"]').click()
-
-    await page.waitForTimeout(500)
+    /* Add MCP integration using POM */
+    await integrationPage.addMCPIntegration({
+      alias: '/test-mcp-workflow1',
+      transport: 'stdio',
+      toolName: 'test-tool',
+      command: 'node',
+    })
 
     /* Verify via API */
     const response = await page.request.get(`/api/v2/integration?workflowId=${workflow1Id}`)
@@ -304,22 +324,21 @@ test.describe.serial('Workflow-scoped integrations', () => {
   })
 
   test('RPC integration: workflow-scoped CRUD', async ({ page }) => {
+    const integrationPage = new ArrayIntegrationPage(page)
     await page.goto('/settings')
+    await ensureIntegrationsTabActive(page)
 
     /* Select workflow2 scope */
     const selector = page.locator('[data-type="workflow-scope-selector"]')
     await selector.click()
     await page.locator(`[data-type="scope-workflow-${workflow2Id}"]`).click()
 
-    /* Add RPC integration */
-    await page.locator('[data-type="add-rpc"]').click()
-
-    await page.fill('input[name="alias"]', '/test-rpc-workflow2')
-    await page.selectOption('select[name="protocol"]', 'http')
-    await page.fill('input[name="url"]', 'https://example.com/api')
-    await page.locator('button[type="submit"]').click()
-
-    await page.waitForTimeout(500)
+    /* Add RPC integration using POM */
+    await integrationPage.addRPCIntegration({
+      alias: '/test-rpc-workflow2',
+      protocol: 'http',
+      url: 'https://example.com/api',
+    })
 
     /* Verify via API */
     const response = await page.request.get(`/api/v2/integration?workflowId=${workflow2Id}`)

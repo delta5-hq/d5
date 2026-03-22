@@ -4,14 +4,14 @@ import { AlertTriangle } from 'lucide-react'
 
 import { Button } from '@shared/ui/button'
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@shared/ui/dialog'
+  GlassDialog,
+  GlassDialogClose,
+  GlassDialogContent,
+  GlassDialogDescription,
+  GlassDialogFooter,
+  GlassDialogHeader,
+  GlassDialogTitle,
+} from '@shared/ui/glass-dialog'
 
 interface DeleteConfirmationDialogProps {
   open: boolean
@@ -26,31 +26,31 @@ export const DeleteConfirmationDialog: React.FC<DeleteConfirmationDialogProps> =
   onConfirm,
   open,
 }) => (
-  <Dialog onOpenChange={onCancel} open={open}>
-    <DialogContent className="max-w-md">
-      <DialogHeader>
+  <GlassDialog onOpenChange={onCancel} open={open}>
+    <GlassDialogContent className="max-w-md" dismissible={false}>
+      <GlassDialogHeader>
         <div className="flex items-center gap-2">
           <AlertTriangle aria-hidden="true" className="h-5 w-5 text-destructive" />
-          <DialogTitle>
+          <GlassDialogTitle>
             <FormattedMessage id="dialog.integration.deleteConfirmTitle" />
-          </DialogTitle>
+          </GlassDialogTitle>
         </div>
-      </DialogHeader>
+      </GlassDialogHeader>
 
-      <DialogDescription>
+      <GlassDialogDescription>
         <FormattedMessage id="dialog.integration.deleteConfirmMessage" values={{ alias }} />
-      </DialogDescription>
+      </GlassDialogDescription>
 
-      <DialogFooter className="flex gap-2 sm:gap-2">
+      <GlassDialogFooter className="flex gap-2 sm:gap-2">
         <Button onClick={onConfirm} variant="danger">
           <FormattedMessage id="delete" />
         </Button>
-        <DialogClose asChild>
+        <GlassDialogClose asChild>
           <Button variant="default">
             <FormattedMessage id="cancel" />
           </Button>
-        </DialogClose>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+        </GlassDialogClose>
+      </GlassDialogFooter>
+    </GlassDialogContent>
+  </GlassDialog>
 )

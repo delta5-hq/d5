@@ -4,6 +4,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { cleanArrayIntegrations } from './helpers/array-integration-helpers'
 import { ArrayIntegrationPage } from './pages/ArrayIntegrationPage'
+import { selectRadixOption } from './helpers/radix-select-helper'
 
 const test = base.extend<{}, { workerStorageState: string }>({
   storageState: ({ workerStorageState }, use) => use(workerStorageState),
@@ -342,27 +343,32 @@ test.describe.serial('RPC Integration UI Flow', () => {
 
     await page.locator('#alias').fill('/test')
 
-    const protocolSelect = page
-      .locator('[role="combobox"]')
-      .filter({ hasText: /ssh|http|acp-local/i })
-      .first()
-
-    await protocolSelect.click()
-    await page.locator('[role="option"]:has-text("SSH")').click()
+    const dialogScope = page.locator('[data-dialog-name="rpc"]')
+    await selectRadixOption(page, {
+      triggerTextPattern: /ssh|http|acp-local/i,
+      optionText: 'SSH',
+      triggerScope: dialogScope,
+    })
 
     await expect(page.locator('#host')).toBeVisible()
     await expect(page.locator('#username')).toBeVisible()
     await expect(page.locator('#privateKey')).toBeVisible()
 
-    await protocolSelect.click()
-    await page.locator('[role="option"]:has-text("HTTP")').click()
+    await selectRadixOption(page, {
+      triggerTextPattern: /ssh|http|acp-local/i,
+      optionText: 'HTTP',
+      triggerScope: dialogScope,
+    })
 
     await expect(page.locator('#url')).toBeVisible()
     await expect(page.locator('#method')).toBeVisible()
     await expect(page.locator('#host')).not.toBeVisible()
 
-    await protocolSelect.click()
-    await page.locator('[role="option"]:has-text("ACP-LOCAL")').click()
+    await selectRadixOption(page, {
+      triggerTextPattern: /ssh|http|acp-local/i,
+      optionText: 'ACP-LOCAL',
+      triggerScope: dialogScope,
+    })
 
     await expect(page.locator('#command')).toBeVisible()
     await expect(page.locator('#autoApprove')).toBeVisible()
@@ -377,12 +383,12 @@ test.describe.serial('RPC Integration UI Flow', () => {
 
     await page.locator('#alias').fill('/claude')
 
-    const protocolSelect = page
-      .locator('[role="combobox"]')
-      .filter({ hasText: /ssh|http|acp-local/i })
-      .first()
-    await protocolSelect.click()
-    await page.locator('[role="option"]:has-text("SSH")').click()
+    const dialogScope = page.locator('[data-dialog-name="rpc"]')
+    await selectRadixOption(page, {
+      triggerTextPattern: /ssh|http|acp-local/i,
+      optionText: 'SSH',
+      triggerScope: dialogScope,
+    })
 
     const presetButton = page.locator('button:has-text("Claude CLI Preset")')
     await presetButton.click()
@@ -645,18 +651,20 @@ test.describe.serial('UI Form Validation Edge Cases', () => {
     await page.locator('#toolName').fill('test-tool')
     await page.locator('#description').fill('Test description')
 
-    const transportSelect = page
-      .locator('[role="combobox"]')
-      .filter({ hasText: /stdio|streamable-http/i })
-      .first()
-
-    await transportSelect.click()
-    await page.locator('[role="option"]:has-text("stdio")').click()
+    const dialogScope = page.locator('[data-dialog-name="mcp"]')
+    await selectRadixOption(page, {
+      triggerTextPattern: /stdio|streamable-http/i,
+      optionText: 'stdio',
+      triggerScope: dialogScope,
+    })
 
     await page.locator('#command').fill('node')
 
-    await transportSelect.click()
-    await page.locator('[role="option"]:has-text("streamable-http")').click()
+    await selectRadixOption(page, {
+      triggerTextPattern: /stdio|streamable-http/i,
+      optionText: 'streamable-http',
+      triggerScope: dialogScope,
+    })
 
     await expect(page.locator('#alias')).toHaveValue('/persist-test')
     await expect(page.locator('#toolName')).toHaveValue('test-tool')
@@ -672,19 +680,24 @@ test.describe.serial('UI Form Validation Edge Cases', () => {
     await page.locator('#alias').fill('/rpc-persist')
     await page.locator('#description').fill('Persistent description')
 
-    const protocolSelect = page
-      .locator('[role="combobox"]')
-      .filter({ hasText: /ssh|http|acp-local/i })
-      .first()
+    const dialogScope = page.locator('[data-dialog-name="rpc"]')
+    await selectRadixOption(page, {
+      triggerTextPattern: /ssh|http|acp-local/i,
+      optionText: 'SSH',
+      triggerScope: dialogScope,
+    })
 
-    await protocolSelect.click()
-    await page.locator('[role="option"]:has-text("SSH")').click()
+    await selectRadixOption(page, {
+      triggerTextPattern: /ssh|http|acp-local/i,
+      optionText: 'HTTP',
+      triggerScope: dialogScope,
+    })
 
-    await protocolSelect.click()
-    await page.locator('[role="option"]:has-text("HTTP")').click()
-
-    await protocolSelect.click()
-    await page.locator('[role="option"]:has-text("SSH")').click()
+    await selectRadixOption(page, {
+      triggerTextPattern: /ssh|http|acp-local/i,
+      optionText: 'SSH',
+      triggerScope: dialogScope,
+    })
 
     await expect(page.locator('#alias')).toHaveValue('/rpc-persist')
     await expect(page.locator('#description')).toHaveValue('Persistent description')
@@ -742,5 +755,89 @@ test.describe.serial('UI Form Validation Edge Cases', () => {
     await expect(page.locator('#bodyTemplate')).toHaveValue('{"query":"{{prompt}}","model":"gpt-4"}')
     await expect(page.locator('#outputField')).toHaveValue('result.data')
     await expect(page.locator('#timeoutMs')).toHaveValue('180000')
+  })
+
+  test('RPC dialog all Select fields have non-empty defaults on protocol switch', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.openAddDialog('rpc')
+
+    const dialogScope = page.locator('[data-dialog-name="rpc"]')
+    const protocols = [
+      { name: 'SSH', selects: ['outputFormat'] },
+      { name: 'HTTP', selects: ['method', 'outputFormat'] },
+      { name: 'ACP-LOCAL', selects: ['autoApprove'] },
+    ]
+
+    for (const { name, selects } of protocols) {
+      await selectRadixOption(page, {
+        triggerTextPattern: /ssh|http|acp-local/i,
+        optionText: name,
+        triggerScope: dialogScope,
+      })
+
+      for (const selectId of selects) {
+        const selectTrigger = dialogScope.locator(`#${selectId}`).locator('[role="combobox"]')
+        const triggerText = await selectTrigger.textContent()
+        expect(triggerText?.trim()).not.toBe('')
+      }
+    }
+  })
+
+  test('RPC dialog Select defaults match schema defaults', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.openAddDialog('rpc')
+
+    const dialogScope = page.locator('[data-dialog-name="rpc"]')
+
+    await selectRadixOption(page, {
+      triggerTextPattern: /ssh|http|acp-local/i,
+      optionText: 'SSH',
+      triggerScope: dialogScope,
+    })
+    await expect(dialogScope.locator('#outputFormat').locator('[role="combobox"]')).toContainText(/TEXT/i)
+
+    await selectRadixOption(page, {
+      triggerTextPattern: /ssh|http|acp-local/i,
+      optionText: 'HTTP',
+      triggerScope: dialogScope,
+    })
+    await expect(dialogScope.locator('#method').locator('[role="combobox"]')).toContainText(/POST/i)
+    await expect(dialogScope.locator('#outputFormat').locator('[role="combobox"]')).toContainText(/TEXT/i)
+
+    await selectRadixOption(page, {
+      triggerTextPattern: /ssh|http|acp-local/i,
+      optionText: 'ACP-LOCAL',
+      triggerScope: dialogScope,
+    })
+    await expect(dialogScope.locator('#autoApprove').locator('[role="combobox"]')).toContainText(/none/i)
+  })
+
+  test('MCP dialog Select defaults are always defined', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.openAddDialog('mcp')
+
+    const dialogScope = page.locator('[data-dialog-name="mcp"]')
+    const transports = ['stdio', 'streamable-http']
+
+    for (const transport of transports) {
+      await selectRadixOption(page, {
+        triggerTextPattern: /stdio|streamable-http/i,
+        optionText: transport,
+        triggerScope: dialogScope,
+      })
+
+      const transportTrigger = dialogScope
+        .locator('[role="combobox"]')
+        .filter({ hasText: /stdio|streamable-http/i })
+        .first()
+      const triggerText = await transportTrigger.textContent()
+      expect(triggerText?.trim()).not.toBe('')
+    }
   })
 })

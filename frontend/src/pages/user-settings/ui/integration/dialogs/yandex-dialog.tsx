@@ -11,14 +11,14 @@ import { z } from 'zod'
 
 import { Button } from '@shared/ui/button'
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@shared/ui/dialog'
+  GlassDialog,
+  GlassDialogClose,
+  GlassDialogContent,
+  GlassDialogDescription,
+  GlassDialogFooter,
+  GlassDialogHeader,
+  GlassDialogTitle,
+} from '@shared/ui/glass-dialog'
 import { Input } from '@shared/ui/input'
 import { Label } from '@shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
@@ -115,18 +115,18 @@ export const YandexDialog: React.FC<Props> = ({ data, open, onClose, refresh, wo
   }
 
   return (
-    <Dialog onOpenChange={state => !state && onClose?.()} open={open}>
-      <DialogContent className="sm:max-w-lg" data-dialog-name="yandex">
-        <DialogHeader>
-          <DialogTitle>
+    <GlassDialog onOpenChange={state => !state && onClose?.()} open={open}>
+      <GlassDialogContent className="sm:max-w-lg" data-dialog-name="yandex" dismissible={false}>
+        <GlassDialogHeader>
+          <GlassDialogTitle>
             <FormattedMessage id="integration.yandex.title" />
-          </DialogTitle>
-          <DialogClose className="absolute right-4 top-4">
+          </GlassDialogTitle>
+          <GlassDialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />
-          </DialogClose>
-        </DialogHeader>
+          </GlassDialogClose>
+        </GlassDialogHeader>
 
-        <DialogDescription />
+        <GlassDialogDescription />
 
         <div>
           <Label htmlFor="apiKey">
@@ -178,17 +178,17 @@ export const YandexDialog: React.FC<Props> = ({ data, open, onClose, refresh, wo
           </Select>
         </div>
 
-        <DialogFooter className="mt-4 flex justify-end gap-2">
+        <GlassDialogFooter className="mt-4 flex justify-end gap-2">
           <Button disabled={isSubmitting} onClick={handleSubmit(onSubmit)} type="submit" variant="accent">
             <FormattedMessage id="save" />
           </Button>
-          <DialogClose asChild>
+          <GlassDialogClose asChild>
             <Button variant="default">
               <FormattedMessage id="cancel" />
             </Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </GlassDialogClose>
+        </GlassDialogFooter>
+      </GlassDialogContent>
+    </GlassDialog>
   )
 }

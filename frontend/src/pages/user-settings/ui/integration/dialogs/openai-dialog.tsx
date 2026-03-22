@@ -5,14 +5,14 @@ import { FormattedMessage } from 'react-intl'
 
 import { Button } from '@shared/ui/button'
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@shared/ui/dialog'
+  GlassDialog,
+  GlassDialogClose,
+  GlassDialogContent,
+  GlassDialogDescription,
+  GlassDialogFooter,
+  GlassDialogHeader,
+  GlassDialogTitle,
+} from '@shared/ui/glass-dialog'
 import { Input } from '@shared/ui/input'
 import { Label } from '@shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
@@ -116,18 +116,18 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data, workflowI
   }
 
   return (
-    <Dialog onOpenChange={onClose} open={open}>
-      <DialogContent className="sm:max-w-lg" data-dialog-name="openai">
-        <DialogHeader>
-          <DialogTitle>
+    <GlassDialog onOpenChange={onClose} open={open}>
+      <GlassDialogContent className="sm:max-w-lg" data-dialog-name="openai" dismissible={false}>
+        <GlassDialogHeader>
+          <GlassDialogTitle>
             <FormattedMessage id="integration.openai.title" />
-          </DialogTitle>
-          <DialogClose className="absolute right-4 top-4">
+          </GlassDialogTitle>
+          <GlassDialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />
-          </DialogClose>
-        </DialogHeader>
+          </GlassDialogClose>
+        </GlassDialogHeader>
 
-        <DialogDescription />
+        <GlassDialogDescription />
 
         <div className="flex flex-col gap-4">
           {/* API Key */}
@@ -173,18 +173,18 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data, workflowI
           </div>
         </div>
 
-        <DialogFooter className="mt-4 flex justify-end gap-2">
+        <GlassDialogFooter className="mt-4 flex justify-end gap-2">
           <Button disabled={isSubmitting} onClick={handleSubmit(onSubmit)} type="submit" variant="accent">
             <FormattedMessage id="save" />
           </Button>
-          <DialogClose asChild>
+          <GlassDialogClose asChild>
             <Button variant="default">
               <FormattedMessage id="cancel" />
             </Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </GlassDialogClose>
+        </GlassDialogFooter>
+      </GlassDialogContent>
+    </GlassDialog>
   )
 }
 
