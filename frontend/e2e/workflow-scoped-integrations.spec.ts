@@ -53,12 +53,12 @@ test.describe.serial('Workflow-scoped integrations', () => {
     const response1 = await page.request.post('/api/v2/workflow', {
       data: { title: 'Test Workflow 1' },
     })
-    workflow1Id = (await response1.json())._id
+    workflow1Id = (await response1.json()).workflowId
 
     const response2 = await page.request.post('/api/v2/workflow', {
       data: { title: 'Test Workflow 2' },
     })
-    workflow2Id = (await response2.json())._id
+    workflow2Id = (await response2.json()).workflowId
 
     await page.close()
   })
