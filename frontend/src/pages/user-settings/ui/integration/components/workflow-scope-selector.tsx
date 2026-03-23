@@ -32,8 +32,12 @@ export const WorkflowScopeSelector: React.FC<WorkflowScopeSelectorProps> = ({ va
             <FormattedMessage id="integration.workflowScope.userLevel" />
           </SelectItem>
           {workflows.map(workflow => (
-            <SelectItem data-type={`scope-workflow-${workflow._id}`} key={workflow._id} value={workflow._id}>
-              {workflow.title || workflow._id}
+            <SelectItem
+              data-type={`scope-workflow-${workflow.workflowId}`}
+              key={workflow.workflowId}
+              value={workflow.workflowId}
+            >
+              {workflow.title || workflow.workflowId}
             </SelectItem>
           ))}
         </SelectContent>

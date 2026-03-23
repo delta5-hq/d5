@@ -174,15 +174,8 @@ func (sr *SecretRedactor) RedactSecretsFromIntegration(integration *models.Integ
 		integration.Perplexity.APIKey = ""
 	}
 
-	for i := range integration.MCP {
-		integration.MCP[i].Headers = nil
-		integration.MCP[i].Env = nil
-	}
-
 	for i := range integration.RPC {
 		integration.RPC[i].PrivateKey = ""
 		integration.RPC[i].Passphrase = ""
-		integration.RPC[i].Headers = nil
-		integration.RPC[i].Env = nil
 	}
 }

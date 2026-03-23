@@ -367,7 +367,7 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 		verifyMCP   func(t *testing.T, mcp []models.MCPIntegrationConfig)
 	}{
 		{
-			name: "RPC all secret fields cleared",
+			name: "RPC credential fields cleared but config maps preserved",
 			integration: &models.Integration{
 				RPC: []models.RPCIntegrationConfig{
 					{
@@ -392,11 +392,11 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 				if item.Passphrase != "" {
 					t.Error("Passphrase not cleared")
 				}
-				if item.Headers != nil {
-					t.Error("Headers not nil")
+				if item.Headers == nil || item.Headers["Auth"] != "Bearer xyz" {
+					t.Error("Headers config map not preserved")
 				}
-				if item.Env != nil {
-					t.Error("Env not nil")
+				if item.Env == nil || item.Env["DB_PASS"] != "dbsecret" {
+					t.Error("Env config map not preserved")
 				}
 				if item.Host != "10.0.0.1" {
 					t.Error("Host config changed")
@@ -410,7 +410,7 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 			},
 		},
 		{
-			name: "MCP headers and env cleared",
+			name: "MCP config maps preserved",
 			integration: &models.Integration{
 				MCP: []models.MCPIntegrationConfig{
 					{
@@ -428,11 +428,11 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 					t.Fatalf("Expected 1 MCP item, got %d", len(mcp))
 				}
 				item := mcp[0]
-				if item.Headers != nil {
-					t.Error("Headers not nil")
+				if item.Headers == nil || item.Headers["X-API-Key"] != "secret" {
+					t.Error("Headers config map not preserved")
 				}
-				if item.Env != nil {
-					t.Error("Env not nil")
+				if item.Env == nil || item.Env["TOKEN"] != "abc" {
+					t.Error("Env config map not preserved")
 				}
 				if item.ServerURL != "https://mcp.example.com" {
 					t.Error("ServerURL changed")
@@ -446,11 +446,11 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 			},
 		},
 		{
-			name: "multiple items all redacted",
+			name: "multiple items credentials cleared config maps preserved",
 			integration: &models.Integration{
 				RPC: []models.RPCIntegrationConfig{
-					{Alias: "rpc1", PrivateKey: "key1", Host: "host1"},
-					{Alias: "rpc2", Passphrase: "pass2", Host: "host2"},
+					{Alias: "rpc1", PrivateKey: "key1", Host: "host1", Headers: map[string]string{"X-Auth": "token1"}},
+					{Alias: "rpc2", Passphrase: "pass2", Host: "host2", Env: map[string]string{"API_KEY": "secret2"}},
 				},
 				MCP: []models.MCPIntegrationConfig{
 					{Alias: "mcp1", Headers: map[string]string{"a": "b"}, ToolName: "tool1"},
@@ -461,10 +461,19 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 				if len(rpc) != 2 {
 					t.Fatalf("Expected 2 RPC items, got %d", len(rpc))
 				}
+				if rpc[0].PrivateKey != "" {
+					t.Error("rpc1 PrivateKey not cleared")
+				}
+				if rpc[0].Headers == nil || rpc[0].Headers["X-Auth"] != "token1" {
+					t.Error("rpc1 Headers config map not preserved")
+				}
+				if rpc[1].Passphrase != "" {
+					t.Error("rpc2 Passphrase not cleared")
+				}
+				if rpc[1].Env == nil || rpc[1].Env["API_KEY"] != "secret2" {
+					t.Error("rpc2 Env config map not preserved")
+				}
 				for _, item := range rpc {
-					if item.PrivateKey != "" || item.Passphrase != "" || item.Headers != nil || item.Env != nil {
-						t.Errorf("Secrets not cleared for RPC alias %s", item.Alias)
-					}
 					if item.Host == "" {
 						t.Errorf("Config lost for RPC alias %s", item.Alias)
 					}
@@ -474,13 +483,120 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 				if len(mcp) != 2 {
 					t.Fatalf("Expected 2 MCP items, got %d", len(mcp))
 				}
+				if mcp[0].Headers == nil || mcp[0].Headers["a"] != "b" {
+					t.Error("mcp1 Headers config map not preserved")
+				}
+				if mcp[1].Env == nil || mcp[1].Env["c"] != "d" {
+					t.Error("mcp2 Env config map not preserved")
+				}
 				for _, item := range mcp {
-					if item.Headers != nil || item.Env != nil {
-						t.Errorf("Secrets not cleared for MCP alias %s", item.Alias)
-					}
 					if item.ToolName == "" {
 						t.Errorf("Config lost for MCP alias %s", item.Alias)
 					}
+				}
+			},
+		},
+		{
+			name: "empty config maps preserved as empty not null",
+			integration: &models.Integration{
+				RPC: []models.RPCIntegrationConfig{
+					{
+						Alias:      "empty-maps",
+						Host:       "example.com",
+						PrivateKey: "key",
+						Headers:    map[string]string{},
+						Env:        map[string]string{},
+					},
+				},
+				MCP: []models.MCPIntegrationConfig{
+					{
+						Alias:    "empty-mcp",
+						ToolName: "test",
+						Headers:  map[string]string{},
+						Env:      map[string]string{},
+					},
+				},
+			},
+			verifyRPC: func(t *testing.T, rpc []models.RPCIntegrationConfig) {
+				if len(rpc) != 1 {
+					t.Fatalf("Expected 1 RPC item, got %d", len(rpc))
+				}
+				item := rpc[0]
+				if item.PrivateKey != "" {
+					t.Error("PrivateKey not cleared")
+				}
+				if item.Headers == nil {
+					t.Error("Empty Headers became nil instead of empty map")
+				}
+				if len(item.Headers) != 0 {
+					t.Errorf("Expected empty Headers map, got %d entries", len(item.Headers))
+				}
+				if item.Env == nil {
+					t.Error("Empty Env became nil instead of empty map")
+				}
+				if len(item.Env) != 0 {
+					t.Errorf("Expected empty Env map, got %d entries", len(item.Env))
+				}
+			},
+			verifyMCP: func(t *testing.T, mcp []models.MCPIntegrationConfig) {
+				if len(mcp) != 1 {
+					t.Fatalf("Expected 1 MCP item, got %d", len(mcp))
+				}
+				item := mcp[0]
+				if item.Headers == nil {
+					t.Error("Empty Headers became nil instead of empty map")
+				}
+				if item.Env == nil {
+					t.Error("Empty Env became nil instead of empty map")
+				}
+			},
+		},
+		{
+			name: "nil config maps remain nil",
+			integration: &models.Integration{
+				RPC: []models.RPCIntegrationConfig{
+					{
+						Alias:      "nil-maps",
+						Host:       "example.com",
+						PrivateKey: "key",
+						Headers:    nil,
+						Env:        nil,
+					},
+				},
+				MCP: []models.MCPIntegrationConfig{
+					{
+						Alias:    "nil-mcp",
+						ToolName: "test",
+						Headers:  nil,
+						Env:      nil,
+					},
+				},
+			},
+			verifyRPC: func(t *testing.T, rpc []models.RPCIntegrationConfig) {
+				if len(rpc) != 1 {
+					t.Fatalf("Expected 1 RPC item, got %d", len(rpc))
+				}
+				item := rpc[0]
+				if item.PrivateKey != "" {
+					t.Error("PrivateKey not cleared")
+				}
+				if item.Headers != nil {
+					t.Error("nil Headers became non-nil")
+				}
+				if item.Env != nil {
+					t.Error("nil Env became non-nil")
+				}
+			},
+			verifyMCP: func(t *testing.T, mcp []models.MCPIntegrationConfig) {
+				if len(mcp) != 1 {
+					t.Fatalf("Expected 1 MCP item, got %d", len(mcp))
+				}
+				item := mcp[0]
+				if item.Headers != nil {
+					t.Error("nil Headers became non-nil")
+				}
+				if item.Env != nil {
+					t.Error("nil Env became non-nil")
 				}
 			},
 		},

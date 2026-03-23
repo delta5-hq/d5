@@ -1,7 +1,6 @@
 import type { Share, Template } from '@shared/base-types'
 
 export interface WorkflowItem {
-  _id: string
   workflowId: string
   userId: string
   tags: string[]
