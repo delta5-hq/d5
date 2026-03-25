@@ -25,18 +25,13 @@ import type { HttpError } from '@shared/lib/error'
 import { FormFieldLabel } from '../components/form-field-label'
 import { buildIntegrationUrl } from '../utils/build-integration-url'
 import {
-  serializeArrayToSpaceSeparated,
-  serializeArrayToCommaSeparated,
-  serializeObjectToKeyValueLines,
   deserializeSpaceSeparatedToArray,
   deserializeCommaSeparatedToArray,
   deserializeKeyValueLinesToObject,
 } from './form-serialization'
-
-const rpcProtocols = ['ssh', 'http', 'acp-local'] as const
-const acpAutoApproveOptions = ['all', 'none', 'whitelist'] as const
-const rpcMethods = ['GET', 'POST', 'PUT'] as const
-const rpcOutputFormats = ['text', 'json'] as const
+import { useRPCFormDefaults } from './hooks/use-rpc-form-defaults'
+import { useRPCProtocolDefaults } from './hooks/use-rpc-protocol-defaults'
+import { RPC_PROTOCOLS, RPC_METHODS, RPC_OUTPUT_FORMATS, ACP_AUTO_APPROVE_OPTIONS } from './rpc-constants'
 
 const timeoutMsField = z.preprocess(
   val => (typeof val === 'number' && Number.isNaN(val) ? undefined : val),
@@ -55,7 +50,7 @@ const sshSchema = z.object({
   commandTemplate: z.string().min(1, 'Command template is required'),
   workingDir: z.string().optional(),
   timeoutMs: timeoutMsField,
-  outputFormat: z.enum(rpcOutputFormats).default('text'),
+  outputFormat: z.enum(RPC_OUTPUT_FORMATS).default('text'),
   outputField: z.string().optional(),
   sessionIdField: z.string().default('session_id'),
 })
@@ -65,11 +60,11 @@ const httpSchema = z.object({
   protocol: z.literal('http'),
   description: z.string().optional(),
   url: z.string().url('Must be a valid URL'),
-  method: z.enum(rpcMethods).default('POST'),
+  method: z.enum(RPC_METHODS).default('POST'),
   headers: z.string().optional(),
   bodyTemplate: z.string().optional(),
   timeoutMs: timeoutMsField,
-  outputFormat: z.enum(rpcOutputFormats).default('text'),
+  outputFormat: z.enum(RPC_OUTPUT_FORMATS).default('text'),
   outputField: z.string().optional(),
   sessionIdField: z.string().default('session_id'),
 })
@@ -83,7 +78,7 @@ const acpLocalSchema = z.object({
   env: z.string().optional(),
   workingDir: z.string().optional(),
   timeoutMs: timeoutMsField,
-  autoApprove: z.enum(acpAutoApproveOptions).default('none'),
+  autoApprove: z.enum(ACP_AUTO_APPROVE_OPTIONS).default('none'),
   allowedTools: z.string().optional(),
 })
 
@@ -149,27 +144,7 @@ const RPCDialog: React.FC<Props> = ({
     },
   })
 
-  const formDefaults = React.useMemo(() => {
-    if (!data) {
-      return {
-        protocol: 'ssh' as const,
-        port: 22,
-        method: 'POST' as const,
-        outputFormat: 'text' as const,
-        sessionIdField: 'session_id',
-        autoApprove: 'none' as const,
-      }
-    }
-
-    const serialized: Partial<RPCFormFlat> = { ...data }
-
-    serialized.args = serializeArrayToSpaceSeparated((data as any).args)
-    serialized.env = serializeObjectToKeyValueLines((data as any).env)
-    serialized.headers = serializeObjectToKeyValueLines((data as any).headers)
-    serialized.allowedTools = serializeArrayToCommaSeparated((data as any).allowedTools)
-
-    return serialized
-  }, [data])
+  const formDefaults = useRPCFormDefaults(data)
 
   const form = useForm<RPCFormFlat>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -190,24 +165,11 @@ const RPCDialog: React.FC<Props> = ({
   const method = watch('method')
   const autoApprove = watch('autoApprove')
 
-  React.useEffect(() => {
-    if (protocol === 'ssh') {
-      if (outputFormat === undefined) {
-        setValue('outputFormat', 'text')
-      }
-    } else if (protocol === 'http') {
-      if (method === undefined) {
-        setValue('method', 'POST')
-      }
-      if (outputFormat === undefined) {
-        setValue('outputFormat', 'text')
-      }
-    } else if (protocol === 'acp-local') {
-      if (autoApprove === undefined) {
-        setValue('autoApprove', 'none')
-      }
-    }
-  }, [protocol, outputFormat, method, autoApprove, setValue])
+  useRPCProtocolDefaults({
+    protocol,
+    setValue,
+    isEditMode: isEdit,
+  })
 
   const fillClaudePreset = () => {
     setValue('commandTemplate', 'claude -p "{{prompt}}" --output-format json --dangerously-skip-permissions')
@@ -292,7 +254,7 @@ const RPCDialog: React.FC<Props> = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {rpcProtocols.map(p => (
+                {RPC_PROTOCOLS.map(p => (
                   <SelectItem key={p} value={p}>
                     {p.toUpperCase()}
                   </SelectItem>
@@ -412,14 +374,14 @@ const RPCDialog: React.FC<Props> = ({
                 <FormFieldLabel htmlFor="method" labelId="dialog.integration.method" />
                 <Select
                   disabled={isSubmitting}
-                  onValueChange={(val: (typeof rpcMethods)[number]) => setValue('method', val)}
+                  onValueChange={(val: (typeof RPC_METHODS)[number]) => setValue('method', val)}
                   value={method}
                 >
                   <SelectTrigger id="method">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {rpcMethods.map(m => (
+                    {RPC_METHODS.map(m => (
                       <SelectItem key={m} value={m}>
                         {m}
                       </SelectItem>
@@ -504,14 +466,14 @@ const RPCDialog: React.FC<Props> = ({
                 <FormFieldLabel htmlFor="autoApprove" labelId="dialog.integration.autoApproveMode" />
                 <Select
                   disabled={isSubmitting}
-                  onValueChange={(val: (typeof acpAutoApproveOptions)[number]) => setValue('autoApprove', val)}
+                  onValueChange={(val: (typeof ACP_AUTO_APPROVE_OPTIONS)[number]) => setValue('autoApprove', val)}
                   value={autoApprove}
                 >
                   <SelectTrigger id="autoApprove">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {acpAutoApproveOptions.map(opt => (
+                    {ACP_AUTO_APPROVE_OPTIONS.map(opt => (
                       <SelectItem key={opt} value={opt}>
                         {opt}
                       </SelectItem>
@@ -543,14 +505,14 @@ const RPCDialog: React.FC<Props> = ({
                   <FormFieldLabel htmlFor="outputFormat" labelId="dialog.integration.outputFormat" />
                   <Select
                     disabled={isSubmitting}
-                    onValueChange={(val: (typeof rpcOutputFormats)[number]) => setValue('outputFormat', val)}
+                    onValueChange={(val: (typeof RPC_OUTPUT_FORMATS)[number]) => setValue('outputFormat', val)}
                     value={outputFormat}
                   >
                     <SelectTrigger id="outputFormat">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {rpcOutputFormats.map(f => (
+                      {RPC_OUTPUT_FORMATS.map(f => (
                         <SelectItem key={f} value={f}>
                           {f.toUpperCase()}
                         </SelectItem>
