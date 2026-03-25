@@ -24,14 +24,16 @@ const test = base.extend<{}, { workerStorageState: string }>({
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 
       const fileName = path.join(dir, `workflow-scoped-user.${id}.json`)
-      const page = await browser.newPage({
+      const context = await browser.newContext({
+        storageState: undefined,
         baseURL: workerInfo.project.use.baseURL,
       })
+      const page = await context.newPage()
 
       await adminLogin(page)
 
-      await page.context().storageState({ path: fileName })
-      await page.close()
+      await context.storageState({ path: fileName })
+      await context.close()
 
       await use(fileName)
     },
@@ -44,9 +46,11 @@ test.describe.serial('Workflow-scoped integrations', () => {
   let workflow2Id: string
 
   test.beforeAll(async ({ browser }, testInfo) => {
-    const page = await browser.newPage({
+    const context = await browser.newContext({
+      storageState: undefined,
       baseURL: testInfo.project.use.baseURL,
     })
+    const page = await context.newPage()
     await adminLogin(page)
 
     /* Create two test workflows */
@@ -60,20 +64,22 @@ test.describe.serial('Workflow-scoped integrations', () => {
     })
     workflow2Id = (await response2.json()).workflowId
 
-    await page.close()
+    await context.close()
   })
 
   test.afterAll(async ({ browser }, testInfo) => {
-    const page = await browser.newPage({
+    const context = await browser.newContext({
+      storageState: undefined,
       baseURL: testInfo.project.use.baseURL,
     })
+    const page = await context.newPage()
     await adminLogin(page)
 
     /* Cleanup: delete test workflows */
     await page.request.delete(`/api/v2/workflow/${workflow1Id}`)
     await page.request.delete(`/api/v2/workflow/${workflow2Id}`)
 
-    await page.close()
+    await context.close()
   })
 
   async function ensureIntegrationsTabActive(page: any) {
@@ -171,33 +177,23 @@ test.describe.serial('Workflow-scoped integrations', () => {
     const data = await response.json()
 
     expect(data.deepseek).toBeDefined()
-    expect(data.deepseek.apiKey).toBe('test-user-level-key')
+    expect(data.deepseek.apiKey).toBe('')
+    expect(data.secretsMeta?.deepseek?.apiKey).toBe(true)
   })
 
   test('workflow-scoped integration is created with correct workflowId', async ({ page }) => {
-    await page.goto('/settings')
-    await ensureIntegrationsTabActive(page)
-
-    /* Select workflow1 scope */
-    const selector = page.locator('[data-type="workflow-scope-selector"]')
-    await selector.click()
-    await page.locator(`[data-type="scope-workflow-${workflow1Id}"]`).click()
-
-    /* Create integration */
-    await page.locator('[data-type="add-integration"]').click()
-    await page.locator('[data-title-id="integration.qwen.title"]').click()
-
-    await page.fill('input[name="apiKey"]', 'test-workflow1-key')
-    await page.locator('button[type="submit"]').click()
-
-    await page.waitForTimeout(500)
+    /* Create workflow1-specific integration via API */
+    await page.request.put(`/api/v2/integration/qwen/update?workflowId=${workflow1Id}`, {
+      data: { apiKey: 'test-workflow1-key', model: 'qwen-turbo' },
+    })
 
     /* Verify via API: workflow-scoped integration exists */
     const response = await page.request.get(`/api/v2/integration?workflowId=${workflow1Id}`)
     const data = await response.json()
 
     expect(data.qwen).toBeDefined()
-    expect(data.qwen.apiKey).toBe('test-workflow1-key')
+    expect(data.qwen.apiKey).toBe('')
+    expect(data.secretsMeta?.qwen?.apiKey).toBe(true)
 
     /* Verify user-level does NOT have it */
     const userResponse = await page.request.get('/api/v2/integration')
@@ -217,7 +213,8 @@ test.describe.serial('Workflow-scoped integrations', () => {
 
     /* Should fall back to user-level */
     expect(data.claude).toBeDefined()
-    expect(data.claude.apiKey).toBe('user-level-claude-key')
+    expect(data.claude.apiKey).toBe('')
+    expect(data.secretsMeta?.claude?.apiKey).toBe(true)
   })
 
   test('workflow-specific integration overrides user-level', async ({ page }) => {
@@ -234,12 +231,14 @@ test.describe.serial('Workflow-scoped integrations', () => {
     /* Query workflow1 */
     const response1 = await page.request.get(`/api/v2/integration?workflowId=${workflow1Id}`)
     const data1 = await response1.json()
-    expect(data1.perplexity.apiKey).toBe('workflow1-key')
+    expect(data1.perplexity.apiKey).toBe('')
+    expect(data1.secretsMeta?.perplexity?.apiKey).toBe(true)
 
     /* Query user-level */
     const responseUser = await page.request.get('/api/v2/integration')
     const dataUser = await responseUser.json()
-    expect(dataUser.perplexity.apiKey).toBe('user-level-key')
+    expect(dataUser.perplexity.apiKey).toBe('')
+    expect(dataUser.secretsMeta?.perplexity?.apiKey).toBe(true)
   })
 
   test('delete workflow-scoped integration does not affect user-level', async ({ page }) => {
@@ -258,12 +257,14 @@ test.describe.serial('Workflow-scoped integrations', () => {
     /* Verify workflow1 falls back to user-level */
     const response1 = await page.request.get(`/api/v2/integration?workflowId=${workflow1Id}`)
     const data1 = await response1.json()
-    expect(data1.yandex.apiKey).toBe('user-key')
+    expect(data1.yandex.apiKey).toBe('')
+    expect(data1.secretsMeta?.yandex?.apiKey).toBe(true)
 
     /* Verify user-level still exists */
     const responseUser = await page.request.get('/api/v2/integration')
     const dataUser = await responseUser.json()
-    expect(dataUser.yandex.apiKey).toBe('user-key')
+    expect(dataUser.yandex.apiKey).toBe('')
+    expect(dataUser.secretsMeta?.yandex?.apiKey).toBe(true)
   })
 
   test('delete user-level integration when workflow-scoped exists', async ({ page }) => {
@@ -406,7 +407,8 @@ test.describe.serial('Workflow-scoped integrations', () => {
     const data = await getResponse.json()
 
     expect(data.openai).toBeDefined()
-    expect(data.openai.apiKey).toBe('test-empty-workflow-id')
+    expect(data.openai.apiKey).toBe('')
+    expect(data.secretsMeta?.openai?.apiKey).toBe(true)
   })
 
   test('multiple workflows with different integrations are isolated', async ({ page }) => {

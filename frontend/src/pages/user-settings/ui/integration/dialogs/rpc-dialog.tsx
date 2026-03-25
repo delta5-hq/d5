@@ -186,6 +186,28 @@ const RPCDialog: React.FC<Props> = ({
   } = form
 
   const protocol = watch('protocol')
+  const outputFormat = watch('outputFormat')
+  const method = watch('method')
+  const autoApprove = watch('autoApprove')
+
+  React.useEffect(() => {
+    if (protocol === 'ssh') {
+      if (outputFormat === undefined) {
+        setValue('outputFormat', 'text')
+      }
+    } else if (protocol === 'http') {
+      if (method === undefined) {
+        setValue('method', 'POST')
+      }
+      if (outputFormat === undefined) {
+        setValue('outputFormat', 'text')
+      }
+    } else if (protocol === 'acp-local') {
+      if (autoApprove === undefined) {
+        setValue('autoApprove', 'none')
+      }
+    }
+  }, [protocol, outputFormat, method, autoApprove, setValue])
 
   const fillClaudePreset = () => {
     setValue('commandTemplate', 'claude -p "{{prompt}}" --output-format json --dangerously-skip-permissions')
@@ -391,7 +413,7 @@ const RPCDialog: React.FC<Props> = ({
                 <Select
                   disabled={isSubmitting}
                   onValueChange={(val: (typeof rpcMethods)[number]) => setValue('method', val)}
-                  value={watch('method')}
+                  value={method}
                 >
                   <SelectTrigger id="method">
                     <SelectValue />
@@ -483,7 +505,7 @@ const RPCDialog: React.FC<Props> = ({
                 <Select
                   disabled={isSubmitting}
                   onValueChange={(val: (typeof acpAutoApproveOptions)[number]) => setValue('autoApprove', val)}
-                  value={watch('autoApprove')}
+                  value={autoApprove}
                 >
                   <SelectTrigger id="autoApprove">
                     <SelectValue />
@@ -522,9 +544,9 @@ const RPCDialog: React.FC<Props> = ({
                   <Select
                     disabled={isSubmitting}
                     onValueChange={(val: (typeof rpcOutputFormats)[number]) => setValue('outputFormat', val)}
-                    value={watch('outputFormat')}
+                    value={outputFormat}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="outputFormat">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

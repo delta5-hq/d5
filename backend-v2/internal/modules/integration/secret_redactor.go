@@ -175,7 +175,11 @@ func (sr *SecretRedactor) RedactSecretsFromIntegration(integration *models.Integ
 	}
 
 	for i := range integration.RPC {
-		integration.RPC[i].PrivateKey = ""
-		integration.RPC[i].Passphrase = ""
+		if integration.RPC[i].PrivateKey != "" {
+			integration.RPC[i].PrivateKey = SecretRedactionSentinel
+		}
+		if integration.RPC[i].Passphrase != "" {
+			integration.RPC[i].Passphrase = SecretRedactionSentinel
+		}
 	}
 }
