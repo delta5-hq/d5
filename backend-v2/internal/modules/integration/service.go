@@ -15,11 +15,12 @@ const (
 )
 
 type Service struct {
-	collection     *qmgo.Collection
-	encryptor      *DocumentEncryptor
-	fieldCrypto    *FieldCrypto
-	fallbackFinder *FallbackFinder
-	secretRedactor *SecretRedactor
+	collection            *qmgo.Collection
+	encryptor             *DocumentEncryptor
+	fieldCrypto           *FieldCrypto
+	fallbackFinder        *FallbackFinder
+	secretRedactor        *SecretRedactor
+	serviceFieldExtractor *ServiceFieldExtractor
 }
 
 func NewService(db *qmgo.Database) (*Service, error) {
@@ -36,13 +37,15 @@ func NewService(db *qmgo.Database) (*Service, error) {
 	collection := db.Collection("integrations")
 	fallbackFinder := newFallbackFinder(collection, encryptor)
 	secretRedactor := NewSecretRedactor()
+	serviceFieldExtractor := NewServiceFieldExtractor(secretRedactor)
 
 	return &Service{
-		collection:     collection,
-		encryptor:      encryptor,
-		fieldCrypto:    fieldCrypto,
-		fallbackFinder: fallbackFinder,
-		secretRedactor: secretRedactor,
+		collection:            collection,
+		encryptor:             encryptor,
+		fieldCrypto:           fieldCrypto,
+		fallbackFinder:        fallbackFinder,
+		secretRedactor:        secretRedactor,
+		serviceFieldExtractor: serviceFieldExtractor,
 	}, nil
 }
 
@@ -137,6 +140,15 @@ func (s *Service) PrepareSecureIntegrationResponse(integration *models.Integrati
 		Integration: decrypted,
 		SecretsMeta: metadata,
 	}, nil
+}
+
+func (s *Service) PrepareSecureServiceFieldResponse(integration *models.Integration, fieldName string) (map[string]interface{}, error) {
+	decrypted, err := s.DecryptIntegration(integration)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.serviceFieldExtractor.ExtractSecureServiceField(decrypted, fieldName)
 }
 
 func (s *Service) Delete(ctx context.Context, scope ScopeIdentifier) error {

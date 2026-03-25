@@ -16,9 +16,11 @@ const test = base.extend<{}, { workerStorageState: string }>({
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 
       const fileName = path.join(dir, `mcp-rpc-ui-user.${id}.json`)
-      const page = await browser.newPage({
+      const context = await browser.newContext({
+        storageState: undefined,
         baseURL: workerInfo.project.use.baseURL,
       })
+      const page = await context.newPage()
 
       if (workerInfo.parallelIndex === 0) {
         await adminLogin(page)
@@ -26,8 +28,8 @@ const test = base.extend<{}, { workerStorageState: string }>({
         await subscriberLogin(page)
       }
 
-      await page.context().storageState({ path: fileName })
-      await page.close()
+      await context.storageState({ path: fileName })
+      await context.close()
 
       await use(fileName)
     },
@@ -778,7 +780,7 @@ test.describe.serial('UI Form Validation Edge Cases', () => {
       })
 
       for (const selectId of selects) {
-        const selectTrigger = dialogScope.locator(`#${selectId}`).locator('[role="combobox"]')
+        const selectTrigger = dialogScope.locator(`#${selectId}`)
         const triggerText = await selectTrigger.textContent()
         expect(triggerText?.trim()).not.toBe('')
       }
@@ -798,22 +800,22 @@ test.describe.serial('UI Form Validation Edge Cases', () => {
       optionText: 'SSH',
       triggerScope: dialogScope,
     })
-    await expect(dialogScope.locator('#outputFormat').locator('[role="combobox"]')).toContainText(/TEXT/i)
+    await expect(dialogScope.locator('#outputFormat')).toContainText(/TEXT/i)
 
     await selectRadixOption(page, {
       triggerTextPattern: /ssh|http|acp-local/i,
       optionText: 'HTTP',
       triggerScope: dialogScope,
     })
-    await expect(dialogScope.locator('#method').locator('[role="combobox"]')).toContainText(/POST/i)
-    await expect(dialogScope.locator('#outputFormat').locator('[role="combobox"]')).toContainText(/TEXT/i)
+    await expect(dialogScope.locator('#method')).toContainText(/POST/i)
+    await expect(dialogScope.locator('#outputFormat')).toContainText(/TEXT/i)
 
     await selectRadixOption(page, {
       triggerTextPattern: /ssh|http|acp-local/i,
       optionText: 'ACP-LOCAL',
       triggerScope: dialogScope,
     })
-    await expect(dialogScope.locator('#autoApprove').locator('[role="combobox"]')).toContainText(/none/i)
+    await expect(dialogScope.locator('#autoApprove')).toContainText(/none/i)
   })
 
   test('MCP dialog Select defaults are always defined', async ({ page }) => {

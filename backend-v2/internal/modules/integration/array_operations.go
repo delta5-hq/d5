@@ -18,6 +18,10 @@ func (s *Service) AddArrayItem(ctx context.Context, scope ScopeIdentifier, field
 		return err
 	}
 
+	if err := validateNoSentinelSecrets(fieldName, item); err != nil {
+		return err
+	}
+
 	encryptedItem, err := s.encryptArrayItem(fieldName, item)
 	if err != nil {
 		return err
@@ -83,13 +87,19 @@ func (s *Service) UpdateArrayItem(ctx context.Context, scope ScopeIdentifier, fi
 
 	setFields := bson.M{}
 	for key, value := range updates {
-		if key != "alias" {
-			encryptedValue, err := s.fieldCrypto.EncryptArrayFieldUpdate(fieldName, key, value)
-			if err != nil {
-				return err
-			}
-			setFields[fieldName+".$."+key] = encryptedValue
+		if key == "alias" {
+			continue
 		}
+
+		if isEncryptedField(fieldName, key) && isSentinelValue(value) {
+			continue
+		}
+
+		encryptedValue, err := s.fieldCrypto.EncryptArrayFieldUpdate(fieldName, key, value)
+		if err != nil {
+			return err
+		}
+		setFields[fieldName+".$."+key] = encryptedValue
 	}
 
 	update := bson.M{"$set": setFields}
@@ -141,6 +151,38 @@ func (s *Service) validateArrayItemDoesNotExist(ctx context.Context, scope Scope
 
 	if err != qmgo.ErrNoSuchDocuments {
 		return err
+	}
+
+	return nil
+}
+
+func isEncryptedField(arrayName, fieldName string) bool {
+	fieldConfigs, exists := GetIntegrationEncryptionConfig().ArrayFields[arrayName]
+	if !exists {
+		return false
+	}
+
+	for _, config := range fieldConfigs {
+		if config.Path == fieldName {
+			return true
+		}
+	}
+
+	return false
+}
+
+func validateNoSentinelSecrets(arrayName string, item map[string]interface{}) error {
+	fieldConfigs, exists := GetIntegrationEncryptionConfig().ArrayFields[arrayName]
+	if !exists {
+		return nil
+	}
+
+	for _, config := range fieldConfigs {
+		if value, exists := item[config.Path]; exists {
+			if isSentinelValue(value) {
+				return fmt.Errorf("invalid secret value for field '%s': sentinel value not allowed on creation", config.Path)
+			}
+		}
 	}
 
 	return nil

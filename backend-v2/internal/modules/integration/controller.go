@@ -5,7 +5,6 @@ import (
 	"backend-v2/internal/common/logger"
 	"backend-v2/internal/common/response"
 	"backend-v2/internal/models"
-	"encoding/json"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/qiniu/qmgo"
@@ -75,21 +74,13 @@ func (ctrl *Controller) GetService(c *fiber.Ctx) error {
 		return err
 	}
 
-	decrypted, err := ctrl.service.DecryptIntegration(integration)
+	secureResponse, err := ctrl.service.PrepareSecureServiceFieldResponse(integration, service)
 	if err != nil {
-		log.Error("GetService: decrypt failed: %v", err)
+		log.Error("GetService: prepare secure response failed: %v", err)
 		return response.InternalError(c, err.Error())
 	}
 
-	integrationBytes, _ := json.Marshal(decrypted)
-	var integrationMap map[string]interface{}
-	if err := json.Unmarshal(integrationBytes, &integrationMap); err != nil {
-		return response.InternalError(c, "failed to parse integration")
-	}
-
-	return c.JSON(map[string]interface{}{
-		service: integrationMap[service],
-	})
+	return c.JSON(secureResponse)
 }
 
 func (ctrl *Controller) UpdateService(c *fiber.Ctx) error {

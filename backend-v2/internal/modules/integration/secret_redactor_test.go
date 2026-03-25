@@ -386,11 +386,11 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 					t.Fatalf("Expected 1 RPC item, got %d", len(rpc))
 				}
 				item := rpc[0]
-				if item.PrivateKey != "" {
-					t.Error("PrivateKey not cleared")
+				if item.PrivateKey != SecretRedactionSentinel {
+					t.Errorf("PrivateKey expected sentinel %q, got %q", SecretRedactionSentinel, item.PrivateKey)
 				}
-				if item.Passphrase != "" {
-					t.Error("Passphrase not cleared")
+				if item.Passphrase != SecretRedactionSentinel {
+					t.Errorf("Passphrase expected sentinel %q, got %q", SecretRedactionSentinel, item.Passphrase)
 				}
 				if item.Headers == nil || item.Headers["Auth"] != "Bearer xyz" {
 					t.Error("Headers config map not preserved")
@@ -461,14 +461,14 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 				if len(rpc) != 2 {
 					t.Fatalf("Expected 2 RPC items, got %d", len(rpc))
 				}
-				if rpc[0].PrivateKey != "" {
-					t.Error("rpc1 PrivateKey not cleared")
+				if rpc[0].PrivateKey != SecretRedactionSentinel {
+					t.Errorf("rpc1 PrivateKey expected sentinel %q, got %q", SecretRedactionSentinel, rpc[0].PrivateKey)
 				}
 				if rpc[0].Headers == nil || rpc[0].Headers["X-Auth"] != "token1" {
 					t.Error("rpc1 Headers config map not preserved")
 				}
-				if rpc[1].Passphrase != "" {
-					t.Error("rpc2 Passphrase not cleared")
+				if rpc[1].Passphrase != SecretRedactionSentinel {
+					t.Errorf("rpc2 Passphrase expected sentinel %q, got %q", SecretRedactionSentinel, rpc[1].Passphrase)
 				}
 				if rpc[1].Env == nil || rpc[1].Env["API_KEY"] != "secret2" {
 					t.Error("rpc2 Env config map not preserved")
@@ -522,8 +522,8 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 					t.Fatalf("Expected 1 RPC item, got %d", len(rpc))
 				}
 				item := rpc[0]
-				if item.PrivateKey != "" {
-					t.Error("PrivateKey not cleared")
+				if item.PrivateKey != SecretRedactionSentinel {
+					t.Errorf("PrivateKey expected sentinel %q, got %q", SecretRedactionSentinel, item.PrivateKey)
 				}
 				if item.Headers == nil {
 					t.Error("Empty Headers became nil instead of empty map")
@@ -577,8 +577,8 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 					t.Fatalf("Expected 1 RPC item, got %d", len(rpc))
 				}
 				item := rpc[0]
-				if item.PrivateKey != "" {
-					t.Error("PrivateKey not cleared")
+				if item.PrivateKey != SecretRedactionSentinel {
+					t.Errorf("PrivateKey expected sentinel %q, got %q", SecretRedactionSentinel, item.PrivateKey)
 				}
 				if item.Headers != nil {
 					t.Error("nil Headers became non-nil")
@@ -637,6 +637,9 @@ func TestSecretRedactor_Idempotency(t *testing.T) {
 	}
 	if firstPass.RPC[0].PrivateKey != secondPass.RPC[0].PrivateKey {
 		t.Error("Redaction not idempotent for RPC.PrivateKey")
+	}
+	if firstPass.RPC[0].PrivateKey != SecretRedactionSentinel {
+		t.Errorf("RPC.PrivateKey should be sentinel after redaction, got %q", firstPass.RPC[0].PrivateKey)
 	}
 }
 
