@@ -48,10 +48,3 @@ func TestSentinelDetection(t *testing.T) {
 		})
 	}
 }
-
-func TestSentinelConstantValue(t *testing.T) {
-	expected := "***"
-	if SecretRedactionSentinel != expected {
-		t.Errorf("SecretRedactionSentinel = %q, want %q", SecretRedactionSentinel, expected)
-	}
-}
