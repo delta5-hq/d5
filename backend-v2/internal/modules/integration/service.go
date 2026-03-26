@@ -21,6 +21,7 @@ type Service struct {
 	fallbackFinder        *FallbackFinder
 	secretRedactor        *SecretRedactor
 	serviceFieldExtractor *ServiceFieldExtractor
+	emptinessChecker      *DocumentEmptinessChecker
 }
 
 func NewService(db *qmgo.Database) (*Service, error) {
@@ -38,6 +39,7 @@ func NewService(db *qmgo.Database) (*Service, error) {
 	fallbackFinder := newFallbackFinder(collection, encryptor)
 	secretRedactor := NewSecretRedactor()
 	serviceFieldExtractor := NewServiceFieldExtractor(secretRedactor)
+	emptinessChecker := NewDocumentEmptinessChecker()
 
 	return &Service{
 		collection:            collection,
@@ -46,6 +48,7 @@ func NewService(db *qmgo.Database) (*Service, error) {
 		fallbackFinder:        fallbackFinder,
 		secretRedactor:        secretRedactor,
 		serviceFieldExtractor: serviceFieldExtractor,
+		emptinessChecker:      emptinessChecker,
 	}, nil
 }
 
@@ -179,6 +182,10 @@ func (s *Service) UpdateRaw(ctx context.Context, scope ScopeIdentifier, update m
 	readErr := s.collection.Find(ctx, filter).One(&updated)
 	if readErr != nil && readErr != qmgo.ErrNoSuchDocuments {
 		return readErr
+	}
+
+	if readErr == nil && s.emptinessChecker.IsEmpty(updated) {
+		return s.collection.Remove(ctx, filter)
 	}
 
 	return nil

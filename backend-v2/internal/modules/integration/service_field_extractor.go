@@ -7,12 +7,14 @@ import (
 )
 
 type ServiceFieldExtractor struct {
-	secretRedactor *SecretRedactor
+	secretRedactor   *SecretRedactor
+	metadataAccessor metadataFieldAccessor
 }
 
 func NewServiceFieldExtractor(secretRedactor *SecretRedactor) *ServiceFieldExtractor {
 	return &ServiceFieldExtractor{
-		secretRedactor: secretRedactor,
+		secretRedactor:   secretRedactor,
+		metadataAccessor: newMetadataFieldAccessor(),
 	}
 }
 
@@ -44,69 +46,9 @@ func (e *ServiceFieldExtractor) ExtractSecureServiceField(
 		fieldName: fieldValue,
 	}
 
-	if e.hasSecretMetadataForField(metadata, fieldName) {
-		response["secretsMeta"] = e.extractFieldMetadata(metadata, fieldName)
+	if metaWrapper := e.metadataAccessor.extractMetadataForField(metadata, fieldName); metaWrapper != nil {
+		response["secretsMeta"] = metaWrapper
 	}
 
 	return response, nil
-}
-
-func (e *ServiceFieldExtractor) hasSecretMetadataForField(
-	metadata *models.SecretMetadata,
-	fieldName string,
-) bool {
-	if metadata == nil {
-		return false
-	}
-
-	switch fieldName {
-	case "openai":
-		return metadata.OpenAI != nil
-	case "yandex":
-		return metadata.Yandex != nil
-	case "claude":
-		return metadata.Claude != nil
-	case "qwen":
-		return metadata.Qwen != nil
-	case "deepseek":
-		return metadata.Deepseek != nil
-	case "custom_llm":
-		return metadata.CustomLLM != nil
-	case "perplexity":
-		return metadata.Perplexity != nil
-	case "mcp":
-		return len(metadata.MCP) > 0
-	case "rpc":
-		return len(metadata.RPC) > 0
-	default:
-		return false
-	}
-}
-
-func (e *ServiceFieldExtractor) extractFieldMetadata(
-	metadata *models.SecretMetadata,
-	fieldName string,
-) interface{} {
-	switch fieldName {
-	case "openai":
-		return map[string]*models.LLMSecretMetadata{"openai": metadata.OpenAI}
-	case "yandex":
-		return map[string]*models.LLMSecretMetadata{"yandex": metadata.Yandex}
-	case "claude":
-		return map[string]*models.LLMSecretMetadata{"claude": metadata.Claude}
-	case "qwen":
-		return map[string]*models.LLMSecretMetadata{"qwen": metadata.Qwen}
-	case "deepseek":
-		return map[string]*models.LLMSecretMetadata{"deepseek": metadata.Deepseek}
-	case "custom_llm":
-		return map[string]*models.LLMSecretMetadata{"custom_llm": metadata.CustomLLM}
-	case "perplexity":
-		return map[string]*models.LLMSecretMetadata{"perplexity": metadata.Perplexity}
-	case "mcp":
-		return map[string]map[string]*models.ArrayItemSecretMetadata{"mcp": metadata.MCP}
-	case "rpc":
-		return map[string]map[string]*models.ArrayItemSecretMetadata{"rpc": metadata.RPC}
-	default:
-		return nil
-	}
 }

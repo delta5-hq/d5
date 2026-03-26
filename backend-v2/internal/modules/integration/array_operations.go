@@ -91,8 +91,10 @@ func (s *Service) UpdateArrayItem(ctx context.Context, scope ScopeIdentifier, fi
 			continue
 		}
 
-		if isEncryptedField(fieldName, key) && isSentinelValue(value) {
-			continue
+		if isEncryptedField(fieldName, key) {
+			if isSentinelValue(value) || isSentinelMap(value) {
+				continue
+			}
 		}
 
 		encryptedValue, err := s.fieldCrypto.EncryptArrayFieldUpdate(fieldName, key, value)
@@ -115,7 +117,22 @@ func (s *Service) DeleteArrayItem(ctx context.Context, scope ScopeIdentifier, fi
 		},
 	}
 
-	return s.collection.UpdateOne(ctx, filter, update)
+	err := s.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return err
+	}
+
+	var updated map[string]interface{}
+	readErr := s.collection.Find(ctx, filter).One(&updated)
+	if readErr != nil && readErr != qmgo.ErrNoSuchDocuments {
+		return readErr
+	}
+
+	if readErr == nil && s.emptinessChecker.IsEmpty(updated) {
+		return s.collection.Remove(ctx, filter)
+	}
+
+	return nil
 }
 
 func (s *Service) validateArrayItemExists(ctx context.Context, scope ScopeIdentifier, fieldName, alias string) error {
@@ -179,7 +196,7 @@ func validateNoSentinelSecrets(arrayName string, item map[string]interface{}) er
 
 	for _, config := range fieldConfigs {
 		if value, exists := item[config.Path]; exists {
-			if isSentinelValue(value) {
+			if isSentinelValue(value) || isSentinelMap(value) {
 				return fmt.Errorf("invalid secret value for field '%s': sentinel value not allowed on creation", config.Path)
 			}
 		}

@@ -152,6 +152,11 @@ func (sr *SecretRedactor) buildRPCItemMetadata(item models.RPCIntegrationConfig,
 }
 
 func (sr *SecretRedactor) RedactSecretsFromIntegration(integration *models.Integration) {
+	sr.redactLLMProviderSecrets(integration)
+	sr.redactArrayItemSecrets(integration)
+}
+
+func (sr *SecretRedactor) redactLLMProviderSecrets(integration *models.Integration) {
 	if integration.OpenAI != nil {
 		integration.OpenAI.APIKey = ""
 	}
@@ -173,13 +178,79 @@ func (sr *SecretRedactor) RedactSecretsFromIntegration(integration *models.Integ
 	if integration.Perplexity != nil {
 		integration.Perplexity.APIKey = ""
 	}
+}
 
-	for i := range integration.RPC {
-		if integration.RPC[i].PrivateKey != "" {
-			integration.RPC[i].PrivateKey = SecretRedactionSentinel
-		}
-		if integration.RPC[i].Passphrase != "" {
-			integration.RPC[i].Passphrase = SecretRedactionSentinel
+func (sr *SecretRedactor) redactArrayItemSecrets(integration *models.Integration) {
+	sr.redactMCPItems(integration.MCP)
+	sr.redactRPCItems(integration.RPC)
+}
+
+func (sr *SecretRedactor) redactMCPItems(items []models.MCPIntegrationConfig) {
+	if len(items) == 0 {
+		return
+	}
+
+	fieldConfigs, exists := sr.config.ArrayFields["mcp"]
+	if !exists {
+		return
+	}
+
+	for i := range items {
+		sr.redactMCPItem(&items[i], fieldConfigs)
+	}
+}
+
+func (sr *SecretRedactor) redactMCPItem(item *models.MCPIntegrationConfig, fieldConfigs []encryption.FieldConfig) {
+	for _, fc := range fieldConfigs {
+		switch fc.Path {
+		case "headers":
+			item.Headers = sr.redactMapField(item.Headers)
+		case "env":
+			item.Env = sr.redactMapField(item.Env)
 		}
 	}
+}
+
+func (sr *SecretRedactor) redactRPCItems(items []models.RPCIntegrationConfig) {
+	if len(items) == 0 {
+		return
+	}
+
+	fieldConfigs, exists := sr.config.ArrayFields["rpc"]
+	if !exists {
+		return
+	}
+
+	for i := range items {
+		sr.redactRPCItem(&items[i], fieldConfigs)
+	}
+}
+
+func (sr *SecretRedactor) redactRPCItem(item *models.RPCIntegrationConfig, fieldConfigs []encryption.FieldConfig) {
+	for _, fc := range fieldConfigs {
+		switch fc.Path {
+		case "privateKey":
+			item.PrivateKey = sr.redactStringField(item.PrivateKey)
+		case "passphrase":
+			item.Passphrase = sr.redactStringField(item.Passphrase)
+		case "headers":
+			item.Headers = sr.redactMapField(item.Headers)
+		case "env":
+			item.Env = sr.redactMapField(item.Env)
+		}
+	}
+}
+
+func (sr *SecretRedactor) redactStringField(value string) string {
+	if value == "" {
+		return value
+	}
+	return SecretRedactionSentinel
+}
+
+func (sr *SecretRedactor) redactMapField(value map[string]string) map[string]string {
+	if len(value) == 0 {
+		return value
+	}
+	return map[string]string{SecretRedactionSentinel: SecretRedactionSentinel}
 }

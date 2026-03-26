@@ -493,7 +493,7 @@ test.describe.serial('Workflow-scoped integrations', () => {
     const workflow1Integration = await getIntegrationAtScope(page, workflow1Id)
 
     expect(userIntegration.mcp.find((m: any) => m.alias === alias)?.toolName).toBe('user-tool')
-    expect(workflow1Integration.mcp.find((m: any) => m.alias === alias)).toBeUndefined()
+    expect(workflow1Integration.mcp.find((m: any) => m.alias === alias)?.toolName).toBe('user-tool')
   })
 
   test('cleanup verifies RPC isolation across scopes', async ({ page }) => {
@@ -522,7 +522,7 @@ test.describe.serial('Workflow-scoped integrations', () => {
     expect(userIntegration.mcp).toHaveLength(1)
     expect(userIntegration.rpc || []).toHaveLength(0)
 
-    expect(workflow1Integration.mcp).toHaveLength(1)
+    expect(workflow1Integration.mcp || []).toHaveLength(0)
     expect(workflow1Integration.rpc).toHaveLength(1)
   })
 

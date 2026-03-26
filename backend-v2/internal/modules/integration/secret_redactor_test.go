@@ -367,7 +367,7 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 		verifyMCP   func(t *testing.T, mcp []models.MCPIntegrationConfig)
 	}{
 		{
-			name: "RPC credential fields cleared but config maps preserved",
+			name: "RPC string and map secrets redacted to sentinels",
 			integration: &models.Integration{
 				RPC: []models.RPCIntegrationConfig{
 					{
@@ -387,16 +387,16 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 				}
 				item := rpc[0]
 				if item.PrivateKey != SecretRedactionSentinel {
-					t.Errorf("PrivateKey expected sentinel %q, got %q", SecretRedactionSentinel, item.PrivateKey)
+					t.Errorf("PrivateKey = %q, want %q", item.PrivateKey, SecretRedactionSentinel)
 				}
 				if item.Passphrase != SecretRedactionSentinel {
-					t.Errorf("Passphrase expected sentinel %q, got %q", SecretRedactionSentinel, item.Passphrase)
+					t.Errorf("Passphrase = %q, want %q", item.Passphrase, SecretRedactionSentinel)
 				}
-				if item.Headers == nil || item.Headers["Auth"] != "Bearer xyz" {
-					t.Error("Headers config map not preserved")
+				if len(item.Headers) != 1 || item.Headers[SecretRedactionSentinel] != SecretRedactionSentinel {
+					t.Errorf("Headers = %v, want sentinel map", item.Headers)
 				}
-				if item.Env == nil || item.Env["DB_PASS"] != "dbsecret" {
-					t.Error("Env config map not preserved")
+				if len(item.Env) != 1 || item.Env[SecretRedactionSentinel] != SecretRedactionSentinel {
+					t.Errorf("Env = %v, want sentinel map", item.Env)
 				}
 				if item.Host != "10.0.0.1" {
 					t.Error("Host config changed")
@@ -410,7 +410,7 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 			},
 		},
 		{
-			name: "MCP config maps preserved",
+			name: "MCP map secrets redacted to sentinels",
 			integration: &models.Integration{
 				MCP: []models.MCPIntegrationConfig{
 					{
@@ -428,11 +428,11 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 					t.Fatalf("Expected 1 MCP item, got %d", len(mcp))
 				}
 				item := mcp[0]
-				if item.Headers == nil || item.Headers["X-API-Key"] != "secret" {
-					t.Error("Headers config map not preserved")
+				if len(item.Headers) != 1 || item.Headers[SecretRedactionSentinel] != SecretRedactionSentinel {
+					t.Errorf("Headers = %v, want sentinel map", item.Headers)
 				}
-				if item.Env == nil || item.Env["TOKEN"] != "abc" {
-					t.Error("Env config map not preserved")
+				if len(item.Env) != 1 || item.Env[SecretRedactionSentinel] != SecretRedactionSentinel {
+					t.Errorf("Env = %v, want sentinel map", item.Env)
 				}
 				if item.ServerURL != "https://mcp.example.com" {
 					t.Error("ServerURL changed")
@@ -446,7 +446,7 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 			},
 		},
 		{
-			name: "multiple items credentials cleared config maps preserved",
+			name: "multiple items secrets redacted non-secrets preserved",
 			integration: &models.Integration{
 				RPC: []models.RPCIntegrationConfig{
 					{Alias: "rpc1", PrivateKey: "key1", Host: "host1", Headers: map[string]string{"X-Auth": "token1"}},
@@ -462,16 +462,16 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 					t.Fatalf("Expected 2 RPC items, got %d", len(rpc))
 				}
 				if rpc[0].PrivateKey != SecretRedactionSentinel {
-					t.Errorf("rpc1 PrivateKey expected sentinel %q, got %q", SecretRedactionSentinel, rpc[0].PrivateKey)
+					t.Errorf("rpc1 PrivateKey = %q, want %q", rpc[0].PrivateKey, SecretRedactionSentinel)
 				}
-				if rpc[0].Headers == nil || rpc[0].Headers["X-Auth"] != "token1" {
-					t.Error("rpc1 Headers config map not preserved")
+				if len(rpc[0].Headers) != 1 || rpc[0].Headers[SecretRedactionSentinel] != SecretRedactionSentinel {
+					t.Errorf("rpc1 Headers = %v, want sentinel map", rpc[0].Headers)
 				}
 				if rpc[1].Passphrase != SecretRedactionSentinel {
-					t.Errorf("rpc2 Passphrase expected sentinel %q, got %q", SecretRedactionSentinel, rpc[1].Passphrase)
+					t.Errorf("rpc2 Passphrase = %q, want %q", rpc[1].Passphrase, SecretRedactionSentinel)
 				}
-				if rpc[1].Env == nil || rpc[1].Env["API_KEY"] != "secret2" {
-					t.Error("rpc2 Env config map not preserved")
+				if len(rpc[1].Env) != 1 || rpc[1].Env[SecretRedactionSentinel] != SecretRedactionSentinel {
+					t.Errorf("rpc2 Env = %v, want sentinel map", rpc[1].Env)
 				}
 				for _, item := range rpc {
 					if item.Host == "" {
@@ -483,11 +483,11 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 				if len(mcp) != 2 {
 					t.Fatalf("Expected 2 MCP items, got %d", len(mcp))
 				}
-				if mcp[0].Headers == nil || mcp[0].Headers["a"] != "b" {
-					t.Error("mcp1 Headers config map not preserved")
+				if len(mcp[0].Headers) != 1 || mcp[0].Headers[SecretRedactionSentinel] != SecretRedactionSentinel {
+					t.Errorf("mcp1 Headers = %v, want sentinel map", mcp[0].Headers)
 				}
-				if mcp[1].Env == nil || mcp[1].Env["c"] != "d" {
-					t.Error("mcp2 Env config map not preserved")
+				if len(mcp[1].Env) != 1 || mcp[1].Env[SecretRedactionSentinel] != SecretRedactionSentinel {
+					t.Errorf("mcp2 Env = %v, want sentinel map", mcp[1].Env)
 				}
 				for _, item := range mcp {
 					if item.ToolName == "" {
@@ -497,7 +497,7 @@ func TestSecretRedactor_Redaction_ArrayIntegrations(t *testing.T) {
 			},
 		},
 		{
-			name: "empty config maps preserved as empty not null",
+			name: "empty map secrets remain empty",
 			integration: &models.Integration{
 				RPC: []models.RPCIntegrationConfig{
 					{

@@ -316,7 +316,7 @@ test.describe.serial('RPC Integration UI Flow', () => {
     await arrayPage.openEditDialog('/api')
 
     const headersField = page.locator('#headers')
-    await expect(headersField).toHaveValue('X-New=new-value')
+    await expect(headersField).toHaveValue('***=***')
   })
 
   test('Delete RPC integration via UI', async ({ page }) => {
@@ -753,7 +753,7 @@ test.describe.serial('UI Form Validation Edge Cases', () => {
     await arrayPage.openEditDialog('/complex-prefill')
 
     await expect(page.locator('#url')).toHaveValue('https://api.example.com/v1/execute')
-    await expect(page.locator('#headers')).toHaveValue(multilineHeaders)
+    await expect(page.locator('#headers')).toHaveValue('***=***')
     await expect(page.locator('#bodyTemplate')).toHaveValue('{"query":"{{prompt}}","model":"gpt-4"}')
     await expect(page.locator('#outputField')).toHaveValue('result.data')
     await expect(page.locator('#timeoutMs')).toHaveValue('180000')
