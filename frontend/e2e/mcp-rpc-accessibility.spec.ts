@@ -16,9 +16,11 @@ const test = base.extend<{}, { workerStorageState: string }>({
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 
       const fileName = path.join(dir, `accessibility-user.${id}.json`)
-      const page = await browser.newPage({
+      const context = await browser.newContext({
+        storageState: undefined,
         baseURL: workerInfo.project.use.baseURL,
       })
+      const page = await context.newPage()
 
       const credentials =
         workerInfo.parallelIndex === 0
@@ -45,8 +47,8 @@ const test = base.extend<{}, { workerStorageState: string }>({
         throw new Error(`Auth failed: ${result.status} ${result.text}`)
       }
 
-      await page.context().storageState({ path: fileName })
-      await page.close()
+      await context.storageState({ path: fileName })
+      await context.close()
 
       await use(fileName)
     },
