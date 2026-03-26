@@ -266,6 +266,78 @@ func TestValidateNoSentinelSecrets(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name:      "reject sentinel map in RPC headers",
+			arrayName: "rpc",
+			item: map[string]interface{}{
+				"alias":   "/test",
+				"headers": map[string]interface{}{"***": "***"},
+			},
+			wantErr: true,
+		},
+		{
+			name:      "reject sentinel map in RPC env",
+			arrayName: "rpc",
+			item: map[string]interface{}{
+				"alias": "/test",
+				"env":   map[string]interface{}{"***": "***"},
+			},
+			wantErr: true,
+		},
+		{
+			name:      "reject sentinel map in MCP headers",
+			arrayName: "mcp",
+			item: map[string]interface{}{
+				"alias":   "/test",
+				"headers": map[string]interface{}{"***": "***"},
+			},
+			wantErr: true,
+		},
+		{
+			name:      "reject sentinel map in MCP env",
+			arrayName: "mcp",
+			item: map[string]interface{}{
+				"alias": "/test",
+				"env":   map[string]interface{}{"***": "***"},
+			},
+			wantErr: true,
+		},
+		{
+			name:      "allow real map in RPC headers",
+			arrayName: "rpc",
+			item: map[string]interface{}{
+				"alias":   "/test",
+				"headers": map[string]interface{}{"Authorization": "Bearer token"},
+			},
+			wantErr: false,
+		},
+		{
+			name:      "allow empty map in encrypted map field",
+			arrayName: "rpc",
+			item: map[string]interface{}{
+				"alias":   "/test",
+				"headers": map[string]interface{}{},
+			},
+			wantErr: false,
+		},
+		{
+			name:      "allow nil map in encrypted map field",
+			arrayName: "mcp",
+			item: map[string]interface{}{
+				"alias":   "/test",
+				"headers": nil,
+			},
+			wantErr: false,
+		},
+		{
+			name:      "reject sentinel map in string field",
+			arrayName: "rpc",
+			item: map[string]interface{}{
+				"alias":      "/test",
+				"privateKey": map[string]interface{}{"***": "***"},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
