@@ -99,9 +99,24 @@ test.describe.serial('Array Integration CRUD', () => {
   })
 
   test('Update item modifies only target item', async ({ page }) => {
-    await addArrayItem(page, 'mcp', { alias: '/keep1', transport: 'stdio', toolName: 'original1', description: 'desc1' })
-    await addArrayItem(page, 'mcp', { alias: '/update', transport: 'stdio', toolName: 'original2', description: 'desc2' })
-    await addArrayItem(page, 'mcp', { alias: '/keep2', transport: 'stdio', toolName: 'original3', description: 'desc3' })
+    await addArrayItem(page, 'mcp', {
+      alias: '/keep1',
+      transport: 'stdio',
+      toolName: 'original1',
+      description: 'desc1',
+    })
+    await addArrayItem(page, 'mcp', {
+      alias: '/update',
+      transport: 'stdio',
+      toolName: 'original2',
+      description: 'desc2',
+    })
+    await addArrayItem(page, 'mcp', {
+      alias: '/keep2',
+      transport: 'stdio',
+      toolName: 'original3',
+      description: 'desc3',
+    })
 
     const response = await updateArrayItem(page, 'mcp', '/update', { description: 'updated description' })
     expect(response.ok).toBe(true)
@@ -144,6 +159,25 @@ test.describe.serial('Array Integration CRUD', () => {
   test('Delete non-existent item is idempotent', async ({ page }) => {
     const response = await deleteArrayItem(page, 'mcp', '/nonexistent')
     expect(response.status).toBe(204)
+  })
+
+  test('Delete same item twice returns 204 both times', async ({ page }) => {
+    await addArrayItem(page, 'mcp', { alias: '/temp', transport: 'stdio', toolName: 'tool' })
+
+    const firstDelete = await deleteArrayItem(page, 'mcp', '/temp')
+    expect(firstDelete.status).toBe(204)
+
+    const secondDelete = await deleteArrayItem(page, 'mcp', '/temp')
+    expect(secondDelete.status).toBe(204)
+  })
+
+  test('Delete last item removes integration document', async ({ page }) => {
+    await addArrayItem(page, 'mcp', { alias: '/only', transport: 'stdio', toolName: 'tool' })
+
+    await deleteArrayItem(page, 'mcp', '/only')
+
+    const integration = await getIntegration(page)
+    expect(integration.mcp).toBeUndefined()
   })
 
   test('Delete all items leaves empty array', async ({ page }) => {
@@ -306,7 +340,8 @@ test.describe.serial('Array Integration CRUD', () => {
     })
 
     const integration = await getIntegration(page)
-    expect(integration.rpc[0].headers).toEqual(headers)
+    expect(integration.rpc[0].headers).toEqual({ '***': '***' })
+    expect(integration.secretsMeta?.rpc?.['/api']?.headers).toBe(true)
   })
 
   test('Update HTTP RPC headers preserves other fields', async ({ page }) => {
@@ -325,7 +360,8 @@ test.describe.serial('Array Integration CRUD', () => {
 
     const integration = await getIntegration(page)
     const item = integration.rpc[0]
-    expect(item.headers).toEqual({ 'X-New': 'new-value' })
+    expect(item.headers).toEqual({ '***': '***' })
+    expect(integration.secretsMeta?.rpc?.['/api']?.headers).toBe(true)
     expect(item.bodyTemplate).toBe('{"data":"{{prompt}}"}')
     expect(item.method).toBe('POST')
   })
@@ -334,6 +370,73 @@ test.describe.serial('Array Integration CRUD', () => {
     const integration = await getIntegration(page)
     expect(integration.mcp || []).toEqual([])
     expect(integration.rpc || []).toEqual([])
+  })
+
+  test('RPC SSH encrypted fields are redacted on read', async ({ page }) => {
+    await addArrayItem(page, 'rpc', {
+      alias: '/ssh-secrets',
+      protocol: 'ssh',
+      host: '192.168.1.10',
+      username: 'testuser',
+      privateKey: '-----BEGIN PRIVATE KEY-----\nsecret\n-----END PRIVATE KEY-----',
+      passphrase: 'secret-passphrase',
+      commandTemplate: 'echo test',
+    })
+
+    const integration = await getIntegration(page)
+    const item = integration.rpc[0]
+
+    expect(item.privateKey).toBe('***')
+    expect(item.passphrase).toBe('***')
+    expect(integration.secretsMeta?.rpc?.['/ssh-secrets']?.privateKey).toBe(true)
+    expect(integration.secretsMeta?.rpc?.['/ssh-secrets']?.passphrase).toBe(true)
+  })
+
+  test('RPC ACP encrypted env map is redacted on read', async ({ page }) => {
+    await addArrayItem(page, 'rpc', {
+      alias: '/acp-secrets',
+      protocol: 'acp-local',
+      command: 'cline',
+      env: { API_KEY: 'secret-key', TOKEN: 'secret-token' },
+    })
+
+    const integration = await getIntegration(page)
+    const item = integration.rpc[0]
+
+    expect(item.env).toEqual({ '***': '***' })
+    expect(integration.secretsMeta?.rpc?.['/acp-secrets']?.env).toBe(true)
+  })
+
+  test('MCP encrypted headers map is redacted on read', async ({ page }) => {
+    await addArrayItem(page, 'mcp', {
+      alias: '/mcp-headers',
+      transport: 'streamable-http',
+      toolName: 'test',
+      serverUrl: 'http://localhost:3100',
+      headers: { Authorization: 'Bearer secret', 'X-Key': 'secret-key' },
+    })
+
+    const integration = await getIntegration(page)
+    const item = integration.mcp[0]
+
+    expect(item.headers).toEqual({ '***': '***' })
+    expect(integration.secretsMeta?.mcp?.['/mcp-headers']?.headers).toBe(true)
+  })
+
+  test('MCP encrypted env map is redacted on read', async ({ page }) => {
+    await addArrayItem(page, 'mcp', {
+      alias: '/mcp-env',
+      transport: 'stdio',
+      toolName: 'test',
+      command: 'node',
+      env: { DB_PASSWORD: 'secret-pass', API_KEY: 'secret-key' },
+    })
+
+    const integration = await getIntegration(page)
+    const item = integration.mcp[0]
+
+    expect(item.env).toEqual({ '***': '***' })
+    expect(integration.secretsMeta?.mcp?.['/mcp-env']?.env).toBe(true)
   })
 
   test('MCP and RPC arrays remain independent during concurrent modifications', async ({ page }) => {

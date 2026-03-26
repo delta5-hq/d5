@@ -1,5 +1,5 @@
 import { expect, test as base } from '@playwright/test'
-import { adminLogin } from './utils'
+import { e2eEnv } from './utils/e2e-env-vars'
 import path from 'path'
 import * as fs from 'fs'
 import {
@@ -13,6 +13,8 @@ import {
 } from './helpers/workflow-scoped-cleanup'
 import { ArrayIntegrationPage } from './pages/ArrayIntegrationPage'
 import { TIMEOUTS } from './config/test-timeouts'
+import { authenticateViaAPI } from './helpers/api-auth'
+import { adminLogin } from './utils'
 
 const test = base.extend<{}, { workerStorageState: string }>({
   storageState: ({ workerStorageState }, use) => use(workerStorageState),
@@ -51,9 +53,16 @@ test.describe.serial('Workflow-scoped integrations', () => {
       baseURL: testInfo.project.use.baseURL,
     })
     const page = await context.newPage()
-    await adminLogin(page)
 
-    /* Create two test workflows */
+    const authResult = await authenticateViaAPI(page.request, {
+      usernameOrEmail: e2eEnv.E2E_ADMIN_USER,
+      password: e2eEnv.E2E_ADMIN_PASS,
+    })
+
+    if (!authResult.ok) {
+      throw new Error(authResult.error || `Auth failed: ${authResult.status}`)
+    }
+
     const response1 = await page.request.post('/api/v2/workflow', {
       data: { title: 'Test Workflow 1' },
     })
@@ -73,9 +82,16 @@ test.describe.serial('Workflow-scoped integrations', () => {
       baseURL: testInfo.project.use.baseURL,
     })
     const page = await context.newPage()
-    await adminLogin(page)
 
-    /* Cleanup: delete test workflows */
+    const authResult = await authenticateViaAPI(page.request, {
+      usernameOrEmail: e2eEnv.E2E_ADMIN_USER,
+      password: e2eEnv.E2E_ADMIN_PASS,
+    })
+
+    if (!authResult.ok) {
+      throw new Error(authResult.error || `Auth failed: ${authResult.status}`)
+    }
+
     await page.request.delete(`/api/v2/workflow/${workflow1Id}`)
     await page.request.delete(`/api/v2/workflow/${workflow2Id}`)
 
@@ -394,6 +410,20 @@ test.describe.serial('Workflow-scoped integrations', () => {
     expect(hasWorkflow1MCP).toBeUndefined()
   })
 
+  test('MCP delete: non-existent item in workflow scope is idempotent', async ({ page }) => {
+    const deleteResponse = await page.request.delete(
+      `/api/v2/integration/mcp/items/${encodeURIComponent('/never-existed')}?workflowId=${workflow1Id}`,
+    )
+    expect(deleteResponse.status()).toBe(204)
+  })
+
+  test('RPC delete: non-existent item in workflow scope is idempotent', async ({ page }) => {
+    const deleteResponse = await page.request.delete(
+      `/api/v2/integration/rpc/items/${encodeURIComponent('/never-existed')}?workflowId=${workflow2Id}`,
+    )
+    expect(deleteResponse.status()).toBe(204)
+  })
+
   test('normalizes empty workflowId to null', async ({ page }) => {
     /* Create with empty string workflowId */
     const response = await page.request.put('/api/v2/integration/openai/update?workflowId=', {
@@ -514,7 +544,11 @@ test.describe.serial('Workflow-scoped integrations', () => {
 
   test('cleanup verifies MCP+RPC mixed at different scopes', async ({ page }) => {
     await addMCPItemAtScope(page, { alias: '/user-mcp', transport: 'stdio', toolName: 'user', command: 'node' })
-    await addRPCItemAtScope(page, { alias: '/workflow1-rpc', protocol: 'http', url: 'https://w1.example.com' }, workflow1Id)
+    await addRPCItemAtScope(
+      page,
+      { alias: '/workflow1-rpc', protocol: 'http', url: 'https://w1.example.com' },
+      workflow1Id,
+    )
 
     const userIntegration = await getIntegrationAtScope(page)
     const workflow1Integration = await getIntegrationAtScope(page, workflow1Id)
@@ -527,8 +561,16 @@ test.describe.serial('Workflow-scoped integrations', () => {
   })
 
   test('cleanup verifies empty array after scope-specific deletion', async ({ page }) => {
-    await addMCPItemAtScope(page, { alias: '/item1', transport: 'stdio', toolName: 'tool1', command: 'node' }, workflow1Id)
-    await addMCPItemAtScope(page, { alias: '/item2', transport: 'stdio', toolName: 'tool2', command: 'node' }, workflow1Id)
+    await addMCPItemAtScope(
+      page,
+      { alias: '/item1', transport: 'stdio', toolName: 'tool1', command: 'node' },
+      workflow1Id,
+    )
+    await addMCPItemAtScope(
+      page,
+      { alias: '/item2', transport: 'stdio', toolName: 'tool2', command: 'node' },
+      workflow1Id,
+    )
 
     await deleteMCPItemAtScope(page, '/item1', workflow1Id)
     await deleteMCPItemAtScope(page, '/item2', workflow1Id)
@@ -539,7 +581,12 @@ test.describe.serial('Workflow-scoped integrations', () => {
 
   test('beforeEach cleanup prevents test pollution: multiple items at all scopes', async ({ page }) => {
     for (let i = 1; i <= 3; i++) {
-      await addMCPItemAtScope(page, { alias: `/user-item-${i}`, transport: 'stdio', toolName: `tool${i}`, command: 'node' })
+      await addMCPItemAtScope(page, {
+        alias: `/user-item-${i}`,
+        transport: 'stdio',
+        toolName: `tool${i}`,
+        command: 'node',
+      })
       await addMCPItemAtScope(
         page,
         { alias: `/w1-item-${i}`, transport: 'stdio', toolName: `tool${i}`, command: 'node' },

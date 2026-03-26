@@ -119,6 +119,9 @@ func (s *Service) DeleteArrayItem(ctx context.Context, scope ScopeIdentifier, fi
 
 	err := s.collection.UpdateOne(ctx, filter, update)
 	if err != nil {
+		if err == qmgo.ErrNoSuchDocuments {
+			return nil
+		}
 		return err
 	}
 
