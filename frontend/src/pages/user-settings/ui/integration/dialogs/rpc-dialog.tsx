@@ -32,6 +32,7 @@ import {
 import { useRPCFormDefaults } from './hooks/use-rpc-form-defaults'
 import { useRPCProtocolDefaults } from './hooks/use-rpc-protocol-defaults'
 import { RPC_PROTOCOLS, RPC_METHODS, RPC_OUTPUT_FORMATS, ACP_AUTO_APPROVE_OPTIONS } from './rpc-constants'
+import { PresetButtonRow, RPC_PRESETS } from './presets'
 
 const timeoutMsField = z.preprocess(
   val => (typeof val === 'number' && Number.isNaN(val) ? undefined : val),
@@ -171,13 +172,6 @@ const RPCDialog: React.FC<Props> = ({
     isEditMode: isEdit,
   })
 
-  const fillClaudePreset = () => {
-    setValue('commandTemplate', 'claude -p "{{prompt}}" --output-format json --dangerously-skip-permissions')
-    setValue('outputFormat', 'json')
-    setValue('outputField', 'output')
-    setValue('sessionIdField', 'session_id')
-  }
-
   const onSubmit = async (values: RPCFormFlat) => {
     try {
       if (!isEdit && existingAliases.includes(values.alias)) {
@@ -241,6 +235,9 @@ const RPCDialog: React.FC<Props> = ({
               placeholder="/myalias"
             />
           </div>
+
+          {/* Presets */}
+          {!isEdit ? <PresetButtonRow disabled={isSubmitting} presets={RPC_PRESETS} setValue={setValue} /> : null}
 
           {/* Protocol */}
           <div className="flex flex-col gap-2">
@@ -329,12 +326,7 @@ const RPCDialog: React.FC<Props> = ({
               </div>
 
               <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <FormFieldLabel htmlFor="commandTemplate" labelId="dialog.integration.commandTemplate" required />
-                  <Button disabled={isSubmitting} onClick={fillClaudePreset} size="sm" type="button" variant="default">
-                    🤖 Claude CLI Preset
-                  </Button>
-                </div>
+                <FormFieldLabel htmlFor="commandTemplate" labelId="dialog.integration.commandTemplate" required />
                 <Textarea
                   id="commandTemplate"
                   {...register('commandTemplate')}
