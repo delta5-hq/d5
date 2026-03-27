@@ -1,6 +1,7 @@
 import { Card, CardContent } from '@shared/ui/card'
 import * as React from 'react'
-import { FormattedMessage } from 'react-intl'
+import { FormattedMessage, useIntl } from 'react-intl'
+import { useButtonKeyboard } from '@shared/lib/hooks'
 
 import {
   ClaudeLogo,
@@ -40,29 +41,39 @@ const IntegrationCard: React.FC<{
   installedId?: string
   installed?: boolean
   onClick: () => void
-}> = ({ icon, titleId, installedId = 'integration.installed', installed, onClick }) => (
-  <Card
-    className="w-60 m-1 cursor-pointer hover:shadow-md transition-shadow"
-    data-title-id={titleId}
-    data-type="integration-card"
-    glassEffect={false}
-    onClick={onClick}
-  >
-    <div className="flex flex-col h-full">
-      <img alt="" className="w-full h-40 object-cover rounded-t-lg" src={icon} />
-      <CardContent className="flex flex-col items-center justify-center p-4 space-y-1">
-        <h3 className="text-base font-medium text-center">
-          <FormattedMessage id={titleId} />
-        </h3>
-        {installed ? (
-          <span className="text-sm text-success text-center">
-            <FormattedMessage id={installedId} />
-          </span>
-        ) : null}
-      </CardContent>
-    </div>
-  </Card>
-)
+}> = ({ icon, titleId, installedId = 'integration.installed', installed, onClick }) => {
+  const intl = useIntl()
+  const { handleKeyDown } = useButtonKeyboard(onClick)
+  const label = intl.formatMessage({ id: titleId })
+
+  return (
+    <Card
+      aria-label={label}
+      className="w-full sm:w-60 m-1 cursor-pointer hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      data-title-id={titleId}
+      data-type="integration-card"
+      glassEffect={false}
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+    >
+      <div className="flex flex-col h-full">
+        <img alt="" className="w-full h-40 object-cover rounded-t-lg" src={icon} />
+        <CardContent className="flex flex-col items-center justify-center p-4 space-y-1">
+          <h3 className="text-base font-medium text-center">
+            <FormattedMessage id={titleId} />
+          </h3>
+          {installed ? (
+            <span className="text-sm text-success text-center">
+              <FormattedMessage id={installedId} />
+            </span>
+          ) : null}
+        </CardContent>
+      </div>
+    </Card>
+  )
+}
 
 const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({
   showDialog,
