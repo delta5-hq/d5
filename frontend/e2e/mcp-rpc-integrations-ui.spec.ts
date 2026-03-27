@@ -377,7 +377,7 @@ test.describe.serial('RPC Integration UI Flow', () => {
     await expect(page.locator('#url')).not.toBeVisible()
   })
 
-  test('Claude CLI preset button fills SSH fields', async ({ page }) => {
+  test('Claude CLI (SSH) preset button fills fields correctly', async ({ page }) => {
     const arrayPage = new ArrayIntegrationPage(page)
     await arrayPage.goto()
 
@@ -385,21 +385,134 @@ test.describe.serial('RPC Integration UI Flow', () => {
 
     await page.locator('#alias').fill('/claude')
 
-    const dialogScope = page.locator('[data-dialog-name="rpc"]')
-    await selectRadixOption(page, {
-      triggerTextPattern: /ssh|http|acp-local/i,
-      optionText: 'SSH',
-      triggerScope: dialogScope,
-    })
-
-    const presetButton = page.locator('button:has-text("Claude CLI Preset")')
+    const presetButton = page.locator('button:has-text("🤖 Claude CLI (SSH)")')
     await presetButton.click()
+
+    await page.waitForTimeout(100)
 
     const commandTemplate = page.locator('#commandTemplate')
     await expect(commandTemplate).toHaveValue(/claude -p "{{prompt}}".*--output-format json/)
 
     const outputField = page.locator('#outputField')
     await expect(outputField).toHaveValue('output')
+
+    const sessionIdField = page.locator('#sessionIdField')
+    await expect(sessionIdField).toHaveValue('session_id')
+  })
+
+  test('IDE (HTTP) preset button fills fields correctly', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.openAddDialog('rpc')
+
+    await page.locator('#alias').fill('/ide-http')
+
+    const presetButton = page.locator('button:has-text("🖥️ IDE (HTTP)")')
+    await presetButton.click()
+
+    await page.waitForTimeout(100)
+
+    const url = page.locator('#url')
+    await expect(url).toHaveValue('http://localhost:8080/api/v1/execute')
+
+    const bodyTemplate = page.locator('#bodyTemplate')
+    await expect(bodyTemplate).toHaveValue('{"command":"{{prompt}}"}')
+
+    const outputField = page.locator('#outputField')
+    await expect(outputField).toHaveValue('result')
+  })
+
+  test('IDE (ACP) preset button fills fields correctly', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.openAddDialog('rpc')
+
+    await page.locator('#alias').fill('/ide-acp')
+
+    const presetButton = page.locator('button:has-text("🖥️ IDE (ACP)")')
+    await presetButton.click()
+
+    await page.waitForTimeout(100)
+
+    const command = page.locator('#command')
+    await expect(command).toHaveValue('claude')
+
+    const args = page.locator('#args')
+    await expect(args).toHaveValue('--ide')
+
+    const workingDir = page.locator('#workingDir')
+    await expect(workingDir).toHaveValue('/workspace')
+  })
+
+  test('QA Testing (ACP) preset button fills fields correctly', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.openAddDialog('rpc')
+
+    await page.locator('#alias').fill('/qa-acp')
+
+    const presetButton = page.locator('button:has-text("🧪 QA Testing (ACP)")')
+    await presetButton.click()
+
+    await page.waitForTimeout(100)
+
+    const command = page.locator('#command')
+    await expect(command).toHaveValue('npx')
+
+    const args = page.locator('#args')
+    await expect(args).toHaveValue('playwright test')
+
+    const workingDir = page.locator('#workingDir')
+    await expect(workingDir).toHaveValue('/workspace')
+  })
+
+  test('QA Testing (MCP) preset button fills fields correctly', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.openAddDialog('mcp')
+
+    await page.locator('#alias').fill('/qa-mcp')
+
+    const presetButton = page.locator('button:has-text("🧪 QA Testing (MCP)")')
+    await presetButton.click()
+
+    await page.waitForTimeout(100)
+
+    const command = page.locator('#command')
+    await expect(command).toHaveValue('npx')
+
+    const args = page.locator('#args')
+    await expect(args).toHaveValue('@playwright/mcp@latest')
+
+    const toolName = page.locator('#toolName')
+    await expect(toolName).toHaveValue('browser_navigate')
+  })
+
+  test('Preset buttons are not visible in edit mode', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.addRPCIntegration({
+      alias: '/test-edit',
+      protocol: 'ssh',
+      host: '192.168.1.1',
+      username: 'user1',
+      privateKey: 'key1',
+      commandTemplate: 'echo test',
+    })
+
+    await page.reload()
+    await page.waitForLoadState('networkidle')
+
+    const editButton = page.locator('button[aria-label="Edit /test-edit"]').first()
+    await editButton.click()
+
+    const presetSection = page.locator('text=Presets')
+    await expect(presetSection).not.toBeVisible()
   })
 
   test('Add multiple RPC integrations with different protocols', async ({ page }) => {

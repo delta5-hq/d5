@@ -25,6 +25,7 @@ import type { HttpError } from '@shared/lib/error'
 import { FormFieldLabel } from '../components/form-field-label'
 import { serializeArrayToSpaceSeparated, deserializeSpaceSeparatedToArray } from './form-serialization'
 import { buildIntegrationUrl } from '../utils/build-integration-url'
+import { PresetButtonRow, MCP_PRESETS } from './presets'
 
 const mcpTransports = ['stdio', 'streamable-http', 'sse'] as const
 
@@ -191,6 +192,9 @@ const MCPDialog: React.FC<Props> = ({
               placeholder="/myalias"
             />
           </div>
+
+          {/* Presets */}
+          {!isEdit ? <PresetButtonRow disabled={isSubmitting} presets={MCP_PRESETS} setValue={setValue} /> : null}
 
           {/* Transport */}
           <div className="flex flex-col gap-2">
