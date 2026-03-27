@@ -2,6 +2,7 @@ package integration
 
 import (
 	"backend-v2/internal/models"
+	"reflect"
 	"testing"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -316,10 +317,7 @@ func TestNormalizeBSONValue_EmptyCollections(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := normalizeBSONValue(tt.input)
 
-			bytes1, _ := bson.Marshal(result)
-			bytes2, _ := bson.Marshal(tt.expected)
-
-			if string(bytes1) != string(bytes2) {
+			if !reflect.DeepEqual(result, tt.expected) {
 				t.Errorf("Expected %v, got %v", tt.expected, result)
 			}
 		})
@@ -480,18 +478,34 @@ func TestNormalizeBSONValue_MixedArrayTypes(t *testing.T) {
 }
 
 func TestBuildScopeFilter_ConsistentSerialization(t *testing.T) {
-	scope := ScopeIdentifier{
-		UserID:     "user-1",
-		WorkflowID: stringPtr("wf-123"),
+	tests := []struct {
+		name  string
+		scope ScopeIdentifier
+	}{
+		{
+			name: "WorkflowScoped",
+			scope: ScopeIdentifier{
+				UserID:     "user-1",
+				WorkflowID: stringPtr("wf-123"),
+			},
+		},
+		{
+			name: "UserLevel",
+			scope: ScopeIdentifier{
+				UserID:     "user-2",
+				WorkflowID: nil,
+			},
+		},
 	}
 
-	filter1 := buildScopeFilter(scope)
-	filter2 := buildScopeFilter(scope)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filter1 := buildScopeFilter(tt.scope)
+			filter2 := buildScopeFilter(tt.scope)
 
-	bytes1, _ := bson.Marshal(filter1)
-	bytes2, _ := bson.Marshal(filter2)
-
-	if string(bytes1) != string(bytes2) {
-		t.Error("buildScopeFilter should produce consistent output for same input")
+			if !reflect.DeepEqual(filter1, filter2) {
+				t.Errorf("buildScopeFilter should produce consistent output for same input, got different results")
+			}
+		})
 	}
 }

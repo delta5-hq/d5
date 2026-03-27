@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"reflect"
 	"testing"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -314,10 +315,7 @@ func TestScopeIdentifier_Equality(t *testing.T) {
 			filter1 := buildScopeFilter(tt.scope1)
 			filter2 := buildScopeFilter(tt.scope2)
 
-			bytes1, _ := bson.Marshal(filter1)
-			bytes2, _ := bson.Marshal(filter2)
-
-			equal := string(bytes1) == string(bytes2)
+			equal := reflect.DeepEqual(filter1, filter2)
 			if equal != tt.expected {
 				t.Errorf("Expected equality=%v, got %v", tt.expected, equal)
 			}

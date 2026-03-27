@@ -189,7 +189,7 @@ export const Workflow = () => {
                     Trigger Flash
                   </button>
                 </div>
-                <div className="flex-shrink-0 cursor-pointer" onClick={handleFlashClick}>
+                <div className="flex-shrink-0 cursor-pointer" onClick={handleFlashClick} tabIndex={-1}>
                   <Genie
                     clipboardEdge="#424242"
                     clipboardFill="#ffffff"
