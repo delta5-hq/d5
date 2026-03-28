@@ -35,7 +35,7 @@ func TestCipher_EncryptDecrypt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			encrypted, err := cipher.Encrypt(tt.plaintext, key)
+			encrypted, err := cipher.Encrypt(tt.plaintext, key, nil)
 			if err != nil {
 				t.Fatalf("Encrypt failed: %v", err)
 			}
@@ -44,7 +44,7 @@ func TestCipher_EncryptDecrypt(t *testing.T) {
 				t.Error("expected non-empty ciphertext")
 			}
 
-			decrypted, err := cipher.Decrypt(encrypted, key)
+			decrypted, err := cipher.Decrypt(encrypted, key, nil)
 			if err != nil {
 				t.Fatalf("Decrypt failed: %v", err)
 			}
@@ -63,8 +63,8 @@ func TestCipher_Encrypt_NonDeterministic(t *testing.T) {
 
 	plaintext := "same plaintext"
 
-	encrypted1, _ := cipher.Encrypt(plaintext, key)
-	encrypted2, _ := cipher.Encrypt(plaintext, key)
+	encrypted1, _ := cipher.Encrypt(plaintext, key, nil)
+	encrypted2, _ := cipher.Encrypt(plaintext, key, nil)
 
 	if encrypted1 == encrypted2 {
 		t.Error("same plaintext should produce different ciphertext (random IV)")
@@ -100,7 +100,7 @@ func TestCipher_Decrypt_InvalidInput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := cipher.Decrypt(tt.ciphertext, key)
+			_, err := cipher.Decrypt(tt.ciphertext, key, nil)
 			if tt.wantError && err == nil {
 				t.Error("expected error, got nil")
 			}
@@ -119,9 +119,9 @@ func TestCipher_Decrypt_WrongKey(t *testing.T) {
 	copy(key2, []byte("key-two-32-bytes-long-exactly!!"))
 
 	plaintext := "secret message"
-	encrypted, _ := cipher.Encrypt(plaintext, key1)
+	encrypted, _ := cipher.Encrypt(plaintext, key1, nil)
 
-	_, err := cipher.Decrypt(encrypted, key2)
+	_, err := cipher.Decrypt(encrypted, key2, nil)
 	if err == nil {
 		t.Error("expected error when decrypting with wrong key")
 	}
@@ -131,7 +131,7 @@ func TestCipher_EmptyString(t *testing.T) {
 	cipher := NewCipher()
 	key := make([]byte, 32)
 
-	encrypted, err := cipher.Encrypt("", key)
+	encrypted, err := cipher.Encrypt("", key, nil)
 	if err != nil {
 		t.Fatalf("Encrypt failed: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestCipher_EmptyString(t *testing.T) {
 		t.Errorf("empty string should encrypt to empty string, got %v", encrypted)
 	}
 
-	decrypted, err := cipher.Decrypt("", key)
+	decrypted, err := cipher.Decrypt("", key, nil)
 	if err != nil {
 		t.Fatalf("Decrypt failed: %v", err)
 	}
@@ -177,7 +177,7 @@ func TestCipher_KeySize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			key := bytes.Repeat([]byte("a"), tt.keySize)
-			_, err := cipher.Encrypt(plaintext, key)
+			_, err := cipher.Encrypt(plaintext, key, nil)
 			if tt.wantError && err == nil {
 				t.Error("expected error, got nil")
 			}

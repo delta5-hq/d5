@@ -22,7 +22,7 @@ func (s *Service) AddArrayItem(ctx context.Context, scope ScopeIdentifier, field
 		return err
 	}
 
-	encryptedItem, err := s.encryptArrayItem(fieldName, item)
+	encryptedItem, err := s.encryptArrayItem(scope, fieldName, item)
 	if err != nil {
 		return err
 	}
@@ -52,12 +52,12 @@ func (s *Service) AddArrayItem(ctx context.Context, scope ScopeIdentifier, field
 	return s.collection.UpdateOne(ctx, filter, update)
 }
 
-func (s *Service) encryptArrayItem(arrayName string, item map[string]interface{}) (map[string]interface{}, error) {
+func (s *Service) encryptArrayItem(scope ScopeIdentifier, arrayName string, item map[string]interface{}) (map[string]interface{}, error) {
 	tempDoc := map[string]interface{}{
 		arrayName: []interface{}{item},
 	}
 
-	if err := s.encryptor.Encrypt(tempDoc); err != nil {
+	if err := s.encryptor.Encrypt(tempDoc, scope.UserID, scope.WorkflowID); err != nil {
 		return nil, err
 	}
 
@@ -97,7 +97,7 @@ func (s *Service) UpdateArrayItem(ctx context.Context, scope ScopeIdentifier, fi
 			}
 		}
 
-		encryptedValue, err := s.fieldCrypto.EncryptArrayFieldUpdate(fieldName, key, value)
+		encryptedValue, err := s.fieldCrypto.EncryptArrayFieldUpdate(scope, fieldName, alias, key, value)
 		if err != nil {
 			return err
 		}

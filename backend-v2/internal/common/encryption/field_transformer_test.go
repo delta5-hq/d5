@@ -43,7 +43,7 @@ func TestFieldTransformer_EncryptDecryptField(t *testing.T) {
 			docCopy := copyMap(tt.doc)
 
 			// Encrypt
-			err := ft.EncryptField(docCopy, tt.path, false)
+			err := ft.EncryptField(docCopy, tt.path, false, nil)
 			if err != nil {
 				t.Fatalf("EncryptField failed: %v", err)
 			}
@@ -55,7 +55,7 @@ func TestFieldTransformer_EncryptDecryptField(t *testing.T) {
 			}
 
 			// Decrypt
-			err = ft.DecryptField(docCopy, tt.path, false)
+			err = ft.DecryptField(docCopy, tt.path, false, nil)
 			if err != nil {
 				t.Fatalf("DecryptField failed: %v", err)
 			}
@@ -80,7 +80,7 @@ func TestFieldTransformer_SerializedField(t *testing.T) {
 	}
 
 	// Encrypt with serialization
-	err := ft.EncryptField(doc, "headers", true)
+	err := ft.EncryptField(doc, "headers", true, nil)
 	if err != nil {
 		t.Fatalf("EncryptField failed: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestFieldTransformer_SerializedField(t *testing.T) {
 	}
 
 	// Decrypt with deserialization
-	err = ft.DecryptField(doc, "headers", true)
+	err = ft.DecryptField(doc, "headers", true, nil)
 	if err != nil {
 		t.Fatalf("DecryptField failed: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestFieldTransformer_NonExistentPath(t *testing.T) {
 	doc := map[string]interface{}{"key": "value"}
 
 	// Should not error on non-existent path
-	err := ft.EncryptField(doc, "nonexistent.path", false)
+	err := ft.EncryptField(doc, "nonexistent.path", false, nil)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestFieldTransformer_EncryptDecryptArrayFields(t *testing.T) {
 	}
 
 	// Encrypt array fields
-	err := ft.EncryptArrayFields(doc, "rpc", configs)
+	err := ft.EncryptArrayFields(doc, "rpc", configs, nil)
 	if err != nil {
 		t.Fatalf("EncryptArrayFields failed: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestFieldTransformer_EncryptDecryptArrayFields(t *testing.T) {
 	}
 
 	// Decrypt array fields
-	err = ft.DecryptArrayFields(doc, "rpc", configs)
+	err = ft.DecryptArrayFields(doc, "rpc", configs, nil)
 	if err != nil {
 		t.Fatalf("DecryptArrayFields failed: %v", err)
 	}
@@ -199,13 +199,13 @@ func TestFieldTransformer_ArrayWithSerializedFields(t *testing.T) {
 	}
 
 	// Encrypt
-	err := ft.EncryptArrayFields(doc, "mcp", configs)
+	err := ft.EncryptArrayFields(doc, "mcp", configs, nil)
 	if err != nil {
 		t.Fatalf("EncryptArrayFields failed: %v", err)
 	}
 
 	// Decrypt
-	err = ft.DecryptArrayFields(doc, "mcp", configs)
+	err = ft.DecryptArrayFields(doc, "mcp", configs, nil)
 	if err != nil {
 		t.Fatalf("DecryptArrayFields failed: %v", err)
 	}

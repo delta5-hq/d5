@@ -41,9 +41,15 @@ func TestFieldCrypto_SelectiveEncryption(t *testing.T) {
 		{name: "MCP transport", arrayName: "mcp", fieldName: "transport", value: "stdio", shouldEncrypt: false},
 	}
 
+	testScope := ScopeIdentifier{
+		UserID:     "test-user-123",
+		WorkflowID: nil,
+	}
+	testAlias := "/test-alias"
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			encrypted, err := crypto.EncryptArrayFieldUpdate(tt.arrayName, tt.fieldName, tt.value)
+			encrypted, err := crypto.EncryptArrayFieldUpdate(testScope, tt.arrayName, testAlias, tt.fieldName, tt.value)
 			if err != nil {
 				t.Fatalf("EncryptArrayFieldUpdate failed: %v", err)
 			}

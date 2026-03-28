@@ -1,5 +1,8 @@
 import crypto from 'crypto'
 import {JWT_SECRET} from '../../constants'
+import adBuilder from './adBuilder'
+import {EncryptionContextValidator, ADContextBuilder} from './encryptionContext'
+import {FallbackDecrypt} from './decryptStrategy'
 
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 16
@@ -35,11 +38,15 @@ class DeterministicKeyDerivation {
 }
 
 class AESCipher {
-  encrypt(plaintext, key) {
+  encrypt(plaintext, key, additionalData = null) {
     if (!plaintext) return null
 
     const iv = crypto.randomBytes(IV_LENGTH)
     const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
+
+    if (additionalData) {
+      cipher.setAAD(additionalData)
+    }
 
     const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
     const authTag = cipher.getAuthTag()
@@ -47,7 +54,7 @@ class AESCipher {
     return Buffer.concat([iv, authTag, encrypted]).toString('base64')
   }
 
-  decrypt(ciphertext, key) {
+  decrypt(ciphertext, key, additionalData = null) {
     if (!ciphertext) return null
 
     const buffer = Buffer.from(ciphertext, 'base64')
@@ -57,6 +64,9 @@ class AESCipher {
     const encrypted = buffer.subarray(IV_LENGTH + AUTH_TAG_LENGTH)
 
     const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
+    if (additionalData) {
+      decipher.setAAD(additionalData)
+    }
     decipher.setAuthTag(authTag)
 
     return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8')
@@ -78,23 +88,24 @@ class EncryptionMarker {
 }
 
 class EncryptionService {
-  constructor(keyDerivation, cipher) {
+  constructor(keyDerivation, cipher, decryptStrategy = null) {
     this.key = keyDerivation.getKey()
     this.cipher = cipher
+    this.decryptStrategy = decryptStrategy || new FallbackDecrypt(cipher)
   }
 
-  encrypt(plaintext) {
+  encrypt(plaintext, additionalData = null) {
     if (!plaintext) return null
     if (EncryptionMarker.isMarked(plaintext)) return plaintext
-    const ciphertext = this.cipher.encrypt(plaintext, this.key)
+    const ciphertext = this.cipher.encrypt(plaintext, this.key, additionalData)
     return EncryptionMarker.mark(ciphertext)
   }
 
-  decrypt(markedCiphertext) {
+  decrypt(markedCiphertext, additionalData = null) {
     if (!markedCiphertext) return null
     if (!EncryptionMarker.isMarked(markedCiphertext)) return markedCiphertext
     const ciphertext = EncryptionMarker.unmark(markedCiphertext)
-    return this.cipher.decrypt(ciphertext, this.key)
+    return this.decryptStrategy.decrypt(ciphertext, this.key, additionalData)
   }
 }
 
@@ -146,46 +157,122 @@ class ObjectSerializer {
   }
 }
 
-class ValueTransformer {
-  static createEncryptTransform(service, shouldSerialize) {
-    return value => {
-      const serialized = shouldSerialize ? ObjectSerializer.serialize(value) : value
-      return service.encrypt(serialized)
-    }
+class LLMFieldTransformer {
+  constructor(service, adContextBuilder) {
+    this.service = service
+    this.adContextBuilder = adContextBuilder
   }
 
-  static createDecryptTransform(service, shouldDeserialize) {
-    return value => {
-      const decrypted = service.decrypt(value)
-      return shouldDeserialize ? ObjectSerializer.deserialize(decrypted) : decrypted
-    }
+  encrypt(value, fieldPath, context) {
+    if (!value) return value
+    const ad = this.adContextBuilder.buildForLLMField(context, fieldPath)
+    return this.service.encrypt(value, ad)
   }
-}
 
-const transformField = (obj, fieldPath, transformFn) => {
-  const navigation = FieldPathNavigator.navigate(obj, fieldPath)
-  if (!navigation) return
-
-  const {parent, fieldName} = navigation
-  const value = parent[fieldName]
-
-  if (value) {
-    parent[fieldName] = transformFn(value)
+  decrypt(value, fieldPath, context) {
+    if (!value) return value
+    const ad = this.adContextBuilder.buildForLLMField(context, fieldPath)
+    return this.service.decrypt(value, ad)
   }
 }
 
-const transformArrayFields = (items, fieldConfig, service, isEncryption) => {
-  if (!Array.isArray(items)) return
+class ArrayFieldTransformer {
+  constructor(service, serializer, adContextBuilder) {
+    this.service = service
+    this.serializer = serializer
+    this.adContextBuilder = adContextBuilder
+  }
 
-  items.forEach(item => {
-    fieldConfig.forEach(({path, serialize}) => {
-      const transformFn = isEncryption
-        ? ValueTransformer.createEncryptTransform(service, serialize)
-        : ValueTransformer.createDecryptTransform(service, serialize)
+  transformItem(item, fieldPath, shouldSerialize, arrayName, context, encrypt) {
+    const navigation = FieldPathNavigator.navigate(item, fieldPath)
+    if (!navigation) return
 
-      transformField(item, path, transformFn)
+    const {parent, fieldName} = navigation
+    const value = parent[fieldName]
+    if (!value) return
+
+    const alias = item.alias
+    const ad = this.adContextBuilder.buildForArrayField(context, arrayName, alias, fieldPath)
+
+    const processedValue = encrypt
+      ? this.encryptValue(value, shouldSerialize, ad)
+      : this.decryptValue(value, shouldSerialize, ad)
+
+    parent[fieldName] = processedValue
+  }
+
+  encryptValue(value, shouldSerialize, ad) {
+    const serialized = shouldSerialize ? this.serializer.serialize(value) : value
+    return this.service.encrypt(serialized, ad)
+  }
+
+  decryptValue(value, shouldSerialize, ad) {
+    const decrypted = this.service.decrypt(value, ad)
+    return shouldSerialize ? this.serializer.deserialize(decrypted) : decrypted
+  }
+}
+
+class DocumentEncryptor {
+  constructor(llmTransformer, arrayTransformer) {
+    this.llmTransformer = llmTransformer
+    this.arrayTransformer = arrayTransformer
+  }
+
+  encryptLLMFields(doc, fieldPaths, context) {
+    fieldPaths.forEach(fieldPath => {
+      const navigation = FieldPathNavigator.navigate(doc, fieldPath)
+      if (!navigation) return
+
+      const {parent, fieldName} = navigation
+      const value = parent[fieldName]
+
+      if (value) {
+        parent[fieldName] = this.llmTransformer.encrypt(value, fieldPath, context)
+      }
     })
-  })
+  }
+
+  decryptLLMFields(doc, fieldPaths, context) {
+    fieldPaths.forEach(fieldPath => {
+      const navigation = FieldPathNavigator.navigate(doc, fieldPath)
+      if (!navigation) return
+
+      const {parent, fieldName} = navigation
+      const value = parent[fieldName]
+
+      if (value) {
+        parent[fieldName] = this.llmTransformer.decrypt(value, fieldPath, context)
+      }
+    })
+  }
+
+  encryptArrayFields(doc, arrayName, fieldConfigs, context) {
+    const navigation = FieldPathNavigator.navigate(doc, arrayName)
+    if (!navigation) return
+
+    const items = navigation.parent[navigation.fieldName]
+    if (!Array.isArray(items)) return
+
+    items.forEach(item => {
+      fieldConfigs.forEach(({path, serialize}) => {
+        this.arrayTransformer.transformItem(item, path, serialize, arrayName, context, true)
+      })
+    })
+  }
+
+  decryptArrayFields(doc, arrayName, fieldConfigs, context) {
+    const navigation = FieldPathNavigator.navigate(doc, arrayName)
+    if (!navigation) return
+
+    const items = navigation.parent[navigation.fieldName]
+    if (!Array.isArray(items)) return
+
+    items.forEach(item => {
+      fieldConfigs.forEach(({path, serialize}) => {
+        this.arrayTransformer.transformItem(item, path, serialize, arrayName, context, false)
+      })
+    })
+  }
 }
 
 class ArrayFieldConfigBuilder {
@@ -197,47 +284,51 @@ class ArrayFieldConfigBuilder {
   }
 }
 
-export const encryptFields = (data, config) => {
+let encryptorInstance = null
+
+const getDocumentEncryptor = () => {
+  if (!encryptorInstance) {
+    const service = getEncryptionService()
+    const adContextBuilder = new ADContextBuilder(adBuilder)
+    const serializer = ObjectSerializer
+    const llmTransformer = new LLMFieldTransformer(service, adContextBuilder)
+    const arrayTransformer = new ArrayFieldTransformer(service, serializer, adContextBuilder)
+    encryptorInstance = new DocumentEncryptor(llmTransformer, arrayTransformer)
+  }
+  return encryptorInstance
+}
+
+export const encryptFields = (data, config, encryptionContext = null) => {
   if (!data) return data
 
+  const context = EncryptionContextValidator.validate(encryptionContext)
   const {fields = [], arrayFields = {}, serializedFields = {}} = config
-  const service = getEncryptionService()
+  const encryptor = getDocumentEncryptor()
   const dataCopy = JSON.parse(JSON.stringify(data))
 
-  fields.forEach(fieldPath => {
-    transformField(dataCopy, fieldPath, value => service.encrypt(value))
-  })
+  encryptor.encryptLLMFields(dataCopy, fields, context)
 
-  Object.entries(arrayFields).forEach(([arrayPath, fieldPaths]) => {
-    const navigation = FieldPathNavigator.navigate(dataCopy, arrayPath)
-    if (navigation?.parent[navigation.fieldName]) {
-      const arraySerializedFields = serializedFields[arrayPath] || []
-      const fieldConfig = ArrayFieldConfigBuilder.build(fieldPaths, arraySerializedFields)
-      transformArrayFields(navigation.parent[navigation.fieldName], fieldConfig, service, true)
-    }
+  Object.entries(arrayFields).forEach(([arrayName, fieldPaths]) => {
+    const fieldConfigs = ArrayFieldConfigBuilder.build(fieldPaths, serializedFields[arrayName] || [])
+    encryptor.encryptArrayFields(dataCopy, arrayName, fieldConfigs, context)
   })
 
   return dataCopy
 }
 
-export const decryptFields = (data, config) => {
+export const decryptFields = (data, config, encryptionContext = null) => {
   if (!data) return data
 
+  const context = EncryptionContextValidator.validate(encryptionContext)
   const {fields = [], arrayFields = {}, serializedFields = {}} = config
-  const service = getEncryptionService()
+  const encryptor = getDocumentEncryptor()
   const dataCopy = JSON.parse(JSON.stringify(data))
 
-  fields.forEach(fieldPath => {
-    transformField(dataCopy, fieldPath, value => service.decrypt(value))
-  })
+  encryptor.decryptLLMFields(dataCopy, fields, context)
 
-  Object.entries(arrayFields).forEach(([arrayPath, fieldPaths]) => {
-    const navigation = FieldPathNavigator.navigate(dataCopy, arrayPath)
-    if (navigation?.parent[navigation.fieldName]) {
-      const arraySerializedFields = serializedFields[arrayPath] || []
-      const fieldConfig = ArrayFieldConfigBuilder.build(fieldPaths, arraySerializedFields)
-      transformArrayFields(navigation.parent[navigation.fieldName], fieldConfig, service, false)
-    }
+  Object.entries(arrayFields).forEach(([arrayName, fieldPaths]) => {
+    const fieldConfigs = ArrayFieldConfigBuilder.build(fieldPaths, serializedFields[arrayName] || [])
+    encryptor.decryptArrayFields(dataCopy, arrayName, fieldConfigs, context)
   })
 
   return dataCopy

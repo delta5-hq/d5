@@ -27,3 +27,7 @@ func GetService() (*Service, error) {
 func ResetService() {
 	serviceInstance = nil
 }
+
+func GetKeyDerivation() (*KeyDerivation, error) {
+	return NewKeyDerivation(config.JwtSecret)
+}

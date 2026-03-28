@@ -30,7 +30,7 @@ func TestService_EncryptDecrypt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			encrypted, err := service.Encrypt(tt.plaintext)
+			encrypted, err := service.Encrypt(tt.plaintext, nil)
 			if err != nil {
 				t.Fatalf("Encrypt failed: %v", err)
 			}
@@ -39,7 +39,7 @@ func TestService_EncryptDecrypt(t *testing.T) {
 				t.Error("encrypted value should be marked")
 			}
 
-			decrypted, err := service.Decrypt(encrypted)
+			decrypted, err := service.Decrypt(encrypted, nil)
 			if err != nil {
 				t.Fatalf("Decrypt failed: %v", err)
 			}
@@ -59,8 +59,8 @@ func TestService_Encrypt_Idempotent(t *testing.T) {
 
 	plaintext := "test data"
 
-	encrypted1, _ := service.Encrypt(plaintext)
-	encrypted2, _ := service.Encrypt(encrypted1) // Encrypt already-encrypted
+	encrypted1, _ := service.Encrypt(plaintext, nil)
+	encrypted2, _ := service.Encrypt(encrypted1, nil) // Encrypt already-encrypted
 
 	if encrypted1 != encrypted2 {
 		t.Error("encrypting already-encrypted value should be idempotent")
@@ -75,7 +75,7 @@ func TestService_Decrypt_HandlesPlaintext(t *testing.T) {
 
 	plaintext := "not encrypted"
 
-	decrypted, err := service.Decrypt(plaintext)
+	decrypted, err := service.Decrypt(plaintext, nil)
 	if err != nil {
 		t.Fatalf("Decrypt failed: %v", err)
 	}
@@ -95,10 +95,10 @@ func TestService_MixedState(t *testing.T) {
 	plainValue := "plaintext-value"
 	secretValue := "secret-value"
 
-	encrypted, _ := service.Encrypt(secretValue)
+	encrypted, _ := service.Encrypt(secretValue, nil)
 
 	// Decrypt both
-	decrypted1, err := service.Decrypt(plainValue)
+	decrypted1, err := service.Decrypt(plainValue, nil)
 	if err != nil {
 		t.Fatalf("Decrypt plaintext failed: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestService_MixedState(t *testing.T) {
 		t.Errorf("plaintext decryption = %v, want %v", decrypted1, plainValue)
 	}
 
-	decrypted2, err := service.Decrypt(encrypted)
+	decrypted2, err := service.Decrypt(encrypted, nil)
 	if err != nil {
 		t.Fatalf("Decrypt encrypted failed: %v", err)
 	}

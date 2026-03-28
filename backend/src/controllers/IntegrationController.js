@@ -30,7 +30,13 @@ const IntegrationController = {
     if (!integration) {
       ctx.throw(404, 'Integration not found')
     }
-    ctx.body = decryptFields(integration, INTEGRATION_ENCRYPTION_CONFIG)
+
+    const encryptionContext = {
+      userId,
+      workflowId: integration.workflowId,
+    }
+
+    ctx.body = decryptFields(integration, INTEGRATION_ENCRYPTION_CONFIG, encryptionContext)
   },
   getService: async ctx => {
     const {userId} = ctx.state
@@ -41,7 +47,13 @@ const IntegrationController = {
     if (!integration || !integration[service]) {
       ctx.throw(404, 'Integration for the called application was not found')
     }
-    ctx.body = decryptFields({[service]: integration[service]}, INTEGRATION_ENCRYPTION_CONFIG)
+
+    const encryptionContext = {
+      userId,
+      workflowId: integration.workflowId,
+    }
+
+    ctx.body = decryptFields({[service]: integration[service]}, INTEGRATION_ENCRYPTION_CONFIG, encryptionContext)
   },
   updateService: async ctx => {
     const {userId} = ctx.state
@@ -76,7 +88,12 @@ const IntegrationController = {
       await vectors.save()
     }
 
-    const encryptedData = encryptFields({[service]: integration}, INTEGRATION_ENCRYPTION_CONFIG)
+    const encryptionContext = {
+      userId,
+      workflowId,
+    }
+
+    const encryptedData = encryptFields({[service]: integration}, INTEGRATION_ENCRYPTION_CONFIG, encryptionContext)
     const update = {$set: {userId, workflowId, ...encryptedData}}
     const options = {upsert: true}
     await Integration.updateOne({userId, workflowId}, update, options)

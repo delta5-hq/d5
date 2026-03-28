@@ -2,13 +2,11 @@ package integration
 
 import "backend-v2/internal/common/encryption"
 
-// DocumentEncryptor encrypts/decrypts Integration documents.
 type DocumentEncryptor struct {
-	transformer *encryption.FieldTransformer
-	config      *EncryptionConfig
+	docTransformer *encryption.DocumentTransformer
+	config         *EncryptionConfig
 }
 
-// NewDocumentEncryptor creates a document encryptor.
 func NewDocumentEncryptor() (*DocumentEncryptor, error) {
 	encryptionService, err := encryption.GetService()
 	if err != nil {
@@ -16,24 +14,27 @@ func NewDocumentEncryptor() (*DocumentEncryptor, error) {
 	}
 
 	serializer := encryption.NewSerializer()
-	transformer := encryption.NewFieldTransformer(encryptionService, serializer)
+	fieldTransformer := encryption.NewFieldTransformer(encryptionService, serializer)
+	contextBinder := encryption.NewContextBinder()
+	docTransformer := encryption.NewDocumentTransformer(fieldTransformer, contextBinder)
 
 	return &DocumentEncryptor{
-		transformer: transformer,
-		config:      GetIntegrationEncryptionConfig(),
+		docTransformer: docTransformer,
+		config:         GetIntegrationEncryptionConfig(),
 	}, nil
 }
 
-// Encrypt encrypts sensitive fields in Integration document.
-func (de *DocumentEncryptor) Encrypt(doc map[string]interface{}) error {
+func (de *DocumentEncryptor) Encrypt(doc map[string]interface{}, userID string, workflowID *string) error {
+	encCtx := de.buildEncryptionContext(userID, workflowID)
+
 	for _, path := range de.config.Fields {
-		if err := de.transformer.EncryptField(doc, path, false); err != nil {
+		if err := de.docTransformer.EncryptLLMField(doc, path, false, encCtx); err != nil {
 			return err
 		}
 	}
 
 	for arrayName, fieldConfigs := range de.config.ArrayFields {
-		if err := de.transformer.EncryptArrayFields(doc, arrayName, fieldConfigs); err != nil {
+		if err := de.docTransformer.EncryptArrayFields(doc, arrayName, fieldConfigs, encCtx); err != nil {
 			return err
 		}
 	}
@@ -41,19 +42,31 @@ func (de *DocumentEncryptor) Encrypt(doc map[string]interface{}) error {
 	return nil
 }
 
-// Decrypt decrypts sensitive fields in Integration document.
-func (de *DocumentEncryptor) Decrypt(doc map[string]interface{}) error {
+func (de *DocumentEncryptor) Decrypt(doc map[string]interface{}, userID string, workflowID *string) error {
+	encCtx := de.buildEncryptionContext(userID, workflowID)
+
 	for _, path := range de.config.Fields {
-		if err := de.transformer.DecryptField(doc, path, false); err != nil {
+		if err := de.docTransformer.DecryptLLMField(doc, path, false, encCtx); err != nil {
 			return err
 		}
 	}
 
 	for arrayName, fieldConfigs := range de.config.ArrayFields {
-		if err := de.transformer.DecryptArrayFields(doc, arrayName, fieldConfigs); err != nil {
+		if err := de.docTransformer.DecryptArrayFields(doc, arrayName, fieldConfigs, encCtx); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (de *DocumentEncryptor) buildEncryptionContext(userID string, workflowID *string) encryption.EncryptionContext {
+	wfID := ""
+	if workflowID != nil {
+		wfID = *workflowID
+	}
+	return encryption.EncryptionContext{
+		UserID:     userID,
+		WorkflowID: wfID,
+	}
 }

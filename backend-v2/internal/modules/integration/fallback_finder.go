@@ -60,7 +60,13 @@ func (f *FallbackFinder) findByScope(ctx context.Context, scope ScopeIdentifier)
 
 	f.normalizer(raw)
 
-	if err := f.encryptor.Decrypt(raw); err != nil {
+	userID, _ := raw["userId"].(string)
+	var workflowID *string
+	if wfID, ok := raw["workflowId"].(string); ok && wfID != "" {
+		workflowID = &wfID
+	}
+
+	if err := f.encryptor.Decrypt(raw, userID, workflowID); err != nil {
 		return nil, err
 	}
 

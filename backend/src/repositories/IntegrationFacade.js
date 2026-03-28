@@ -10,7 +10,12 @@ export class IntegrationFacade {
       return null
     }
 
-    return decryptFields(integration, INTEGRATION_ENCRYPTION_CONFIG)
+    const encryptionContext = {
+      userId,
+      workflowId: integration.workflowId,
+    }
+
+    return decryptFields(integration, INTEGRATION_ENCRYPTION_CONFIG, encryptionContext)
   }
 
   async findDecryptedOrThrow(userId, workflowId = null) {
