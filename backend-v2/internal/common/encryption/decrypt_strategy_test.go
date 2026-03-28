@@ -68,29 +68,11 @@ func TestFallbackDecrypt_NoFallbackWhenADIsNil(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestStandardDecrypt_NeverFallsBack(t *testing.T) {
-	cipher := NewCipher()
-	standard := NewStandardDecrypt(cipher)
-	key := make([]byte, 32)
-	copy(key, []byte("test-key-32-bytes-long-padding!!"))
-
-	encryptedWithNil, err := cipher.Encrypt("legacy-secret", key, nil)
-	require.NoError(t, err)
-
-	wrongAD := []byte("wrong-context")
-	_, err = standard.Decrypt(encryptedWithNil, key, wrongAD)
-	assert.Error(t, err)
-}
-
-func TestDecryptStrategy_Symmetry(t *testing.T) {
+func TestFallbackDecrypt_Symmetry(t *testing.T) {
 	cipher := NewCipher()
 	key := make([]byte, 32)
 	copy(key, []byte("test-key-32-bytes-long-padding!!"))
-
-	strategies := map[string]DecryptStrategy{
-		"FallbackDecrypt": NewFallbackDecrypt(cipher),
-		"StandardDecrypt": NewStandardDecrypt(cipher),
-	}
+	fallback := NewFallbackDecrypt(cipher)
 
 	testCases := []struct {
 		name      string
@@ -103,23 +85,19 @@ func TestDecryptStrategy_Symmetry(t *testing.T) {
 		{"unicode plaintext", "секрет-🔐", []byte("unicode-context")},
 	}
 
-	for strategyName, strategy := range strategies {
-		t.Run(strategyName, func(t *testing.T) {
-			for _, tc := range testCases {
-				t.Run(tc.name, func(t *testing.T) {
-					encrypted, err := cipher.Encrypt(tc.plaintext, key, tc.ad)
-					require.NoError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			encrypted, err := cipher.Encrypt(tc.plaintext, key, tc.ad)
+			require.NoError(t, err)
 
-					decrypted, err := strategy.Decrypt(encrypted, key, tc.ad)
-					require.NoError(t, err)
-					assert.Equal(t, tc.plaintext, decrypted)
-				})
-			}
+			decrypted, err := fallback.Decrypt(encrypted, key, tc.ad)
+			require.NoError(t, err)
+			assert.Equal(t, tc.plaintext, decrypted)
 		})
 	}
 }
 
-func TestDecryptStrategy_DifferentInstances(t *testing.T) {
+func TestFallbackDecrypt_DifferentInstances(t *testing.T) {
 	cipher := NewCipher()
 	key := make([]byte, 32)
 	copy(key, []byte("test-key-32-bytes-long-padding!!"))
@@ -128,29 +106,15 @@ func TestDecryptStrategy_DifferentInstances(t *testing.T) {
 	encrypted, err := cipher.Encrypt("secret", key, ad)
 	require.NoError(t, err)
 
-	t.Run("multiple FallbackDecrypt instances behave identically", func(t *testing.T) {
-		fallback1 := NewFallbackDecrypt(cipher)
-		fallback2 := NewFallbackDecrypt(cipher)
+	fallback1 := NewFallbackDecrypt(cipher)
+	fallback2 := NewFallbackDecrypt(cipher)
 
-		decrypted1, err1 := fallback1.Decrypt(encrypted, key, ad)
-		decrypted2, err2 := fallback2.Decrypt(encrypted, key, ad)
+	decrypted1, err1 := fallback1.Decrypt(encrypted, key, ad)
+	decrypted2, err2 := fallback2.Decrypt(encrypted, key, ad)
 
-		require.NoError(t, err1)
-		require.NoError(t, err2)
-		assert.Equal(t, decrypted1, decrypted2)
-	})
-
-	t.Run("multiple StandardDecrypt instances behave identically", func(t *testing.T) {
-		standard1 := NewStandardDecrypt(cipher)
-		standard2 := NewStandardDecrypt(cipher)
-
-		decrypted1, err1 := standard1.Decrypt(encrypted, key, ad)
-		decrypted2, err2 := standard2.Decrypt(encrypted, key, ad)
-
-		require.NoError(t, err1)
-		require.NoError(t, err2)
-		assert.Equal(t, decrypted1, decrypted2)
-	})
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+	assert.Equal(t, decrypted1, decrypted2)
 }
 
 func TestFallbackDecrypt_EdgeCases(t *testing.T) {

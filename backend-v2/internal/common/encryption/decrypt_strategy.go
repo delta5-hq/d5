@@ -4,18 +4,6 @@ type DecryptStrategy interface {
 	Decrypt(ciphertext string, key []byte, additionalData []byte) (string, error)
 }
 
-type StandardDecrypt struct {
-	cipher *Cipher
-}
-
-func NewStandardDecrypt(cipher *Cipher) *StandardDecrypt {
-	return &StandardDecrypt{cipher: cipher}
-}
-
-func (s *StandardDecrypt) Decrypt(ciphertext string, key []byte, additionalData []byte) (string, error) {
-	return s.cipher.Decrypt(ciphertext, key, additionalData)
-}
-
 type FallbackDecrypt struct {
 	cipher *Cipher
 }

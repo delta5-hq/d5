@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import {StandardDecrypt, FallbackDecrypt} from './decryptStrategy'
+import {FallbackDecrypt} from './decryptStrategy'
 
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 16
@@ -74,25 +74,6 @@ describe('DecryptStrategy', () => {
       const encrypted = cipher.encrypt('secret', key, ad)
 
       expect(() => fallback.decrypt(encrypted, key, null)).toThrow()
-    })
-  })
-
-  describe('StandardDecrypt', () => {
-    const standard = new StandardDecrypt(cipher)
-
-    it('decrypts with matching AD', () => {
-      const ad = Buffer.from('context')
-      const encrypted = cipher.encrypt('secret', key, ad)
-
-      const decrypted = standard.decrypt(encrypted, key, ad)
-      expect(decrypted).toBe('secret')
-    })
-
-    it('never falls back on AD mismatch', () => {
-      const encrypted = cipher.encrypt('legacy-secret', key, null)
-      const wrongAD = Buffer.from('wrong-context')
-
-      expect(() => standard.decrypt(encrypted, key, wrongAD)).toThrow()
     })
   })
 })
