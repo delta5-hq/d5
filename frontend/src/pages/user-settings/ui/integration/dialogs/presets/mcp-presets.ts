@@ -52,4 +52,17 @@ export const MCP_PRESETS: PresetDefinition<MCPFormFlat>[] = [
       setValue('timeoutMs', 300000)
     },
   },
+  {
+    id: 'research-rag-mcp',
+    label: 'Research & RAG',
+    icon: '🔬',
+    fill: setValue => {
+      setValue('transport', 'stdio')
+      setValue('command', 'babel-node')
+      setValue('args', '--presets @babel/preset-env src/mcp-servers/research-rag/server.js')
+      setValue('toolName', 'auto')
+      setValue('toolInputField', 'prompt')
+      setValue('timeoutMs', 300000)
+    },
+  },
 ]
