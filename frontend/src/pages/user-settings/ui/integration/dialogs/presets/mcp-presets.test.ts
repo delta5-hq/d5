@@ -34,7 +34,7 @@ const getField = (setValue: ReturnType<typeof vi.fn>, field: string) =>
 describe('MCP_PRESETS', () => {
   describe('preset collection structure', () => {
     it('maintains stable preset count (breaking change detection)', () => {
-      expect(MCP_PRESETS).toHaveLength(3)
+      expect(MCP_PRESETS).toHaveLength(4)
     })
 
     it('enforces unique preset identifiers', () => {
@@ -93,6 +93,19 @@ describe('MCP_PRESETS', () => {
         ['transport', 'stdio'],
         ['command', 'npx'],
         ['args', '@playwright/mcp@latest'],
+        ['toolName', 'auto'],
+        ['toolInputField', 'prompt'],
+        ['timeoutMs', 300000],
+      ])
+    })
+
+    it('Research & RAG: agent mode via d5 internal MCP server', () => {
+      const setValue = fillPreset('research-rag-mcp')
+
+      expect(setValue.mock.calls).toEqual([
+        ['transport', 'stdio'],
+        ['command', 'babel-node'],
+        ['args', '--presets @babel/preset-env src/mcp-servers/research-rag/server.js'],
         ['toolName', 'auto'],
         ['toolInputField', 'prompt'],
         ['timeoutMs', 300000],
