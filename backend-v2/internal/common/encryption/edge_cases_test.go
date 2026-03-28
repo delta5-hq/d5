@@ -33,7 +33,7 @@ func TestEdgeCase_EmptyAndNilValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			encrypted, err := service.Encrypt(tt.input)
+			encrypted, err := service.Encrypt(tt.input, nil)
 			if err != nil {
 				t.Fatalf("Encrypt failed: %v", err)
 			}
@@ -42,7 +42,7 @@ func TestEdgeCase_EmptyAndNilValues(t *testing.T) {
 				t.Error("empty input should produce empty output")
 			}
 
-			decrypted, err := service.Decrypt(encrypted)
+			decrypted, err := service.Decrypt(encrypted, nil)
 			if err != nil {
 				t.Fatalf("Decrypt failed: %v", err)
 			}
@@ -100,12 +100,12 @@ func TestEdgeCase_BoundaryValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			encrypted, err := cipher.Encrypt(tt.plaintext, key)
+			encrypted, err := cipher.Encrypt(tt.plaintext, key, nil)
 			if err != nil {
 				t.Fatalf("Encrypt failed: %v", err)
 			}
 
-			decrypted, err := cipher.Decrypt(encrypted, key)
+			decrypted, err := cipher.Decrypt(encrypted, key, nil)
 			if err != nil {
 				t.Fatalf("Decrypt failed: %v", err)
 			}
@@ -157,12 +157,12 @@ func TestEdgeCase_SpecialCharacters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			encrypted, err := service.Encrypt(tt.input)
+			encrypted, err := service.Encrypt(tt.input, nil)
 			if err != nil {
 				t.Fatalf("Encrypt failed: %v", err)
 			}
 
-			decrypted, err := service.Decrypt(encrypted)
+			decrypted, err := service.Decrypt(encrypted, nil)
 			if err != nil {
 				t.Fatalf("Decrypt failed: %v", err)
 			}
@@ -230,12 +230,12 @@ func TestEdgeCase_FieldPathNavigation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Should not panic or error on invalid paths
-			err := transformer.EncryptField(tt.doc, tt.path, false)
+			err := transformer.EncryptField(tt.doc, tt.path, false, nil)
 			if err != nil {
 				t.Errorf("EncryptField should handle invalid paths gracefully: %v", err)
 			}
 
-			err = transformer.DecryptField(tt.doc, tt.path, false)
+			err = transformer.DecryptField(tt.doc, tt.path, false, nil)
 			if err != nil {
 				t.Errorf("DecryptField should handle invalid paths gracefully: %v", err)
 			}
@@ -316,12 +316,12 @@ func TestEdgeCase_ArrayFieldEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Should not panic on edge cases
-			err := transformer.EncryptArrayFields(tt.doc, tt.array, tt.config)
+			err := transformer.EncryptArrayFields(tt.doc, tt.array, tt.config, nil)
 			if err != nil {
 				t.Errorf("EncryptArrayFields should handle edge cases gracefully: %v", err)
 			}
 
-			err = transformer.DecryptArrayFields(tt.doc, tt.array, tt.config)
+			err = transformer.DecryptArrayFields(tt.doc, tt.array, tt.config, nil)
 			if err != nil {
 				t.Errorf("DecryptArrayFields should handle edge cases gracefully: %v", err)
 			}

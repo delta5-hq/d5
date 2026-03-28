@@ -5,30 +5,28 @@ import (
 	"fmt"
 )
 
-// FieldCrypto provides single-field encryption for MongoDB positional updates.
 type FieldCrypto struct {
-	transformer *encryption.FieldTransformer
-	config      *EncryptionConfig
+	service       *encryption.Service
+	serializer    *encryption.Serializer
+	contextBinder *encryption.ContextBinder
+	config        *EncryptionConfig
 }
 
 func NewFieldCrypto() (*FieldCrypto, error) {
-	encryptionService, err := encryption.GetService()
+	service, err := encryption.GetService()
 	if err != nil {
 		return nil, err
 	}
 
-	serializer := encryption.NewSerializer()
-	transformer := encryption.NewFieldTransformer(encryptionService, serializer)
-
 	return &FieldCrypto{
-		transformer: transformer,
-		config:      GetIntegrationEncryptionConfig(),
+		service:       service,
+		serializer:    encryption.NewSerializer(),
+		contextBinder: encryption.NewContextBinder(),
+		config:        GetIntegrationEncryptionConfig(),
 	}, nil
 }
 
-// EncryptArrayFieldUpdate encrypts a single field value for positional array update.
-// Returns encrypted value if field should be encrypted, original value otherwise.
-func (fc *FieldCrypto) EncryptArrayFieldUpdate(arrayName, fieldName string, value interface{}) (interface{}, error) {
+func (fc *FieldCrypto) EncryptArrayFieldUpdate(scope ScopeIdentifier, arrayName, alias, fieldName string, value interface{}) (interface{}, error) {
 	fieldConfigs, exists := fc.config.ArrayFields[arrayName]
 	if !exists {
 		return value, nil
@@ -36,22 +34,52 @@ func (fc *FieldCrypto) EncryptArrayFieldUpdate(arrayName, fieldName string, valu
 
 	for _, config := range fieldConfigs {
 		if config.Path == fieldName {
-			return fc.encryptFieldValue(value, config.Serialize)
+			return fc.encryptFieldValue(scope, arrayName, alias, fieldName, value, config.Serialize)
 		}
 	}
 
 	return value, nil
 }
 
-func (fc *FieldCrypto) encryptFieldValue(value interface{}, serialize bool) (interface{}, error) {
+func (fc *FieldCrypto) encryptFieldValue(scope ScopeIdentifier, arrayName, alias, fieldName string, value interface{}, serialize bool) (interface{}, error) {
 	if value == nil {
 		return nil, nil
 	}
 
-	tempDoc := map[string]interface{}{"field": value}
-	if err := fc.transformer.EncryptField(tempDoc, "field", serialize); err != nil {
+	var strValue string
+	var err error
+
+	if serialize {
+		strValue, err = fc.serializer.Serialize(value)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		strValue, _ = value.(string)
+		if strValue == "" && value != nil {
+			return value, nil
+		}
+	}
+
+	workflowID := ""
+	if scope.WorkflowID != nil {
+		workflowID = *scope.WorkflowID
+	}
+
+	ad := fc.contextBinder.BindArrayField(encryption.ArrayFieldContext{
+		Encryption: encryption.EncryptionContext{
+			UserID:     scope.UserID,
+			WorkflowID: workflowID,
+		},
+		ArrayName: arrayName,
+		Alias:     alias,
+		FieldPath: fieldName,
+	})
+
+	encrypted, err := fc.service.Encrypt(strValue, ad)
+	if err != nil {
 		return nil, fmt.Errorf("encrypt field value: %w", err)
 	}
 
-	return tempDoc["field"], nil
+	return encrypted, nil
 }

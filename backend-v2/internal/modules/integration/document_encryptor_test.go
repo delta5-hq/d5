@@ -74,8 +74,10 @@ func TestDocumentEncryptor_EncryptDecrypt(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			docCopy := copyDoc(tt.doc)
+			testUserID := "test-user-123"
+			var testWorkflowID *string
 
-			if err := encryptor.Encrypt(docCopy); err != nil {
+			if err := encryptor.Encrypt(docCopy, testUserID, testWorkflowID); err != nil {
 				t.Fatalf("Encrypt failed: %v", err)
 			}
 
@@ -83,7 +85,7 @@ func TestDocumentEncryptor_EncryptDecrypt(t *testing.T) {
 				t.Error("expected secrets to be encrypted")
 			}
 
-			if err := encryptor.Decrypt(docCopy); err != nil {
+			if err := encryptor.Decrypt(docCopy, testUserID, testWorkflowID); err != nil {
 				t.Fatalf("Decrypt failed: %v", err)
 			}
 
@@ -104,13 +106,16 @@ func TestDocumentEncryptor_IdempotentEncryption(t *testing.T) {
 		},
 	}
 
-	if err := encryptor.Encrypt(doc); err != nil {
+	testUserID := "test-user-123"
+	var testWorkflowID *string
+
+	if err := encryptor.Encrypt(doc, testUserID, testWorkflowID); err != nil {
 		t.Fatalf("first Encrypt failed: %v", err)
 	}
 
 	encryptedOnce := copyDoc(doc)
 
-	if err := encryptor.Encrypt(doc); err != nil {
+	if err := encryptor.Encrypt(doc, testUserID, testWorkflowID); err != nil {
 		t.Fatalf("second Encrypt failed: %v", err)
 	}
 
@@ -125,12 +130,15 @@ func TestDocumentEncryptor_MixedState(t *testing.T) {
 		t.Fatalf("NewDocumentEncryptor failed: %v", err)
 	}
 
+	testUserID := "test-user-123"
+	var testWorkflowID *string
+
 	docForPreEncrypt := map[string]interface{}{
 		"openai": map[string]interface{}{
 			"apiKey": "sk-openai-encrypted",
 		},
 	}
-	if err := encryptor.Encrypt(docForPreEncrypt); err != nil {
+	if err := encryptor.Encrypt(docForPreEncrypt, testUserID, testWorkflowID); err != nil {
 		t.Fatalf("pre-encrypt failed: %v", err)
 	}
 	preEncryptedKey := docForPreEncrypt["openai"].(map[string]interface{})["apiKey"]
@@ -144,7 +152,7 @@ func TestDocumentEncryptor_MixedState(t *testing.T) {
 		},
 	}
 
-	if err := encryptor.Decrypt(doc); err != nil {
+	if err := encryptor.Decrypt(doc, testUserID, testWorkflowID); err != nil {
 		t.Fatalf("Decrypt failed: %v", err)
 	}
 

@@ -68,7 +68,7 @@ func (s *Service) Upsert(ctx context.Context, scope ScopeIdentifier, update map[
 		updateDoc[k] = v
 	}
 
-	if err := s.encryptor.Encrypt(updateDoc); err != nil {
+	if err := s.encryptor.Encrypt(updateDoc, scope.UserID, scope.WorkflowID); err != nil {
 		return err
 	}
 
@@ -113,7 +113,7 @@ func (s *Service) DecryptIntegration(integration *models.Integration) (*models.I
 		return nil, err
 	}
 
-	if err := s.encryptor.Decrypt(integrationMap); err != nil {
+	if err := s.encryptor.Decrypt(integrationMap, integration.UserID, integration.WorkflowID); err != nil {
 		return nil, err
 	}
 

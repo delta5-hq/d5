@@ -23,8 +23,7 @@ func NewCipher() *Cipher {
 	return &Cipher{}
 }
 
-// Encrypt returns base64-encoded: IV(16) || AuthTag(16) || Ciphertext
-func (c *Cipher) Encrypt(plaintext string, key []byte) (string, error) {
+func (c *Cipher) Encrypt(plaintext string, key []byte, additionalData []byte) (string, error) {
 	if plaintext == "" {
 		return "", nil
 	}
@@ -45,7 +44,7 @@ func (c *Cipher) Encrypt(plaintext string, key []byte) (string, error) {
 	}
 
 	// GCM Seal produces: ciphertext || authTag (tag appended at end)
-	sealed := gcm.Seal(nil, iv, []byte(plaintext), nil)
+	sealed := gcm.Seal(nil, iv, []byte(plaintext), additionalData)
 
 	// Reorder to match Node.js: IV || AuthTag || Ciphertext
 	ciphertextBody := sealed[:len(sealed)-authTagLength]
@@ -59,8 +58,7 @@ func (c *Cipher) Encrypt(plaintext string, key []byte) (string, error) {
 	return base64.StdEncoding.EncodeToString(result), nil
 }
 
-// Decrypt decodes base64 then parses: IV(16) || AuthTag(16) || Ciphertext
-func (c *Cipher) Decrypt(encoded string, key []byte) (string, error) {
+func (c *Cipher) Decrypt(encoded string, key []byte, additionalData []byte) (string, error) {
 	if encoded == "" {
 		return "", nil
 	}
@@ -91,7 +89,7 @@ func (c *Cipher) Decrypt(encoded string, key []byte) (string, error) {
 		return "", err
 	}
 
-	plaintext, err := gcm.Open(nil, iv, sealed, nil)
+	plaintext, err := gcm.Open(nil, iv, sealed, additionalData)
 	if err != nil {
 		return "", err
 	}

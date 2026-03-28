@@ -62,13 +62,13 @@ func TestEncryptionIntegration_EndToEnd(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Encrypt
 			for _, field := range tt.fields {
-				if err := transformer.EncryptField(tt.document, field, false); err != nil {
+				if err := transformer.EncryptField(tt.document, field, false, nil); err != nil {
 					t.Fatalf("EncryptField failed: %v", err)
 				}
 			}
 
 			for arrayName, configs := range tt.arrays {
-				if err := transformer.EncryptArrayFields(tt.document, arrayName, configs); err != nil {
+				if err := transformer.EncryptArrayFields(tt.document, arrayName, configs, nil); err != nil {
 					t.Fatalf("EncryptArrayFields failed: %v", err)
 				}
 			}
@@ -80,13 +80,13 @@ func TestEncryptionIntegration_EndToEnd(t *testing.T) {
 
 			// Decrypt
 			for _, field := range tt.fields {
-				if err := transformer.DecryptField(tt.document, field, false); err != nil {
+				if err := transformer.DecryptField(tt.document, field, false, nil); err != nil {
 					t.Fatalf("DecryptField failed: %v", err)
 				}
 			}
 
 			for arrayName, configs := range tt.arrays {
-				if err := transformer.DecryptArrayFields(tt.document, arrayName, configs); err != nil {
+				if err := transformer.DecryptArrayFields(tt.document, arrayName, configs, nil); err != nil {
 					t.Fatalf("DecryptArrayFields failed: %v", err)
 				}
 			}
@@ -116,13 +116,13 @@ func TestEncryptionIntegration_ConcurrentAccess(t *testing.T) {
 			}
 
 			plaintext := "concurrent-test"
-			encrypted, err := service.Encrypt(plaintext)
+			encrypted, err := service.Encrypt(plaintext, nil)
 			if err != nil {
 				t.Errorf("goroutine %d: Encrypt failed: %v", id, err)
 				return
 			}
 
-			decrypted, err := service.Decrypt(encrypted)
+			decrypted, err := service.Decrypt(encrypted, nil)
 			if err != nil {
 				t.Errorf("goroutine %d: Decrypt failed: %v", id, err)
 				return
@@ -195,12 +195,12 @@ func TestEncryptionIntegration_LargeDataset(t *testing.T) {
 	configs := []FieldConfig{{Path: "secret", Serialize: false}}
 
 	// Encrypt
-	if err := transformer.EncryptArrayFields(doc, "items", configs); err != nil {
+	if err := transformer.EncryptArrayFields(doc, "items", configs, nil); err != nil {
 		t.Fatalf("EncryptArrayFields failed: %v", err)
 	}
 
 	// Decrypt
-	if err := transformer.DecryptArrayFields(doc, "items", configs); err != nil {
+	if err := transformer.DecryptArrayFields(doc, "items", configs, nil); err != nil {
 		t.Fatalf("DecryptArrayFields failed: %v", err)
 	}
 
@@ -230,7 +230,7 @@ func TestEncryptionIntegration_NodeJSInterop(t *testing.T) {
 	}
 
 	c := NewCipher()
-	decrypted, err := c.Decrypt(nodeCiphertext, key)
+	decrypted, err := c.Decrypt(nodeCiphertext, key, nil)
 	if err != nil {
 		t.Fatalf("Go failed to decrypt Node.js ciphertext: %v", err)
 	}
@@ -256,7 +256,7 @@ func TestEncryptionIntegration_GoEncryptedFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			encrypted, err := service.Encrypt(tt.value)
+			encrypted, err := service.Encrypt(tt.value, nil)
 			if err != nil {
 				t.Fatalf("Encrypt: %v", err)
 			}
@@ -265,7 +265,7 @@ func TestEncryptionIntegration_GoEncryptedFormat(t *testing.T) {
 				t.Error("missing __encrypted__ prefix")
 			}
 
-			decrypted, err := service.Decrypt(encrypted)
+			decrypted, err := service.Decrypt(encrypted, nil)
 			if err != nil {
 				t.Fatalf("Decrypt: %v", err)
 			}

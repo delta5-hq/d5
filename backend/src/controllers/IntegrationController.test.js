@@ -89,7 +89,10 @@ describe('IntegrationController', () => {
 
       await IntegrationController.getAll(ctx)
 
-      expect(decryptFields).toHaveBeenCalledWith(raw, INTEGRATION_ENCRYPTION_CONFIG)
+      expect(decryptFields).toHaveBeenCalledWith(raw, INTEGRATION_ENCRYPTION_CONFIG, {
+        userId: 'user-1',
+        workflowId: raw.workflowId,
+      })
       expect(ctx.body).toEqual(decrypted)
     })
 
@@ -199,7 +202,10 @@ describe('IntegrationController', () => {
 
       await IntegrationController.updateService(ctx)
 
-      expect(encryptFields).toHaveBeenCalledWith({openai: serviceData}, INTEGRATION_ENCRYPTION_CONFIG)
+      expect(encryptFields).toHaveBeenCalledWith({openai: serviceData}, INTEGRATION_ENCRYPTION_CONFIG, {
+        userId: 'user-1',
+        workflowId: null,
+      })
     })
 
     it('uses same normalized workflowId in both filter and update', async () => {

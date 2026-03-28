@@ -29,7 +29,7 @@ describe('IntegrationFacade', () => {
     })
 
     it('returns decrypted integration when found', async () => {
-      const encrypted = {userId: 'user-1', openai: {apiKey: 'encrypted-key', model: 'gpt-4'}}
+      const encrypted = {userId: 'user-1', workflowId: null, openai: {apiKey: 'encrypted-key', model: 'gpt-4'}}
       const decrypted = {userId: 'user-1', openai: {apiKey: 'sk-real-key', model: 'gpt-4'}}
 
       IntegrationRepository.findWithFallback.mockResolvedValue(encrypted)
@@ -38,7 +38,10 @@ describe('IntegrationFacade', () => {
       const result = await IntegrationFacade.findDecrypted('user-1')
 
       expect(result).toEqual(decrypted)
-      expect(decryptFields).toHaveBeenCalledWith(encrypted, expect.any(Object))
+      expect(decryptFields).toHaveBeenCalledWith(encrypted, expect.any(Object), {
+        userId: 'user-1',
+        workflowId: null,
+      })
     })
 
     it.each([
@@ -115,7 +118,7 @@ describe('IntegrationFacade', () => {
 
   describe('encryption configuration', () => {
     it('passes config with expected structure', async () => {
-      IntegrationRepository.findWithFallback.mockResolvedValue({userId: 'user-1'})
+      IntegrationRepository.findWithFallback.mockResolvedValue({userId: 'user-1', workflowId: null})
       decryptFields.mockImplementation((data, config) => {
         expect(config).toHaveProperty('fields')
         expect(config).toHaveProperty('arrayFields')
@@ -127,6 +130,7 @@ describe('IntegrationFacade', () => {
       expect(decryptFields).toHaveBeenCalledWith(
         expect.any(Object),
         expect.objectContaining({fields: expect.any(Array), arrayFields: expect.any(Object)}),
+        {userId: 'user-1', workflowId: null},
       )
     })
   })
