@@ -489,7 +489,10 @@ test.describe.serial('RPC Integration UI Flow', () => {
     await expect(args).toHaveValue('@playwright/mcp@latest')
 
     const toolName = page.locator('#toolName')
-    await expect(toolName).toHaveValue('browser_navigate')
+    await expect(toolName).toHaveValue('auto')
+
+    const timeoutMs = page.locator('#timeoutMs')
+    await expect(timeoutMs).toHaveValue('300000')
   })
 
   test('Preset buttons are not visible in edit mode', async ({ page }) => {

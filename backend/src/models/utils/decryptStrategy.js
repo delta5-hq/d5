@@ -1,13 +1,3 @@
-class StandardDecrypt {
-  constructor(cipher) {
-    this.cipher = cipher
-  }
-
-  decrypt(ciphertext, key, additionalData) {
-    return this.cipher.decrypt(ciphertext, key, additionalData)
-  }
-}
-
 class FallbackDecrypt {
   constructor(cipher) {
     this.cipher = cipher
@@ -25,4 +15,4 @@ class FallbackDecrypt {
   }
 }
 
-export {StandardDecrypt, FallbackDecrypt}
+export {FallbackDecrypt}

@@ -38,6 +38,35 @@ export const Model = {
   CustomLLM: 'CustomLLM',
 }
 
+const hasCredentialConfigured = (settings, providerKey, credentialPath) => {
+  if (!settings) return false
+  const provider = settings[providerKey]
+  if (!provider) return false
+  const value = credentialPath.split('.').reduce((obj, key) => obj?.[key], provider)
+  return Boolean(value && (typeof value !== 'string' || value.trim()))
+}
+
+const detectConfiguredProvider = settings => {
+  const providers = [
+    [Model.OpenAI, 'openai', 'apiKey'],
+    [Model.Claude, 'claude', 'apiKey'],
+    [Model.Qwen, 'qwen', 'apiKey'],
+    [Model.Deepseek, 'deepseek', 'apiKey'],
+    [Model.CustomLLM, 'custom_llm', 'apiRootUrl'],
+    [Model.YandexGPT, 'yandex', 'apiKey'],
+  ]
+
+  for (const [model, providerKey, credentialPath] of providers) {
+    if (hasCredentialConfigured(settings, providerKey, credentialPath)) {
+      return model
+    }
+  }
+
+  if (OPENAI_API_KEY) return Model.OpenAI
+
+  return null
+}
+
 export const determineLLMType = (command, settings) => {
   const {lang = undefined, model = USER_DEFAULT_MODEL} = settings || {}
 
@@ -51,7 +80,8 @@ export const determineLLMType = (command, settings) => {
     return Model.YandexGPT
   }
 
-  return Model.OpenAI
+  const detectedModel = detectConfiguredProvider(settings)
+  return detectedModel || Model.OpenAI
 }
 
 export const getIntegrationSettings = async (userId, workflowId = null) => {

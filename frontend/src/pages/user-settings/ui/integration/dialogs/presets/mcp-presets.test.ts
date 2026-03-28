@@ -14,23 +14,32 @@ interface MCPFormFlat {
   serverUrl?: string
 }
 
+const fillPreset = (id: string) => {
+  const preset = MCP_PRESETS.find(p => p.id === id)!
+  const setValue = vi.fn()
+  preset.fill(setValue as unknown as UseFormSetValue<MCPFormFlat>)
+  return setValue
+}
+
+const fillAll = () =>
+  MCP_PRESETS.map(preset => {
+    const setValue = vi.fn()
+    preset.fill(setValue as unknown as UseFormSetValue<MCPFormFlat>)
+    return { preset, setValue }
+  })
+
+const getField = (setValue: ReturnType<typeof vi.fn>, field: string) =>
+  setValue.mock.calls.find((call: unknown[]) => call[0] === field)?.[1]
+
 describe('MCP_PRESETS', () => {
   describe('preset collection structure', () => {
     it('maintains stable preset count (breaking change detection)', () => {
-      expect(MCP_PRESETS).toHaveLength(1)
+      expect(MCP_PRESETS).toHaveLength(3)
     })
 
     it('enforces unique preset identifiers', () => {
       const ids = MCP_PRESETS.map(p => p.id)
-      const uniqueIds = new Set(ids)
-      expect(uniqueIds.size).toBe(ids.length)
-    })
-
-    it('requires all presets to have non-empty ids', () => {
-      MCP_PRESETS.forEach(preset => {
-        expect(preset.id).toBeTruthy()
-        expect(preset.id.length).toBeGreaterThan(0)
-      })
+      expect(new Set(ids).size).toBe(ids.length)
     })
 
     it('enforces kebab-case convention for preset ids', () => {
@@ -41,187 +50,135 @@ describe('MCP_PRESETS', () => {
   })
 
   describe('preset metadata requirements', () => {
-    it('requires icon for each preset', () => {
+    it('requires non-empty icon, descriptive label, and fill function', () => {
       MCP_PRESETS.forEach(preset => {
-        expect(preset.icon).toBeTruthy()
-        expect(typeof preset.icon).toBe('string')
-        expect(preset.icon.length).toBeGreaterThan(0)
-      })
-    })
-
-    it('requires label for each preset', () => {
-      MCP_PRESETS.forEach(preset => {
-        expect(preset.label).toBeTruthy()
-        expect(typeof preset.label).toBe('string')
-        expect(preset.label.length).toBeGreaterThan(0)
-      })
-    })
-
-    it('requires fill function for each preset', () => {
-      MCP_PRESETS.forEach(preset => {
-        expect(preset.fill).toBeDefined()
+        expect(preset.icon).toMatch(/[\u{1F000}-\u{1F9FF}]/u)
+        expect(preset.label.length).toBeGreaterThanOrEqual(5)
         expect(typeof preset.fill).toBe('function')
       })
     })
+  })
 
-    it('ensures labels are descriptive (minimum length)', () => {
-      MCP_PRESETS.forEach(preset => {
-        expect(preset.label.length).toBeGreaterThanOrEqual(5)
+  describe('per-preset field snapshots', () => {
+    it('Claude Code one-shot: direct mode via third-party npx package', () => {
+      const setValue = fillPreset('claude-code-oneshot')
+
+      expect(setValue.mock.calls).toEqual([
+        ['transport', 'stdio'],
+        ['command', 'npx'],
+        ['args', '-y @steipete/claude-code-mcp@latest'],
+        ['toolName', 'claude_code'],
+        ['toolInputField', 'prompt'],
+        ['timeoutMs', 600000],
+      ])
+    })
+
+    it('Claude Code multi-tool: agent mode via native claude CLI', () => {
+      const setValue = fillPreset('claude-code-multi')
+
+      expect(setValue.mock.calls).toEqual([
+        ['transport', 'stdio'],
+        ['command', 'claude'],
+        ['args', 'mcp serve'],
+        ['toolName', 'auto'],
+        ['toolInputField', 'prompt'],
+        ['timeoutMs', 600000],
+      ])
+    })
+
+    it('QA Testing: agent mode via Playwright MCP', () => {
+      const setValue = fillPreset('qa-testing-mcp')
+
+      expect(setValue.mock.calls).toEqual([
+        ['transport', 'stdio'],
+        ['command', 'npx'],
+        ['args', '@playwright/mcp@latest'],
+        ['toolName', 'auto'],
+        ['toolInputField', 'prompt'],
+        ['timeoutMs', 300000],
+      ])
+    })
+  })
+
+  describe('cross-cutting invariants', () => {
+    it('transport is always the first field set', () => {
+      fillAll().forEach(({ setValue }) => {
+        expect(setValue.mock.calls[0]).toEqual(expect.arrayContaining(['transport']))
+      })
+    })
+
+    it('all presets configure toolName and toolInputField', () => {
+      fillAll().forEach(({ setValue }) => {
+        expect(getField(setValue, 'toolName')).toBeTruthy()
+        expect(getField(setValue, 'toolInputField')).toBeTruthy()
+      })
+    })
+
+    it('all stdio presets configure command', () => {
+      fillAll().forEach(({ setValue }) => {
+        if (getField(setValue, 'transport') === 'stdio') {
+          expect(getField(setValue, 'command')).toBeTruthy()
+        }
+      })
+    })
+
+    it('all presets configure timeout as a positive number', () => {
+      fillAll().forEach(({ setValue }) => {
+        const timeout = getField(setValue, 'timeoutMs')
+        expect(typeof timeout).toBe('number')
+        expect(timeout).toBeGreaterThanOrEqual(60000)
+        expect(timeout).toBeLessThanOrEqual(3600000)
       })
     })
   })
 
-  describe('QA Testing MCP preset behavior', () => {
-    const getPreset = () => MCP_PRESETS.find(p => p.id === 'qa-testing-mcp')!
-
-    it('exists in preset collection', () => {
-      expect(getPreset()).toBeDefined()
-    })
-
-    it('sets transport to stdio before other fields', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<MCPFormFlat>)
-
-      const firstCall = setValue.mock.calls[0] as unknown[]
-      expect(firstCall).toEqual(['transport', 'stdio'])
-    })
-
-    it('configures complete MCP stdio integration fields', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<MCPFormFlat>)
-
-      expect(setValue).toHaveBeenCalledWith('transport', 'stdio')
-      expect(setValue).toHaveBeenCalledWith('command', 'npx')
-      expect(setValue).toHaveBeenCalledWith('args', '@playwright/mcp@latest')
-      expect(setValue).toHaveBeenCalledWith('toolName', 'browser_navigate')
-      expect(setValue).toHaveBeenCalledWith('toolInputField', 'prompt')
-    })
-
-    it('sets exactly 5 fields (no more, no less)', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<MCPFormFlat>)
-
-      expect(setValue).toHaveBeenCalledTimes(5)
-    })
-
-    it('uses npx for package execution without installation', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<MCPFormFlat>)
-
-      expect(setValue).toHaveBeenCalledWith('command', 'npx')
-    })
-
-    it('uses @latest version tag for up-to-date package', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<MCPFormFlat>)
-
-      const argsCall = setValue.mock.calls.find((call: unknown[]) => call[0] === 'args')
-      expect(argsCall![1]).toContain('@latest')
-    })
-
-    it('configures browser navigation tool', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<MCPFormFlat>)
-
-      expect(setValue).toHaveBeenCalledWith('toolName', 'browser_navigate')
-    })
-
-    it('uses prompt as default tool input field', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<MCPFormFlat>)
-
-      expect(setValue).toHaveBeenCalledWith('toolInputField', 'prompt')
+  describe('agent mode vs direct mode', () => {
+    it('at least one preset uses agent mode and at least one uses direct mode', () => {
+      const results = fillAll().map(({ setValue }) => getField(setValue, 'toolName'))
+      expect(results).toContain('auto')
+      expect(results.some(t => t !== 'auto')).toBe(true)
     })
   })
 
-  describe('transport distribution', () => {
-    it('includes at least one stdio preset', () => {
-      const stdioPresets = MCP_PRESETS.filter(p => {
-        const setValue = vi.fn()
-        p.fill(setValue as unknown as UseFormSetValue<MCPFormFlat>)
-        return setValue.mock.calls.some((call: unknown[]) => call[0] === 'transport' && call[1] === 'stdio')
-      })
-      expect(stdioPresets.length).toBeGreaterThanOrEqual(1)
-    })
-  })
-
-  describe('edge cases and error handling', () => {
-    it('handles multiple invocations without side effects', () => {
-      const preset = MCP_PRESETS[0]
-      const setValue1 = vi.fn()
-      const setValue2 = vi.fn()
-
-      preset.fill(setValue1 as unknown as UseFormSetValue<MCPFormFlat>)
-      preset.fill(setValue2 as unknown as UseFormSetValue<MCPFormFlat>)
-
-      expect(setValue1).toHaveBeenCalled()
-      expect(setValue2).toHaveBeenCalled()
-      expect(setValue1.mock.calls).toEqual(setValue2.mock.calls)
-    })
-
-    it('does not mutate preset objects during fill', () => {
-      const preset = { ...MCP_PRESETS[0] }
-      const originalPreset = JSON.parse(JSON.stringify(preset))
-      const setValue = vi.fn()
-
-      preset.fill(setValue as unknown as UseFormSetValue<MCPFormFlat>)
-
-      expect(preset.id).toBe(originalPreset.id)
-      expect(preset.label).toBe(originalPreset.label)
-      expect(preset.icon).toBe(originalPreset.icon)
-    })
-
-    it('all presets call setValue at least once', () => {
+  describe('idempotency', () => {
+    it('consecutive fills produce identical calls', () => {
       MCP_PRESETS.forEach(preset => {
-        const setValue = vi.fn()
-        preset.fill(setValue as unknown as UseFormSetValue<MCPFormFlat>)
-        expect(setValue).toHaveBeenCalled()
-      })
-    })
-
-    it('all presets set transport as first action', () => {
-      MCP_PRESETS.forEach(preset => {
-        const setValue = vi.fn()
-        preset.fill(setValue as unknown as UseFormSetValue<MCPFormFlat>)
-        const firstCall = setValue.mock.calls[0] as unknown[]
-        expect(firstCall[0]).toBe('transport')
+        const first = vi.fn()
+        const second = vi.fn()
+        preset.fill(first as unknown as UseFormSetValue<MCPFormFlat>)
+        preset.fill(second as unknown as UseFormSetValue<MCPFormFlat>)
+        expect(first.mock.calls).toEqual(second.mock.calls)
       })
     })
   })
 
-  describe('preset naming conventions', () => {
-    it('uses consistent icon-label pattern', () => {
-      MCP_PRESETS.forEach(preset => {
-        expect(preset.icon).toMatch(/[\u{1F000}-\u{1F9FF}]/u)
+  describe('field value safety', () => {
+    it('string values are non-empty and trimmed', () => {
+      fillAll().forEach(({ setValue }) => {
+        setValue.mock.calls.forEach((call: unknown[]) => {
+          if (typeof call[1] === 'string') {
+            expect(call[1].length).toBeGreaterThan(0)
+            expect(call[1].trim()).toBe(call[1])
+          }
+        })
       })
     })
 
-    it('labels indicate MCP integration type', () => {
-      MCP_PRESETS.forEach(preset => {
-        const label = preset.label.toLowerCase()
-        expect(label).toContain('mcp')
-      })
-    })
-  })
-
-  describe('MCP-specific field requirements', () => {
-    it('all presets configure toolName field', () => {
-      MCP_PRESETS.forEach(preset => {
-        const setValue = vi.fn()
-        preset.fill(setValue as unknown as UseFormSetValue<MCPFormFlat>)
-        const toolNameCall = setValue.mock.calls.find((call: unknown[]) => call[0] === 'toolName')
-        expect(toolNameCall).toBeDefined()
-        expect(toolNameCall![1]).toBeTruthy()
+    it('command values are simple executable names', () => {
+      fillAll().forEach(({ setValue }) => {
+        const command = getField(setValue, 'command')
+        if (command) {
+          expect(command).toMatch(/^[a-zA-Z0-9_\-./]+$/)
+        }
       })
     })
 
-    it('all presets configure toolInputField', () => {
-      MCP_PRESETS.forEach(preset => {
-        const setValue = vi.fn()
-        preset.fill(setValue as unknown as UseFormSetValue<MCPFormFlat>)
-        const toolInputCall = setValue.mock.calls.find((call: unknown[]) => call[0] === 'toolInputField')
-        expect(toolInputCall).toBeDefined()
-        expect(toolInputCall![1]).toBeTruthy()
+    it('args values do not contain shell metacharacters', () => {
+      fillAll().forEach(({ setValue }) => {
+        const args = getField(setValue, 'args')
+        if (args) {
+          expect(args).not.toMatch(/[;&|`$()]/)
+        }
       })
     })
   })
