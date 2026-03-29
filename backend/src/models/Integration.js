@@ -84,7 +84,7 @@ const MCPIntegration = createSchema(
   {
     alias: {type: String, required: true},
     serverUrl: {type: String},
-    transport: {type: String, required: true, enum: ['streamable-http', 'stdio']},
+    transport: {type: String, required: true, enum: ['streamable-http', 'stdio', 'sse']},
     toolName: {type: String, required: true},
     toolInputField: {type: String, default: 'prompt'},
     toolStaticArgs: {type: mongoose.Schema.Types.Mixed},

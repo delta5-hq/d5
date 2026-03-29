@@ -5,3 +5,4 @@ export const MCP_TRANSPORT = {
 }
 
 export const MCP_DEFAULT_TIMEOUT_MS = 120_000
+export const MCP_CONNECTION_TIMEOUT_MS = 30_000

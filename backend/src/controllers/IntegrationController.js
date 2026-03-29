@@ -11,6 +11,7 @@ import {PhraseChunkBuilderV2, scrapeFiles, fetchAsString} from './utils/scrape'
 import LLMVector from '../models/LLMVector'
 import IntegrationRepository from '../repositories/IntegrationRepository'
 import {normalizeWorkflowId} from './utils/normalizeWorkflowId'
+import AliasValidator from './commandExecutor/commands/aliases/AliasValidator'
 
 const IntegrationController = {
   authorization: async (ctx, next) => {
@@ -63,6 +64,20 @@ const IntegrationController = {
 
     if (!integration) {
       ctx.throw(400, 'Something is wrong with the provided data')
+    }
+
+    if (service === 'mcp' || service === 'rpc') {
+      try {
+        const existingIntegration = await IntegrationRepository.findWithFallback(userId, workflowId)
+        const mcpAliases = service === 'mcp' ? integration : existingIntegration?.mcp || []
+        const rpcAliases = service === 'rpc' ? integration : existingIntegration?.rpc || []
+        AliasValidator.validateIntegrationArrays(mcpAliases, rpcAliases)
+      } catch (error) {
+        if (error.name === 'AliasValidationError') {
+          ctx.throw(400, error.message)
+        }
+        throw error
+      }
     }
 
     let updateVectors = false

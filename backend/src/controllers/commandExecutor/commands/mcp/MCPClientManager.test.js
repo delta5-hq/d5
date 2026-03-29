@@ -1,6 +1,7 @@
 import {callTool, listTools, withClient, formatToolResult} from './MCPClientManager'
 import {createTransport} from './createTransport'
-import {MCP_DEFAULT_TIMEOUT_MS} from '../../constants/mcp'
+import {MCP_DEFAULT_TIMEOUT_MS, MCP_CONNECTION_TIMEOUT_MS} from '../../constants/mcp'
+import {TimeoutError} from './withTimeout'
 
 const mockCallTool = jest.fn()
 const mockListTools = jest.fn()
@@ -66,6 +67,26 @@ describe('MCPClientManager', () => {
       )
 
       expect(mockClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('rejects with TimeoutError when connection takes longer than MCP_CONNECTION_TIMEOUT_MS', async () => {
+      mockConnect.mockImplementation(
+        () => new Promise(resolve => setTimeout(resolve, MCP_CONNECTION_TIMEOUT_MS + 1000)),
+      )
+
+      await expect(withClient({serverUrl: 'http://srv', transport: 'streamable-http'}, jest.fn())).rejects.toThrow(
+        TimeoutError,
+      )
+    })
+
+    it('includes timeout duration in TimeoutError when connection times out', async () => {
+      mockConnect.mockImplementation(
+        () => new Promise(resolve => setTimeout(resolve, MCP_CONNECTION_TIMEOUT_MS + 1000)),
+      )
+
+      await expect(withClient({serverUrl: 'http://srv', transport: 'streamable-http'}, jest.fn())).rejects.toThrow(
+        `MCP connection timed out after ${MCP_CONNECTION_TIMEOUT_MS}ms`,
+      )
     })
 
     it('forwards all transport config fields to createTransport', async () => {

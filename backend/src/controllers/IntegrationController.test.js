@@ -4,6 +4,14 @@ import Integration from '../models/Integration'
 import LLMVector from '../models/LLMVector'
 import {encryptFields, decryptFields} from '../models/utils/fieldEncryption'
 import {INTEGRATION_ENCRYPTION_CONFIG} from '../models/Integration'
+import AliasValidator from './commandExecutor/commands/aliases/AliasValidator'
+
+jest.mock('./commandExecutor/commands/aliases/AliasValidator', () => ({
+  __esModule: true,
+  default: {
+    validateIntegrationArrays: jest.fn(),
+  },
+}))
 
 jest.mock('../repositories/IntegrationRepository', () => ({
   findWithFallback: jest.fn(),
@@ -306,6 +314,92 @@ describe('IntegrationController', () => {
       await IntegrationController.updateService(ctx)
 
       expect(ctx.body).toHaveProperty('vectors')
+    })
+
+    describe('alias validation for MCP/RPC', () => {
+      beforeEach(() => {
+        IntegrationRepository.findWithFallback.mockResolvedValue({
+          mcp: [{alias: '/existing'}],
+          rpc: [],
+        })
+      })
+
+      it('validates MCP aliases when updating mcp service', async () => {
+        const mcpIntegrations = [{alias: '/agent1'}, {alias: '/agent2'}]
+        const ctx = createCtx({
+          params: {service: 'mcp'},
+          request: {json: jest.fn().mockResolvedValue(mcpIntegrations)},
+        })
+
+        await IntegrationController.updateService(ctx)
+
+        expect(AliasValidator.validateIntegrationArrays).toHaveBeenCalledWith(mcpIntegrations, [])
+      })
+
+      it('validates RPC aliases when updating rpc service', async () => {
+        const rpcIntegrations = [{alias: '/ssh1'}]
+        const ctx = createCtx({
+          params: {service: 'rpc'},
+          request: {json: jest.fn().mockResolvedValue(rpcIntegrations)},
+        })
+
+        await IntegrationController.updateService(ctx)
+
+        expect(AliasValidator.validateIntegrationArrays).toHaveBeenCalledWith([{alias: '/existing'}], rpcIntegrations)
+      })
+
+      it('rejects with 400 when MCP alias validation fails', async () => {
+        const actualModule = jest.requireActual('./commandExecutor/commands/aliases/AliasValidator')
+        AliasValidator.validateIntegrationArrays.mockImplementation(() => {
+          throw new actualModule.AliasValidationError('Alias conflicts with built-in', 'RESERVED_COMMAND', '/web')
+        })
+
+        const ctx = createCtx({
+          params: {service: 'mcp'},
+          request: {json: jest.fn().mockResolvedValue([{alias: '/web'}])},
+        })
+
+        await expect(IntegrationController.updateService(ctx)).rejects.toThrow('Alias conflicts with built-in')
+      })
+
+      it('rejects with 400 when RPC alias validation fails', async () => {
+        const actualModule = jest.requireActual('./commandExecutor/commands/aliases/AliasValidator')
+        AliasValidator.validateIntegrationArrays.mockImplementation(() => {
+          throw new actualModule.AliasValidationError('Duplicate alias found', 'DUPLICATE_IN_ARRAY', '/dup')
+        })
+
+        const ctx = createCtx({
+          params: {service: 'rpc'},
+          request: {json: jest.fn().mockResolvedValue([{alias: '/dup'}, {alias: '/dup'}])},
+        })
+
+        await expect(IntegrationController.updateService(ctx)).rejects.toThrow('Duplicate alias found')
+      })
+
+      it('does not validate when updating non-alias services', async () => {
+        const ctx = createCtx({
+          params: {service: 'openai'},
+          request: {json: jest.fn().mockResolvedValue({apiKey: 'sk-123'})},
+        })
+
+        await IntegrationController.updateService(ctx)
+
+        expect(AliasValidator.validateIntegrationArrays).not.toHaveBeenCalled()
+      })
+
+      it('throws non-validation errors unchanged', async () => {
+        const otherError = new Error('Database connection failed')
+        AliasValidator.validateIntegrationArrays.mockImplementation(() => {
+          throw otherError
+        })
+
+        const ctx = createCtx({
+          params: {service: 'mcp'},
+          request: {json: jest.fn().mockResolvedValue([{alias: '/valid'}])},
+        })
+
+        await expect(IntegrationController.updateService(ctx)).rejects.toThrow('Database connection failed')
+      })
     })
   })
 
