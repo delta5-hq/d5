@@ -34,7 +34,7 @@ const getField = (setValue: ReturnType<typeof vi.fn>, field: string) =>
 describe('MCP_PRESETS', () => {
   describe('preset collection structure', () => {
     it('maintains stable preset count (breaking change detection)', () => {
-      expect(MCP_PRESETS).toHaveLength(4)
+      expect(MCP_PRESETS).toHaveLength(6)
     })
 
     it('enforces unique preset identifiers', () => {
@@ -108,6 +108,32 @@ describe('MCP_PRESETS', () => {
         ['args', '--presets @babel/preset-env src/mcp-servers/research-rag/server.js'],
         ['toolName', 'auto'],
         ['toolInputField', 'prompt'],
+        ['timeoutMs', 300000],
+      ])
+    })
+
+    it('Web Scraper: direct mode via d5 internal scraper server', () => {
+      const setValue = fillPreset('scraper-mcp')
+
+      expect(setValue.mock.calls).toEqual([
+        ['transport', 'stdio'],
+        ['command', 'babel-node'],
+        ['args', '--presets @babel/preset-env src/mcp-servers/scraper/server.js'],
+        ['toolName', 'scrape_web_pages'],
+        ['toolInputField', 'urls'],
+        ['timeoutMs', 180000],
+      ])
+    })
+
+    it('Outliner: direct mode via d5 internal outliner server', () => {
+      const setValue = fillPreset('outliner-mcp')
+
+      expect(setValue.mock.calls).toEqual([
+        ['transport', 'stdio'],
+        ['command', 'babel-node'],
+        ['args', '--presets @babel/preset-env src/mcp-servers/outliner/server.js'],
+        ['toolName', 'generate_outline'],
+        ['toolInputField', 'query'],
         ['timeoutMs', 300000],
       ])
     })

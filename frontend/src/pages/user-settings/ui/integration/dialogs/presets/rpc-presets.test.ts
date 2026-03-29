@@ -22,7 +22,7 @@ interface RPCFormFlat {
 describe('RPC_PRESETS', () => {
   describe('preset collection structure', () => {
     it('maintains stable preset count (breaking change detection)', () => {
-      expect(RPC_PRESETS).toHaveLength(4)
+      expect(RPC_PRESETS).toHaveLength(6)
     })
 
     it('enforces unique preset identifiers', () => {
@@ -332,6 +332,74 @@ describe('RPC_PRESETS', () => {
         const hasProtocol = label.includes('ssh') || label.includes('http') || label.includes('acp')
         expect(hasProtocol).toBe(true)
       })
+    })
+  })
+
+  describe('Outliner SSH preset behavior', () => {
+    const getPreset = () => RPC_PRESETS.find(p => p.id === 'outliner-ssh')!
+
+    it('exists in preset collection', () => {
+      expect(getPreset()).toBeDefined()
+    })
+
+    it('sets protocol to SSH before other fields', () => {
+      const setValue = vi.fn()
+      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+
+      const firstCall = setValue.mock.calls[0] as unknown[]
+      expect(firstCall).toEqual(['protocol', 'ssh'])
+    })
+
+    it('configures CLI command template for outliner MCP server', () => {
+      const setValue = vi.fn()
+      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+
+      expect(setValue).toHaveBeenCalledWith('protocol', 'ssh')
+      expect(setValue).toHaveBeenCalledWith('commandTemplate', expect.stringContaining('cli.js'))
+      expect(setValue).toHaveBeenCalledWith('commandTemplate', expect.stringContaining('outliner/server.js'))
+      expect(setValue).toHaveBeenCalledWith('commandTemplate', expect.stringContaining('generate_outline'))
+      expect(setValue).toHaveBeenCalledWith('outputFormat', 'text')
+    })
+
+    it('uses text output format for outline trees', () => {
+      const setValue = vi.fn()
+      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+
+      expect(setValue).toHaveBeenCalledWith('outputFormat', 'text')
+    })
+  })
+
+  describe('Web Scraper SSH preset behavior', () => {
+    const getPreset = () => RPC_PRESETS.find(p => p.id === 'scraper-ssh')!
+
+    it('exists in preset collection', () => {
+      expect(getPreset()).toBeDefined()
+    })
+
+    it('sets protocol to SSH before other fields', () => {
+      const setValue = vi.fn()
+      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+
+      const firstCall = setValue.mock.calls[0] as unknown[]
+      expect(firstCall).toEqual(['protocol', 'ssh'])
+    })
+
+    it('configures CLI command template for scraper MCP server', () => {
+      const setValue = vi.fn()
+      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+
+      expect(setValue).toHaveBeenCalledWith('protocol', 'ssh')
+      expect(setValue).toHaveBeenCalledWith('commandTemplate', expect.stringContaining('cli.js'))
+      expect(setValue).toHaveBeenCalledWith('commandTemplate', expect.stringContaining('scraper/server.js'))
+      expect(setValue).toHaveBeenCalledWith('commandTemplate', expect.stringContaining('scrape_web_pages'))
+      expect(setValue).toHaveBeenCalledWith('outputFormat', 'text')
+    })
+
+    it('uses text output format for scraped content', () => {
+      const setValue = vi.fn()
+      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+
+      expect(setValue).toHaveBeenCalledWith('outputFormat', 'text')
     })
   })
 })

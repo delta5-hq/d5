@@ -1,31 +1,35 @@
 import debug from 'debug'
 
-const log = debug('delta5:mcp:research-rag:lifecycle')
-
 export class ServerLifecycle {
-  constructor(environmentValidator, databaseConnector) {
+  constructor(environmentValidator, databaseConnector, serverName = 'mcp-server') {
     this.environmentValidator = environmentValidator
     this.databaseConnector = databaseConnector
+    this.serverName = serverName
     this.shuttingDown = false
+    this.log = debug(`delta5:mcp:${serverName}:lifecycle`)
   }
 
   async startup() {
-    log('Validating environment')
+    this.log('Validating environment')
     this.environmentValidator.validate()
 
-    log('Connecting to database')
-    await this.databaseConnector.connect()
+    if (this.databaseConnector) {
+      this.log('Connecting to database')
+      await this.databaseConnector.connect()
+    }
 
-    log('Startup complete')
+    this.log('Startup complete')
   }
 
   async shutdown() {
     if (this.shuttingDown) return
     this.shuttingDown = true
 
-    log('Shutting down')
-    await this.databaseConnector.disconnect()
-    log('Shutdown complete')
+    this.log('Shutting down')
+    if (this.databaseConnector) {
+      await this.databaseConnector.disconnect()
+    }
+    this.log('Shutdown complete')
   }
 
   registerExitHandlers() {
@@ -33,14 +37,14 @@ export class ServerLifecycle {
 
     signalNames.forEach(signal => {
       process.on(signal, async () => {
-        log(`Received signal: ${signal}`)
+        this.log(`Received signal: ${signal}`)
         await this.shutdown()
         process.exit(0)
       })
     })
 
     process.on('uncaughtException', async error => {
-      log('Uncaught exception:', error)
+      this.log('Uncaught exception:', error)
       await this.shutdown()
       process.exit(1)
     })
