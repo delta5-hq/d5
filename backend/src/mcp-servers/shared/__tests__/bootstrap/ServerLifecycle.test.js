@@ -13,7 +13,7 @@ describe('ServerLifecycle', () => {
       connect: jest.fn().mockResolvedValue(),
       disconnect: jest.fn().mockResolvedValue(),
     }
-    lifecycle = new ServerLifecycle(mockEnvironmentValidator, mockDatabaseConnector)
+    lifecycle = new ServerLifecycle(mockEnvironmentValidator, mockDatabaseConnector, 'test-server')
   })
 
   describe('startup', () => {
@@ -53,6 +53,15 @@ describe('ServerLifecycle', () => {
       expect(mockEnvironmentValidator.validate).toHaveBeenCalledTimes(2)
       expect(mockDatabaseConnector.connect).toHaveBeenCalledTimes(2)
     })
+
+    it('skips database connection when connector is null', async () => {
+      const lifecycleNoDB = new ServerLifecycle(mockEnvironmentValidator, null, 'test-server')
+
+      await lifecycleNoDB.startup()
+
+      expect(mockEnvironmentValidator.validate).toHaveBeenCalledTimes(1)
+      expect(mockDatabaseConnector.connect).not.toHaveBeenCalled()
+    })
   })
 
   describe('shutdown', () => {
@@ -88,6 +97,14 @@ describe('ServerLifecycle', () => {
       await lifecycle.shutdown()
 
       expect(mockDatabaseConnector.disconnect).toHaveBeenCalledTimes(1)
+    })
+
+    it('skips database disconnection when connector is null', async () => {
+      const lifecycleNoDB = new ServerLifecycle(mockEnvironmentValidator, null, 'test-server')
+
+      await lifecycleNoDB.shutdown()
+
+      expect(mockDatabaseConnector.disconnect).not.toHaveBeenCalled()
     })
   })
 

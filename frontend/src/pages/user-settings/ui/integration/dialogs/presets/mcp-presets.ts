@@ -65,4 +65,30 @@ export const MCP_PRESETS: PresetDefinition<MCPFormFlat>[] = [
       setValue('timeoutMs', 300000)
     },
   },
+  {
+    id: 'scraper-mcp',
+    label: 'Web Scraper',
+    icon: '🕷️',
+    fill: setValue => {
+      setValue('transport', 'stdio')
+      setValue('command', 'babel-node')
+      setValue('args', '--presets @babel/preset-env src/mcp-servers/scraper/server.js')
+      setValue('toolName', 'scrape_web_pages')
+      setValue('toolInputField', 'urls')
+      setValue('timeoutMs', 180000)
+    },
+  },
+  {
+    id: 'outliner-mcp',
+    label: 'Outliner',
+    icon: '📋',
+    fill: setValue => {
+      setValue('transport', 'stdio')
+      setValue('command', 'babel-node')
+      setValue('args', '--presets @babel/preset-env src/mcp-servers/outliner/server.js')
+      setValue('toolName', 'generate_outline')
+      setValue('toolInputField', 'query')
+      setValue('timeoutMs', 300000)
+    },
+  },
 ]

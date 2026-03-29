@@ -76,4 +76,30 @@ export const RPC_PRESETS: PresetDefinition<RPCFormFlat>[] = [
       setValue('autoApprove', 'none')
     },
   },
+  {
+    id: 'outliner-ssh',
+    label: 'Outliner (SSH)',
+    icon: '📝',
+    fill: setValue => {
+      setValue('protocol', 'ssh')
+      setValue(
+        'commandTemplate',
+        'cd /path/to/backend && npx babel-node src/mcp-servers/cli.js src/mcp-servers/outliner/server.js generate_outline --query="{{prompt}}"',
+      )
+      setValue('outputFormat', 'text')
+    },
+  },
+  {
+    id: 'scraper-ssh',
+    label: 'Web Scraper (SSH)',
+    icon: '🌐',
+    fill: setValue => {
+      setValue('protocol', 'ssh')
+      setValue(
+        'commandTemplate',
+        'cd /path/to/backend && npx babel-node src/mcp-servers/cli.js src/mcp-servers/scraper/server.js scrape_web_pages --urls="{{prompt}}"',
+      )
+      setValue('outputFormat', 'text')
+    },
+  },
 ]
