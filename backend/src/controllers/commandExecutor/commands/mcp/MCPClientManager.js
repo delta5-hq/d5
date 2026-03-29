@@ -1,6 +1,7 @@
 import {Client} from '@modelcontextprotocol/sdk/client/index.js'
 import {createTransport} from './createTransport'
-import {MCP_DEFAULT_TIMEOUT_MS} from '../../constants/mcp'
+import {MCP_DEFAULT_TIMEOUT_MS, MCP_CONNECTION_TIMEOUT_MS} from '../../constants/mcp'
+import {withTimeout} from './withTimeout'
 
 const CLIENT_INFO = {name: 'delta5-executor', version: '1.0.0'}
 
@@ -44,7 +45,7 @@ export const withClient = async ({serverUrl, transport, headers, command, args, 
   const client = new Client(CLIENT_INFO)
 
   try {
-    await client.connect(clientTransport)
+    await withTimeout(client.connect(clientTransport), MCP_CONNECTION_TIMEOUT_MS, 'MCP connection')
     return await fn(client)
   } finally {
     await client.close().catch(() => {})
