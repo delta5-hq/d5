@@ -361,11 +361,11 @@ describe('List - Virtualization', () => {
   it('only renders visible items plus overscan', async () => {
     const renderCounts: Record<string, number> = {}
 
-    const CountingRow = ({ index, style, rowProps }: RowComponentProps<{ ids: string[] }>): ReactNode => {
+    const CountingRow = ({ index, rowProps }: RowComponentProps<{ ids: string[] }>): ReactNode => {
       const { ids } = rowProps
       const id = ids[index]
       renderCounts[id] = (renderCounts[id] || 0) + 1
-      return createElement('div', { style }, id)
+      return createElement('div', null, id)
     }
 
     const ids = Array.from({ length: 100 }, (_, i) => `item-${i}`)
@@ -392,11 +392,11 @@ describe('List - Virtualization', () => {
   it('respects overscanCount parameter', async () => {
     const renderCounts: Record<string, number> = {}
 
-    const CountingRow = ({ index, style, rowProps }: RowComponentProps<{ ids: string[] }>): ReactNode => {
+    const CountingRow = ({ index, rowProps }: RowComponentProps<{ ids: string[] }>): ReactNode => {
       const { ids } = rowProps
       const id = ids[index]
       renderCounts[id] = (renderCounts[id] || 0) + 1
-      return createElement('div', { style }, id)
+      return createElement('div', null, id)
     }
 
     const ids = Array.from({ length: 100 }, (_, i) => `item-${i}`)
@@ -455,8 +455,8 @@ describe('List - Imperative API', () => {
     let api: ListImperativeAPI | null = null
     const ids = Array.from({ length: 100 }, (_, i) => `item-${i}`)
 
-    const SimpleRow = ({ index, style }: RowComponentProps<{ ids: string[] }>): ReactNode =>
-      createElement('div', { style, 'data-testid': `item-${index}` }, `Item ${index}`)
+    const SimpleRow = ({ index }: RowComponentProps<{ ids: string[] }>): ReactNode =>
+      createElement('div', { 'data-testid': `item-${index}` }, `Item ${index}`)
 
     const TestComponent = () =>
       createElement(List<{ ids: string[] }>, {

@@ -1,4 +1,5 @@
 import type { GenieState } from '@shared/ui/genie'
+import { ProgressStreamClient } from './progress-stream-client'
 
 export type { GenieState }
 
@@ -7,8 +8,49 @@ type Unsubscribe = () => void
 
 export class GenieStateStore {
   private stateMap = new Map<string, GenieState>()
+  private errorMap = new Map<string, string>()
   private listenersByNodeId = new Map<string, Set<Listener>>()
   private globalListeners = new Set<Listener>()
+  private streamClient: ProgressStreamClient | null = null
+  private suppressedNodes = new Set<string>()
+
+  suppressNode(nodeId: string): void {
+    this.suppressedNodes.add(nodeId)
+  }
+
+  unsuppressNode(nodeId: string): void {
+    this.suppressedNodes.delete(nodeId)
+  }
+
+  connectToProgressStream(baseUrl: string): void {
+    if (this.streamClient) return
+
+    this.streamClient = new ProgressStreamClient(baseUrl, (nodeId, state, error) => {
+      if (this.suppressedNodes.has(nodeId)) return
+
+      this.setState(nodeId, state)
+      if (error) {
+        this.setError(nodeId, error)
+      } else {
+        this.clearError(nodeId)
+      }
+
+      if (state === 'done-success' || state === 'done-failure') {
+        setTimeout(() => {
+          if (this.stateMap.get(nodeId) === state) {
+            this.setState(nodeId, 'idle')
+          }
+        }, 3000)
+      }
+    })
+
+    this.streamClient.connect()
+  }
+
+  disconnectFromProgressStream(): void {
+    this.streamClient?.disconnect()
+    this.streamClient = null
+  }
 
   subscribe(nodeId: string, listener: Listener): Unsubscribe {
     if (!this.listenersByNodeId.has(nodeId)) {
@@ -72,12 +114,32 @@ export class GenieStateStore {
 
   deleteNode(nodeId: string): void {
     this.stateMap.delete(nodeId)
+    this.errorMap.delete(nodeId)
     this.listenersByNodeId.delete(nodeId)
+    this.suppressedNodes.delete(nodeId)
   }
 
   clearAll(): void {
     this.stateMap.clear()
+    this.errorMap.clear()
     this.listenersByNodeId.clear()
+    this.suppressedNodes.clear()
+  }
+
+  getError(nodeId: string): string | undefined {
+    return this.errorMap.get(nodeId)
+  }
+
+  setError(nodeId: string, error: string): void {
+    this.errorMap.set(nodeId, error)
+    this.notifyNodeListeners(nodeId)
+    this.notifyGlobalListeners()
+  }
+
+  clearError(nodeId: string): void {
+    this.errorMap.delete(nodeId)
+    this.notifyNodeListeners(nodeId)
+    this.notifyGlobalListeners()
   }
 
   reconcile(validNodeIds: Set<string>): void {

@@ -1,0 +1,153 @@
+import { useState, useRef, useEffect, useCallback, type KeyboardEvent, type RefObject } from 'react'
+
+export interface UseEditableFieldOptions {
+  value: string
+  onChange: (value: string) => void
+  autoFocus?: boolean
+  commitOnEnter?: boolean
+  onCtrlEnter?: () => void
+  /** Enables single-line commit semantics: plain Enter commits, Shift+Enter inserts a newline */
+  onEnterCommit?: (committedValue: string) => void
+  onEscape?: () => void
+  onInput?: (value: string) => void
+}
+
+export interface UseEditableFieldReturn {
+  isEditing: boolean
+  editValue: string
+  inputRef: RefObject<HTMLElement | null>
+  startEditing: () => void
+  setEditValue: (value: string) => void
+  commitEdit: () => void
+  cancelEdit: () => void
+  handleKeyDown: (e: KeyboardEvent) => void
+  handleInput: (value: string) => void
+}
+
+export function useEditableField({
+  value,
+  onChange,
+  autoFocus = false,
+  commitOnEnter = true,
+  onCtrlEnter,
+  onEnterCommit,
+  onEscape,
+  onInput,
+}: UseEditableFieldOptions): UseEditableFieldReturn {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValueState] = useState(value)
+  const inputRef = useRef<HTMLElement | null>(null)
+
+  const isEditingRef = useRef(isEditing)
+  const editValueRef = useRef(editValue)
+  const valueRef = useRef(value)
+  const onChangeRef = useRef(onChange)
+  const onCtrlEnterRef = useRef(onCtrlEnter)
+  const onEnterCommitRef = useRef(onEnterCommit)
+  const onEscapeRef = useRef(onEscape)
+  const onInputRef = useRef(onInput)
+
+  isEditingRef.current = isEditing
+  editValueRef.current = editValue
+  valueRef.current = value
+  onChangeRef.current = onChange
+  onCtrlEnterRef.current = onCtrlEnter
+  onEnterCommitRef.current = onEnterCommit
+  onEscapeRef.current = onEscape
+  onInputRef.current = onInput
+
+  const setEditValue = useCallback((v: string) => {
+    editValueRef.current = v
+    setEditValueState(v)
+  }, [])
+
+  const handleInput = useCallback(
+    (v: string) => {
+      setEditValue(v)
+      onInputRef.current?.(v)
+    },
+    [setEditValue],
+  )
+
+  useEffect(() => {
+    if (!isEditing) {
+      setEditValue(value)
+    }
+  }, [value, isEditing, setEditValue])
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+      if ('select' in inputRef.current && typeof inputRef.current.select === 'function') {
+        ;(inputRef.current as HTMLInputElement).select()
+      }
+    }
+  }, [isEditing])
+
+  useEffect(() => {
+    if (autoFocus) {
+      setIsEditing(true)
+    }
+  }, [autoFocus])
+
+  useEffect(
+    () => () => {
+      if (isEditingRef.current && editValueRef.current !== valueRef.current) {
+        onChangeRef.current(editValueRef.current)
+      }
+    },
+    [],
+  )
+
+  const commitEdit = useCallback(() => {
+    if (editValueRef.current !== valueRef.current) {
+      onChangeRef.current(editValueRef.current)
+    }
+    setIsEditing(false)
+  }, [])
+
+  const cancelEdit = useCallback(() => {
+    setIsEditing(false)
+    setEditValue(valueRef.current)
+  }, [setEditValue])
+
+  const startEditing = useCallback(() => {
+    setIsEditing(true)
+  }, [])
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      const isCtrlOrMeta = e.ctrlKey || e.metaKey
+
+      if (e.key === 'Enter' && isCtrlOrMeta && !e.shiftKey) {
+        e.preventDefault()
+        commitEdit()
+        onCtrlEnterRef.current?.()
+      } else if (onEnterCommitRef.current && e.key === 'Enter' && !e.shiftKey && !isCtrlOrMeta) {
+        e.preventDefault()
+        commitEdit()
+        onEnterCommitRef.current(editValueRef.current)
+      } else if (commitOnEnter && e.key === 'Enter' && !e.shiftKey && !isCtrlOrMeta) {
+        e.preventDefault()
+        commitEdit()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        cancelEdit()
+        onEscapeRef.current?.()
+      }
+    },
+    [commitOnEnter, commitEdit, cancelEdit],
+  )
+
+  return {
+    isEditing,
+    editValue,
+    inputRef,
+    startEditing,
+    setEditValue,
+    commitEdit,
+    cancelEdit,
+    handleKeyDown,
+    handleInput,
+  }
+}

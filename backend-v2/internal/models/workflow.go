@@ -66,9 +66,20 @@ type Workflow struct {
 	UpdatedAt  int64             `json:"updatedAt" bson:"updatedAt"`
 	Nodes      map[string]Node   `json:"nodes" bson:"nodes"`
 	Edges      map[string]Edge   `json:"edges" bson:"edges"`
+	Root       string            `json:"root" bson:"root"`
 	Files      map[string]string `json:"files" bson:"files"`
 	Share      Share             `json:"share" bson:"share"`
 	Category   *string           `json:"category" bson:"category"`
+}
+
+/* WorkflowUpdateDTO uses pointers to distinguish "not provided" (nil) from "set to empty" */
+type WorkflowUpdateDTO struct {
+	Title    *string            `json:"title"`
+	Nodes    *map[string]Node   `json:"nodes"`
+	Edges    *map[string]Edge   `json:"edges"`
+	Root     *string            `json:"root"`
+	Files    *map[string]string `json:"files"`
+	Category *string            `json:"category"`
 }
 
 func (w Workflow) IsPublic() bool {

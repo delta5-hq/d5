@@ -1,19 +1,32 @@
 import type { CSSProperties } from 'react'
 import type { Segment } from '../segments/types'
-import type { TreeRecord } from '../core/types'
-import { TreeNodeDefault } from './tree-node-default'
+import type { TreeRecord, TreeNodeCallbacks } from '../core/types'
+import { MemoizedTreeNodeDefault } from './tree-node-default'
 import { ContainerRenderer } from './container-renderer'
 
-export interface SegmentRowProps {
+/* Stable identity — memo comparator short-circuits on reference equality */
+const EMPTY_STYLE: CSSProperties = {}
+
+export interface SegmentRowProps extends TreeNodeCallbacks {
   segment: Segment
-  style: CSSProperties
   rowHeight: number
-  onToggle?: (id: string) => void
-  selectedId?: string
-  onSelect?: (id: string) => void
+  selectedIds?: Set<string>
+  autoEditNodeId?: string
 }
 
-export const SegmentRow = ({ segment, style, rowHeight, onToggle, selectedId, onSelect }: SegmentRowProps) => {
+export const SegmentRow = ({
+  segment,
+  rowHeight,
+  onToggle,
+  selectedIds,
+  onSelect,
+  onAddChild,
+  onDelete,
+  onDuplicateNode,
+  onRename,
+  onRequestRename,
+  autoEditNodeId,
+}: SegmentRowProps) => {
   if (segment.type === 'node') {
     const record: TreeRecord = {
       id: segment.data.id,
@@ -22,13 +35,18 @@ export const SegmentRow = ({ segment, style, rowHeight, onToggle, selectedId, on
     }
 
     return (
-      <TreeNodeDefault
+      <MemoizedTreeNodeDefault
         {...record}
-        isSelected={record.id === selectedId}
+        autoEditNodeId={autoEditNodeId}
+        isSelected={selectedIds?.has(record.id) ?? false}
+        onAddChild={onAddChild}
+        onDelete={onDelete}
+        onDuplicateNode={onDuplicateNode}
+        onRename={onRename}
+        onRequestRename={onRequestRename}
         onSelect={onSelect}
         onToggle={onToggle}
-        rowIndex={segment.rowIndex}
-        style={style}
+        style={EMPTY_STYLE}
       />
     )
   }
@@ -36,12 +54,17 @@ export const SegmentRow = ({ segment, style, rowHeight, onToggle, selectedId, on
   if (segment.type === 'container') {
     return (
       <ContainerRenderer
+        autoEditNodeId={autoEditNodeId}
         container={segment}
+        onAddChild={onAddChild}
+        onDelete={onDelete}
+        onDuplicateNode={onDuplicateNode}
+        onRename={onRename}
+        onRequestRename={onRequestRename}
         onSelect={onSelect}
         onToggle={onToggle}
         rowHeight={rowHeight}
-        selectedId={selectedId}
-        style={style}
+        selectedIds={selectedIds}
       />
     )
   }

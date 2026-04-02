@@ -175,21 +175,22 @@ const ListInner = <RowProps extends object>(
       left: 0,
       width: '100%',
       height: bounds.sizes[index],
+      overflow: 'visible',
       transform: `translateY(${bounds.offsets[index]}px)`,
     }
 
     items.push(
-      createElement(RowComponent, {
-        key: itemKey ? itemKey(index, rowProps) : index,
-        ariaAttributes: {
+      createElement(
+        'div',
+        {
+          key: itemKey ? itemKey(index, rowProps) : index,
+          style: itemStyle,
           'aria-posinset': index + 1,
           'aria-setsize': rowCount,
-          role: 'listitem' as const,
+          role: 'listitem',
         },
-        index,
-        style: itemStyle,
-        rowProps,
-      }),
+        createElement(RowComponent, { index, rowProps }),
+      ),
     )
   }
 

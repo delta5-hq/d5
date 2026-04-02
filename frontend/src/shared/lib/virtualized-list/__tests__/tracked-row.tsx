@@ -19,7 +19,7 @@ export const resetInstanceCounter = (): void => {
   instanceCounter = 0
 }
 
-export const TrackedRow = ({ index, style, rowProps }: RowComponentProps<TestRowProps>): ReactNode => {
+export const TrackedRow = ({ index, rowProps }: RowComponentProps<TestRowProps>): ReactNode => {
   const { ids, onMount, onUnmount } = rowProps
   const id = ids[index]
   const [instanceId] = useState(() => generateInstanceId())
@@ -29,5 +29,5 @@ export const TrackedRow = ({ index, style, rowProps }: RowComponentProps<TestRow
     return () => onUnmount(id, instanceId)
   }, [id, instanceId, onMount, onUnmount])
 
-  return createElement('div', { style, 'data-testid': id, 'data-instance': instanceId }, id)
+  return createElement('div', { 'data-testid': id, 'data-instance': instanceId }, id)
 }

@@ -5,6 +5,7 @@
 # Project metadata (workspace-specific)
 .github
 !.github/workflows/ci.yml
+contribot.state.json
 
 # Editor/IDE (global for all subdirs)
 .vscode
@@ -20,6 +21,7 @@
 # Logs (global pattern)
 logs/
 *.log
+*.pid
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -33,6 +35,8 @@ nohup.out
 
 # MongoDB data directories (dev and E2E)
 data/
+
+transcripts/
 
 # Test artifacts (if running from root)
 test-results/

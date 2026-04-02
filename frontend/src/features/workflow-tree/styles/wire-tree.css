@@ -103,3 +103,16 @@
 .wire-tree-node--entering {
   animation: node-expand 200ms ease-out forwards;
 }
+
+@keyframes node-created-flash {
+  0% {
+    background-color: var(--accent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.wire-tree-node--created {
+  animation: node-created-flash 500ms ease-out forwards;
+}
