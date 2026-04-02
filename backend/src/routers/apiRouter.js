@@ -8,10 +8,12 @@ import {JWT_SECRET} from '../constants'
 import extractUserId from '../middlewares/extractUserId'
 import integrationRouter from './integrationRouter'
 import executorRouter from './executorRouter'
+import progressStreamRouter from './progressStreamRouter'
 
 const apiRouter = new Router({prefix: API_BASE_PATH})
 
 apiRouter.options('/execute', handleCorsPreflightRequest)
+apiRouter.options('/execute/preview', handleCorsPreflightRequest)
 
 const corsExecutorRouter = new Router()
 corsExecutorRouter.use(corsMiddleware()).use(executorRouter.routes(), executorRouter.allowedMethods())
@@ -30,5 +32,6 @@ apiRouter
   .use(extractUserId)
   .use(integrationRouter.routes(), integrationRouter.allowedMethods())
   .use(corsExecutorRouter.routes(), corsExecutorRouter.allowedMethods())
+  .use(progressStreamRouter.routes(), progressStreamRouter.allowedMethods())
 
 export default apiRouter

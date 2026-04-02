@@ -13,7 +13,7 @@ export type TreeExpansionAction =
   | { type: 'COLLAPSE_ALL' }
   | { type: 'SET'; ids: Set<string> }
 
-function expansionReducer(state: TreeExpansionState, action: TreeExpansionAction): TreeExpansionState {
+export function expansionReducer(state: TreeExpansionState, action: TreeExpansionAction): TreeExpansionState {
   const newExpandedIds = new Set(state.expandedIds)
 
   switch (action.type) {
@@ -41,7 +41,7 @@ function expansionReducer(state: TreeExpansionState, action: TreeExpansionAction
       return { expandedIds: new Set() }
 
     case 'SET':
-      return { expandedIds: action.ids }
+      return { expandedIds: new Set(action.ids) }
 
     default:
       return state
@@ -100,11 +100,10 @@ export function useTreeExpansion(initialExpandedIds: Set<string> = new Set()): U
 
 export function deriveExpandedIdsFromNodes(nodes: Record<string, NodeData>, rootId: string): Set<string> {
   const expandedIds = new Set<string>()
-
   expandedIds.add(rootId)
 
   for (const [nodeId, node] of Object.entries(nodes)) {
-    if (node.collapsed !== true && node.children?.length) {
+    if (node.collapsed === false && node.children?.length) {
       expandedIds.add(nodeId)
     }
   }

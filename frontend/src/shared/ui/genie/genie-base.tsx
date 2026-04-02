@@ -17,7 +17,7 @@ export interface GenieProps {
   state?: GenieState
   clipboardFill?: string
   clipboardEdge?: string
-  handColor?: string
+  color?: string
   showHandRibs?: boolean
   flashColor?: string
   nodeId?: string
@@ -39,7 +39,7 @@ export const Genie = forwardRef<GenieRef, GenieProps>(
       state = 'idle',
       clipboardFill = '#ffffff',
       clipboardEdge = '#424242',
-      handColor = '#ffa726',
+      color = '#ffa726',
       showHandRibs = false,
       flashColor,
       nodeId,
@@ -67,7 +67,7 @@ export const Genie = forwardRef<GenieRef, GenieProps>(
           <GenieLottie eyeColor={eyeColor} size={size} variant={showBackFlash ? 'eyes-flash' : 'eyes'} />
         </div>
         <Clipboard edgeColor={clipboardEdge} fillColor={clipboardFill} size={size} />
-        <Hands fillColor={handColor} showRibs={showHandRibs} size={size} />
+        <Hands fillColor={color} showRibs={showHandRibs} size={size} />
         <RadialFlash flashColor={flashColor} nodeId={nodeId} ref={flashRef} size={size} />
       </div>
     )

@@ -20,3 +20,11 @@ export function deleteGenieState(nodeId: string): void {
 export function clearAllGenieStates(): void {
   genieStateStore.clearAll()
 }
+
+export function suppressGenieState(nodeId: string): void {
+  genieStateStore.suppressNode(nodeId)
+}
+
+export function unsuppressGenieState(nodeId: string): void {
+  genieStateStore.unsuppressNode(nodeId)
+}

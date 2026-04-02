@@ -10,6 +10,7 @@ import (
 	"backend-v2/internal/modules/integration"
 	"backend-v2/internal/modules/llmvector"
 	"backend-v2/internal/modules/macro"
+	"backend-v2/internal/modules/progress"
 	"backend-v2/internal/modules/statistics"
 	"backend-v2/internal/modules/sync"
 	"backend-v2/internal/modules/template"
@@ -54,4 +55,5 @@ func RegisterRoutes(app *fiber.App, db *qmgo.Database, services *container.Servi
 	clienterror.RegisterRoutes(api, db)
 	statistics.Register(api, db)
 	urlthumbnail.RegisterRoutes(api, services.Thumbnail)
+	progress.RegisterRoutes(api)
 }

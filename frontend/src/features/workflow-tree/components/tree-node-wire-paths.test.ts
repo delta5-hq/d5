@@ -51,25 +51,15 @@ function buildContinuationLines(
   rowHeight: number,
   extendUp: number = 0,
   extendDown: number = 0,
-  hasMoreSiblings: boolean = true,
 ): Array<{ x: number; path: string }> {
   const lines: Array<{ x: number; path: string }> = []
-  const lastIndex = ancestorContinuation.length - 1
 
   ancestorContinuation.forEach((needsContinuation, depthIndex) => {
-    if (needsContinuation) {
-      const x = BASE_PADDING + depthIndex * INDENT_PER_LEVEL + WIRE_PADDING
-      const topY = -extendUp
-      const centerY = rowHeight / 2
-
-      const isDeepestContinuation = depthIndex === lastIndex
-      const bottomY = isDeepestContinuation && !hasMoreSiblings ? centerY : rowHeight + extendDown
-
-      lines.push({
-        x,
-        path: `M ${x} ${topY} L ${x} ${bottomY}`,
-      })
-    }
+    if (!needsContinuation || depthIndex < 1) return
+    const x = BASE_PADDING + (depthIndex - 1) * INDENT_PER_LEVEL + WIRE_PADDING
+    const topY = -extendUp
+    const bottomY = rowHeight + extendDown
+    lines.push({ x, path: `M ${x} ${topY} L ${x} ${bottomY}` })
   })
 
   return lines
@@ -176,61 +166,58 @@ describe('buildChildConnectorPath', () => {
 
 describe('buildContinuationLines', () => {
   it('returns empty array when no ancestors need continuation', () => {
-    const lines = buildContinuationLines([false, false], ROW_HEIGHT, 0, 0, true)
+    const lines = buildContinuationLines([false, false], ROW_HEIGHT)
     expect(lines).toEqual([])
   })
 
-  it('creates continuation line for each ancestor that needs it', () => {
-    const lines = buildContinuationLines([true, false, true], ROW_HEIGHT, 0, 0, true)
+  it('skips depthIndex 0 (root has no wire column)', () => {
+    const lines = buildContinuationLines([true], ROW_HEIGHT)
+    expect(lines).toEqual([])
+  })
+
+  it('creates continuation at ancestor wire column (depthIndex - 1)', () => {
+    const lines = buildContinuationLines([false, true], ROW_HEIGHT)
+    expect(lines).toHaveLength(1)
+    expect(lines[0].x).toBe(10)
+    expect(lines[0].path).toBe('M 10 0 L 10 32')
+    /* must NOT be one column to the right — x maps to (depthIndex - 1), not depthIndex */
+    expect(lines[0].x).not.toBe(BASE_PADDING + INDENT_PER_LEVEL + WIRE_PADDING)
+  })
+
+  it('creates continuation for each ancestor that needs it', () => {
+    const lines = buildContinuationLines([false, true, false, true], ROW_HEIGHT)
     expect(lines).toHaveLength(2)
     expect(lines[0].x).toBe(10)
     expect(lines[1].x).toBe(58)
   })
 
-  it('spans full row height by default', () => {
-    const lines = buildContinuationLines([true], ROW_HEIGHT, 0, 0, true)
+  it('maps depthIndex to correct wire column across depths', () => {
+    const lines = buildContinuationLines([false, true, true, true], ROW_HEIGHT)
+    expect(lines).toHaveLength(3)
+    expect(lines[0].x).toBe(10)
+    expect(lines[1].x).toBe(34)
+    expect(lines[2].x).toBe(58)
+  })
+
+  it('always extends full row height (no truncation)', () => {
+    const lines = buildContinuationLines([false, true, true], ROW_HEIGHT)
     expect(lines[0].path).toBe('M 10 0 L 10 32')
+    expect(lines[1].path).toBe('M 34 0 L 34 32')
   })
 
   it('extends upward when extendUp specified', () => {
-    const lines = buildContinuationLines([true], ROW_HEIGHT, 4, 0, true)
+    const lines = buildContinuationLines([false, true], ROW_HEIGHT, 4)
     expect(lines[0].path).toBe('M 10 -4 L 10 32')
   })
 
   it('extends downward when extendDown specified', () => {
-    const lines = buildContinuationLines([true], ROW_HEIGHT, 0, 8, true)
+    const lines = buildContinuationLines([false, true], ROW_HEIGHT, 0, 8)
     expect(lines[0].path).toBe('M 10 0 L 10 40')
   })
 
-  it('truncates deepest continuation at center for last child', () => {
-    const lines = buildContinuationLines([true, true], ROW_HEIGHT, 0, 0, false)
-    expect(lines[0].path).toBe('M 10 0 L 10 32')
-    expect(lines[1].path).toBe('M 34 0 L 34 16')
-  })
-
-  it('does NOT truncate deepest continuation for non-last child', () => {
-    const lines = buildContinuationLines([true, true], ROW_HEIGHT, 0, 0, true)
-    expect(lines[0].path).toBe('M 10 0 L 10 32')
-    expect(lines[1].path).toBe('M 34 0 L 34 32')
-  })
-
-  it('only truncates the DEEPEST continuation, not all', () => {
-    const lines = buildContinuationLines([true, true, true], ROW_HEIGHT, 0, 0, false)
-    expect(lines[0].path).toBe('M 10 0 L 10 32')
-    expect(lines[1].path).toBe('M 34 0 L 34 32')
-    expect(lines[2].path).toBe('M 58 0 L 58 16')
-  })
-
-  it('handles single ancestor continuation', () => {
-    const linesLast = buildContinuationLines([true], ROW_HEIGHT, 0, 0, false)
-    const linesNotLast = buildContinuationLines([true], ROW_HEIGHT, 0, 0, true)
-    expect(linesLast[0].path).toBe('M 10 0 L 10 16')
-    expect(linesNotLast[0].path).toBe('M 10 0 L 10 32')
-  })
-
-  it('combines extendDown with truncation correctly', () => {
-    const lines = buildContinuationLines([true], ROW_HEIGHT, 0, 8, false)
-    expect(lines[0].path).toBe('M 10 0 L 10 16')
+  it('combines extendUp and extendDown', () => {
+    const lines = buildContinuationLines([false, true], ROW_HEIGHT, 4, 8)
+    expect(lines[0].path).toBe('M 10 -4 L 10 40')
   })
 })
 
@@ -246,20 +233,25 @@ describe('Edge Cases', () => {
   })
 
   it('handles empty ancestorContinuation array', () => {
-    const lines = buildContinuationLines([], ROW_HEIGHT, 0, 0, true)
+    const lines = buildContinuationLines([], ROW_HEIGHT)
     expect(lines).toEqual([])
   })
 
   it('handles all-false ancestorContinuation array', () => {
-    const lines = buildContinuationLines([false, false, false], ROW_HEIGHT, 0, 0, true)
+    const lines = buildContinuationLines([false, false, false], ROW_HEIGHT)
     expect(lines).toEqual([])
   })
 
   it('handles very large depth (100 levels)', () => {
     const continuation = new Array(100).fill(true)
-    const lines = buildContinuationLines(continuation, ROW_HEIGHT, 0, 0, true)
-    expect(lines).toHaveLength(100)
-    expect(lines[99].x).toBe(2386)
+    const lines = buildContinuationLines(continuation, ROW_HEIGHT)
+    expect(lines).toHaveLength(99)
+    expect(lines[98].x).toBe(BASE_PADDING + 98 * INDENT_PER_LEVEL + WIRE_PADDING)
+  })
+
+  it('depthIndex 0 true is always skipped even if explicitly set', () => {
+    const lines = buildContinuationLines([true, false], ROW_HEIGHT)
+    expect(lines).toEqual([])
   })
 })
 

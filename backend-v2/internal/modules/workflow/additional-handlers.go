@@ -78,9 +78,11 @@ func (h *WorkflowController) AddCategory(c *fiber.Ctx) error {
 	}
 
 	workflow := c.Locals("workflow").(*models.Workflow)
-	workflow.Category = &categoryStr
+	update := &models.WorkflowUpdateDTO{
+		Category: &categoryStr,
+	}
 
-	updateErr := h.Service.UpdateWorkflow(c.Context(), workflow.WorkflowID, workflow)
+	updateErr := h.Service.UpdateWorkflow(c.Context(), workflow.WorkflowID, update)
 	if updateErr != nil {
 		return response.InternalError(c, updateErr.Error())
 	}
