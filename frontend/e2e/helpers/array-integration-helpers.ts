@@ -1,9 +1,11 @@
 import type { Page } from '@playwright/test'
 
 export async function cleanArrayIntegrations(page: Page) {
-  const integration = await page.evaluate(() =>
-    fetch('/api/v2/integration', { credentials: 'include' }).then(r => r.json()),
-  )
+  const integration = await page.evaluate(async () => {
+    const r = await fetch('/api/v2/integration', { credentials: 'include' })
+    if (!r.ok) return {}
+    return r.json()
+  })
 
   if (integration.mcp) {
     for (const item of integration.mcp) {

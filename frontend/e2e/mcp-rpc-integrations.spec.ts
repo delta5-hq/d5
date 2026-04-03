@@ -373,7 +373,7 @@ test.describe.serial('Array Integration CRUD', () => {
   })
 
   test('RPC SSH encrypted fields are redacted on read', async ({ page }) => {
-    await addArrayItem(page, 'rpc', {
+    const response = await addArrayItem(page, 'rpc', {
       alias: '/ssh-secrets',
       protocol: 'ssh',
       host: '192.168.1.10',
@@ -383,8 +383,10 @@ test.describe.serial('Array Integration CRUD', () => {
       commandTemplate: 'echo test',
     })
 
+    expect(response.ok).toBe(true)
+
     const integration = await getIntegration(page)
-    const item = integration.rpc[0]
+    const item = integration.rpc.find((i: { alias: string }) => i.alias === '/ssh-secrets')
 
     expect(item.privateKey).toBe('***')
     expect(item.passphrase).toBe('***')
@@ -393,22 +395,24 @@ test.describe.serial('Array Integration CRUD', () => {
   })
 
   test('RPC ACP encrypted env map is redacted on read', async ({ page }) => {
-    await addArrayItem(page, 'rpc', {
+    const response = await addArrayItem(page, 'rpc', {
       alias: '/acp-secrets',
       protocol: 'acp-local',
       command: 'cline',
       env: { API_KEY: 'secret-key', TOKEN: 'secret-token' },
     })
 
+    expect(response.ok).toBe(true)
+
     const integration = await getIntegration(page)
-    const item = integration.rpc[0]
+    const item = integration.rpc.find((i: { alias: string }) => i.alias === '/acp-secrets')
 
     expect(item.env).toEqual({ '***': '***' })
     expect(integration.secretsMeta?.rpc?.['/acp-secrets']?.env).toBe(true)
   })
 
   test('MCP encrypted headers map is redacted on read', async ({ page }) => {
-    await addArrayItem(page, 'mcp', {
+    const response = await addArrayItem(page, 'mcp', {
       alias: '/mcp-headers',
       transport: 'streamable-http',
       toolName: 'test',
@@ -416,15 +420,17 @@ test.describe.serial('Array Integration CRUD', () => {
       headers: { Authorization: 'Bearer secret', 'X-Key': 'secret-key' },
     })
 
+    expect(response.ok).toBe(true)
+
     const integration = await getIntegration(page)
-    const item = integration.mcp[0]
+    const item = integration.mcp.find((i: { alias: string }) => i.alias === '/mcp-headers')
 
     expect(item.headers).toEqual({ '***': '***' })
     expect(integration.secretsMeta?.mcp?.['/mcp-headers']?.headers).toBe(true)
   })
 
   test('MCP encrypted env map is redacted on read', async ({ page }) => {
-    await addArrayItem(page, 'mcp', {
+    const response = await addArrayItem(page, 'mcp', {
       alias: '/mcp-env',
       transport: 'stdio',
       toolName: 'test',
@@ -432,8 +438,10 @@ test.describe.serial('Array Integration CRUD', () => {
       env: { DB_PASSWORD: 'secret-pass', API_KEY: 'secret-key' },
     })
 
+    expect(response.ok).toBe(true)
+
     const integration = await getIntegration(page)
-    const item = integration.mcp[0]
+    const item = integration.mcp.find((i: { alias: string }) => i.alias === '/mcp-env')
 
     expect(item.env).toEqual({ '***': '***' })
     expect(integration.secretsMeta?.mcp?.['/mcp-env']?.env).toBe(true)
