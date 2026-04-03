@@ -1,35 +1,46 @@
 import type { Page } from '@playwright/test'
 
 export async function cleanArrayIntegrations(page: Page) {
-  const integration = await page.evaluate(async () => {
-    const r = await fetch('/api/v2/integration', { credentials: 'include' })
-    if (!r.ok) return {}
-    return r.json()
-  })
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const integration = await page.evaluate(async () => {
+      const r = await fetch('/api/v2/integration', { credentials: 'include' })
+      if (!r.ok) return {}
+      return r.json()
+    })
 
-  if (integration.mcp) {
-    for (const item of integration.mcp) {
-      await page.evaluate(
-        alias =>
-          fetch(`/api/v2/integration/mcp/items/${encodeURIComponent(alias)}`, {
-            method: 'DELETE',
-            credentials: 'include',
-          }),
-        item.alias,
-      )
+    const hasMcp = integration.mcp?.length > 0
+    const hasRpc = integration.rpc?.length > 0
+
+    if (!hasMcp && !hasRpc) return
+
+    if (hasMcp) {
+      for (const item of integration.mcp) {
+        await page.evaluate(
+          async alias => {
+            const r = await fetch(`/api/v2/integration/mcp/items/${encodeURIComponent(alias)}`, {
+              method: 'DELETE',
+              credentials: 'include',
+            })
+            return r.status
+          },
+          item.alias,
+        )
+      }
     }
-  }
 
-  if (integration.rpc) {
-    for (const item of integration.rpc) {
-      await page.evaluate(
-        alias =>
-          fetch(`/api/v2/integration/rpc/items/${encodeURIComponent(alias)}`, {
-            method: 'DELETE',
-            credentials: 'include',
-          }),
-        item.alias,
-      )
+    if (hasRpc) {
+      for (const item of integration.rpc) {
+        await page.evaluate(
+          async alias => {
+            const r = await fetch(`/api/v2/integration/rpc/items/${encodeURIComponent(alias)}`, {
+              method: 'DELETE',
+              credentials: 'include',
+            })
+            return r.status
+          },
+          item.alias,
+        )
+      }
     }
   }
 }
