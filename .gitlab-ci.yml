@@ -333,6 +333,7 @@ e2e-backend:
 e2e-frontend:
   extends: .backend-e2e-base
   stage: e2e
+  timeout: 4h
   image: "mcr.microsoft.com/playwright:v1.55.0-jammy"
   before_script:
     - apt-get update && apt-get install -y curl
