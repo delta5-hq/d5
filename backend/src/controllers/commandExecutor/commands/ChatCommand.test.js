@@ -68,16 +68,16 @@ describe('ChatCommand', () => {
       expect(result).toBe('Response')
     })
 
-    it('should return an empty string on error', async () => {
+    it('should propagate errors from LLM invocation', async () => {
       getIntegrationSettings.mockResolvedValue({
         openai: {apiKey: 'apiKey', model: 'model'},
       })
-      callSpy.mockRejectedValue({})
+      const testError = new Error('LLM API failed')
+      callSpy.mockRejectedValue(testError)
 
       const messages = [{content: 'prompt', role: 'user'}]
-      const result = await command.replyChatOpenAIAPI(messages)
 
-      expect(result).toBe('')
+      await expect(command.replyChatOpenAIAPI(messages)).rejects.toThrow('LLM API failed')
     })
   })
 
@@ -154,6 +154,66 @@ describe('ChatCommand', () => {
 
       expect(substituteReferencesAndHashrefsChildrenAndSelf).not.toHaveBeenCalled()
       expect(clearStepsPrefix).toHaveBeenCalledWith(originalPrompt)
+    })
+
+    describe('error handling', () => {
+      it('should create error node when LLM invocation fails', async () => {
+        const testError = new Error('API connection timeout')
+        callSpy.mockRejectedValue(testError)
+
+        const node = {id: 'test-node', command: '/chatgpt test prompt'}
+
+        await command.run(node, null, node.command)
+
+        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: API connection timeout', node.id)
+      })
+
+      it('should create error node when getIntegrationSettings fails', async () => {
+        getIntegrationSettings.mockRejectedValue(new Error('Database connection lost'))
+
+        const node = {id: 'test-node', command: '/chatgpt test prompt'}
+
+        await command.run(node, null, node.command)
+
+        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: Database connection lost', node.id)
+      })
+
+      it('should create error node when prompt processing throws', async () => {
+        substituteReferencesAndHashrefsChildrenAndSelf.mockImplementation(() => {
+          throw new Error('Reference resolution failed')
+        })
+
+        const node = {id: 'test-node', command: '/chatgpt @@ref'}
+
+        await command.run(node, null, null)
+
+        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: Reference resolution failed', node.id)
+      })
+
+      it('should log error details when execution fails', async () => {
+        getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'key'}})
+        const logErrorSpy = jest.spyOn(command, 'logError')
+        const testError = new Error('Test error')
+        callSpy.mockRejectedValue(testError)
+
+        const node = {id: 'test-node', command: '/chatgpt test'}
+
+        await command.run(node, null, node.command)
+
+        expect(logErrorSpy).toHaveBeenCalledWith(testError)
+      })
+
+      it('should not create successful output nodes when error occurs', async () => {
+        callSpy.mockRejectedValue(new Error('LLM failure'))
+
+        const node = {id: 'test-node', command: '/chatgpt test --table'}
+
+        await command.run(node, null, node.command)
+
+        expect(mockStore.importer.createTable).not.toHaveBeenCalled()
+        expect(mockStore.importer.createJoinNode).not.toHaveBeenCalled()
+        expect(mockStore.importer.createNodes).toHaveBeenCalledWith(expect.stringContaining('Error:'), node.id)
+      })
     })
   })
 })

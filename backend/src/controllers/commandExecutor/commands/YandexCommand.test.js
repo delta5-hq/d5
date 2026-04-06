@@ -64,16 +64,15 @@ describe('YandexCommand', () => {
       expect(result).toBe('Response')
     })
 
-    it('should return an empty string on error', async () => {
+    it('should propagate errors from API invocation', async () => {
       getIntegrationSettings.mockResolvedValue({
         yandex: {apiKey: 'apiKey', folder_id: 'folder_id', model: 'model'},
       })
       YandexService.completionWithRetry.mockRejectedValue(new Error('API Error'))
 
       const messages = [{text: 'prompt', role: 'user'}]
-      const result = await command.replyYandex(messages, userId)
 
-      expect(result).toBe('')
+      await expect(command.replyYandex(messages, userId)).rejects.toThrow('API Error')
     })
   })
 
@@ -205,7 +204,38 @@ describe('YandexCommand', () => {
         {role: 'user', text: 'Context:\n```\n```\nпридумай 2 поисковых запроса\n  для научной статьи на тему'},
       ]
 
-      expect(replySpy).toHaveBeenCalledWith(messages, expect.anything())
+      expect(replySpy).toHaveBeenCalledWith(messages, expect.anything(), expect.anything(), expect.anything())
+      replySpy.mockRestore()
+    })
+
+    describe('error handling', () => {
+      beforeEach(() => {
+        jest.clearAllMocks()
+        const store = {
+          importer: {createNodes: jest.fn(), createTable: jest.fn(), createJoinNode: jest.fn()},
+          getNode: jest.fn(id => ({id})),
+        }
+        command.store = store
+      })
+
+      it('should create error node when API call fails', async () => {
+        getIntegrationSettings.mockResolvedValue({yandex: {apiKey: 'key', folder_id: 'f', model: 'm'}})
+        YandexService.completionWithRetry.mockRejectedValue(new Error('Yandex API timeout'))
+        const node = {id: 'test-node', command: '/yandexgpt test'}
+
+        await command.run(node, null, node.command)
+
+        expect(command.store.importer.createNodes).toHaveBeenCalledWith('Error: Yandex API timeout', node.id)
+      })
+
+      it('should create error node when getIntegrationSettings fails', async () => {
+        getIntegrationSettings.mockRejectedValue(new Error('Settings fetch failed'))
+        const node = {id: 'test-node', command: '/yandexgpt test'}
+
+        await command.run(node, null, node.command)
+
+        expect(command.store.importer.createNodes).toHaveBeenCalledWith('Error: Settings fetch failed', node.id)
+      })
     })
   })
 })

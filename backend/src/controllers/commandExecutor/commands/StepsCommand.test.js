@@ -371,7 +371,7 @@ describe('StepsCommand', () => {
       },
     ]
 
-    expect(yandexSpy).toHaveBeenCalledWith(yandexParams, expect.anything())
+    expect(yandexSpy).toHaveBeenCalledWith(yandexParams, expect.anything(), expect.anything(), expect.anything())
     yandexSpy.mockRestore()
   })
 

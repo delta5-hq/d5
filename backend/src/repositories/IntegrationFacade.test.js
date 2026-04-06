@@ -1,8 +1,10 @@
 import IntegrationFacade from './IntegrationFacade'
 import IntegrationRepository from './IntegrationRepository'
+import IntegrationMerger from './IntegrationMerger'
 import {decryptFields} from '../models/utils/fieldEncryption'
 
 jest.mock('./IntegrationRepository')
+jest.mock('./IntegrationMerger')
 jest.mock('../models/utils/fieldEncryption')
 
 describe('IntegrationFacade', () => {
@@ -11,61 +13,92 @@ describe('IntegrationFacade', () => {
   })
 
   describe('findDecrypted', () => {
-    it('returns null when integration not found', async () => {
-      IntegrationRepository.findWithFallback.mockResolvedValue(null)
+    it('returns null when both app-wide and workflow integrations not found', async () => {
+      IntegrationRepository.findBothDocs.mockResolvedValue({appWide: null, workflow: null})
+      IntegrationMerger.merge.mockReturnValue(null)
 
       const result = await IntegrationFacade.findDecrypted('user-1')
 
       expect(result).toBeNull()
       expect(decryptFields).not.toHaveBeenCalled()
+      expect(IntegrationMerger.merge).toHaveBeenCalledWith(null, null)
     })
 
-    it('does not call decryptFields when integration is missing', async () => {
-      IntegrationRepository.findWithFallback.mockResolvedValue(null)
+    it('decrypts and merges both documents when both exist', async () => {
+      const encryptedAppWide = {userId: 'user-1', workflowId: null, openai: {apiKey: 'enc-app-key'}}
+      const encryptedWorkflow = {userId: 'user-1', workflowId: 'wf-1', openai: {apiKey: 'enc-wf-key'}}
+      const decryptedAppWide = {userId: 'user-1', workflowId: null, openai: {apiKey: 'app-key'}}
+      const decryptedWorkflow = {userId: 'user-1', workflowId: 'wf-1', openai: {apiKey: 'wf-key'}}
+      const merged = {userId: 'user-1', workflowId: 'wf-1', openai: {apiKey: 'wf-key'}}
 
-      await IntegrationFacade.findDecrypted('user-1')
+      IntegrationRepository.findBothDocs.mockResolvedValue({appWide: encryptedAppWide, workflow: encryptedWorkflow})
+      decryptFields.mockReturnValueOnce(decryptedAppWide).mockReturnValueOnce(decryptedWorkflow)
+      IntegrationMerger.merge.mockReturnValue(merged)
 
-      expect(decryptFields).not.toHaveBeenCalled()
-    })
+      const result = await IntegrationFacade.findDecrypted('user-1', 'wf-1')
 
-    it('returns decrypted integration when found', async () => {
-      const encrypted = {userId: 'user-1', workflowId: null, openai: {apiKey: 'encrypted-key', model: 'gpt-4'}}
-      const decrypted = {userId: 'user-1', openai: {apiKey: 'sk-real-key', model: 'gpt-4'}}
-
-      IntegrationRepository.findWithFallback.mockResolvedValue(encrypted)
-      decryptFields.mockReturnValue(decrypted)
-
-      const result = await IntegrationFacade.findDecrypted('user-1')
-
-      expect(result).toEqual(decrypted)
-      expect(decryptFields).toHaveBeenCalledWith(encrypted, expect.any(Object), {
+      expect(result).toEqual(merged)
+      expect(decryptFields).toHaveBeenCalledTimes(2)
+      expect(decryptFields).toHaveBeenNthCalledWith(1, encryptedAppWide, expect.any(Object), {
         userId: 'user-1',
         workflowId: null,
       })
+      expect(decryptFields).toHaveBeenNthCalledWith(2, encryptedWorkflow, expect.any(Object), {
+        userId: 'user-1',
+        workflowId: 'wf-1',
+      })
+      expect(IntegrationMerger.merge).toHaveBeenCalledWith(decryptedAppWide, decryptedWorkflow)
     })
 
-    it.each([
-      [null, 'null', null],
-      [undefined, 'undefined', null],
-      ['', 'empty string', ''],
-      ['wf-123', 'valid workflowId', 'wf-123'],
-    ])('delegates workflowId=%s (%s) to repository', async (workflowId, _label, expectedValue) => {
-      IntegrationRepository.findWithFallback.mockResolvedValue({userId: 'user-1'})
-      decryptFields.mockReturnValue({userId: 'user-1'})
+    it('handles app-wide only (workflow is null)', async () => {
+      const encryptedAppWide = {userId: 'user-1', workflowId: null, openai: {apiKey: 'enc-key'}}
+      const decryptedAppWide = {userId: 'user-1', workflowId: null, openai: {apiKey: 'app-key'}}
 
-      await IntegrationFacade.findDecrypted('user-1', workflowId)
+      IntegrationRepository.findBothDocs.mockResolvedValue({appWide: encryptedAppWide, workflow: null})
+      decryptFields.mockReturnValue(decryptedAppWide)
+      IntegrationMerger.merge.mockReturnValue(decryptedAppWide)
 
-      expect(IntegrationRepository.findWithFallback).toHaveBeenCalledWith('user-1', expectedValue)
+      const result = await IntegrationFacade.findDecrypted('user-1')
+
+      expect(result).toEqual(decryptedAppWide)
+      expect(decryptFields).toHaveBeenCalledTimes(1)
+      expect(IntegrationMerger.merge).toHaveBeenCalledWith(decryptedAppWide, null)
+    })
+
+    it('handles workflow only (app-wide is null)', async () => {
+      const encryptedWorkflow = {userId: 'user-1', workflowId: 'wf-1', mcp: [{alias: '/qa'}]}
+      const decryptedWorkflow = {userId: 'user-1', workflowId: 'wf-1', mcp: [{alias: '/qa'}]}
+
+      IntegrationRepository.findBothDocs.mockResolvedValue({appWide: null, workflow: encryptedWorkflow})
+      decryptFields.mockReturnValue(decryptedWorkflow)
+      IntegrationMerger.merge.mockReturnValue(decryptedWorkflow)
+
+      const result = await IntegrationFacade.findDecrypted('user-1', 'wf-1')
+
+      expect(result).toEqual(decryptedWorkflow)
+      expect(decryptFields).toHaveBeenCalledTimes(1)
+      expect(IntegrationMerger.merge).toHaveBeenCalledWith(null, decryptedWorkflow)
+    })
+
+    it('delegates workflowId to repository', async () => {
+      IntegrationRepository.findBothDocs.mockResolvedValue({appWide: null, workflow: null})
+
+      await IntegrationFacade.findDecrypted('user-1', 'wf-123')
+
+      expect(IntegrationRepository.findBothDocs).toHaveBeenCalledWith('user-1', 'wf-123')
     })
 
     it('propagates repository errors', async () => {
-      IntegrationRepository.findWithFallback.mockRejectedValue(new Error('Connection timeout'))
+      IntegrationRepository.findBothDocs.mockRejectedValue(new Error('Connection timeout'))
 
       await expect(IntegrationFacade.findDecrypted('user-1')).rejects.toThrow('Connection timeout')
     })
 
     it('propagates decryption errors', async () => {
-      IntegrationRepository.findWithFallback.mockResolvedValue({userId: 'user-1'})
+      IntegrationRepository.findBothDocs.mockResolvedValue({
+        appWide: {userId: 'user-1'},
+        workflow: null,
+      })
       decryptFields.mockImplementation(() => {
         throw new Error('Decryption failed: invalid key')
       })
@@ -75,39 +108,39 @@ describe('IntegrationFacade', () => {
   })
 
   describe('findDecryptedOrThrow', () => {
-    it('throws when integration not found', async () => {
-      IntegrationRepository.findWithFallback.mockResolvedValue(null)
+    it('throws when no integration found', async () => {
+      IntegrationRepository.findBothDocs.mockResolvedValue({appWide: null, workflow: null})
+      IntegrationMerger.merge.mockReturnValue(null)
 
       await expect(IntegrationFacade.findDecryptedOrThrow('user-1')).rejects.toThrow('Integration not found')
     })
 
-    it('returns decrypted integration when found', async () => {
-      const encrypted = {userId: 'user-1', openai: {apiKey: 'encrypted'}}
-      const decrypted = {userId: 'user-1', openai: {apiKey: 'sk-key'}}
+    it('returns merged integration when found', async () => {
+      const merged = {userId: 'user-1', openai: {apiKey: 'key'}}
 
-      IntegrationRepository.findWithFallback.mockResolvedValue(encrypted)
-      decryptFields.mockReturnValue(decrypted)
+      IntegrationRepository.findBothDocs.mockResolvedValue({
+        appWide: {userId: 'user-1'},
+        workflow: null,
+      })
+      decryptFields.mockReturnValue({userId: 'user-1'})
+      IntegrationMerger.merge.mockReturnValue(merged)
 
       const result = await IntegrationFacade.findDecryptedOrThrow('user-1')
 
-      expect(result).toEqual(decrypted)
-    })
-
-    it('delegates workflowId to repository', async () => {
-      IntegrationRepository.findWithFallback.mockResolvedValue(null)
-
-      await expect(IntegrationFacade.findDecryptedOrThrow('user-1', 'wf-123')).rejects.toThrow('Integration not found')
-      expect(IntegrationRepository.findWithFallback).toHaveBeenCalledWith('user-1', 'wf-123')
+      expect(result).toEqual(merged)
     })
 
     it('propagates repository errors over "not found"', async () => {
-      IntegrationRepository.findWithFallback.mockRejectedValue(new Error('Database unavailable'))
+      IntegrationRepository.findBothDocs.mockRejectedValue(new Error('Database unavailable'))
 
       await expect(IntegrationFacade.findDecryptedOrThrow('user-1')).rejects.toThrow('Database unavailable')
     })
 
     it('propagates decryption errors over "not found"', async () => {
-      IntegrationRepository.findWithFallback.mockResolvedValue({userId: 'user-1'})
+      IntegrationRepository.findBothDocs.mockResolvedValue({
+        appWide: {userId: 'user-1'},
+        workflow: null,
+      })
       decryptFields.mockImplementation(() => {
         throw new Error('Invalid encryption key')
       })
@@ -117,20 +150,33 @@ describe('IntegrationFacade', () => {
   })
 
   describe('encryption configuration', () => {
-    it('passes config with expected structure', async () => {
-      IntegrationRepository.findWithFallback.mockResolvedValue({userId: 'user-1', workflowId: null})
-      decryptFields.mockImplementation((data, config) => {
-        expect(config).toHaveProperty('fields')
-        expect(config).toHaveProperty('arrayFields')
-        return data
-      })
+    it('decrypts app-wide with null workflowId context', async () => {
+      const appWide = {userId: 'user-1', workflowId: null}
+      IntegrationRepository.findBothDocs.mockResolvedValue({appWide, workflow: null})
+      decryptFields.mockReturnValue(appWide)
+      IntegrationMerger.merge.mockReturnValue(appWide)
 
       await IntegrationFacade.findDecrypted('user-1')
 
       expect(decryptFields).toHaveBeenCalledWith(
-        expect.any(Object),
+        appWide,
         expect.objectContaining({fields: expect.any(Array), arrayFields: expect.any(Object)}),
         {userId: 'user-1', workflowId: null},
+      )
+    })
+
+    it('decrypts workflow with actual workflowId context', async () => {
+      const workflow = {userId: 'user-1', workflowId: 'wf-123'}
+      IntegrationRepository.findBothDocs.mockResolvedValue({appWide: null, workflow})
+      decryptFields.mockReturnValue(workflow)
+      IntegrationMerger.merge.mockReturnValue(workflow)
+
+      await IntegrationFacade.findDecrypted('user-1', 'wf-123')
+
+      expect(decryptFields).toHaveBeenCalledWith(
+        workflow,
+        expect.objectContaining({fields: expect.any(Array), arrayFields: expect.any(Object)}),
+        {userId: 'user-1', workflowId: 'wf-123'},
       )
     })
   })

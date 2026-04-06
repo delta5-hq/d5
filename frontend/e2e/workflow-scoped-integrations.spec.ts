@@ -15,6 +15,7 @@ import { ArrayIntegrationPage } from './pages/ArrayIntegrationPage'
 import { TIMEOUTS } from './config/test-timeouts'
 import { authenticateViaAPI } from './helpers/api-auth'
 import { adminLogin } from './utils'
+import { selectWorkflowScope } from './helpers/wait-helpers'
 
 const test = base.extend<{}, { workerStorageState: string }>({
   storageState: ({ workerStorageState }, use) => use(workerStorageState),
@@ -152,7 +153,6 @@ test.describe.serial('Workflow-scoped integrations', () => {
     await page.goto('/settings')
     await ensureIntegrationsTabActive(page)
 
-    /* Monitor API calls */
     const apiCalls: string[] = []
     page.on('request', request => {
       if (request.url().includes('/api/v2/integration') && request.method() === 'GET') {
@@ -160,26 +160,66 @@ test.describe.serial('Workflow-scoped integrations', () => {
       }
     })
 
-    const selector = page.locator('[data-type="workflow-scope-selector"]')
-    await selector.click()
-
-    await page.locator(`[data-type="scope-workflow-${workflow1Id}"]`).click()
-    await page.waitForTimeout(300)
+    await selectWorkflowScope(page, workflow1Id)
 
     const workflowScopedCall = apiCalls.find(url => url.includes(`workflowId=${workflow1Id}`))
     expect(workflowScopedCall).toBeTruthy()
+  })
+
+  test('scope selection completes before subsequent operations', async ({ page }) => {
+    await page.goto('/settings')
+    await ensureIntegrationsTabActive(page)
+
+    await page.request.post(`/api/v2/integration/mcp/items?workflowId=${workflow1Id}`, {
+      data: {
+        alias: '/scope-test-mcp',
+        transport: 'stdio',
+        toolName: 'test',
+        command: 'node',
+      },
+    })
+
+    await selectWorkflowScope(page, workflow1Id)
+
+    const card = page.locator('[data-alias="/scope-test-mcp"]')
+    await expect(card).toBeVisible({ timeout: 2000 })
+  })
+
+  test('sequential scope switches load correct data for each scope', async ({ page }) => {
+    await page.goto('/settings')
+    await ensureIntegrationsTabActive(page)
+
+    await page.request.post(`/api/v2/integration/mcp/items?workflowId=${workflow1Id}`, {
+      data: { alias: '/w1-item', transport: 'stdio', toolName: 'test', command: 'node' },
+    })
+    await page.request.post(`/api/v2/integration/mcp/items?workflowId=${workflow2Id}`, {
+      data: { alias: '/w2-item', transport: 'stdio', toolName: 'test', command: 'node' },
+    })
+
+    await selectWorkflowScope(page, workflow1Id)
+    await expect(page.locator('[data-alias="/w1-item"]')).toBeVisible()
+    await expect(page.locator('[data-alias="/w2-item"]')).not.toBeVisible()
+
+    await selectWorkflowScope(page, workflow2Id)
+    await expect(page.locator('[data-alias="/w2-item"]')).toBeVisible()
+    await expect(page.locator('[data-alias="/w1-item"]')).not.toBeVisible()
+  })
+
+  test('selecting same workflow scope twice is idempotent', async ({ page }) => {
+    await page.goto('/settings')
+    await ensureIntegrationsTabActive(page)
+
+    await selectWorkflowScope(page, workflow1Id)
+    await selectWorkflowScope(page, workflow1Id)
+
+    const selector = page.locator('[data-type="workflow-scope-selector"]')
+    await expect(selector).toContainText('Test Workflow 1')
   })
 
   test('user-level integration is created without workflowId', async ({ page }) => {
     await page.goto('/settings')
     await ensureIntegrationsTabActive(page)
 
-    /* Ensure user-level scope is selected */
-    const selector = page.locator('[data-type="workflow-scope-selector"]')
-    await selector.click()
-    await page.locator('[data-type="scope-user-level"]').click()
-
-    /* Create integration */
     await page.locator('[data-type="add-integration"]').click()
     await page.locator('[data-title-id="integration.deepseek.title"]').click()
 
@@ -188,7 +228,6 @@ test.describe.serial('Workflow-scoped integrations', () => {
 
     await page.waitForTimeout(500)
 
-    /* Verify via API: user-level integration exists */
     const response = await page.request.get('/api/v2/integration')
     const data = await response.json()
 
@@ -257,6 +296,25 @@ test.describe.serial('Workflow-scoped integrations', () => {
     expect(dataUser.secretsMeta?.perplexity?.apiKey).toBe(true)
   })
 
+  test('workflow-scoped MCP integration not visible in user-level UI', async ({ page }) => {
+    await page.goto('/settings')
+    await ensureIntegrationsTabActive(page)
+
+    await page.request.post(`/api/v2/integration/mcp/items?workflowId=${workflow1Id}`, {
+      data: {
+        alias: '/workflow-only',
+        transport: 'stdio',
+        toolName: 'test',
+        command: 'node',
+      },
+    })
+
+    await page.goto('/settings')
+    await ensureIntegrationsTabActive(page)
+
+    await expect(page.locator('[data-alias="/workflow-only"]')).not.toBeVisible()
+  })
+
   test('delete workflow-scoped integration does not affect user-level', async ({ page }) => {
     /* Create both */
     await page.request.put('/api/v2/integration/yandex/update', {
@@ -314,9 +372,7 @@ test.describe.serial('Workflow-scoped integrations', () => {
     await ensureIntegrationsTabActive(page)
 
     /* Select workflow1 scope */
-    const selector = page.locator('[data-type="workflow-scope-selector"]')
-    await selector.click()
-    await page.locator(`[data-type="scope-workflow-${workflow1Id}"]`).click()
+    await selectWorkflowScope(page, workflow1Id)
 
     /* Add MCP integration using POM */
     await integrationPage.addMCPIntegration({
@@ -346,9 +402,7 @@ test.describe.serial('Workflow-scoped integrations', () => {
     await ensureIntegrationsTabActive(page)
 
     /* Select workflow2 scope */
-    const selector = page.locator('[data-type="workflow-scope-selector"]')
-    await selector.click()
-    await page.locator(`[data-type="scope-workflow-${workflow2Id}"]`).click()
+    await selectWorkflowScope(page, workflow2Id)
 
     /* Add RPC integration using POM */
     await integrationPage.addRPCIntegration({

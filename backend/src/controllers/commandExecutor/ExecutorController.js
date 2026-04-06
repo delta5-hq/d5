@@ -4,7 +4,7 @@ import {runCommand} from './commands/utils/runCommand'
 import Store from './commands/utils/Store'
 import {allowedCommands} from './constants'
 import {loadUserAliases} from './commands/aliases/loadUserAliases'
-import {findMCPAliasByQueryType, findRPCAliasByQueryType} from './commands/utils/queryTypeResolver'
+import {resolveCommand} from './commands/utils/queryTypeResolver'
 import ProgressReporter from './ProgressReporter'
 import StreamableProgressReporter from './streaming/StreamableProgressReporter'
 import StreamBridge from './streaming/StreamBridge'
@@ -16,7 +16,7 @@ const logError = debug('delta5:app:ExecutorController')
 const ExecutorController = {
   execute: async ctx => {
     const body = await ctx.request.json('infinity')
-    const {queryType, cell, streamSessionId} = body
+    const {queryType: frontendQueryType, cell, streamSessionId} = body
     const {userId} = ctx.state
 
     if (!cell) {
@@ -26,6 +26,7 @@ const ExecutorController = {
     let mcpAlias
     let rpcAlias
     let aliases = {mcp: [], rpc: []}
+    let queryType = frontendQueryType
 
     const log = debug('delta5:app:ProgressReporter').extend(userId, '/')
     const ProgressReporterClass = streamSessionId ? StreamableProgressReporter : ProgressReporter
@@ -34,10 +35,6 @@ const ExecutorController = {
     const nodeId = cell?.id
 
     try {
-      if (nodeId) {
-        progressEventEmitter.emitStart(nodeId, {queryType})
-      }
-
       // queryType, context, prompt, cell, userId, workflowId, workflowNodes, workflowFiles
       let {workflowNodes, workflowEdges, workflowId, workflowFiles, ...otherData} = body
 
@@ -47,15 +44,22 @@ const ExecutorController = {
         logError('Failed to load user aliases, continuing with empty aliases:', e.message)
       }
 
+      const resolved = resolveCommand(cell.command, aliases)
+      queryType = resolved.queryType || frontendQueryType
+      mcpAlias = resolved.mcpAlias
+      rpcAlias = resolved.rpcAlias
+
+      if (nodeId) {
+        progressEventEmitter.emitStart(nodeId, {queryType})
+      }
+
       if (!allowedCommands.includes(queryType)) {
-        mcpAlias = findMCPAliasByQueryType(aliases.mcp, queryType)
-        if (!mcpAlias) {
-          rpcAlias = findRPCAliasByQueryType(aliases.rpc, queryType)
-          if (!rpcAlias) {
-            ctx.throw(400, 'Not allowed query')
-          }
+        if (!mcpAlias && !rpcAlias) {
+          ctx.throw(400, 'Not allowed query')
         }
       }
+
+      otherData.queryType = queryType
 
       if (!workflowNodes && workflowId) {
         const {nodes, edges} = await getWorkflowData(workflowId)

@@ -18,6 +18,10 @@ func (s *Service) AddArrayItem(ctx context.Context, scope ScopeIdentifier, field
 		return err
 	}
 
+	if err := s.validateCrossTypeAliasUniqueness(ctx, scope, fieldName, alias); err != nil {
+		return err
+	}
+
 	if err := validateNoSentinelSecrets(fieldName, item); err != nil {
 		return err
 	}
@@ -189,6 +193,31 @@ func isEncryptedField(arrayName, fieldName string) bool {
 	}
 
 	return false
+}
+
+func (s *Service) validateCrossTypeAliasUniqueness(ctx context.Context, scope ScopeIdentifier, fieldName, alias string) error {
+	otherFields := GetOtherArrayFields(fieldName)
+
+	for _, otherField := range otherFields {
+		filter := bson.M{
+			"userId":              scope.UserID,
+			"workflowId":          scope.WorkflowID,
+			otherField + ".alias": alias,
+		}
+
+		var result map[string]interface{}
+		err := s.collection.Find(ctx, filter).One(&result)
+
+		if err == nil {
+			return fmt.Errorf("alias '%s' already exists in field '%s'", alias, otherField)
+		}
+
+		if err != qmgo.ErrNoSuchDocuments {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func validateNoSentinelSecrets(arrayName string, item map[string]interface{}) error {

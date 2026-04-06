@@ -22,6 +22,63 @@ func TestArrayFieldRegistry(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("GetOtherArrayFields_ReturnsComplementSet", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			field    string
+			wantLen  int
+			contains []string
+			excludes string
+		}{
+			{
+				name:     "mcp excludes itself",
+				field:    "mcp",
+				wantLen:  1,
+				contains: []string{"rpc"},
+				excludes: "mcp",
+			},
+			{
+				name:     "rpc excludes itself",
+				field:    "rpc",
+				wantLen:  1,
+				contains: []string{"mcp"},
+				excludes: "rpc",
+			},
+			{
+				name:     "unregistered field returns all registered",
+				field:    "unknown",
+				wantLen:  2,
+				contains: []string{"mcp", "rpc"},
+				excludes: "unknown",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				others := integration.GetOtherArrayFields(tt.field)
+
+				if len(others) != tt.wantLen {
+					t.Errorf("GetOtherArrayFields(%q) length = %d, want %d", tt.field, len(others), tt.wantLen)
+				}
+
+				othersMap := make(map[string]bool)
+				for _, f := range others {
+					othersMap[f] = true
+				}
+
+				for _, expected := range tt.contains {
+					if !othersMap[expected] {
+						t.Errorf("GetOtherArrayFields(%q) should contain %q, but doesn't", tt.field, expected)
+					}
+				}
+
+				if othersMap[tt.excludes] {
+					t.Errorf("GetOtherArrayFields(%q) should not contain %q, but does", tt.field, tt.excludes)
+				}
+			})
+		}
+	})
 }
 
 func TestSecretRedactor_SentinelEmptyStringHandling(t *testing.T) {

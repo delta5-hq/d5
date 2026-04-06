@@ -511,7 +511,7 @@ test.describe.serial('RPC Integration UI Flow', () => {
     await page.reload()
     await page.waitForLoadState('networkidle')
 
-    const editButton = page.locator('button[aria-label="Edit /test-edit"]').first()
+    const editButton = page.locator('[aria-label="Edit /test-edit"]').first()
     await editButton.click()
 
     const presetSection = page.locator('text=Presets')
@@ -632,96 +632,72 @@ test.describe.serial('Cross-Field Independence', () => {
     await page.waitForLoadState('networkidle')
   })
 
-  test('MCP and RPC with same alias coexist independently', async ({ page }) => {
+  test('Editing MCP does not affect RPC with different aliases', async ({ page }) => {
     const arrayPage = new ArrayIntegrationPage(page)
     await arrayPage.goto()
 
     await arrayPage.addMCPIntegration({
-      alias: '/shared',
+      alias: '/mcp-ind',
       transport: 'stdio',
       toolName: 'mcp_tool',
       command: 'node',
+      description: 'Original MCP description',
     })
 
     await arrayPage.addRPCIntegration({
-      alias: '/shared',
+      alias: '/rpc-ind',
       protocol: 'ssh',
       host: '127.0.0.1',
       username: 'test',
-      privateKey: 'key',
+      privateKey: 'test-key',
       commandTemplate: 'echo "{{prompt}}"',
+      description: 'Original RPC description',
     })
 
-    await arrayPage.verifyCardVisible('/shared')
-
-    const cards = page.locator('[data-alias="/shared"]')
-    await expect(cards).toHaveCount(2)
-  })
-
-  test('Editing MCP does not affect RPC with same alias', async ({ page }) => {
-    const arrayPage = new ArrayIntegrationPage(page)
-    await arrayPage.goto()
-
-    await arrayPage.addMCPIntegration({
-      alias: '/test',
-      transport: 'stdio',
-      toolName: 'tool1',
-      command: 'node',
-      description: 'MCP description',
-    })
-
-    await arrayPage.addRPCIntegration({
-      alias: '/test',
-      protocol: 'ssh',
-      host: '127.0.0.1',
-      username: 'user',
-      privateKey: 'key',
-      commandTemplate: 'echo',
-      description: 'RPC description',
+    await arrayPage.editMCPIntegration('/mcp-ind', {
+      description: 'Updated MCP description',
     })
 
     await page.reload()
     await page.waitForLoadState('networkidle')
 
-    const mcpCard = page.locator('[data-alias="/test"]').filter({ hasText: 'MCP description' })
-    const rpcCard = page.locator('[data-alias="/test"]').filter({ hasText: 'RPC description' })
+    await arrayPage.verifyCardVisible('/mcp-ind')
+    await arrayPage.verifyCardVisible('/rpc-ind')
 
-    await expect(mcpCard).toBeVisible()
-    await expect(rpcCard).toBeVisible()
+    await arrayPage.verifyCardDescription('/mcp-ind', 'Updated MCP description')
+    await arrayPage.verifyCardDescription('/rpc-ind', 'Original RPC description')
   })
 
-  test('Deleting MCP does not affect RPC with same alias', async ({ page }) => {
+  test('Deleting MCP does not affect RPC with different aliases', async ({ page }) => {
     const arrayPage = new ArrayIntegrationPage(page)
     await arrayPage.goto()
 
     await arrayPage.addMCPIntegration({
-      alias: '/shared-delete',
+      alias: '/mcp-del',
       transport: 'stdio',
-      toolName: 'mcp-tool',
+      toolName: 'mcp_tool',
       command: 'node',
-      description: 'MCP item',
+      description: 'MCP to delete',
     })
 
     await arrayPage.addRPCIntegration({
-      alias: '/shared-delete',
+      alias: '/rpc-del',
       protocol: 'ssh',
       host: '127.0.0.1',
       username: 'test',
-      privateKey: 'key',
-      commandTemplate: 'echo',
-      description: 'RPC item',
+      privateKey: 'test-key',
+      commandTemplate: 'echo "{{prompt}}"',
+      description: 'RPC to keep',
     })
 
-    const mcpCard = page.locator('[data-alias="/shared-delete"]').filter({ hasText: 'MCP item' })
-    const rpcCard = page.locator('[data-alias="/shared-delete"]').filter({ hasText: 'RPC item' })
+    await arrayPage.verifyCardVisible('/mcp-del')
+    await arrayPage.verifyCardVisible('/rpc-del')
 
-    await expect(mcpCard).toBeVisible()
-    await expect(rpcCard).toBeVisible()
+    await arrayPage.deleteIntegration('/mcp-del', 'mcp')
 
-    await arrayPage.deleteIntegration('/shared-delete', 'mcp')
-
-    await expect(mcpCard).not.toBeVisible()
-    await expect(rpcCard).toBeVisible()
+    await arrayPage.verifyCardNotVisible('/mcp-del')
+    await arrayPage.verifyCardVisible('/rpc-del')
+    await arrayPage.verifyCardDescription('/rpc-del', 'RPC to keep')
   })
 
   test('Empty state shows when all integrations deleted via UI', async ({ page }) => {
@@ -757,6 +733,40 @@ test.describe.serial('UI Form Validation Edge Cases', () => {
     await cleanArrayIntegrations(page)
     await page.reload()
     await page.waitForLoadState('networkidle')
+  })
+
+  test('Client-side validation blocks duplicate alias across field types', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.addMCPIntegration({
+      alias: '/shared',
+      transport: 'stdio',
+      toolName: 'mcp_tool',
+      command: 'node',
+    })
+
+    await arrayPage.openAddDialog('rpc')
+    await arrayPage.fillRPCForm({
+      alias: '/shared',
+      protocol: 'ssh',
+      host: '127.0.0.1',
+      username: 'test',
+      privateKey: 'key',
+      commandTemplate: 'echo "{{prompt}}"',
+    })
+
+    const submitButton = page.locator('button[type="submit"]')
+    await submitButton.click()
+
+    await expect(page.locator('text=Alias already exists')).toBeVisible({ timeout: 5000 })
+
+    await expect(page.locator('[data-dialog-name="rpc"]')).toBeVisible()
+
+    await arrayPage.cancelDialog()
+
+    const cards = page.locator('[data-alias="/shared"]')
+    await expect(cards).toHaveCount(1)
   })
 
   test('MCP form fields persist when switching transports back and forth', async ({ page }) => {

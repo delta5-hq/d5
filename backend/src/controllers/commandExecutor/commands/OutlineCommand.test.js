@@ -204,7 +204,9 @@ describe('OutlineCommand', () => {
 
       await command.run(node, 'prompt', workflowNodes, {})
 
-      expect(getLLM).toHaveBeenCalledWith(expect.objectContaining({settings, type: Model.YandexGPT}))
+      expect(getLLM).toHaveBeenCalledWith(
+        expect.objectContaining({settings: expect.objectContaining(settings), type: Model.YandexGPT}),
+      )
     })
 
     it('should use openai credentials', async () => {
@@ -229,7 +231,9 @@ describe('OutlineCommand', () => {
 
       await command.run(node, 'prompt', workflowNodes, {})
 
-      expect(getLLM).toHaveBeenCalledWith(expect.objectContaining({settings, type: Model.OpenAI}))
+      expect(getLLM).toHaveBeenCalledWith(
+        expect.objectContaining({settings: expect.objectContaining(settings), type: Model.OpenAI}),
+      )
     })
 
     it('should use substituteReferencesAndHashrefsChildrenAndSelf when title contains a reference', async () => {

@@ -57,6 +57,9 @@ class Store {
   /** @type {{mcp: Array, rpc: Array}} User-defined command aliases */
   _aliases = {mcp: [], rpc: []}
 
+  /** @type {Object|null} Cached integration settings (per-request, not per-node) */
+  _integrationSettingsCache = null
+
   /**
    * @type {{
    *   nodes: Record<string, NodeData[]>,

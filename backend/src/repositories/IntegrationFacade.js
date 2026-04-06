@@ -1,21 +1,21 @@
 import {INTEGRATION_ENCRYPTION_CONFIG} from '../models/Integration'
 import {decryptFields} from '../models/utils/fieldEncryption'
 import IntegrationRepository from './IntegrationRepository'
+import IntegrationMerger from './IntegrationMerger'
 
 export class IntegrationFacade {
   async findDecrypted(userId, workflowId = null) {
-    const integration = await IntegrationRepository.findWithFallback(userId, workflowId)
+    const {appWide, workflow} = await IntegrationRepository.findBothDocs(userId, workflowId)
 
-    if (!integration) {
-      return null
-    }
+    const decryptedAppWide = appWide
+      ? decryptFields(appWide, INTEGRATION_ENCRYPTION_CONFIG, {userId, workflowId: null})
+      : null
 
-    const encryptionContext = {
-      userId,
-      workflowId: integration.workflowId,
-    }
+    const decryptedWorkflow = workflow
+      ? decryptFields(workflow, INTEGRATION_ENCRYPTION_CONFIG, {userId, workflowId})
+      : null
 
-    return decryptFields(integration, INTEGRATION_ENCRYPTION_CONFIG, encryptionContext)
+    return IntegrationMerger.merge(decryptedAppWide, decryptedWorkflow)
   }
 
   async findDecryptedOrThrow(userId, workflowId = null) {

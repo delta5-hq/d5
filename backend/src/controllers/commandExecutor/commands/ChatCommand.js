@@ -38,65 +38,65 @@ export class ChatCommand {
   }
 
   async replyChatOpenAIAPI(messages) {
-    try {
-      const settings = await getIntegrationSettings(this.userId)
-      const {openai} = settings
+    const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
+    const {openai} = settings
 
-      const llm = new ChatOpenAI({
-        openAIApiKey: openai?.apiKey || OPENAI_API_KEY,
-        modelName: openai?.model || DEFAULT_OPENAI_MODEL_NAME,
-      })
+    const llm = new ChatOpenAI({
+      openAIApiKey: openai?.apiKey || OPENAI_API_KEY,
+      modelName: openai?.model || DEFAULT_OPENAI_MODEL_NAME,
+    })
 
-      const result = await llm.invoke(
-        messages.map(m => {
-          return m.role === 'system' ? new SystemMessage(m.content) : new HumanMessage(m.content)
-        }),
-      )
+    const result = await llm.invoke(
+      messages.map(m => {
+        return m.role === 'system' ? new SystemMessage(m.content) : new HumanMessage(m.content)
+      }),
+    )
 
-      return result.content
-    } catch (e) {
-      this.logError(e)
-      return ''
-    }
+    return result.content
   }
 
   async run(node, context, originalPrompt) {
-    let prompt = originalPrompt
-    const title = node?.command || node?.title
+    try {
+      let prompt = originalPrompt
+      const title = node?.command || node?.title
 
-    if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
-      prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
-    } else {
-      prompt = clearCommandsWithParams(
-        clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
-      )
-    }
-
-    prompt = context ? context + prompt : createContextForChat(node, {store: this.store}) + prompt
-
-    if (readTableParam(title)) {
-      const messages = [
-        {
-          content: 'Create a table based on user request',
-          role: 'system',
-        },
-        {
-          content: prompt,
-          role: 'user',
-        },
-      ]
-
-      const text = await this.replyChatOpenAIAPI(messages)
-
-      this.store.importer.createTable(text, node.id)
-    } else {
-      const text = await this.replyChatOpenAIAPI([{role: 'user', content: prompt}])
-
-      if (readJoinParam(title)) {
-        this.store.importer.createJoinNode(text, node.id)
+      if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
+        prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
       } else {
-        this.store.importer.createNodes(text, node.id)
+        prompt = clearCommandsWithParams(
+          clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+        )
       }
+
+      prompt = context ? context + prompt : createContextForChat(node, {store: this.store}) + prompt
+
+      if (readTableParam(title)) {
+        const messages = [
+          {
+            content: 'Create a table based on user request',
+            role: 'system',
+          },
+          {
+            content: prompt,
+            role: 'user',
+          },
+        ]
+
+        const text = await this.replyChatOpenAIAPI(messages)
+
+        this.store.importer.createTable(text, node.id)
+      } else {
+        const text = await this.replyChatOpenAIAPI([{role: 'user', content: prompt}])
+
+        if (readJoinParam(title)) {
+          this.store.importer.createJoinNode(text, node.id)
+        } else {
+          this.store.importer.createNodes(text, node.id)
+        }
+      }
+    } catch (e) {
+      this.logError(e)
+      this.store.importer.createNodes(`Error: ${e.message}`, node.id)
     }
   }
 }

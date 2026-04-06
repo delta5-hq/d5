@@ -29,7 +29,7 @@ export class CompletionCommand {
   }
 
   async run(cell) {
-    const settings = await getIntegrationSettings(this.userId)
+    const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     if (!settings) throw new Error('No integration enabled')
 
     const {model, lang} = settings

@@ -84,8 +84,18 @@ export const determineLLMType = (command, settings) => {
   return detectedModel || Model.OpenAI
 }
 
-export const getIntegrationSettings = async (userId, workflowId = null) => {
-  return IntegrationFacade.findDecryptedOrThrow(userId, workflowId)
+export const getIntegrationSettings = async (userId, workflowId = null, store = null) => {
+  if (store?._integrationSettingsCache) {
+    return store._integrationSettingsCache
+  }
+
+  const settings = await IntegrationFacade.findDecryptedOrThrow(userId, workflowId)
+
+  if (store) {
+    store._integrationSettingsCache = settings
+  }
+
+  return settings
 }
 
 export const getLLM = ({type, settings, log}) => {

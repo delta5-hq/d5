@@ -43,7 +43,7 @@ export class MCPCommand {
   }
 
   async runAgentMode(prompt) {
-    const settings = await getIntegrationSettings(this.userId)
+    const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     const llmType = determineLLMType(undefined, settings)
     const {llm} = getLLM({settings, type: llmType})
     const {timeoutMs} = this.aliasConfig

@@ -693,7 +693,7 @@ describe('ForeachCommand', () => {
 
       expect(getLLM).toHaveBeenCalledWith(
         expect.objectContaining({
-          settings,
+          settings: expect.objectContaining(settings),
           type: Model.YandexGPT,
         }),
       )
@@ -751,7 +751,7 @@ describe('ForeachCommand', () => {
 
       expect(getLLM).toHaveBeenCalledWith(
         expect.objectContaining({
-          settings,
+          settings: expect.objectContaining(settings),
           type: Model.OpenAI,
         }),
       )
