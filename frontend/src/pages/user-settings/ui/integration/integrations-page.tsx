@@ -1,24 +1,20 @@
 import { useDialog } from '@entities/dialog'
-import { useApiQuery } from '@shared/composables'
-import { queryKeys } from '@shared/config'
 import { Button } from '@shared/ui/button'
 import { FormattedMessage } from 'react-intl'
 import { useState } from 'react'
 import IntegrationCategory from './integration-category'
 import IntegrationDialog from './integration-dialog'
-import type { IntegrationSettings } from '@shared/base-types'
 import { WorkflowScopeSelector } from './components/workflow-scope-selector'
+import { useScopedIntegrations } from './hooks/use-scoped-integrations'
+import { classifyInheritedData } from './utils/classify-inherited-data'
 
 const IntegrationPage = () => {
   const { showDialog } = useDialog()
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null)
 
-  const workflowParam = selectedWorkflowId ? `?workflowId=${selectedWorkflowId}` : ''
+  const { currentScopeData, appWideScopeData, refetch } = useScopedIntegrations(selectedWorkflowId)
 
-  const { data, refetch } = useApiQuery<IntegrationSettings>({
-    queryKey: [...queryKeys.integration, selectedWorkflowId],
-    url: `/integration${workflowParam}`,
-  })
+  const { editable, inherited } = classifyInheritedData(currentScopeData, appWideScopeData)
 
   const redrawPage = async () => {
     await refetch()
@@ -35,7 +31,7 @@ const IntegrationPage = () => {
           data-type="add-integration"
           onClick={() =>
             showDialog(IntegrationDialog, {
-              data,
+              data: editable,
               showDialog,
               refresh: redrawPage,
               workflowId: selectedWorkflowId,
@@ -52,9 +48,11 @@ const IntegrationPage = () => {
       </div>
 
       <div className="flex justify-center">
-        {data ? (
+        {editable ? (
           <IntegrationCategory
-            data={data}
+            data={editable}
+            inheritedData={inherited}
+            onScopeChange={setSelectedWorkflowId}
             refresh={redrawPage}
             showDialog={showDialog}
             workflowId={selectedWorkflowId}

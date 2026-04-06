@@ -30,6 +30,8 @@ import ArrayIntegrationSection from './components/array-integration-section'
 interface IntegrationCategoryProps {
   showDialog: ShowDialogFn
   data: IntegrationSettings | undefined
+  inheritedData?: IntegrationSettings
+  onScopeChange?: (workflowId: string | null) => void
   showAll?: boolean
   refresh: () => Promise<void>
   workflowId?: string | null
@@ -40,16 +42,22 @@ const IntegrationCard: React.FC<{
   titleId: string
   installedId?: string
   installed?: boolean
+  inherited?: boolean
   onClick: () => void
-}> = ({ icon, titleId, installedId = 'integration.installed', installed, onClick }) => {
+}> = ({ icon, titleId, installedId = 'integration.installed', installed, inherited, onClick }) => {
   const intl = useIntl()
   const { handleKeyDown } = useButtonKeyboard(onClick)
   const label = intl.formatMessage({ id: titleId })
 
+  const cardClassName = inherited
+    ? 'w-full sm:w-60 m-1 cursor-pointer transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border-dashed opacity-60'
+    : 'w-full sm:w-60 m-1 cursor-pointer hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
+
   return (
     <Card
       aria-label={label}
-      className="w-full sm:w-60 m-1 cursor-pointer hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      className={cardClassName}
+      data-inherited={inherited}
       data-title-id={titleId}
       data-type="integration-card"
       glassEffect={false}
@@ -64,9 +72,9 @@ const IntegrationCard: React.FC<{
           <h3 className="text-base font-medium text-center">
             <FormattedMessage id={titleId} />
           </h3>
-          {installed ? (
+          {installed || inherited ? (
             <span className="text-sm text-success text-center">
-              <FormattedMessage id={installedId} />
+              <FormattedMessage id={inherited ? 'integration.inherited' : installedId} />
             </span>
           ) : null}
         </CardContent>
@@ -78,54 +86,99 @@ const IntegrationCard: React.FC<{
 const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({
   showDialog,
   data,
+  inheritedData,
+  onScopeChange,
   showAll,
   refresh,
   workflowId,
 }) => {
-  const existingMCPAliases = React.useMemo(() => (data?.mcp || []).map(m => m.alias), [data?.mcp])
-  const existingRPCAliases = React.useMemo(() => (data?.rpc || []).map(r => r.alias), [data?.rpc])
+  const allAliases = React.useMemo(
+    () => [...(data?.mcp || []).map(m => m.alias), ...(data?.rpc || []).map(r => r.alias)],
+    [data?.mcp, data?.rpc],
+  )
+
+  const hasInheritedData =
+    (inheritedData?.mcp && inheritedData.mcp.length > 0) || (inheritedData?.rpc && inheritedData.rpc.length > 0)
+
+  const handleInheritedEdit = () => {
+    onScopeChange?.(null)
+  }
 
   return (
     <div className="w-full space-y-6">
-      {/* MCP Integrations */}
-      <ArrayIntegrationSection
-        fieldName="mcp"
-        items={data?.mcp || []}
-        onAdd={() => showDialog(MCPDialog, { refresh, existingAliases: existingMCPAliases, workflowId })}
-        onEdit={item =>
-          showDialog(MCPDialog, {
-            refresh,
-            data: item,
-            existingAliases: existingMCPAliases,
-            isEdit: true,
-            workflowId,
-          })
-        }
-        refresh={refresh}
-        titleId="integration.mcp.title"
-        workflowId={workflowId}
-      />
+      {!showAll ? (
+        <>
+          {/* MCP Integrations - Editable */}
+          <ArrayIntegrationSection
+            fieldName="mcp"
+            items={data?.mcp || []}
+            onAdd={() => showDialog(MCPDialog, { refresh, existingAliases: allAliases, workflowId })}
+            onEdit={item =>
+              showDialog(MCPDialog, {
+                refresh,
+                data: item,
+                existingAliases: allAliases,
+                isEdit: true,
+                workflowId,
+              })
+            }
+            refresh={refresh}
+            titleId="integration.mcp.title"
+            workflowId={workflowId}
+          />
 
-      {/* RPC Integrations */}
-      <ArrayIntegrationSection
-        fieldName="rpc"
-        items={data?.rpc || []}
-        onAdd={() => showDialog(RPCDialog, { refresh, existingAliases: existingRPCAliases, workflowId })}
-        onEdit={item =>
-          showDialog(RPCDialog, {
-            refresh,
-            data: item,
-            existingAliases: existingRPCAliases,
-            isEdit: true,
-            workflowId,
-          })
-        }
-        refresh={refresh}
-        titleId="integration.rpc.title"
-        workflowId={workflowId}
-      />
+          {/* RPC Integrations - Editable */}
+          <ArrayIntegrationSection
+            fieldName="rpc"
+            items={data?.rpc || []}
+            onAdd={() => showDialog(RPCDialog, { refresh, existingAliases: allAliases, workflowId })}
+            onEdit={item =>
+              showDialog(RPCDialog, {
+                refresh,
+                data: item,
+                existingAliases: allAliases,
+                isEdit: true,
+                workflowId,
+              })
+            }
+            refresh={refresh}
+            titleId="integration.rpc.title"
+            workflowId={workflowId}
+          />
 
-      {/* LLM Integrations */}
+          {/* Inherited Integrations - Read-only */}
+          {hasInheritedData ? (
+            <>
+              {inheritedData?.mcp && inheritedData.mcp.length > 0 ? (
+                <ArrayIntegrationSection
+                  fieldName="mcp"
+                  inherited
+                  items={inheritedData.mcp}
+                  onAdd={() => {}}
+                  onEdit={handleInheritedEdit}
+                  refresh={refresh}
+                  titleId="integration.mcp.inherited"
+                  workflowId={workflowId}
+                />
+              ) : null}
+              {inheritedData?.rpc && inheritedData.rpc.length > 0 ? (
+                <ArrayIntegrationSection
+                  fieldName="rpc"
+                  inherited
+                  items={inheritedData.rpc}
+                  onAdd={() => {}}
+                  onEdit={handleInheritedEdit}
+                  refresh={refresh}
+                  titleId="integration.rpc.inherited"
+                  workflowId={workflowId}
+                />
+              ) : null}
+            </>
+          ) : null}
+        </>
+      ) : null}
+
+      {/* LLM Integrations - Editable */}
       <div className="flex flex-wrap justify-start w-full">
         {data?.openai || showAll ? (
           <IntegrationCard
@@ -198,6 +251,63 @@ const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({
           />
         ) : null}
       </div>
+
+      {/* LLM Integrations - Inherited (read-only) */}
+      {!showAll && inheritedData ? (
+        <div className="flex flex-wrap justify-start w-full">
+          {inheritedData.openai ? (
+            <IntegrationCard
+              icon={OpenaiLogo}
+              inherited
+              onClick={handleInheritedEdit}
+              titleId="integration.openai.title"
+            />
+          ) : null}
+          {inheritedData.yandex ? (
+            <IntegrationCard
+              icon={YandexGPTLogo}
+              inherited
+              onClick={handleInheritedEdit}
+              titleId="integration.yandex.title"
+            />
+          ) : null}
+          {inheritedData.claude ? (
+            <IntegrationCard
+              icon={ClaudeLogo}
+              inherited
+              onClick={handleInheritedEdit}
+              titleId="integration.claude.title"
+            />
+          ) : null}
+          {inheritedData.perplexity ? (
+            <IntegrationCard
+              icon={PerplexityLogo}
+              inherited
+              onClick={handleInheritedEdit}
+              titleId="integration.perplexity.title"
+            />
+          ) : null}
+          {inheritedData.qwen ? (
+            <IntegrationCard icon={QwenLogo} inherited onClick={handleInheritedEdit} titleId="integration.qwen.title" />
+          ) : null}
+          {inheritedData.deepseek ? (
+            <IntegrationCard
+              icon={DeepseekLogo}
+              inherited
+              onClick={handleInheritedEdit}
+              titleId="integration.deepseek.title"
+            />
+          ) : null}
+          {inheritedData.custom_llm ? (
+            <IntegrationCard
+              icon={CustomLLMLogo}
+              inherited
+              onClick={handleInheritedEdit}
+              titleId="integration.custom_llm.title"
+            />
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }

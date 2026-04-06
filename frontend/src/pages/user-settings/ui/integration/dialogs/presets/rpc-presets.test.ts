@@ -22,7 +22,7 @@ interface RPCFormFlat {
 describe('RPC_PRESETS', () => {
   describe('preset collection structure', () => {
     it('maintains stable preset count (breaking change detection)', () => {
-      expect(RPC_PRESETS).toHaveLength(6)
+      expect(RPC_PRESETS).toHaveLength(7)
     })
 
     it('enforces unique preset identifiers', () => {

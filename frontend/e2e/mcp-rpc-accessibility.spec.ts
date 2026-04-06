@@ -104,9 +104,7 @@ test.describe.serial('Accessibility: ARIA Labels and Screen Reader Support', () 
     })
 
     const card = page.locator('[data-alias="/test-alias"]')
-    const editButton = card.locator('button').filter({ hasText: /edit integration/i }).or(card.locator('button[aria-label*="Edit"]'))
-
-    await expect(editButton.first()).toHaveAttribute('aria-label', 'Edit /test-alias')
+    await expect(card).toHaveAttribute('aria-label', 'Edit /test-alias')
   })
 
   test('Delete button has aria-label with alias', async ({ page }) => {
@@ -126,23 +124,22 @@ test.describe.serial('Accessibility: ARIA Labels and Screen Reader Support', () 
     await expect(deleteButton.first()).toHaveAttribute('aria-label', 'Delete /deletable')
   })
 
-  test('Edit and delete buttons have sr-only text for screen readers', async ({ page }) => {
+  test('Integration card actions have sr-only text for screen readers', async ({ page }) => {
     const arrayPage = new ArrayIntegrationPage(page)
     await arrayPage.goto()
 
     await arrayPage.addMCPIntegration({
-      alias: '/sr-test',
+      alias: '/sr-action',
       transport: 'stdio',
       toolName: 'test',
       command: 'node',
     })
 
-    const card = page.locator('[data-alias="/sr-test"]')
+    const card = page.locator('[data-alias="/sr-action"]')
     const srOnlyElements = card.locator('.sr-only')
 
-    await expect(srOnlyElements).toHaveCount(2)
-    await expect(srOnlyElements.nth(0)).toContainText('Edit integration')
-    await expect(srOnlyElements.nth(1)).toContainText('Delete integration')
+    await expect(srOnlyElements).toHaveCount(1)
+    await expect(srOnlyElements.first()).toContainText(/delete integration/i)
   })
 
   test('Dialog close button has sr-only text', async ({ page }) => {
@@ -168,7 +165,7 @@ test.describe.serial('Accessibility: ARIA Labels and Screen Reader Support', () 
     const card = page.locator('[data-alias="/icon-test"]')
     const icons = card.locator('svg[aria-hidden="true"]')
 
-    await expect(icons).toHaveCount(2)
+    await expect(icons).toHaveCount(1)
   })
 
   test('Required field indicators have aria-label', async ({ page }) => {

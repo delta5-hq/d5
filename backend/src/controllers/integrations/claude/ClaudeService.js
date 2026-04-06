@@ -27,6 +27,7 @@ export const ClaudeService = {
 
     /* E2E_MODE uses noop service, production uses real API */
     const result = await claudeService.sendMessages({
+      apiKey,
       model,
       messages,
       ...params,

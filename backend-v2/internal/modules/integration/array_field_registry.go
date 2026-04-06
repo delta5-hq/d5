@@ -23,3 +23,13 @@ func IsArrayFieldRegistered(fieldName string) bool {
 	_, exists := registeredArrayFields[fieldName]
 	return exists
 }
+
+func GetOtherArrayFields(fieldName string) []string {
+	var others []string
+	for name := range registeredArrayFields {
+		if name != fieldName {
+			others = append(others, name)
+		}
+	}
+	return others
+}

@@ -37,49 +37,49 @@ export class QwenCommand {
   }
 
   async replyQwen(messages) {
-    try {
-      const settings = await getIntegrationSettings(this.userId)
-      const {apiKey, model = QWEN_DEFAULT_MODEL} = settings?.qwen || {}
+    const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
+    const {apiKey, model = QWEN_DEFAULT_MODEL} = settings?.qwen || {}
 
-      const client = new OpenAI({
-        apiKey,
-        baseURL: QWEN_API_URL,
-      })
+    const client = new OpenAI({
+      apiKey,
+      baseURL: QWEN_API_URL,
+    })
 
-      const response = await client.chat.completions.create({
-        messages,
-        model,
-        top_p: 0.7,
-      })
+    const response = await client.chat.completions.create({
+      messages,
+      model,
+      top_p: 0.7,
+    })
 
-      return response.choices[0].message.content
-    } catch (e) {
-      this.logError(e)
-      return ''
-    }
+    return response.choices[0].message.content
   }
 
   async run(node, context, originalPrompt) {
-    let prompt = originalPrompt
-    const title = node?.command || node?.title
+    try {
+      let prompt = originalPrompt
+      const title = node?.command || node?.title
 
-    if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
-      prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
-    } else {
-      prompt = clearCommandsWithParams(
-        clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
-      )
+      if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
+        prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
+      } else {
+        prompt = clearCommandsWithParams(
+          clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+        )
+      }
+
+      prompt = context ? context + prompt : createContextForChat(node, {store: this.store}) + prompt
+
+      const userMessage = {
+        content: prompt,
+        role: 'user',
+      }
+      const messages = [userMessage]
+      const text = (await this.replyQwen(messages, this.userId))?.replaceAll('**', '')
+
+      this.store.importer.createNodes(text, node.id)
+    } catch (e) {
+      this.logError(e)
+      this.store.importer.createNodes(`Error: ${e.message}`, node.id)
     }
-
-    prompt = context ? context + prompt : createContextForChat(node, {store: this.store}) + prompt
-
-    const userMessage = {
-      content: prompt,
-      role: 'user',
-    }
-    const messages = [userMessage]
-    const text = (await this.replyQwen(messages, this.userId))?.replaceAll('**', '')
-
-    this.store.importer.createNodes(text, node.id)
   }
 }

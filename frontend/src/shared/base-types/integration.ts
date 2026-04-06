@@ -115,6 +115,7 @@ export interface SecretMetadata {
 }
 
 export type IntegrationSettings = Partial<{
+  workflowId: string | null
   openai: Openai
   google: Google
   yandex: Yandex

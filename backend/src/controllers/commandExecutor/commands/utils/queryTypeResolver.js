@@ -1,4 +1,4 @@
-import {getQueryType as getBuiltInQueryType} from '../../constants'
+import {getControlFlowQueryType, getLLMQueryType} from '../../constants'
 import {extractDynamicAlias} from './commandRecognition'
 
 /**
@@ -21,7 +21,11 @@ export const mcpAliasToQueryType = alias => `mcp:${alias.replace(/^\//, '')}`
 export const rpcAliasToQueryType = alias => `rpc:${alias.replace(/^\//, '')}`
 
 /**
- * Resolves queryType from title, checking built-in commands first, then dynamic aliases
+ * Resolves queryType with category-aware priority:
+ * 1. Control-flow built-ins (NON-overridable: steps, foreach, switch, summarize, refine, memorize)
+ * 2. User aliases (MCP/RPC - CAN override LLM built-ins)
+ * 3. LLM built-ins (overridable: chat, claude, qwen, web, scholar, etc.)
+ *
  * @param {string} title - The command text
  * @param {Object} options
  * @param {DynamicAlias[]} [options.mcpAliases=[]] - MCP aliases to check
@@ -31,17 +35,17 @@ export const rpcAliasToQueryType = alias => `rpc:${alias.replace(/^\//, '')}`
 export const resolveQueryType = (title, {mcpAliases = [], rpcAliases = []} = {}) => {
   if (!title) return undefined
 
-  // First check built-in commands (existing behavior)
-  const builtInQueryType = getBuiltInQueryType(title)
-  if (builtInQueryType) return builtInQueryType
+  const controlFlowType = getControlFlowQueryType(title)
+  if (controlFlowType) return controlFlowType
 
-  // Then check MCP aliases
   const mcpAlias = extractDynamicAlias(title, mcpAliases)
   if (mcpAlias) return mcpAliasToQueryType(mcpAlias.alias)
 
-  // Finally check RPC aliases
   const rpcAlias = extractDynamicAlias(title, rpcAliases)
   if (rpcAlias) return rpcAliasToQueryType(rpcAlias.alias)
+
+  const llmType = getLLMQueryType(title)
+  if (llmType) return llmType
 
   return undefined
 }

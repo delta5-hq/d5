@@ -40,6 +40,18 @@ export const RPC_PRESETS: PresetDefinition<RPCFormFlat>[] = [
     },
   },
   {
+    id: 'playwright-ssh',
+    label: 'Playwright CLI (SSH)',
+    icon: '🎭',
+    fill: setValue => {
+      setValue('protocol', 'ssh')
+      setValue('commandTemplate', 'cd /workspace && npx playwright test {{prompt}} --reporter=json')
+      setValue('outputFormat', 'json')
+      setValue('outputField', 'suites')
+      setValue('sessionIdField', 'session_id')
+    },
+  },
+  {
     id: 'ide-http',
     label: 'IDE (HTTP)',
     icon: '🖥️',

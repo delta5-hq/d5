@@ -77,7 +77,7 @@ export class SwitchCommand {
       .join(', ')
     const sysPrompt = `Respond with one of these options: ${formattedOptions}`
 
-    const settings = await getIntegrationSettings(this.userId)
+    const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     const llmType = determineLLMType(node.command, settings)
 
     const {llm} = getLLM({type: llmType, settings})

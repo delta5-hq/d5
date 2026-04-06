@@ -73,7 +73,7 @@ export class RefineCommand {
         clearReferences(clearReferences(clearStepsPrefix(nodeContent), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
       )
 
-      const settings = await getIntegrationSettings(this.userId)
+      const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
       const llmType = determineLLMType(node.command, settings)
       const {llm} = getLLM({type: llmType, settings})
 
@@ -102,7 +102,7 @@ export class RefineCommand {
     try {
       const prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
       if (!prompt.trim()) return
-      const settings = await getIntegrationSettings(this.userId)
+      const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
       const llmType = determineLLMType(node.command, settings)
       const {llm} = getLLM({type: llmType, settings})
 

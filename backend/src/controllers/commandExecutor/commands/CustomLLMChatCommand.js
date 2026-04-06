@@ -36,46 +36,45 @@ export class CustomLLMChatCommand {
   }
 
   async replyChat(messages) {
-    try {
-      const settings = await getIntegrationSettings(this.userId)
-      const {custom_llm} = settings
+    const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
+    const {custom_llm} = settings
 
-      const llm = new CustomLLMChat({
-        apiRootUrl: custom_llm.apiRootUrl,
-        apiType: custom_llm.apiType,
-        apiKey: custom_llm.apiKey,
-      })
+    const llm = new CustomLLMChat({
+      apiRootUrl: custom_llm.apiRootUrl,
+      apiType: custom_llm.apiType,
+      apiKey: custom_llm.apiKey,
+    })
 
-      const result = await llm.invoke(
-        messages.map(m => {
-          return m.role === 'system' ? new SystemMessage(m.content) : new HumanMessage(m.content)
-        }),
-      )
+    const result = await llm.invoke(
+      messages.map(m => {
+        return m.role === 'system' ? new SystemMessage(m.content) : new HumanMessage(m.content)
+      }),
+    )
 
-      return result.content
-    } catch (e) {
-      console.error(e)
-      this.logError(e)
-      return ''
-    }
+    return result.content
   }
 
   async run(node, context, originalPrompt) {
-    let prompt = originalPrompt
-    const title = node?.command || node?.title
+    try {
+      let prompt = originalPrompt
+      const title = node?.command || node?.title
 
-    if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
-      prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
-    } else {
-      prompt = clearCommandsWithParams(
-        clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
-      )
+      if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
+        prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
+      } else {
+        prompt = clearCommandsWithParams(
+          clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+        )
+      }
+
+      prompt = context ? context + prompt : createContextForChat(node, {store: this.store}) + prompt
+
+      const text = await this.replyChat([{role: 'user', content: prompt}])
+
+      this.store.importer.createNodes(text, node.id)
+    } catch (e) {
+      this.logError(e)
+      this.store.importer.createNodes(`Error: ${e.message}`, node.id)
     }
-
-    prompt = context ? context + prompt : createContextForChat(node, {store: this.store}) + prompt
-
-    const text = await this.replyChat([{role: 'user', content: prompt}])
-
-    this.store.importer.createNodes(text, node.id)
   }
 }

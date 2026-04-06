@@ -39,26 +39,53 @@ describe('queryTypeResolver', () => {
     const mcpAliases = [mkMCPAlias('/coder1'), mkMCPAlias('/agent2')]
     const rpcAliases = [mkRPCAlias('/vm3'), mkRPCAlias('/ssh-remote')]
 
-    describe('built-in command resolution (highest priority)', () => {
+    describe('control-flow built-ins (non-overridable, highest priority)', () => {
+      it.each([
+        ['/steps', 'steps'],
+        ['/foreach', 'foreach'],
+        ['/switch', 'switch'],
+        ['/summarize', 'summarize'],
+        ['/refine', 'refine'],
+        ['/memorize', 'memorize'],
+      ])('resolves control-flow: %s → %s', (input, expected) => {
+        expect(resolveQueryType(input, {mcpAliases, rpcAliases})).toBe(expected)
+      })
+
+      it('control-flow built-in wins over MCP alias', () => {
+        const conflictingMCP = [mkMCPAlias('/steps')]
+        expect(resolveQueryType('/steps test', {mcpAliases: conflictingMCP})).toBe('steps')
+      })
+
+      it('control-flow built-in wins over RPC alias', () => {
+        const conflictingRPC = [mkRPCAlias('/foreach')]
+        expect(resolveQueryType('/foreach items', {rpcAliases: conflictingRPC})).toBe('foreach')
+      })
+    })
+
+    describe('LLM built-ins (overridable by aliases)', () => {
       it.each([
         ['/chatgpt hello', 'chat'],
         ['/web search', 'web'],
         ['/scholar query', 'scholar'],
-        ['/steps', 'steps'],
-        ['/foreach', 'foreach'],
-        ['/switch', 'switch'],
-      ])('resolves built-in: %s → %s', (input, expected) => {
-        expect(resolveQueryType(input, {mcpAliases, rpcAliases})).toBe(expected)
+        ['/claude test', 'claude'],
+        ['/custom prompt', 'custom_llm'],
+      ])('resolves LLM built-in when no alias: %s → %s', (input, expected) => {
+        expect(resolveQueryType(input, {mcpAliases: [], rpcAliases: []})).toBe(expected)
       })
 
-      it('prioritizes built-in over MCP when alias conflicts', () => {
+      it('MCP alias overrides LLM built-in', () => {
         const conflictingMCP = [mkMCPAlias('/chatgpt')]
-        expect(resolveQueryType('/chatgpt test', {mcpAliases: conflictingMCP})).toBe('chat')
+        expect(resolveQueryType('/chatgpt test', {mcpAliases: conflictingMCP})).toBe('mcp:chatgpt')
       })
 
-      it('prioritizes built-in over RPC when alias conflicts', () => {
+      it('RPC alias overrides LLM built-in', () => {
         const conflictingRPC = [mkRPCAlias('/web')]
-        expect(resolveQueryType('/web search', {rpcAliases: conflictingRPC})).toBe('web')
+        expect(resolveQueryType('/web search', {rpcAliases: conflictingRPC})).toBe('rpc:web')
+      })
+
+      it('/custom alias overrides custom_llm built-in', () => {
+        const customAlias = [mkMCPAlias('/custom')]
+        expect(resolveQueryType('/custom what model?', {mcpAliases: customAlias})).toBe('mcp:custom')
       })
     })
 

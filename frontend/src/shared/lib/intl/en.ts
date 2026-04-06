@@ -178,17 +178,23 @@ export default {
       title: 'MCP Servers',
       add: 'Add MCP Server',
       edit: 'Edit MCP Server',
+      inherited: 'MCP Servers (Inherited)',
     },
     rpc: {
       title: 'RPC Integrations',
       add: 'Add RPC Integration',
       edit: 'Edit RPC Integration',
+      inherited: 'RPC Integrations (Inherited)',
     },
     installed: 'Installed',
+    inherited: 'Inherited',
+    inheritedNote: 'Click to edit in app-wide scope',
     workflowScope: {
       label: 'Workflow Scope',
       userLevel: 'All workflows (user-level)',
       description: 'Choose whether this integration applies to all workflows or only a specific one',
+      descriptionUserLevel: 'Integrations apply to all workflows you create',
+      descriptionWorkflow: 'Integrations apply only to this workflow, overriding global settings',
     },
   },
 

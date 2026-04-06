@@ -213,12 +213,7 @@ export class ArrayIntegrationPage {
   async openEditDialog(alias: string): Promise<void> {
     const card = this.page.locator(SELECTORS.integrationCard(alias))
     await card.waitFor({ state: 'visible', timeout: TIMEOUTS.cardAppear })
-
-    const editButton = card
-      .locator('button')
-      .filter({ has: this.page.locator('svg') })
-      .first()
-    await editButton.click()
+    await card.click()
   }
 
   async editMCPIntegration(alias: string, updates: Partial<MCPIntegrationData>): Promise<void> {
@@ -271,11 +266,7 @@ export class ArrayIntegrationPage {
     const card = this.page.locator(`[data-alias="${alias}"][data-field="${fieldName}"]`)
     await card.waitFor({ state: 'visible', timeout: TIMEOUTS.cardAppear })
 
-    const deleteButton = card
-      .locator('button')
-      .filter({ has: this.page.locator('svg') })
-      .nth(1)
-
+    const deleteButton = card.locator(`button[aria-label="Delete ${alias}"]`)
     await deleteButton.click()
 
     const confirmDialog = this.page.locator('.max-w-md:has-text("Delete Integration")')

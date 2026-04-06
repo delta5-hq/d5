@@ -113,7 +113,7 @@ export class OutlineCommand {
     }
 
     const lang = params?.lang
-    const settings = await getIntegrationSettings(this.userId)
+    const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     const llmType = determineLLMType(node?.command, settings)
     const {llm, chunkSize} = getLLM({type: llmType, settings})
     const embeddings = getEmbeddings({type: llmType, settings})
@@ -164,13 +164,8 @@ export class OutlineCommand {
       searchTool = new JSKnowledgeRetryTool(new JSKnowledgeMapSearch(llm, {lang}), {lang}).asTool()
     }
 
-    try {
-      const llmOutput = await runAgent(llm, searchTool, userInput, lang)
-      return formatOutputAsTree(llmOutput, citations, llm, params, settings)
-    } catch (e) {
-      this.logError(e)
-      return ''
-    }
+    const llmOutput = await runAgent(llm, searchTool, userInput, lang)
+    return formatOutputAsTree(llmOutput, citations, llm, params, settings)
   }
 
   getParams = title => {
@@ -236,30 +231,35 @@ export class OutlineCommand {
   }
 
   async run(node, originalPrompt) {
-    let prompt = originalPrompt
-    const title = node?.command || node?.title
+    try {
+      let prompt = originalPrompt
+      const title = node?.command || node?.title
 
-    if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
-      prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
-    } else {
-      prompt = clearCommandsWithParams(
-        clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
-      )
-    }
+      if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
+        prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
+      } else {
+        prompt = clearCommandsWithParams(
+          clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+        )
+      }
 
-    const debuglevel = readDebugLevelParam(title)
-    const levels = readLevelsParam(title)
+      const debuglevel = readDebugLevelParam(title)
+      const levels = readLevelsParam(title)
 
-    const params = this.getParams(title)
+      const params = this.getParams(title)
 
-    if (isOutlineSummarize(title)) {
-      await this.replyWithSummarize(node, title, prompt, params)
-    } else if (debuglevel === DEBUG_LEVEL.Second) {
-      await this.replySecondDebugLevelOutline(node, params)
-    } else if (levels >= LEVELS.Second) {
-      await this.replySecondLevelsOutline(node, prompt, params)
-    } else {
-      await this.replyDefault(node, prompt, params)
+      if (isOutlineSummarize(title)) {
+        await this.replyWithSummarize(node, title, prompt, params)
+      } else if (debuglevel === DEBUG_LEVEL.Second) {
+        await this.replySecondDebugLevelOutline(node, params)
+      } else if (levels >= LEVELS.Second) {
+        await this.replySecondLevelsOutline(node, prompt, params)
+      } else {
+        await this.replyDefault(node, prompt, params)
+      }
+    } catch (e) {
+      this.logError(e)
+      this.store.importer.createNodes(`Error: ${e.message}`, node.id)
     }
   }
 }

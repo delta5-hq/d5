@@ -1,4 +1,4 @@
-import { Trash2, Edit } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import * as React from 'react'
 import { FormattedMessage } from 'react-intl'
 import { toast } from 'sonner'
@@ -22,8 +22,9 @@ interface Props {
   fieldName: string
   titleId: string
   items: ArrayIntegrationItem[]
+  inherited?: boolean
   onAdd: () => void
-  onEdit: (item: ArrayIntegrationItem) => void
+  onEdit: (item?: ArrayIntegrationItem) => void
   refresh: () => Promise<void>
   workflowId?: string | null
 }
@@ -32,6 +33,7 @@ const ArrayIntegrationSection: React.FC<Props> = ({
   fieldName,
   titleId,
   items,
+  inherited = false,
   onAdd,
   onEdit,
   refresh,
@@ -39,7 +41,8 @@ const ArrayIntegrationSection: React.FC<Props> = ({
 }) => {
   const [deleteTarget, setDeleteTarget] = React.useState<string | null>(null)
 
-  const handleDeleteRequest = (alias: string) => {
+  const handleDeleteRequest = (e: React.MouseEvent, alias: string) => {
+    e.stopPropagation()
     setDeleteTarget(alias)
   }
 
@@ -62,11 +65,26 @@ const ArrayIntegrationSection: React.FC<Props> = ({
     setDeleteTarget(null)
   }
 
-  if (items.length === 0) {
+  if (items.length === 0 && !inherited) {
     return <ArrayIntegrationEmptyState fieldName={fieldName} onAdd={onAdd} titleId={titleId} />
   }
 
+  if (items.length === 0 && inherited) {
+    return null
+  }
+
   const getIntegrationType = (item: ArrayIntegrationItem): string | null => item.transport || item.protocol || null
+
+  const getKeyConfigDetail = (item: ArrayIntegrationItem): string | null => {
+    if (item.toolName) return `Tool: ${item.toolName}`
+    if (item.commandTemplate) return item.commandTemplate
+    if (item.command) return item.command
+    return null
+  }
+
+  const cardClassName = inherited
+    ? 'cursor-pointer transition-shadow border-dashed opacity-60'
+    : 'cursor-pointer hover:shadow-md transition-shadow'
 
   return (
     <>
@@ -75,46 +93,48 @@ const ArrayIntegrationSection: React.FC<Props> = ({
           <h3 className="text-lg font-semibold">
             <FormattedMessage id={titleId} />
           </h3>
-          <Button
-            aria-label={`Add ${fieldName} integration`}
-            data-type={`add-${fieldName}`}
-            onClick={onAdd}
-            size="sm"
-            variant="default"
-          >
-            + <FormattedMessage id={`integration.${fieldName}.add`} />
-          </Button>
+          {!inherited ? (
+            <Button
+              aria-label={`Add ${fieldName} integration`}
+              data-type={`add-${fieldName}`}
+              onClick={onAdd}
+              size="sm"
+              variant="default"
+            >
+              + <FormattedMessage id={`integration.${fieldName}.add`} />
+            </Button>
+          ) : null}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map(item => (
-            <Card
-              className="hover:shadow-md transition-shadow"
-              data-alias={item.alias}
-              data-field={fieldName}
-              key={item.alias}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-mono text-sm font-semibold truncate">{item.alias}</h4>
-                      {getIntegrationType(item) ? <IntegrationTypeBadge type={getIntegrationType(item)!} /> : null}
-                    </div>
-                    {item.description ? (
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
-                    ) : null}
-                  </div>
-                  <div className="flex gap-1">
-                    <Button aria-label={`Edit ${item.alias}`} onClick={() => onEdit(item)} size="sm" variant="ghost">
-                      <Edit aria-hidden="true" className="h-3 w-3" />
-                      <span className="sr-only">
-                        <FormattedMessage id="dialog.integration.editAction" />
-                      </span>
-                    </Button>
+          {items.map(item => {
+            const keyDetail = getKeyConfigDetail(item)
+            const integrationType = getIntegrationType(item)
+
+            return (
+              <Card
+                aria-label={`${inherited ? 'Inherited' : 'Edit'} ${item.alias}`}
+                className={cardClassName}
+                data-alias={item.alias}
+                data-field={fieldName}
+                data-inherited={inherited}
+                key={item.alias}
+                onClick={() => onEdit(item)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onEdit(item)
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <CardContent className="p-4 relative">
+                  {!inherited ? (
                     <Button
                       aria-label={`Delete ${item.alias}`}
-                      onClick={() => handleDeleteRequest(item.alias)}
+                      className="absolute top-2 right-2 h-6 w-6 p-0"
+                      onClick={e => handleDeleteRequest(e, item.alias)}
                       size="sm"
                       variant="ghost"
                     >
@@ -123,20 +143,39 @@ const ArrayIntegrationSection: React.FC<Props> = ({
                         <FormattedMessage id="dialog.integration.deleteAction" />
                       </span>
                     </Button>
+                  ) : null}
+                  <div className="flex-1 min-w-0 pr-8">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="font-mono text-lg font-bold truncate">{item.alias}</h4>
+                      {integrationType ? <IntegrationTypeBadge type={integrationType} /> : null}
+                    </div>
+                    {keyDetail ? (
+                      <p className="text-xs text-muted-foreground mb-1 truncate font-mono">{keyDetail}</p>
+                    ) : null}
+                    {item.description ? (
+                      <p className="text-xs text-muted-foreground line-clamp-2">{item.description}</p>
+                    ) : null}
+                    {inherited ? (
+                      <p className="text-xs text-muted-foreground italic mt-2">
+                        <FormattedMessage id="integration.inheritedNote" />
+                      </p>
+                    ) : null}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       </div>
 
-      <DeleteConfirmationDialog
-        alias={deleteTarget || ''}
-        onCancel={handleDeleteCancel}
-        onConfirm={handleDeleteConfirm}
-        open={!!deleteTarget}
-      />
+      {!inherited ? (
+        <DeleteConfirmationDialog
+          alias={deleteTarget || ''}
+          onCancel={handleDeleteCancel}
+          onConfirm={handleDeleteConfirm}
+          open={!!deleteTarget}
+        />
+      ) : null}
     </>
   )
 }
