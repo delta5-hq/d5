@@ -6,6 +6,7 @@ import { RadialFlash, type RadialFlashRef } from './radial-flash'
 import './genie-reading.css'
 
 export type GenieState = 'idle' | 'busy' | 'busy-alert' | 'done-success' | 'done-failure'
+export type GenieVariant = 'full' | 'clipboard'
 
 export interface GenieRef {
   flash: () => void
@@ -21,6 +22,7 @@ export interface GenieProps {
   showHandRibs?: boolean
   flashColor?: string
   nodeId?: string
+  variant?: GenieVariant
 }
 
 const stateToEyeColor: Record<GenieState, string> = {
@@ -43,6 +45,7 @@ export const Genie = forwardRef<GenieRef, GenieProps>(
       showHandRibs = false,
       flashColor,
       nodeId,
+      variant = 'full',
     },
     ref,
   ) => {
@@ -51,24 +54,28 @@ export const Genie = forwardRef<GenieRef, GenieProps>(
     const isBusy = state === 'busy' || state === 'busy-alert'
     const showBackFlash = state === 'busy-alert'
     const eyesOffset = -size * 0.11
+    const isClipboardOnly = variant === 'clipboard'
 
     useImperativeHandle(ref, () => ({
       flash: () => {
+        if (isClipboardOnly) return
         flashRef.current?.flash()
       },
     }))
 
     return (
       <div className={className} style={{ position: 'relative', width: size, height: size }}>
-        <div
-          className={isBusy ? 'genie-reading' : undefined}
-          style={{ position: 'absolute', top: eyesOffset, left: 0 }}
-        >
-          <GenieLottie eyeColor={eyeColor} size={size} variant={showBackFlash ? 'eyes-flash' : 'eyes'} />
-        </div>
+        {isClipboardOnly ? null : (
+          <div
+            className={isBusy ? 'genie-reading' : undefined}
+            style={{ position: 'absolute', top: eyesOffset, left: 0 }}
+          >
+            <GenieLottie eyeColor={eyeColor} size={size} variant={showBackFlash ? 'eyes-flash' : 'eyes'} />
+          </div>
+        )}
         <Clipboard edgeColor={clipboardEdge} fillColor={clipboardFill} size={size} />
-        <Hands fillColor={color} showRibs={showHandRibs} size={size} />
-        <RadialFlash flashColor={flashColor} nodeId={nodeId} ref={flashRef} size={size} />
+        {isClipboardOnly ? null : <Hands fillColor={color} showRibs={showHandRibs} size={size} />}
+        {isClipboardOnly ? null : <RadialFlash flashColor={flashColor} nodeId={nodeId} ref={flashRef} size={size} />}
       </div>
     )
   },

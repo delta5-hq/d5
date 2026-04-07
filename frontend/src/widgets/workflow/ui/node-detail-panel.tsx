@@ -135,6 +135,11 @@ export const NodeDetailPanel = ({
     [node.id, onShiftCtrlEnterInCommand],
   )
 
+  const hasCommand = Boolean(node.command?.trim())
+  const genieVariant = hasCommand ? 'full' : 'clipboard'
+  const genieColor = hasCommand ? getColorForRole(getCommandRole(extractQueryTypeFromCommand(node.command))) : '#9e9e9e'
+  const genieShowHandRibs = hasCommand
+
   return (
     <div className="text-sm 3xl:flex 3xl:gap-6 3xl:items-start" data-testid="node-detail-panel">
       <div className="flex-1 space-y-4">
@@ -264,10 +269,11 @@ export const NodeDetailPanel = ({
                 <Genie
                   clipboardEdge="#424242"
                   clipboardFill="#ffffff"
-                  color={getColorForRole(getCommandRole(extractQueryTypeFromCommand(node.command)))}
-                  showHandRibs={Boolean(node.command)}
+                  color={genieColor}
+                  showHandRibs={genieShowHandRibs}
                   size={80}
                   state={genieState}
+                  variant={genieVariant}
                 />
               </div>
             </div>
