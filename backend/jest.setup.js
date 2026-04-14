@@ -2,6 +2,7 @@ const {ReadableStream, TransformStream} = require('node:stream/web')
 
 global.ReadableStream = ReadableStream
 global.TransformStream = TransformStream
+global.fetch = global.fetch ?? require('node-fetch')
 
 jest.mock('sharp', () => {
   return jest.fn(() => ({

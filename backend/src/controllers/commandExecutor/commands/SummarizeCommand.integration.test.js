@@ -67,7 +67,7 @@ describe('SummarizeCommand integration', () => {
     })
 
     jest
-      .spyOn(BaseChain.prototype, 'call')
+      .spyOn(BaseChain.prototype, 'invoke')
       .mockResolvedValueOnce({output_text: 'Sum1 response'})
       .mockResolvedValueOnce({output_text: 'Sum2 response'})
 
@@ -129,7 +129,7 @@ describe('SummarizeCommand integration', () => {
     })
 
     jest
-      .spyOn(BaseChain.prototype, 'call')
+      .spyOn(BaseChain.prototype, 'invoke')
       .mockResolvedValueOnce({output_text: 'Sum1 response'})
       .mockResolvedValueOnce({output_text: 'Sum2 response'})
 

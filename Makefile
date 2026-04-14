@@ -308,6 +308,8 @@ e2e-frontend: start-mongodb-e2e e2e-db-init
 		tail -10 backend-v2/logs/backend-e2e.log 2>/dev/null || true; \
 		exit 1; \
 	fi
+	@until curl -s http://localhost:$(E2E_BACKEND_PORT)$(API_ROOT)/health > /dev/null 2>&1; do sleep 2; done
+	@sleep 2
 	@echo "→ Starting E2E frontend (port $(E2E_FRONTEND_PORT))..."
 	@lsof -ti:$(E2E_FRONTEND_PORT) 2>/dev/null | xargs -r kill -9 2>/dev/null || true
 	@cd frontend && bash -c 'VITE_V2_API_URL=http://localhost:$(E2E_BACKEND_PORT) VITE_BASE_API_URL=http://localhost:$(E2E_BACKEND_PORT) nohup pnpm dev --port $(E2E_FRONTEND_PORT) > /tmp/vite-e2e.log 2>&1 & echo $$! > /tmp/vite-e2e.pid'
