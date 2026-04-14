@@ -210,6 +210,7 @@ describe('RPCCommand', () => {
         headers: {'Content-Type': 'application/json'},
         body: '{"query":"say \\"hello\\""}',
         timeoutMs: 30000,
+        signal: null,
       })
     })
 
@@ -931,6 +932,84 @@ describe('RPCCommand', () => {
         expect.objectContaining({
           workingDir: '/home/user',
           timeoutMs: 120000,
+        }),
+      )
+    })
+  })
+
+  describe('abort signal support', () => {
+    it('passes signal to HTTP executor', async () => {
+      const command = new RPCCommand(userId, workflowId, mockStore, httpAliasConfig)
+      const abortController = new AbortController()
+      const node = {id: 'node1', command: '/http1 test'}
+
+      await command.run(node, null, null, {signal: abortController.signal})
+
+      expect(mockHTTPExecutor.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          signal: abortController.signal,
+        }),
+      )
+    })
+
+    it('passes signal to ACP executor via executeACP', async () => {
+      const acpConfig = {
+        alias: '/ide',
+        protocol: 'acp-local',
+        command: 'claude',
+        args: '--ide',
+        outputFormat: 'text',
+      }
+
+      const command = new RPCCommand(userId, workflowId, mockStore, acpConfig)
+      const abortController = new AbortController()
+
+      const executeSpy = jest.spyOn(command, 'executeACP').mockResolvedValue({
+        output: 'done',
+        sessionId: null,
+        exitCode: 0,
+      })
+
+      const node = {id: 'node1', command: '/ide build'}
+
+      await command.run(node, null, null, {signal: abortController.signal})
+
+      expect(executeSpy).toHaveBeenCalledWith(expect.any(String), null, abortController.signal)
+    })
+
+    it('creates error node when signal already aborted', async () => {
+      const command = new RPCCommand(userId, workflowId, mockStore, httpAliasConfig)
+      const abortController = new AbortController()
+      abortController.abort()
+
+      const node = {id: 'node1', command: '/http1 test'}
+
+      await command.run(node, null, null, {signal: abortController.signal})
+
+      expect(mockHTTPExecutor.execute).not.toHaveBeenCalled()
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: Operation aborted', 'node1')
+    })
+
+    it('accepts run with no options parameter for backward compatibility', async () => {
+      const command = new RPCCommand(userId, workflowId, mockStore, sshAliasConfig)
+      const node = {id: 'node1', command: '/vm1 test'}
+
+      await command.run(node, null, null)
+
+      expect(mockSSHExecutor.execute).toHaveBeenCalled()
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('ssh output', 'node1')
+    })
+
+    it('does not propagate signal to SSH executor', async () => {
+      const command = new RPCCommand(userId, workflowId, mockStore, sshAliasConfig)
+      const abortController = new AbortController()
+      const node = {id: 'node1', command: '/vm1 test'}
+
+      await command.run(node, null, null, {signal: abortController.signal})
+
+      expect(mockSSHExecutor.execute).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          signal: expect.anything(),
         }),
       )
     })

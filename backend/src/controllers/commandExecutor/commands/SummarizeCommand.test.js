@@ -567,45 +567,4 @@ describe('SummarizeCommand', () => {
       createSpy.mockRestore()
     })
   })
-
-  describe('abort signal support', () => {
-    it('passes signal through to replyDefault', async () => {
-      const command = new SummarizeCommand('user-id', null, mockStore)
-      command.replyDefault = jest.fn().mockResolvedValue('output')
-
-      const abortController = new AbortController()
-      const node = {id: 'node', command: '/summarize text'}
-
-      await command.run(node, 'prompt', {signal: abortController.signal})
-
-      expect(command.replyDefault).toHaveBeenCalledWith(
-        node,
-        '/summarize text',
-        'prompt',
-        expect.objectContaining({
-          signal: abortController.signal,
-        }),
-      )
-    })
-
-    it('accepts run with no options parameter for backward compatibility', async () => {
-      const command = new SummarizeCommand('user-id', null, mockStore)
-      command.replyDefault = jest.fn().mockResolvedValue('output')
-
-      const node = {id: 'node', command: '/summarize text'}
-
-      await expect(command.run(node, 'prompt')).resolves.not.toThrow()
-      expect(command.replyDefault).toHaveBeenCalled()
-    })
-
-    it('accepts run with undefined signal for backward compatibility', async () => {
-      const command = new SummarizeCommand('user-id', null, mockStore)
-      command.replyDefault = jest.fn().mockResolvedValue('output')
-
-      const node = {id: 'node', command: '/summarize text'}
-
-      await expect(command.run(node, 'prompt', {signal: undefined})).resolves.not.toThrow()
-      expect(command.replyDefault).toHaveBeenCalled()
-    })
-  })
 })

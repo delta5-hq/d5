@@ -45,7 +45,9 @@ export const WorkflowScopeSelector: React.FC<WorkflowScopeSelectorProps> = ({ va
       <p className="text-xs text-muted-foreground">
         <FormattedMessage
           id={
-            value ? 'integration.workflowScope.descriptionWorkflow' : 'integration.workflowScope.descriptionUserLevel'
+            value === null
+              ? 'integration.workflowScope.descriptionUserLevel'
+              : 'integration.workflowScope.descriptionWorkflow'
           }
         />
       </p>

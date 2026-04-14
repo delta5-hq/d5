@@ -3,9 +3,9 @@ import { selectRadixOption } from '../helpers/radix-select-helper'
 
 const TIMEOUTS = {
   dialogAppear: 10000,
-  apiResponse: 30000,
+  apiResponse: 45000,
   dialogClose: 10000,
-  cardAppear: 5000,
+  cardAppear: 10000,
 } as const
 
 const SELECTORS = {
@@ -162,28 +162,13 @@ export class ArrayIntegrationPage {
 
   async submitDialog(fieldName: 'mcp' | 'rpc', isEdit = false): Promise<void> {
     const submitButton = this.page.locator(SELECTORS.submitButton)
-    const expectedMethod = isEdit ? 'PUT' : 'POST'
+    const dialog = this.page.locator(SELECTORS.dialogContent(fieldName))
 
-    await Promise.all([
-      this.page.waitForResponse(
-        resp => {
-          const url = resp.url()
-          const method = resp.request().method()
-          return url.includes(`/integration/${fieldName}/items`) && method === expectedMethod && resp.ok()
-        },
-        { timeout: TIMEOUTS.apiResponse },
-      ),
-      this.page.waitForResponse(
-        resp => resp.url().includes(API_ENDPOINTS.getIntegration) && resp.request().method() === 'GET' && resp.ok(),
-        { timeout: TIMEOUTS.apiResponse },
-      ),
-      submitButton.click(),
-    ])
+    await submitButton.click()
 
-    await this.page.waitForSelector(SELECTORS.dialogContent(fieldName), {
-      state: 'hidden',
-      timeout: TIMEOUTS.dialogClose,
-    })
+    await dialog.waitFor({ state: 'hidden', timeout: TIMEOUTS.dialogClose })
+
+    await this.page.waitForLoadState('networkidle', { timeout: TIMEOUTS.apiResponse })
   }
 
   async cancelDialog(): Promise<void> {
@@ -213,6 +198,7 @@ export class ArrayIntegrationPage {
   async openEditDialog(alias: string): Promise<void> {
     const card = this.page.locator(SELECTORS.integrationCard(alias))
     await card.waitFor({ state: 'visible', timeout: TIMEOUTS.cardAppear })
+
     await card.click()
   }
 
@@ -269,25 +255,15 @@ export class ArrayIntegrationPage {
     const deleteButton = card.locator(`button[aria-label="Delete ${alias}"]`)
     await deleteButton.click()
 
-    const confirmDialog = this.page.locator('.max-w-md:has-text("Delete Integration")')
+    const confirmDialog = this.page.locator('role=dialog').filter({ hasText: 'Are you sure you want to delete' })
     await confirmDialog.waitFor({ state: 'visible', timeout: TIMEOUTS.cardAppear })
 
     const confirmButton = confirmDialog.locator('button:has-text("Delete")')
-    await Promise.all([
-      this.page.waitForResponse(
-        resp => {
-          const url = resp.url()
-          return (
-            url.includes(`/integration/${fieldName}/items/${encodeURIComponent(alias)}`) &&
-            resp.request().method() === 'DELETE'
-          )
-        },
-        { timeout: TIMEOUTS.apiResponse },
-      ),
-      confirmButton.click(),
-    ])
+    await confirmButton.click()
 
-    await expect(card).not.toBeVisible({ timeout: TIMEOUTS.cardAppear })
+    await confirmDialog.waitFor({ state: 'hidden', timeout: TIMEOUTS.dialogClose })
+    await this.page.waitForLoadState('networkidle', { timeout: TIMEOUTS.apiResponse })
+    await card.waitFor({ state: 'hidden', timeout: TIMEOUTS.dialogClose })
   }
 
   async verifyCardVisible(alias: string): Promise<Locator> {

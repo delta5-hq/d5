@@ -34,6 +34,7 @@ export class DeepseekCommand {
     if (this.workflowId) {
       this.log = this.log.extend(workflowId, '#')
     }
+    this.logError = this.log.extend('ERROR*', '::')
   }
 
   async replyDeepseek(message, userId, workflowId, store) {

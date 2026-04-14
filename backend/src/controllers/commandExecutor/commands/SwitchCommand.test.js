@@ -144,43 +144,37 @@ describe('SwitchCommand', () => {
       expect(result).toBe('content')
     })
 
-    it('should propagate rate limit errors from LLM', async () => {
-      const userPrompt = 'user'
-      const sysPrompt = 'system'
-
+    it('should return empty string and log error on rate limit errors from LLM', async () => {
       jest.spyOn(command, 'executeSwitch').mockRestore()
 
       const mockLLM = {
         invoke: jest.fn().mockRejectedValue(new Error('Rate limit exceeded')),
       }
 
-      await expect(command.executeSwitch(userPrompt, sysPrompt, mockLLM)).rejects.toThrow('Rate limit exceeded')
+      const result = await command.executeSwitch('user', 'system', mockLLM)
+      expect(result).toBe('')
     })
 
-    it('should propagate network errors from LLM', async () => {
-      const userPrompt = 'user'
-      const sysPrompt = 'system'
-
+    it('should return empty string and log error on network errors from LLM', async () => {
       jest.spyOn(command, 'executeSwitch').mockRestore()
 
       const mockLLM = {
         invoke: jest.fn().mockRejectedValue(new Error('ECONNREFUSED')),
       }
 
-      await expect(command.executeSwitch(userPrompt, sysPrompt, mockLLM)).rejects.toThrow('ECONNREFUSED')
+      const result = await command.executeSwitch('user', 'system', mockLLM)
+      expect(result).toBe('')
     })
 
-    it('should propagate authentication errors from LLM', async () => {
-      const userPrompt = 'user'
-      const sysPrompt = 'system'
-
+    it('should return empty string and log error on authentication errors from LLM', async () => {
       jest.spyOn(command, 'executeSwitch').mockRestore()
 
       const mockLLM = {
         invoke: jest.fn().mockRejectedValue(new Error('Invalid API key')),
       }
 
-      await expect(command.executeSwitch(userPrompt, sysPrompt, mockLLM)).rejects.toThrow('Invalid API key')
+      const result = await command.executeSwitch('user', 'system', mockLLM)
+      expect(result).toBe('')
     })
   })
 

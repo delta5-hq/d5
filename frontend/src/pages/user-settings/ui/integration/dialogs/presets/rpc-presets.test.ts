@@ -22,7 +22,7 @@ interface RPCFormFlat {
 describe('RPC_PRESETS', () => {
   describe('preset collection structure', () => {
     it('maintains stable preset count (breaking change detection)', () => {
-      expect(RPC_PRESETS).toHaveLength(7)
+      expect(RPC_PRESETS).toHaveLength(8)
     })
 
     it('enforces unique preset identifiers', () => {
@@ -400,6 +400,90 @@ describe('RPC_PRESETS', () => {
       getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
 
       expect(setValue).toHaveBeenCalledWith('outputFormat', 'text')
+    })
+  })
+
+  describe('Playwright CLI SSH preset behavior', () => {
+    const getPreset = () => RPC_PRESETS.find(p => p.id === 'qa-playwright-ssh')!
+
+    it('exists in preset collection', () => {
+      expect(getPreset()).toBeDefined()
+    })
+
+    it('sets protocol to SSH before other fields', () => {
+      const setValue = vi.fn()
+      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+
+      const firstCall = setValue.mock.calls[0] as unknown[]
+      expect(firstCall).toEqual(['protocol', 'ssh'])
+    })
+
+    it('configures complete SSH integration fields', () => {
+      const setValue = vi.fn()
+      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+
+      expect(setValue).toHaveBeenCalledWith('protocol', 'ssh')
+      expect(setValue).toHaveBeenCalledWith(
+        'commandTemplate',
+        'cd /workspace && npx playwright test {{prompt}} --reporter=json',
+      )
+      expect(setValue).toHaveBeenCalledWith('outputFormat', 'json')
+      expect(setValue).toHaveBeenCalledWith('outputField', 'output')
+      expect(setValue).toHaveBeenCalledWith('description', 'Run Playwright tests via SSH')
+      expect(setValue).toHaveBeenCalledWith('timeoutMs', 300000)
+    })
+
+    it('sets exactly 6 fields (no more, no less)', () => {
+      const setValue = vi.fn()
+      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+
+      expect(setValue).toHaveBeenCalledTimes(6)
+    })
+
+    it('uses JSON output format for structured data', () => {
+      const setValue = vi.fn()
+      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+
+      expect(setValue).toHaveBeenCalledWith('outputFormat', 'json')
+    })
+
+    it('sets 5-minute timeout for test execution', () => {
+      const setValue = vi.fn()
+      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+
+      expect(setValue).toHaveBeenCalledWith('timeoutMs', 300000)
+    })
+
+    it('includes working directory in command template', () => {
+      const setValue = vi.fn()
+      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+
+      const commandTemplateCall = setValue.mock.calls.find((call: unknown[]) => call[0] === 'commandTemplate')
+      expect(commandTemplateCall![1]).toContain('cd /workspace')
+    })
+
+    it('uses npx for package execution', () => {
+      const setValue = vi.fn()
+      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+
+      const commandTemplateCall = setValue.mock.calls.find((call: unknown[]) => call[0] === 'commandTemplate')
+      expect(commandTemplateCall![1]).toContain('npx playwright test')
+    })
+
+    it('uses JSON reporter for structured output', () => {
+      const setValue = vi.fn()
+      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+
+      const commandTemplateCall = setValue.mock.calls.find((call: unknown[]) => call[0] === 'commandTemplate')
+      expect(commandTemplateCall![1]).toContain('--reporter=json')
+    })
+
+    it('includes prompt placeholder in command template', () => {
+      const setValue = vi.fn()
+      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+
+      const commandTemplateCall = setValue.mock.calls.find((call: unknown[]) => call[0] === 'commandTemplate')
+      expect(commandTemplateCall![1]).toContain('{{prompt}}')
     })
   })
 })

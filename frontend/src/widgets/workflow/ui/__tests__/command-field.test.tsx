@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import React from 'react'
 import { CommandField } from '../command-field'
+import { AliasProvider } from '@entities/aliases'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 type ComboCase = readonly [
   label: string,
@@ -15,7 +18,13 @@ const KEY_COMBOS: readonly ComboCase[] = [
   ['Shift+Ctrl+Enter', { ctrlKey: true, shiftKey: true }, 'onShiftCtrlEnter', false],
 ] as const
 
+interface MockIntegrationItem {
+  alias: string
+  description?: string
+}
+
 const storage: Record<string, string> = {}
+let mockIntegrationData: { mcp: MockIntegrationItem[]; rpc: MockIntegrationItem[] } = { mcp: [], rpc: [] }
 
 vi.mock('@shared/lib/storage', () => ({
   safeLocalStorage: {
@@ -29,8 +38,16 @@ vi.mock('@shared/lib/storage', () => ({
   },
 }))
 
+vi.mock('@shared/composables', () => ({
+  useApiQuery: () => ({
+    data: mockIntegrationData,
+    isLoading: false,
+  }),
+}))
+
 beforeEach(() => {
   Object.keys(storage).forEach(k => delete storage[k])
+  mockIntegrationData = { mcp: [], rpc: [] }
   vi.clearAllMocks()
 })
 
@@ -42,7 +59,19 @@ const IDLE_COMMIT_MS = 3000
 
 function renderField(overrides: Partial<Parameters<typeof CommandField>[0]> = {}) {
   const onChange = vi.fn()
-  const result = render(<CommandField nodeId={NODE_A} onChange={onChange} value="" {...overrides} />)
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
+  })
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>
+      <AliasProvider>{children}</AliasProvider>
+    </QueryClientProvider>
+  )
+  const result = render(<CommandField nodeId={NODE_A} onChange={onChange} value="" {...overrides} />, {
+    wrapper: Wrapper,
+  })
   const textarea = () => screen.getByRole('textbox')
   return { ...result, onChange, textarea }
 }
@@ -638,6 +667,443 @@ describe('CommandField', () => {
       fireEvent.blur(textarea())
       rerender(<CommandField nodeId={NODE_B} onChange={onChange} value="committed-b" />)
       expect(onChange).toHaveBeenCalledWith('draft-a')
+    })
+  })
+
+  describe('Command autocomplete', () => {
+    describe('Popover lifecycle', () => {
+      it('shows autocomplete popover when user types / at position 0', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/c' } })
+
+        const items = document.querySelectorAll('[data-type="autocomplete-item"]')
+        expect(items.length).toBeGreaterThan(0)
+      })
+
+      it('hides autocomplete popover when / is typed on a line other than the first', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: 'hello\n/ch' } })
+
+        const items = document.querySelectorAll('[data-type="autocomplete-item"]')
+        expect(items.length).toBe(0)
+      })
+
+      it('hides autocomplete popover when cursor is past the first word', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/chat hello' } })
+
+        const items = document.querySelectorAll('[data-type="autocomplete-item"]')
+        expect(items.length).toBe(0)
+      })
+
+      it('hides autocomplete when text does not start with /', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: 'hello' } })
+
+        const items = document.querySelectorAll('[data-type="autocomplete-item"]')
+        expect(items.length).toBe(0)
+      })
+    })
+
+    describe('Suggestion filtering', () => {
+      it('filters suggestions by prefix match (case-insensitive)', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/ch' } })
+
+        const items = document.querySelectorAll('[data-type="autocomplete-item"]')
+        const commands = Array.from(items).map(el => el.getAttribute('data-command'))
+
+        expect(commands.length).toBeGreaterThan(0)
+        commands.forEach(cmd => {
+          expect(cmd?.toLowerCase().startsWith('/ch')).toBe(true)
+        })
+      })
+
+      it('narrows results as prefix becomes more specific', () => {
+        const { textarea } = renderField({ value: '' })
+
+        fireEvent.change(textarea(), { target: { value: '/c' } })
+        const itemsWithC = document.querySelectorAll('[data-type="autocomplete-item"]').length
+
+        fireEvent.change(textarea(), { target: { value: '/ch' } })
+        const itemsWithCh = document.querySelectorAll('[data-type="autocomplete-item"]').length
+
+        fireEvent.change(textarea(), { target: { value: '/chatg' } })
+        const itemsWithChatg = document.querySelectorAll('[data-type="autocomplete-item"]').length
+
+        expect(itemsWithC).toBeGreaterThan(itemsWithCh)
+        expect(itemsWithCh).toBeGreaterThan(itemsWithChatg)
+        expect(itemsWithChatg).toBeGreaterThanOrEqual(1)
+      })
+
+      it('shows all available commands when prefix is just /', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/' } })
+
+        const items = document.querySelectorAll('[data-type="autocomplete-item"]')
+        const commands = Array.from(items).map(el => el.getAttribute('data-command'))
+
+        commands.forEach(cmd => {
+          expect(cmd?.startsWith('/')).toBe(true)
+        })
+        expect(commands.length).toBeGreaterThan(0)
+      })
+
+      it('returns empty results when no commands match prefix', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/nonexistent' } })
+
+        const items = document.querySelectorAll('[data-type="autocomplete-item"]')
+        expect(items.length).toBe(0)
+      })
+
+      it('filtering respects both builtin commands and dynamic aliases', () => {
+        mockIntegrationData.mcp = [{ alias: '/custom', description: 'Custom MCP' }]
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/c' } })
+
+        const items = document.querySelectorAll('[data-type="autocomplete-item"]')
+        const commands = Array.from(items).map(el => el.getAttribute('data-command'))
+
+        expect(commands).toContain('/custom')
+        expect(commands.some(cmd => cmd?.startsWith('/c'))).toBe(true)
+      })
+    })
+
+    describe('Keyboard navigation', () => {
+      it('Enter selects the highlighted suggestion instead of executing the command', () => {
+        const onEnter = vi.fn()
+        const { textarea } = renderField({ value: '', onEnter })
+        fireEvent.change(textarea(), { target: { value: '/ch' } })
+        fireEvent.keyDown(textarea(), { key: 'Enter' })
+
+        expect(onEnter).not.toHaveBeenCalled()
+        expect(textarea()).toHaveValue('/chatgpt ')
+      })
+
+      it('Tab selects the highlighted suggestion', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/ch' } })
+        fireEvent.keyDown(textarea(), { key: 'Tab' })
+
+        expect(textarea()).toHaveValue('/chatgpt ')
+      })
+
+      it('Escape dismisses the popover without reverting text', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/ch' } })
+        fireEvent.keyDown(textarea(), { key: 'Escape' })
+
+        const items = document.querySelectorAll('[data-type="autocomplete-item"]')
+        expect(items.length).toBe(0)
+        expect(textarea()).toHaveValue('/ch')
+      })
+
+      it('second Escape after popover dismissed reverts text to committed value', () => {
+        const { textarea } = renderField({ value: 'original' })
+        fireEvent.change(textarea(), { target: { value: '/ch' } })
+        fireEvent.keyDown(textarea(), { key: 'Escape' })
+        fireEvent.keyDown(textarea(), { key: 'Escape' })
+
+        expect(textarea()).toHaveValue('original')
+      })
+
+      it('ArrowDown navigates to next suggestion', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/ch' } })
+
+        const itemsBefore = document.querySelectorAll('[data-type="autocomplete-item"]')
+        const firstItemBefore = itemsBefore[0] as HTMLElement
+        const classListBefore = Array.from(firstItemBefore.classList)
+        expect(classListBefore.filter(c => c === 'bg-accent').length).toBe(1)
+
+        fireEvent.keyDown(textarea(), { key: 'ArrowDown' })
+
+        const itemsAfter = document.querySelectorAll('[data-type="autocomplete-item"]')
+        const firstItemAfter = itemsAfter[0] as HTMLElement
+        const secondItemAfter = itemsAfter[1] as HTMLElement
+        const firstClassList = Array.from(firstItemAfter.classList)
+        const secondClassList = Array.from(secondItemAfter.classList)
+        expect(firstClassList.filter(c => c === 'bg-accent').length).toBe(0)
+        expect(secondClassList.filter(c => c === 'bg-accent').length).toBe(1)
+      })
+
+      it('ArrowUp navigates to previous suggestion', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/ch' } })
+
+        fireEvent.keyDown(textarea(), { key: 'ArrowDown' })
+        fireEvent.keyDown(textarea(), { key: 'ArrowUp' })
+
+        const items = document.querySelectorAll('[data-type="autocomplete-item"]')
+        const firstItem = items[0] as HTMLElement
+        const classList = Array.from(firstItem.classList)
+        expect(classList.filter(c => c === 'bg-accent').length).toBe(1)
+      })
+
+      it('ArrowDown clamps at last suggestion boundary', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/chatg' } })
+
+        const items = document.querySelectorAll('[data-type="autocomplete-item"]')
+        const lastIndex = items.length - 1
+
+        for (let i = 0; i <= lastIndex + 5; i++) {
+          fireEvent.keyDown(textarea(), { key: 'ArrowDown' })
+        }
+
+        const itemsAfter = document.querySelectorAll('[data-type="autocomplete-item"]')
+        const lastItem = itemsAfter[lastIndex] as HTMLElement
+        const classList = Array.from(lastItem.classList)
+        expect(classList.filter(c => c === 'bg-accent').length).toBe(1)
+      })
+
+      it('ArrowUp clamps at first suggestion boundary', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/ch' } })
+
+        for (let i = 0; i < 5; i++) {
+          fireEvent.keyDown(textarea(), { key: 'ArrowUp' })
+        }
+
+        const items = document.querySelectorAll('[data-type="autocomplete-item"]')
+        const firstItem = items[0] as HTMLElement
+        const classList = Array.from(firstItem.classList)
+        expect(classList.filter(c => c === 'bg-accent').length).toBe(1)
+      })
+    })
+
+    describe('Selection behavior', () => {
+      it('selection replaces partial command with complete command plus trailing space', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/ch' } })
+        fireEvent.keyDown(textarea(), { key: 'Enter' })
+
+        const value = (textarea() as HTMLTextAreaElement).value
+        expect(value).toBe('/chatgpt ')
+        expect(value.endsWith(' ')).toBe(true)
+      })
+
+      it('selection via Tab produces same result as Enter', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/w' } })
+        fireEvent.keyDown(textarea(), { key: 'Tab' })
+
+        const value = (textarea() as HTMLTextAreaElement).value
+        expect(value.startsWith('/web ')).toBe(true)
+        expect(value.endsWith(' ')).toBe(true)
+      })
+
+      it('selection focuses textarea after completion', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/w' } })
+        fireEvent.keyDown(textarea(), { key: 'Enter' })
+
+        expect(document.activeElement).toBe(textarea())
+      })
+
+      it('selection closes the popover', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/ch' } })
+
+        const itemsBefore = document.querySelectorAll('[data-type="autocomplete-item"]')
+        expect(itemsBefore.length).toBeGreaterThan(0)
+
+        fireEvent.keyDown(textarea(), { key: 'Enter' })
+
+        const itemsAfter = document.querySelectorAll('[data-type="autocomplete-item"]')
+        expect(itemsAfter.length).toBe(0)
+      })
+    })
+
+    describe('Badge rendering', () => {
+      it('built-in commands show builtin badge and description', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/web' } })
+
+        const item = document.querySelector('[data-command="/web"]')
+        expect(item).toBeTruthy()
+        expect(item?.getAttribute('data-badge')).toBe('builtin')
+        expect(item?.textContent).toContain('Search web')
+      })
+
+      it('shows all builtin commands with builtin badge', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/' } })
+
+        const builtinItems = document.querySelectorAll('[data-badge="builtin"]')
+        expect(builtinItems.length).toBeGreaterThan(20)
+      })
+    })
+
+    describe('MCP/RPC aliases', () => {
+      it('MCP aliases appear in suggestions with mcp badge', () => {
+        mockIntegrationData.mcp = [{ alias: '/code', description: 'AI coder' }]
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/co' } })
+
+        const item = document.querySelector('[data-command="/code"]')
+        expect(item).toBeTruthy()
+        expect(item?.getAttribute('data-badge')).toBe('mcp')
+        expect(item?.textContent).toContain('AI coder')
+      })
+
+      it('RPC aliases appear in suggestions with rpc badge', () => {
+        mockIntegrationData.rpc = [{ alias: '/qa', description: 'QA testing' }]
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/q' } })
+
+        const item = document.querySelector('[data-command="/qa"]')
+        expect(item).toBeTruthy()
+        expect(item?.getAttribute('data-badge')).toBe('rpc')
+        expect(item?.textContent).toContain('QA testing')
+      })
+
+      it('MCP and RPC aliases appear together with builtin commands', () => {
+        mockIntegrationData.mcp = [{ alias: '/code', description: 'AI coder' }]
+        mockIntegrationData.rpc = [{ alias: '/qa', description: 'QA' }]
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/' } })
+
+        const mcpItems = document.querySelectorAll('button[data-badge="mcp"]')
+        const rpcItems = document.querySelectorAll('button[data-badge="rpc"]')
+        const builtinItems = document.querySelectorAll('button[data-badge="builtin"]')
+
+        expect(mcpItems.length).toBe(1)
+        expect(rpcItems.length).toBe(1)
+        expect(builtinItems.length).toBeGreaterThan(20)
+      })
+
+      it('aliases without description show empty description', () => {
+        mockIntegrationData.mcp = [{ alias: '/nodesc' }]
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/nodesc' } })
+
+        const item = document.querySelector('[data-command="/nodesc"]')
+        expect(item).toBeTruthy()
+        expect(item?.getAttribute('data-badge')).toBe('mcp')
+      })
+    })
+
+    describe('Edge cases and boundary conditions', () => {
+      it('handles rapid text changes without breaking state', () => {
+        const { textarea } = renderField({ value: '' })
+
+        fireEvent.change(textarea(), { target: { value: '/' } })
+        fireEvent.change(textarea(), { target: { value: '/c' } })
+        fireEvent.change(textarea(), { target: { value: '/ch' } })
+        fireEvent.change(textarea(), { target: { value: '/cha' } })
+        fireEvent.change(textarea(), { target: { value: '/chat' } })
+
+        const items = document.querySelectorAll('[data-type="autocomplete-item"]')
+        expect(items.length).toBeGreaterThan(0)
+      })
+
+      it('popover remains hidden when text changes away from slash prefix', () => {
+        const { textarea } = renderField({ value: '' })
+
+        fireEvent.change(textarea(), { target: { value: '/ch' } })
+        const itemsBefore = document.querySelectorAll('[data-type="autocomplete-item"]')
+        expect(itemsBefore.length).toBeGreaterThan(0)
+
+        fireEvent.change(textarea(), { target: { value: 'hello' } })
+        const itemsAfter = document.querySelectorAll('[data-type="autocomplete-item"]')
+        expect(itemsAfter.length).toBe(0)
+      })
+
+      it('keyboard navigation interacts correctly with existing commit shortcuts', () => {
+        const onCtrlEnter = vi.fn()
+        const { textarea } = renderField({ value: '', onCtrlEnter })
+
+        fireEvent.change(textarea(), { target: { value: '/ch' } })
+        fireEvent.keyDown(textarea(), { key: 'Enter', ctrlKey: true })
+
+        expect(onCtrlEnter).toHaveBeenCalledWith('/ch')
+        expect(textarea()).toHaveValue('/ch')
+      })
+
+      it('Escape respects double-press behavior with autocomplete open', () => {
+        const { textarea } = renderField({ value: 'committed' })
+
+        fireEvent.change(textarea(), { target: { value: '/ch' } })
+        const itemsAfterChange = document.querySelectorAll('[data-type="autocomplete-item"]')
+        expect(itemsAfterChange.length).toBeGreaterThan(0)
+
+        fireEvent.keyDown(textarea(), { key: 'Escape' })
+        const itemsAfterFirstEscape = document.querySelectorAll('[data-type="autocomplete-item"]')
+        expect(itemsAfterFirstEscape.length).toBe(0)
+        expect(textarea()).toHaveValue('/ch')
+
+        fireEvent.keyDown(textarea(), { key: 'Escape' })
+        expect(textarea()).toHaveValue('committed')
+      })
+
+      it('maintains correct highlight when suggestions change mid-navigation', () => {
+        const { textarea } = renderField({ value: '' })
+
+        fireEvent.change(textarea(), { target: { value: '/c' } })
+        fireEvent.keyDown(textarea(), { key: 'ArrowDown' })
+        fireEvent.keyDown(textarea(), { key: 'ArrowDown' })
+
+        fireEvent.change(textarea(), { target: { value: '/ch' } })
+
+        const items = document.querySelectorAll('[data-type="autocomplete-item"]')
+        const firstItem = items[0] as HTMLElement
+        const classList = Array.from(firstItem.classList)
+        expect(classList.filter(c => c === 'bg-accent').length).toBe(1)
+      })
+
+      it('popover does not trigger on empty field', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '' } })
+
+        const items = document.querySelectorAll('[data-type="autocomplete-item"]')
+        expect(items.length).toBe(0)
+      })
+
+      it('popover does not trigger on whitespace-only input', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '   ' } })
+
+        const items = document.querySelectorAll('[data-type="autocomplete-item"]')
+        expect(items.length).toBe(0)
+      })
+
+      it('Enter without autocomplete open executes command normally', () => {
+        const onEnter = vi.fn()
+        const { textarea } = renderField({ value: 'hello', onEnter })
+
+        fireEvent.change(textarea(), { target: { value: 'hello world' } })
+        fireEvent.keyDown(textarea(), { key: 'Enter' })
+
+        expect(onEnter).toHaveBeenCalledWith('hello world')
+      })
+
+      it('ArrowDown/ArrowUp without autocomplete open do not throw errors', () => {
+        const { textarea } = renderField({ value: 'hello' })
+
+        expect(() => {
+          fireEvent.keyDown(textarea(), { key: 'ArrowDown' })
+          fireEvent.keyDown(textarea(), { key: 'ArrowUp' })
+        }).not.toThrow()
+      })
+
+      it('multiple aliases with same prefix are all shown', () => {
+        mockIntegrationData.mcp = [
+          { alias: '/test1', description: 'Test 1' },
+          { alias: '/test2', description: 'Test 2' },
+          { alias: '/test3', description: 'Test 3' },
+        ]
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/test' } })
+
+        const items = document.querySelectorAll('[data-type="autocomplete-item"]')
+        const commands = Array.from(items).map(el => el.getAttribute('data-command'))
+
+        expect(commands).toContain('/test1')
+        expect(commands).toContain('/test2')
+        expect(commands).toContain('/test3')
+      })
     })
   })
 })

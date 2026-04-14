@@ -33,6 +33,7 @@ export class QwenCommand {
     if (this.workflowId) {
       this.log = this.log.extend(workflowId, '#')
     }
+    this.logError = this.log.extend('ERROR*', '::')
   }
 
   async replyQwen(messages) {

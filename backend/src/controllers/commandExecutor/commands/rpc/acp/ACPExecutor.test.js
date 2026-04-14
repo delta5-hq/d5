@@ -478,6 +478,134 @@ describe('ACPExecutor', () => {
     })
   })
 
+  describe('abort signal handling', () => {
+    it('throws immediately if signal already aborted', async () => {
+      const abortController = new AbortController()
+      abortController.abort()
+
+      const executor = new ACPExecutor()
+
+      await expect(
+        executor.execute({
+          command: 'test',
+          prompt: 'test',
+          signal: abortController.signal,
+        }),
+      ).rejects.toThrow('Operation aborted')
+    })
+
+    it('aborts execution when signal fires during prompt', async () => {
+      const abortController = new AbortController()
+
+      const mockConnection = {
+        initialize: jest.fn().mockResolvedValue({protocolVersion: 1}),
+        createSession: jest.fn().mockResolvedValue('session-123'),
+        sendPrompt: jest.fn().mockImplementation(() => {
+          return new Promise(resolve => {
+            setTimeout(() => resolve({stopReason: 'end_turn'}), 5000)
+          })
+        }),
+        cancel: jest.fn().mockResolvedValue(),
+        close: jest.fn().mockResolvedValue(),
+        getSessionId: jest.fn().mockReturnValue('session-123'),
+      }
+
+      ACPConnection.mockImplementation(() => mockConnection)
+
+      const executor = new ACPExecutor()
+
+      const executePromise = executor.execute({
+        command: 'test',
+        prompt: 'test',
+        signal: abortController.signal,
+      })
+
+      setTimeout(() => abortController.abort(), 10)
+
+      await expect(executePromise).rejects.toThrow('Operation aborted')
+      expect(mockConnection.cancel).toHaveBeenCalled()
+      expect(mockConnection.close).toHaveBeenCalled()
+    })
+
+    it('completes normally when signal is not aborted', async () => {
+      const abortController = new AbortController()
+
+      const mockConnection = {
+        initialize: jest.fn().mockResolvedValue({protocolVersion: 1}),
+        createSession: jest.fn().mockResolvedValue('session-123'),
+        sendPrompt: jest.fn().mockResolvedValue({stopReason: 'end_turn'}),
+        cancel: jest.fn(),
+        close: jest.fn().mockResolvedValue(),
+        getSessionId: jest.fn().mockReturnValue('session-123'),
+      }
+
+      ACPConnection.mockImplementation(() => mockConnection)
+
+      const executor = new ACPExecutor()
+
+      const result = await executor.execute({
+        command: 'test',
+        prompt: 'test',
+        signal: abortController.signal,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(mockConnection.cancel).not.toHaveBeenCalled()
+    })
+
+    it('continues to close even if cancel fails', async () => {
+      const abortController = new AbortController()
+
+      const mockConnection = {
+        initialize: jest.fn().mockResolvedValue({protocolVersion: 1}),
+        createSession: jest.fn().mockResolvedValue('session-123'),
+        sendPrompt: jest.fn().mockImplementation(() => {
+          return new Promise(resolve => setTimeout(() => resolve({stopReason: 'end_turn'}), 5000))
+        }),
+        cancel: jest.fn().mockRejectedValue(new Error('Session already ended')),
+        close: jest.fn().mockResolvedValue(),
+        getSessionId: jest.fn().mockReturnValue('session-123'),
+      }
+
+      ACPConnection.mockImplementation(() => mockConnection)
+
+      const executor = new ACPExecutor()
+
+      const executePromise = executor.execute({
+        command: 'test',
+        prompt: 'test',
+        signal: abortController.signal,
+      })
+
+      setTimeout(() => abortController.abort(), 10)
+
+      await expect(executePromise).rejects.toThrow('Operation aborted')
+      expect(mockConnection.cancel).toHaveBeenCalled()
+      expect(mockConnection.close).toHaveBeenCalled()
+    })
+
+    it('works without signal parameter', async () => {
+      const mockConnection = {
+        initialize: jest.fn().mockResolvedValue({protocolVersion: 1}),
+        createSession: jest.fn().mockResolvedValue('session-123'),
+        sendPrompt: jest.fn().mockResolvedValue({stopReason: 'end_turn'}),
+        close: jest.fn().mockResolvedValue(),
+        getSessionId: jest.fn().mockReturnValue('session-123'),
+      }
+
+      ACPConnection.mockImplementation(() => mockConnection)
+
+      const executor = new ACPExecutor()
+
+      const result = await executor.execute({
+        command: 'test',
+        prompt: 'test',
+      })
+
+      expect(result.exitCode).toBe(0)
+    })
+  })
+
   describe('session resume support', () => {
     it('passes lastSessionId to createSession when provided', async () => {
       const mockConnection = {
