@@ -89,6 +89,19 @@ export const RPC_PRESETS: PresetDefinition<RPCFormFlat>[] = [
     },
   },
   {
+    id: 'qa-playwright-ssh',
+    label: 'Playwright CLI (SSH)',
+    icon: '🧪',
+    fill: setValue => {
+      setValue('protocol', 'ssh')
+      setValue('commandTemplate', 'cd /workspace && npx playwright test {{prompt}} --reporter=json')
+      setValue('outputFormat', 'json')
+      setValue('outputField', 'output')
+      setValue('description', 'Run Playwright tests via SSH')
+      setValue('timeoutMs', 300000)
+    },
+  },
+  {
     id: 'outliner-ssh',
     label: 'Outliner (SSH)',
     icon: '📝',

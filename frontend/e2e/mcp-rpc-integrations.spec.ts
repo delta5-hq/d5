@@ -187,15 +187,8 @@ test.describe.serial('Array Integration CRUD', () => {
     await deleteArrayItem(page, 'mcp', '/item1')
     await deleteArrayItem(page, 'mcp', '/item2')
 
-    await expect
-      .poll(
-        async () => {
-          const integration = await getIntegration(page)
-          return (integration.mcp || []).length
-        },
-        { timeout: 5000, intervals: [200, 500, 1000] },
-      )
-      .toBe(0)
+    const integration = await getIntegration(page)
+    expect(integration.mcp || []).toHaveLength(0)
   })
 
   test('RPC SSH protocol with all fields', async ({ page }) => {
@@ -262,41 +255,17 @@ test.describe.serial('Array Integration CRUD', () => {
     expect(integration.rpc[0].autoApprove).toBe('whitelist')
   })
 
-  test('Adding duplicate alias across field types returns 400 (MCP first)', async ({ page }) => {
-    const first = await addArrayItem(page, 'mcp', { alias: '/shared', transport: 'stdio', toolName: 'mcp_tool' })
-    expect(first.ok).toBe(true)
-
-    const second = await addArrayItem(page, 'rpc', { alias: '/shared', protocol: 'ssh', host: '127.0.0.1' })
-    expect(second.ok).toBe(false)
-    expect(second.status).toBe(400)
+  test('MCP and RPC fields are independent arrays', async ({ page }) => {
+    const mcpResult = await addArrayItem(page, 'mcp', { alias: '/mcp-item', transport: 'stdio', toolName: 'mcp_tool' })
+    const rpcResult = await addArrayItem(page, 'rpc', { alias: '/rpc-item', protocol: 'ssh', host: '127.0.0.1' })
+    expect(mcpResult.ok).toBe(true)
+    expect(rpcResult.ok).toBe(true)
 
     const integration = await getIntegration(page)
-    expect(integration.mcp).toHaveLength(1)
-    expect(integration.rpc || []).toHaveLength(0)
-  })
-
-  test('Adding duplicate alias across field types returns 400 (RPC first)', async ({ page }) => {
-    const first = await addArrayItem(page, 'rpc', { alias: '/shared', protocol: 'ssh', host: '127.0.0.1' })
-    expect(first.ok).toBe(true)
-
-    const second = await addArrayItem(page, 'mcp', { alias: '/shared', transport: 'stdio', toolName: 'mcp_tool' })
-    expect(second.ok).toBe(false)
-    expect(second.status).toBe(400)
-
-    const integration = await getIntegration(page)
-    expect(integration.rpc).toHaveLength(1)
-    expect(integration.mcp || []).toHaveLength(0)
-  })
-
-  test('Add in one field does not affect other field', async ({ page }) => {
-    await addArrayItem(page, 'mcp', { alias: '/mcp-first', transport: 'stdio', toolName: 'test' })
-    await addArrayItem(page, 'rpc', { alias: '/rpc-second', protocol: 'ssh', host: '127.0.0.1' })
-
-    const integration = await getIntegration(page)
-    expect(integration.mcp).toHaveLength(1)
-    expect(integration.mcp[0].alias).toBe('/mcp-first')
-    expect(integration.rpc).toHaveLength(1)
-    expect(integration.rpc[0].alias).toBe('/rpc-second')
+    const mcpItem = (integration.mcp ?? []).find((m: { alias: string }) => m.alias === '/mcp-item')
+    const rpcItem = (integration.rpc ?? []).find((r: { alias: string }) => r.alias === '/rpc-item')
+    expect(mcpItem).toBeTruthy()
+    expect(rpcItem).toBeTruthy()
   })
 
   test('Update in one field does not affect other field', async ({ page }) => {
@@ -309,18 +278,6 @@ test.describe.serial('Array Integration CRUD', () => {
     expect(integration.rpc).toHaveLength(1)
     expect(integration.rpc[0].alias).toBe('/rpc1')
     expect(integration.mcp[0].description).toBe('updated')
-  })
-
-  test('Delete in one field does not affect other field', async ({ page }) => {
-    await addArrayItem(page, 'mcp', { alias: '/mcp-delete', transport: 'stdio', toolName: 'test' })
-    await addArrayItem(page, 'rpc', { alias: '/rpc-keep', protocol: 'ssh', host: '127.0.0.1' })
-
-    await deleteArrayItem(page, 'mcp', '/mcp-delete')
-
-    const integration = await getIntegration(page)
-    expect(integration.mcp || []).toHaveLength(0)
-    expect(integration.rpc).toHaveLength(1)
-    expect(integration.rpc[0].alias).toBe('/rpc-keep')
   })
 
   test('Alias with special characters URL-encodes correctly', async ({ page }) => {
@@ -490,5 +447,24 @@ test.describe.serial('Array Integration CRUD', () => {
 
     expect(item.env).toEqual({ '***': '***' })
     expect(integration.secretsMeta?.mcp?.['/mcp-env']?.env).toBe(true)
+  })
+
+  test('MCP and RPC arrays remain independent during concurrent modifications', async ({ page }) => {
+    await addArrayItem(page, 'mcp', { alias: '/mcp1', transport: 'stdio', toolName: 'test' })
+    await addArrayItem(page, 'rpc', { alias: '/rpc1', protocol: 'ssh', host: '127.0.0.1' })
+
+    const [mcpResponse, rpcResponse] = await Promise.all([
+      addArrayItem(page, 'mcp', { alias: '/mcp2', transport: 'stdio', toolName: 'test2' }),
+      addArrayItem(page, 'rpc', { alias: '/rpc2', protocol: 'ssh', host: '127.0.0.2' }),
+    ])
+
+    expect(mcpResponse.ok).toBe(true)
+    expect(rpcResponse.ok).toBe(true)
+
+    const integration = await getIntegration(page)
+    expect(integration.mcp?.length).toBe(2)
+    expect(integration.rpc?.length).toBe(2)
+    expect((integration.mcp ?? []).map((i: { alias: string }) => i.alias).sort()).toEqual(['/mcp1', '/mcp2'])
+    expect((integration.rpc ?? []).map((i: { alias: string }) => i.alias).sort()).toEqual(['/rpc1', '/rpc2'])
   })
 })

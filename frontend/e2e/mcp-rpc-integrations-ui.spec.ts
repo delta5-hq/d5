@@ -623,7 +623,7 @@ test.describe.serial('RPC Integration UI Flow', () => {
   })
 })
 
-test.describe.serial('Cross-Field Independence', () => {
+test.describe.serial('Cross-Field Alias Uniqueness', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/settings')
     await page.waitForLoadState('networkidle')
@@ -700,6 +700,93 @@ test.describe.serial('Cross-Field Independence', () => {
     await arrayPage.verifyCardDescription('/rpc-del', 'RPC to keep')
   })
 
+  test('RPC alias rejected when same alias exists as MCP', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.addMCPIntegration({
+      alias: '/shared',
+      transport: 'stdio',
+      toolName: 'mcp_tool',
+      command: 'node',
+    })
+
+    await arrayPage.openAddDialog('rpc')
+    await arrayPage.fillRPCForm({
+      alias: '/shared',
+      protocol: 'ssh',
+      host: '127.0.0.1',
+      username: 'test',
+      privateKey: 'key',
+      commandTemplate: 'echo "{{prompt}}"',
+    })
+
+    const submitButton = page.locator('button[type="submit"]')
+    await submitButton.click()
+
+    const toast = page.locator('text=Alias already in use by another integration')
+    await expect(toast).toBeVisible({ timeout: 5000 })
+
+    /* Dialog stays open — only 1 card exists */
+    const cards = page.locator('[data-alias="/shared"]')
+    await expect(cards).toHaveCount(1)
+  })
+
+  test('MCP alias rejected when same alias exists as RPC', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.addRPCIntegration({
+      alias: '/taken',
+      protocol: 'ssh',
+      host: '127.0.0.1',
+      username: 'test',
+      privateKey: 'key',
+      commandTemplate: 'echo "{{prompt}}"',
+    })
+
+    await arrayPage.openAddDialog('mcp')
+    await arrayPage.fillMCPForm({
+      alias: '/taken',
+      transport: 'stdio',
+      toolName: 'mcp_tool',
+      command: 'node',
+    })
+
+    const submitButton = page.locator('button[type="submit"]')
+    await submitButton.click()
+
+    const toast = page.locator('text=Alias already in use by another integration')
+    await expect(toast).toBeVisible({ timeout: 5000 })
+
+    const cards = page.locator('[data-alias="/taken"]')
+    await expect(cards).toHaveCount(1)
+  })
+
+  test('Different aliases across MCP and RPC coexist', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.addMCPIntegration({
+      alias: '/mcp-only',
+      transport: 'stdio',
+      toolName: 'tool1',
+      command: 'node',
+    })
+
+    await arrayPage.addRPCIntegration({
+      alias: '/rpc-only',
+      protocol: 'ssh',
+      host: '127.0.0.1',
+      username: 'user',
+      privateKey: 'key',
+      commandTemplate: 'echo',
+    })
+
+    await arrayPage.verifyCardVisible('/mcp-only')
+    await arrayPage.verifyCardVisible('/rpc-only')
+  })
+
   test('Empty state shows when all integrations deleted via UI', async ({ page }) => {
     const arrayPage = new ArrayIntegrationPage(page)
     await arrayPage.goto()
@@ -759,7 +846,7 @@ test.describe.serial('UI Form Validation Edge Cases', () => {
     const submitButton = page.locator('button[type="submit"]')
     await submitButton.click()
 
-    await expect(page.locator('text=Alias already exists')).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('text=Alias already in use by another integration')).toBeVisible({ timeout: 5000 })
 
     await expect(page.locator('[data-dialog-name="rpc"]')).toBeVisible()
 
@@ -1041,8 +1128,8 @@ test.describe.serial('Integration Tile Interaction', () => {
 
     await deleteButton.click()
 
-    const confirmDialog = page.locator('text=Are you sure').or(page.locator('button:has-text("Delete")'))
-    await expect(confirmDialog).toBeVisible({ timeout: 3000 })
+    const confirmText = page.locator('role=dialog >> text=Are you sure you want to delete')
+    await expect(confirmText).toBeVisible({ timeout: 3000 })
 
     const editDialog = page.locator('[data-dialog-name="mcp"]')
     await expect(editDialog).not.toBeVisible()
@@ -1059,7 +1146,7 @@ test.describe.serial('Integration Tile Interaction', () => {
       command: 'node',
     })
 
-    const editButton = page.locator('button[aria-label="Edit /editicon"]')
+    const editButton = page.locator('[data-alias="/editicon"]')
     await expect(editButton).toBeVisible()
 
     await editButton.click()

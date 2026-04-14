@@ -4,6 +4,7 @@ import {
   getFullCommandMap,
   getSupportedCommands,
   COMMAND_TO_QUERYTYPE_MAP,
+  COMMAND_DESCRIPTIONS,
   type DynamicAlias,
 } from '../command-querytype-mapper'
 
@@ -633,5 +634,27 @@ describe('extractQueryTypeFromCommand - With Dynamic Aliases', () => {
       expect(extractQueryTypeFromCommand('/Tool run', aliases)).toBe('capitalized')
       expect(extractQueryTypeFromCommand('/tool run', aliases)).toBe('lowercase')
     })
+  })
+})
+
+describe('COMMAND_DESCRIPTIONS and COMMAND_TO_QUERYTYPE_MAP consistency', () => {
+  it('every COMMAND_TO_QUERYTYPE_MAP key has a matching COMMAND_DESCRIPTIONS entry', () => {
+    const mapKeys = Object.keys(COMMAND_TO_QUERYTYPE_MAP)
+    for (const cmd of mapKeys) {
+      expect(COMMAND_DESCRIPTIONS).toHaveProperty(cmd)
+    }
+  })
+
+  it('every COMMAND_DESCRIPTIONS key exists in COMMAND_TO_QUERYTYPE_MAP', () => {
+    const descKeys = Object.keys(COMMAND_DESCRIPTIONS)
+    for (const cmd of descKeys) {
+      expect(COMMAND_TO_QUERYTYPE_MAP).toHaveProperty(cmd)
+    }
+  })
+
+  it('both maps have identical key sets', () => {
+    const mapKeys = new Set(Object.keys(COMMAND_TO_QUERYTYPE_MAP))
+    const descKeys = new Set(Object.keys(COMMAND_DESCRIPTIONS))
+    expect(mapKeys).toEqual(descKeys)
   })
 })

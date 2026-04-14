@@ -4,7 +4,7 @@ export async function cleanArrayIntegrations(page: Page) {
   for (let attempt = 0; attempt < 3; attempt++) {
     const integration = await page.evaluate(async () => {
       const r = await fetch('/api/v2/integration', { credentials: 'include' })
-      if (!r.ok) return {}
+      if (!r.ok) throw new Error(`GET /api/v2/integration failed with status ${r.status}`)
       return r.json()
     })
 
@@ -15,34 +15,50 @@ export async function cleanArrayIntegrations(page: Page) {
 
     if (hasMcp) {
       for (const item of integration.mcp) {
-        await page.evaluate(
+        const status = await page.evaluate(
           async alias => {
             const r = await fetch(`/api/v2/integration/mcp/items/${encodeURIComponent(alias)}`, {
               method: 'DELETE',
               credentials: 'include',
             })
-            return r.status
+            return { ok: r.ok, status: r.status }
           },
           item.alias,
         )
+        if (!status.ok) {
+          throw new Error(`DELETE mcp/${item.alias} failed with status ${status.status}`)
+        }
       }
     }
 
     if (hasRpc) {
       for (const item of integration.rpc) {
-        await page.evaluate(
+        const status = await page.evaluate(
           async alias => {
             const r = await fetch(`/api/v2/integration/rpc/items/${encodeURIComponent(alias)}`, {
               method: 'DELETE',
               credentials: 'include',
             })
-            return r.status
+            return { ok: r.ok, status: r.status }
           },
           item.alias,
         )
+        if (!status.ok) {
+          throw new Error(`DELETE rpc/${item.alias} failed with status ${status.status}`)
+        }
       }
     }
+
+    const verifyClean = await page.evaluate(async () => {
+      const r = await fetch('/api/v2/integration', { credentials: 'include' })
+      if (!r.ok) return { mcp: [], rpc: [] }
+      return r.json()
+    })
+
+    if (!verifyClean.mcp?.length && !verifyClean.rpc?.length) return
   }
+
+  throw new Error('cleanArrayIntegrations: Failed to clean after 3 attempts')
 }
 
 export async function addArrayItem(page: Page, fieldName: string, item: Record<string, unknown>) {

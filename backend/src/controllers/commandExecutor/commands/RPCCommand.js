@@ -65,7 +65,7 @@ export class RPCCommand {
     return stdout || stderr
   }
 
-  async executeHTTP(prompt) {
+  async executeHTTP(prompt, signal = null) {
     const {url, method, headers, bodyTemplate, timeoutMs, lastSessionId} = this.aliasConfig
 
     const injector = new SessionIdInjector(bodyTemplate, lastSessionId)
@@ -91,6 +91,7 @@ export class RPCCommand {
       headers: injectedHeaders,
       body,
       timeoutMs,
+      signal,
     })
 
     if (isError) {
@@ -100,7 +101,7 @@ export class RPCCommand {
     return responseBody
   }
 
-  async executeACP(prompt, progressReporter = null) {
+  async executeACP(prompt, progressReporter = null, signal = null) {
     const {command, args, env, timeoutMs, workingDir, autoApprove, allowedTools, lastSessionId} = this.aliasConfig
 
     const permissionPolicy = ACPPermissionPolicy.fromIntegrationConfig({autoApprove, allowedTools})
@@ -118,6 +119,7 @@ export class RPCCommand {
       prompt,
       lastSessionId,
       onUpdate,
+      signal,
     })
 
     return {
@@ -129,19 +131,24 @@ export class RPCCommand {
 
   // eslint-disable-next-line no-unused-vars
   async run(node, context, originalPrompt, options = {}) {
+    const {signal} = options
     const prompt = this.extractPrompt(node, originalPrompt)
     const fullPrompt = context ? context + prompt : prompt
 
     try {
+      if (signal?.aborted) {
+        throw new Error('Operation aborted')
+      }
+
       let rawOutput
       let sessionId = null
 
       if (this.aliasConfig.protocol === RPC_PROTOCOL.SSH) {
         rawOutput = await this.executeSSH(fullPrompt)
       } else if (this.aliasConfig.protocol === RPC_PROTOCOL.HTTP) {
-        rawOutput = await this.executeHTTP(fullPrompt)
+        rawOutput = await this.executeHTTP(fullPrompt, signal)
       } else if (this.aliasConfig.protocol === RPC_PROTOCOL.ACP_LOCAL) {
-        const result = await this.executeACP(fullPrompt, this.progressReporter)
+        const result = await this.executeACP(fullPrompt, this.progressReporter, signal)
         rawOutput = result.output
         sessionId = result.sessionId
       } else {

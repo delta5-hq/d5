@@ -32,6 +32,7 @@ export class ClaudeCommand {
     if (this.workflowId) {
       this.log = this.log.extend(workflowId, '#')
     }
+    this.logError = this.log.extend('ERROR*', '::')
   }
 
   async replyClaude(messages, userId, workflowId, store) {

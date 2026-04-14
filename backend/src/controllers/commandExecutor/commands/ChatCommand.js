@@ -34,6 +34,7 @@ export class ChatCommand {
     if (this.workflowId) {
       this.log = this.log.extend(workflowId, '#')
     }
+    this.logError = this.log.extend('ERROR*', '::')
   }
 
   async replyChatOpenAIAPI(messages) {

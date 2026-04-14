@@ -4,7 +4,7 @@ import IntegrationFacade from '../../../../repositories/IntegrationFacade'
 jest.mock('../../../../repositories/IntegrationFacade', () => ({
   __esModule: true,
   default: {
-    findDecrypted: jest.fn(),
+    findMergedDecrypted: jest.fn(),
   },
 }))
 
@@ -21,16 +21,16 @@ describe('loadUserAliases', () => {
   })
 
   it('returns empty arrays when integration not found', async () => {
-    IntegrationFacade.findDecrypted.mockResolvedValue(null)
+    IntegrationFacade.findMergedDecrypted.mockResolvedValue(null)
 
     const result = await loadUserAliases('user-1')
 
     expect(result).toEqual({mcp: [], rpc: []})
-    expect(IntegrationFacade.findDecrypted).toHaveBeenCalledWith('user-1', null)
+    expect(IntegrationFacade.findMergedDecrypted).toHaveBeenCalledWith('user-1', null)
   })
 
   it('returns empty arrays when mcp and rpc fields are absent', async () => {
-    IntegrationFacade.findDecrypted.mockResolvedValue({userId: 'user-1'})
+    IntegrationFacade.findMergedDecrypted.mockResolvedValue({userId: 'user-1'})
 
     const result = await loadUserAliases('user-1')
 
@@ -38,7 +38,7 @@ describe('loadUserAliases', () => {
   })
 
   it('filters out invalid MCP aliases', async () => {
-    IntegrationFacade.findDecrypted.mockResolvedValue({
+    IntegrationFacade.findMergedDecrypted.mockResolvedValue({
       userId: 'user-1',
       mcp: [{alias: '/valid'}, {alias: 'no-slash'}, {alias: '/web'}, {alias: '/9starts-digit'}, {alias: '/has space'}],
     })
@@ -49,7 +49,7 @@ describe('loadUserAliases', () => {
   })
 
   it('filters out invalid RPC aliases', async () => {
-    IntegrationFacade.findDecrypted.mockResolvedValue({
+    IntegrationFacade.findMergedDecrypted.mockResolvedValue({
       userId: 'user-1',
       rpc: [{alias: '/vm1'}, {alias: '/chatgpt'}, {alias: ''}, {alias: '/ok-name_v2'}],
     })
@@ -60,7 +60,7 @@ describe('loadUserAliases', () => {
   })
 
   it('returns both MCP and RPC aliases', async () => {
-    IntegrationFacade.findDecrypted.mockResolvedValue({
+    IntegrationFacade.findMergedDecrypted.mockResolvedValue({
       userId: 'user-1',
       mcp: [{alias: '/coder1'}, {alias: '/agent2'}],
       rpc: [{alias: '/vm3'}, {alias: '/ssh1'}],
@@ -75,13 +75,13 @@ describe('loadUserAliases', () => {
   })
 
   it('propagates database errors', async () => {
-    IntegrationFacade.findDecrypted.mockRejectedValue(new Error('DB connection lost'))
+    IntegrationFacade.findMergedDecrypted.mockRejectedValue(new Error('DB connection lost'))
 
     await expect(loadUserAliases('user-1')).rejects.toThrow('DB connection lost')
   })
 
   it('accepts optional workflowId and passes to facade', async () => {
-    IntegrationFacade.findDecrypted.mockResolvedValue({
+    IntegrationFacade.findMergedDecrypted.mockResolvedValue({
       userId: 'user-1',
       workflowId: 'wf-123',
       mcp: [{alias: '/workflow-specific'}],
@@ -89,7 +89,37 @@ describe('loadUserAliases', () => {
 
     const result = await loadUserAliases('user-1', 'wf-123')
 
-    expect(IntegrationFacade.findDecrypted).toHaveBeenCalledWith('user-1', 'wf-123')
+    expect(IntegrationFacade.findMergedDecrypted).toHaveBeenCalledWith('user-1', 'wf-123')
     expect(result.mcp).toEqual([{alias: '/workflow-specific'}])
+  })
+
+  describe('workflow-scoped alias merging', () => {
+    it('processes merged result from findMergedDecrypted', async () => {
+      IntegrationFacade.findMergedDecrypted.mockResolvedValue({
+        userId: 'user-1',
+        workflowId: 'wf-1',
+        mcp: [{alias: '/global'}, {alias: '/workflow-specific'}],
+        rpc: [{alias: '/vm'}],
+      })
+
+      const result = await loadUserAliases('user-1', 'wf-1')
+
+      expect(result.mcp).toEqual([{alias: '/global'}, {alias: '/workflow-specific'}])
+      expect(result.rpc).toEqual([{alias: '/vm'}])
+    })
+
+    it('filters invalid aliases from merged result', async () => {
+      IntegrationFacade.findMergedDecrypted.mockResolvedValue({
+        userId: 'user-1',
+        workflowId: 'wf-1',
+        mcp: [{alias: '/valid'}, {alias: 'invalid-no-slash'}],
+        rpc: [{alias: '/chatgpt'}],
+      })
+
+      const result = await loadUserAliases('user-1', 'wf-1')
+
+      expect(result.mcp).toEqual([{alias: '/valid'}])
+      expect(result.rpc).toEqual([])
+    })
   })
 })

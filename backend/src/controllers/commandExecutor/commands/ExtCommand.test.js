@@ -101,28 +101,37 @@ describe('ExtCommand', () => {
       expect(clearStepsPrefix).toHaveBeenCalledWith(originalPrompt)
     })
 
-    it('should propagate errors from createResponseExt', async () => {
+    it('should create error node when createResponseExt fails', async () => {
       createResponseExtSpy.mockRejectedValue(new Error('Vector store initialization failed'))
 
       const node = {id: 'node', title: '/ext query knowledge base'}
 
-      await expect(command.run(node, 'test prompt')).rejects.toThrow('Vector store initialization failed')
+      await command.run(node, 'test prompt')
+
+      expect(command.store.importer.createNodes).toHaveBeenCalledWith(
+        'Error: Vector store initialization failed',
+        'node',
+      )
     })
 
-    it('should propagate network errors from createResponseExt', async () => {
+    it('should create error node on network errors from createResponseExt', async () => {
       createResponseExtSpy.mockRejectedValue(new Error('ECONNREFUSED'))
 
       const node = {id: 'node', title: '/ext query'}
 
-      await expect(command.run(node, 'test')).rejects.toThrow('ECONNREFUSED')
+      await command.run(node, 'test')
+
+      expect(command.store.importer.createNodes).toHaveBeenCalledWith('Error: ECONNREFUSED', 'node')
     })
 
-    it('should propagate LLM errors from createResponseExt', async () => {
+    it('should create error node on LLM errors from createResponseExt', async () => {
       createResponseExtSpy.mockRejectedValue(new Error('Rate limit exceeded'))
 
       const node = {id: 'node', title: '/ext search'}
 
-      await expect(command.run(node, 'query')).rejects.toThrow('Rate limit exceeded')
+      await command.run(node, 'query')
+
+      expect(command.store.importer.createNodes).toHaveBeenCalledWith('Error: Rate limit exceeded', 'node')
     })
   })
 })

@@ -31,6 +31,7 @@ export const AliasProvider: React.FC<AliasProviderProps> = ({ children }) => {
           result.push({
             alias: mcp.alias,
             queryType: `mcp:${mcp.alias.replace(/^\//, '')}`,
+            description: mcp.description,
           })
         }
       })
@@ -42,6 +43,7 @@ export const AliasProvider: React.FC<AliasProviderProps> = ({ children }) => {
           result.push({
             alias: rpc.alias,
             queryType: `rpc:${rpc.alias.replace(/^\//, '')}`,
+            description: rpc.description,
           })
         }
       })

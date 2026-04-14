@@ -51,6 +51,7 @@ export class PerplexityCommand {
     if (this.workflowId) {
       this.log = this.log.extend(workflowId, '#')
     }
+    this.logError = this.log.extend('ERROR*', '::')
   }
 
   async reply(messages, userId, workflowId, store) {

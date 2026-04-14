@@ -1,9 +1,22 @@
 import {RPC_DEFAULT_TIMEOUT_MS, RPC_HTTP_METHOD} from '../../constants/rpc'
 
 export class HTTPExecutor {
-  async execute({url, method = RPC_HTTP_METHOD.POST, headers = {}, body = null, timeoutMs = RPC_DEFAULT_TIMEOUT_MS}) {
+  async execute({
+    url,
+    method = RPC_HTTP_METHOD.POST,
+    headers = {},
+    body = null,
+    timeoutMs = RPC_DEFAULT_TIMEOUT_MS,
+    signal = null,
+  }) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+    let externalAbortListener = null
+    if (signal) {
+      externalAbortListener = () => controller.abort()
+      signal.addEventListener('abort', externalAbortListener)
+    }
 
     try {
       const requestOptions = {
@@ -27,11 +40,17 @@ export class HTTPExecutor {
       }
     } catch (error) {
       if (error.name === 'AbortError') {
+        if (signal?.aborted) {
+          throw new Error('Operation aborted')
+        }
         throw new Error(`HTTP request timeout after ${timeoutMs}ms`)
       }
       throw new Error(`HTTP request failed: ${error.message}`)
     } finally {
       clearTimeout(timeoutId)
+      if (externalAbortListener && signal) {
+        signal.removeEventListener('abort', externalAbortListener)
+      }
     }
   }
 }

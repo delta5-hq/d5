@@ -32,6 +32,7 @@ export class YandexCommand {
     if (this.workflowId) {
       this.log = this.log.extend(workflowId, '#')
     }
+    this.logError = this.log.extend('ERROR*', '::')
   }
 
   async replyYandex(messages, userId, workflowId, store) {
