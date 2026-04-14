@@ -188,7 +188,7 @@ describe('ChatCommand run test', () => {
       },
     })
 
-    const chatRunSpy = jest.spyOn(BaseChatModel.prototype, 'call').mockRejectedValueOnce(new Error('Api Error'))
+    const chatRunSpy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValueOnce(new Error('Api Error'))
 
     await runCommand({
       cell: chatNode,
@@ -325,7 +325,7 @@ describe('DeepseekCommand run test', () => {
       },
     })
 
-    const chatRunSpy = jest.spyOn(BaseChatModel.prototype, 'call').mockRejectedValueOnce(new Error('Api Error'))
+    const chatRunSpy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValueOnce(new Error('Api Error'))
 
     await runCommand({
       cell: chatNode,
@@ -459,7 +459,7 @@ describe('QwenCommand run test', () => {
       },
     })
 
-    const openApi = new OpenAI()
+    const openApi = new OpenAI({apiKey: 'test'})
     const chatRunSpy = jest.spyOn(openApi.chat.completions, 'create').mockRejectedValueOnce(new Error('Api Error'))
 
     await runCommand({
@@ -535,7 +535,7 @@ describe('PerplexityCommand run test', () => {
       },
     })
 
-    const openApi = new OpenAI()
+    const openApi = new OpenAI({apiKey: 'test'})
     const chatRunSpy = jest.spyOn(openApi.chat.completions, 'create').mockRejectedValueOnce(new Error('Api Error'))
 
     await runCommand({
@@ -613,7 +613,7 @@ describe('CustomLLMCommand run test', () => {
       },
     })
 
-    const chatRunSpy = jest.spyOn(BaseChatModel.prototype, 'call').mockRejectedValueOnce(new Error('Api Error'))
+    const chatRunSpy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValueOnce(new Error('Api Error'))
 
     await runCommand({
       cell: chatNode,
@@ -680,7 +680,7 @@ describe('WebCommand run test', () => {
       },
     })
 
-    const chatRunSpy = jest.spyOn(BaseChatModel.prototype, 'call').mockRejectedValueOnce(new Error('Api Error'))
+    const chatRunSpy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValueOnce(new Error('Api Error'))
 
     await runCommand({
       cell: chatNode,
@@ -747,7 +747,7 @@ describe('ScholarCommand run test', () => {
       },
     })
 
-    const chatRunSpy = jest.spyOn(BaseChatModel.prototype, 'call').mockRejectedValueOnce(new Error('Api Error'))
+    const chatRunSpy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValueOnce(new Error('Api Error'))
 
     await runCommand({
       cell: chatNode,
@@ -814,7 +814,7 @@ describe('OutlineCommand run test', () => {
       },
     })
 
-    const chatRunSpy = jest.spyOn(BaseChatModel.prototype, 'call').mockRejectedValueOnce(new Error('Api Error'))
+    const chatRunSpy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValueOnce(new Error('Api Error'))
 
     await runCommand({
       cell: chatNode,
@@ -1038,7 +1038,7 @@ describe('RefineCommand run test', () => {
     })
 
     const mockLLMResponse = 'Refined content'
-    const llmSpy = jest.spyOn(LLMChain.prototype, 'call').mockResolvedValueOnce({text: mockLLMResponse})
+    const llmSpy = jest.spyOn(LLMChain.prototype, 'invoke').mockResolvedValueOnce({text: mockLLMResponse})
 
     await runCommand({
       cell: refineNode,
@@ -1084,7 +1084,7 @@ describe('RefineCommand run test', () => {
       },
     })
 
-    const llmSpy = jest.spyOn(LLMChain.prototype, 'call').mockRejectedValueOnce(new Error('LLM Error'))
+    const llmSpy = jest.spyOn(LLMChain.prototype, 'invoke').mockRejectedValueOnce(new Error('LLM Error'))
 
     await runCommand({
       cell: refineNode,
@@ -1133,7 +1133,7 @@ describe('SwitchCommand run test', () => {
     })
 
     const mockLLMResponse = 'story'
-    const llmSpy = jest.spyOn(BaseChatModel.prototype, 'call').mockResolvedValueOnce({content: mockLLMResponse})
+    const llmSpy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockResolvedValueOnce({content: mockLLMResponse})
     const chatSpy = jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI').mockResolvedValueOnce('Once upon a time...')
 
     await runCommand({
@@ -1184,7 +1184,7 @@ describe('SwitchCommand run test', () => {
       },
     })
 
-    const llmSpy = jest.spyOn(BaseChatModel.prototype, 'call').mockRejectedValueOnce(new Error('LLM Error'))
+    const llmSpy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValueOnce(new Error('LLM Error'))
 
     await runCommand({
       cell: switchNode,
@@ -1232,7 +1232,7 @@ describe('SummarizeCommand run test', () => {
     })
 
     const mockLLMResponse = 'This is a summary of the text'
-    const llmSpy = jest.spyOn(LLMChain.prototype, 'call').mockResolvedValueOnce({text: mockLLMResponse})
+    const llmSpy = jest.spyOn(LLMChain.prototype, 'invoke').mockResolvedValueOnce({text: mockLLMResponse})
     const translateSpy = jest.spyOn(require('./translate'), 'translate').mockResolvedValueOnce(mockLLMResponse)
 
     await runCommand({
@@ -1279,7 +1279,7 @@ describe('SummarizeCommand run test', () => {
       },
     })
 
-    const llmSpy = jest.spyOn(LLMChain.prototype, 'call').mockResolvedValue({output_text: ''})
+    const llmSpy = jest.spyOn(LLMChain.prototype, 'invoke').mockResolvedValue({output_text: ''})
     const translateSpy = jest.spyOn(require('./translate'), 'translate')
 
     await expect(
@@ -1335,7 +1335,7 @@ describe('StepsCommand run test', () => {
     const mockLLMResponse3 = 'La la la...'
 
     const llmSpy = jest
-      .spyOn(BaseChatModel.prototype, 'call')
+      .spyOn(BaseChatModel.prototype, 'invoke')
       .mockResolvedValueOnce({content: mockLLMResponse1})
       .mockResolvedValueOnce({content: mockLLMResponse2})
       .mockResolvedValueOnce({content: mockLLMResponse3})
@@ -1402,7 +1402,7 @@ describe('StepsCommand run test', () => {
     const mockLLMResponse3 = 'La la la...'
 
     const llmSpy = jest
-      .spyOn(BaseChatModel.prototype, 'call')
+      .spyOn(BaseChatModel.prototype, 'invoke')
       .mockResolvedValueOnce({content: mockLLMResponse1})
       .mockRejectedValueOnce(new Error('LLM Error'))
       .mockResolvedValueOnce({content: mockLLMResponse3})
@@ -1505,7 +1505,7 @@ describe('ForeachCommand run test', () => {
     const mockLLMResponse4 = 'two B'
 
     const llmSpy = jest
-      .spyOn(BaseChatModel.prototype, 'call')
+      .spyOn(BaseChatModel.prototype, 'invoke')
       .mockResolvedValueOnce({content: mockLLMResponse1})
       .mockResolvedValueOnce({content: mockLLMResponse2})
       .mockResolvedValueOnce({content: mockLLMResponse3})
@@ -1611,7 +1611,7 @@ describe('ForeachCommand run test', () => {
     const mockLLMResponse4 = 'Twinkle twinkle little star...'
 
     const llmSpy = jest
-      .spyOn(BaseChatModel.prototype, 'call')
+      .spyOn(BaseChatModel.prototype, 'invoke')
       .mockResolvedValueOnce({content: mockLLMResponse1})
       .mockResolvedValueOnce({content: mockLLMResponse2})
       .mockResolvedValueOnce({content: mockLLMResponse3})
@@ -1707,7 +1707,7 @@ describe('ForeachCommand run test', () => {
     // mockLLMResponse4 will fail
 
     const llmSpy = jest
-      .spyOn(BaseChatModel.prototype, 'call')
+      .spyOn(BaseChatModel.prototype, 'invoke')
       .mockResolvedValueOnce({content: mockLLMResponse1})
       .mockResolvedValueOnce({content: mockLLMResponse2})
       .mockResolvedValueOnce({content: mockLLMResponse3})

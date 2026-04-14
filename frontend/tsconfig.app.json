@@ -36,5 +36,6 @@
       "@/*": ["*"]
     }
   },
-  "include": ["src", "genversion.js"]
+  "include": ["src", "genversion.js"],
+  "exclude": ["src/**/__tests__", "src/**/*.test.ts", "src/**/*.test.tsx", "e2e"]
 }
