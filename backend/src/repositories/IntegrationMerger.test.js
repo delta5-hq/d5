@@ -698,3 +698,454 @@ describe('IntegrationMerger', () => {
     })
   })
 })
+
+import {mergeIntegrations} from './IntegrationMerger'
+
+describe('IntegrationMerger', () => {
+  describe('mergeIntegrations', () => {
+    describe('null/undefined docs', () => {
+      it('returns null when both docs are null', () => {
+        expect(mergeIntegrations(null, null)).toBeNull()
+      })
+
+      it('returns null when both docs are undefined', () => {
+        expect(mergeIntegrations(undefined, undefined)).toBeNull()
+      })
+
+      it('returns workflow doc when global is null', () => {
+        const workflowDoc = {userId: 'u1', workflowId: 'wf1', openai: {apiKey: 'wk1'}}
+        expect(mergeIntegrations(null, workflowDoc)).toEqual(workflowDoc)
+      })
+
+      it('returns global doc when workflow is null', () => {
+        const globalDoc = {userId: 'u1', workflowId: null, openai: {apiKey: 'gk1'}}
+        expect(mergeIntegrations(globalDoc, null)).toEqual(globalDoc)
+      })
+
+      it('returns workflow doc when global is undefined', () => {
+        const workflowDoc = {userId: 'u1', workflowId: 'wf1', openai: {apiKey: 'wk1'}}
+        expect(mergeIntegrations(undefined, workflowDoc)).toEqual(workflowDoc)
+      })
+
+      it('returns global doc when workflow is undefined', () => {
+        const globalDoc = {userId: 'u1', workflowId: null, openai: {apiKey: 'gk1'}}
+        expect(mergeIntegrations(globalDoc, undefined)).toEqual(globalDoc)
+      })
+    })
+
+    describe('both docs exist - no overlap', () => {
+      it('merges non-overlapping scalar fields', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          openai: {apiKey: 'gk1'},
+          lang: 'en',
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          claude: {apiKey: 'wk1'},
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result).toEqual({
+          userId: 'u1',
+          workflowId: 'wf1',
+          openai: {apiKey: 'gk1'},
+          claude: {apiKey: 'wk1'},
+          lang: 'en',
+        })
+      })
+
+      it('merges non-overlapping array fields', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          mcp: [{alias: '/global1'}],
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          mcp: [{alias: '/wf1'}],
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.mcp).toEqual([{alias: '/global1'}, {alias: '/wf1'}])
+      })
+    })
+
+    describe('both docs exist - scalar field override', () => {
+      it('workflow value overrides global for scalar fields', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          openai: {apiKey: 'gk1', model: 'gpt-4'},
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          openai: {apiKey: 'wk1', model: 'gpt-3.5'},
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.openai).toEqual({apiKey: 'wk1', model: 'gpt-3.5'})
+      })
+
+      it('empty object in workflow overrides global', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          openai: {apiKey: 'gk1'},
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          openai: {},
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.openai).toEqual({})
+      })
+
+      it('null in workflow does not override global', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          openai: {apiKey: 'gk1'},
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          openai: null,
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.openai).toEqual({apiKey: 'gk1'})
+      })
+
+      it('undefined in workflow does not override global', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          openai: {apiKey: 'gk1'},
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.openai).toEqual({apiKey: 'gk1'})
+      })
+    })
+
+    describe('both docs exist - array concat and dedup', () => {
+      it('concatenates arrays without collision', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          mcp: [{alias: '/g1'}, {alias: '/g2'}],
+          rpc: [{alias: '/rpc1'}],
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          mcp: [{alias: '/w1'}],
+          rpc: [{alias: '/rpc2'}],
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.mcp).toEqual([{alias: '/g1'}, {alias: '/g2'}, {alias: '/w1'}])
+        expect(result.rpc).toEqual([{alias: '/rpc1'}, {alias: '/rpc2'}])
+      })
+
+      it('workflow entry wins on alias collision', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          mcp: [
+            {alias: '/code', config: 'global', order: 1},
+            {alias: '/qa', config: 'global', order: 2},
+          ],
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          mcp: [{alias: '/code', config: 'workflow', order: 99}],
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.mcp).toEqual([
+          {alias: '/code', config: 'workflow', order: 99},
+          {alias: '/qa', config: 'global', order: 2},
+        ])
+      })
+
+      it('handles empty arrays', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          mcp: [],
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          mcp: [{alias: '/w1'}],
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.mcp).toEqual([{alias: '/w1'}])
+      })
+
+      it('handles undefined arrays as empty', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          mcp: [{alias: '/w1'}],
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.mcp).toEqual([{alias: '/w1'}])
+      })
+
+      it('handles null arrays as empty', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          mcp: null,
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          mcp: [{alias: '/w1'}],
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.mcp).toEqual([{alias: '/w1'}])
+      })
+    })
+
+    describe('sentinel field handling', () => {
+      it('uses global lang when workflow has sentinel "none"', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          lang: 'en',
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          lang: 'none',
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.lang).toBe('en')
+      })
+
+      it('uses workflow lang when not sentinel', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          lang: 'en',
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          lang: 'es',
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.lang).toBe('es')
+      })
+
+      it('uses global model when workflow has sentinel "auto"', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          model: 'gpt-4',
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          model: 'auto',
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.model).toBe('gpt-4')
+      })
+
+      it('uses workflow model when not sentinel', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          model: 'gpt-4',
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          model: 'claude-3',
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.model).toBe('claude-3')
+      })
+
+      it('handles sentinel in global, value in workflow', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          lang: 'none',
+          model: 'auto',
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          lang: 'fr',
+          model: 'gpt-3.5',
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.lang).toBe('fr')
+        expect(result.model).toBe('gpt-3.5')
+      })
+    })
+
+    describe('workflow-scoped integration with sparse fields', () => {
+      it('merges workflow openai with global claude and mcp', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          claude: {apiKey: 'gk-claude'},
+          mcp: [{alias: '/global-mcp'}],
+          lang: 'en',
+          model: 'gpt-4',
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          openai: {apiKey: 'wk-openai'},
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result).toEqual({
+          userId: 'u1',
+          workflowId: 'wf1',
+          openai: {apiKey: 'wk-openai'},
+          claude: {apiKey: 'gk-claude'},
+          lang: 'en',
+          model: 'gpt-4',
+          mcp: [{alias: '/global-mcp'}],
+        })
+      })
+    })
+
+    describe('metadata fields', () => {
+      it('uses workflow userId and workflowId', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.userId).toBe('u1')
+        expect(result.workflowId).toBe('wf1')
+      })
+
+      it('does not include _id in merged result', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          _id: 'global-id',
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          _id: 'workflow-id',
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result._id).toBeUndefined()
+      })
+    })
+
+    describe('complex real-world scenario', () => {
+      it('merges all field types correctly', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          _id: 'global-id',
+          openai: {apiKey: 'gk-openai'},
+          claude: {apiKey: 'gk-claude'},
+          yandex: {apiKey: 'gk-yandex'},
+          lang: 'en',
+          model: 'gpt-4',
+          mcp: [
+            {alias: '/code', transport: 'stdio'},
+            {alias: '/research', transport: 'sse'},
+          ],
+          rpc: [{alias: '/vm1', protocol: 'ssh'}],
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          _id: 'workflow-id',
+          openai: {apiKey: 'wk-openai-override'},
+          deepseek: {apiKey: 'wk-deepseek'},
+          lang: 'es',
+          model: 'auto',
+          mcp: [{alias: '/code', transport: 'sse'}],
+          rpc: [{alias: '/vm2', protocol: 'http'}],
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result).toEqual({
+          userId: 'u1',
+          workflowId: 'wf1',
+          openai: {apiKey: 'wk-openai-override'},
+          claude: {apiKey: 'gk-claude'},
+          yandex: {apiKey: 'gk-yandex'},
+          deepseek: {apiKey: 'wk-deepseek'},
+          lang: 'es',
+          model: 'gpt-4',
+          mcp: [
+            {alias: '/code', transport: 'sse'},
+            {alias: '/research', transport: 'sse'},
+          ],
+          rpc: [
+            {alias: '/vm1', protocol: 'ssh'},
+            {alias: '/vm2', protocol: 'http'},
+          ],
+        })
+        expect(result._id).toBeUndefined()
+      })
+    })
+  })
+})

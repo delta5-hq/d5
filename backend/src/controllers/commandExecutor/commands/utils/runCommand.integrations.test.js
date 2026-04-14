@@ -25,8 +25,7 @@ import {EXT_QUERY_TYPE} from '../../constants/ext'
 import {BaseChatModel} from '@langchain/core/language_models/chat_models'
 import {getIntegrationSettings, Model} from './langchain/getLLM'
 import YandexService from '../../../integrations/yandex/YandexService'
-import ClaudeService from '../../../integrations/claude/ClaudeService'
-import OpenAI from 'openai'
+import {ClaudeService} from '../../../integrations/claude/ClaudeService'
 import {ExtVectorStore} from './langchain/vectorStore/ExtVectorStore'
 import {DownloadCommand} from '../DownloadCommand'
 import {DOWNLOAD_QUERY_TYPE} from '../../constants/download'
@@ -53,14 +52,17 @@ jest.mock('./langchain/getLLM', () => ({
   getIntegrationSettings: jest.fn(),
 }))
 
-jest.mock('../../../integrations/yandex/YandexService', () => {
-  return jest.fn().mockImplementation(() => ({
+jest.mock('../../../integrations/yandex/YandexService', () => ({
+  __esModule: true,
+  default: {
     completionWithRetry: jest.fn(),
-  }))
-})
+  },
+}))
 
 jest.mock('../../../integrations/claude/ClaudeService', () => ({
-  sendMessages: jest.fn(),
+  ClaudeService: {
+    sendMessages: jest.fn(),
+  },
 }))
 
 /* Manual mock factory — auto-mock triggers zod ESM crash in Jest 27 */
@@ -190,15 +192,13 @@ describe('ChatCommand run test', () => {
 
     const chatRunSpy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValueOnce(new Error('Api Error'))
 
-    await runCommand({
-      cell: chatNode,
-      queryType: CHAT_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual([])
+    await expect(
+      runCommand({
+        cell: chatNode,
+        queryType: CHAT_QUERY_TYPE,
+        store: mockStore,
+      }),
+    ).rejects.toThrow('Api Error')
 
     chatRunSpy.mockRestore()
   })
@@ -255,20 +255,15 @@ describe('YandexCommand run test', () => {
       },
     })
 
-    const yandexServiceInstance = new YandexService()
-    const chatRunSpy = jest
-      .spyOn(yandexServiceInstance, 'completionWithRetry')
-      .mockRejectedValueOnce(new Error('Api Error'))
+    const chatRunSpy = jest.spyOn(YandexService, 'completionWithRetry').mockRejectedValueOnce(new Error('Api Error'))
 
-    await runCommand({
-      cell: chatNode,
-      queryType: YANDEX_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual([])
+    await expect(
+      runCommand({
+        cell: chatNode,
+        queryType: YANDEX_QUERY_TYPE,
+        store: mockStore,
+      }),
+    ).rejects.toThrow('Api Error')
 
     chatRunSpy.mockRestore()
   })
@@ -327,15 +322,13 @@ describe('DeepseekCommand run test', () => {
 
     const chatRunSpy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValueOnce(new Error('Api Error'))
 
-    await runCommand({
-      cell: chatNode,
-      queryType: DEEPSEEK_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual([])
+    await expect(
+      runCommand({
+        cell: chatNode,
+        queryType: DEEPSEEK_QUERY_TYPE,
+        store: mockStore,
+      }),
+    ).rejects.toThrow('Api Error')
 
     chatRunSpy.mockRestore()
   })
@@ -394,15 +387,13 @@ describe('ClaudeCommand run test', () => {
 
     const chatRunSpy = jest.spyOn(ClaudeService, 'sendMessages').mockRejectedValueOnce(new Error('Api Error'))
 
-    await runCommand({
-      cell: chatNode,
-      queryType: CLAUDE_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual([])
+    await expect(
+      runCommand({
+        cell: chatNode,
+        queryType: CLAUDE_QUERY_TYPE,
+        store: mockStore,
+      }),
+    ).rejects.toThrow('Api Error')
 
     chatRunSpy.mockRestore()
   })
@@ -459,18 +450,15 @@ describe('QwenCommand run test', () => {
       },
     })
 
-    const openApi = new OpenAI({apiKey: 'test'})
-    const chatRunSpy = jest.spyOn(openApi.chat.completions, 'create').mockRejectedValueOnce(new Error('Api Error'))
+    const chatRunSpy = jest.spyOn(QwenCommand.prototype, 'replyQwen').mockRejectedValueOnce(new Error('Api Error'))
 
-    await runCommand({
-      cell: chatNode,
-      queryType: QWEN_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual([])
+    await expect(
+      runCommand({
+        cell: chatNode,
+        queryType: QWEN_QUERY_TYPE,
+        store: mockStore,
+      }),
+    ).rejects.toThrow('Api Error')
 
     chatRunSpy.mockRestore()
   })
@@ -535,18 +523,15 @@ describe('PerplexityCommand run test', () => {
       },
     })
 
-    const openApi = new OpenAI({apiKey: 'test'})
-    const chatRunSpy = jest.spyOn(openApi.chat.completions, 'create').mockRejectedValueOnce(new Error('Api Error'))
+    const chatRunSpy = jest.spyOn(PerplexityCommand.prototype, 'reply').mockRejectedValueOnce(new Error('Api Error'))
 
-    await runCommand({
-      cell: chatNode,
-      queryType: PERPLEXITY_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual([])
+    await expect(
+      runCommand({
+        cell: chatNode,
+        queryType: PERPLEXITY_QUERY_TYPE,
+        store: mockStore,
+      }),
+    ).rejects.toThrow('Api Error')
 
     chatRunSpy.mockRestore()
   })
@@ -615,15 +600,13 @@ describe('CustomLLMCommand run test', () => {
 
     const chatRunSpy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValueOnce(new Error('Api Error'))
 
-    await runCommand({
-      cell: chatNode,
-      queryType: CUSTOM_LLM_CHAT_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual([])
+    await expect(
+      runCommand({
+        cell: chatNode,
+        queryType: CUSTOM_LLM_CHAT_QUERY_TYPE,
+        store: mockStore,
+      }),
+    ).rejects.toThrow('Api Error')
 
     chatRunSpy.mockRestore()
   })
@@ -680,17 +663,17 @@ describe('WebCommand run test', () => {
       },
     })
 
-    const chatRunSpy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValueOnce(new Error('Api Error'))
+    const chatRunSpy = jest
+      .spyOn(WebCommand.prototype, 'createResponseWeb')
+      .mockRejectedValueOnce(new Error('Api Error'))
 
-    await runCommand({
-      cell: chatNode,
-      queryType: WEB_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual([])
+    await expect(
+      runCommand({
+        cell: chatNode,
+        queryType: WEB_QUERY_TYPE,
+        store: mockStore,
+      }),
+    ).rejects.toThrow('Api Error')
 
     chatRunSpy.mockRestore()
   })
@@ -747,17 +730,17 @@ describe('ScholarCommand run test', () => {
       },
     })
 
-    const chatRunSpy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValueOnce(new Error('Api Error'))
+    const chatRunSpy = jest
+      .spyOn(ScholarCommand.prototype, 'createResponseScholar')
+      .mockRejectedValueOnce(new Error('Api Error'))
 
-    await runCommand({
-      cell: chatNode,
-      queryType: SCHOLAR_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual([])
+    await expect(
+      runCommand({
+        cell: chatNode,
+        queryType: SCHOLAR_QUERY_TYPE,
+        store: mockStore,
+      }),
+    ).rejects.toThrow('Api Error')
 
     chatRunSpy.mockRestore()
   })
@@ -814,17 +797,17 @@ describe('OutlineCommand run test', () => {
       },
     })
 
-    const chatRunSpy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValueOnce(new Error('Api Error'))
+    const chatRunSpy = jest
+      .spyOn(OutlineCommand.prototype, 'createResponseOutline')
+      .mockRejectedValueOnce(new Error('Api Error'))
 
-    await runCommand({
-      cell: chatNode,
-      queryType: OUTLINE_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual([])
+    await expect(
+      runCommand({
+        cell: chatNode,
+        queryType: OUTLINE_QUERY_TYPE,
+        store: mockStore,
+      }),
+    ).rejects.toThrow('Api Error')
 
     chatRunSpy.mockRestore()
   })
@@ -885,14 +868,13 @@ describe('ExtCommand run test', () => {
       .spyOn(ExtVectorStore.prototype, 'setVectors')
       .mockRejectedValueOnce(new Error('Vector store error'))
 
-    await runCommand({
-      cell: chatNode,
-      queryType: EXT_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-    expect(output.nodes).toEqual([])
+    await expect(
+      runCommand({
+        cell: chatNode,
+        queryType: EXT_QUERY_TYPE,
+        store: mockStore,
+      }),
+    ).rejects.toThrow('Vector store error')
 
     setVectorsSpy.mockRestore()
   })
@@ -1186,15 +1168,14 @@ describe('SwitchCommand run test', () => {
 
     const llmSpy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValueOnce(new Error('LLM Error'))
 
-    await runCommand({
-      cell: switchNode,
-      queryType: SWITCH_QUERY_TYPE,
-      store: mockStore,
-    })
+    await expect(
+      runCommand({
+        cell: switchNode,
+        queryType: SWITCH_QUERY_TYPE,
+        store: mockStore,
+      }),
+    ).rejects.toThrow('LLM Error')
 
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual([])
     expect(llmSpy).toHaveBeenCalled()
     llmSpy.mockRestore()
   })
@@ -1415,18 +1396,19 @@ describe('StepsCommand run test', () => {
 
     const output = mockStore.getOutput()
 
+    // Step 1 succeeds, step 2 fails and stops ordered execution, step 3 (unordered) never runs
     expect(output.nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           title: mockLLMResponse1,
           parent: chatNode1.id,
         }),
-        expect.objectContaining({
-          title: mockLLMResponse3,
-          parent: chatNode3.id,
-        }),
       ]),
     )
+
+    // Verify chatNode3 was never executed (no children created)
+    const chatNode3Output = output.nodes.find(n => n.id === 'chatNode3')
+    expect(chatNode3Output?.children || []).toHaveLength(0)
 
     llmSpy.mockRestore()
   })

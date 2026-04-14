@@ -64,15 +64,40 @@ describe('YandexCommand', () => {
       expect(result).toBe('Response')
     })
 
-    it('should propagate errors from API invocation', async () => {
+    it('should propagate rate limit errors from Yandex API', async () => {
       getIntegrationSettings.mockResolvedValue({
         yandex: {apiKey: 'apiKey', folder_id: 'folder_id', model: 'model'},
       })
-      YandexService.completionWithRetry.mockRejectedValue(new Error('API Error'))
+      const rateLimitError = new Error('Rate limit exceeded')
+      YandexService.completionWithRetry.mockRejectedValue(rateLimitError)
 
       const messages = [{text: 'prompt', role: 'user'}]
 
-      await expect(command.replyYandex(messages, userId)).rejects.toThrow('API Error')
+      await expect(command.replyYandex(messages, userId)).rejects.toThrow('Rate limit exceeded')
+    })
+
+    it('should propagate network errors from Yandex API', async () => {
+      getIntegrationSettings.mockResolvedValue({
+        yandex: {apiKey: 'apiKey', folder_id: 'folder_id', model: 'model'},
+      })
+      const networkError = new Error('ECONNREFUSED')
+      YandexService.completionWithRetry.mockRejectedValue(networkError)
+
+      const messages = [{text: 'prompt', role: 'user'}]
+
+      await expect(command.replyYandex(messages, userId)).rejects.toThrow('ECONNREFUSED')
+    })
+
+    it('should propagate authentication errors from Yandex API', async () => {
+      getIntegrationSettings.mockResolvedValue({
+        yandex: {apiKey: 'invalid-key', folder_id: 'folder_id', model: 'model'},
+      })
+      const authError = new Error('Invalid API key or folder ID')
+      YandexService.completionWithRetry.mockRejectedValue(authError)
+
+      const messages = [{text: 'prompt', role: 'user'}]
+
+      await expect(command.replyYandex(messages, userId)).rejects.toThrow('Invalid API key or folder ID')
     })
   })
 

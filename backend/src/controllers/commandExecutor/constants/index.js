@@ -179,6 +179,8 @@ export const allowedCommands = [
   REFINE_QUERY_TYPE,
   EXT_QUERY_TYPE,
   MEMORIZE_QUERY_TYPE,
+  DOWNLOAD_QUERY_TYPE,
+  COMPLETION_QUERY_TYPE,
 ]
 
 export const LANG_PARAM = '--lang'

@@ -93,6 +93,8 @@ export class OutlineCommand {
   }
 
   async createResponseOutline(node, userInput, params) {
+    const {signal} = params || {}
+
     const formatOutputAsTree = async (llmOutput, citations, llm, params, settings) => {
       try {
         return this.getTreeInOutputLang(llmOutput, citations, llm, params, settings)
@@ -103,6 +105,10 @@ export class OutlineCommand {
     }
 
     const runAgent = async (model, searchTool, query, outputLang) => {
+      if (signal?.aborted) {
+        throw new Error('Operation cancelled')
+      }
+
       const executor = createOutlineAgentExecutor(model, [searchTool], outputLang)
       try {
         return await executor.run(query)
@@ -230,8 +236,9 @@ export class OutlineCommand {
     this.store.importer.createNodes(tree || answer, node.id)
   }
 
-  async run(node, originalPrompt) {
+  async run(node, originalPrompt, options = {}) {
     try {
+      const {signal} = options
       let prompt = originalPrompt
       const title = node?.command || node?.title
 
@@ -246,7 +253,7 @@ export class OutlineCommand {
       const debuglevel = readDebugLevelParam(title)
       const levels = readLevelsParam(title)
 
-      const params = this.getParams(title)
+      const params = {...this.getParams(title), signal}
 
       if (isOutlineSummarize(title)) {
         await this.replyWithSummarize(node, title, prompt, params)

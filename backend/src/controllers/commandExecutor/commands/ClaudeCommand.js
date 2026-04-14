@@ -32,12 +32,17 @@ export class ClaudeCommand {
     if (this.workflowId) {
       this.log = this.log.extend(workflowId, '#')
     }
-    this.logError = this.log.extend('ERROR*', '::')
   }
 
   async replyClaude(messages, userId, workflowId, store) {
     const settings = await getIntegrationSettings(userId, workflowId, store)
     const {apiKey, model} = settings?.claude || {}
+
+    if (!apiKey) {
+      throw new Error(
+        'Claude API key not configured. Set it in Integration Settings or set the CLAUDE_API_KEY environment variable.',
+      )
+    }
 
     const max_tokens = getClaudeMaxOutput(model)
     const params = {apiKey, model, messages, max_tokens, userId}

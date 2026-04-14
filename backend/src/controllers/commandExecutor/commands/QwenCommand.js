@@ -33,12 +33,17 @@ export class QwenCommand {
     if (this.workflowId) {
       this.log = this.log.extend(workflowId, '#')
     }
-    this.logError = this.log.extend('ERROR*', '::')
   }
 
   async replyQwen(messages) {
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     const {apiKey, model = QWEN_DEFAULT_MODEL} = settings?.qwen || {}
+
+    if (!apiKey) {
+      throw new Error(
+        'Qwen API key not configured. Set it in Integration Settings or set the QWEN_API_KEY environment variable.',
+      )
+    }
 
     const client = new OpenAI({
       apiKey,

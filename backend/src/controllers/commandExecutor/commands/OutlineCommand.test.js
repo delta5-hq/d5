@@ -275,4 +275,75 @@ describe('OutlineCommand', () => {
       expect(clearStepsPrefix).toHaveBeenCalledWith(originalPrompt)
     })
   })
+
+  describe('abort signal support', () => {
+    it('passes signal through params to createResponseOutline', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      command.replyDefault = jest.fn().mockResolvedValue(undefined)
+
+      const abortController = new AbortController()
+      const node = {id: 'node', command: '/outline test'}
+
+      await command.run(node, 'prompt', {signal: abortController.signal})
+
+      expect(command.replyDefault).toHaveBeenCalledWith(
+        node,
+        expect.any(String),
+        expect.objectContaining({
+          signal: abortController.signal,
+        }),
+      )
+    })
+
+    it('accepts run with no options parameter for backward compatibility', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      command.replyDefault = jest.fn().mockResolvedValue(undefined)
+
+      const node = {id: 'node', command: '/outline test'}
+
+      await expect(command.run(node, 'prompt')).resolves.not.toThrow()
+      expect(command.replyDefault).toHaveBeenCalled()
+    })
+
+    it('accepts run with undefined signal for backward compatibility', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      command.replyDefault = jest.fn().mockResolvedValue(undefined)
+
+      const node = {id: 'node', command: '/outline test'}
+
+      await expect(command.run(node, 'prompt', {signal: undefined})).resolves.not.toThrow()
+      expect(command.replyDefault).toHaveBeenCalled()
+    })
+
+    it('propagates signal to all execution paths', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      command.replyWithSummarize = jest.fn().mockResolvedValue(undefined)
+      command.replySecondDebugLevelOutline = jest.fn().mockResolvedValue(undefined)
+      command.replySecondLevelsOutline = jest.fn().mockResolvedValue(undefined)
+
+      const abortController = new AbortController()
+      const signal = abortController.signal
+
+      const summarizeNode = {id: 'n1', command: '/outline test --summarize'}
+      await command.run(summarizeNode, 'p', {signal})
+      expect(command.replyWithSummarize).toHaveBeenCalledWith(
+        summarizeNode,
+        expect.anything(),
+        expect.any(String),
+        expect.objectContaining({signal}),
+      )
+
+      const debugNode = {id: 'n2', command: '/outline test --debuglevel=2'}
+      await command.run(debugNode, 'p', {signal})
+      expect(command.replySecondDebugLevelOutline).toHaveBeenCalledWith(debugNode, expect.objectContaining({signal}))
+
+      const levelsNode = {id: 'n3', command: '/outline test --levels=2'}
+      await command.run(levelsNode, 'p', {signal})
+      expect(command.replySecondLevelsOutline).toHaveBeenCalledWith(
+        levelsNode,
+        expect.any(String),
+        expect.objectContaining({signal}),
+      )
+    })
+  })
 })

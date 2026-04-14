@@ -177,21 +177,21 @@ export class ForeachCommand {
     return leafs
   }
 
-  async executePrompts(nodes, isParallel = true) {
+  async executePrompts(nodes, isParallel = true, signal) {
     const sshClientPool = new SSHClientPool()
 
     try {
       if (isParallel) {
-        await this._executePromptsParallel(nodes, sshClientPool)
+        await this._executePromptsParallel(nodes, sshClientPool, signal)
       } else {
-        await this._executePromptsSequential(nodes, sshClientPool)
+        await this._executePromptsSequential(nodes, sshClientPool, signal)
       }
     } finally {
       sshClientPool.disposeAll()
     }
   }
 
-  async _executePromptsParallel(nodes, sshClientPool) {
+  async _executePromptsParallel(nodes, sshClientPool, signal) {
     const parallelProgress = new ProgressReporter({title: 'parallel'}, this.progress)
 
     await Promise.allSettled(
@@ -211,6 +211,7 @@ export class ForeachCommand {
                 mcpAlias,
                 rpcAlias,
                 sshClientPool,
+                signal,
               },
               parallelProgress,
             )
@@ -227,10 +228,12 @@ export class ForeachCommand {
     parallelProgress.dispose()
   }
 
-  async _executePromptsSequential(nodes, sshClientPool) {
+  async _executePromptsSequential(nodes, sshClientPool, signal) {
     const sequentialProgress = new ProgressReporter({title: 'sequential'}, this.progress)
 
     for (let i = 0; i < nodes.length; i += 1) {
+      if (signal?.aborted) break
+
       try {
         const sequentialTracker = await sequentialProgress.add('child')
 
@@ -250,6 +253,7 @@ export class ForeachCommand {
               mcpAlias,
               rpcAlias,
               sshClientPool,
+              signal,
             },
             sequentialProgress,
           )
@@ -264,7 +268,7 @@ export class ForeachCommand {
     sequentialProgress.dispose()
   }
 
-  runDefault = async (node, command, params) => {
+  runDefault = async (node, command, params, signal) => {
     const leafs = []
     const mainCommand = command.replace(FOREACH_PARAM_PARALLEL, '').trim()
 
@@ -275,7 +279,7 @@ export class ForeachCommand {
       if (parentNode && !isRoot) {
         leafs.push(...this.findLeafs(parentNode, mainCommand, params.useFile))
 
-        await this.executePrompts(leafs, params.parallel)
+        await this.executePrompts(leafs, params.parallel, signal)
       }
     } catch (e) {
       this.logError(e)
@@ -302,7 +306,7 @@ export class ForeachCommand {
     )
   }
 
-  runSteps = async (node, params) => {
+  runSteps = async (node, params, signal) => {
     const stepsCommand = new StepsCommand(this.userId, this.workflowId, this.store)
     const {nodesByOrder, nodesWithoutOrder} = await stepsCommand.findMatchingNodes(node)
 
@@ -332,25 +336,26 @@ export class ForeachCommand {
       }
     }
 
-    await this.executePrompts(leafs, params.parallel)
+    await this.executePrompts(leafs, params.parallel, signal)
   }
 
   stripCommand(str) {
     return str.replace(FOREACH_QUERY, '').replace(FOREACH_FILE_PARAM, '').trim()
   }
 
-  async run(node) {
+  async run(node, options = {}) {
+    const {signal} = options
     const command = node?.command || node?.title || ''
     const prompt = this.stripCommand(command)
 
     const promptParams = this.getParams(command)
 
     if (prompt?.startsWith(STEPS_QUERY)) {
-      await this.runSteps(node, promptParams)
+      await this.runSteps(node, promptParams, signal)
     } else if (prompt?.match(simpleRefRegexp) || prompt?.match(refWithParentsRegexp)) {
-      await this.runDefault(node, prompt, promptParams)
+      await this.runDefault(node, prompt, promptParams, signal)
     } else if (prompt) {
-      await this.runDefault(node, prompt, promptParams)
+      await this.runDefault(node, prompt, promptParams, signal)
     }
   }
 }

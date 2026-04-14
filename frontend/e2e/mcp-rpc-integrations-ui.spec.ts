@@ -969,3 +969,216 @@ test.describe.serial('UI Form Validation Edge Cases', () => {
     }
   })
 })
+
+test.describe.serial('Integration Tile Interaction', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/settings')
+    await page.waitForLoadState('networkidle')
+    await cleanArrayIntegrations(page)
+    await page.reload()
+    await page.waitForLoadState('networkidle')
+  })
+
+  test('Clicking anywhere on MCP tile opens edit dialog', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.addMCPIntegration({
+      alias: '/clicktest',
+      transport: 'stdio',
+      toolName: 'tool',
+      command: 'node',
+      description: 'Click me anywhere',
+    })
+
+    const card = page.locator('[data-alias="/clicktest"][data-field="mcp"]')
+    await expect(card).toBeVisible()
+
+    await card.click({ position: { x: 20, y: 20 } })
+
+    const dialog = page.locator('[data-dialog-name="mcp"]')
+    await expect(dialog).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('#alias')).toHaveValue('/clicktest')
+  })
+
+  test('Clicking anywhere on RPC tile opens edit dialog', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.addRPCIntegration({
+      alias: '/rpcclick',
+      protocol: 'ssh',
+      host: '127.0.0.1',
+      username: 'test',
+      privateKey: 'key',
+      commandTemplate: 'echo',
+      description: 'RPC clickable',
+    })
+
+    const card = page.locator('[data-alias="/rpcclick"][data-field="rpc"]')
+    await expect(card).toBeVisible()
+
+    await card.click({ position: { x: 50, y: 30 } })
+
+    const dialog = page.locator('[data-dialog-name="rpc"]')
+    await expect(dialog).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('#alias')).toHaveValue('/rpcclick')
+  })
+
+  test('Clicking delete button does not trigger edit dialog', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.addMCPIntegration({
+      alias: '/deleteonly',
+      transport: 'stdio',
+      toolName: 'tool',
+      command: 'node',
+    })
+
+    const deleteButton = page.locator('button[aria-label="Delete /deleteonly"]')
+    await expect(deleteButton).toBeVisible()
+
+    await deleteButton.click()
+
+    const confirmDialog = page.locator('text=Are you sure').or(page.locator('button:has-text("Delete")'))
+    await expect(confirmDialog).toBeVisible({ timeout: 3000 })
+
+    const editDialog = page.locator('[data-dialog-name="mcp"]')
+    await expect(editDialog).not.toBeVisible()
+  })
+
+  test('Clicking edit icon opens edit dialog', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.addMCPIntegration({
+      alias: '/editicon',
+      transport: 'stdio',
+      toolName: 'tool',
+      command: 'node',
+    })
+
+    const editButton = page.locator('button[aria-label="Edit /editicon"]')
+    await expect(editButton).toBeVisible()
+
+    await editButton.click()
+
+    const dialog = page.locator('[data-dialog-name="mcp"]')
+    await expect(dialog).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('#alias')).toHaveValue('/editicon')
+  })
+
+  test('Keyboard Enter on tile opens edit dialog', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.addMCPIntegration({
+      alias: '/keyboard',
+      transport: 'stdio',
+      toolName: 'tool',
+      command: 'node',
+    })
+
+    const card = page.locator('[data-alias="/keyboard"][data-field="mcp"]')
+    await expect(card).toBeVisible()
+
+    await card.focus()
+    await page.keyboard.press('Enter')
+
+    const dialog = page.locator('[data-dialog-name="mcp"]')
+    await expect(dialog).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('#alias')).toHaveValue('/keyboard')
+  })
+
+  test('Keyboard Space on tile opens edit dialog', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.addMCPIntegration({
+      alias: '/spacebar',
+      transport: 'stdio',
+      toolName: 'tool',
+      command: 'node',
+    })
+
+    const card = page.locator('[data-alias="/spacebar"][data-field="mcp"]')
+    await expect(card).toBeVisible()
+
+    await card.focus()
+    await page.keyboard.press('Space')
+
+    const dialog = page.locator('[data-dialog-name="mcp"]')
+    await expect(dialog).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('#alias')).toHaveValue('/spacebar')
+  })
+
+  test('Tab navigation reaches integration tile', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.addMCPIntegration({
+      alias: '/tabtest',
+      transport: 'stdio',
+      toolName: 'tool',
+      command: 'node',
+    })
+
+    const card = page.locator('[data-alias="/tabtest"][data-field="mcp"]')
+    await expect(card).toBeVisible()
+
+    const addButton = page.locator('[data-type="add-mcp"]')
+    await addButton.focus()
+
+    await page.keyboard.press('Tab')
+
+    const focusedElement = page.locator(':focus')
+    const isFocusedCard = await focusedElement.evaluate(
+      (el, cardSelector) => el.matches(cardSelector) || el.closest(cardSelector) !== null,
+      '[data-alias="/tabtest"]',
+    )
+
+    expect(isFocusedCard).toBe(true)
+  })
+
+  test('Multiple tiles are all clickable', async ({ page }) => {
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.goto()
+
+    await arrayPage.addMCPIntegration({
+      alias: '/tile1',
+      transport: 'stdio',
+      toolName: 'tool1',
+      command: 'node',
+    })
+
+    await arrayPage.addMCPIntegration({
+      alias: '/tile2',
+      transport: 'stdio',
+      toolName: 'tool2',
+      command: 'npx',
+    })
+
+    await arrayPage.addMCPIntegration({
+      alias: '/tile3',
+      transport: 'stdio',
+      toolName: 'tool3',
+      command: 'node',
+    })
+
+    const tile2 = page.locator('[data-alias="/tile2"][data-field="mcp"]')
+    await tile2.click({ position: { x: 30, y: 30 } })
+
+    const dialog = page.locator('[data-dialog-name="mcp"]')
+    await expect(dialog).toBeVisible()
+    await expect(page.locator('#alias')).toHaveValue('/tile2')
+
+    await page.locator('button:has-text("Cancel")').click()
+    await expect(dialog).not.toBeVisible()
+
+    const tile1 = page.locator('[data-alias="/tile1"][data-field="mcp"]')
+    await tile1.click({ position: { x: 40, y: 40 } })
+    await expect(dialog).toBeVisible()
+    await expect(page.locator('#alias')).toHaveValue('/tile1')
+  })
+})

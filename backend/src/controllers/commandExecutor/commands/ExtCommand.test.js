@@ -53,16 +53,23 @@ describe('ExtCommand', () => {
   })
 
   describe('run', () => {
+    let createResponseExtSpy
+
     beforeEach(() => {
       command.store = mockStore
 
       mockStore.importer.createNodes = jest.fn()
       mockStore.importer.createTable = jest.fn()
       mockStore.importer.createJoinNode = jest.fn()
+
+      createResponseExtSpy = jest.spyOn(ExtCommand.prototype, 'createResponseExt').mockResolvedValue('Response')
+    })
+
+    afterEach(() => {
+      createResponseExtSpy.mockRestore()
     })
 
     it('should use substituteReferencesAndHashrefsChildrenAndSelf when title contains a reference', async () => {
-      callSpy.mockResolvedValue({content: 'Response'})
       referencePatterns.withAssignmentPrefix().test.mockReturnValue(true)
 
       const node = {id: 'node', title: '/ext prompt with @@reference'}
@@ -74,8 +81,6 @@ describe('ExtCommand', () => {
     })
 
     it('should use substituteReferencesAndHashrefsChildrenAndSelf when prompt is falsy', async () => {
-      callSpy.mockResolvedValue({content: 'Response'})
-
       const node = {id: 'node', title: '/ext prompt without reference'}
 
       await command.run(node, null)
@@ -85,7 +90,6 @@ describe('ExtCommand', () => {
     })
 
     it('should use clearStepsPrefix when prompt is provided and title has no reference', async () => {
-      callSpy.mockResolvedValue({content: 'Response'})
       referencePatterns.withAssignmentPrefix().test.mockReturnValue(false)
 
       const node = {id: 'node', title: '/ext prompt without reference'}
@@ -95,6 +99,30 @@ describe('ExtCommand', () => {
 
       expect(substituteReferencesAndHashrefsChildrenAndSelf).not.toHaveBeenCalled()
       expect(clearStepsPrefix).toHaveBeenCalledWith(originalPrompt)
+    })
+
+    it('should propagate errors from createResponseExt', async () => {
+      createResponseExtSpy.mockRejectedValue(new Error('Vector store initialization failed'))
+
+      const node = {id: 'node', title: '/ext query knowledge base'}
+
+      await expect(command.run(node, 'test prompt')).rejects.toThrow('Vector store initialization failed')
+    })
+
+    it('should propagate network errors from createResponseExt', async () => {
+      createResponseExtSpy.mockRejectedValue(new Error('ECONNREFUSED'))
+
+      const node = {id: 'node', title: '/ext query'}
+
+      await expect(command.run(node, 'test')).rejects.toThrow('ECONNREFUSED')
+    })
+
+    it('should propagate LLM errors from createResponseExt', async () => {
+      createResponseExtSpy.mockRejectedValue(new Error('Rate limit exceeded'))
+
+      const node = {id: 'node', title: '/ext search'}
+
+      await expect(command.run(node, 'query')).rejects.toThrow('Rate limit exceeded')
     })
   })
 })

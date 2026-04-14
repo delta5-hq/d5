@@ -28,7 +28,8 @@ export class CompletionCommand {
     this.progress = progress
   }
 
-  async run(cell) {
+  async run(cell, options = {}) {
+    const {signal} = options
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     if (!settings) throw new Error('No integration enabled')
 
@@ -73,6 +74,7 @@ export class CompletionCommand {
           cell,
           store: this.store,
           preventPostProcess: true,
+          signal,
         },
         this.progress,
       )
