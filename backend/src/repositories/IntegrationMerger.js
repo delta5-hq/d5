@@ -97,3 +97,95 @@ export class IntegrationMerger {
 }
 
 export default new IntegrationMerger()
+
+const SENTINEL_VALUES = {
+  lang: 'none',
+  model: 'auto',
+}
+
+const SCALAR_FIELDS = ['openai', 'claude', 'yandex', 'deepseek', 'qwen', 'perplexity', 'custom_llm', 'google']
+
+const SENTINEL_FIELDS = ['lang', 'model']
+
+const ARRAY_FIELDS = ['mcp', 'rpc']
+
+const isPresent = value => value !== null && value !== undefined
+
+const isSentinelValue = (field, value) => {
+  const sentinel = SENTINEL_VALUES[field]
+  return sentinel !== undefined && value === sentinel
+}
+
+const mergeScalarField = (globalValue, workflowValue) => {
+  if (isPresent(workflowValue)) {
+    return workflowValue
+  }
+  return globalValue
+}
+
+const mergeSentinelField = (field, globalValue, workflowValue) => {
+  if (isPresent(workflowValue) && !isSentinelValue(field, workflowValue)) {
+    return workflowValue
+  }
+  return globalValue
+}
+
+const mergeArrayField = (globalArray, workflowArray) => {
+  const globalItems = globalArray || []
+  const workflowItems = workflowArray || []
+
+  const combined = [...globalItems]
+
+  for (const workflowItem of workflowItems) {
+    const existingIndex = combined.findIndex(item => item.alias === workflowItem.alias)
+    if (existingIndex >= 0) {
+      combined[existingIndex] = workflowItem
+    } else {
+      combined.push(workflowItem)
+    }
+  }
+
+  return combined
+}
+
+export const mergeIntegrations = (globalDoc, workflowDoc) => {
+  if (!globalDoc && !workflowDoc) {
+    return null
+  }
+
+  if (!globalDoc) {
+    return workflowDoc
+  }
+
+  if (!workflowDoc) {
+    return globalDoc
+  }
+
+  const merged = {
+    userId: workflowDoc.userId || globalDoc.userId,
+    workflowId: workflowDoc.workflowId,
+  }
+
+  for (const field of SCALAR_FIELDS) {
+    const mergedValue = mergeScalarField(globalDoc[field], workflowDoc[field])
+    if (isPresent(mergedValue)) {
+      merged[field] = mergedValue
+    }
+  }
+
+  for (const field of SENTINEL_FIELDS) {
+    const mergedValue = mergeSentinelField(field, globalDoc[field], workflowDoc[field])
+    if (isPresent(mergedValue)) {
+      merged[field] = mergedValue
+    }
+  }
+
+  for (const field of ARRAY_FIELDS) {
+    const mergedValue = mergeArrayField(globalDoc[field], workflowDoc[field])
+    if (mergedValue.length > 0) {
+      merged[field] = mergedValue
+    }
+  }
+
+  return merged
+}

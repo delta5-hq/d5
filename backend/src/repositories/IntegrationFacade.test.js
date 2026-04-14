@@ -180,4 +180,224 @@ describe('IntegrationFacade', () => {
       )
     })
   })
+
+  describe('findMergedDecrypted', () => {
+    beforeEach(() => {
+      IntegrationRepository.findByUser = jest.fn()
+      IntegrationRepository.findByWorkflow = jest.fn()
+    })
+
+    it('returns global doc only when workflowId is null', async () => {
+      const globalDoc = {userId: 'user-1', workflowId: null, openai: {apiKey: 'encrypted'}}
+      const decrypted = {userId: 'user-1', workflowId: null, openai: {apiKey: 'sk-key'}}
+
+      IntegrationRepository.findWithFallback.mockResolvedValue(globalDoc)
+      decryptFields.mockReturnValue(decrypted)
+
+      const result = await IntegrationFacade.findMergedDecrypted('user-1', null)
+
+      expect(result).toEqual(decrypted)
+      expect(IntegrationRepository.findWithFallback).toHaveBeenCalledWith('user-1', null)
+      expect(IntegrationRepository.findByUser).not.toHaveBeenCalled()
+      expect(IntegrationRepository.findByWorkflow).not.toHaveBeenCalled()
+    })
+
+    it('returns global doc only when workflowId is undefined', async () => {
+      const globalDoc = {userId: 'user-1', workflowId: null, openai: {apiKey: 'encrypted'}}
+      const decrypted = {userId: 'user-1', workflowId: null, openai: {apiKey: 'sk-key'}}
+
+      IntegrationRepository.findWithFallback.mockResolvedValue(globalDoc)
+      decryptFields.mockReturnValue(decrypted)
+
+      const result = await IntegrationFacade.findMergedDecrypted('user-1')
+
+      expect(result).toEqual(decrypted)
+    })
+
+    it('fetches and decrypts both docs with correct AAD when workflowId is set', async () => {
+      const globalDoc = {userId: 'user-1', workflowId: null, openai: {apiKey: 'g-enc'}}
+      const workflowDoc = {userId: 'user-1', workflowId: 'wf-1', claude: {apiKey: 'w-enc'}}
+
+      IntegrationRepository.findByUser.mockResolvedValue(globalDoc)
+      IntegrationRepository.findByWorkflow.mockResolvedValue(workflowDoc)
+      decryptFields
+        .mockReturnValueOnce({userId: 'user-1', workflowId: null, openai: {apiKey: 'g-key'}})
+        .mockReturnValueOnce({userId: 'user-1', workflowId: 'wf-1', claude: {apiKey: 'w-key'}})
+
+      const result = await IntegrationFacade.findMergedDecrypted('user-1', 'wf-1')
+
+      expect(IntegrationRepository.findByUser).toHaveBeenCalledWith('user-1')
+      expect(IntegrationRepository.findByWorkflow).toHaveBeenCalledWith('user-1', 'wf-1')
+      expect(decryptFields).toHaveBeenCalledWith(globalDoc, expect.any(Object), {
+        userId: 'user-1',
+        workflowId: null,
+      })
+      expect(decryptFields).toHaveBeenCalledWith(workflowDoc, expect.any(Object), {
+        userId: 'user-1',
+        workflowId: 'wf-1',
+      })
+      expect(result.openai).toEqual({apiKey: 'g-key'})
+      expect(result.claude).toEqual({apiKey: 'w-key'})
+    })
+
+    it('returns null when both docs are absent', async () => {
+      IntegrationRepository.findByUser.mockResolvedValue(null)
+      IntegrationRepository.findByWorkflow.mockResolvedValue(null)
+
+      const result = await IntegrationFacade.findMergedDecrypted('user-1', 'wf-1')
+
+      expect(result).toBeNull()
+      expect(decryptFields).not.toHaveBeenCalled()
+    })
+
+    it('returns workflow doc when global is absent', async () => {
+      const workflowDoc = {userId: 'user-1', workflowId: 'wf-1', openai: {apiKey: 'w-enc'}}
+
+      IntegrationRepository.findByUser.mockResolvedValue(null)
+      IntegrationRepository.findByWorkflow.mockResolvedValue(workflowDoc)
+      decryptFields.mockReturnValue({userId: 'user-1', workflowId: 'wf-1', openai: {apiKey: 'w-key'}})
+
+      const result = await IntegrationFacade.findMergedDecrypted('user-1', 'wf-1')
+
+      expect(result).toEqual({userId: 'user-1', workflowId: 'wf-1', openai: {apiKey: 'w-key'}})
+    })
+
+    it('returns global doc when workflow is absent', async () => {
+      const globalDoc = {userId: 'user-1', workflowId: null, openai: {apiKey: 'g-enc'}}
+
+      IntegrationRepository.findByUser.mockResolvedValue(globalDoc)
+      IntegrationRepository.findByWorkflow.mockResolvedValue(null)
+      decryptFields.mockReturnValue({userId: 'user-1', workflowId: null, openai: {apiKey: 'g-key'}})
+
+      const result = await IntegrationFacade.findMergedDecrypted('user-1', 'wf-1')
+
+      expect(result).toEqual({userId: 'user-1', workflowId: null, openai: {apiKey: 'g-key'}})
+    })
+
+    it('merges scalar fields correctly', async () => {
+      const globalDoc = {
+        userId: 'user-1',
+        workflowId: null,
+        openai: {apiKey: 'g-enc'},
+        lang: 'en',
+      }
+      const workflowDoc = {
+        userId: 'user-1',
+        workflowId: 'wf-1',
+        claude: {apiKey: 'w-enc'},
+      }
+
+      IntegrationRepository.findByUser.mockResolvedValue(globalDoc)
+      IntegrationRepository.findByWorkflow.mockResolvedValue(workflowDoc)
+      decryptFields
+        .mockReturnValueOnce({userId: 'user-1', workflowId: null, openai: {apiKey: 'g-key'}, lang: 'en'})
+        .mockReturnValueOnce({userId: 'user-1', workflowId: 'wf-1', claude: {apiKey: 'w-key'}})
+
+      const result = await IntegrationFacade.findMergedDecrypted('user-1', 'wf-1')
+
+      expect(result.openai).toEqual({apiKey: 'g-key'})
+      expect(result.claude).toEqual({apiKey: 'w-key'})
+      expect(result.lang).toBe('en')
+    })
+
+    it('merges array fields correctly', async () => {
+      const globalDoc = {
+        userId: 'user-1',
+        workflowId: null,
+        mcp: [{alias: '/g'}],
+      }
+      const workflowDoc = {
+        userId: 'user-1',
+        workflowId: 'wf-1',
+        mcp: [{alias: '/w'}],
+      }
+
+      IntegrationRepository.findByUser.mockResolvedValue(globalDoc)
+      IntegrationRepository.findByWorkflow.mockResolvedValue(workflowDoc)
+      decryptFields
+        .mockReturnValueOnce({userId: 'user-1', workflowId: null, mcp: [{alias: '/g'}]})
+        .mockReturnValueOnce({userId: 'user-1', workflowId: 'wf-1', mcp: [{alias: '/w'}]})
+
+      const result = await IntegrationFacade.findMergedDecrypted('user-1', 'wf-1')
+
+      expect(result.mcp).toEqual([{alias: '/g'}, {alias: '/w'}])
+    })
+
+    it('handles sentinel values correctly', async () => {
+      const globalDoc = {
+        userId: 'user-1',
+        workflowId: null,
+        lang: 'en',
+        model: 'gpt-4',
+      }
+      const workflowDoc = {
+        userId: 'user-1',
+        workflowId: 'wf-1',
+        lang: 'none',
+        model: 'auto',
+      }
+
+      IntegrationRepository.findByUser.mockResolvedValue(globalDoc)
+      IntegrationRepository.findByWorkflow.mockResolvedValue(workflowDoc)
+      decryptFields
+        .mockReturnValueOnce({userId: 'user-1', workflowId: null, lang: 'en', model: 'gpt-4'})
+        .mockReturnValueOnce({userId: 'user-1', workflowId: 'wf-1', lang: 'none', model: 'auto'})
+
+      const result = await IntegrationFacade.findMergedDecrypted('user-1', 'wf-1')
+
+      expect(result.lang).toBe('en')
+      expect(result.model).toBe('gpt-4')
+    })
+  })
+
+  describe('findMergedDecryptedWithMetadata', () => {
+    beforeEach(() => {
+      IntegrationRepository.findByUser = jest.fn()
+      IntegrationRepository.findByWorkflow = jest.fn()
+    })
+
+    it('returns merged and null workflowDoc when workflowId is null', async () => {
+      const globalDoc = {userId: 'user-1', workflowId: null, openai: {apiKey: 'encrypted'}}
+      const decrypted = {userId: 'user-1', workflowId: null, openai: {apiKey: 'sk-key'}}
+
+      IntegrationRepository.findWithFallback.mockResolvedValue(globalDoc)
+      decryptFields.mockReturnValue(decrypted)
+
+      const result = await IntegrationFacade.findMergedDecryptedWithMetadata('user-1', null)
+
+      expect(result).toEqual({merged: decrypted, workflowDoc: null})
+      expect(IntegrationRepository.findByUser).not.toHaveBeenCalled()
+      expect(IntegrationRepository.findByWorkflow).not.toHaveBeenCalled()
+    })
+
+    it('returns merged and workflow doc when both exist', async () => {
+      const globalDoc = {userId: 'user-1', workflowId: null, openai: {apiKey: 'g-enc'}}
+      const workflowDoc = {userId: 'user-1', workflowId: 'wf-1', claude: {apiKey: 'w-enc'}}
+
+      IntegrationRepository.findByUser.mockResolvedValue(globalDoc)
+      IntegrationRepository.findByWorkflow.mockResolvedValue(workflowDoc)
+      decryptFields
+        .mockReturnValueOnce({userId: 'user-1', workflowId: null, openai: {apiKey: 'g-key'}})
+        .mockReturnValueOnce({userId: 'user-1', workflowId: 'wf-1', claude: {apiKey: 'w-key'}})
+
+      const result = await IntegrationFacade.findMergedDecryptedWithMetadata('user-1', 'wf-1')
+
+      expect(result.merged.openai).toEqual({apiKey: 'g-key'})
+      expect(result.merged.claude).toEqual({apiKey: 'w-key'})
+      expect(result.workflowDoc).toEqual({userId: 'user-1', workflowId: 'wf-1', claude: {apiKey: 'w-key'}})
+    })
+
+    it('returns merged and null workflowDoc when workflow is absent', async () => {
+      const globalDoc = {userId: 'user-1', workflowId: null, openai: {apiKey: 'g-enc'}}
+
+      IntegrationRepository.findByUser.mockResolvedValue(globalDoc)
+      IntegrationRepository.findByWorkflow.mockResolvedValue(null)
+      decryptFields.mockReturnValue({userId: 'user-1', workflowId: null, openai: {apiKey: 'g-key'}})
+
+      const result = await IntegrationFacade.findMergedDecryptedWithMetadata('user-1', 'wf-1')
+
+      expect(result.merged).toEqual({userId: 'user-1', workflowId: null, openai: {apiKey: 'g-key'}})
+      expect(result.workflowDoc).toBeNull()
+    })
+  })
 })

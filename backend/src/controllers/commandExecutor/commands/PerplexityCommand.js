@@ -51,11 +51,16 @@ export class PerplexityCommand {
     if (this.workflowId) {
       this.log = this.log.extend(workflowId, '#')
     }
-    this.logError = this.log.extend('ERROR*', '::')
   }
 
   async reply(messages, userId, workflowId, store) {
     const {perplexity} = await getIntegrationSettings(userId, workflowId, store)
+
+    if (!perplexity?.apiKey) {
+      throw new Error(
+        'Perplexity API key not configured. Set it in Integration Settings or set the PERPLEXITY_API_KEY environment variable.',
+      )
+    }
 
     const {choices, citations} = await PerplexityCommand.call(messages, perplexity)
 

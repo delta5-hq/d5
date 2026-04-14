@@ -127,7 +127,8 @@ export class RPCCommand {
     }
   }
 
-  async run(node, context, originalPrompt) {
+  // eslint-disable-next-line no-unused-vars
+  async run(node, context, originalPrompt, options = {}) {
     const prompt = this.extractPrompt(node, originalPrompt)
     const fullPrompt = context ? context + prompt : prompt
 

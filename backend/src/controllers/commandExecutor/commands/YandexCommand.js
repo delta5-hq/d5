@@ -32,20 +32,21 @@ export class YandexCommand {
     if (this.workflowId) {
       this.log = this.log.extend(workflowId, '#')
     }
-    this.logError = this.log.extend('ERROR*', '::')
   }
 
   async replyYandex(messages, userId, workflowId, store) {
     const settings = await getIntegrationSettings(userId, workflowId, store)
-    const {folder_id, model, apiKey} = settings?.yandex || {}
+    const {folder_id, model, ...credentials} = settings?.yandex || {}
+
+    if (!credentials.apiKey || !folder_id) {
+      throw new Error(
+        'YandexGPT API key and folder ID not configured. Set them in Integration Settings or set the YANDEX_API_KEY and YANDEX_FOLDER_ID environment variables.',
+      )
+    }
+
     const modelUri = `gpt://${folder_id}/${model}`
 
-    const response = await YandexService.completionWithRetry({
-      messages,
-      modelUri,
-      apiKey,
-      folderId: folder_id,
-    })
+    const response = await YandexService.completionWithRetry({messages, modelUri, ...credentials})
 
     return response?.alternatives[0].message.text
   }

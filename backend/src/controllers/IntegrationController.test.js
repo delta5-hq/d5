@@ -1,8 +1,9 @@
 import IntegrationController from './IntegrationController'
 import IntegrationRepository from '../repositories/IntegrationRepository'
+import IntegrationFacade from '../repositories/IntegrationFacade'
 import Integration from '../models/Integration'
 import LLMVector from '../models/LLMVector'
-import {encryptFields, decryptFields} from '../models/utils/fieldEncryption'
+import {encryptFields} from '../models/utils/fieldEncryption'
 import {INTEGRATION_ENCRYPTION_CONFIG} from '../models/Integration'
 import AliasValidator from './commandExecutor/commands/aliases/AliasValidator'
 
@@ -15,6 +16,13 @@ jest.mock('./commandExecutor/commands/aliases/AliasValidator', () => ({
 
 jest.mock('../repositories/IntegrationRepository', () => ({
   findWithFallback: jest.fn(),
+}))
+
+jest.mock('../repositories/IntegrationFacade', () => ({
+  __esModule: true,
+  default: {
+    findMergedDecrypted: jest.fn(),
+  },
 }))
 jest.mock('../models/Integration', () => {
   const updateOne = jest.fn()
@@ -51,68 +59,60 @@ describe('IntegrationController', () => {
   })
 
   describe('getAll', () => {
-    it('calls repository with normalized null when workflowId is missing', async () => {
-      IntegrationRepository.findWithFallback.mockResolvedValue({openai: {key: 'k'}})
+    it('calls facade with normalized null when workflowId is missing', async () => {
+      IntegrationFacade.findMergedDecrypted.mockResolvedValue({openai: {key: 'k'}})
       const ctx = createCtx()
 
       await IntegrationController.getAll(ctx)
 
-      expect(IntegrationRepository.findWithFallback).toHaveBeenCalledWith('user-1', null)
-      expect(decryptFields).toHaveBeenCalled()
+      expect(IntegrationFacade.findMergedDecrypted).toHaveBeenCalledWith('user-1', null)
       expect(ctx.body).toEqual({openai: {key: 'k'}})
     })
 
-    it('calls repository with normalized null when workflowId is empty string', async () => {
-      IntegrationRepository.findWithFallback.mockResolvedValue({openai: {key: 'k'}})
+    it('calls facade with normalized null when workflowId is empty string', async () => {
+      IntegrationFacade.findMergedDecrypted.mockResolvedValue({openai: {key: 'k'}})
       const ctx = createCtx({query: {workflowId: ''}})
 
       await IntegrationController.getAll(ctx)
 
-      expect(IntegrationRepository.findWithFallback).toHaveBeenCalledWith('user-1', null)
+      expect(IntegrationFacade.findMergedDecrypted).toHaveBeenCalledWith('user-1', null)
     })
 
-    it('calls repository with workflowId when provided', async () => {
-      IntegrationRepository.findWithFallback.mockResolvedValue({openai: {key: 'k'}})
+    it('calls facade with workflowId when provided', async () => {
+      IntegrationFacade.findMergedDecrypted.mockResolvedValue({openai: {key: 'k'}})
       const ctx = createCtx({query: {workflowId: 'wf-123'}})
 
       await IntegrationController.getAll(ctx)
 
-      expect(IntegrationRepository.findWithFallback).toHaveBeenCalledWith('user-1', 'wf-123')
+      expect(IntegrationFacade.findMergedDecrypted).toHaveBeenCalledWith('user-1', 'wf-123')
     })
 
-    it('throws 404 when repository returns null', async () => {
-      IntegrationRepository.findWithFallback.mockResolvedValue(null)
+    it('throws 404 when facade returns null', async () => {
+      IntegrationFacade.findMergedDecrypted.mockResolvedValue(null)
       const ctx = createCtx()
 
       await expect(IntegrationController.getAll(ctx)).rejects.toThrow('Integration not found')
       expect(ctx.throw).toHaveBeenCalledWith(404, 'Integration not found')
     })
 
-    it('decrypts integration data before returning', async () => {
-      const raw = {openai: {key: 'encrypted'}}
-      const decrypted = {openai: {key: 'decrypted'}}
-      IntegrationRepository.findWithFallback.mockResolvedValue(raw)
-      decryptFields.mockReturnValue(decrypted)
+    it('returns merged integration data', async () => {
+      const merged = {openai: {key: 'merged'}}
+      IntegrationFacade.findMergedDecrypted.mockResolvedValue(merged)
       const ctx = createCtx()
 
       await IntegrationController.getAll(ctx)
 
-      expect(decryptFields).toHaveBeenCalledWith(raw, INTEGRATION_ENCRYPTION_CONFIG, {
-        userId: 'user-1',
-        workflowId: raw.workflowId,
-      })
-      expect(ctx.body).toEqual(decrypted)
+      expect(ctx.body).toEqual(merged)
     })
 
     it('handles workflow-specific integration retrieval', async () => {
       const workflowData = {userId: 'user-1', workflowId: 'wf-123', openai: {key: 'workflow-key'}}
-      IntegrationRepository.findWithFallback.mockResolvedValue(workflowData)
-      decryptFields.mockReturnValueOnce(workflowData)
+      IntegrationFacade.findMergedDecrypted.mockResolvedValue(workflowData)
       const ctx = createCtx({query: {workflowId: 'wf-123'}})
 
       await IntegrationController.getAll(ctx)
 
-      expect(IntegrationRepository.findWithFallback).toHaveBeenCalledWith('user-1', 'wf-123')
+      expect(IntegrationFacade.findMergedDecrypted).toHaveBeenCalledWith('user-1', 'wf-123')
       expect(ctx.body).toEqual(workflowData)
     })
 
@@ -122,8 +122,7 @@ describe('IntegrationController', () => {
         mcp: [{alias: '/coder1'}],
         rpc: [{alias: '/vm1'}],
       }
-      IntegrationRepository.findWithFallback.mockResolvedValue(integration)
-      decryptFields.mockReturnValueOnce(integration)
+      IntegrationFacade.findMergedDecrypted.mockResolvedValue(integration)
       const ctx = createCtx()
 
       await IntegrationController.getAll(ctx)
@@ -430,6 +429,289 @@ describe('IntegrationController', () => {
       await IntegrationController.deleteIntegration(ctx)
 
       expect(Integration.deleteOne).toHaveBeenCalledWith({userId: 'user-1', workflowId: null})
+    })
+  })
+
+  describe('setLanguage', () => {
+    beforeEach(() => {
+      Integration.updateOne.mockResolvedValue({})
+    })
+
+    it('persists with normalized null workflowId when missing from body', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue(null)
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({lang: 'en'})},
+      })
+
+      await IntegrationController.setLanguage(ctx)
+
+      expect(IntegrationRepository.findWithFallback).toHaveBeenCalledWith('user-1', null)
+      expect(Integration.updateOne).toHaveBeenCalledWith(
+        {userId: 'user-1', workflowId: null},
+        {$set: {userId: 'user-1', workflowId: null, lang: 'en'}},
+        {upsert: true},
+      )
+      expect(ctx.body).toEqual({lang: 'en'})
+    })
+
+    it('persists with normalized null workflowId when empty string in body', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue(null)
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({lang: 'en', workflowId: ''})},
+      })
+
+      await IntegrationController.setLanguage(ctx)
+
+      expect(IntegrationRepository.findWithFallback).toHaveBeenCalledWith('user-1', null)
+      expect(Integration.updateOne).toHaveBeenCalledWith(
+        {userId: 'user-1', workflowId: null},
+        expect.anything(),
+        expect.anything(),
+      )
+    })
+
+    it('persists with workflow-specific workflowId when provided', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue(null)
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({lang: 'en', workflowId: 'wf-123'})},
+      })
+
+      await IntegrationController.setLanguage(ctx)
+
+      expect(IntegrationRepository.findWithFallback).toHaveBeenCalledWith('user-1', 'wf-123')
+      expect(Integration.updateOne).toHaveBeenCalledWith(
+        {userId: 'user-1', workflowId: 'wf-123'},
+        {$set: {userId: 'user-1', workflowId: 'wf-123', lang: 'en'}},
+        {upsert: true},
+      )
+    })
+
+    it('uses same normalized workflowId in both findWithFallback and updateOne', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue(null)
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({lang: 'en', workflowId: 'wf-789'})},
+      })
+
+      await IntegrationController.setLanguage(ctx)
+
+      const findCall = IntegrationRepository.findWithFallback.mock.calls[0]
+      const [filter] = Integration.updateOne.mock.calls[0]
+      expect(findCall[1]).toBe(filter.workflowId)
+    })
+
+    it('upserts when no existing integration found', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue(null)
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({lang: 'ru', workflowId: null})},
+      })
+
+      await IntegrationController.setLanguage(ctx)
+
+      expect(Integration.updateOne).toHaveBeenCalledWith(expect.anything(), expect.anything(), {upsert: true})
+    })
+
+    it('upserts when existing integration has different language', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue({lang: 'en'})
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({lang: 'ru', workflowId: null})},
+      })
+
+      await IntegrationController.setLanguage(ctx)
+
+      expect(Integration.updateOne).toHaveBeenCalledWith(
+        {userId: 'user-1', workflowId: null},
+        {$set: {userId: 'user-1', workflowId: null, lang: 'ru'}},
+        {upsert: true},
+      )
+    })
+
+    it('skips database write when existing integration has same language', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue({lang: 'en'})
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({lang: 'en', workflowId: null})},
+      })
+
+      await IntegrationController.setLanguage(ctx)
+
+      expect(Integration.updateOne).not.toHaveBeenCalled()
+      expect(ctx.body).toEqual({lang: 'en'})
+    })
+
+    it('accepts USER_DEFAULT_LANGUAGE without validation', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue(null)
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({lang: 'none', workflowId: null})},
+      })
+
+      await IntegrationController.setLanguage(ctx)
+
+      expect(Integration.updateOne).toHaveBeenCalled()
+    })
+
+    it('returns the requested language in response body regardless of persistence', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue({lang: 'en'})
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({lang: 'en', workflowId: null})},
+      })
+
+      await IntegrationController.setLanguage(ctx)
+
+      expect(ctx.body).toEqual({lang: 'en'})
+    })
+  })
+
+  describe('setModel', () => {
+    beforeEach(() => {
+      Integration.updateOne.mockResolvedValue({})
+    })
+
+    it('persists with normalized null workflowId when missing from body', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue(null)
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({model: 'OpenAI'})},
+      })
+
+      await IntegrationController.setModel(ctx)
+
+      expect(IntegrationRepository.findWithFallback).toHaveBeenCalledWith('user-1', null)
+      expect(Integration.updateOne).toHaveBeenCalledWith(
+        {userId: 'user-1', workflowId: null},
+        {$set: {userId: 'user-1', workflowId: null, model: 'OpenAI'}},
+        {upsert: true},
+      )
+      expect(ctx.body).toEqual({model: 'OpenAI'})
+    })
+
+    it('persists with normalized null workflowId when empty string in body', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue(null)
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({model: 'OpenAI', workflowId: ''})},
+      })
+
+      await IntegrationController.setModel(ctx)
+
+      expect(IntegrationRepository.findWithFallback).toHaveBeenCalledWith('user-1', null)
+      expect(Integration.updateOne).toHaveBeenCalledWith(
+        {userId: 'user-1', workflowId: null},
+        expect.anything(),
+        expect.anything(),
+      )
+    })
+
+    it('persists with workflow-specific workflowId when provided', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue(null)
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({model: 'OpenAI', workflowId: 'wf-456'})},
+      })
+
+      await IntegrationController.setModel(ctx)
+
+      expect(IntegrationRepository.findWithFallback).toHaveBeenCalledWith('user-1', 'wf-456')
+      expect(Integration.updateOne).toHaveBeenCalledWith(
+        {userId: 'user-1', workflowId: 'wf-456'},
+        {$set: {userId: 'user-1', workflowId: 'wf-456', model: 'OpenAI'}},
+        {upsert: true},
+      )
+    })
+
+    it('uses same normalized workflowId in both findWithFallback and updateOne', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue(null)
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({model: 'OpenAI', workflowId: 'wf-789'})},
+      })
+
+      await IntegrationController.setModel(ctx)
+
+      const findCall = IntegrationRepository.findWithFallback.mock.calls[0]
+      const [filter] = Integration.updateOne.mock.calls[0]
+      expect(findCall[1]).toBe(filter.workflowId)
+    })
+
+    it('upserts when no existing integration found', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue(null)
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({model: 'Claude', workflowId: null})},
+      })
+
+      await IntegrationController.setModel(ctx)
+
+      expect(Integration.updateOne).toHaveBeenCalledWith(expect.anything(), expect.anything(), {upsert: true})
+    })
+
+    it('upserts when existing integration has different model', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue({model: 'YandexGPT'})
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({model: 'OpenAI', workflowId: null})},
+      })
+
+      await IntegrationController.setModel(ctx)
+
+      expect(Integration.updateOne).toHaveBeenCalledWith(
+        {userId: 'user-1', workflowId: null},
+        {$set: {userId: 'user-1', workflowId: null, model: 'OpenAI'}},
+        {upsert: true},
+      )
+    })
+
+    it('skips database write when existing integration has same model', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue({model: 'OpenAI'})
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({model: 'OpenAI', workflowId: null})},
+      })
+
+      await IntegrationController.setModel(ctx)
+
+      expect(Integration.updateOne).not.toHaveBeenCalled()
+      expect(ctx.body).toEqual({model: 'OpenAI'})
+    })
+
+    it('accepts USER_DEFAULT_MODEL without validation', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue(null)
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({model: 'auto', workflowId: null})},
+      })
+
+      await IntegrationController.setModel(ctx)
+
+      expect(Integration.updateOne).toHaveBeenCalled()
+    })
+
+    it('accepts any model from MODELS list', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue(null)
+
+      for (const model of ['OpenAI', 'YandexGPT', 'Claude', 'Qwen', 'Deepseek', 'CustomLLM']) {
+        Integration.updateOne.mockClear()
+        const ctx = createCtx({
+          request: {json: jest.fn().mockResolvedValue({model, workflowId: null})},
+        })
+
+        await IntegrationController.setModel(ctx)
+
+        expect(Integration.updateOne).toHaveBeenCalled()
+      }
+    })
+
+    it('silently skips persistence for models not in MODELS list and not USER_DEFAULT_MODEL', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue(null)
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({model: 'InvalidModel', workflowId: null})},
+      })
+
+      await IntegrationController.setModel(ctx)
+
+      expect(Integration.updateOne).not.toHaveBeenCalled()
+      expect(ctx.body).toEqual({model: 'InvalidModel'})
+    })
+
+    it('returns the requested model in response body regardless of persistence', async () => {
+      IntegrationRepository.findWithFallback.mockResolvedValue({model: 'OpenAI'})
+      const ctx = createCtx({
+        request: {json: jest.fn().mockResolvedValue({model: 'OpenAI', workflowId: null})},
+      })
+
+      await IntegrationController.setModel(ctx)
+
+      expect(ctx.body).toEqual({model: 'OpenAI'})
     })
   })
 })

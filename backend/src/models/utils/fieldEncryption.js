@@ -1,41 +1,15 @@
 import crypto from 'crypto'
-import {JWT_SECRET} from '../../constants'
+import {JWT_SECRET, FIELD_ENCRYPTION_KEY} from '../../constants'
 import adBuilder from './adBuilder'
 import {EncryptionContextValidator, ADContextBuilder} from './encryptionContext'
 import {FallbackDecrypt} from './decryptStrategy'
+import {EncryptionKeyManager} from './encryptionKeyManager'
+import {DualKeyDecryptStrategy} from './dualKeyDecryptStrategy'
 
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 16
 const AUTH_TAG_LENGTH = 16
 const ENCRYPTED_PREFIX = '__encrypted__'
-
-class DeterministicKeyDerivation {
-  constructor(secret) {
-    this.validateSecret(secret)
-    this.derivedKey = this.deriveKeyFromSecret(secret)
-  }
-
-  validateSecret(secret) {
-    if (!secret) {
-      throw new Error('Encryption secret is required')
-    }
-    if (process.env.NODE_ENV === 'production' && secret === 'test-jwt-secret-change-in-production') {
-      throw new Error('Production encryption secret must be unique')
-    }
-  }
-
-  deriveKeyFromSecret(secret) {
-    const fixedSalt = crypto
-      .createHash('sha256')
-      .update(secret + 'field-encryption-salt')
-      .digest()
-    return crypto.pbkdf2Sync(secret, fixedSalt, 10000, 32, 'sha256')
-  }
-
-  getKey() {
-    return this.derivedKey
-  }
-}
 
 class AESCipher {
   encrypt(plaintext, key, additionalData = null) {
@@ -110,12 +84,28 @@ class EncryptionService {
 }
 
 let serviceInstance = null
+let encryptorInstance = null
+
+const resetEncryptionSingletons = () => {
+  serviceInstance = null
+  encryptorInstance = null
+}
 
 const getEncryptionService = () => {
   if (!serviceInstance) {
-    const keyDerivation = new DeterministicKeyDerivation(JWT_SECRET)
+    const keyManager = new EncryptionKeyManager(FIELD_ENCRYPTION_KEY, JWT_SECRET)
     const cipher = new AESCipher()
-    serviceInstance = new EncryptionService(keyDerivation, cipher)
+    const primaryKey = keyManager.getPrimaryKey()
+    const legacyKey = keyManager.getLegacyKey()
+
+    let decryptStrategy
+    if (keyManager.requiresDualKeyDecryption()) {
+      decryptStrategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
+    } else {
+      decryptStrategy = new FallbackDecrypt(cipher)
+    }
+
+    serviceInstance = new EncryptionService({getKey: () => primaryKey}, cipher, decryptStrategy)
   }
   return serviceInstance
 }
@@ -284,8 +274,6 @@ class ArrayFieldConfigBuilder {
   }
 }
 
-let encryptorInstance = null
-
 const getDocumentEncryptor = () => {
   if (!encryptorInstance) {
     const service = getEncryptionService()
@@ -333,3 +321,4 @@ export const decryptFields = (data, config, encryptionContext = null) => {
 
   return dataCopy
 }
+export const __resetForTesting = process.env.NODE_ENV === 'test' ? resetEncryptionSingletons : undefined

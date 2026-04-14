@@ -1,7 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
+import React from 'react'
 import { useCommandEnterExecute } from '../use-command-enter-execute'
 import type { NodeData } from '@shared/base-types'
+import { AliasProvider } from '@entities/aliases'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+  },
+})
+
+const TestWrapper = ({ children }: { children: React.ReactNode }) => (
+  <QueryClientProvider client={queryClient}>
+    <AliasProvider>{children}</AliasProvider>
+  </QueryClientProvider>
+)
 
 const makeNode = (overrides: Partial<NodeData> = {}): NodeData => ({
   id: 'node-1',
@@ -27,7 +44,10 @@ function renderChain(node: NodeData, isRoot = false, isExecuting = false) {
   const hook = renderHook(
     ({ n, r, e }: { n: NodeData; r: boolean; e: boolean }) =>
       useCommandEnterExecute({ node: n, isRoot: r, isExecuting: e, ...handlers }),
-    { initialProps: { n: node, r: isRoot, e: isExecuting } },
+    {
+      initialProps: { n: node, r: isRoot, e: isExecuting },
+      wrapper: TestWrapper,
+    },
   )
   return { ...hook, handlers }
 }

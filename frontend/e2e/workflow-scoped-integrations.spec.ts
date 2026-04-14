@@ -16,6 +16,7 @@ import { TIMEOUTS } from './config/test-timeouts'
 import { authenticateViaAPI } from './helpers/api-auth'
 import { adminLogin } from './utils'
 import { selectWorkflowScope } from './helpers/wait-helpers'
+import { mockLLMValidation } from './helpers/llm-validation-mock'
 
 const test = base.extend<{}, { workerStorageState: string }>({
   storageState: ({ workerStorageState }, use) => use(workerStorageState),
@@ -220,6 +221,15 @@ test.describe.serial('Workflow-scoped integrations', () => {
     await page.goto('/settings')
     await ensureIntegrationsTabActive(page)
 
+    /* Ensure user-level scope is selected */
+    const selector = page.locator('[data-type="workflow-scope-selector"]')
+    await selector.click()
+    await page.locator('[data-type="scope-user-level"]').click()
+
+    /* Mock Deepseek validation to allow save with test credentials */
+    await mockLLMValidation(page, { provider: 'deepseek' })
+
+    /* Create integration */
     await page.locator('[data-type="add-integration"]').click()
     await page.locator('[data-title-id="integration.deepseek.title"]').click()
 

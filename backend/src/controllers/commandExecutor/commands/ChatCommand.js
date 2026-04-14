@@ -4,7 +4,7 @@ import {clearStepsPrefix} from '../constants/steps'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import {readJoinParam, readTableParam} from '../constants/yandex'
 import {getIntegrationSettings} from './utils/langchain/getLLM'
-import {DEFAULT_OPENAI_MODEL_NAME, OPENAI_API_KEY} from '../../../constants'
+import {DEFAULT_OPENAI_MODEL_NAME} from '../../../constants'
 import {ChatOpenAI} from '@langchain/openai'
 import {HumanMessage, SystemMessage} from '@langchain/core/messages'
 import {referencePatterns} from './references/utils/referencePatterns'
@@ -34,15 +34,20 @@ export class ChatCommand {
     if (this.workflowId) {
       this.log = this.log.extend(workflowId, '#')
     }
-    this.logError = this.log.extend('ERROR*', '::')
   }
 
   async replyChatOpenAIAPI(messages) {
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     const {openai} = settings
 
+    if (!openai?.apiKey) {
+      throw new Error(
+        'OpenAI API key not configured. Set it in Integration Settings or set the OPENAI_API_KEY environment variable.',
+      )
+    }
+
     const llm = new ChatOpenAI({
-      openAIApiKey: openai?.apiKey || OPENAI_API_KEY,
+      openAIApiKey: openai.apiKey,
       modelName: openai?.model || DEFAULT_OPENAI_MODEL_NAME,
     })
 

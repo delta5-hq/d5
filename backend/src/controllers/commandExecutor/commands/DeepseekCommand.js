@@ -34,12 +34,17 @@ export class DeepseekCommand {
     if (this.workflowId) {
       this.log = this.log.extend(workflowId, '#')
     }
-    this.logError = this.log.extend('ERROR*', '::')
   }
 
   async replyDeepseek(message, userId, workflowId, store) {
     const settings = await getIntegrationSettings(userId, workflowId, store)
     const {apiKey, model} = settings?.deepseek || {}
+
+    if (!apiKey) {
+      throw new Error(
+        'Deepseek API key not configured. Set it in Integration Settings or set the DEEPSEEK_API_KEY environment variable.',
+      )
+    }
 
     const llm = new ChatOpenAI({
       openAIApiKey: apiKey,

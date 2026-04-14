@@ -236,20 +236,20 @@ describe('MCPCommand', () => {
         expect(mockStore.importer.createNodes).toHaveBeenCalledWith('(empty MCP response)', 'node')
       })
 
-      it('still creates a node when the tool reports isError', async () => {
+      it('throws when the tool reports isError', async () => {
         MCPClientManager.callTool.mockResolvedValue({isError: true, content: 'tool error detail'})
         const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
-        await cmd.run(node, undefined, '/coder1 test')
 
-        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('tool error detail', 'node')
+        await expect(cmd.run(node, undefined, '/coder1 test')).rejects.toThrow('tool error detail')
+        expect(mockStore.importer.createNodes).not.toHaveBeenCalled()
       })
 
-      it('creates an error node when callTool throws', async () => {
+      it('throws when callTool rejects', async () => {
         MCPClientManager.callTool.mockRejectedValue(new Error('connection refused'))
         const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
-        await cmd.run(node, undefined, '/coder1 test')
 
-        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: connection refused', 'node')
+        await expect(cmd.run(node, undefined, '/coder1 test')).rejects.toThrow('connection refused')
+        expect(mockStore.importer.createNodes).not.toHaveBeenCalled()
       })
     })
   })
@@ -311,7 +311,7 @@ describe('MCPCommand', () => {
         const cmd = new MCPCommand(userId, workflowId, mockStore, autoConfig)
         await cmd.run(node, 'context text\n', '/coder1 task')
 
-        expect(executor.call).toHaveBeenCalledWith({input: 'context text\ntask'})
+        expect(executor.call).toHaveBeenCalledWith({input: 'context text\ntask'}, {signal: undefined})
       })
     })
 
@@ -332,12 +332,12 @@ describe('MCPCommand', () => {
         expect(mockStore.importer.createNodes).toHaveBeenCalledWith('(empty MCP response)', 'node')
       })
 
-      it('creates an error node when the agent run throws', async () => {
+      it('throws when the agent run throws', async () => {
         MCPClientManager.withClient.mockRejectedValue(new Error('server unreachable'))
         const cmd = new MCPCommand(userId, workflowId, mockStore, autoConfig)
-        await cmd.run(node, undefined, '/coder1 build')
 
-        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: server unreachable', 'node')
+        await expect(cmd.run(node, undefined, '/coder1 build')).rejects.toThrow('server unreachable')
+        expect(mockStore.importer.createNodes).not.toHaveBeenCalled()
       })
     })
   })

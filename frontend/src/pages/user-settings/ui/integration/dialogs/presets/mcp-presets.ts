@@ -18,6 +18,8 @@ export const MCP_PRESETS: PresetDefinition<MCPFormFlat>[] = [
     label: 'Claude Code (one-shot)',
     icon: '🤖',
     fill: setValue => {
+      setValue('alias', '/code')
+      setValue('description', 'Claude Code one-shot coding agent')
       setValue('transport', 'stdio')
       setValue('command', 'npx')
       setValue('args', '-y @steipete/claude-code-mcp@latest')
@@ -31,6 +33,8 @@ export const MCP_PRESETS: PresetDefinition<MCPFormFlat>[] = [
     label: 'Claude Code (multi-tool)',
     icon: '🧠',
     fill: setValue => {
+      setValue('alias', '/agent')
+      setValue('description', 'Claude Code multi-tool agent with full MCP capabilities')
       setValue('transport', 'stdio')
       setValue('command', 'claude')
       setValue('args', 'mcp serve')
@@ -44,6 +48,8 @@ export const MCP_PRESETS: PresetDefinition<MCPFormFlat>[] = [
     label: 'QA Testing (MCP)',
     icon: '🧪',
     fill: setValue => {
+      setValue('alias', '/qa')
+      setValue('description', 'Playwright-powered QA testing with browser automation')
       setValue('transport', 'stdio')
       setValue('command', 'npx')
       setValue('args', '@playwright/mcp@latest')
@@ -57,6 +63,8 @@ export const MCP_PRESETS: PresetDefinition<MCPFormFlat>[] = [
     label: 'Research & RAG',
     icon: '🔬',
     fill: setValue => {
+      setValue('alias', '/research')
+      setValue('description', 'Deep research with web and academic paper search')
       setValue('transport', 'stdio')
       setValue('command', 'babel-node')
       setValue('args', '--presets @babel/preset-env src/mcp-servers/research-rag/server.js')
@@ -70,6 +78,8 @@ export const MCP_PRESETS: PresetDefinition<MCPFormFlat>[] = [
     label: 'Web Scraper',
     icon: '🕷️',
     fill: setValue => {
+      setValue('alias', '/scrape')
+      setValue('description', 'Web page scraper with content extraction')
       setValue('transport', 'stdio')
       setValue('command', 'babel-node')
       setValue('args', '--presets @babel/preset-env src/mcp-servers/scraper/server.js')
@@ -83,6 +93,8 @@ export const MCP_PRESETS: PresetDefinition<MCPFormFlat>[] = [
     label: 'Outliner',
     icon: '📋',
     fill: setValue => {
+      setValue('alias', '/mkoutline')
+      setValue('description', 'Generate structured outlines from topics')
       setValue('transport', 'stdio')
       setValue('command', 'babel-node')
       setValue('args', '--presets @babel/preset-env src/mcp-servers/outliner/server.js')

@@ -33,6 +33,10 @@ const ExecutorController = {
     const progress = new ProgressReporterClass({title: 'root', log, outputInterval: 60000}, null, streamSessionId)
 
     const nodeId = cell?.id
+    const abortController = new AbortController()
+    const requestCloseHandler = () => abortController.abort()
+
+    ctx.req.on('close', requestCloseHandler)
 
     try {
       // queryType, context, prompt, cell, userId, workflowId, workflowNodes, workflowFiles
@@ -77,7 +81,7 @@ const ExecutorController = {
         progressEventEmitter.emitRunning(nodeId, {queryType})
       }
 
-      await runCommand({...otherData, store, mcpAlias, rpcAlias}, progress)
+      await runCommand({...otherData, store, mcpAlias, rpcAlias, signal: abortController.signal}, progress)
 
       const {nodes: nodesChanged, edges: edgesChanged} = store.getOutput()
       const result = {
@@ -115,6 +119,7 @@ const ExecutorController = {
 
       ctx.throw(500, e.message)
     } finally {
+      ctx.req.off('close', requestCloseHandler)
       progress.dispose()
     }
   },

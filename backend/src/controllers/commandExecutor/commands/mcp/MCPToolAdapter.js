@@ -1,41 +1,23 @@
-import {DynamicTool} from '@langchain/core/tools'
+import {DynamicStructuredTool} from '@langchain/core/tools'
 import {formatToolResult} from './MCPClientManager'
 import {MCP_DEFAULT_TIMEOUT_MS} from '../../constants/mcp'
+import {jsonSchemaToZod} from './jsonSchemaToZod'
 
-const singlePropertyName = inputSchema => {
-  const props = inputSchema?.properties
-  if (!props) return null
-  const keys = Object.keys(props)
-  return keys.length === 1 ? keys[0] : null
-}
+export class MCPToolAdapter extends DynamicStructuredTool {
+  constructor({toolDescriptor, client, timeoutMs = MCP_DEFAULT_TIMEOUT_MS, signal}) {
+    const zodSchema = jsonSchemaToZod(toolDescriptor.inputSchema)
 
-const toolArgumentsFromString = (input, inputSchema) => {
-  const onlyProp = singlePropertyName(inputSchema)
-  if (onlyProp) return {[onlyProp]: input}
-
-  const hasMultipleProps = inputSchema?.properties && Object.keys(inputSchema.properties).length > 1
-  if (hasMultipleProps) {
-    try {
-      const parsed = JSON.parse(input)
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed
-    } catch {
-      /* empty */
-    }
-  }
-
-  return {}
-}
-
-export class MCPToolAdapter extends DynamicTool {
-  constructor({toolDescriptor, client, timeoutMs = MCP_DEFAULT_TIMEOUT_MS}) {
     super({
       name: toolDescriptor.name,
       description: toolDescriptor.description || toolDescriptor.name,
+      schema: zodSchema,
       func: async input => {
-        const toolArguments = toolArgumentsFromString(input, toolDescriptor.inputSchema)
-        const result = await client.callTool({name: toolDescriptor.name, arguments: toolArguments}, undefined, {
-          timeout: timeoutMs,
-        })
+        const options = {timeout: timeoutMs}
+        if (signal) {
+          options.signal = signal
+        }
+
+        const result = await client.callTool({name: toolDescriptor.name, arguments: input}, undefined, options)
         return formatToolResult(result).content
       },
     })

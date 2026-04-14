@@ -43,7 +43,7 @@ export class StepsCommand {
     }
   }
 
-  executePrompts = async (nodes, sshClientPool) => {
+  executePrompts = async (nodes, sshClientPool, signal) => {
     const parallelProgress = new ProgressReporter({title: 'parallel'}, this.progress)
 
     await Promise.all(
@@ -63,6 +63,7 @@ export class StepsCommand {
               mcpAlias,
               rpcAlias,
               sshClientPool,
+              signal,
             },
             parallelProgress,
           )
@@ -78,7 +79,7 @@ export class StepsCommand {
     )
   }
 
-  async executePromptsByOrder(nodes, sshClientPool) {
+  async executePromptsByOrder(nodes, sshClientPool, signal) {
     const orderNumbers = Object.keys(nodes)
       .map(Number)
       .sort((a, b) => a - b)
@@ -86,10 +87,12 @@ export class StepsCommand {
     const orderedProgress = new ProgressReporter({title: 'ordered'}, this.progress)
 
     for (let i = 0; i < orderNumbers.length; i += 1) {
+      if (signal?.aborted) break
+
       const orderedTracker = await orderedProgress.add('group')
 
       const currentOrder = nodes[orderNumbers[i]]
-      await this.executePrompts(currentOrder, sshClientPool)
+      await this.executePrompts(currentOrder, sshClientPool, signal)
 
       orderedProgress.remove(orderedTracker)
     }
@@ -97,15 +100,16 @@ export class StepsCommand {
     orderedProgress.dispose()
   }
 
-  async run(node) {
+  async run(node, options = {}) {
+    const {signal} = options
     const sshClientPool = new SSHClientPool()
 
     try {
       const {nodesByOrder, nodesWithoutOrder} = await this.findMatchingNodes(node)
 
-      await this.executePromptsByOrder(nodesByOrder, sshClientPool)
+      await this.executePromptsByOrder(nodesByOrder, sshClientPool, signal)
 
-      await this.executePrompts(nodesWithoutOrder, sshClientPool)
+      await this.executePrompts(nodesWithoutOrder, sshClientPool, signal)
     } catch (e) {
       this.logError(e)
     } finally {

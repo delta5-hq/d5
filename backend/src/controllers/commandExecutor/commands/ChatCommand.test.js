@@ -72,12 +72,36 @@ describe('ChatCommand', () => {
       getIntegrationSettings.mockResolvedValue({
         openai: {apiKey: 'apiKey', model: 'model'},
       })
-      const testError = new Error('LLM API failed')
+      const testError = new Error('API rate limit exceeded')
       callSpy.mockRejectedValue(testError)
 
       const messages = [{content: 'prompt', role: 'user'}]
 
-      await expect(command.replyChatOpenAIAPI(messages)).rejects.toThrow('LLM API failed')
+      await expect(command.replyChatOpenAIAPI(messages)).rejects.toThrow('API rate limit exceeded')
+    })
+
+    it('should propagate network errors from LLM', async () => {
+      getIntegrationSettings.mockResolvedValue({
+        openai: {apiKey: 'apiKey', model: 'model'},
+      })
+      const networkError = new Error('ECONNREFUSED')
+      callSpy.mockRejectedValue(networkError)
+
+      const messages = [{content: 'prompt', role: 'user'}]
+
+      await expect(command.replyChatOpenAIAPI(messages)).rejects.toThrow('ECONNREFUSED')
+    })
+
+    it('should propagate authentication errors from LLM', async () => {
+      getIntegrationSettings.mockResolvedValue({
+        openai: {apiKey: 'invalid-key', model: 'model'},
+      })
+      const authError = new Error('Invalid API key')
+      callSpy.mockRejectedValue(authError)
+
+      const messages = [{content: 'prompt', role: 'user'}]
+
+      await expect(command.replyChatOpenAIAPI(messages)).rejects.toThrow('Invalid API key')
     })
   })
 

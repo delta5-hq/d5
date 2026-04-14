@@ -2583,7 +2583,7 @@ describe('ForeachCommand', () => {
       await command.run(foreachNode)
 
       expect(findLeafsSpy).toHaveBeenCalledWith(parentNode, expect.anything(), true)
-      expect(executePromptsSpy).toHaveBeenCalledWith(leafs, expect.anything())
+      expect(executePromptsSpy).toHaveBeenCalledWith(leafs, expect.anything(), undefined)
     })
 
     it('should execute deeply nested foreach with complex steps structure', async () => {
@@ -3268,6 +3268,7 @@ describe('ForeachCommand', () => {
           {node: exampleNode, promptString: '/steps Example Node Main Steps Title #_hashref @ref'},
         ]),
         expect.anything(),
+        undefined,
       )
     })
   })

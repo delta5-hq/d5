@@ -2,6 +2,9 @@ import {Client} from '@modelcontextprotocol/sdk/client/index.js'
 import {createTransport} from './createTransport'
 import {MCP_DEFAULT_TIMEOUT_MS, MCP_CONNECTION_TIMEOUT_MS} from '../../constants/mcp'
 import {withTimeout} from './withTimeout'
+import {registerMCPClient, registerShutdownHandlers} from './MCPProcessShutdown'
+
+registerShutdownHandlers()
 
 const CLIENT_INFO = {name: 'delta5-executor', version: '1.0.0'}
 
@@ -26,6 +29,7 @@ const CLIENT_INFO = {name: 'delta5-executor', version: '1.0.0'}
  * @property {string[]} [args]
  * @property {Object} [env]
  * @property {number} [timeoutMs]
+ * @property {AbortSignal} [signal]
  */
 
 /**
@@ -43,11 +47,13 @@ const CLIENT_INFO = {name: 'delta5-executor', version: '1.0.0'}
 export const withClient = async ({serverUrl, transport, headers, command, args, env}, fn) => {
   const clientTransport = createTransport({serverUrl, transport, headers, command, args, env})
   const client = new Client(CLIENT_INFO)
+  const unregister = registerMCPClient(client)
 
   try {
     await withTimeout(client.connect(clientTransport), MCP_CONNECTION_TIMEOUT_MS, 'MCP connection')
     return await fn(client)
   } finally {
+    unregister()
     await client.close().catch(() => {})
   }
 }
@@ -66,11 +72,15 @@ export const callTool = async ({
   args,
   env,
   timeoutMs = MCP_DEFAULT_TIMEOUT_MS,
+  signal,
 }) =>
   withClient({serverUrl, transport, headers, command, args, env}, async client => {
-    const result = await client.callTool({name: toolName, arguments: toolArguments}, undefined, {
-      timeout: timeoutMs,
-    })
+    const options = {timeout: timeoutMs}
+    if (signal) {
+      options.signal = signal
+    }
+
+    const result = await client.callTool({name: toolName, arguments: toolArguments}, undefined, options)
     return formatToolResult(result)
   })
 

@@ -174,8 +174,9 @@ const RPCDialog: React.FC<Props> = ({
 
   const onSubmit = async (values: RPCFormFlat) => {
     try {
-      if (!isEdit && existingAliases.includes(values.alias)) {
-        toast.error('Alias already exists')
+      const otherAliases = isEdit ? existingAliases.filter(a => a !== data?.alias) : existingAliases
+      if (otherAliases.includes(values.alias)) {
+        toast.error('Alias already in use by another integration')
         return
       }
 

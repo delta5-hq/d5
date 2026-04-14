@@ -24,6 +24,7 @@ import { getDescendantIds, normalizeNodeTitle, hasUsableRoot } from '@entities/w
 import { useClickOutside } from '@shared/lib/hooks'
 import { matchesAnyCommandWithOrder } from '@shared/lib/command-validation'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
+import { useAliases } from '@entities/aliases'
 import { EmptyWorkflowView } from './empty-workflow-view'
 import { DirtyIndicator } from './dirty-indicator'
 import { NodeDetailPanel } from './node-detail-panel'
@@ -46,6 +47,7 @@ const WorkflowContent = () => {
   const { isLoading, error, isSaving } = useWorkflowStatus()
   const isDirty = useWorkflowIsDirty()
   const { formatMessage } = useIntl()
+  const { aliases } = useAliases()
 
   const selectedId = useWorkflowSelectedId()
   const selectedIds = useWorkflowSelectedIds()
@@ -69,8 +71,8 @@ const WorkflowContent = () => {
 
   const hasValidCommand = useMemo(() => {
     if (!selectedNode?.command?.trim()) return false
-    return matchesAnyCommandWithOrder(selectedNode.command)
-  }, [selectedNode?.command])
+    return matchesAnyCommandWithOrder(selectedNode.command, aliases)
+  }, [selectedNode?.command, aliases])
   const visibleOrderRef = useRef<readonly string[]>([])
   const treeContainerRef = useRef<HTMLDivElement>(null)
   const workspaceContainerRef = useRef<HTMLDivElement>(null)
@@ -245,17 +247,17 @@ const WorkflowContent = () => {
     (nodeId: string, committedCommand: string) => {
       const node = nodes[nodeId]
       if (!node) return
-      const queryType = extractQueryTypeFromCommand(committedCommand)
+      const queryType = extractQueryTypeFromCommand(committedCommand, aliases)
       void actions.executeCommand({ ...node, command: committedCommand }, queryType)
     },
-    [actions, nodes],
+    [actions, nodes, aliases],
   )
 
   const handleCtrlEnterInCommand = useCallback(
     (nodeId: string, committedCommand: string) => {
       const node = nodes[nodeId]
       if (!node) return
-      const queryType = extractQueryTypeFromCommand(committedCommand)
+      const queryType = extractQueryTypeFromCommand(committedCommand, aliases)
       void actions.executeCommand({ ...node, command: committedCommand }, queryType)
       const newId = actions.addSibling(nodeId, { title: '' })
       if (newId) {
@@ -264,7 +266,7 @@ const WorkflowContent = () => {
         setFlashNodeId(newId)
       }
     },
-    [actions, nodes],
+    [actions, nodes, aliases],
   )
 
   const handleShiftCtrlEnterInCommand = useCallback(

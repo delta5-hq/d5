@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { hasValidCommand, canExecuteNode } from '../command-validator'
+import type { DynamicAlias } from '../../command-querytype-mapper'
 
 describe('command-validator', () => {
   describe('hasValidCommand - validates command format', () => {
@@ -357,6 +358,268 @@ describe('command-validator', () => {
         expect(hasValidCommand('#0 /chatgpt')).toBe(true)
         expect(hasValidCommand('#999999999 /chatgpt')).toBe(true)
         expect(hasValidCommand('#-999999999 /chatgpt')).toBe(true)
+      })
+    })
+  })
+
+  describe('dynamic alias support', () => {
+    describe('single dynamic alias', () => {
+      it('validates dynamic alias command', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/code', queryType: 'mcp:code' }]
+        expect(hasValidCommand('/code test', aliases)).toBe(true)
+      })
+
+      it('validates dynamic alias with order prefix', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/qa', queryType: 'mcp:qa' }]
+        expect(hasValidCommand('#1 /qa run tests', aliases)).toBe(true)
+      })
+
+      it('validates dynamic alias without text', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/custom', queryType: 'custom_type' }]
+        expect(hasValidCommand('/custom', aliases)).toBe(true)
+      })
+
+      it('validates dynamic alias with whitespace', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/test', queryType: 'test' }]
+        expect(hasValidCommand('  /test  ', aliases)).toBe(true)
+      })
+
+      it('rejects unknown command even with aliases provided', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/known', queryType: 'known' }]
+        expect(hasValidCommand('/unknown', aliases)).toBe(false)
+      })
+    })
+
+    describe('multiple dynamic aliases', () => {
+      it('validates all provided dynamic aliases', () => {
+        const aliases: DynamicAlias[] = [
+          { alias: '/code', queryType: 'mcp:code' },
+          { alias: '/qa', queryType: 'mcp:qa' },
+          { alias: '/research', queryType: 'mcp:research' },
+        ]
+        expect(hasValidCommand('/code task', aliases)).toBe(true)
+        expect(hasValidCommand('/qa task', aliases)).toBe(true)
+        expect(hasValidCommand('/research task', aliases)).toBe(true)
+      })
+
+      it('validates mix of static and dynamic commands', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/custom', queryType: 'custom' }]
+        expect(hasValidCommand('/web search', aliases)).toBe(true)
+        expect(hasValidCommand('/custom query', aliases)).toBe(true)
+        expect(hasValidCommand('/chatgpt hello', aliases)).toBe(true)
+      })
+
+      it('validates dynamic aliases with order prefixes', () => {
+        const aliases: DynamicAlias[] = [
+          { alias: '/a', queryType: 'alias_a' },
+          { alias: '/b', queryType: 'alias_b' },
+        ]
+        expect(hasValidCommand('#1 /a', aliases)).toBe(true)
+        expect(hasValidCommand('#2 /b', aliases)).toBe(true)
+      })
+    })
+
+    describe('dynamic alias precedence', () => {
+      it('static command takes precedence over dynamic with same alias', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/web', queryType: 'custom_web' }]
+        expect(hasValidCommand('/web', aliases)).toBe(true)
+      })
+
+      it('validates both static and non-conflicting dynamic', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/custom', queryType: 'custom' }]
+        expect(hasValidCommand('/web', aliases)).toBe(true)
+        expect(hasValidCommand('/custom', aliases)).toBe(true)
+      })
+    })
+
+    describe('empty or invalid alias arrays', () => {
+      it('works with empty alias array', () => {
+        expect(hasValidCommand('/web search', [])).toBe(true)
+        expect(hasValidCommand('/chatgpt hello', [])).toBe(true)
+      })
+
+      it('handles aliases with empty alias string', () => {
+        const aliases: DynamicAlias[] = [{ alias: '', queryType: 'empty' }]
+        expect(hasValidCommand('/web', aliases)).toBe(true)
+      })
+
+      it('handles aliases with undefined queryType', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/test', queryType: undefined }]
+        expect(hasValidCommand('/test', aliases)).toBe(true)
+      })
+    })
+
+    describe('backward compatibility', () => {
+      it('maintains behavior when no aliases parameter provided', () => {
+        expect(hasValidCommand('/web')).toBe(true)
+        expect(hasValidCommand('/chatgpt hello')).toBe(true)
+        expect(hasValidCommand('invalid')).toBe(false)
+      })
+
+      it('null/undefined values work same as before', () => {
+        expect(hasValidCommand(null, [])).toBe(false)
+        expect(hasValidCommand(undefined, [])).toBe(false)
+        expect(hasValidCommand('', [])).toBe(false)
+      })
+    })
+
+    describe('integration scenarios', () => {
+      it('validates MCP coding agent workflow', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/code', queryType: 'mcp:claude_code' }]
+        expect(hasValidCommand('/code fix the bug', aliases)).toBe(true)
+        expect(hasValidCommand('#1 /code refactor', aliases)).toBe(true)
+      })
+
+      it('validates QA testing workflow', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/qa', queryType: 'mcp:qa' }]
+        expect(hasValidCommand('/qa run all tests', aliases)).toBe(true)
+        expect(hasValidCommand('#5 /qa verify login', aliases)).toBe(true)
+      })
+
+      it('validates combined MCP and static workflow', () => {
+        const aliases: DynamicAlias[] = [
+          { alias: '/code', queryType: 'mcp:code' },
+          { alias: '/qa', queryType: 'mcp:qa' },
+        ]
+        expect(hasValidCommand('#1 /web research API', aliases)).toBe(true)
+        expect(hasValidCommand('#2 /code implement feature', aliases)).toBe(true)
+        expect(hasValidCommand('#3 /qa test feature', aliases)).toBe(true)
+      })
+    })
+
+    describe('edge cases with dynamic aliases', () => {
+      it('handles very long dynamic alias names', () => {
+        const longAlias = '/' + 'a'.repeat(100)
+        const aliases: DynamicAlias[] = [{ alias: longAlias, queryType: 'long' }]
+        expect(hasValidCommand(longAlias, aliases)).toBe(true)
+      })
+
+      it('handles special characters in dynamic alias', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/c++', queryType: 'cpp' }]
+        expect(hasValidCommand('/c++', aliases)).toBe(true)
+      })
+
+      it('handles unicode in dynamic alias', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/查询', queryType: 'search_cn' }]
+        expect(hasValidCommand('/查询 test', aliases)).toBe(true)
+      })
+    })
+  })
+
+  describe('canExecuteNode with dynamic aliases', () => {
+    describe('execution state with dynamic aliases', () => {
+      it('respects execution state for dynamic aliases', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/code', queryType: 'mcp:code' }]
+        expect(canExecuteNode('/code task', false, aliases)).toBe(true)
+        expect(canExecuteNode('/code task', true, aliases)).toBe(false)
+      })
+
+      it('validates multiple dynamic aliases with execution state', () => {
+        const aliases: DynamicAlias[] = [
+          { alias: '/a', queryType: 'alias_a' },
+          { alias: '/b', queryType: 'alias_b' },
+        ]
+        expect(canExecuteNode('/a', false, aliases)).toBe(true)
+        expect(canExecuteNode('/b', false, aliases)).toBe(true)
+        expect(canExecuteNode('/a', true, aliases)).toBe(false)
+        expect(canExecuteNode('/b', true, aliases)).toBe(false)
+      })
+
+      it('maintains same behavior for static commands with aliases', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/custom', queryType: 'custom' }]
+        expect(canExecuteNode('/web', false, aliases)).toBe(true)
+        expect(canExecuteNode('/web', true, aliases)).toBe(false)
+      })
+    })
+
+    describe('backward compatibility for canExecuteNode', () => {
+      it('works without aliases parameter', () => {
+        expect(canExecuteNode('/web', false)).toBe(true)
+        expect(canExecuteNode('/web', true)).toBe(false)
+      })
+
+      it('works with empty alias array', () => {
+        expect(canExecuteNode('/web', false, [])).toBe(true)
+        expect(canExecuteNode('/web', true, [])).toBe(false)
+      })
+    })
+
+    describe('alias naming pattern validation', () => {
+      it('validates aliases with dashes', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/my-tool', queryType: 'custom' }]
+        expect(hasValidCommand('/my-tool execute', aliases)).toBe(true)
+        expect(canExecuteNode('/my-tool', false, aliases)).toBe(true)
+      })
+
+      it('validates aliases with underscores', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/my_tool', queryType: 'custom' }]
+        expect(hasValidCommand('/my_tool execute', aliases)).toBe(true)
+        expect(canExecuteNode('/my_tool', false, aliases)).toBe(true)
+      })
+
+      it('validates aliases with mixed separators', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/tool-v2_beta', queryType: 'custom' }]
+        expect(hasValidCommand('/tool-v2_beta run', aliases)).toBe(true)
+      })
+
+      it('validates aliases with numbers', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/agent007', queryType: 'custom' }]
+        expect(hasValidCommand('/agent007 execute', aliases)).toBe(true)
+      })
+
+      it('handles case sensitivity in aliases', () => {
+        const aliases: DynamicAlias[] = [
+          { alias: '/Tool', queryType: 'upper' },
+          { alias: '/tool', queryType: 'lower' },
+        ]
+        expect(hasValidCommand('/Tool run', aliases)).toBe(true)
+        expect(hasValidCommand('/tool run', aliases)).toBe(true)
+      })
+    })
+
+    describe('queryType format independence', () => {
+      it('validates command regardless of queryType separator', () => {
+        const aliases: DynamicAlias[] = [
+          { alias: '/a', queryType: 'ns:tool' },
+          { alias: '/b', queryType: 'my_type' },
+          { alias: '/c', queryType: 'my-type' },
+        ]
+        expect(hasValidCommand('/a cmd', aliases)).toBe(true)
+        expect(hasValidCommand('/b cmd', aliases)).toBe(true)
+        expect(hasValidCommand('/c cmd', aliases)).toBe(true)
+      })
+
+      it('validates with complex queryType patterns', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/tool', queryType: 'mcp:sub:namespace:tool' }]
+        expect(hasValidCommand('/tool execute', aliases)).toBe(true)
+        expect(canExecuteNode('/tool execute', false, aliases)).toBe(true)
+      })
+    })
+
+    describe('robustness validation', () => {
+      it('handles whitespace variations', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/tool', queryType: 'custom' }]
+        expect(hasValidCommand('  /tool  cmd  ', aliases)).toBe(true)
+        expect(hasValidCommand('\t/tool\tcmd', aliases)).toBe(true)
+      })
+
+      it('handles order prefixes with dynamic aliases', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/tool', queryType: 'custom' }]
+        expect(hasValidCommand('#1 /tool cmd', aliases)).toBe(true)
+        expect(hasValidCommand('#999 /tool', aliases)).toBe(true)
+      })
+
+      it('rejects invalid commands even with aliases present', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/valid', queryType: 'custom' }]
+        expect(hasValidCommand('no command', aliases)).toBe(false)
+        expect(hasValidCommand('/invalid', aliases)).toBe(false)
+      })
+
+      it('handles edge case inputs gracefully', () => {
+        const aliases: DynamicAlias[] = [{ alias: '/tool', queryType: 'custom' }]
+        expect(hasValidCommand('', aliases)).toBe(false)
+        expect(hasValidCommand('   ', aliases)).toBe(false)
+        expect(canExecuteNode('', false, aliases)).toBe(false)
       })
     })
   })
