@@ -17,30 +17,66 @@ import {SUMMARIZE_QUERY, SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
 import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {WEB_QUERY_TYPE} from '../../constants/web'
 import {YANDEX_QUERY_TYPE} from '../../constants/yandex'
+import {readReliabilityN} from '../../constants/reliability'
+import {readTableParam} from '../../constants/yandex'
 import ProgressReporter from '../../ProgressReporter'
-import {ChatCommand} from '../ChatCommand'
-import {ClaudeCommand} from '../ClaudeCommand'
-import {CompletionCommand} from '../CompletionCommand'
-import {CustomLLMChatCommand} from '../CustomLLMChatCommand'
-import {DeepseekCommand} from '../DeepseekCommand'
-import {DownloadCommand} from '../DownloadCommand'
-import {ExtCommand} from '../ExtCommand'
+import {BestOfNStrategy, CommandFactory, NullProgress} from '../../reliability'
+import {determineLLMType, getIntegrationSettings} from './langchain/getLLM'
 import {ForeachCommand} from '../ForeachCommand'
 import {MemorizeCommand} from '../MemorizeCommand'
 import {OutlineCommand} from '../OutlineCommand'
-import {PerplexityCommand} from '../PerplexityCommand'
-import {QwenCommand} from '../QwenCommand'
-import {RefineCommand} from '../RefineCommand'
-import {ScholarCommand} from '../ScholarCommand'
-import {StepsCommand} from '../StepsCommand'
 import {SummarizeCommand} from '../SummarizeCommand'
-import {SwitchCommand} from '../SwitchCommand'
-import {WebCommand} from '../WebCommand'
-import {YandexCommand} from '../YandexCommand'
 import {MCPCommand} from '../MCPCommand'
 import {RPCCommand} from '../RPCCommand'
 // eslint-disable-next-line no-unused-vars
 import Store from './Store'
+
+/**
+ * Get command name for progress tracking
+ * @private
+ */
+function getCommandName(queryType) {
+  const nameMap = {
+    [YANDEX_QUERY_TYPE]: 'YandexCommand',
+    [WEB_QUERY_TYPE]: 'WebCommand',
+    [SCHOLAR_QUERY_TYPE]: 'ScholarCommand',
+    [OUTLINE_QUERY_TYPE]: 'OutlineCommand',
+    [STEPS_QUERY_TYPE]: 'StepsCommand',
+    [CHAT_QUERY_TYPE]: 'ChatCommand',
+    [SUMMARIZE_QUERY_TYPE]: 'SummarizeCommand',
+    [FOREACH_QUERY_TYPE]: 'ForeachCommand',
+    [SWITCH_QUERY_TYPE]: 'SwitchCommand',
+    [CLAUDE_QUERY_TYPE]: 'ClaudeCommand',
+    [PERPLEXITY_QUERY_TYPE]: 'PerplexityCommand',
+    [QWEN_QUERY_TYPE]: 'QwenCommand',
+    [DEEPSEEK_QUERY_TYPE]: 'DeepseekCommand',
+    [DOWNLOAD_QUERY_TYPE]: 'DownloadCommand',
+    [CUSTOM_LLM_CHAT_QUERY_TYPE]: 'CustomLLMChatCommand',
+    [REFINE_QUERY_TYPE]: 'RefineCommand',
+    [EXT_QUERY_TYPE]: 'ExtCommand',
+    [COMPLETION_QUERY_TYPE]: 'CompletionCommand',
+    [MEMORIZE_QUERY_TYPE]: 'MemorizeCommand',
+  }
+  return nameMap[queryType]
+}
+
+/**
+ * Execute command with progress tracking
+ * @private
+ */
+async function executeCommandWithProgress(queryType, context, prompt, cell, store, progress) {
+  const runCommandProgress = new ProgressReporter({title: 'runCommand'}, progress)
+  const commandName = getCommandName(queryType)
+  const runCommandTracker = commandName ? await runCommandProgress.add(`${commandName}.run`) : null
+
+  try {
+    const commandRunner = CommandFactory.createRunner(queryType, cell, context, prompt)
+    await commandRunner(store, runCommandProgress)
+  } finally {
+    if (runCommandTracker) runCommandProgress.remove(runCommandTracker)
+    runCommandProgress.dispose()
+  }
+}
 
 /**
  * Executes a command based on the given query type and performs post-processing if needed.
@@ -85,6 +121,34 @@ export const runCommand = async (
   },
   progress,
 ) => {
+  const N = readReliabilityN(cell.command || cell.title || '')
+  const isLLM = CommandFactory.isLLMCommand(queryType)
+  const isOrchestrator = CommandFactory.isOrchestrator(queryType)
+
+  if (N > 1 && isLLM && !isOrchestrator) {
+    const commandRunner = CommandFactory.createRunner(queryType, cell, context, prompt)
+    const nullProgress = new NullProgress()
+    const wrappedRunner = async store => commandRunner(store, nullProgress)
+
+    const settings = await getIntegrationSettings(store._userId)
+    const generatorFamily = determineLLMType(cell.command, settings)
+    const isTableCommand = readTableParam(cell.command || cell.title || '')
+
+    await BestOfNStrategy.execute(wrappedRunner, store, cell.id, prompt, N, {
+      isTableCommand,
+      generatorFamily,
+      settings,
+    })
+  } else if (mcpAlias) {
+    const command = new MCPCommand(store._userId, store._workflowId, store, mcpAlias)
+    await command.run(cell, context, prompt, {signal})
+  } else if (rpcAlias) {
+    const command = new RPCCommand(store._userId, store._workflowId, store, rpcAlias, progress, sshClientPool)
+    await command.run(cell, context, prompt, {signal})
+  } else {
+    await executeCommandWithProgress(queryType, context, prompt, cell, store, progress)
+  }
+
   let runPostProccess = !preventPostProcess
   const postProcessNode = async (node, ids = []) => {
     const sortedNodes = (node.children || [])
@@ -169,115 +233,8 @@ export const runCommand = async (
     }
   }
 
-  const runCommandProgress = new ProgressReporter({title: 'runCommand'}, progress)
-  let runCommandTracker
-
-  if (queryType === YANDEX_QUERY_TYPE) {
-    const command = new YandexCommand(store._userId, store._workflowId, store)
-
-    runCommandTracker = await runCommandProgress.add('YandexCommand.run')
-    await command.run(cell, context, prompt)
-  } else if (queryType === WEB_QUERY_TYPE) {
-    const command = new WebCommand(store._userId, store._workflowId, store)
-
-    runCommandTracker = await runCommandProgress.add('WebCommand.run')
-    await command.run(cell, prompt)
-  } else if (queryType === SCHOLAR_QUERY_TYPE) {
-    const command = new ScholarCommand(store._userId, store._workflowId, store)
-
-    runCommandTracker = await runCommandProgress.add('ScholarCommand.run')
-    await command.run(cell, prompt)
-  } else if (queryType === OUTLINE_QUERY_TYPE) {
-    const command = new OutlineCommand(store._userId, store._workflowId, store)
-
-    runCommandTracker = await runCommandProgress.add('OutlineCommand.run')
-    await command.run(cell, prompt, {signal})
-  } else if (queryType === STEPS_QUERY_TYPE) {
-    const command = new StepsCommand(store._userId, store._workflowId, store, runCommandProgress)
-
-    runCommandTracker = await runCommandProgress.add('StepsCommand.run')
-    await command.run(cell, {signal})
-    runPostProccess = false // `/steps` command must never trigger postProcessNode, see #226, #227
-  } else if (queryType === CHAT_QUERY_TYPE) {
-    const command = new ChatCommand(store._userId, store._workflowId, store)
-
-    runCommandTracker = await runCommandProgress.add('ChatCommand.run')
-    await command.run(cell, context, prompt)
-  } else if (queryType === SUMMARIZE_QUERY_TYPE) {
-    const command = new SummarizeCommand(store._userId, store._workflowId, store)
-
-    runCommandTracker = await runCommandProgress.add('SummarizeCommand.run')
-    await command.run(cell, prompt, {signal})
-  } else if (queryType === FOREACH_QUERY_TYPE) {
-    const command = new ForeachCommand(store._userId, store._workflowId, store, runCommandProgress)
-
-    runCommandTracker = await runCommandProgress.add('ForeachCommand.run')
-    await command.run(cell, {signal})
-  } else if (queryType === SWITCH_QUERY_TYPE) {
-    const command = new SwitchCommand(store._userId, store._workflowId, store, runCommandProgress)
-
-    runCommandTracker = await runCommandProgress.add('SwitchCommand.run')
-    await command.run(cell, prompt, {signal})
-  } else if (queryType === CLAUDE_QUERY_TYPE) {
-    const command = new ClaudeCommand(store._userId, store._workflowId, store)
-
-    runCommandTracker = await runCommandProgress.add('ClaudeCommand.run')
-    await command.run(cell, context, prompt)
-  } else if (queryType === PERPLEXITY_QUERY_TYPE) {
-    const command = new PerplexityCommand(store._userId, store._workflowId, store)
-
-    runCommandTracker = await runCommandProgress.add('PerplexityCommand.run')
-    await command.run(cell, context, prompt)
-  } else if (queryType === QWEN_QUERY_TYPE) {
-    const command = new QwenCommand(store._userId, store._workflowId, store)
-
-    runCommandTracker = await runCommandProgress.add('QwenCommand.run')
-    await command.run(cell, context, prompt)
-  } else if (queryType === DEEPSEEK_QUERY_TYPE) {
-    const command = new DeepseekCommand(store._userId, store._workflowId, store)
-
-    runCommandTracker = await runCommandProgress.add('DeepseekCommand.run')
-    await command.run(cell, context, prompt)
-  } else if (queryType === DOWNLOAD_QUERY_TYPE) {
-    const command = new DownloadCommand(store._userId, store._workflowId, store)
-
-    runCommandTracker = await runCommandProgress.add('DownloadCommand.run')
-    await command.run(cell, prompt)
-  } else if (queryType === CUSTOM_LLM_CHAT_QUERY_TYPE) {
-    const command = new CustomLLMChatCommand(store._userId, store._workflowId, store)
-
-    runCommandTracker = await runCommandProgress.add('CustomLLMChatCommand.run')
-    await command.run(cell, context, prompt)
-  } else if (queryType === REFINE_QUERY_TYPE) {
-    const command = new RefineCommand(store._userId, store._workflowId, store)
-
-    runCommandTracker = await runCommandProgress.add('RefineCommand.run')
-    await command.run(cell)
-  } else if (queryType === EXT_QUERY_TYPE) {
-    const command = new ExtCommand(store._userId, store._workflowId, store)
-
-    runCommandTracker = await runCommandProgress.add('ExtCommand.run')
-    await command.run(cell, prompt)
-  } else if (queryType === COMPLETION_QUERY_TYPE) {
-    const command = new CompletionCommand(store._userId, store._workflowId, store, runCommandProgress)
-
-    runCommandTracker = await runCommandProgress.add('CompletionCommand.run')
-    await command.run(cell, {signal})
-  } else if (queryType === MEMORIZE_QUERY_TYPE) {
-    const command = new MemorizeCommand(store._userId, store._workflowId, store, runCommandProgress)
-
-    runCommandTracker = await runCommandProgress.add('MemorizeCommand.run')
-    await command.run(cell, {signal})
-  } else if (mcpAlias) {
-    const command = new MCPCommand(store._userId, store._workflowId, store, mcpAlias)
-
-    runCommandTracker = await runCommandProgress.add('MCPCommand.run')
-    await command.run(cell, context, prompt, {signal})
-  } else if (rpcAlias) {
-    const command = new RPCCommand(store._userId, store._workflowId, store, rpcAlias, runCommandProgress, sshClientPool)
-
-    runCommandTracker = await runCommandProgress.add('RPCCommand.run')
-    await command.run(cell, context, prompt, {signal})
+  if (queryType === STEPS_QUERY_TYPE) {
+    runPostProccess = false
   }
 
   if (runPostProccess) {
@@ -285,7 +242,4 @@ export const runCommand = async (
   }
 
   store.removeOrphanedNodes()
-
-  if (runCommandTracker) runCommandProgress.remove(runCommandTracker)
-  runCommandProgress.dispose()
 }
