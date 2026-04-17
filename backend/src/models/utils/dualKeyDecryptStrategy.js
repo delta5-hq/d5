@@ -5,7 +5,7 @@ export class DualKeyDecryptStrategy {
     this.legacyKey = legacyKey
   }
 
-  decrypt(ciphertext, additionalData) {
+  decrypt(ciphertext, _key, additionalData) {
     const attempts = [
       {key: this.primaryKey, aad: additionalData, keyType: 'primary', aadState: 'with-aad'},
       {key: this.primaryKey, aad: null, keyType: 'primary', aadState: 'no-aad'},
