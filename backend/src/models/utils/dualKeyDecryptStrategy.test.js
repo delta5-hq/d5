@@ -53,7 +53,7 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, null)
       const ciphertext = cipher.encrypt('secret-data', primaryKey, aad)
 
-      const result = strategy.decrypt(ciphertext, aad)
+      const result = strategy.decrypt(ciphertext, null, aad)
 
       expect(result).toBe('secret-data')
     })
@@ -63,7 +63,7 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, null)
       const ciphertext = cipher.encrypt('secret-data', primaryKey, null)
 
-      const result = strategy.decrypt(ciphertext, aad)
+      const result = strategy.decrypt(ciphertext, null, aad)
 
       expect(result).toBe('secret-data')
       expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('AAD fallback triggered'))
@@ -76,7 +76,7 @@ describe('DualKeyDecryptStrategy', () => {
       const wrongKey = crypto.randomBytes(32)
       const ciphertext = cipher.encrypt('secret', wrongKey, aad)
 
-      expect(() => strategy.decrypt(ciphertext, aad)).toThrow()
+      expect(() => strategy.decrypt(ciphertext, null, aad)).toThrow()
     })
 
     it('preserves original error when decryption fails', () => {
@@ -84,7 +84,7 @@ describe('DualKeyDecryptStrategy', () => {
       const wrongKey = crypto.randomBytes(32)
       const ciphertext = cipher.encrypt('secret', wrongKey, null)
 
-      expect(() => strategy.decrypt(ciphertext, aad)).toThrow(/Unsupported state or unable to authenticate data/)
+      expect(() => strategy.decrypt(ciphertext, null, aad)).toThrow(/Unsupported state or unable to authenticate data/)
     })
   })
 
@@ -93,7 +93,7 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
       const ciphertext = cipher.encrypt('primary-aad-data', primaryKey, aad)
 
-      const result = strategy.decrypt(ciphertext, aad)
+      const result = strategy.decrypt(ciphertext, null, aad)
 
       expect(result).toBe('primary-aad-data')
     })
@@ -103,7 +103,7 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
       const ciphertext = cipher.encrypt('primary-no-aad', primaryKey, null)
 
-      const result = strategy.decrypt(ciphertext, aad)
+      const result = strategy.decrypt(ciphertext, null, aad)
 
       expect(result).toBe('primary-no-aad')
       expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('AAD fallback'))
@@ -117,7 +117,7 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
       const ciphertext = cipher.encrypt('legacy-aad-data', legacyKey, aad)
 
-      const result = strategy.decrypt(ciphertext, aad)
+      const result = strategy.decrypt(ciphertext, null, aad)
 
       expect(result).toBe('legacy-aad-data')
       expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('Legacy encryption key'))
@@ -131,7 +131,7 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
       const ciphertext = cipher.encrypt('legacy-no-aad', legacyKey, null)
 
-      const result = strategy.decrypt(ciphertext, aad)
+      const result = strategy.decrypt(ciphertext, null, aad)
 
       expect(result).toBe('legacy-no-aad')
       expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('Legacy encryption key'))
@@ -146,7 +146,7 @@ describe('DualKeyDecryptStrategy', () => {
       }
       const strategy = new DualKeyDecryptStrategy(mockCipher, primaryKey, legacyKey)
 
-      strategy.decrypt('any-ciphertext', aad)
+      strategy.decrypt('any-ciphertext', null, aad)
 
       expect(mockCipher.decrypt).toHaveBeenCalledTimes(1)
     })
@@ -158,7 +158,7 @@ describe('DualKeyDecryptStrategy', () => {
       const wrongKey = crypto.randomBytes(32)
       const ciphertext = cipher.encrypt('secret', wrongKey, aad)
 
-      expect(() => strategy.decrypt(ciphertext, aad)).toThrow()
+      expect(() => strategy.decrypt(ciphertext, null, aad)).toThrow()
     })
 
     it('returns last error when all attempts exhausted', () => {
@@ -168,7 +168,7 @@ describe('DualKeyDecryptStrategy', () => {
 
       let caughtError
       try {
-        strategy.decrypt(ciphertext, aad)
+        strategy.decrypt(ciphertext, null, aad)
       } catch (e) {
         caughtError = e
       }
@@ -184,7 +184,7 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
       const ciphertext = cipher.encrypt('old-data', legacyKey, aad)
 
-      strategy.decrypt(ciphertext, aad)
+      strategy.decrypt(ciphertext, null, aad)
 
       expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('Legacy encryption key used'))
       expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('Re-save integration entry'))
@@ -197,7 +197,7 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
       const ciphertext = cipher.encrypt('no-aad-data', primaryKey, null)
 
-      strategy.decrypt(ciphertext, aad)
+      strategy.decrypt(ciphertext, null, aad)
 
       expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('AAD fallback triggered'))
       expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('AAD-protected encryption'))
@@ -210,7 +210,7 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
       const ciphertext = cipher.encrypt('old-no-aad', legacyKey, null)
 
-      strategy.decrypt(ciphertext, aad)
+      strategy.decrypt(ciphertext, null, aad)
 
       const warnings = consoleWarn.mock.calls.map(c => c[0])
       expect(warnings).toEqual(
@@ -228,7 +228,7 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
       const ciphertext = cipher.encrypt('current-data', primaryKey, aad)
 
-      strategy.decrypt(ciphertext, aad)
+      strategy.decrypt(ciphertext, null, aad)
 
       expect(consoleWarn).not.toHaveBeenCalled()
 
@@ -240,7 +240,7 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
       const ciphertext = cipher.encrypt('old', legacyKey, null)
 
-      strategy.decrypt(ciphertext, aad)
+      strategy.decrypt(ciphertext, null, aad)
 
       const warnings = consoleWarn.mock.calls.map(c => c[0])
       expect(warnings.some(w => w.includes('Re-save'))).toBe(true)
@@ -254,7 +254,7 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
       const ciphertext = cipher.encrypt('data', primaryKey, null)
 
-      const result = strategy.decrypt(ciphertext, null)
+      const result = strategy.decrypt(ciphertext, null, null)
 
       expect(result).toBe('data')
     })
@@ -263,7 +263,7 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
       const ciphertext = cipher.encrypt('data', primaryKey, null)
 
-      const result = strategy.decrypt(ciphertext, undefined)
+      const result = strategy.decrypt(ciphertext, null, undefined)
 
       expect(result).toBe('data')
     })
@@ -273,7 +273,7 @@ describe('DualKeyDecryptStrategy', () => {
       const bufferAAD = Buffer.from('context-data')
       const ciphertext = cipher.encrypt('data', primaryKey, bufferAAD)
 
-      const result = strategy.decrypt(ciphertext, bufferAAD)
+      const result = strategy.decrypt(ciphertext, null, bufferAAD)
 
       expect(result).toBe('data')
     })
@@ -283,10 +283,10 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, null)
       const ciphertext = cipher.encrypt('data', primaryKey, null)
 
-      strategy.decrypt(ciphertext, null)
+      strategy.decrypt(ciphertext, null, null)
       expect(consoleWarn).not.toHaveBeenCalled()
 
-      strategy.decrypt(ciphertext, undefined)
+      strategy.decrypt(ciphertext, null, undefined)
       expect(consoleWarn).not.toHaveBeenCalled()
 
       consoleWarn.mockRestore()
@@ -299,7 +299,7 @@ describe('DualKeyDecryptStrategy', () => {
       const plaintext = 'sensitive-data-with-special-chars-!@#$%^&*()'
       const ciphertext = cipher.encrypt(plaintext, legacyKey, null)
 
-      const result = strategy.decrypt(ciphertext, aad)
+      const result = strategy.decrypt(ciphertext, null, aad)
 
       expect(result).toBe(plaintext)
     })
@@ -309,7 +309,7 @@ describe('DualKeyDecryptStrategy', () => {
       const plaintext = '密钥-秘密-数据'
       const ciphertext = cipher.encrypt(plaintext, primaryKey, aad)
 
-      const result = strategy.decrypt(ciphertext, aad)
+      const result = strategy.decrypt(ciphertext, null, aad)
 
       expect(result).toBe(plaintext)
     })
@@ -318,7 +318,7 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
       const ciphertext = cipher.encrypt('', primaryKey, aad)
 
-      const result = strategy.decrypt(ciphertext, aad)
+      const result = strategy.decrypt(ciphertext, null, aad)
 
       expect(result).toBe('')
     })
@@ -328,7 +328,7 @@ describe('DualKeyDecryptStrategy', () => {
       const largePlaintext = 'x'.repeat(10000)
       const ciphertext = cipher.encrypt(largePlaintext, primaryKey, aad)
 
-      const result = strategy.decrypt(ciphertext, aad)
+      const result = strategy.decrypt(ciphertext, null, aad)
 
       expect(result).toBe(largePlaintext)
     })
@@ -340,7 +340,7 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
       const ciphertext = cipher.encrypt('old-key-data', legacyKey, aad)
 
-      strategy.decrypt(ciphertext, aad)
+      strategy.decrypt(ciphertext, null, aad)
 
       expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('Legacy encryption key'))
       expect(consoleWarn).not.toHaveBeenCalledWith(expect.stringContaining('AAD fallback'))
@@ -353,7 +353,7 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
       const ciphertext = cipher.encrypt('no-aad-data', primaryKey, null)
 
-      strategy.decrypt(ciphertext, aad)
+      strategy.decrypt(ciphertext, null, aad)
 
       expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('AAD fallback'))
       expect(consoleWarn).not.toHaveBeenCalledWith(expect.stringContaining('Legacy encryption key'))
@@ -366,7 +366,7 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
       const ciphertext = cipher.encrypt('old-unprotected', legacyKey, null)
 
-      strategy.decrypt(ciphertext, aad)
+      strategy.decrypt(ciphertext, null, aad)
 
       const warnings = consoleWarn.mock.calls.map(c => c[0])
       expect(warnings).toEqual(
@@ -384,7 +384,7 @@ describe('DualKeyDecryptStrategy', () => {
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
       const ciphertext = cipher.encrypt('new-protected-data', primaryKey, aad)
 
-      strategy.decrypt(ciphertext, aad)
+      strategy.decrypt(ciphertext, null, aad)
 
       expect(consoleWarn).not.toHaveBeenCalled()
 

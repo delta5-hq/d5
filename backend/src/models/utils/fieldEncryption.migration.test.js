@@ -1,6 +1,7 @@
 import {encryptFields, decryptFields, __resetForTesting} from './fieldEncryption'
 import {EncryptionKeyManager} from './encryptionKeyManager'
 import {DualKeyDecryptStrategy} from './dualKeyDecryptStrategy'
+import {FallbackDecrypt} from './decryptStrategy'
 import crypto from 'crypto'
 
 describe('Field Encryption - Key and AAD Migration Scenarios', () => {
@@ -80,7 +81,7 @@ describe('Field Encryption - Key and AAD Migration Scenarios', () => {
     })
   })
 
-  describe('DualKeyDecryptStrategy - Fallback cascade behavior', () => {
+  describe('Decrypt strategy polymorphism', () => {
     const createCipher = () => ({
       encrypt(plaintext, key, aad) {
         const iv = crypto.randomBytes(16)
@@ -102,145 +103,101 @@ describe('Field Encryption - Key and AAD Migration Scenarios', () => {
       },
     })
 
-    describe('Attempt prioritization', () => {
-      it('succeeds on first attempt with matching primary key and AAD', () => {
+    const createMockService = (strategy, key) => ({
+      key,
+      decryptStrategy: strategy,
+      decrypt(markedCiphertext, additionalData) {
+        if (!markedCiphertext) return null
+        if (!markedCiphertext.startsWith('__encrypted__')) return markedCiphertext
+        const ciphertext = markedCiphertext.replace('__encrypted__', '')
+        return this.decryptStrategy.decrypt(ciphertext, this.key, additionalData)
+      },
+    })
+
+    describe('DualKeyDecryptStrategy through service layer', () => {
+      it('decrypts with primary key and AAD through 3-arg interface', () => {
         const cipher = createCipher()
         const primaryKey = crypto.randomBytes(32)
         const legacyKey = crypto.randomBytes(32)
-        const aad = Buffer.from('context')
+        const aad = Buffer.from('user-123:integration:mcp.env')
+
         const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
+        const service = createMockService(strategy, primaryKey)
 
-        const ciphertext = cipher.encrypt('data', primaryKey, aad)
-        const plaintext = strategy.decrypt(ciphertext, aad)
+        const ciphertext = cipher.encrypt('secret-value', primaryKey, aad)
+        const markedCiphertext = '__encrypted__' + ciphertext
 
-        expect(plaintext).toBe('data')
+        expect(service.decrypt(markedCiphertext, aad)).toBe('secret-value')
       })
 
-      it('succeeds on second attempt with primary key but no AAD', () => {
+      it('decrypts with legacy key through 3-arg interface', () => {
         const consoleWarn = jest.spyOn(console, 'warn').mockImplementation()
         const cipher = createCipher()
         const primaryKey = crypto.randomBytes(32)
         const legacyKey = crypto.randomBytes(32)
+        const aad = Buffer.from('user-456:integration:rpc.privateKey')
+
         const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
+        const service = createMockService(strategy, primaryKey)
 
-        const ciphertext = cipher.encrypt('data', primaryKey, null)
-        const plaintext = strategy.decrypt(ciphertext, Buffer.from('wrong-aad'))
+        const ciphertext = cipher.encrypt('old-key-data', legacyKey, aad)
+        const markedCiphertext = '__encrypted__' + ciphertext
 
-        expect(plaintext).toBe('data')
-        expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('AAD fallback'))
-
-        consoleWarn.mockRestore()
-      })
-
-      it('succeeds on third attempt with legacy key and AAD', () => {
-        const consoleWarn = jest.spyOn(console, 'warn').mockImplementation()
-        const cipher = createCipher()
-        const primaryKey = crypto.randomBytes(32)
-        const legacyKey = crypto.randomBytes(32)
-        const aad = Buffer.from('context')
-        const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
-
-        const ciphertext = cipher.encrypt('old-data', legacyKey, aad)
-        const plaintext = strategy.decrypt(ciphertext, aad)
-
-        expect(plaintext).toBe('old-data')
+        expect(service.decrypt(markedCiphertext, aad)).toBe('old-key-data')
         expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('Legacy encryption key'))
 
         consoleWarn.mockRestore()
       })
 
-      it('succeeds on fourth attempt with legacy key and no AAD', () => {
+      it('falls back to nil AAD through 3-arg interface', () => {
         const consoleWarn = jest.spyOn(console, 'warn').mockImplementation()
         const cipher = createCipher()
         const primaryKey = crypto.randomBytes(32)
         const legacyKey = crypto.randomBytes(32)
+        const aad = Buffer.from('user-789:integration:mcp.headers')
+
         const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
+        const service = createMockService(strategy, primaryKey)
 
-        const ciphertext = cipher.encrypt('oldest-data', legacyKey, null)
-        const plaintext = strategy.decrypt(ciphertext, Buffer.from('context'))
+        const ciphertext = cipher.encrypt('no-aad-data', primaryKey, null)
+        const markedCiphertext = '__encrypted__' + ciphertext
 
-        expect(plaintext).toBe('oldest-data')
-
-        const warnings = consoleWarn.mock.calls.map(c => c[0])
-        expect(warnings).toEqual(
-          expect.arrayContaining([
-            expect.stringContaining('Legacy encryption key'),
-            expect.stringContaining('AAD fallback'),
-          ]),
-        )
+        expect(service.decrypt(markedCiphertext, aad)).toBe('no-aad-data')
+        expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('AAD fallback'))
 
         consoleWarn.mockRestore()
       })
     })
 
-    describe('Migration state detection', () => {
-      it('identifies fully migrated data - no warnings', () => {
-        const consoleWarn = jest.spyOn(console, 'warn').mockImplementation()
+    describe('FallbackDecrypt through service layer', () => {
+      it('decrypts with matching AAD through 3-arg interface', () => {
         const cipher = createCipher()
-        const primaryKey = crypto.randomBytes(32)
-        const legacyKey = crypto.randomBytes(32)
-        const aad = Buffer.from('context')
-        const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
+        const key = crypto.randomBytes(32)
+        const aad = Buffer.from('user-100:integration:openai.apiKey')
 
-        const ciphertext = cipher.encrypt('current', primaryKey, aad)
-        strategy.decrypt(ciphertext, aad)
+        const strategy = new FallbackDecrypt(cipher)
+        const service = createMockService(strategy, key)
 
-        expect(consoleWarn).not.toHaveBeenCalled()
+        const ciphertext = cipher.encrypt('api-key-value', key, aad)
+        const markedCiphertext = '__encrypted__' + ciphertext
 
-        consoleWarn.mockRestore()
+        expect(service.decrypt(markedCiphertext, aad)).toBe('api-key-value')
       })
 
-      it('identifies key-only migration needed', () => {
+      it('falls back to nil AAD through 3-arg interface', () => {
         const consoleWarn = jest.spyOn(console, 'warn').mockImplementation()
         const cipher = createCipher()
-        const primaryKey = crypto.randomBytes(32)
-        const legacyKey = crypto.randomBytes(32)
-        const aad = Buffer.from('context')
-        const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
+        const key = crypto.randomBytes(32)
+        const requestedAAD = Buffer.from('user-200:integration:yandex.apiKey')
 
-        const ciphertext = cipher.encrypt('old-key', legacyKey, aad)
-        strategy.decrypt(ciphertext, aad)
+        const strategy = new FallbackDecrypt(cipher)
+        const service = createMockService(strategy, key)
 
-        expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('Legacy encryption key'))
-        expect(consoleWarn).not.toHaveBeenCalledWith(expect.stringContaining('AAD fallback'))
+        const ciphertext = cipher.encrypt('legacy-data', key, null)
+        const markedCiphertext = '__encrypted__' + ciphertext
 
-        consoleWarn.mockRestore()
-      })
-
-      it('identifies AAD-only migration needed', () => {
-        const consoleWarn = jest.spyOn(console, 'warn').mockImplementation()
-        const cipher = createCipher()
-        const primaryKey = crypto.randomBytes(32)
-        const legacyKey = crypto.randomBytes(32)
-        const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
-
-        const ciphertext = cipher.encrypt('no-aad', primaryKey, null)
-        strategy.decrypt(ciphertext, Buffer.from('context'))
-
+        expect(service.decrypt(markedCiphertext, requestedAAD)).toBe('legacy-data')
         expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('AAD fallback'))
-        expect(consoleWarn).not.toHaveBeenCalledWith(expect.stringContaining('Legacy encryption key'))
-
-        consoleWarn.mockRestore()
-      })
-
-      it('identifies double migration needed (key + AAD)', () => {
-        const consoleWarn = jest.spyOn(console, 'warn').mockImplementation()
-        const cipher = createCipher()
-        const primaryKey = crypto.randomBytes(32)
-        const legacyKey = crypto.randomBytes(32)
-        const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
-
-        const ciphertext = cipher.encrypt('legacy-unprotected', legacyKey, null)
-        strategy.decrypt(ciphertext, Buffer.from('context'))
-
-        const warnings = consoleWarn.mock.calls.map(c => c[0])
-        expect(warnings.length).toBe(2)
-        expect(warnings).toEqual(
-          expect.arrayContaining([
-            expect.stringContaining('Legacy encryption key'),
-            expect.stringContaining('AAD fallback'),
-          ]),
-        )
 
         consoleWarn.mockRestore()
       })
