@@ -2208,8 +2208,8 @@ describe('RPCCommand run test', () => {
     const acpAlias = {
       alias: '/ide-acp',
       protocol: 'acp-local',
-      command: 'claude',
-      args: '--ide',
+      command: 'npx',
+      args: '-y @agentclientprotocol/claude-agent-acp',
       workingDir: '/workspace',
       autoApprove: 'all',
       outputFormat: 'text',
@@ -2372,8 +2372,8 @@ describe('RPCCommand run test', () => {
     const acpAlias = {
       alias: '/ide-acp',
       protocol: 'acp-local',
-      command: 'claude',
-      args: '--ide',
+      command: 'npx',
+      args: '-y @agentclientprotocol/claude-agent-acp',
       workingDir: '/workspace',
       autoApprove: 'all',
       outputFormat: 'json',
