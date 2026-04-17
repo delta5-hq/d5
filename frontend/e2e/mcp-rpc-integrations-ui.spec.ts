@@ -437,10 +437,10 @@ test.describe.serial('RPC Integration UI Flow', () => {
     await page.waitForTimeout(100)
 
     const command = page.locator('#command')
-    await expect(command).toHaveValue('claude')
+    await expect(command).toHaveValue('npx')
 
     const args = page.locator('#args')
-    await expect(args).toHaveValue('--ide')
+    await expect(args).toHaveValue('-y @agentclientprotocol/claude-agent-acp')
 
     const workingDir = page.locator('#workingDir')
     await expect(workingDir).toHaveValue('/workspace')

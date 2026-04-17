@@ -191,8 +191,8 @@ describe('RPC_PRESETS', () => {
       getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
 
       expect(setValue).toHaveBeenCalledWith('protocol', 'acp-local')
-      expect(setValue).toHaveBeenCalledWith('command', 'claude')
-      expect(setValue).toHaveBeenCalledWith('args', '--ide')
+      expect(setValue).toHaveBeenCalledWith('command', 'npx')
+      expect(setValue).toHaveBeenCalledWith('args', '-y @agentclientprotocol/claude-agent-acp')
       expect(setValue).toHaveBeenCalledWith('workingDir', '/workspace')
       expect(setValue).toHaveBeenCalledWith('autoApprove', 'all')
     })

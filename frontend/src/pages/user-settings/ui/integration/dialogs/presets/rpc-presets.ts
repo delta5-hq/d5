@@ -70,8 +70,8 @@ export const RPC_PRESETS: PresetDefinition<RPCFormFlat>[] = [
     icon: '🖥️',
     fill: setValue => {
       setValue('protocol', 'acp-local')
-      setValue('command', 'claude')
-      setValue('args', '--ide')
+      setValue('command', 'npx')
+      setValue('args', '-y @agentclientprotocol/claude-agent-acp')
       setValue('workingDir', '/workspace')
       setValue('autoApprove', 'all')
     },
