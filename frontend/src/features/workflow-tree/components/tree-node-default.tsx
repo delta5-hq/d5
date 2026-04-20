@@ -222,6 +222,13 @@ export const TreeNodeDefault = ({
 
   const sparkPath = depth > 0 ? buildSparkPath(wireIndentX, ROW_HEIGHT, INDENT_PER_LEVEL, rowsFromParent) : ''
 
+  const hasCommand = Boolean(node.command?.trim())
+  const genieVariant = hasCommand ? 'full' : 'clipboard'
+  const genieColor = hasCommand
+    ? getColorForRole(getCommandRole(extractQueryTypeFromCommand(node.command, aliases)))
+    : '#9e9e9e'
+  const genieShowHandRibs = hasCommand && getShowHandRibsFromDepth(depth)
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -286,12 +293,13 @@ export const TreeNodeDefault = ({
           <span className="relative z-10 flex-shrink-0 ml-1.5 transition-transform duration-150 group-hover:scale-110">
             {depth > 0 && depth <= 4 ? (
               <Genie
-                color={getColorForRole(getCommandRole(extractQueryTypeFromCommand(node.command, aliases)))}
+                color={genieColor}
                 nodeId={id}
                 ref={genieRef}
-                showHandRibs={getShowHandRibsFromDepth(depth)}
+                showHandRibs={genieShowHandRibs}
                 size={32}
                 state={genieState}
+                variant={genieVariant}
               />
             ) : hasChildren ? (
               isOpen ? (

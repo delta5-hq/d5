@@ -1,5 +1,5 @@
 export { GenieLottie, type GenieLottieProps } from './genie'
-export { Genie, type GenieProps, type GenieState, type GenieRef } from './genie-base'
+export { Genie, type GenieProps, type GenieState, type GenieRef, type GenieVariant } from './genie-base'
 export { Clipboard, type ClipboardProps } from './clipboard'
 export { Hands, type HandsProps } from './hands'
 export {
