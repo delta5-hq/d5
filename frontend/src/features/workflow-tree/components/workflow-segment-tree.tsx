@@ -1,81 +1,75 @@
 import { AutoSizer } from 'react-virtualized-auto-sizer'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, type MouseEvent } from 'react'
 import type { NodeData } from '@/shared/base-types/workflow'
+import { useStableCallback } from '@shared/lib/hooks'
 import { useNodeCacheCleanup } from '@shared/lib/use-node-cache-cleanup'
 import { VirtualizedSegmentTree } from '../virtualization/virtualized-segment-tree'
 import { useTreeWalker } from '../hooks/use-tree-walker'
-import { useTreeExpansion } from '../hooks/use-tree-expansion'
+import { useAnimatedToggle } from '../hooks/use-animated-toggle'
 import { TreeAnimationProvider, useTreeAnimation } from '../context'
+import { useWorkflowExpandedIds, useWorkflowActions } from '../store'
 
 export interface WorkflowSegmentTreeProps {
   nodes: Record<string, NodeData>
   rootId: string
   rowHeight?: number
-  initialExpandedIds?: Set<string>
   overscanCount?: number
-  selectedId?: string
-  onSelect?: (id: string, node: NodeData) => void
-}
-
-function collectDescendantIds(nodeId: string, nodes: Record<string, NodeData>): string[] {
-  const node = nodes[nodeId]
-  if (!node?.children?.length) return []
-
-  const descendants: string[] = []
-  const stack = [...node.children]
-
-  while (stack.length > 0) {
-    const childId = stack.pop()!
-    descendants.push(childId)
-    const childNode = nodes[childId]
-    if (childNode?.children?.length) {
-      stack.push(...childNode.children)
-    }
-  }
-
-  return descendants
+  selectedIds?: Set<string>
+  autoEditNodeId?: string
+  onSelect?: (id: string, node: NodeData, event?: MouseEvent) => void
+  onAddChild?: (parentId: string) => void
+  onDelete?: (nodeId: string) => void
+  onDuplicateNode?: (nodeId: string) => void
+  onRename?: (nodeId: string, newTitle: string) => void
+  onRequestRename?: (nodeId: string) => void
+  onVisibleOrderChange?: (order: readonly string[]) => void
+  /** Newly created node ID — signals the tree to flash it on mount */
+  flashNodeId?: string
 }
 
 const WorkflowSegmentTreeInner = ({
   nodes,
   rootId,
   rowHeight = 48,
-  initialExpandedIds,
   overscanCount = 5,
-  selectedId,
+  selectedIds,
+  autoEditNodeId,
   onSelect,
+  onAddChild,
+  onDelete,
+  onDuplicateNode,
+  onRename,
+  onRequestRename,
+  onVisibleOrderChange,
+  flashNodeId,
 }: WorkflowSegmentTreeProps) => {
   const nodeIds = useMemo(() => new Set(Object.keys(nodes)), [nodes])
   useNodeCacheCleanup(nodeIds)
 
-  const { expandedIds, toggleNode } = useTreeExpansion(initialExpandedIds)
+  const expandedIds = useWorkflowExpandedIds()
+  const { toggleExpanded, expandNode } = useWorkflowActions()
   const treeWalker = useTreeWalker({ nodes, rootId, expandedIds })
-  const { scheduleAnimation } = useTreeAnimation()
+  const { scheduleNewNodeFlash } = useTreeAnimation()
 
-  const handleSelect = useCallback(
-    (id: string) => {
-      const node = nodes[id]
-      if (node && onSelect) {
-        onSelect(id, node)
-      }
+  useEffect(() => {
+    if (flashNodeId) scheduleNewNodeFlash(flashNodeId)
+  }, [flashNodeId, scheduleNewNodeFlash])
+
+  const handleSelect = useStableCallback((id: string, event?: MouseEvent) => {
+    const node = nodes[id]
+    if (node && onSelect) {
+      onSelect(id, node, event)
+    }
+  })
+
+  const handleToggle = useAnimatedToggle(nodes, expandedIds, toggleExpanded)
+
+  const handleAddChild = useCallback(
+    (parentId: string) => {
+      expandNode(parentId)
+      onAddChild?.(parentId)
     },
-    [nodes, onSelect],
-  )
-
-  const handleToggle = useCallback(
-    (id: string) => {
-      const wasExpanded = expandedIds.has(id)
-
-      if (!wasExpanded) {
-        const descendantIds = collectDescendantIds(id, nodes)
-        if (descendantIds.length > 0) {
-          scheduleAnimation(descendantIds)
-        }
-      }
-
-      toggleNode(id)
-    },
-    [expandedIds, nodes, scheduleAnimation, toggleNode],
+    [expandNode, onAddChild],
   )
 
   return (
@@ -84,12 +78,19 @@ const WorkflowSegmentTreeInner = ({
         renderProp={({ height, width }) =>
           height && width ? (
             <VirtualizedSegmentTree
+              autoEditNodeId={autoEditNodeId}
               height={height}
+              onAddChild={handleAddChild}
+              onDelete={onDelete}
+              onDuplicateNode={onDuplicateNode}
+              onRename={onRename}
+              onRequestRename={onRequestRename}
               onSelect={handleSelect}
               onToggle={handleToggle}
+              onVisibleOrderChange={onVisibleOrderChange}
               overscanCount={overscanCount}
               rowHeight={rowHeight}
-              selectedId={selectedId}
+              selectedIds={selectedIds}
               treeWalker={treeWalker}
               width={width}
             />

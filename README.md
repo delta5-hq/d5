@@ -13,14 +13,17 @@ make setup-build-tools
 # 2. Install git hooks (REQUIRED)
 make install-hooks
 
-# 3. Start development environment
+# 3. Initialize dev database (first time only)
+make dev-db-init
+
+# 4. Start development environment
 make dev
 ```
 
 This will:
 - Start MongoDB container
-- Seed test users
 - Build and start backend-v2
+- Build and start Node.js backend
 - Start frontend dev server
 
 **Access:**

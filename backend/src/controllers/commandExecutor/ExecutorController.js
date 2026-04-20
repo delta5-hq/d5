@@ -9,6 +9,7 @@ import ProgressReporter from './ProgressReporter'
 import StreamableProgressReporter from './streaming/StreamableProgressReporter'
 import StreamBridge from './streaming/StreamBridge'
 import {StreamEvent} from './streaming/StreamEvent'
+import {progressEventEmitter} from '../../services/progress-event-emitter'
 
 const logError = debug('delta5:app:ExecutorController')
 
@@ -29,7 +30,14 @@ const ExecutorController = {
     const log = debug('delta5:app:ProgressReporter').extend(userId, '/')
     const ProgressReporterClass = streamSessionId ? StreamableProgressReporter : ProgressReporter
     const progress = new ProgressReporterClass({title: 'root', log, outputInterval: 60000}, null, streamSessionId)
+
+    const nodeId = cell?.id
+
     try {
+      if (nodeId) {
+        progressEventEmitter.emitStart(nodeId, {queryType})
+      }
+
       // queryType, context, prompt, cell, userId, workflowId, workflowNodes, workflowFiles
       let {workflowNodes, workflowEdges, workflowId, workflowFiles, ...otherData} = body
 
@@ -60,6 +68,11 @@ const ExecutorController = {
         {...body, userId, nodes: workflowNodes, edges: workflowEdges, files: workflowFiles, aliases},
         progress,
       )
+
+      if (nodeId) {
+        progressEventEmitter.emitRunning(nodeId, {queryType})
+      }
+
       await runCommand({...otherData, store, mcpAlias, rpcAlias}, progress)
 
       const {nodes: nodesChanged, edges: edgesChanged} = store.getOutput()
@@ -79,6 +92,10 @@ const ExecutorController = {
         StreamBridge.closeSession(streamSessionId)
       }
 
+      if (nodeId) {
+        progressEventEmitter.emitComplete(nodeId, {queryType})
+      }
+
       ctx.body = result
     } catch (e) {
       console.error(e)
@@ -86,6 +103,10 @@ const ExecutorController = {
       if (streamSessionId) {
         StreamBridge.emit(streamSessionId, StreamEvent.error(e))
         StreamBridge.closeSession(streamSessionId)
+      }
+
+      if (nodeId) {
+        progressEventEmitter.emitError(nodeId, e, {queryType})
       }
 
       ctx.throw(500, e.message)

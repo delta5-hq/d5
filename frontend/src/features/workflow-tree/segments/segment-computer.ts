@@ -1,3 +1,4 @@
+import type { NodeData } from '@/shared/base-types/workflow'
 import type { TreeState } from '../core/types'
 import type { Segment, SegmentNode, SegmentContainer, SegmentState, SegmentComputeOptions } from './types'
 
@@ -6,18 +7,29 @@ interface ContainerNodeConfig {
   childrenIds?: string[]
   paddingTop?: number
   paddingBottom?: number
+  includeParent?: boolean
 }
 
 function hasContainerConfig(node: unknown): node is { container: ContainerNodeConfig } {
   return Boolean(node && typeof node === 'object' && 'container' in node && node.container)
 }
 
-function getContainerChildIds(node: { container: ContainerNodeConfig }, allChildren: string[]): Set<string> {
-  const config = node.container
-  if (config.childrenIds && config.childrenIds.length > 0) {
-    return new Set(config.childrenIds.filter(id => allChildren.includes(id)))
-  }
-  return new Set(allChildren)
+/* Synthetic container config for `/foreach` command nodes */
+const FOREACH_CONTAINER_CONFIG: ContainerNodeConfig = {
+  type: 'group',
+  paddingTop: 6,
+  paddingBottom: 6,
+  includeParent: true,
+}
+
+/**
+ * Returns the effective container config for a node — either the explicit
+ * `node.container` or a synthetic one for recognised commands (e.g. `/foreach`).
+ */
+function getEffectiveContainerConfig(node: NodeData): ContainerNodeConfig | null {
+  if (hasContainerConfig(node)) return node.container
+  if (node.command === '/foreach') return FOREACH_CONTAINER_CONFIG
+  return null
 }
 
 function isImmediateChild(nodeId: string, parentId: string, treeState: TreeState): boolean {
@@ -41,8 +53,12 @@ export function computeSegments(treeState: TreeState, options: SegmentComputeOpt
     const segmentIndex = segments.length
     const node = record.data.node
 
-    if (hasContainerConfig(node) && record.data.isOpen && node.children?.length) {
-      const containerChildIds = getContainerChildIds(node, node.children)
+    const effectiveConfig = getEffectiveContainerConfig(node)
+
+    if (effectiveConfig && record.data.isOpen && node.children?.length) {
+      const containerChildIds = effectiveConfig.childrenIds?.length
+        ? new Set(effectiveConfig.childrenIds.filter(id => node.children!.includes(id)))
+        : new Set(node.children)
       const containerChildren: (typeof record.data)[] = []
       const childRowIndices: number[] = []
 
@@ -63,7 +79,7 @@ export function computeSegments(treeState: TreeState, options: SegmentComputeOpt
           if (childRecord) {
             const childNode = childRecord.data.node
             /* Stop if child has its own container */
-            if (hasContainerConfig(childNode)) {
+            if (getEffectiveContainerConfig(childNode)) {
               break
             }
             containerChildren.push(childRecord.data)
@@ -79,7 +95,7 @@ export function computeSegments(treeState: TreeState, options: SegmentComputeOpt
           type: 'container',
           parentNode: node,
           parentTreeNode: record.data,
-          config: node.container as SegmentContainer['config'],
+          config: effectiveConfig as SegmentContainer['config'],
           children: containerChildren,
           childRowIndices,
           depth: record.data.depth,

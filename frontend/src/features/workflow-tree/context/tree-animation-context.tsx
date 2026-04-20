@@ -1,14 +1,18 @@
-import { createContext, useContext, useCallback, useState, type ReactNode } from 'react'
+import { createContext, useContext, useCallback, useRef, useMemo, type ReactNode } from 'react'
 
 interface AnimationContextValue {
   /** Check if a node should animate (was just revealed by parent expansion) */
   shouldAnimate: (nodeId: string) => boolean
-  /** Mark nodes as needing animation (called when parent expands) */
-  scheduleAnimation: (nodeIds: string[]) => void
+  /** Mark nodes as needing animation, with the trigger node's sparkDelay as base offset */
+  scheduleAnimation: (nodeIds: string[], baseDelay: number) => void
+  /** Retrieve the base sparkDelay of the trigger that scheduled this node */
+  getBaseDelay: (nodeId: string) => number
   /** Clear animation flag for a node (called after animation completes) */
   clearAnimation: (nodeId: string) => void
-  /** Animation version - increments when animations are scheduled */
-  animationVersion: number
+  /** Signal that a node was just created so it flashes on first mount */
+  scheduleNewNodeFlash: (nodeId: string) => void
+  /** Read-once: returns true the first time, false on every subsequent call */
+  consumeNewNodeFlash: (nodeId: string) => boolean
 }
 
 const AnimationContext = createContext<AnimationContextValue | null>(null)
@@ -26,35 +30,49 @@ interface TreeAnimationProviderProps {
 }
 
 export const TreeAnimationProvider = ({ children }: TreeAnimationProviderProps) => {
-  /* Use state to trigger re-renders when animations are scheduled */
-  const [pendingAnimations, setPendingAnimations] = useState<Set<string>>(new Set())
-  const [animationVersion, setAnimationVersion] = useState(0)
+  /*
+   * Ref-based: mutations here never trigger re-renders.
+   * Newly mounted nodes read the ref on their first useEffect.
+   * scheduleAnimation is called BEFORE toggleNode, so the ref is populated
+   * before React renders the new children.
+   * Map value = baseDelay (trigger node's sparkDelay) for relative offset.
+   */
+  const pendingRef = useRef<Map<string, number>>(new Map())
+  const newNodeRef = useRef<Set<string>>(new Set())
 
-  const shouldAnimate = useCallback((nodeId: string) => pendingAnimations.has(nodeId), [pendingAnimations])
+  const shouldAnimate = useCallback((nodeId: string) => pendingRef.current.has(nodeId), [])
 
-  const scheduleAnimation = useCallback((nodeIds: string[]) => {
-    setPendingAnimations(prev => {
-      const next = new Set(prev)
-      nodeIds.forEach(id => next.add(id))
-      return next
-    })
-    setAnimationVersion(v => v + 1)
+  const scheduleAnimation = useCallback((nodeIds: string[], baseDelay: number = 0) => {
+    nodeIds.forEach(id => pendingRef.current.set(id, baseDelay))
   }, [])
+
+  const getBaseDelay = useCallback((nodeId: string) => pendingRef.current.get(nodeId) ?? 0, [])
 
   const clearAnimation = useCallback((nodeId: string) => {
-    setPendingAnimations(prev => {
-      const next = new Set(prev)
-      next.delete(nodeId)
-      return next
-    })
+    pendingRef.current.delete(nodeId)
   }, [])
 
-  const value: AnimationContextValue = {
-    shouldAnimate,
-    scheduleAnimation,
-    clearAnimation,
-    animationVersion,
-  }
+  const scheduleNewNodeFlash = useCallback((nodeId: string) => {
+    newNodeRef.current.add(nodeId)
+  }, [])
+
+  const consumeNewNodeFlash = useCallback((nodeId: string): boolean => {
+    if (!newNodeRef.current.has(nodeId)) return false
+    newNodeRef.current.delete(nodeId)
+    return true
+  }, [])
+
+  const value = useMemo(
+    () => ({
+      shouldAnimate,
+      scheduleAnimation,
+      getBaseDelay,
+      clearAnimation,
+      scheduleNewNodeFlash,
+      consumeNewNodeFlash,
+    }),
+    [shouldAnimate, scheduleAnimation, getBaseDelay, clearAnimation, scheduleNewNodeFlash, consumeNewNodeFlash],
+  )
 
   return <AnimationContext.Provider value={value}>{children}</AnimationContext.Provider>
 }

@@ -1,11 +1,10 @@
-import { useState, useRef, useEffect, useCallback, useMemo, memo, type ComponentType, type CSSProperties } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, memo, type ComponentType } from 'react'
 import { List, type RowComponentProps, type ListImperativeAPI } from '@/shared/lib/virtualized-list'
 import type { TreeState, TreeWalkerGenerator, TreeRecord } from '../core/types'
 import { computeTree } from '../core/tree-computer'
 
 export interface TreeNodeComponentProps extends TreeRecord {
-  style: CSSProperties
-  onToggle?: (id: string) => void
+  onToggle?: (id: string, sparkDelay?: number) => void
 }
 
 export interface RowData extends TreeState {
@@ -14,10 +13,10 @@ export interface RowData extends TreeState {
 
 export type RowProps = RowComponentProps<RowData>
 
-const RowComponent = ({ index, style, rowProps }: RowProps) => {
+const RowComponent = ({ index, rowProps }: RowProps) => {
   const { component: Node, order, records } = rowProps
   const nodeId = order[index]
-  return <Node {...records[nodeId]} style={style} />
+  return <Node {...records[nodeId]} />
 }
 
 export const Row = memo(RowComponent, (prev, next) => {
@@ -29,9 +28,6 @@ export const Row = memo(RowComponent, (prev, next) => {
   const prevRecord = prev.rowProps.records[prevNodeId]
   const nextRecord = next.rowProps.records[nextNodeId]
   if (prevRecord !== nextRecord) return false
-
-  if (prev.style.transform !== next.style.transform) return false
-  if (prev.style.height !== next.style.height) return false
 
   if (prev.rowProps.component !== next.rowProps.component) return false
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { computeSegments, getSegmentHeight, getSegmentCount, getSegmentByNodeId } from './segment-computer'
-import type { TreeState } from '../core/types'
-import type { SegmentComputeOptions } from './types'
+import type { TreeState, TreeNode } from '../core/types'
+import type { SegmentComputeOptions, Segment, ContainerConfig } from './types'
 import type { NodeData } from '@/shared/base-types/workflow'
 
 const DEFAULT_OPTIONS: SegmentComputeOptions = {
@@ -15,13 +15,14 @@ function createTreeState(
     isOpen?: boolean
     children?: string[]
     container?: unknown
-    parentRowIndex?: number
+    command?: string
+    rowsFromParent?: number
   }>,
 ): TreeState {
   const records: TreeState['records'] = {}
   const order: string[] = []
 
-  nodes.forEach((node, index) => {
+  nodes.forEach(node => {
     const isOpen = node.isOpen ?? false
     order.push(node.id)
     records[node.id] = {
@@ -33,13 +34,16 @@ function createTreeState(
         isOpen,
         isOpenByDefault: false,
         hasChildren: (node.children?.length ?? 0) > 0,
+        isPrompt: false,
         hasMoreSiblings: false,
         ancestorContinuation: [],
-        parentRowIndex: node.parentRowIndex ?? (index > 0 ? index - 1 : -1),
+        rowsFromParent: node.rowsFromParent ?? 1,
+        sparkDelay: 0,
         node: {
           id: node.id,
           children: node.children || [],
           ...(node.container ? { container: node.container } : {}),
+          ...(node.command ? { command: node.command } : {}),
         } as NodeData,
       },
     }
@@ -429,9 +433,11 @@ describe('computeSegments - Edge Cases', () => {
             isOpen: false,
             isOpenByDefault: false,
             hasChildren: false,
+            isPrompt: false,
             hasMoreSiblings: false,
             ancestorContinuation: [],
-            parentRowIndex: -1,
+            rowsFromParent: 1,
+            sparkDelay: 0,
             node: { id: 'a', children: [] },
           },
         },
@@ -464,14 +470,16 @@ describe('computeSegments - Edge Cases', () => {
             isOpen: true,
             isOpenByDefault: false,
             hasChildren: true,
+            isPrompt: false,
             hasMoreSiblings: false,
             ancestorContinuation: [],
-            parentRowIndex: -1,
+            rowsFromParent: 1,
+            sparkDelay: 0,
             node: {
               id: 'parent',
               children: ['child1'],
-              container: { component: 'Card' },
-            } as any,
+              container: { component: 'Card' } as unknown as ContainerConfig,
+            } as NodeData,
           },
         },
         child1: {
@@ -483,9 +491,11 @@ describe('computeSegments - Edge Cases', () => {
             isOpen: false,
             isOpenByDefault: false,
             hasChildren: false,
+            isPrompt: false,
             hasMoreSiblings: false,
             ancestorContinuation: [],
-            parentRowIndex: 0,
+            rowsFromParent: 1,
+            sparkDelay: 0,
             node: { id: 'child1', children: [] },
           },
         },
@@ -498,9 +508,11 @@ describe('computeSegments - Edge Cases', () => {
             isOpen: false,
             isOpenByDefault: false,
             hasChildren: false,
+            isPrompt: false,
             hasMoreSiblings: false,
             ancestorContinuation: [],
-            parentRowIndex: 0,
+            rowsFromParent: 1,
+            sparkDelay: 0,
             node: { id: 'unrelated', children: [] },
           },
         },
@@ -542,7 +554,7 @@ describe('getSegmentHeight', () => {
 describe('getSegmentCount', () => {
   it('should return correct segment count', () => {
     const segmentState = {
-      segments: [{} as any, {} as any, {} as any],
+      segments: [{} as unknown as Segment, {} as unknown as Segment, {} as unknown as Segment],
       segmentHeights: [32, 32, 32],
       nodeToSegmentIndex: new Map(),
     }
@@ -563,7 +575,7 @@ describe('getSegmentCount', () => {
 
 describe('getSegmentByNodeId', () => {
   it('should return segment and index for existing node', () => {
-    const segment = { type: 'node' as const, data: { id: 'test' } as any, rowIndex: 0 }
+    const segment = { type: 'node' as const, data: { id: 'test' } as unknown as TreeNode, rowIndex: 0 }
     const segmentState = {
       segments: [segment],
       segmentHeights: [32],
@@ -639,7 +651,6 @@ describe('computeSegments - Partial Container Children', () => {
 
     const result = computeSegments(treeState, DEFAULT_OPTIONS)
 
-    /* Container with parent + c1 + c2 */
     expect(result.segments[0]?.type).toBe('container')
     if (result.segments[0]?.type === 'container') {
       expect(result.segments[0].children).toHaveLength(2)
@@ -647,7 +658,6 @@ describe('computeSegments - Partial Container Children', () => {
       expect(result.segments[0].children[1].id).toBe('c2')
     }
 
-    /* c3 should be a separate segment */
     expect(result.segments[1]?.type).toBe('node')
     if (result.segments[1]?.type === 'node') {
       expect(result.segments[1].data.id).toBe('c3')
@@ -692,9 +702,7 @@ describe('computeSegments - Partial Container Children', () => {
 
     const result = computeSegments(treeState, { rowHeight: 32 })
 
-    /* Container: parent(32) + paddingTop(4) + 2*children(64) + paddingBottom(4) = 104 */
     expect(result.segmentHeights[0]).toBe(104)
-    /* c3 node: 32 */
     expect(result.segmentHeights[1]).toBe(32)
   })
 })
@@ -746,5 +754,264 @@ describe('computeSegments - Parent Node Rendering', () => {
 
     const expectedHeight = 40 + 0 + 40 + 0
     expect(result.segmentHeights[0]).toBe(expectedHeight)
+  })
+})
+
+/* ──────────────────────────────────────────────────────────
+ * Implicit container via node command
+ * ──────────────────────────────────────────────────────────*/
+
+describe('computeSegments — Implicit Container from Command', () => {
+  it('creates container for open /foreach node with children', () => {
+    const treeState = createTreeState([
+      { id: 'fe', depth: 0, isOpen: true, children: ['c1', 'c2'], command: '/foreach' },
+      { id: 'c1', depth: 1 },
+      { id: 'c2', depth: 1 },
+    ])
+
+    const result = computeSegments(treeState, DEFAULT_OPTIONS)
+
+    expect(result.segments).toHaveLength(1)
+    expect(result.segments[0]?.type).toBe('container')
+    if (result.segments[0]?.type === 'container') {
+      expect(result.segments[0].parentNode.id).toBe('fe')
+      expect(result.segments[0].children.map(c => c.id)).toEqual(['c1', 'c2'])
+    }
+  })
+
+  it('does NOT create container for collapsed /foreach node', () => {
+    const treeState = createTreeState([{ id: 'fe', depth: 0, isOpen: false, children: ['c1'], command: '/foreach' }])
+
+    const result = computeSegments(treeState, DEFAULT_OPTIONS)
+
+    expect(result.segments).toHaveLength(1)
+    expect(result.segments[0]?.type).toBe('node')
+  })
+
+  it('does NOT create container for /foreach node with no children', () => {
+    const treeState = createTreeState([{ id: 'fe', depth: 0, isOpen: true, children: [], command: '/foreach' }])
+
+    const result = computeSegments(treeState, DEFAULT_OPTIONS)
+
+    expect(result.segments).toHaveLength(1)
+    expect(result.segments[0]?.type).toBe('node')
+  })
+
+  it('applies synthetic padding to /foreach container height', () => {
+    const treeState = createTreeState([
+      { id: 'fe', depth: 0, isOpen: true, children: ['c1'], command: '/foreach' },
+      { id: 'c1', depth: 1 },
+    ])
+
+    const result = computeSegments(treeState, DEFAULT_OPTIONS)
+
+    const expectedHeight = 32 + 6 + 32 + 6
+    expect(result.segmentHeights[0]).toBe(expectedHeight)
+  })
+
+  it('explicit container config takes precedence over command detection', () => {
+    const treeState = createTreeState([
+      {
+        id: 'fe',
+        depth: 0,
+        isOpen: true,
+        children: ['c1'],
+        command: '/foreach',
+        container: { type: 'card', paddingTop: 20, paddingBottom: 20 },
+      },
+      { id: 'c1', depth: 1 },
+    ])
+
+    const result = computeSegments(treeState, DEFAULT_OPTIONS)
+
+    expect(result.segments[0]?.type).toBe('container')
+    const expectedHeight = 32 + 20 + 32 + 20
+    expect(result.segmentHeights[0]).toBe(expectedHeight)
+  })
+
+  it('non-foreach commands do not get synthetic containers', () => {
+    const treeState = createTreeState([
+      { id: 'cmd', depth: 0, isOpen: true, children: ['c1'], command: '/other' },
+      { id: 'c1', depth: 1 },
+    ])
+
+    const result = computeSegments(treeState, DEFAULT_OPTIONS)
+
+    expect(result.segments).toHaveLength(2)
+    expect(result.segments.every(s => s.type === 'node')).toBe(true)
+  })
+
+  it('node without command and without container is a plain node', () => {
+    const treeState = createTreeState([
+      { id: 'plain', depth: 0, isOpen: true, children: ['c1'] },
+      { id: 'c1', depth: 1 },
+    ])
+
+    const result = computeSegments(treeState, DEFAULT_OPTIONS)
+
+    expect(result.segments).toHaveLength(2)
+    expect(result.segments.every(s => s.type === 'node')).toBe(true)
+  })
+
+  it('maps /foreach parent and children to same segment index', () => {
+    const treeState = createTreeState([
+      { id: 'fe', depth: 0, isOpen: true, children: ['c1', 'c2'], command: '/foreach' },
+      { id: 'c1', depth: 1 },
+      { id: 'c2', depth: 1 },
+    ])
+
+    const result = computeSegments(treeState, DEFAULT_OPTIONS)
+
+    expect(result.nodeToSegmentIndex.get('fe')).toBe(0)
+    expect(result.nodeToSegmentIndex.get('c1')).toBe(0)
+    expect(result.nodeToSegmentIndex.get('c2')).toBe(0)
+  })
+
+  it('stops container at child with its own container config', () => {
+    const treeState = createTreeState([
+      { id: 'fe', depth: 0, isOpen: true, children: ['c1', 'c2'], command: '/foreach' },
+      { id: 'c1', depth: 1 },
+      { id: 'c2', depth: 1, isOpen: true, children: ['c2a'], container: { type: 'card' } },
+      { id: 'c2a', depth: 2 },
+    ])
+
+    const result = computeSegments(treeState, DEFAULT_OPTIONS)
+
+    expect(result.segments[0]?.type).toBe('container')
+    if (result.segments[0]?.type === 'container') {
+      expect(result.segments[0].children.map(c => c.id)).toEqual(['c1'])
+    }
+    expect(result.segments[1]?.type).toBe('container')
+    if (result.segments[1]?.type === 'container') {
+      expect(result.segments[1].parentNode.id).toBe('c2')
+    }
+  })
+
+  it('stops container at child that is also a /foreach', () => {
+    const treeState = createTreeState([
+      { id: 'fe1', depth: 0, isOpen: true, children: ['c1', 'fe2'], command: '/foreach' },
+      { id: 'c1', depth: 1 },
+      { id: 'fe2', depth: 1, isOpen: true, children: ['c2'], command: '/foreach' },
+      { id: 'c2', depth: 2 },
+    ])
+
+    const result = computeSegments(treeState, DEFAULT_OPTIONS)
+
+    expect(result.segments[0]?.type).toBe('container')
+    if (result.segments[0]?.type === 'container') {
+      expect(result.segments[0].parentNode.id).toBe('fe1')
+      expect(result.segments[0].children.map(c => c.id)).toEqual(['c1'])
+    }
+    expect(result.segments[1]?.type).toBe('container')
+    if (result.segments[1]?.type === 'container') {
+      expect(result.segments[1].parentNode.id).toBe('fe2')
+    }
+  })
+})
+
+/* ──────────────────────────────────────────────────────────
+ * includeParent config propagation
+ * ──────────────────────────────────────────────────────────*/
+
+describe('computeSegments — includeParent Config', () => {
+  it('synthetic /foreach container carries includeParent: true', () => {
+    const treeState = createTreeState([
+      { id: 'fe', depth: 0, isOpen: true, children: ['c1'], command: '/foreach' },
+      { id: 'c1', depth: 1 },
+    ])
+
+    const result = computeSegments(treeState, DEFAULT_OPTIONS)
+
+    expect(result.segments[0]?.type).toBe('container')
+    if (result.segments[0]?.type === 'container') {
+      expect(result.segments[0].config.includeParent).toBe(true)
+    }
+  })
+
+  it('explicit container without includeParent defaults to undefined/falsy', () => {
+    const treeState = createTreeState([
+      { id: 'p', depth: 0, isOpen: true, children: ['c1'], container: { type: 'card' } },
+      { id: 'c1', depth: 1 },
+    ])
+
+    const result = computeSegments(treeState, DEFAULT_OPTIONS)
+
+    expect(result.segments[0]?.type).toBe('container')
+    if (result.segments[0]?.type === 'container') {
+      expect(result.segments[0].config.includeParent).toBeFalsy()
+    }
+  })
+
+  it('explicit container with includeParent: true propagates it', () => {
+    const treeState = createTreeState([
+      {
+        id: 'p',
+        depth: 0,
+        isOpen: true,
+        children: ['c1'],
+        container: { type: 'group', includeParent: true },
+      },
+      { id: 'c1', depth: 1 },
+    ])
+
+    const result = computeSegments(treeState, DEFAULT_OPTIONS)
+
+    expect(result.segments[0]?.type).toBe('container')
+    if (result.segments[0]?.type === 'container') {
+      expect(result.segments[0].config.includeParent).toBe(true)
+    }
+  })
+})
+
+/* ──────────────────────────────────────────────────────────
+ * Mixed: implicit + explicit containers in the same tree
+ * ──────────────────────────────────────────────────────────*/
+
+describe('computeSegments — Mixed Implicit and Explicit Containers', () => {
+  it('coexists: explicit container sibling of /foreach container', () => {
+    const treeState = createTreeState([
+      { id: 'root', depth: 0, isOpen: true, children: ['fe', 'ex'] },
+      { id: 'fe', depth: 1, isOpen: true, children: ['f1'], command: '/foreach' },
+      { id: 'f1', depth: 2 },
+      { id: 'ex', depth: 1, isOpen: true, children: ['e1'], container: { type: 'card' } },
+      { id: 'e1', depth: 2 },
+    ])
+
+    const result = computeSegments(treeState, DEFAULT_OPTIONS)
+
+    expect(result.segments[0]?.type).toBe('node')
+    expect(result.segments[1]?.type).toBe('container')
+    expect(result.segments[2]?.type).toBe('container')
+
+    if (result.segments[1]?.type === 'container') {
+      expect(result.segments[1].parentNode.id).toBe('fe')
+      expect(result.segments[1].config.includeParent).toBe(true)
+    }
+    if (result.segments[2]?.type === 'container') {
+      expect(result.segments[2].parentNode.id).toBe('ex')
+      expect(result.segments[2].config.includeParent).toBeFalsy()
+    }
+  })
+
+  it('three consecutive containers maintain correct segment indices', () => {
+    const treeState = createTreeState([
+      { id: 'r', depth: 0, isOpen: true, children: ['a', 'b', 'c'] },
+      { id: 'a', depth: 1, isOpen: true, children: ['a1'], command: '/foreach' },
+      { id: 'a1', depth: 2 },
+      { id: 'b', depth: 1, isOpen: true, children: ['b1'], container: { type: 'highlight' } },
+      { id: 'b1', depth: 2 },
+      { id: 'c', depth: 1, isOpen: true, children: ['c1'], command: '/foreach' },
+      { id: 'c1', depth: 2 },
+    ])
+
+    const result = computeSegments(treeState, DEFAULT_OPTIONS)
+
+    expect(result.nodeToSegmentIndex.get('r')).toBe(0)
+    expect(result.nodeToSegmentIndex.get('a')).toBe(1)
+    expect(result.nodeToSegmentIndex.get('a1')).toBe(1)
+    expect(result.nodeToSegmentIndex.get('b')).toBe(2)
+    expect(result.nodeToSegmentIndex.get('b1')).toBe(2)
+    expect(result.nodeToSegmentIndex.get('c')).toBe(3)
+    expect(result.nodeToSegmentIndex.get('c1')).toBe(3)
   })
 })

@@ -41,7 +41,7 @@ func (h *WorkflowController) GetWorkflow(c *fiber.Ctx) error {
 func (h *WorkflowController) UpdateWorkflow(c *fiber.Ctx) error {
 	workflowId := c.Params("workflowId")
 
-	var update models.Workflow
+	var update models.WorkflowUpdateDTO
 	if err := c.BodyParser(&update); err != nil {
 		return response.BadRequest(c, "invalid request body")
 	}

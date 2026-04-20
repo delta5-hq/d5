@@ -2,7 +2,7 @@ import { useApiQuery } from '@shared/composables'
 import type { WorkflowContentData } from '@shared/base-types'
 import { toast } from 'sonner'
 
-interface WorkflowResponse extends WorkflowContentData {
+export interface WorkflowResponse extends WorkflowContentData {
   _id: string
   workflowId: string
   userId: string
