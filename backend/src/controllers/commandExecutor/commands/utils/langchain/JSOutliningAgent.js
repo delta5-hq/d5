@@ -1,6 +1,7 @@
-import {LLMChain, PromptTemplate} from 'langchain'
-import {ZeroShotAgent} from 'langchain/agents'
-import {renderTemplate} from 'langchain/prompts'
+import {LLMChain} from '@langchain/classic/chains'
+import {PromptTemplate} from '@langchain/core/prompts'
+import {ZeroShotAgent} from '@langchain/classic/agents'
+import {renderTemplate} from '@langchain/core/prompts'
 import {
   FORMAT_INSTRUCTIONS_EN,
   LLM_PREFIX_EN,

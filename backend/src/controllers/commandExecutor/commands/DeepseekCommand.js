@@ -3,8 +3,8 @@ import {clearCommandsWithParams} from '../constants'
 import {clearStepsPrefix} from '../constants/steps'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import {getIntegrationSettings} from './utils/langchain/getLLM'
-import {ChatOpenAI} from 'langchain/chat_models/openai'
-import {HumanMessage} from 'langchain/schema'
+import {ChatOpenAI} from '@langchain/openai'
+import {HumanMessage} from '@langchain/core/messages'
 import {DEEPSEEK_API_URL} from '../../../shared/config/constants'
 import {DEEPSEEK_DEFAULT_MODEL} from '../../../constants'
 import {referencePatterns} from './references/utils/referencePatterns'
@@ -51,7 +51,7 @@ export class DeepseekCommand {
         maxRetries: 1,
       })
 
-      const result = await llm.call([new HumanMessage(message)])
+      const result = await llm.invoke([new HumanMessage(message)])
 
       return result.content
     } catch (e) {

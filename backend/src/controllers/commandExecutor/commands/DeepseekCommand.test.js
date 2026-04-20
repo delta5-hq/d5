@@ -1,14 +1,17 @@
 import {DeepseekCommand} from './DeepseekCommand'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import {getIntegrationSettings} from './utils/langchain/getLLM'
-import {ChatOpenAI} from 'langchain/chat_models/openai'
+import {ChatOpenAI} from '@langchain/openai'
 import {refRegExp} from '../constants'
 import {clearStepsPrefix} from '../constants/steps'
 import Store from './utils/Store'
 
 jest.mock('./references/substitution')
 jest.mock('./utils/langchain/getLLM')
-jest.mock('langchain/chat_models/openai')
+jest.mock('@langchain/openai', () => ({
+  ChatOpenAI: jest.fn().mockImplementation(() => ({invoke: jest.fn()})),
+  OpenAIEmbeddings: jest.fn(),
+}))
 
 jest.mock('../constants/steps', () => ({
   clearStepsPrefix: jest.fn(str => `cleared ${str}`),
@@ -39,9 +42,8 @@ describe('DeepseekCommand', () => {
       deepseek: {apiKey: 'apiKey', model: 'model'},
     })
 
-    // Mock ChatOpenAI's call method
     ChatOpenAI.mockImplementation(() => ({
-      call: jest.fn().mockResolvedValue({
+      invoke: jest.fn().mockResolvedValue({
         content: 'deepseek response',
       }),
     }))

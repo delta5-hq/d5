@@ -803,23 +803,22 @@ class RealOpenAIService {
   }
 
   async chatCompletion(messages, model, params = {}) {
-    const {Configuration, OpenAIApi} = await import('openai')
-    const configuration = new Configuration({apiKey: this.config.apiKey})
-    const openai = new OpenAIApi(configuration)
+    const OpenAI = (await import('openai')).default
+    const openai = new OpenAI({apiKey: this.config.apiKey})
 
-    const response = await openai.createChatCompletion({
+    const response = await openai.chat.completions.create({
       model: model || this.config.defaultModel,
       messages,
       ...params,
     })
 
-    return response.data
+    return response
   }
 
   async embeddings(input, model) {
-    const {OpenAIEmbeddings} = await import('langchain/embeddings/openai')
+    const {OpenAIEmbeddings} = await import('@langchain/openai')
     const embeddings = new OpenAIEmbeddings({
-      openAIApiKey: this.config.apiKey,
+      apiKey: this.config.apiKey,
       modelName: model || 'text-embedding-ada-002',
     })
 
@@ -839,18 +838,17 @@ class RealOpenAIService {
   }
 
   async dalleGenerations(prompt, n = 1, size = '1024x1024', responseFormat = 'url') {
-    const {Configuration, OpenAIApi} = await import('openai')
-    const configuration = new Configuration({apiKey: this.config.apiKey})
-    const openai = new OpenAIApi(configuration)
+    const OpenAI = (await import('openai')).default
+    const openai = new OpenAI({apiKey: this.config.apiKey})
 
-    const response = await openai.createImage({
+    const response = await openai.images.generate({
       prompt,
       n,
       size,
       response_format: responseFormat,
     })
 
-    return response.data
+    return response
   }
 }
 

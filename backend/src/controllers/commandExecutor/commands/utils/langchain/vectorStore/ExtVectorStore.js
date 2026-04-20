@@ -1,5 +1,5 @@
-import {MemoryVectorStore} from 'langchain/vectorstores/memory'
-import {RecursiveCharacterTextSplitter} from 'langchain/text_splitter'
+import {MemoryVectorStore} from '@langchain/classic/vectorstores/memory'
+import {RecursiveCharacterTextSplitter} from '@langchain/textsplitters'
 import LLMVector from './../../../../../../models/LLMVector'
 import {DEFAULT_CONTEXT_NAME} from './../../../../constants/ext'
 import {EmbStorageType} from '../../../../../../shared/config/constants'

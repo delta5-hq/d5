@@ -1,5 +1,5 @@
 import googleTranslate from '@iamtraction/google-translate'
-import {PromptTemplate} from 'langchain'
+import {PromptTemplate} from '@langchain/core/prompts'
 import {USER_DEFAULT_LANGUAGE} from '../../../../shared/config/constants'
 
 function sanitizeQuotes(input) {

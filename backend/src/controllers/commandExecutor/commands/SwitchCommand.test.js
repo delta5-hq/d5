@@ -1,4 +1,4 @@
-import {BaseChatModel} from 'langchain/chat_models/base'
+import {BaseChatModel} from '@langchain/core/language_models/chat_models'
 import {ChatCommand} from './ChatCommand'
 import {SwitchCommand} from './SwitchCommand'
 import {runCommand} from './utils/runCommand'
@@ -59,7 +59,7 @@ describe('SwitchCommand', () => {
   const command = new SwitchCommand(userId, workflowId, mockStore)
 
   const baseLLM = {
-    call: jest.fn(),
+    invoke: jest.fn(),
   }
 
   beforeEach(() => {
@@ -136,11 +136,11 @@ describe('SwitchCommand', () => {
 
       // Restore the spy implementation so we use the real function
       jest.spyOn(command, 'executeSwitch').mockRestore()
-      baseLLM.call.mockResolvedValue({content: 'content'})
+      baseLLM.invoke.mockResolvedValue({content: 'content'})
 
       const result = await command.executeSwitch(userPrompt, sysPrompt, baseLLM)
 
-      expect(baseLLM.call).toHaveBeenCalled()
+      expect(baseLLM.invoke).toHaveBeenCalled()
       expect(result).toBe('content')
     })
 
@@ -151,7 +151,7 @@ describe('SwitchCommand', () => {
 
       // Restore the spy implementation so we use the real function
       jest.spyOn(command, 'executeSwitch').mockRestore()
-      baseLLM.call.mockRejectedValue(new Error('429'))
+      baseLLM.invoke.mockRejectedValue(new Error('429'))
 
       const result = await command.executeSwitch(userPrompt, sysPrompt, lang)
 
@@ -180,7 +180,7 @@ describe('SwitchCommand', () => {
 
       // Mock executeSwitch to return the option we want to match
       jest.spyOn(command, 'executeSwitch').mockResolvedValue('option1')
-      const callSpy = jest.spyOn(BaseChatModel.prototype, 'call').mockResolvedValue({content: 'result'})
+      const callSpy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockResolvedValue({content: 'result'})
       getIntegrationSettings.mockResolvedValue({model: 'OpenAI', openai: {apiKey: 'apiKey', model: 'modelName'}})
 
       // Setup runCommand to return something
@@ -210,7 +210,7 @@ describe('SwitchCommand', () => {
         [node.id]: node,
       }
 
-      const callSpy = jest.spyOn(BaseChatModel.prototype, 'call').mockResolvedValue({content: 'result'})
+      const callSpy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockResolvedValue({content: 'result'})
       getIntegrationSettings.mockResolvedValue({model: 'OpenAI', openai: {apiKey: 'apiKey', model: 'modelName'}})
 
       await command.processPromptAndExecuteCase(node, 'prompt')

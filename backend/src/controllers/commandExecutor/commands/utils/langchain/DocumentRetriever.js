@@ -1,4 +1,4 @@
-import {RecursiveCharacterTextSplitter} from 'langchain/text_splitter'
+import {RecursiveCharacterTextSplitter} from '@langchain/textsplitters'
 import {LANG_DEFAULT_VALUE} from '../../../constants'
 import {
   getSearchScrapeDescription,
@@ -8,7 +8,8 @@ import {
 import {SearchScrape} from './SearchScrape'
 import {deleteDuplications} from '../../../../utils/deleteDuplications'
 import {estimateTokenCount} from './estimateTokenCount'
-import {LLMChain, PromptTemplate} from 'langchain'
+import {LLMChain} from '@langchain/classic/chains'
+import {PromptTemplate} from '@langchain/core/prompts'
 import {isStrSimilar} from '../../../../../utils/isStrSimilar'
 
 const DEFAULT_NAME = 'SearchScrape'

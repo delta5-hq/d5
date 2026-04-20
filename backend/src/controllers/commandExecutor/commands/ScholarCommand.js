@@ -70,7 +70,7 @@ export class ScholarCommand {
 
       const executor = createSimpleAgentExecutor(llm, tools, lang)
 
-      let result = (await executor.call({input: userInput})).output
+      let result = (await executor.invoke({input: userInput})).output
 
       result = await conditionallyTranslate(result, lang, llm, this.logError, settings)
 

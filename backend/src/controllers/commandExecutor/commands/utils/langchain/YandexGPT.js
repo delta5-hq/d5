@@ -1,7 +1,7 @@
 import debug from 'debug'
-import {BaseLLM} from 'langchain/llms/base'
+import {BaseLLM} from '@langchain/core/language_models/llms'
 import fetch from 'node-fetch'
-import {Embeddings} from 'langchain/embeddings/base'
+import {Embeddings} from '@langchain/core/embeddings'
 import {delay} from '../../../../utils/delay'
 import {DynamicTimeoutManager} from '../../../../integrations/yandex/DynamicTimeoutManager'
 
