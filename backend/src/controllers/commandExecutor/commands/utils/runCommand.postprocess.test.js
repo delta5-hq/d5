@@ -84,6 +84,40 @@ describe('runCommand - Post-process dispatch', () => {
 
       expect(executionOrder).toEqual(['summarize', 'memorize', 'refine'])
     })
+
+    it('sorts post-process children by priority using title field when command absent', async () => {
+      const executionOrder = []
+
+      const root = {
+        id: 'root',
+        parent: 'root',
+        command: '/chatgpt test',
+        children: ['refine', 'memorize', 'summarize'],
+        prompts: ['output1'],
+      }
+      const store = buildNodes({
+        [root.id]: root,
+        output1: {id: 'output1', parent: root.id, title: 'LLM response'},
+        summarize: {id: 'summarize', parent: root.id, title: '/summarize', command: undefined},
+        memorize: {id: 'memorize', parent: root.id, title: '/memorize', command: undefined},
+        refine: {id: 'refine', parent: root.id, title: '/refine concise', command: undefined},
+      })
+
+      jest.spyOn(SummarizeCommand.prototype, 'run').mockImplementation(async () => {
+        executionOrder.push('summarize')
+      })
+      jest.spyOn(MemorizeCommand.prototype, 'run').mockImplementation(async () => {
+        executionOrder.push('memorize')
+      })
+      jest.spyOn(RefineCommand.prototype, 'replyRefine').mockImplementation(async () => {
+        executionOrder.push('refine')
+        return 'refined'
+      })
+
+      await runCommand({queryType: 'chat', cell: root, store, userId: 'userId'})
+
+      expect(executionOrder).toEqual(['summarize', 'memorize', 'refine'])
+    })
   })
 
   describe('parent output extraction', () => {
@@ -141,6 +175,71 @@ describe('runCommand - Post-process dispatch', () => {
       await runCommand({queryType: 'chat', cell: root, store, userId: 'userId'})
 
       expect(refineSpy).toHaveBeenCalledWith(refineNode, 'Content')
+    })
+
+    it('dispatches /refine using title field when command field absent', async () => {
+      const {root, refineNode, store} = buildRefineScenario({
+        prompts: ['output1'],
+        extraNodes: {output1: {id: 'output1', parent: 'root', title: 'Parent output'}},
+      })
+      refineNode.command = undefined
+      refineNode.title = '/refine make concise'
+
+      const refineSpy = jest.spyOn(RefineCommand.prototype, 'replyRefine').mockResolvedValue('refined')
+
+      await runCommand({queryType: 'chat', cell: root, store, userId: 'userId'})
+
+      expect(refineSpy).toHaveBeenCalledWith(expect.objectContaining({id: 'refine'}), 'Parent output')
+    })
+
+    it('prefers command over title when both fields are set', async () => {
+      const root = {
+        id: 'root',
+        parent: 'root',
+        command: '/chatgpt test',
+        children: ['refine'],
+        prompts: ['output1'],
+      }
+      const store = buildNodes({
+        [root.id]: root,
+        output1: {id: 'output1', parent: root.id, title: 'Parent output'},
+        refine: {id: 'refine', parent: root.id, command: '/refine from command', title: '/summarize from title'},
+      })
+
+      const refineSpy = jest.spyOn(RefineCommand.prototype, 'replyRefine').mockResolvedValue('refined')
+      const summarizeSpy = jest.spyOn(SummarizeCommand.prototype, 'run').mockResolvedValue()
+
+      await runCommand({queryType: 'chat', cell: root, store, userId: 'userId'})
+
+      expect(refineSpy).toHaveBeenCalled()
+      expect(summarizeSpy).not.toHaveBeenCalled()
+    })
+
+    it('ignores empty command field and uses title field', async () => {
+      const {root, refineNode, store} = buildRefineScenario({
+        prompts: ['output1'],
+        extraNodes: {output1: {id: 'output1', parent: 'root', title: 'Parent output'}},
+      })
+      refineNode.command = ''
+      refineNode.title = '/refine empty command field'
+
+      const refineSpy = jest.spyOn(RefineCommand.prototype, 'replyRefine').mockResolvedValue('refined')
+
+      await runCommand({queryType: 'chat', cell: root, store, userId: 'userId'})
+
+      expect(refineSpy).toHaveBeenCalled()
+    })
+
+    it('skips dispatch when title is non-command text', async () => {
+      const {root, refineNode, store} = buildRefineScenario({prompts: ['output1']})
+      refineNode.command = undefined
+      refineNode.title = 'regular text without slash command'
+
+      const refineSpy = jest.spyOn(RefineCommand.prototype, 'replyRefine')
+
+      await runCommand({queryType: 'chat', cell: root, store, userId: 'userId'})
+
+      expect(refineSpy).not.toHaveBeenCalled()
     })
   })
 

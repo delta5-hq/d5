@@ -607,4 +607,103 @@ describe('MemorizeCommand', () => {
       expect(command.saveEmbeddings).not.toHaveBeenCalled()
     })
   })
+
+  describe('command resolution (title-only nodes)', () => {
+    beforeEach(() => {
+      getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'test-key'}})
+      determineLLMType.mockReturnValue('openai')
+      getEmbeddings.mockReturnValue({embeddings: {}, chunkSize: 1000, similarityThreshold: 0.7})
+      ExtVectorStore.prototype.load = jest.fn()
+      jest.clearAllMocks()
+    })
+
+    it('extracts parameters from title when command is undefined', async () => {
+      const command = new MemorizeCommand('user-id', null, mockStore)
+      const child = {id: 'child', title: '/memorize :keep=true :ctx=myctx', parent: 'parent', children: []}
+      const parent = {id: 'parent', title: 'Parent', children: [child.id]}
+
+      mockStore._nodes = {child, parent}
+
+      const mockProcessChunks = jest.spyOn(command, 'processChunks').mockResolvedValueOnce([])
+      const mockSaveEmbeddings = jest.spyOn(command, 'saveEmbeddings').mockResolvedValueOnce(undefined)
+
+      await command.run(child)
+
+      expect(mockProcessChunks).toHaveBeenCalled()
+      expect(mockSaveEmbeddings).toHaveBeenCalledWith(expect.anything(), [], true)
+    })
+
+    it('uses default LLM when title has no :lang param and command undefined', async () => {
+      const command = new MemorizeCommand('user-id', null, mockStore)
+      const child = {id: 'child', title: '/memorize', parent: 'parent', children: []}
+      const parent = {id: 'parent', title: 'Parent', children: [child.id]}
+
+      mockStore._nodes = {child, parent}
+
+      jest.spyOn(command, 'processChunks').mockResolvedValueOnce([])
+      jest.spyOn(command, 'saveEmbeddings').mockResolvedValueOnce(undefined)
+
+      await command.run(child)
+
+      expect(determineLLMType).toHaveBeenCalledWith('/memorize', expect.anything())
+    })
+
+    it('respects :lang param from title when command undefined', async () => {
+      const command = new MemorizeCommand('user-id', null, mockStore)
+      const child = {id: 'child', title: '/memorize :lang=ru', parent: 'parent', children: []}
+      const parent = {id: 'parent', title: 'Parent', children: [child.id]}
+
+      mockStore._nodes = {child, parent}
+
+      jest.spyOn(command, 'processChunks').mockResolvedValueOnce([])
+      jest.spyOn(command, 'saveEmbeddings').mockResolvedValueOnce(undefined)
+
+      await command.run(child)
+
+      expect(determineLLMType).toHaveBeenCalledWith('/memorize :lang=ru', expect.anything())
+    })
+
+    it('handles empty command and empty title gracefully', async () => {
+      const command = new MemorizeCommand('user-id', null, mockStore)
+      const child = {id: 'child', command: '', title: '', parent: 'parent', children: []}
+      const parent = {id: 'parent', title: 'Parent', children: [child.id]}
+
+      mockStore._nodes = {child, parent}
+
+      jest.spyOn(command, 'processChunks').mockResolvedValueOnce([])
+      jest.spyOn(command, 'saveEmbeddings').mockResolvedValueOnce(undefined)
+
+      await command.run(child)
+
+      expect(determineLLMType).toHaveBeenCalledWith('', expect.anything())
+    })
+
+    it('prefers command over title when both are populated', async () => {
+      const command = new MemorizeCommand('user-id', null, mockStore)
+      const child = {
+        id: 'child',
+        command: '/memorize :ctx=from-command',
+        title: '/memorize :ctx=from-title',
+        parent: 'parent',
+        children: [],
+      }
+      const parent = {id: 'parent', title: 'Parent', children: [child.id]}
+
+      mockStore._nodes = {child, parent}
+
+      jest.spyOn(command, 'processChunks').mockResolvedValueOnce([])
+      jest.spyOn(command, 'saveEmbeddings').mockResolvedValueOnce(undefined)
+
+      await command.run(child)
+
+      expect(determineLLMType).toHaveBeenCalledWith('/memorize :ctx=from-command', expect.anything())
+    })
+
+    it('handles null node gracefully', async () => {
+      const command = new MemorizeCommand('user-id', null, mockStore)
+      mockStore._nodes = {parent: {id: 'parent', title: 'Parent'}}
+
+      await expect(command.run(null)).resolves.not.toThrow()
+    })
+  })
 })

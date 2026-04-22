@@ -40,6 +40,7 @@ import {ExtVectorStore} from './utils/langchain/vectorStore/ExtVectorStore'
 import {WebVectorStore} from './utils/langchain/vectorStore/WebVectorStore'
 import {tolerantArrayParsing} from './utils/tolerantArrayParsing'
 import {conditionallyTranslate} from './utils/translate'
+import {getNodeCommand} from './utils/isCommand'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 
@@ -120,7 +121,7 @@ export class OutlineCommand {
 
     const lang = params?.lang
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
-    const llmType = determineLLMType(node?.command, settings)
+    const llmType = determineLLMType(getNodeCommand(node), settings)
     const {llm, chunkSize} = getLLM({type: llmType, settings})
     const embeddings = getEmbeddings({type: llmType, settings})
 
@@ -240,7 +241,7 @@ export class OutlineCommand {
     try {
       const {signal} = options
       let prompt = originalPrompt
-      const title = node?.command || node?.title
+      const title = getNodeCommand(node)
 
       if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
         prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)

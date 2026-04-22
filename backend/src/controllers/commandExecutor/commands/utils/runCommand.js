@@ -23,6 +23,7 @@ import {readTableParam} from '../../constants/yandex'
 import ProgressReporter from '../../ProgressReporter'
 import {BestOfNStrategy, CommandFactory, NullProgress} from '../../reliability'
 import {determineLLMType, getIntegrationSettings} from './langchain/getLLM'
+import {getNodeCommand} from './isCommand'
 import {ForeachCommand} from '../ForeachCommand'
 import {MemorizeCommand} from '../MemorizeCommand'
 import {OutlineCommand} from '../OutlineCommand'
@@ -125,7 +126,7 @@ function extractValidateCriteria(cell, store) {
     const childNode = store.getNode(childId)
     if (!childNode) continue
 
-    const command = childNode.command || childNode.title || ''
+    const command = getNodeCommand(childNode)
     if (!command.startsWith(VALIDATE_QUERY)) continue
     const resolvedContent = substituteReferencesAndHashrefsChildrenAndSelf(childNode, store, {
       saveFirst: true,
@@ -168,8 +169,8 @@ export const runCommand = async (
     const wrappedRunner = async store => commandRunner(store, nullProgress)
 
     const settings = await getIntegrationSettings(store._userId)
-    const generatorFamily = determineLLMType(cell.command, settings)
-    const isTableCommand = readTableParam(cell.command || cell.title || '')
+    const generatorFamily = determineLLMType(getNodeCommand(cell), settings)
+    const isTableCommand = readTableParam(getNodeCommand(cell))
 
     const criteria = extractValidateCriteria(cell, store)
 
@@ -203,7 +204,7 @@ export const runCommand = async (
           return 5
         }
 
-        return getOrder(a.command) - getOrder(b.command)
+        return getOrder(getNodeCommand(a)) - getOrder(getNodeCommand(b))
       })
 
     if (node.prompts?.length) {
@@ -220,7 +221,7 @@ export const runCommand = async (
       }
 
       ids.push(childNode.id)
-      const query = childNode.command
+      const query = getNodeCommand(childNode)
 
       let flag = false
 
