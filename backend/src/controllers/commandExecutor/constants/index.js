@@ -34,6 +34,7 @@ import {REF_DEF_PREFIX, REF_PREFIX, HASHREF_DEF_PREFIX, HASHREF_PREFIX} from '..
 import {clearReferences} from '../commands/references/utils/referenceUtils'
 import {CUSTOM_LLM_CHAT_QUERY, CUSTOM_LLM_CHAT_QUERY_TYPE} from './custom_llm'
 import {REFINE_QUERY, REFINE_QUERY_TYPE} from './refine'
+import {VALIDATE_QUERY, VALIDATE_QUERY_TYPE} from './validate'
 import {COMPLETION_QUERY, COMPLETION_QUERY_TYPE} from './completion'
 import {
   MEMORIZE_PARAM_KEEP_REGEX,
@@ -82,6 +83,8 @@ export const getQueryType = title => {
     return CUSTOM_LLM_CHAT_QUERY_TYPE
   } else if (clearedTitle.startsWith(REFINE_QUERY)) {
     return REFINE_QUERY_TYPE
+  } else if (clearedTitle.startsWith(VALIDATE_QUERY)) {
+    return VALIDATE_QUERY_TYPE
   } else if (clearedTitle.startsWith(COMPLETION_QUERY)) {
     return COMPLETION_QUERY_TYPE
   } else if (clearedTitle.startsWith(MEMORIZE_QUERY)) {
@@ -95,6 +98,7 @@ export const CONTROL_FLOW_COMMANDS = new Set([
   SWITCH_QUERY_TYPE,
   SUMMARIZE_QUERY_TYPE,
   REFINE_QUERY_TYPE,
+  VALIDATE_QUERY_TYPE,
   MEMORIZE_QUERY_TYPE,
 ])
 
@@ -115,6 +119,8 @@ export const getControlFlowQueryType = title => {
     return SUMMARIZE_QUERY_TYPE
   } else if (clearedTitle.startsWith(REFINE_QUERY)) {
     return REFINE_QUERY_TYPE
+  } else if (clearedTitle.startsWith(VALIDATE_QUERY)) {
+    return VALIDATE_QUERY_TYPE
   } else if (clearedTitle.startsWith(MEMORIZE_QUERY)) {
     return MEMORIZE_QUERY_TYPE
   }

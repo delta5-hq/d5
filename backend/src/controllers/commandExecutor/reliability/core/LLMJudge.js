@@ -24,6 +24,7 @@ class LLMJudge {
    * @param {Object} settings - User integration settings
    * @param {Object} [options] - Evaluation options
    * @param {function(number): Object} [options.shuffleMapperFactory] - Injectable shuffle factory for testing
+   * @param {string} [options.criteria] - User-provided validation criteria
    * @returns {Promise<JudgmentResult>}
    */
   static async evaluate(prompt, candidates, generatorFamily, settings, options = {}) {
@@ -36,7 +37,7 @@ class LLMJudge {
       }
     }
 
-    const shuffleMapperFactory = options.shuffleMapperFactory || ShuffleMapper.createShuffleMapping
+    const {shuffleMapperFactory = ShuffleMapper.createShuffleMapping, criteria} = options
     const shuffle = shuffleMapperFactory(candidates.length)
 
     try {
@@ -46,7 +47,7 @@ class LLMJudge {
         this.serializeCandidate(candidates[originalIdx], presentIdx + 1),
       )
 
-      const judgePrompt = this.buildJudgePrompt(prompt, serialized, candidates.length)
+      const judgePrompt = this.buildJudgePrompt(prompt, serialized, candidates.length, criteria)
 
       const result = await llm.invoke([new HumanMessage(judgePrompt)])
       const content = result.content?.trim()
@@ -107,8 +108,13 @@ class LLMJudge {
   /**
    * @private
    */
-  static buildJudgePrompt(originalPrompt, serializedCandidates, candidateCount) {
-    return `You are evaluating LLM outputs. Given the original prompt and ${candidateCount} candidate responses, respond with ONLY the number (1-${candidateCount}) of the best candidate. No explanation.
+  static buildJudgePrompt(originalPrompt, serializedCandidates, candidateCount, criteria) {
+    const baseInstruction = `You are evaluating LLM outputs. Given the original prompt and ${candidateCount} candidate responses, respond with ONLY the number (1-${candidateCount}) of the best candidate. No explanation.`
+
+    const criteriaSection =
+      criteria && criteria.trim() ? `\n\nEvaluate candidates against these criteria:\n${criteria}` : ''
+
+    return `${baseInstruction}${criteriaSection}
 
 Original prompt: ${originalPrompt}
 

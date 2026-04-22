@@ -292,4 +292,162 @@ describe('LLMJudge', () => {
       expect(result).toBe('Root1\nRoot2')
     })
   })
+  describe('criteria-based evaluation', () => {
+    it('should pass criteria to judge prompt when provided', async () => {
+      const candidates = [
+        {getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}},
+        {getOutput: () => ({nodes: [{title: 'B'}]}), _nodes: {}},
+      ]
+
+      const mockInvoke = jest.fn().mockResolvedValue({content: '1'})
+
+      ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
+      getLLM.mockReturnValue({
+        llm: {invoke: mockInvoke},
+      })
+
+      await LLMJudge.evaluate(
+        'prompt',
+        candidates,
+        'OpenAI',
+        {},
+        {
+          shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
+          criteria: 'Check for technical accuracy',
+        },
+      )
+
+      const invokeCall = mockInvoke.mock.calls[0][0][0]
+      expect(invokeCall.content).toContain('Evaluate candidates against these criteria')
+      expect(invokeCall.content).toContain('Check for technical accuracy')
+    })
+
+    it('should use generic prompt when criteria is empty string', async () => {
+      const candidates = [{getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}}]
+
+      const mockInvoke = jest.fn().mockResolvedValue({content: '1'})
+
+      ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
+      getLLM.mockReturnValue({
+        llm: {invoke: mockInvoke},
+      })
+
+      await LLMJudge.evaluate(
+        'prompt',
+        candidates,
+        'OpenAI',
+        {},
+        {
+          shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
+          criteria: '',
+        },
+      )
+
+      const invokeCall = mockInvoke.mock.calls[0][0][0]
+      expect(invokeCall.content).not.toContain('Evaluate candidates against these criteria')
+    })
+
+    it('should use generic prompt when criteria is whitespace only', async () => {
+      const candidates = [{getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}}]
+
+      const mockInvoke = jest.fn().mockResolvedValue({content: '1'})
+
+      ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
+      getLLM.mockReturnValue({
+        llm: {invoke: mockInvoke},
+      })
+
+      await LLMJudge.evaluate(
+        'prompt',
+        candidates,
+        'OpenAI',
+        {},
+        {
+          shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
+          criteria: '   \n  ',
+        },
+      )
+
+      const invokeCall = mockInvoke.mock.calls[0][0][0]
+      expect(invokeCall.content).not.toContain('Evaluate candidates against these criteria')
+    })
+
+    it('should use generic prompt when criteria is undefined', async () => {
+      const candidates = [{getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}}]
+
+      const mockInvoke = jest.fn().mockResolvedValue({content: '1'})
+
+      ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
+      getLLM.mockReturnValue({
+        llm: {invoke: mockInvoke},
+      })
+
+      await LLMJudge.evaluate(
+        'prompt',
+        candidates,
+        'OpenAI',
+        {},
+        {
+          shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
+          criteria: undefined,
+        },
+      )
+
+      const invokeCall = mockInvoke.mock.calls[0][0][0]
+      expect(invokeCall.content).not.toContain('Evaluate candidates against these criteria')
+    })
+
+    it('should use generic prompt when criteria option is omitted', async () => {
+      const candidates = [{getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}}]
+
+      const mockInvoke = jest.fn().mockResolvedValue({content: '1'})
+
+      ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
+      getLLM.mockReturnValue({
+        llm: {invoke: mockInvoke},
+      })
+
+      await LLMJudge.evaluate(
+        'prompt',
+        candidates,
+        'OpenAI',
+        {},
+        {
+          shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
+        },
+      )
+
+      const invokeCall = mockInvoke.mock.calls[0][0][0]
+      expect(invokeCall.content).not.toContain('Evaluate candidates against these criteria')
+    })
+
+    it('should handle multi-line criteria', async () => {
+      const candidates = [{getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}}]
+
+      const mockInvoke = jest.fn().mockResolvedValue({content: '1'})
+
+      ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
+      getLLM.mockReturnValue({
+        llm: {invoke: mockInvoke},
+      })
+
+      const multilineCriteria = 'Line 1\nLine 2\nLine 3'
+
+      await LLMJudge.evaluate(
+        'prompt',
+        candidates,
+        'OpenAI',
+        {},
+        {
+          shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
+          criteria: multilineCriteria,
+        },
+      )
+
+      const invokeCall = mockInvoke.mock.calls[0][0][0]
+      expect(invokeCall.content).toContain('Line 1')
+      expect(invokeCall.content).toContain('Line 2')
+      expect(invokeCall.content).toContain('Line 3')
+    })
+  })
 })

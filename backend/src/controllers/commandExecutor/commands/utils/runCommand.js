@@ -10,10 +10,11 @@ import {MEMORIZE_QUERY, MEMORIZE_QUERY_TYPE} from '../../constants/memorize'
 import {OUTLINE_QUERY, OUTLINE_QUERY_TYPE, readSummarizeParam} from '../../constants/outline'
 import {PERPLEXITY_QUERY_TYPE} from '../../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../../constants/qwen'
-import {REFINE_QUERY_TYPE} from '../../constants/refine'
+import {REFINE_QUERY, REFINE_QUERY_TYPE} from '../../constants/refine'
 import {SCHOLAR_QUERY_TYPE} from '../../constants/scholar'
 import {STEPS_QUERY_TYPE} from '../../constants/steps'
 import {SUMMARIZE_QUERY, SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
+import {VALIDATE_QUERY} from '../../constants/validate'
 import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {WEB_QUERY_TYPE} from '../../constants/web'
 import {YANDEX_QUERY_TYPE} from '../../constants/yandex'
@@ -26,8 +27,10 @@ import {ForeachCommand} from '../ForeachCommand'
 import {MemorizeCommand} from '../MemorizeCommand'
 import {OutlineCommand} from '../OutlineCommand'
 import {SummarizeCommand} from '../SummarizeCommand'
+import {RefineCommand} from '../RefineCommand'
 import {MCPCommand} from '../MCPCommand'
 import {RPCCommand} from '../RPCCommand'
+import {substituteReferencesAndHashrefsChildrenAndSelf} from '../references/substitution'
 // eslint-disable-next-line no-unused-vars
 import Store from './Store'
 
@@ -106,6 +109,40 @@ async function executeCommandWithProgress(queryType, context, prompt, cell, stor
  * @param {ProgressReporter} progress
  * @returns
  */
+
+/**
+ * Extracts and joins criteria from /validate child nodes
+ * @private
+ */
+function extractValidateCriteria(cell, store) {
+  if (!cell.children || cell.children.length === 0) {
+    return ''
+  }
+
+  const criteriaSegments = []
+
+  for (const childId of cell.children) {
+    const childNode = store.getNode(childId)
+    if (!childNode) continue
+
+    const command = childNode.command || childNode.title || ''
+    if (!command.startsWith(VALIDATE_QUERY)) continue
+    const resolvedContent = substituteReferencesAndHashrefsChildrenAndSelf(childNode, store, {
+      saveFirst: true,
+      nonPromptNode: false,
+      useCommand: false,
+      ignorePostProccessCommand: false,
+    })
+
+    const stripped = resolvedContent.replace(new RegExp(`^${VALIDATE_QUERY}\\s*`), '').trim()
+    if (stripped) {
+      criteriaSegments.push(stripped)
+    }
+  }
+
+  return criteriaSegments.join('\n\n')
+}
+
 export const runCommand = async (
   {
     queryType,
@@ -134,10 +171,13 @@ export const runCommand = async (
     const generatorFamily = determineLLMType(cell.command, settings)
     const isTableCommand = readTableParam(cell.command || cell.title || '')
 
+    const criteria = extractValidateCriteria(cell, store)
+
     await BestOfNStrategy.execute(wrappedRunner, store, cell.id, prompt, N, {
       isTableCommand,
       generatorFamily,
       settings,
+      criteria,
     })
   } else if (mcpAlias) {
     const command = new MCPCommand(store._userId, store._workflowId, store, mcpAlias)
@@ -159,6 +199,7 @@ export const runCommand = async (
           if (command?.includes(SUMMARIZE_QUERY)) return 2
           if (command?.includes(MEMORIZE_QUERY)) return 3
           if (command?.includes(OUTLINE_QUERY) && readSummarizeParam(command)) return 4
+          if (command?.includes(REFINE_QUERY)) return 4.5
           return 5
         }
 
@@ -218,6 +259,24 @@ export const runCommand = async (
 
           postProcessTracker = await postProcessProgress.add('OutlineCommand.run')
           flag = await command.run(childNode, undefined, {signal})
+        } else if (query?.startsWith(REFINE_QUERY)) {
+          const command = new RefineCommand(store._userId, store._workflowId, store)
+
+          postProcessTracker = await postProcessProgress.add('RefineCommand.replyRefine')
+
+          const parentOutput = (node.prompts || [])
+            .map(id => store.getNode(id))
+            .filter(Boolean)
+            .map(n => n.title || '')
+            .filter(Boolean)
+            .join('\n\n')
+
+          const result = await command.replyRefine(childNode, parentOutput)
+          if (result) {
+            store.importer.createNodes(result, childNode.id)
+          }
+
+          flag = true
         }
 
         if (postProcessTracker) postProcessProgress.remove(postProcessTracker)
