@@ -6,6 +6,7 @@ import {LLMChain} from '@langchain/classic/chains'
 import {PromptTemplate} from '@langchain/core/prompts'
 import {clearCommandsWithParams, clearReferences, HASHREF_DEF_PREFIX, REF_DEF_PREFIX} from '../constants'
 import {clearStepsPrefix} from '../constants/steps'
+import {getNodeCommand} from './utils/isCommand'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 
@@ -65,7 +66,7 @@ export class RefineCommand {
 
   async replyRefine(node, content) {
     try {
-      const command = node.command || node.title
+      const command = getNodeCommand(node)
       if (!command) return
 
       const nodeContent = substituteReferences(command, 0, this.store)
@@ -73,8 +74,8 @@ export class RefineCommand {
         clearReferences(clearReferences(clearStepsPrefix(nodeContent), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
       )
 
-      const settings = await getIntegrationSettings(this.userId)
-      const llmType = determineLLMType(node.command, settings)
+      const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
+      const llmType = determineLLMType(getNodeCommand(node), settings)
       const {llm} = getLLM({type: llmType, settings})
 
       const prompt = new PromptTemplate({
@@ -102,8 +103,8 @@ export class RefineCommand {
     try {
       const prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
       if (!prompt.trim()) return
-      const settings = await getIntegrationSettings(this.userId)
-      const llmType = determineLLMType(node.command, settings)
+      const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
+      const llmType = determineLLMType(getNodeCommand(node), settings)
       const {llm} = getLLM({type: llmType, settings})
 
       const result = await llm.invoke([new HumanMessage(prompt)])

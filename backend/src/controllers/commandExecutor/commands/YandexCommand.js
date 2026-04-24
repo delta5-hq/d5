@@ -35,65 +35,72 @@ export class YandexCommand {
     this.logError = this.log.extend('ERROR*', '::')
   }
 
-  async replyYandex(messages, userId) {
-    try {
-      const settings = await getIntegrationSettings(userId)
-      const {folder_id, model, ...credentials} = settings?.yandex || {}
-      const modelUri = `gpt://${folder_id}/${model}`
+  async replyYandex(messages, userId, workflowId, store) {
+    const settings = await getIntegrationSettings(userId, workflowId, store)
+    const {folder_id, model, ...credentials} = settings?.yandex || {}
 
-      const response = await YandexService.completionWithRetry({messages, modelUri, ...credentials})
-
-      return response?.alternatives[0].message.text
-    } catch (e) {
-      this.logError(e)
-      return ''
-    }
-  }
-
-  async run(node, context, originalPrompt) {
-    let prompt = originalPrompt
-    const title = node?.command || node?.title
-
-    if (
-      !prompt ||
-      referencePatterns.withAssignmentPrefix().test(title) ||
-      referencePatterns.withAssignmentPrefix(HASHREF_DEF_PREFIX).test(title)
-    ) {
-      prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
-    } else {
-      prompt = clearCommandsWithParams(
-        clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+    if (!credentials.apiKey || !folder_id) {
+      throw new Error(
+        'YandexGPT API key and folder ID not configured. Set them in Integration Settings or set the YANDEX_API_KEY and YANDEX_FOLDER_ID environment variables.',
       )
     }
 
-    prompt = context ? context + prompt : createContextForChat(node, {allNodes: this.store._nodes}) + prompt
+    const modelUri = `gpt://${folder_id}/${model}`
 
-    const userMessage = {
-      text: prompt,
-      role: 'user',
-    }
+    const response = await YandexService.completionWithRetry({messages, modelUri, ...credentials})
 
-    if (readTableParam(title)) {
-      const messages = [
-        {
-          text: 'Create a table based on user request',
-          role: 'system',
-        },
-        userMessage,
-      ]
+    return response?.alternatives[0].message.text
+  }
 
-      const text = (await this.replyYandex(messages, this.userId))?.replaceAll('**', '')
+  async run(node, context, originalPrompt) {
+    try {
+      let prompt = originalPrompt
+      const title = node?.command || node?.title
 
-      this.store.importer.createTable(text, node.id)
-    } else {
-      const messages = [userMessage]
-      const text = (await this.replyYandex(messages, this.userId))?.replaceAll('**', '')
-
-      if (readJoinParam(title)) {
-        this.store.importer.createJoinNode(text, node.id)
+      if (
+        !prompt ||
+        referencePatterns.withAssignmentPrefix().test(title) ||
+        referencePatterns.withAssignmentPrefix(HASHREF_DEF_PREFIX).test(title)
+      ) {
+        prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
       } else {
-        this.store.importer.createNodes(text, node.id)
+        prompt = clearCommandsWithParams(
+          clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+        )
       }
+
+      prompt = context ? context + prompt : createContextForChat(node, {store: this.store}) + prompt
+
+      const userMessage = {
+        text: prompt,
+        role: 'user',
+      }
+
+      if (readTableParam(title)) {
+        const messages = [
+          {
+            text: 'Create a table based on user request',
+            role: 'system',
+          },
+          userMessage,
+        ]
+
+        const text = (await this.replyYandex(messages, this.userId, this.workflowId, this.store))?.replaceAll('**', '')
+
+        this.store.importer.createTable(text, node.id)
+      } else {
+        const messages = [userMessage]
+        const text = (await this.replyYandex(messages, this.userId, this.workflowId, this.store))?.replaceAll('**', '')
+
+        if (readJoinParam(title)) {
+          this.store.importer.createJoinNode(text, node.id)
+        } else {
+          this.store.importer.createNodes(text, node.id)
+        }
+      }
+    } catch (e) {
+      this.logError(e)
+      this.store.importer.createNodes(`Error: ${e.message}`, node.id)
     }
   }
 }

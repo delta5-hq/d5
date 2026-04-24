@@ -39,7 +39,6 @@ const AppLayoutContent = ({ children, breakpoint }: AppLayoutProps) => {
   useRouteBasedSection({
     currentActiveSection: activeSection,
     onSectionChange: setActiveSection,
-    onSecondaryOpen: handleOpenSecondary,
     isMobile,
   })
 

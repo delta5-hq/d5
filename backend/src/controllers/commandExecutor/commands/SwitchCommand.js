@@ -8,8 +8,9 @@ import {referencePatterns} from './references/utils/referencePatterns'
 import {clearReferences} from './references/utils/referenceUtils' // Direct import
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
 import {CASE_QUERY} from '../constants/switch'
-import {getQueryType} from '../constants'
-import {commandRegExp} from '../constants/commandRegExp'
+import {isAnyCommand} from './utils/commandRecognition'
+import {composeAllDynamicAliases} from './utils/aliasComposition'
+import {resolveCommand} from './utils/queryTypeResolver'
 import {determineLLMType, getIntegrationSettings, getLLM} from './utils/langchain/getLLM'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
@@ -76,7 +77,7 @@ export class SwitchCommand {
       .join(', ')
     const sysPrompt = `Respond with one of these options: ${formattedOptions}`
 
-    const settings = await getIntegrationSettings(this.userId)
+    const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     const llmType = determineLLMType(node.command, settings)
 
     const {llm} = getLLM({type: llmType, settings})
@@ -92,17 +93,22 @@ export class SwitchCommand {
       const {children = []} = caseNode
       const caseNodeChildren = children.map(id => this.store.getNode(id)).filter(Boolean)
 
+      const allDynamicAliases = composeAllDynamicAliases(this.store._aliases)
+
       for (let i = 0; i < caseNodeChildren.length; i += 1) {
         const executeNode = caseNodeChildren[i]
         const command = executeNode.command || executeNode.title
-        const queryType = getQueryType(command)
 
-        if (command && commandRegExp.any.test(command)) {
+        if (command && isAnyCommand(command, allDynamicAliases)) {
+          const {queryType, mcpAlias, rpcAlias} = resolveCommand(command, this.store._aliases)
+
           await runCommand(
             {
               queryType,
               cell: executeNode,
               store: this.store,
+              mcpAlias,
+              rpcAlias,
             },
             this.progress,
           )

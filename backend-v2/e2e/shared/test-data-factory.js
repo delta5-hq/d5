@@ -31,12 +31,19 @@ async function getMongoConnection() {
 async function cleanupUserCollections(userIds) {
   try {
     const db = await getMongoConnection()
-    await Promise.all([
-      db.collection('integrations').deleteMany({ userId: { $in: userIds } }),
-      db.collection('llmvectors').deleteMany({ userId: { $in: userIds } })
-    ])
+    await db.collection('integrations').deleteMany({ userId: { $in: userIds } })
   } catch (err) {
     /* Cleanup failure should not break tests */
+    console.warn('MongoDB cleanup warning:', err.message)
+  }
+}
+
+/* Scoped cleanup for llmvectors - only called from llm-vector tests to prevent parallel contamination */
+async function cleanupLLMVectors(userIds) {
+  try {
+    const db = await getMongoConnection()
+    await db.collection('llmvectors').deleteMany({ userId: { $in: userIds } })
+  } catch (err) {
     console.warn('MongoDB cleanup warning:', err.message)
   }
 }
@@ -267,6 +274,10 @@ export const testOrchestrator = {
   async prepareTestEnvironment() {
     /* Clean MongoDB collections for test isolation (local dev + CI consistency) */
     await cleanupUserCollections(['subscriber', 'admin', 'customer'])
+  },
+
+  async cleanupLLMVectors() {
+    await cleanupLLMVectors(['subscriber', 'admin', 'customer'])
   },
 
   async cleanupTestEnvironment() {

@@ -15,6 +15,7 @@ e2e.log
 # Environment (local overrides)
 .env.local
 .env.*.local
+.env.e2e
 
 # Playwright (frontend-specific)
 /test-results/

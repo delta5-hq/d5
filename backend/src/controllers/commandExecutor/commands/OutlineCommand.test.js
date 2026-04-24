@@ -204,7 +204,9 @@ describe('OutlineCommand', () => {
 
       await command.run(node, 'prompt', workflowNodes, {})
 
-      expect(getLLM).toHaveBeenCalledWith(expect.objectContaining({settings, type: Model.YandexGPT}))
+      expect(getLLM).toHaveBeenCalledWith(
+        expect.objectContaining({settings: expect.objectContaining(settings), type: Model.YandexGPT}),
+      )
     })
 
     it('should use openai credentials', async () => {
@@ -229,7 +231,9 @@ describe('OutlineCommand', () => {
 
       await command.run(node, 'prompt', workflowNodes, {})
 
-      expect(getLLM).toHaveBeenCalledWith(expect.objectContaining({settings, type: Model.OpenAI}))
+      expect(getLLM).toHaveBeenCalledWith(
+        expect.objectContaining({settings: expect.objectContaining(settings), type: Model.OpenAI}),
+      )
     })
 
     it('should use substituteReferencesAndHashrefsChildrenAndSelf when title contains a reference', async () => {
@@ -269,6 +273,149 @@ describe('OutlineCommand', () => {
 
       expect(substituteReferencesAndHashrefsChildrenAndSelf).not.toHaveBeenCalled()
       expect(clearStepsPrefix).toHaveBeenCalledWith(originalPrompt)
+    })
+  })
+
+  describe('abort signal support', () => {
+    it('passes signal through params to createResponseOutline', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      command.replyDefault = jest.fn().mockResolvedValue(undefined)
+
+      const abortController = new AbortController()
+      const node = {id: 'node', command: '/outline test'}
+
+      await command.run(node, 'prompt', {signal: abortController.signal})
+
+      expect(command.replyDefault).toHaveBeenCalledWith(
+        node,
+        expect.any(String),
+        expect.objectContaining({
+          signal: abortController.signal,
+        }),
+      )
+    })
+
+    it('accepts run with no options parameter for backward compatibility', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      command.replyDefault = jest.fn().mockResolvedValue(undefined)
+
+      const node = {id: 'node', command: '/outline test'}
+
+      await expect(command.run(node, 'prompt')).resolves.not.toThrow()
+      expect(command.replyDefault).toHaveBeenCalled()
+    })
+
+    it('accepts run with undefined signal for backward compatibility', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      command.replyDefault = jest.fn().mockResolvedValue(undefined)
+
+      const node = {id: 'node', command: '/outline test'}
+
+      await expect(command.run(node, 'prompt', {signal: undefined})).resolves.not.toThrow()
+      expect(command.replyDefault).toHaveBeenCalled()
+    })
+
+    it('propagates signal to all execution paths', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      command.replyWithSummarize = jest.fn().mockResolvedValue(undefined)
+      command.replySecondDebugLevelOutline = jest.fn().mockResolvedValue(undefined)
+      command.replySecondLevelsOutline = jest.fn().mockResolvedValue(undefined)
+
+      const abortController = new AbortController()
+      const signal = abortController.signal
+
+      const summarizeNode = {id: 'n1', command: '/outline test --summarize'}
+      await command.run(summarizeNode, 'p', {signal})
+      expect(command.replyWithSummarize).toHaveBeenCalledWith(
+        summarizeNode,
+        expect.anything(),
+        expect.any(String),
+        expect.objectContaining({signal}),
+      )
+
+      const debugNode = {id: 'n2', command: '/outline test --debuglevel=2'}
+      await command.run(debugNode, 'p', {signal})
+      expect(command.replySecondDebugLevelOutline).toHaveBeenCalledWith(debugNode, expect.objectContaining({signal}))
+
+      const levelsNode = {id: 'n3', command: '/outline test --levels=2'}
+      await command.run(levelsNode, 'p', {signal})
+      expect(command.replySecondLevelsOutline).toHaveBeenCalledWith(
+        levelsNode,
+        expect.any(String),
+        expect.objectContaining({signal}),
+      )
+    })
+  })
+
+  describe('command resolution (title-only nodes)', () => {
+    beforeEach(() => {
+      getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'test-key'}})
+      getLLM.mockReturnValue({llm: {}, chunkSize: 1000})
+      jest.clearAllMocks()
+    })
+
+    it('runs successfully with title-only node containing :lang param', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      command.createResponseOutline = jest.fn().mockResolvedValue('outline result')
+
+      const node = {id: 'node', title: '/outline create :lang=ru'}
+
+      await expect(command.run(node, 'test prompt')).resolves.not.toThrow()
+      expect(command.createResponseOutline).toHaveBeenCalledWith(node, expect.anything(), expect.anything())
+    })
+
+    it('runs successfully with title-only node without params', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      command.createResponseOutline = jest.fn().mockResolvedValue('outline result')
+
+      const node = {id: 'node', title: '/outline create'}
+
+      await expect(command.run(node, 'test prompt')).resolves.not.toThrow()
+      expect(command.createResponseOutline).toHaveBeenCalledWith(node, expect.anything(), expect.anything())
+    })
+
+    it('runs successfully with title-only --summarize node', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      command.replyWithSummarize = jest.fn().mockResolvedValue(undefined)
+
+      const node = {id: 'node', title: '/outline test --summarize :lang=yandex'}
+
+      await expect(command.run(node, 'test prompt')).resolves.not.toThrow()
+      expect(command.replyWithSummarize).toHaveBeenCalled()
+    })
+
+    it('prefers command over title when both populated', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      const createSpy = jest.spyOn(command, 'createResponseOutline').mockResolvedValue('result')
+
+      const node = {
+        id: 'node',
+        command: '/outline from-command :lang=openai',
+        title: '/outline from-title :lang=yandex',
+      }
+
+      await command.run(node, 'test prompt')
+
+      expect(createSpy).toHaveBeenCalled()
+    })
+
+    it('handles empty command and empty title gracefully', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      command.replyDefault = jest.fn().mockResolvedValue(undefined)
+
+      const node = {id: 'node', command: '', title: ''}
+
+      await expect(command.run(node, 'test prompt')).resolves.not.toThrow()
+    })
+
+    it('falls back to title when command is undefined', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      command.replyDefault = jest.fn().mockResolvedValue(undefined)
+
+      const node = {id: 'node', title: '/outline fallback-title'}
+
+      await expect(command.run(node, 'test prompt')).resolves.not.toThrow()
+      expect(command.replyDefault).toHaveBeenCalled()
     })
   })
 })

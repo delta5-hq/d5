@@ -7,6 +7,7 @@ import { getColorForRole } from '@shared/ui/genie/role-colors'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import { canExecuteNode } from '@shared/lib/commands/command-validator'
+import { useAliases } from '@entities/aliases'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@shared/ui/collapsible'
 import { Eye, FileText, Folder, Play, Loader2, Square, Copy, Trash2, Plus, ChevronRight, ArrowLeft } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
@@ -54,13 +55,14 @@ export const NodeDetailPanel = ({
   autoFocusTitle,
   autoFocusCommand,
 }: NodeDetailPanelProps) => {
+  const { aliases } = useAliases()
   const genieState = useGenieState(node.id)
   const hasChildren = Boolean(node.children?.length)
   const isRoot = !node.parent
   const mutationDisabled = isExecuting
   const { formatMessage } = useIntl()
   const showPreview = isPrompt || Boolean(node.command) || Boolean(node.title)
-  const canExecute = canExecuteNode(node.command, executeDisabled)
+  const canExecute = canExecuteNode(node.command, executeDisabled, aliases)
   const siblingActionsEnabled = !isRoot && canExecute
 
   const [settingsOpen, setSettingsOpen] = useState(!isPrompt)
@@ -96,9 +98,9 @@ export const NodeDetailPanel = ({
   )
 
   const handleExecute = useCallback(async () => {
-    const queryType = extractQueryTypeFromCommand(node.command)
+    const queryType = extractQueryTypeFromCommand(node.command, aliases)
     await onExecute(node, queryType)
-  }, [node, onExecute])
+  }, [node, onExecute, aliases])
 
   const handleAbort = useCallback(() => {
     onAbort(node.id)
@@ -137,7 +139,9 @@ export const NodeDetailPanel = ({
 
   const hasCommand = Boolean(node.command?.trim())
   const genieVariant = hasCommand ? 'full' : 'clipboard'
-  const genieColor = hasCommand ? getColorForRole(getCommandRole(extractQueryTypeFromCommand(node.command))) : '#9e9e9e'
+  const genieColor = hasCommand
+    ? getColorForRole(getCommandRole(extractQueryTypeFromCommand(node.command, aliases)))
+    : '#9e9e9e'
   const genieShowHandRibs = hasCommand
 
   return (

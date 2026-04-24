@@ -136,16 +136,16 @@ test.describe('Dual sidebar system', () => {
         if (authRequired) {
           await expect(primaryNav.item(section)).toBeVisible()
           await primaryNav.clickSection(section)
-          
+
           if (section === 'training') {
             await page.waitForURL('/training', { timeout: TEST_TIMEOUTS.NAVIGATION })
             await page.waitForTimeout(TEST_TIMEOUTS.NETWORK_IDLE / 60)
-            
+
             const sidebarExists = await secondarySidebar.root.count()
             if (sidebarExists > 0) {
               await expect(secondarySidebar.root).toBeVisible()
             }
-          } else {
+          } else if (section !== 'create') {
             await page.waitForTimeout(TEST_TIMEOUTS.SECTION_SWITCH)
             await expect(secondarySidebar.root).toBeVisible()
           }
@@ -202,6 +202,7 @@ test.describe('Dual sidebar system', () => {
       await adminLogin(page)
       await page.goto('/')
       await page.waitForLoadState('networkidle')
+      await page.waitForURL(/\/workflows/, { timeout: TEST_TIMEOUTS.NAVIGATION })
     })
 
     const sectionsWithActions = [
@@ -231,9 +232,12 @@ test.describe('Dual sidebar system', () => {
     test('create action does not navigate', async ({ page }) => {
       const primaryNav = new PrimaryNavigationPage(page)
       const secondarySidebar = new SecondarySidebarPage(page)
-      
+
+      await primaryNav.clickHome()
+      await secondarySidebar.waitForTransition()
+
       const currentUrl = page.url()
-      
+
       await primaryNav.clickCreate()
       await page.waitForTimeout(TEST_TIMEOUTS.SIDEBAR_ANIMATION)
 
@@ -321,6 +325,41 @@ test.describe('Dual sidebar system', () => {
 
       const primaryNav = new PrimaryNavigationPage(page)
       await expect(primaryNav.homeItem).toBeVisible()
+    })
+
+    test('activeSection in localStorage without sidebar state keeps sidebar closed on mount', async ({ page }) => {
+      const primaryNav = new PrimaryNavigationPage(page)
+      const secondarySidebar = new SecondarySidebarPage(page)
+
+      await page.evaluate(() => {
+        localStorage.setItem('active_section', 'home')
+        localStorage.removeItem('secondary_sidebar_state')
+      })
+      await page.reload()
+      await page.waitForLoadState('networkidle')
+
+      await expect(secondarySidebar.root).toHaveCount(0)
+
+      await primaryNav.clickHome()
+      await secondarySidebar.waitForTransition()
+
+      await expect(secondarySidebar.root).toBeVisible()
+    })
+
+    test('sidebar state false in localStorage keeps sidebar closed despite activeSection', async ({ page }) => {
+      const secondarySidebar = new SecondarySidebarPage(page)
+
+      await page.evaluate(() => {
+        localStorage.setItem('active_section', 'home')
+        localStorage.setItem('secondary_sidebar_state', 'false')
+      })
+      await page.reload()
+      await page.waitForLoadState('networkidle')
+
+      await expect(secondarySidebar.root).toHaveCount(0)
+
+      const storedState = await page.evaluate(() => localStorage.getItem('secondary_sidebar_state'))
+      expect(storedState).toBe('false')
     })
 
     test('browser back button preserves sidebar state', async ({ page }) => {

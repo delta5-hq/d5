@@ -6,6 +6,7 @@ import {FOREACH_QUERY_TYPE} from '../constants/foreach'
 import {DEFAULT_CONTEXT_NAME, readExtContextParam} from '../constants/ext'
 import {readMaxChunksParam} from '../constants'
 import {NodeTextExtractor} from './utils/NodeTextExtractor'
+import {getNodeCommand} from './utils/isCommand'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 
@@ -146,7 +147,7 @@ export class MemorizeCommand {
   }
 
   async _getVectorStore(command, context) {
-    const settings = await getIntegrationSettings(this.userId)
+    const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     const llmType = determineLLMType(command, settings)
     const {storageType, ...embeddings} = getEmbeddings({type: llmType, settings})
     return new ExtVectorStore({
@@ -158,10 +159,15 @@ export class MemorizeCommand {
     })
   }
 
-  async run(node) {
+  async run(node, options = {}) {
+    const {signal} = options || {}
+
     try {
-      const {context, rechunk, keep, split} = this.getParams(node.command)
-      const vectorStore = await this._getVectorStore(node.command, context)
+      if (signal?.aborted) return
+
+      const command = getNodeCommand(node)
+      const {context, rechunk, keep, split} = this.getParams(command)
+      const vectorStore = await this._getVectorStore(command, context)
 
       const startNode = this.store.getNode(node.parent)
       if (!startNode) return

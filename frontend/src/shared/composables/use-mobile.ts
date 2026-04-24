@@ -1,22 +1,7 @@
-import * as React from 'react'
+import { useViewportBreakpoint, MOBILE_BREAKPOINT } from './use-viewport-breakpoint'
 
-const MOBILE_BREAKPOINT = 768
+export { MOBILE_BREAKPOINT }
 
-export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(() => {
-    if (typeof window === 'undefined') return undefined
-    return window.innerWidth < MOBILE_BREAKPOINT
-  })
-
-  React.useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
-    const onChange = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
-    }
-    mql.addEventListener('change', onChange)
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
-    return () => mql.removeEventListener('change', onChange)
-  }, [])
-
-  return !!isMobile
+export function useIsMobile(): boolean {
+  return useViewportBreakpoint(MOBILE_BREAKPOINT)
 }

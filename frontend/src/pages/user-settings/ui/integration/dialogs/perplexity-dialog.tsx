@@ -9,17 +9,18 @@ import type { DialogProps, Perplexity } from '@shared/base-types'
 import { useApiMutation } from '@shared/composables'
 import { PERPLEXITY_DEFAULT_MODEL, PerplexityModels } from '@shared/config'
 import type { HttpError } from '@shared/lib/error'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
 import { createPerplexityResponse } from '@shared/lib/llm'
 import { Button } from '@shared/ui/button'
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@shared/ui/dialog'
+  GlassDialog,
+  GlassDialogClose,
+  GlassDialogContent,
+  GlassDialogDescription,
+  GlassDialogFooter,
+  GlassDialogHeader,
+  GlassDialogTitle,
+} from '@shared/ui/glass-dialog'
 import { Input } from '@shared/ui/input'
 import { Label } from '@shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
@@ -37,11 +38,14 @@ type PerplexityFormValues = z.infer<typeof perplexitySchema>
 interface Props extends DialogProps {
   data: Perplexity | undefined
   refresh: () => Promise<void>
+  workflowId?: string | null
 }
 
-export const PerplexityDialog: React.FC<Props> = ({ data, open, onClose, refresh }) => {
+export const PerplexityDialog: React.FC<Props> = ({ data, open, onClose, refresh, workflowId }) => {
+  const url = buildIntegrationUrl('/integration/perplexity/update', workflowId)
+
   const { mutateAsync: save } = useApiMutation<Perplexity, HttpError, Perplexity>({
-    url: '/integration/perplexity/update',
+    url,
     method: 'PUT',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => toast.error(err.message || 'Server error'),
@@ -101,18 +105,18 @@ export const PerplexityDialog: React.FC<Props> = ({ data, open, onClose, refresh
   }
 
   return (
-    <Dialog onOpenChange={state => !state && onClose?.()} open={open}>
-      <DialogContent className="sm:max-w-lg" data-dialog-name="perplexity">
-        <DialogHeader>
-          <DialogTitle>
+    <GlassDialog onOpenChange={state => !state && onClose?.()} open={open}>
+      <GlassDialogContent className="sm:max-w-lg" data-dialog-name="perplexity" dismissible={false}>
+        <GlassDialogHeader>
+          <GlassDialogTitle>
             <FormattedMessage id="integration.perplexity.title" />
-          </DialogTitle>
-          <DialogClose className="absolute right-4 top-4">
+          </GlassDialogTitle>
+          <GlassDialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />
-          </DialogClose>
-        </DialogHeader>
+          </GlassDialogClose>
+        </GlassDialogHeader>
 
-        <DialogDescription />
+        <GlassDialogDescription />
 
         <div>
           <Label htmlFor="apiKey">
@@ -150,17 +154,17 @@ export const PerplexityDialog: React.FC<Props> = ({ data, open, onClose, refresh
           </Select>
         </div>
 
-        <DialogFooter className="mt-4 flex justify-end gap-2">
+        <GlassDialogFooter className="mt-4 flex justify-end gap-2">
           <Button disabled={isSubmitting} onClick={handleSubmit(onSubmit)} type="submit" variant="accent">
             <FormattedMessage id="save" />
           </Button>
-          <DialogClose asChild>
+          <GlassDialogClose asChild>
             <Button variant="default">
               <FormattedMessage id="cancel" />
             </Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </GlassDialogClose>
+        </GlassDialogFooter>
+      </GlassDialogContent>
+    </GlassDialog>
   )
 }

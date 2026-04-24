@@ -1,6 +1,12 @@
 import {STEPS_PREFIX_REGEX, STEPS_QUERY} from '../../constants/steps'
 import {SWITCH_QUERY} from '../../constants/switch'
 import {commandRegExp} from '../../constants/commandRegExp'
+import {isAnyCommand, isAnyCommandWithOrder} from './commandRecognition'
+
+/**
+ * @typedef {Object} DynamicAlias
+ * @property {string} alias
+ */
 
 /**
  * StepsNodeTraverser encapsulates the traversal logic for /steps command.
@@ -11,8 +17,9 @@ export class StepsNodeTraverser {
   /**
    * Creates a new StepsNodeTraverser
    * @param {Object} allNodes - Map of all nodes in the tree by ID
+   * @param {DynamicAlias[]} [dynamicAliases=[]] - Dynamic command aliases
    */
-  constructor(allNodes) {
+  constructor(allNodes, dynamicAliases = []) {
     /**
      * Mapping of order numbers to nodes with that order
      * @type {Object.<number, Array<{node: Object, promptString: string}>>}
@@ -32,6 +39,12 @@ export class StepsNodeTraverser {
     this.allNodes = allNodes
 
     /**
+     * Dynamic command aliases (MCP, RPC, etc.)
+     * @type {DynamicAlias[]}
+     */
+    this.dynamicAliases = dynamicAliases
+
+    /**
      * The root node of the traversal, which is treated specially
      * @type {Object|null}
      */
@@ -40,7 +53,7 @@ export class StepsNodeTraverser {
 
   /**
    * Gets the command string from a node, prioritizing command over title
-   * Returns the command text only if it matches the commandRegExp.anyWithOrder pattern
+   * Returns the command text only if it matches built-in or dynamic command patterns
    *
    * @param {Object} n - The node to extract command from
    * @returns {string} The command string if valid, otherwise empty string
@@ -48,7 +61,7 @@ export class StepsNodeTraverser {
   getNodeCommand(n) {
     const rawCommand = n?.command || n?.title || ''
     const commandText = rawCommand ? rawCommand.trim() : ''
-    return commandText.match(commandRegExp.anyWithOrder) ? commandText : ''
+    return isAnyCommandWithOrder(commandText, this.dynamicAliases) ? commandText : ''
   }
 
   /**
@@ -136,7 +149,7 @@ export class StepsNodeTraverser {
       // Node has a numbered command (#1, #2, etc.)
       this.nodesByOrder[order] ||= []
       this.nodesByOrder[order].push({node: currentNode, promptString: command})
-    } else if (commandRegExp.any.test(command) && !commandRegExp.foreach.test(command)) {
+    } else if (isAnyCommand(command, this.dynamicAliases) && !commandRegExp.foreach.test(command)) {
       // Node has a regular command without order number
       this.nodesWithoutOrder.push({node: currentNode, promptString: command})
     } else {

@@ -33,16 +33,11 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
       await menuToggle.click()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
-
-      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
+      await secondarySidebar.waitForMobileVisible()
       await expect(secondarySidebar.mobileDismissButton).toBeVisible({ timeout: 15000 })
 
       await secondarySidebar.clickMobileDismissButton()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
-      await page.waitForTimeout(500)
+      await secondarySidebar.waitForMobileHidden()
 
       await expect(secondarySidebar.mobileRoot).not.toBeVisible({ timeout: 15000 })
     })
@@ -52,9 +47,7 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
       await menuToggle.click()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
-
+      await secondarySidebar.waitForMobileVisible()
       await expect(secondarySidebar.mobileDismissButton).toBeVisible({ timeout: 15000 })
     })
   })
@@ -73,10 +66,7 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
       await menuToggle.click()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(1000)
-
-      await expect(secondarySidebar.mobileRoot).toBeVisible()
+      await secondarySidebar.waitForMobileVisible()
       
       const overlay = page.locator('[role="dialog"][data-state="open"]').locator('..').locator('> div[data-state="open"][data-aria-hidden="true"]').first()
       await expect(overlay).toBeVisible({ timeout: 5000 })
@@ -87,12 +77,10 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
       await menuToggle.click()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
+      await secondarySidebar.waitForMobileVisible()
 
       await secondarySidebar.clickMobileDismissButton()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
+      await secondarySidebar.waitForMobileHidden()
 
       const overlayVisible = await secondarySidebar.isMobileOverlayVisible()
       expect(overlayVisible).toBe(false)
@@ -113,14 +101,12 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
       await menuToggle.click()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
       await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
       const myWorkflowsLink = secondarySidebar.mobileRoot.getByRole('link', { name: 'My Workflows' })
       await myWorkflowsLink.click()
       await page.waitForURL(/\/workflows/, { timeout: TEST_TIMEOUTS.NAVIGATION })
-      await page.waitForTimeout(1000)
+      await secondarySidebar.waitForMobileHidden()
 
       const isVisible = await secondarySidebar.isMobileSidebarVisible()
       expect(isVisible).toBe(false)
@@ -139,21 +125,14 @@ test.describe('Dual sidebar mobile behavior', () => {
 
         const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
         await menuToggle.click()
-        await secondarySidebar.waitForTransition()
-        await page.waitForTimeout(500)
         await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
         await secondarySidebar.clickMobileDismissButton()
-        await secondarySidebar.waitForTransition()
-        await page.waitForTimeout(500)
+        await expect(secondarySidebar.mobileRoot).toBeHidden({ timeout: 15000 })
 
         await primaryNav.clickSection(to)
-        await page.waitForTimeout(500)
 
         await menuToggle.click()
-        await secondarySidebar.waitForTransition()
-        await page.waitForTimeout(500)
-
         await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
         if (toLink) {
@@ -181,8 +160,6 @@ test.describe('Dual sidebar mobile behavior', () => {
       await closeMobileSidebarIfNeeded(page)
 
       await primaryNav.clickHome()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
 
       await testViewportTransitions(
         page,
@@ -191,8 +168,12 @@ test.describe('Dual sidebar mobile behavior', () => {
           if (!viewportSize) return
 
           if (viewportSize.width < MOBILE_BREAKPOINT) {
+            const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
+            await menuToggle.click()
             await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
             await expect(secondarySidebar.mobileDismissButton).toBeVisible()
+            await secondarySidebar.clickMobileDismissButton()
+            await secondarySidebar.waitForMobileHidden()
           } else {
             await expect(secondarySidebar.root).toBeVisible()
           }
@@ -215,22 +196,18 @@ test.describe('Dual sidebar mobile behavior', () => {
         await page.setViewportSize({ width: viewport.width, height: viewport.height })
         await page.reload()
         await page.waitForLoadState('networkidle')
-        await page.waitForTimeout(TEST_TIMEOUTS.SIDEBAR_TRANSITION)
 
         await closeMobileSidebarIfNeeded(page)
 
         if (isMobileViewport(viewport)) {
           const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
           await menuToggle.click()
-          await secondarySidebar.waitForTransition()
-          await page.waitForTimeout(500)
+          await secondarySidebar.waitForMobileVisible()
 
           const overlayVisible = await secondarySidebar.isMobileOverlayVisible()
           expect(overlayVisible).toBe(true)
         } else {
           await primaryNav.clickHome()
-          await secondarySidebar.waitForTransition()
-          await page.waitForTimeout(500)
 
           const overlayVisible = await secondarySidebar.isMobileOverlayVisible()
           expect(overlayVisible).toBe(false)
@@ -246,11 +223,8 @@ test.describe('Dual sidebar mobile behavior', () => {
       const primaryNav = new PrimaryNavigationPage(page)
       const secondarySidebar = new SecondarySidebarPage(page)
 
-
       await closeMobileSidebar(page)
       await primaryNav.clickHome()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
 
       await expect(secondarySidebar.root).toBeVisible()
       await expect(secondarySidebar.mobileDismissButton).not.toBeVisible()
@@ -267,8 +241,6 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
       await menuToggle.click()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
 
       const mobileVisible = await secondarySidebar.isMobileSidebarVisible()
       expect(mobileVisible).toBe(true)
@@ -283,8 +255,6 @@ test.describe('Dual sidebar mobile behavior', () => {
       const secondarySidebar = new SecondarySidebarPage(page)
 
       await primaryNav.clickHome()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
 
       await expect(secondarySidebar.root).toBeVisible()
 
@@ -303,10 +273,7 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
       await menuToggle.click()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
-
-      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
+      await secondarySidebar.waitForMobileVisible()
       await expect(secondarySidebar.mobileDismissButton).toBeVisible()
 
       const boundingBox = await secondarySidebar.mobileRoot.boundingBox()
@@ -324,12 +291,9 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
       await menuToggle.click()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
       await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
       await page.setViewportSize({ width: 667, height: 375 })
-      await page.waitForTimeout(TEST_TIMEOUTS.SIDEBAR_TRANSITION)
 
       const mobileVisible = await secondarySidebar.isMobileSidebarVisible()
       expect(mobileVisible).toBe(true)
@@ -341,11 +305,8 @@ test.describe('Dual sidebar mobile behavior', () => {
       const primaryNav = new PrimaryNavigationPage(page)
       const secondarySidebar = new SecondarySidebarPage(page)
 
-
       await closeMobileSidebar(page)
       await primaryNav.clickHome()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
 
       const viewportSizes = [
         { width: 375, height: 667 },
@@ -362,6 +323,8 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await page.waitForTimeout(TEST_TIMEOUTS.SIDEBAR_TRANSITION)
 
+      const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
+      await menuToggle.click()
       await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
     })
   })
@@ -382,13 +345,10 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
       await menuToggle.click()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
       await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
       await page.goto('/settings')
       await page.waitForLoadState('networkidle')
-      await page.waitForTimeout(1000)
       
       const mobileVisible = await secondarySidebar.isMobileSidebarVisible()
       expect(mobileVisible).toBe(false)
@@ -409,16 +369,13 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
       await menuToggle.click()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
       await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
       const storedStateOpen = await page.evaluate(() => localStorage.getItem('secondary_sidebar_state'))
       expect(storedStateOpen).toBe('true')
 
       await secondarySidebar.clickMobileDismissButton()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
+      await secondarySidebar.waitForMobileHidden()
 
       const isVisible = await secondarySidebar.isMobileSidebarVisible()
       expect(isVisible).toBe(false)
@@ -437,8 +394,6 @@ test.describe('Dual sidebar mobile behavior', () => {
       
       const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
       await menuToggle.click()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
       await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
       await page.reload()
@@ -472,8 +427,6 @@ test.describe('Dual sidebar mobile behavior', () => {
       
       const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
       await menuToggle.click()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
       await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
       await secondarySidebar.clickMobileDismissButton()
@@ -504,10 +457,7 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
       await menuToggle.click()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
-
-      await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
+      await secondarySidebar.waitForMobileVisible()
       await expect(secondarySidebar.mobileRoot.locator('[data-sidebar="group-label"]').filter({ hasText: 'Settings' })).toBeVisible()
     })
 
@@ -521,8 +471,7 @@ test.describe('Dual sidebar mobile behavior', () => {
       await page.waitForTimeout(TEST_TIMEOUTS.SIDEBAR_TRANSITION / 2)
 
       await secondarySidebar.clickMobileDismissButton()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
+      await secondarySidebar.waitForMobileHidden()
 
       const isVisible = await secondarySidebar.isMobileSidebarVisible()
       expect(isVisible).toBe(false)
@@ -535,8 +484,6 @@ test.describe('Dual sidebar mobile behavior', () => {
       
       const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
       await menuToggle.click()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
       await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
       await page.goto('/workflows')
@@ -544,7 +491,6 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       await page.goBack()
       await page.waitForLoadState('networkidle')
-      await page.waitForTimeout(1000)
 
       const mobileVisible = await secondarySidebar.isMobileSidebarVisible()
       expect(mobileVisible).toBe(false)
@@ -561,8 +507,6 @@ test.describe('Dual sidebar mobile behavior', () => {
       
       const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
       await menuToggle.click()
-      await secondarySidebar.waitForTransition()
-      await page.waitForTimeout(500)
       await expect(secondarySidebar.mobileRoot).toBeVisible({ timeout: 15000 })
 
       await page.goto('/admin/users')

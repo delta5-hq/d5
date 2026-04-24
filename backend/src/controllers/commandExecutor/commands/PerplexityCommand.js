@@ -54,48 +54,54 @@ export class PerplexityCommand {
     this.logError = this.log.extend('ERROR*', '::')
   }
 
-  async reply(messages, userId) {
-    try {
-      const {perplexity} = await getIntegrationSettings(userId)
+  async reply(messages, userId, workflowId, store) {
+    const {perplexity} = await getIntegrationSettings(userId, workflowId, store)
 
-      const {choices, citations} = await PerplexityCommand.call(messages, perplexity)
-
-      let completionResult = cleanChainOfThoughtText(choices[0].message?.content.replace(/\[\d+\]/g, ''))
-
-      if (!completionResult) return ''
-
-      if (citations.length) {
-        completionResult += `\n\nCitations:\n    ${citations.join('\n    ')}`
-      }
-
-      return completionResult
-    } catch (e) {
-      this.logError(e)
-      return ''
-    }
-  }
-
-  async run(node, context, originalPrompt) {
-    let prompt = originalPrompt
-    const title = node?.command || node?.title
-
-    if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
-      prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
-    } else {
-      prompt = clearCommandsWithParams(
-        clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+    if (!perplexity?.apiKey) {
+      throw new Error(
+        'Perplexity API key not configured. Set it in Integration Settings or set the PERPLEXITY_API_KEY environment variable.',
       )
     }
 
-    prompt = context ? context + prompt : createContextForChat(node, {allNodes: this.store._nodes}) + prompt
+    const {choices, citations} = await PerplexityCommand.call(messages, perplexity)
 
-    const userMessage = {
-      content: prompt,
-      role: 'user',
+    let completionResult = cleanChainOfThoughtText(choices[0].message?.content.replace(/\[\d+\]/g, ''))
+
+    if (!completionResult) return ''
+
+    if (citations.length) {
+      completionResult += `\n\nCitations:\n    ${citations.join('\n    ')}`
     }
-    const messages = [userMessage]
-    const text = (await this.reply(messages, this.userId))?.replaceAll('**', '')
 
-    this.store.importer.createNodes(text, node.id)
+    return completionResult
+  }
+
+  async run(node, context, originalPrompt) {
+    try {
+      let prompt = originalPrompt
+      const title = node?.command || node?.title
+
+      if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
+        prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
+      } else {
+        prompt = clearCommandsWithParams(
+          clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+        )
+      }
+
+      prompt = context ? context + prompt : createContextForChat(node, {store: this.store}) + prompt
+
+      const userMessage = {
+        content: prompt,
+        role: 'user',
+      }
+      const messages = [userMessage]
+      const text = (await this.reply(messages, this.userId, this.workflowId, this.store))?.replaceAll('**', '')
+
+      this.store.importer.createNodes(text, node.id)
+    } catch (e) {
+      this.logError(e)
+      this.store.importer.createNodes(`Error: ${e.message}`, node.id)
+    }
   }
 }

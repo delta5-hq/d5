@@ -6,14 +6,14 @@ import { FormattedMessage } from 'react-intl'
 import { toast } from 'sonner'
 
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogFooter,
-  DialogTitle,
-  DialogDescription,
-  DialogClose,
-} from '@shared/ui/dialog'
+  GlassDialog,
+  GlassDialogContent,
+  GlassDialogHeader,
+  GlassDialogFooter,
+  GlassDialogTitle,
+  GlassDialogDescription,
+  GlassDialogClose,
+} from '@shared/ui/glass-dialog'
 import { Input } from '@shared/ui/input'
 import { Label } from '@shared/ui/label'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@shared/ui/select'
@@ -22,6 +22,7 @@ import { Button } from '@shared/ui/button'
 import { useApiMutation } from '@shared/composables'
 import type { CustomLLM, DialogProps } from '@shared/base-types'
 import type { HttpError } from '@shared/lib/error'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
 import { CustomLLMApiType, CUSTOM_LLM_CHAT_COMPLETIONS_PATH } from '@shared/config'
 import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
 
@@ -41,11 +42,14 @@ type CustomLLMFormValues = z.infer<typeof customLLMSchema>
 interface CustomLLMDialogProps extends DialogProps {
   data: CustomLLM | undefined
   refresh: () => Promise<void>
+  workflowId?: string | null
 }
 
-export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, onClose, refresh }) => {
+export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, onClose, refresh, workflowId }) => {
+  const url = buildIntegrationUrl('/integration/custom_llm/update', workflowId)
+
   const { mutateAsync: save } = useApiMutation<CustomLLM, HttpError, CustomLLM>({
-    url: '/integration/custom_llm/update',
+    url,
     method: 'PUT',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: err => toast.error(err?.message || 'Server error'),
@@ -123,20 +127,20 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
   }
 
   return (
-    <Dialog onOpenChange={onClose} open={open}>
-      <DialogContent className="sm:max-w-lg" data-dialog-name="custom_llm">
-        <DialogHeader>
-          <DialogTitle>
+    <GlassDialog onOpenChange={onClose} open={open}>
+      <GlassDialogContent className="sm:max-w-lg" data-dialog-name="custom_llm" dismissible={false}>
+        <GlassDialogHeader>
+          <GlassDialogTitle>
             <FormattedMessage id="integration.custom_llm.title" />
-          </DialogTitle>
-          <DialogClose className="absolute right-4 top-4">
+          </GlassDialogTitle>
+          <GlassDialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />
-          </DialogClose>
-        </DialogHeader>
+          </GlassDialogClose>
+        </GlassDialogHeader>
 
-        <DialogDescription>
+        <GlassDialogDescription>
           <FormattedMessage id="customLLMHint" />
-        </DialogDescription>
+        </GlassDialogDescription>
         {/* API Type */}
         <div className="flex flex-col gap-2">
           <Label htmlFor="apiType">
@@ -218,18 +222,18 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
           />
         </div>
 
-        <DialogFooter className="mt-4 flex justify-end gap-2">
+        <GlassDialogFooter className="mt-4 flex justify-end gap-2">
           <Button disabled={isSubmitting} onClick={handleSubmit(onSubmit)} type="submit" variant="accent">
             <FormattedMessage id="save" />
           </Button>
-          <DialogClose asChild>
+          <GlassDialogClose asChild>
             <Button variant="default">
               <FormattedMessage id="cancel" />
             </Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </GlassDialogClose>
+        </GlassDialogFooter>
+      </GlassDialogContent>
+    </GlassDialog>
   )
 }
 

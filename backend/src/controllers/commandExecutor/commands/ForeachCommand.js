@@ -1,6 +1,9 @@
 import debug from 'debug'
-import {REF_PREFIX, clearCommandsWithParams, getQueryType} from '../constants'
+import {REF_PREFIX, clearCommandsWithParams} from '../constants'
 import {commandRegExp} from '../constants/commandRegExp'
+import {resolveCommand} from './utils/queryTypeResolver'
+import {isAnyCommand} from './utils/commandRecognition'
+import {composeAllDynamicAliases} from './utils/aliasComposition'
 import {
   FOREACH_FILE_PARAM,
   FOREACH_PARAM_PARALLEL,
@@ -16,6 +19,7 @@ import {CHAT_PARAM_PARENTS} from '../constants/chat'
 import {runCommand} from './utils/runCommand'
 import {StepsCommand} from './StepsCommand'
 import {createDeepClone} from './utils/createDeepClone'
+import {SSHClientPool} from './rpc/SSHClientPool'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 // eslint-disable-next-line no-unused-vars
@@ -69,11 +73,13 @@ export class ForeachCommand {
 
     let loopIteration = 0
 
+    const allDynamicAliases = composeAllDynamicAliases(this.store._aliases)
+
     while (currentNode && loopIteration < parent && currentNode.parent) {
       const newTitle = currentNode.title?.trim()
       currentNode = this.store.getNode(currentNode.parent)
 
-      if (newTitle && !commandRegExp.any.test(newTitle)) {
+      if (newTitle && !isAnyCommand(newTitle, allDynamicAliases)) {
         texts.unshift(newTitle)
       }
 
@@ -90,8 +96,10 @@ export class ForeachCommand {
     let depth = parentDepth
     let pNode = this.store.getNode(node?.parent || '')
 
+    const allDynamicAliases = composeAllDynamicAliases(this.store._aliases)
+
     while (pNode && pNode.parent && depth) {
-      if (pNode.title && !commandRegExp.any.test(pNode.title)) {
+      if (pNode.title && !isAnyCommand(pNode.title, allDynamicAliases)) {
         parentsTitles.push(pNode.title)
       }
       pNode = this.store.getNode(pNode.parent || '')
@@ -169,76 +177,98 @@ export class ForeachCommand {
     return leafs
   }
 
-  async executePrompts(nodes, isParallel = true) {
-    if (isParallel) {
-      const parallelProgress = new ProgressReporter({title: 'parallel'}, this.progress)
+  async executePrompts(nodes, isParallel = true, signal) {
+    const sshClientPool = new SSHClientPool()
 
-      await Promise.allSettled(
-        nodes.map(async ({node, promptString}) => {
-          try {
-            const parallelTracker = await parallelProgress.add('child')
-            const queryType = getQueryType(promptString)
-
-            if (queryType) {
-              // update previous node in workflowNodes
-              this.store.editNode({...node, command: promptString})
-
-              await runCommand(
-                {
-                  queryType,
-                  cell: {...node, command: promptString},
-                  store: this.store,
-                },
-                parallelProgress,
-              )
-
-              parallelProgress.remove(parallelTracker)
-            }
-          } catch (e) {
-            this.logError(e)
-            throw e
-          }
-        }),
-      )
-
-      parallelProgress.dispose()
-    } else {
-      const sequentialProgress = new ProgressReporter({title: 'sequential'}, this.progress)
-
-      for (let i = 0; i < nodes.length; i += 1) {
-        try {
-          const sequentialTracker = await sequentialProgress.add('child')
-
-          const {node, promptString} = nodes[i]
-
-          const queryType = getQueryType(promptString)
-          // update previous node in workflowNodes
-          this.store.editNode({...node, command: promptString})
-
-          if (queryType) {
-            await runCommand(
-              {
-                queryType,
-                cell: this.store.getNode(node.id),
-                workflowId: this.workflowId,
-                userId: this.userId,
-                store: this.store,
-              },
-              sequentialProgress,
-            )
-          }
-
-          sequentialProgress.remove(sequentialTracker)
-        } catch (e) {
-          this.logError(e)
-        }
+    try {
+      if (isParallel) {
+        await this._executePromptsParallel(nodes, sshClientPool, signal)
+      } else {
+        await this._executePromptsSequential(nodes, sshClientPool, signal)
       }
-
-      sequentialProgress.dispose()
+    } finally {
+      sshClientPool.disposeAll()
     }
   }
 
-  runDefault = async (node, command, params) => {
+  async _executePromptsParallel(nodes, sshClientPool, signal) {
+    const parallelProgress = new ProgressReporter({title: 'parallel'}, this.progress)
+
+    await Promise.allSettled(
+      nodes.map(async ({node, promptString}) => {
+        try {
+          const parallelTracker = await parallelProgress.add('child')
+          const {queryType, mcpAlias, rpcAlias} = resolveCommand(promptString, this.store._aliases)
+
+          if (queryType) {
+            this.store.editNode({...node, command: promptString})
+
+            await runCommand(
+              {
+                queryType,
+                cell: {...node, command: promptString},
+                store: this.store,
+                mcpAlias,
+                rpcAlias,
+                sshClientPool,
+                signal,
+              },
+              parallelProgress,
+            )
+
+            parallelProgress.remove(parallelTracker)
+          }
+        } catch (e) {
+          this.logError(e)
+          throw e
+        }
+      }),
+    )
+
+    parallelProgress.dispose()
+  }
+
+  async _executePromptsSequential(nodes, sshClientPool, signal) {
+    const sequentialProgress = new ProgressReporter({title: 'sequential'}, this.progress)
+
+    for (let i = 0; i < nodes.length; i += 1) {
+      if (signal?.aborted) break
+
+      try {
+        const sequentialTracker = await sequentialProgress.add('child')
+
+        const {node, promptString} = nodes[i]
+
+        const {queryType, mcpAlias, rpcAlias} = resolveCommand(promptString, this.store._aliases)
+        this.store.editNode({...node, command: promptString})
+
+        if (queryType) {
+          await runCommand(
+            {
+              queryType,
+              cell: this.store.getNode(node.id),
+              workflowId: this.workflowId,
+              userId: this.userId,
+              store: this.store,
+              mcpAlias,
+              rpcAlias,
+              sshClientPool,
+              signal,
+            },
+            sequentialProgress,
+          )
+        }
+
+        sequentialProgress.remove(sequentialTracker)
+      } catch (e) {
+        this.logError(e)
+      }
+    }
+
+    sequentialProgress.dispose()
+  }
+
+  runDefault = async (node, command, params, signal) => {
     const leafs = []
     const mainCommand = command.replace(FOREACH_PARAM_PARALLEL, '').trim()
 
@@ -249,7 +279,7 @@ export class ForeachCommand {
       if (parentNode && !isRoot) {
         leafs.push(...this.findLeafs(parentNode, mainCommand, params.useFile))
 
-        await this.executePrompts(leafs, params.parallel)
+        await this.executePrompts(leafs, params.parallel, signal)
       }
     } catch (e) {
       this.logError(e)
@@ -276,9 +306,9 @@ export class ForeachCommand {
     )
   }
 
-  runSteps = async (node, params) => {
+  runSteps = async (node, params, signal) => {
     const stepsCommand = new StepsCommand(this.userId, this.workflowId, this.store)
-    const {nodesByOrder, nodesWithoutOrder} = stepsCommand.findMatchingNodes(node)
+    const {nodesByOrder, nodesWithoutOrder} = await stepsCommand.findMatchingNodes(node)
 
     const matchingNodes = [
       ...Object.entries(nodesByOrder)
@@ -293,7 +323,6 @@ export class ForeachCommand {
 
     let stepsTitle = `${STEPS_QUERY} @@`
     const rootStepsTitle = node.command ? clearCommandsWithParams(node.command) : ''
-    console.log(rootStepsTitle)
     if (rootStepsTitle) stepsTitle += ` ${rootStepsTitle}`
 
     const leafs = this.findLeafs(this.store.getNode(node.parent), stepsTitle, params.useFile)
@@ -307,25 +336,26 @@ export class ForeachCommand {
       }
     }
 
-    await this.executePrompts(leafs, params.parallel)
+    await this.executePrompts(leafs, params.parallel, signal)
   }
 
   stripCommand(str) {
     return str.replace(FOREACH_QUERY, '').replace(FOREACH_FILE_PARAM, '').trim()
   }
 
-  async run(node) {
+  async run(node, options = {}) {
+    const {signal} = options
     const command = node?.command || node?.title || ''
     const prompt = this.stripCommand(command)
 
     const promptParams = this.getParams(command)
 
     if (prompt?.startsWith(STEPS_QUERY)) {
-      await this.runSteps(node, promptParams)
+      await this.runSteps(node, promptParams, signal)
     } else if (prompt?.match(simpleRefRegexp) || prompt?.match(refWithParentsRegexp)) {
-      await this.runDefault(node, prompt, promptParams)
+      await this.runDefault(node, prompt, promptParams, signal)
     } else if (prompt) {
-      await this.runDefault(node, prompt, promptParams)
+      await this.runDefault(node, prompt, promptParams, signal)
     }
   }
 }

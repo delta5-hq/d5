@@ -65,18 +65,40 @@ export default function Chat({
     setIsMessageLoading(true)
 
     const newMessagesUser: MessageType[] = [...messages, { role: "user", content: composeValue }]
+    const userInput = composeValue
     setComposeValue("")
     setMessages(newMessagesUser)
 
     const newMessagesAssistant: MessageType[] = [...newMessagesUser, { role: "assistant", content: "" }]
     setMessages(newMessagesAssistant)
 
+    let contentAccumulator = ""
+    let statusMessage = ""
+    let currentMessages = newMessagesAssistant
+
     const executor = new MacroExecutor(deltafiveAPI, configuration.macroName)
-    const newContent = await executor.run(composeValue)
-    
-    const newMessages: MessageType[] = [...newMessagesAssistant]
-    newMessages[newMessages.length - 1].content = newContent
-    setMessages(newMessages)
+    const newContent = await executor.run(
+      userInput,
+      (progressMessage) => {
+        if (progressMessage.type === "status") {
+          statusMessage = progressMessage.text
+        } else if (progressMessage.type === "content") {
+          contentAccumulator += progressMessage.text
+        }
+
+        const displayContent = contentAccumulator || statusMessage || ""
+        const updated = [...currentMessages]
+        if (updated[updated.length - 1]?.role === "assistant") {
+          updated[updated.length - 1].content = displayContent
+        }
+        currentMessages = updated
+        setMessages(updated)
+      },
+    )
+
+    const finalMessages: MessageType[] = [...newMessagesAssistant]
+    finalMessages[finalMessages.length - 1].content = newContent
+    setMessages(finalMessages)
 
     setIsMessageLoading(false)
   }

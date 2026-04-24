@@ -36,7 +36,10 @@ nohup.out
 # MongoDB data directories (dev and E2E)
 data/
 
+# Workflow automation artifacts
+contribot.state.json
 transcripts/
+*.pid
 
 # Test artifacts (if running from root)
 test-results/
@@ -50,3 +53,4 @@ backend-e2e-output.log
 
 contribot.*.json
 transcripts/
+.playwright-cli/

@@ -40,6 +40,7 @@ import {ExtVectorStore} from './utils/langchain/vectorStore/ExtVectorStore'
 import {WebVectorStore} from './utils/langchain/vectorStore/WebVectorStore'
 import {tolerantArrayParsing} from './utils/tolerantArrayParsing'
 import {conditionallyTranslate} from './utils/translate'
+import {getNodeCommand} from './utils/isCommand'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 
@@ -93,6 +94,8 @@ export class OutlineCommand {
   }
 
   async createResponseOutline(node, userInput, params) {
+    const {signal} = params || {}
+
     const formatOutputAsTree = async (llmOutput, citations, llm, params, settings) => {
       try {
         return this.getTreeInOutputLang(llmOutput, citations, llm, params, settings)
@@ -103,6 +106,10 @@ export class OutlineCommand {
     }
 
     const runAgent = async (model, searchTool, query, outputLang) => {
+      if (signal?.aborted) {
+        throw new Error('Operation cancelled')
+      }
+
       const executor = createOutlineAgentExecutor(model, [searchTool], outputLang)
       try {
         return await executor.run(query)
@@ -113,8 +120,8 @@ export class OutlineCommand {
     }
 
     const lang = params?.lang
-    const settings = await getIntegrationSettings(this.userId)
-    const llmType = determineLLMType(node?.command, settings)
+    const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
+    const llmType = determineLLMType(getNodeCommand(node), settings)
     const {llm, chunkSize} = getLLM({type: llmType, settings})
     const embeddings = getEmbeddings({type: llmType, settings})
 
@@ -164,13 +171,8 @@ export class OutlineCommand {
       searchTool = new JSKnowledgeRetryTool(new JSKnowledgeMapSearch(llm, {lang}), {lang}).asTool()
     }
 
-    try {
-      const llmOutput = await runAgent(llm, searchTool, userInput, lang)
-      return formatOutputAsTree(llmOutput, citations, llm, params, settings)
-    } catch (e) {
-      this.logError(e)
-      return ''
-    }
+    const llmOutput = await runAgent(llm, searchTool, userInput, lang)
+    return formatOutputAsTree(llmOutput, citations, llm, params, settings)
   }
 
   getParams = title => {
@@ -235,31 +237,37 @@ export class OutlineCommand {
     this.store.importer.createNodes(tree || answer, node.id)
   }
 
-  async run(node, originalPrompt) {
-    let prompt = originalPrompt
-    const title = node?.command || node?.title
+  async run(node, originalPrompt, options = {}) {
+    try {
+      const {signal} = options
+      let prompt = originalPrompt
+      const title = getNodeCommand(node)
 
-    if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
-      prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
-    } else {
-      prompt = clearCommandsWithParams(
-        clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
-      )
-    }
+      if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
+        prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
+      } else {
+        prompt = clearCommandsWithParams(
+          clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+        )
+      }
 
-    const debuglevel = readDebugLevelParam(title)
-    const levels = readLevelsParam(title)
+      const debuglevel = readDebugLevelParam(title)
+      const levels = readLevelsParam(title)
 
-    const params = this.getParams(title)
+      const params = {...this.getParams(title), signal}
 
-    if (isOutlineSummarize(title)) {
-      await this.replyWithSummarize(node, title, prompt, params)
-    } else if (debuglevel === DEBUG_LEVEL.Second) {
-      await this.replySecondDebugLevelOutline(node, params)
-    } else if (levels >= LEVELS.Second) {
-      await this.replySecondLevelsOutline(node, prompt, params)
-    } else {
-      await this.replyDefault(node, prompt, params)
+      if (isOutlineSummarize(title)) {
+        await this.replyWithSummarize(node, title, prompt, params)
+      } else if (debuglevel === DEBUG_LEVEL.Second) {
+        await this.replySecondDebugLevelOutline(node, params)
+      } else if (levels >= LEVELS.Second) {
+        await this.replySecondLevelsOutline(node, prompt, params)
+      } else {
+        await this.replyDefault(node, prompt, params)
+      }
+    } catch (e) {
+      this.logError(e)
+      this.store.importer.createNodes(`Error: ${e.message}`, node.id)
     }
   }
 }

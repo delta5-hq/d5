@@ -137,11 +137,17 @@ func (h *WorkflowController) CreateWorkflow(c *fiber.Ctx) error {
 		return response.InternalError(c, err.Error())
 	}
 
-	/* Parse request body for optional fields like share */
+	/* Parse request body for optional fields like title and share */
 	var requestBody map[string]interface{}
+	var title string
 	var share *models.Share
 
 	if err := c.BodyParser(&requestBody); err == nil {
+		if titleData, exists := requestBody["title"]; exists {
+			if titleStr, ok := titleData.(string); ok {
+				title = titleStr
+			}
+		}
 		if shareData, exists := requestBody["share"]; exists {
 			/* Convert map to Share struct */
 			shareBytes, _ := json.Marshal(shareData)
@@ -154,6 +160,7 @@ func (h *WorkflowController) CreateWorkflow(c *fiber.Ctx) error {
 
 	workflow, createErr := h.Service.CreateWorkflow(c.Context(), CreateWorkflowDto{
 		UserID: userIDStr,
+		Title:  title,
 		Auth:   auth,
 		Share:  share,
 	})
