@@ -3,9 +3,13 @@ import type { Page } from '@playwright/test'
 export async function cleanArrayIntegrations(page: Page) {
   for (let attempt = 0; attempt < 3; attempt++) {
     const integration = await page.evaluate(async () => {
-      const r = await fetch('/api/v2/integration', { credentials: 'include' })
-      if (!r.ok) throw new Error(`GET /api/v2/integration failed with status ${r.status}`)
-      return r.json()
+      for (let i = 0; i < 5; i++) {
+        const r = await fetch('/api/v2/integration', { credentials: 'include' })
+        if (r.ok) return r.json()
+        if (r.status !== 401) throw new Error(`GET /api/v2/integration failed with status ${r.status}`)
+        await new Promise(res => setTimeout(res, 300))
+      }
+      throw new Error('GET /api/v2/integration failed with 401 after 5 attempts (auth cookie not applied)')
     })
 
     const hasMcp = integration.mcp?.length > 0
@@ -50,9 +54,13 @@ export async function cleanArrayIntegrations(page: Page) {
     }
 
     const verifyClean = await page.evaluate(async () => {
-      const r = await fetch('/api/v2/integration', { credentials: 'include' })
-      if (!r.ok) return { mcp: [], rpc: [] }
-      return r.json()
+      for (let i = 0; i < 5; i++) {
+        const r = await fetch('/api/v2/integration', { credentials: 'include' })
+        if (r.ok) return r.json()
+        if (r.status !== 401) return { mcp: [], rpc: [] }
+        await new Promise(res => setTimeout(res, 300))
+      }
+      return { mcp: [], rpc: [] }
     })
 
     if (!verifyClean.mcp?.length && !verifyClean.rpc?.length) return

@@ -5,6 +5,16 @@ export interface ScopeDescriptor {
   workflowId: string | undefined
 }
 
+async function fetchIntegrationWithAuthRetry(page: Page, queryParam: string): Promise<any> {
+  for (let i = 0; i < 5; i++) {
+    const response = await page.request.get(`/api/v2/integration${queryParam}`)
+    if (response.ok()) return response.json()
+    if (response.status() !== 401) return {}
+    await page.waitForTimeout(300)
+  }
+  return {}
+}
+
 export async function cleanAllIntegrationsAcrossScopes(page: Page, scopes: ScopeDescriptor[]) {
   const llmServices = ['openai', 'deepseek', 'qwen', 'claude', 'perplexity', 'yandex', 'custom_llm']
 
@@ -12,16 +22,10 @@ export async function cleanAllIntegrationsAcrossScopes(page: Page, scopes: Scope
     const queryParam = scope.workflowId ? `?workflowId=${scope.workflowId}` : ''
 
     for (const service of llmServices) {
-      await page.evaluate(
-        async ({ svc, param }) => {
-          await fetch(`/api/v2/integration/${svc}/delete${param}`, { method: 'DELETE' }).catch(() => {})
-        },
-        { svc: service, param: queryParam },
-      )
+      await page.request.delete(`/api/v2/integration/${service}/delete${queryParam}`).catch(() => {})
     }
 
-    const integrationResponse = await page.request.get(`/api/v2/integration${queryParam}`)
-    const integrationData = await integrationResponse.json()
+    const integrationData = await fetchIntegrationWithAuthRetry(page, queryParam)
 
     if (integrationData.mcp?.length) {
       for (const item of integrationData.mcp) {
@@ -32,6 +36,24 @@ export async function cleanAllIntegrationsAcrossScopes(page: Page, scopes: Scope
     if (integrationData.rpc?.length) {
       for (const item of integrationData.rpc) {
         await page.request.delete(`/api/v2/integration/rpc/items/${encodeURIComponent(item.alias)}${queryParam}`)
+      }
+    }
+
+    const verify = await fetchIntegrationWithAuthRetry(page, queryParam)
+    if (verify.mcp?.length || verify.rpc?.length) {
+      if (verify.mcp?.length) {
+        for (const item of verify.mcp) {
+          await page.request
+            .delete(`/api/v2/integration/mcp/items/${encodeURIComponent(item.alias)}${queryParam}`)
+            .catch(() => {})
+        }
+      }
+      if (verify.rpc?.length) {
+        for (const item of verify.rpc) {
+          await page.request
+            .delete(`/api/v2/integration/rpc/items/${encodeURIComponent(item.alias)}${queryParam}`)
+            .catch(() => {})
+        }
       }
     }
   }
