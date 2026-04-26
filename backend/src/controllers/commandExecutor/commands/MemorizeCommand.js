@@ -146,7 +146,7 @@ export class MemorizeCommand {
   }
 
   async _getVectorStore(command, context) {
-    const settings = await getIntegrationSettings(this.userId)
+    const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     const llmType = determineLLMType(command, settings)
     const {storageType, ...embeddings} = getEmbeddings({type: llmType, settings})
     return new ExtVectorStore({
@@ -158,8 +158,12 @@ export class MemorizeCommand {
     })
   }
 
-  async run(node) {
+  async run(node, options = {}) {
+    const {signal} = options || {}
+
     try {
+      if (signal?.aborted) return
+
       const {context, rechunk, keep, split} = this.getParams(node.command)
       const vectorStore = await this._getVectorStore(node.command, context)
 

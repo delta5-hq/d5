@@ -80,8 +80,56 @@ const CustomLLM = createSchema(
   {_id: false, timestamps: false},
 )
 
+const MCPIntegration = createSchema(
+  {
+    alias: {type: String, required: true},
+    serverUrl: {type: String},
+    transport: {type: String, required: true, enum: ['streamable-http', 'stdio', 'sse']},
+    toolName: {type: String, required: true},
+    toolInputField: {type: String, default: 'prompt'},
+    toolStaticArgs: {type: mongoose.Schema.Types.Mixed},
+    headers: {type: mongoose.Schema.Types.Mixed},
+    description: String,
+    timeoutMs: {type: Number, min: 5000, max: 3_600_000},
+    command: {type: String},
+    args: {type: [String]},
+    env: {type: mongoose.Schema.Types.Mixed},
+  },
+  {_id: false, timestamps: false},
+)
+
+const RPCIntegration = createSchema(
+  {
+    alias: {type: String, required: true},
+    protocol: {type: String, required: true, enum: ['ssh', 'http', 'acp-local']},
+    description: String,
+    timeoutMs: {type: Number, min: 5000, max: 7_200_000},
+    host: String,
+    port: {type: Number, default: 22},
+    username: String,
+    privateKey: String,
+    passphrase: String,
+    commandTemplate: String,
+    workingDir: String,
+    url: String,
+    method: {type: String, default: 'POST', enum: ['GET', 'POST', 'PUT']},
+    headers: {type: mongoose.Schema.Types.Mixed},
+    bodyTemplate: String,
+    outputFormat: {type: String, default: 'text', enum: ['text', 'json']},
+    outputField: String,
+    sessionIdField: {type: String, default: 'session_id'},
+    command: String,
+    args: [String],
+    env: {type: mongoose.Schema.Types.Mixed},
+    autoApprove: {type: String, enum: ['all', 'none', 'whitelist'], default: 'none'},
+    allowedTools: [String],
+  },
+  {_id: false, timestamps: false},
+)
+
 const IntegrationSchema = createSchema({
   userId: {type: String, required: true, index: true},
+  workflowId: {type: String, index: true, default: null},
   openai: Openai,
   google: Google,
   yandex: Yandex,
@@ -92,7 +140,31 @@ const IntegrationSchema = createSchema({
   lang: {type: String, default: 'none'},
   model: {type: String, default: 'auto'},
   perplexity: Perplexity,
+  mcp: [MCPIntegration],
+  rpc: [RPCIntegration],
 })
+
+IntegrationSchema.index({userId: 1, workflowId: 1}, {unique: true})
+
+export const INTEGRATION_ENCRYPTION_CONFIG = {
+  fields: [
+    'openai.apiKey',
+    'yandex.apiKey',
+    'claude.apiKey',
+    'perplexity.apiKey',
+    'qwen.apiKey',
+    'deepseek.apiKey',
+    'custom_llm.apiKey',
+  ],
+  arrayFields: {
+    rpc: ['privateKey', 'passphrase', 'headers', 'env'],
+    mcp: ['headers', 'env'],
+  },
+  serializedFields: {
+    rpc: ['headers', 'env'],
+    mcp: ['headers', 'env'],
+  },
+}
 
 const Integration = mongoose.model('Integration', IntegrationSchema)
 

@@ -24,3 +24,9 @@ func (f *ClientFactory) Create(timeout time.Duration) Client {
 func (f *ClientFactory) CreateDefault() Client {
 	return f.Create(30 * time.Second)
 }
+
+func (f *ClientFactory) CreateStreaming() Client {
+	return &http.Client{
+		Timeout: 0,
+	}
+}

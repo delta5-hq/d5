@@ -10,12 +10,32 @@ import { DateCell, StringCell, type Column } from '@entities/table'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { Checkbox } from '@shared/ui/checkbox'
 import { DEBOUNCE_TIMEOUT } from '@shared/config'
+import { useSortableHeader, type SortDirection } from '@shared/lib/hooks'
 
 interface Row {
   userId: string
   name: string
   mail: string
   createdAt: string
+}
+
+interface SortableHeaderCellProps<T> {
+  column: Column<T>
+  isActive: boolean
+  direction: 'asc' | 'desc'
+  onSort: () => void
+}
+
+const SortableHeaderCell = <T,>({ column, isActive, direction, onSort }: SortableHeaderCellProps<T>) => {
+  const sortDirection: SortDirection = isActive ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'
+  const sortProps = useSortableHeader(onSort, sortDirection)
+
+  return (
+    <TableHead className="cursor-pointer select-none" onClick={onSort} {...sortProps}>
+      {column.label}
+      {isActive ? <span className="ml-1 text-xs opacity-60">{direction === 'asc' ? '▲' : '▼'}</span> : null}
+    </TableHead>
+  )
 }
 
 interface WaitlistTableProps {
@@ -198,16 +218,13 @@ const WaitlistTable: React.FC<WaitlistTableProps> = ({
                 <Checkbox checked={allSelectedOnPage} />
               </TableHead>
               {columns.map(col => (
-                <TableHead
-                  className="cursor-pointer select-none"
+                <SortableHeaderCell
+                  column={col}
+                  direction={order}
+                  isActive={orderBy === col.id}
                   key={col.id as string}
-                  onClick={createSortHandler(col.id)}
-                >
-                  {col.label}
-                  {orderBy === col.id ? (
-                    <span className="ml-1 text-xs opacity-60">{order === 'asc' ? '▲' : '▼'}</span>
-                  ) : null}
-                </TableHead>
+                  onSort={createSortHandler(col.id)}
+                />
               ))}
               <TableHead>
                 <FormattedMessage id="actions" />

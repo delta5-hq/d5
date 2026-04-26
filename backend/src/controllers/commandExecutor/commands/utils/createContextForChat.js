@@ -1,6 +1,7 @@
 import {clearCommandsWithParams, clearReferences, HASHREF_DEF_PREFIX, REF_DEF_PREFIX} from '../../constants'
-import {commandRegExp} from '../../constants/commandRegExp'
 import {clearStepsPrefix} from '../../constants/steps'
+import {isAnyCommand} from './commandRecognition'
+import {composeAllDynamicAliases} from './aliasComposition'
 
 /**
  *
@@ -8,17 +9,19 @@ import {clearStepsPrefix} from '../../constants/steps'
  * @param {string} [context="Context:\n```\n```\n"]
  * @param {Object} [params={}]
  * @param {number} [params.maxLength=2000] - Maximum length allowed for the resulting context
- * @param {Object} [params.allNodes={}]
+ * @param {Object} [params.store] - Store instance (preferred over allNodes for dynamic alias support)
+ * @param {Object} [params.allNodes={}] - Legacy: node map (deprecated, use store instead)
  * @param {number} [params.parents=3] - Maximum number of parent levels to traverse
  * @param {number} [params.indent=0] - Number of spaces to indent the context for each level
  * @returns {string}
  */
 export const createContextForChat = (node, params = {}, context = 'Context:\n```\n```\n') => {
-  const {maxLength = 2000, allNodes = {}} = params
+  const {maxLength = 2000, store, allNodes = store?._nodes || {}} = params
   let {parents = 3, indent = 0} = params
 
+  const dynamicAliases = composeAllDynamicAliases(store?._aliases)
   const newString =
-    node.title && !commandRegExp.any.test(node.title)
+    node.title && !isAnyCommand(node.title, dynamicAliases)
       ? clearCommandsWithParams(
           clearReferences(clearReferences(clearStepsPrefix(node.title), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
         ).trim()
@@ -28,8 +31,6 @@ export const createContextForChat = (node, params = {}, context = 'Context:\n```
   if (newString) {
     const startIndex = newContext.indexOf('\n', newContext.indexOf('\n') + 1) + 1
     const lastIndex = newContext.lastIndexOf('\n', newContext.lastIndexOf('\n') - 1) - 1
-
-    // Replace '\n' with '\n  ' from the second occurrence to the penultimate occurrence for moving titles
 
     newContext =
       newContext.substring(0, startIndex) +

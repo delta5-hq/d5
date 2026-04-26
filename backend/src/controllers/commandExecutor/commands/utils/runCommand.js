@@ -37,6 +37,8 @@ import {SummarizeCommand} from '../SummarizeCommand'
 import {SwitchCommand} from '../SwitchCommand'
 import {WebCommand} from '../WebCommand'
 import {YandexCommand} from '../YandexCommand'
+import {MCPCommand} from '../MCPCommand'
+import {RPCCommand} from '../RPCCommand'
 // eslint-disable-next-line no-unused-vars
 import Store from './Store'
 
@@ -59,12 +61,30 @@ import Store from './Store'
  *  prompt: string,
  *  cell: import('./Store').NodeData,
  *  store: Store,
- *  preventPostProcess: boolean
+ *  preventPostProcess: boolean,
+ *  mcpAlias: import('../mcp/aliasResolver').MCPAliasConfig,
+ *  rpcAlias: Object,
+ *  sshClientPool: Object,
+ *  signal: AbortSignal
  * }} params
  * @param {ProgressReporter} progress
  * @returns
  */
-export const runCommand = async ({queryType, context, prompt, cell, store, preventPostProcess = false}, progress) => {
+export const runCommand = async (
+  {
+    queryType,
+    context,
+    prompt,
+    cell,
+    store,
+    preventPostProcess = false,
+    mcpAlias,
+    rpcAlias,
+    sshClientPool = null,
+    signal,
+  },
+  progress,
+) => {
   let runPostProccess = !preventPostProcess
   const postProcessNode = async (node, ids = []) => {
     const sortedNodes = (node.children || [])
@@ -86,6 +106,10 @@ export const runCommand = async ({queryType, context, prompt, cell, store, preve
     }
 
     for (const childNode of sortedNodes) {
+      if (signal?.aborted) {
+        break
+      }
+
       if (ids.includes(childNode.id)) {
         continue
       }
@@ -110,26 +134,26 @@ export const runCommand = async ({queryType, context, prompt, cell, store, preve
           )
 
           postProcessTracker = await postProcessProgress.add('ForeachCommand.run')
-          await command.run(childNode)
+          await command.run(childNode, {signal})
         } else if (query?.startsWith(SUMMARIZE_QUERY)) {
           const command = new SummarizeCommand(store._userId, store._workflowId, store)
 
           postProcessTracker = await postProcessProgress.add('SummarizeCommand.run')
-          await command.run(childNode, undefined)
+          await command.run(childNode, undefined, {signal})
 
           flag = true
         } else if (query?.startsWith(MEMORIZE_QUERY)) {
           const command = new MemorizeCommand(store._userId, store._workflowId, store)
 
           postProcessTracker = await postProcessProgress.add('MemorizeCommand.run')
-          await command.run(childNode)
+          await command.run(childNode, {signal})
 
           flag = true
         } else if (query?.startsWith(OUTLINE_QUERY) && readSummarizeParam(query)) {
           const command = new OutlineCommand(store._userId, store._workflowId, store)
 
           postProcessTracker = await postProcessProgress.add('OutlineCommand.run')
-          flag = await command.run(childNode, undefined)
+          flag = await command.run(childNode, undefined, {signal})
         }
 
         if (postProcessTracker) postProcessProgress.remove(postProcessTracker)
@@ -167,12 +191,12 @@ export const runCommand = async ({queryType, context, prompt, cell, store, preve
     const command = new OutlineCommand(store._userId, store._workflowId, store)
 
     runCommandTracker = await runCommandProgress.add('OutlineCommand.run')
-    await command.run(cell, prompt)
+    await command.run(cell, prompt, {signal})
   } else if (queryType === STEPS_QUERY_TYPE) {
     const command = new StepsCommand(store._userId, store._workflowId, store, runCommandProgress)
 
     runCommandTracker = await runCommandProgress.add('StepsCommand.run')
-    await command.run(cell)
+    await command.run(cell, {signal})
     runPostProccess = false // `/steps` command must never trigger postProcessNode, see #226, #227
   } else if (queryType === CHAT_QUERY_TYPE) {
     const command = new ChatCommand(store._userId, store._workflowId, store)
@@ -183,17 +207,17 @@ export const runCommand = async ({queryType, context, prompt, cell, store, preve
     const command = new SummarizeCommand(store._userId, store._workflowId, store)
 
     runCommandTracker = await runCommandProgress.add('SummarizeCommand.run')
-    await command.run(cell, prompt)
+    await command.run(cell, prompt, {signal})
   } else if (queryType === FOREACH_QUERY_TYPE) {
     const command = new ForeachCommand(store._userId, store._workflowId, store, runCommandProgress)
 
     runCommandTracker = await runCommandProgress.add('ForeachCommand.run')
-    await command.run(cell)
+    await command.run(cell, {signal})
   } else if (queryType === SWITCH_QUERY_TYPE) {
     const command = new SwitchCommand(store._userId, store._workflowId, store, runCommandProgress)
 
     runCommandTracker = await runCommandProgress.add('SwitchCommand.run')
-    await command.run(cell, prompt)
+    await command.run(cell, prompt, {signal})
   } else if (queryType === CLAUDE_QUERY_TYPE) {
     const command = new ClaudeCommand(store._userId, store._workflowId, store)
 
@@ -235,15 +259,25 @@ export const runCommand = async ({queryType, context, prompt, cell, store, preve
     runCommandTracker = await runCommandProgress.add('ExtCommand.run')
     await command.run(cell, prompt)
   } else if (queryType === COMPLETION_QUERY_TYPE) {
-    const command = new CompletionCommand(store._userId, store._workflowId, store)
+    const command = new CompletionCommand(store._userId, store._workflowId, store, runCommandProgress)
 
     runCommandTracker = await runCommandProgress.add('CompletionCommand.run')
-    await command.run(cell)
+    await command.run(cell, {signal})
   } else if (queryType === MEMORIZE_QUERY_TYPE) {
     const command = new MemorizeCommand(store._userId, store._workflowId, store, runCommandProgress)
 
     runCommandTracker = await runCommandProgress.add('MemorizeCommand.run')
-    await command.run(cell)
+    await command.run(cell, {signal})
+  } else if (mcpAlias) {
+    const command = new MCPCommand(store._userId, store._workflowId, store, mcpAlias)
+
+    runCommandTracker = await runCommandProgress.add('MCPCommand.run')
+    await command.run(cell, context, prompt, {signal})
+  } else if (rpcAlias) {
+    const command = new RPCCommand(store._userId, store._workflowId, store, rpcAlias, runCommandProgress, sshClientPool)
+
+    runCommandTracker = await runCommandProgress.add('RPCCommand.run')
+    await command.run(cell, context, prompt, {signal})
   }
 
   if (runPostProccess) {

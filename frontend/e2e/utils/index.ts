@@ -149,6 +149,12 @@ async function adminLogin(page: Page) {
   await login(page, e2eEnv.E2E_ADMIN_USER, e2eEnv.E2E_ADMIN_PASS)
 }
 
+async function subscriberLogin(page: Page) {
+  const user = e2eEnv.E2E_SUBSCRIBER_USER || 'subscriber'
+  const pass = e2eEnv.E2E_SUBSCRIBER_PASS || 'P@ssw0rd!'
+  await login(page, user, pass)
+}
+
 async function createWorkflow(page: Page): Promise<string> {
   await page.goto('/workflows')
   await page.waitForLoadState('networkidle')
@@ -186,4 +192,4 @@ async function closeMobileSidebar(page: Page) {
   }
 }
 
-export { approveUser, rejectUser, login, logout, signup, openLoginDialogFromSignup, adminLogin, setupUnauthenticatedPage, createWorkflow, clearAuthState, closeMobileSidebar }
+export { approveUser, rejectUser, login, logout, signup, openLoginDialogFromSignup, adminLogin, subscriberLogin, setupUnauthenticatedPage, createWorkflow, clearAuthState, closeMobileSidebar }

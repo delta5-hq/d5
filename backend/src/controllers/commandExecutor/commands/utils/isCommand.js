@@ -1,28 +1,7 @@
-import {commandRegExp} from '../../constants/commandRegExp'
 import {FOREACH_QUERY} from '../../constants/foreach'
 import {OUTLINE_PARAM_SUMMARIZE_REGEX, OUTLINE_QUERY} from '../../constants/outline'
 import {clearStepsPrefix, STEPS_QUERY} from '../../constants/steps'
 import {SUMMARIZE_QUERY} from '../../constants/summarize'
-
-export const isContainsCommand = node => {
-  if (!node) return false
-
-  if (node.command) {
-    return commandRegExp.any.test(node.command)
-  }
-
-  if (node.title) {
-    return commandRegExp.any.test(node.title)
-  }
-
-  return false
-}
-
-export const isCommandStr = str => {
-  if (!str) return false
-
-  return commandRegExp.any.test(str)
-}
 
 export const isSteps = node => {
   if (!node) return false

@@ -6,6 +6,7 @@ import { Toaster } from '@shared/ui/sonner'
 import { DialogProvider } from '@entities/dialog'
 import { Outlet } from 'react-router-dom'
 import { AuthProvider } from '@entities/auth'
+import { AliasProvider } from '@entities/aliases'
 import { SearchProvider } from '@shared/context'
 import { ProgressStreamProvider } from './progress-stream-provider'
 
@@ -16,13 +17,15 @@ const Providers = () => (
     <IntlProvider locale="en" messages={messages.en}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <SearchProvider>
-            <ProgressStreamProvider>
-              <DialogProvider>
-                <Outlet />
-              </DialogProvider>
-            </ProgressStreamProvider>
-          </SearchProvider>
+          <AliasProvider>
+            <SearchProvider>
+              <ProgressStreamProvider>
+                <DialogProvider>
+                  <Outlet />
+                </DialogProvider>
+              </ProgressStreamProvider>
+            </SearchProvider>
+          </AliasProvider>
         </AuthProvider>
       </QueryClientProvider>
       <Toaster position="bottom-left" />

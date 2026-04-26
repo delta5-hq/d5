@@ -11,19 +11,20 @@ import { z } from 'zod'
 
 import { Button } from '@shared/ui/button'
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@shared/ui/dialog'
+  GlassDialog,
+  GlassDialogClose,
+  GlassDialogContent,
+  GlassDialogDescription,
+  GlassDialogFooter,
+  GlassDialogHeader,
+  GlassDialogTitle,
+} from '@shared/ui/glass-dialog'
 import { Input } from '@shared/ui/input'
 import { Label } from '@shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
 import { toast } from 'sonner'
 import type { HttpError } from '@shared/lib/error'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
 
 const YandexModelNames: Record<YandexGPTModel, string> = {
   [YandexGPTModel.GPT_PRO_LATEST]: 'YandexGPT 5 Pro',
@@ -51,11 +52,14 @@ type YandexFormValues = z.infer<typeof yandexSchema>
 interface Props extends DialogProps {
   data: Yandex | undefined
   refresh: () => Promise<void>
+  workflowId?: string | null
 }
 
-export const YandexDialog: React.FC<Props> = ({ data, open, onClose, refresh }) => {
+export const YandexDialog: React.FC<Props> = ({ data, open, onClose, refresh, workflowId }) => {
+  const url = buildIntegrationUrl('/integration/yandex/update', workflowId)
+
   const { mutateAsync: save } = useApiMutation<Yandex, HttpError, Yandex>({
-    url: '/integration/yandex/update',
+    url,
     method: 'PUT',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => toast.error(err.message || 'Server error'),
@@ -111,18 +115,18 @@ export const YandexDialog: React.FC<Props> = ({ data, open, onClose, refresh }) 
   }
 
   return (
-    <Dialog onOpenChange={state => !state && onClose?.()} open={open}>
-      <DialogContent className="sm:max-w-lg" data-dialog-name="yandex">
-        <DialogHeader>
-          <DialogTitle>
+    <GlassDialog onOpenChange={state => !state && onClose?.()} open={open}>
+      <GlassDialogContent className="sm:max-w-lg" data-dialog-name="yandex" dismissible={false}>
+        <GlassDialogHeader>
+          <GlassDialogTitle>
             <FormattedMessage id="integration.yandex.title" />
-          </DialogTitle>
-          <DialogClose className="absolute right-4 top-4">
+          </GlassDialogTitle>
+          <GlassDialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />
-          </DialogClose>
-        </DialogHeader>
+          </GlassDialogClose>
+        </GlassDialogHeader>
 
-        <DialogDescription />
+        <GlassDialogDescription />
 
         <div>
           <Label htmlFor="apiKey">
@@ -174,17 +178,17 @@ export const YandexDialog: React.FC<Props> = ({ data, open, onClose, refresh }) 
           </Select>
         </div>
 
-        <DialogFooter className="mt-4 flex justify-end gap-2">
+        <GlassDialogFooter className="mt-4 flex justify-end gap-2">
           <Button disabled={isSubmitting} onClick={handleSubmit(onSubmit)} type="submit" variant="accent">
             <FormattedMessage id="save" />
           </Button>
-          <DialogClose asChild>
+          <GlassDialogClose asChild>
             <Button variant="default">
               <FormattedMessage id="cancel" />
             </Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </GlassDialogClose>
+        </GlassDialogFooter>
+      </GlassDialogContent>
+    </GlassDialog>
   )
 }

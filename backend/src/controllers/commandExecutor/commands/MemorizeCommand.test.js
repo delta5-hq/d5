@@ -564,4 +564,47 @@ describe('MemorizeCommand', () => {
       ])
     })
   })
+
+  describe('abort signal support', () => {
+    it('accepts signal parameter and completes normally when not aborted', async () => {
+      const command = new MemorizeCommand('user-id', null, mockStore)
+      const abortController = new AbortController()
+
+      const node = {id: 'child', parent: 'parent', command: '/memorize --context=test'}
+
+      await expect(command.run(node, {signal: abortController.signal})).resolves.not.toThrow()
+    })
+
+    it('accepts run with no options parameter for backward compatibility', async () => {
+      const command = new MemorizeCommand('user-id', null, mockStore)
+      const node = {id: 'child', parent: 'parent', command: '/memorize --context=test'}
+
+      await expect(command.run(node)).resolves.not.toThrow()
+    })
+
+    it('accepts run with undefined signal for backward compatibility', async () => {
+      const command = new MemorizeCommand('user-id', null, mockStore)
+      const node = {id: 'child', parent: 'parent', command: '/memorize --context=test'}
+
+      await expect(command.run(node, {signal: undefined})).resolves.not.toThrow()
+    })
+
+    it('bails early when signal is already aborted before execution', async () => {
+      const command = new MemorizeCommand('user-id', null, mockStore)
+      const abortController = new AbortController()
+      abortController.abort()
+
+      command._getVectorStore = jest.fn()
+      command.processChunks = jest.fn()
+      command.saveEmbeddings = jest.fn()
+
+      const node = {id: 'child', parent: 'parent', command: '/memorize --context=test'}
+
+      await command.run(node, {signal: abortController.signal})
+
+      expect(command._getVectorStore).not.toHaveBeenCalled()
+      expect(command.processChunks).not.toHaveBeenCalled()
+      expect(command.saveEmbeddings).not.toHaveBeenCalled()
+    })
+  })
 })

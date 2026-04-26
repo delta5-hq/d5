@@ -5,6 +5,7 @@ import util from 'util'
 import server from './server'
 import {closeDb, connectDb} from './db'
 import * as constants from './constants'
+import StreamBridge from './controllers/commandExecutor/streaming/StreamBridge'
 
 if (process.env.NODE_ENV === 'production') {
   // replace default log with on that does not add line breaks
@@ -24,6 +25,7 @@ const shutDown = async () => {
   shuttingDown = true
   log('Shutting down')
 
+  StreamBridge.shutdown()
   await closeDb()
   log('Shut down complete')
 }

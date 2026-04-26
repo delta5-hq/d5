@@ -403,12 +403,13 @@ class RealClaudeService {
   }
 
   async sendMessages(body) {
+    const apiKey = body.apiKey || this.config.apiKey
     const fetch = (await import('node-fetch')).default
     const response = await fetch(`${this.config.baseUrl}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': this.config.apiKey,
+        'x-api-key': apiKey,
         'anthropic-version': this.config.version,
       },
       body: JSON.stringify(body),
@@ -454,13 +455,15 @@ class RealYandexService {
   }
 
   async completion(body) {
+    const apiKey = body.apiKey || this.config.apiKey
+    const folderId = body.folderId || this.config.folderId
     const fetch = (await import('node-fetch')).default
     const response = await fetch(`${this.config.baseUrl}/foundationModels/v1/completion`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.config.apiKey}`,
-        'x-folder-id': this.config.folderId,
+        Authorization: `Bearer ${apiKey}`,
+        'x-folder-id': folderId,
       },
       body: JSON.stringify(body),
     })
@@ -472,13 +475,15 @@ class RealYandexService {
   }
 
   async embeddings(body) {
+    const apiKey = body.apiKey || this.config.apiKey
+    const folderId = body.folderId || this.config.folderId
     const fetch = (await import('node-fetch')).default
     const response = await fetch(`${this.config.baseUrl}/foundationModels/v1/textEmbedding`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.config.apiKey}`,
-        'x-folder-id': this.config.folderId,
+        Authorization: `Bearer ${apiKey}`,
+        'x-folder-id': folderId,
       },
       body: JSON.stringify(body),
     })

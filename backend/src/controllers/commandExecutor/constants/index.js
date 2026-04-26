@@ -88,6 +88,77 @@ export const getQueryType = title => {
   }
 }
 
+export const CONTROL_FLOW_COMMANDS = new Set([
+  STEPS_QUERY_TYPE,
+  FOREACH_QUERY_TYPE,
+  SWITCH_QUERY_TYPE,
+  SUMMARIZE_QUERY_TYPE,
+  REFINE_QUERY_TYPE,
+  MEMORIZE_QUERY_TYPE,
+])
+
+/**
+ * @param {string} title
+ * @returns {string|undefined}
+ */
+export const getControlFlowQueryType = title => {
+  const clearedTitle = clearStepsPrefix(title)
+
+  if (clearedTitle.startsWith(STEPS_QUERY)) {
+    return STEPS_QUERY_TYPE
+  } else if (clearedTitle.startsWith(FOREACH_QUERY)) {
+    return FOREACH_QUERY_TYPE
+  } else if (clearedTitle.startsWith(SWITCH_QUERY)) {
+    return SWITCH_QUERY_TYPE
+  } else if (clearedTitle.startsWith(SUMMARIZE_QUERY)) {
+    return SUMMARIZE_QUERY_TYPE
+  } else if (clearedTitle.startsWith(REFINE_QUERY)) {
+    return REFINE_QUERY_TYPE
+  } else if (clearedTitle.startsWith(MEMORIZE_QUERY)) {
+    return MEMORIZE_QUERY_TYPE
+  }
+
+  return undefined
+}
+
+/**
+ * @param {string} title
+ * @returns {string|undefined}
+ */
+export const getLLMQueryType = title => {
+  const clearedTitle = clearStepsPrefix(title)
+
+  if (clearedTitle.startsWith(YANDEX_QUERY)) {
+    return YANDEX_QUERY_TYPE
+  } else if (clearedTitle.startsWith(WEB_QUERY)) {
+    return WEB_QUERY_TYPE
+  } else if (clearedTitle.startsWith(OUTLINE_QUERY)) {
+    return OUTLINE_QUERY_TYPE
+  } else if (clearedTitle.startsWith(SCHOLAR_QUERY)) {
+    return SCHOLAR_QUERY_TYPE
+  } else if (clearedTitle.startsWith(CHAT_QUERY)) {
+    return CHAT_QUERY_TYPE
+  } else if (clearedTitle.startsWith(CLAUDE_QUERY)) {
+    return CLAUDE_QUERY_TYPE
+  } else if (clearedTitle.startsWith(QWEN_QUERY)) {
+    return QWEN_QUERY_TYPE
+  } else if (clearedTitle.startsWith(PERPLEXITY_QUERY)) {
+    return PERPLEXITY_QUERY_TYPE
+  } else if (clearedTitle.startsWith(EXT_QUERY)) {
+    return EXT_QUERY_TYPE
+  } else if (clearedTitle.startsWith(DOWNLOAD_QUERY)) {
+    return DOWNLOAD_QUERY_TYPE
+  } else if (clearedTitle.startsWith(DEEPSEEK_QUERY)) {
+    return DEEPSEEK_QUERY_TYPE
+  } else if (clearedTitle.startsWith(CUSTOM_LLM_CHAT_QUERY)) {
+    return CUSTOM_LLM_CHAT_QUERY_TYPE
+  } else if (clearedTitle.startsWith(COMPLETION_QUERY)) {
+    return COMPLETION_QUERY_TYPE
+  }
+
+  return undefined
+}
+
 export {REF_DEF_PREFIX, REF_PREFIX, HASHREF_DEF_PREFIX, HASHREF_PREFIX, clearReferences}
 
 export const allowedCommands = [
@@ -108,6 +179,8 @@ export const allowedCommands = [
   REFINE_QUERY_TYPE,
   EXT_QUERY_TYPE,
   MEMORIZE_QUERY_TYPE,
+  DOWNLOAD_QUERY_TYPE,
+  COMPLETION_QUERY_TYPE,
 ]
 
 export const LANG_PARAM = '--lang'

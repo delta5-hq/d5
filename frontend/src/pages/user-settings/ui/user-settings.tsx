@@ -70,7 +70,7 @@ const UserSettingsPage: React.FC = () => {
 
   const onModelChange = async (model: string) => {
     setModel(model)
-    await changeUserModel({ model })
+    await changeUserModel({ model, workflowId: null })
   }
 
   useEffect(() => {
@@ -86,7 +86,7 @@ const UserSettingsPage: React.FC = () => {
 
   const onLangChange = (newLang: string) => async () => {
     setLang(newLang)
-    await changeUserLang({ lang: newLang })
+    await changeUserLang({ lang: newLang, workflowId: null })
     setOpenLangBox(false)
   }
 

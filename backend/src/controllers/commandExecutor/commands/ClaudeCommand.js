@@ -35,44 +35,50 @@ export class ClaudeCommand {
     this.logError = this.log.extend('ERROR*', '::')
   }
 
-  async replyClaude(messages, userId) {
-    try {
-      const settings = await getIntegrationSettings(userId)
-      const {apiKey, model} = settings?.claude || {}
+  async replyClaude(messages, userId, workflowId, store) {
+    const settings = await getIntegrationSettings(userId, workflowId, store)
+    const {apiKey, model} = settings?.claude || {}
 
-      const max_tokens = getClaudeMaxOutput(model)
-      const params = {apiKey, model, messages, max_tokens, userId}
-
-      const response = await ClaudeService.sendMessages(params)
-
-      return response?.content[0].text
-    } catch (e) {
-      this.logError(e)
-      return ''
-    }
-  }
-
-  async run(node, context, originalPrompt) {
-    let prompt = originalPrompt
-    const title = node?.command || node?.title
-
-    if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
-      prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
-    } else {
-      prompt = clearCommandsWithParams(
-        clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+    if (!apiKey) {
+      throw new Error(
+        'Claude API key not configured. Set it in Integration Settings or set the CLAUDE_API_KEY environment variable.',
       )
     }
 
-    prompt = context ? context + prompt : createContextForChat(node, {allNodes: this.store._nodes}) + prompt
+    const max_tokens = getClaudeMaxOutput(model)
+    const params = {apiKey, model, messages, max_tokens, userId}
 
-    const userMessage = {
-      content: prompt,
-      role: 'user',
+    const response = await ClaudeService.sendMessages(params)
+
+    return response?.content[0].text
+  }
+
+  async run(node, context, originalPrompt) {
+    try {
+      let prompt = originalPrompt
+      const title = node?.command || node?.title
+
+      if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
+        prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
+      } else {
+        prompt = clearCommandsWithParams(
+          clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+        )
+      }
+
+      prompt = context ? context + prompt : createContextForChat(node, {store: this.store}) + prompt
+
+      const userMessage = {
+        content: prompt,
+        role: 'user',
+      }
+      const messages = [userMessage]
+      const text = (await this.replyClaude(messages, this.userId, this.workflowId, this.store))?.replaceAll('**', '')
+
+      this.store.importer.createNodes(text, node.id)
+    } catch (e) {
+      this.logError(e)
+      this.store.importer.createNodes(`Error: ${e.message}`, node.id)
     }
-    const messages = [userMessage]
-    const text = (await this.replyClaude(messages, this.userId))?.replaceAll('**', '')
-
-    this.store.importer.createNodes(text, node.id)
   }
 }
