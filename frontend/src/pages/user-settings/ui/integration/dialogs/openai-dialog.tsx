@@ -5,14 +5,14 @@ import { FormattedMessage } from 'react-intl'
 
 import { Button } from '@shared/ui/button'
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@shared/ui/dialog'
+  GlassDialog,
+  GlassDialogClose,
+  GlassDialogContent,
+  GlassDialogDescription,
+  GlassDialogFooter,
+  GlassDialogHeader,
+  GlassDialogTitle,
+} from '@shared/ui/glass-dialog'
 import { Input } from '@shared/ui/input'
 import { Label } from '@shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
@@ -23,6 +23,7 @@ import type { ApiError, DialogProps, Openai } from '@shared/base-types'
 import { useApiMutation } from '@shared/composables'
 import { OpenaiModels } from '@shared/config'
 import type { HttpError } from '@shared/lib/error'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
 import { createResponseChat } from '@shared/lib/llm'
 import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
 import { X } from 'lucide-react'
@@ -40,11 +41,14 @@ export type OpenaiFormValues = z.infer<typeof openaiSchema>
 interface Props extends DialogProps {
   data: Openai | undefined
   refresh: () => Promise<void>
+  workflowId?: string | null
 }
 
-const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
+const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data, workflowId }) => {
+  const url = buildIntegrationUrl('/integration/openai/update', workflowId)
+
   const { mutateAsync: save } = useApiMutation<Openai, HttpError, Openai>({
-    url: '/integration/openai/update',
+    url,
     method: 'PUT',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => {
@@ -112,18 +116,18 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
   }
 
   return (
-    <Dialog onOpenChange={onClose} open={open}>
-      <DialogContent className="sm:max-w-lg" data-dialog-name="openai">
-        <DialogHeader>
-          <DialogTitle>
+    <GlassDialog onOpenChange={onClose} open={open}>
+      <GlassDialogContent className="sm:max-w-lg" data-dialog-name="openai" dismissible={false}>
+        <GlassDialogHeader>
+          <GlassDialogTitle>
             <FormattedMessage id="integration.openai.title" />
-          </DialogTitle>
-          <DialogClose className="absolute right-4 top-4">
+          </GlassDialogTitle>
+          <GlassDialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />
-          </DialogClose>
-        </DialogHeader>
+          </GlassDialogClose>
+        </GlassDialogHeader>
 
-        <DialogDescription />
+        <GlassDialogDescription />
 
         <div className="flex flex-col gap-4">
           {/* API Key */}
@@ -169,18 +173,18 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
           </div>
         </div>
 
-        <DialogFooter className="mt-4 flex justify-end gap-2">
+        <GlassDialogFooter className="mt-4 flex justify-end gap-2">
           <Button disabled={isSubmitting} onClick={handleSubmit(onSubmit)} type="submit" variant="accent">
             <FormattedMessage id="save" />
           </Button>
-          <DialogClose asChild>
+          <GlassDialogClose asChild>
             <Button variant="default">
               <FormattedMessage id="cancel" />
             </Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </GlassDialogClose>
+        </GlassDialogFooter>
+      </GlassDialogContent>
+    </GlassDialog>
   )
 }
 

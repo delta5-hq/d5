@@ -3,9 +3,23 @@ import {LLMChain} from '@langchain/classic/chains'
 import {customerRequest} from '../../utils/test/userRequests'
 import {getIntegrationSettings, getLLM} from './commands/utils/langchain/getLLM'
 import {generateNodeId} from '../../shared/utils/generateId'
+import {loadUserAliases} from './commands/aliases/loadUserAliases'
+import {MCPCommand} from './commands/MCPCommand'
+import {RPCCommand} from './commands/RPCCommand'
 
 jest.mock('./commands/utils/langchain/getLLM')
 jest.mock('../../shared/utils/generateId')
+jest.mock('./commands/aliases/loadUserAliases')
+jest.mock('./commands/MCPCommand')
+jest.mock('./commands/RPCCommand')
+jest.mock('../../services/progress-event-emitter', () => ({
+  progressEventEmitter: {
+    emitStart: jest.fn(),
+    emitRunning: jest.fn(),
+    emitComplete: jest.fn(),
+    emitError: jest.fn(),
+  },
+}))
 
 describe('ExecutorController', () => {
   const apiEndpoint = '/execute'
@@ -17,20 +31,30 @@ describe('ExecutorController', () => {
   getLLM.mockResolvedValue({
     llm: {},
   })
+  loadUserAliases.mockResolvedValue({
+    mcp: [],
+    rpc: [],
+  })
+  MCPCommand.prototype.run = jest.fn().mockResolvedValue(undefined)
+  RPCCommand.prototype.run = jest.fn().mockResolvedValue(undefined)
 
   beforeEach(() => {
     jest.clearAllMocks()
+    loadUserAliases.mockResolvedValue({
+      mcp: [],
+      rpc: [],
+    })
   })
 
   // it('should return 404 error without provided body', async () => {
   //   const response = await customerRequest.post(apiEndpoint).send(JSON.stringify({}))
-
+  //
   //   expect(response.status).toBe(404)
   // })
 
   // it('should return 400 error with not allowed query', async () => {
   //   const response = await customerRequest.post(apiEndpoint).send(JSON.stringify({cell: {}, queryType: 'notexists'}))
-
+  //
   //   expect(response.status).toBe(400)
   // })
 
@@ -38,7 +62,7 @@ describe('ExecutorController', () => {
   //   // Setup:
   //   // Unnamed Workflow (root)
   //   //   /chatgpt hello
-
+  //
   //   const root = {
   //     id: 'NB32tn6dBNn',
   //     x: 0,
@@ -73,22 +97,22 @@ describe('ExecutorController', () => {
   //     },
   //     workflowFiles: {},
   //   }
-
+  //
   //   const helloResId = 'newId'
   //   const helloResponse = 'Hello! How can I help you today?'
   //   generateNodeId.mockReturnValueOnce(helloResId)
   //   modelCallSpy.mockReturnValueOnce({content: helloResponse})
-
+  //
   //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(JSON.stringify(body))
   //   const {workflowNodes} = responseBody
-
+  //
   //   expect(Object.keys(workflowNodes).length).toBe(3)
   //   expect(workflowNodes[helloResId].title).toBe(helloResponse)
   //   expect(workflowNodes[helloResId].parent).toBe(cell.id)
   //   expect(workflowNodes[cell.id].children).toEqual([helloResId])
   //   expect(workflowNodes[cell.id].prompts).toEqual([helloResId])
   //   expect(responseBody.cell).toEqual({...cell, children: [helloResId], prompts: [helloResId]})
-
+  //
   //   // other properties should not change
   //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.context).toBe(body.context)
@@ -97,35 +121,101 @@ describe('ExecutorController', () => {
   // })
 
   // it('should return json with substituted command execution №2', async () => {
-  //   // Setup
+  //   // Setup:
   //   // Unnamed Workflow (root)
-  //   //   /chatgpt hello
-  //   //     user text
-  //   const cell = {
+  //   //   /chatgpt what is the number
+  //   //     5
+  //   //   /chatgpt multiply the @number by 2
+  //
+  //   const root = {
+  //     id: 'NB32tn6dBNn',
+  //     x: 0,
+  //     y: 0,
+  //     width: 1024,
+  //     scale: 0.6666666666666666,
+  //     height: 768,
+  //     title: 'Unnamed Workflow',
+  //     children: ['HtB8mPBrJbH', '234LRRMsQxh'],
+  //   }
+  //   const parentCell = {
   //     id: 'HtB8mPBrJbH',
   //     x: 0,
   //     y: 0,
   //     width: 280.8,
   //     scale: 0.6666666666666666,
-  //     height: 93.6,
+  //     height: 31.2,
   //     parent: 'NB32tn6dBNn',
   //     color: '@salmon-light',
-  //     command: '/chatgpt hello',
-  //     title: '/chatgpt hello',
-  //     children: ['2HBt63LNRTh'],
-  //     prompts: ['jQrB6pFmttg'],
+  //     command: '/chatgpt what is the number @number',
+  //     title: '/chatgpt what is the number @number',
+  //     children: ['x3bx96xdLrg'],
   //   }
-  //   const userNode = {
-  //     id: '2HBt63LNRTh',
+  //   const referenceCell = {
+  //     id: 'x3bx96xdLrg',
   //     x: 0,
   //     y: 0,
-  //     width: 374.4,
+  //     width: 280.8,
   //     scale: 0.6666666666666666,
   //     height: 31.2,
   //     parent: 'HtB8mPBrJbH',
   //     color: '@white',
-  //     title: 'user text',
+  //     title: '5',
+  //     command: '',
   //   }
+  //   const cell = {
+  //     id: '234LRRMsQxh',
+  //     x: 0,
+  //     y: 0,
+  //     width: 280.8,
+  //     scale: 0.6666666666666666,
+  //     height: 31.2,
+  //     parent: 'NB32tn6dBNn',
+  //     color: '@salmon-light',
+  //     command: '/chatgpt multiply the @number by 2',
+  //     title: '/chatgpt multiply the @number by 2',
+  //   }
+  //   const body = {
+  //     workflowId: 'n3F4HRqbJpD',
+  //     cell: {...cell},
+  //     context: 'Context:\n```\n```\n',
+  //     prompt: 'multiply the @number by 2',
+  //     queryType: 'chat',
+  //     workflowNodes: {
+  //       [root.id]: root,
+  //       [parentCell.id]: parentCell,
+  //       [referenceCell.id]: referenceCell,
+  //       [cell.id]: {...cell},
+  //     },
+  //     workflowFiles: {},
+  //   }
+  //
+  //   const multiplyResId = 'newId'
+  //   const multiplyResponse = '10'
+  //   generateNodeId.mockReturnValueOnce(multiplyResId)
+  //   modelCallSpy.mockReturnValueOnce({content: multiplyResponse})
+  //
+  //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(JSON.stringify(body))
+  //   const {workflowNodes} = responseBody
+  //
+  //   expect(Object.keys(workflowNodes).length).toBe(5)
+  //   expect(workflowNodes[multiplyResId].title).toBe(multiplyResponse)
+  //   expect(workflowNodes[multiplyResId].parent).toBe(cell.id)
+  //   expect(workflowNodes[cell.id].children).toEqual([multiplyResId])
+  //   expect(workflowNodes[cell.id].prompts).toEqual([multiplyResId])
+  //   expect(responseBody.cell).toEqual({...cell, children: [multiplyResId], prompts: [multiplyResId]})
+  //
+  //   // other properties should not change
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
+  //   expect(responseBody.context).toBe(body.context)
+  //   expect(responseBody.prompt).toBe(body.prompt)
+  //   expect(responseBody.queryType).toBe(body.queryType)
+  // })
+
+  // it('should return json with substituted execution №3', async () => {
+  //   // Setup:
+  //   // Unnamed Workflow (root)
+  //   //   /chat hello
+  //
   //   const root = {
   //     id: 'NB32tn6dBNn',
   //     x: 0,
@@ -136,35 +226,46 @@ describe('ExecutorController', () => {
   //     title: 'Unnamed Workflow',
   //     children: ['HtB8mPBrJbH'],
   //   }
+  //   const cell = {
+  //     id: 'HtB8mPBrJbH',
+  //     x: 0,
+  //     y: 0,
+  //     width: 280.8,
+  //     scale: 0.6666666666666666,
+  //     height: 31.2,
+  //     parent: 'NB32tn6dBNn',
+  //     color: '@salmon-light',
+  //     command: '/chat hello',
+  //     title: '/chat hello',
+  //   }
   //   const body = {
   //     workflowId: 'n3F4HRqbJpD',
   //     cell: {...cell},
   //     context: 'Context:\n```\n```\n',
-  //     prompt: 'hello\n  user text',
+  //     prompt: 'hello',
   //     queryType: 'chat',
   //     workflowNodes: {
   //       [root.id]: root,
   //       [cell.id]: {...cell},
-  //       [userNode.id]: [userNode.id],
   //     },
   //     workflowFiles: {},
   //   }
-
+  //
   //   const helloResId = 'newId'
   //   const helloResponse = 'Hello! How can I help you today?'
   //   generateNodeId.mockReturnValueOnce(helloResId)
   //   modelCallSpy.mockReturnValueOnce({content: helloResponse})
-
+  //
   //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(JSON.stringify(body))
   //   const {workflowNodes} = responseBody
-
-  //   expect(Object.keys(workflowNodes).length).toBe(4)
+  //
+  //   expect(Object.keys(workflowNodes).length).toBe(3)
   //   expect(workflowNodes[helloResId].title).toBe(helloResponse)
   //   expect(workflowNodes[helloResId].parent).toBe(cell.id)
-  //   expect(workflowNodes[cell.id].children).toEqual([userNode.id, helloResId])
+  //   expect(workflowNodes[cell.id].children).toEqual([helloResId])
   //   expect(workflowNodes[cell.id].prompts).toEqual([helloResId])
-  //   expect(responseBody.cell).toEqual({...cell, children: [userNode.id, helloResId], prompts: [helloResId]})
-
+  //   expect(responseBody.cell).toEqual({...cell, children: [helloResId], prompts: [helloResId]})
+  //
   //   // other properties should not change
   //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.context).toBe(body.context)
@@ -172,116 +273,13 @@ describe('ExecutorController', () => {
   //   expect(responseBody.queryType).toBe(body.queryType)
   // })
 
-  // it('should return json with substituted command execution and post process', async () => {
-  //   // Setup
-  //   // Unnamed Workflow (root)
-  //   //   /chatgpt write one cat name
-  //   //     /foreach /chatgpt say hello to @@
-  //   const cell = {
-  //     id: 'HPpjqrbfDhQ',
-  //     x: 0,
-  //     y: 0,
-  //     width: 280.8,
-  //     scale: 0.6666666666666666,
-  //     height: 93.6,
-  //     parent: 'NB32tn6dBNn',
-  //     color: '@salmon-light',
-  //     children: ['FJT3Fb62qrd'],
-  //     command: '/chatgpt write one cat name',
-  //     title: '/chatgpt write one cat name',
-  //   }
-  //   const root = {
-  //     id: 'NB32tn6dBNn',
-  //     x: 0,
-  //     y: 0,
-  //     width: 1024,
-  //     scale: 0.6666666666666666,
-  //     height: 768,
-  //     title: 'Unnamed Workflow',
-  //     children: ['HPpjqrbfDhQ'],
-  //   }
-  //   const foreach = {
-  //     id: 'FJT3Fb62qrd',
-  //     x: 0,
-  //     y: 0,
-  //     width: 374.4,
-  //     scale: 0.6666666666666666,
-  //     height: 31.2,
-  //     parent: 'HPpjqrbfDhQ',
-  //     color: '@white',
-  //     command: '/foreach /chatgpt say hello to @@',
-  //     title: '/foreach /chatgpt say hello to @@',
-  //   }
-  //   const body = {
-  //     workflowId: 'n3F4HRqbJpD',
-  //     cell: {...cell},
-  //     context: 'Context:\n```\n```\n',
-  //     prompt: 'write one cat name',
-  //     queryType: 'chat',
-  //     workflowNodes: {
-  //       [root.id]: root,
-  //       [cell.id]: {...cell},
-  //       [foreach.id]: foreach,
-  //     },
-  //     workflowFiles: {},
-  //   }
-
-  //   const sharikId = 'sharikId'
-  //   const helloId = 'helloId'
-  //   generateNodeId.mockReturnValueOnce(sharikId)
-  //   generateNodeId.mockReturnValueOnce(helloId)
-
-  //   const sharikTitle = 'Sharik'
-  //   const helloTitle = 'Hello, Sharik!'
-  //   modelCallSpy.mockReturnValueOnce({content: sharikTitle})
-  //   modelCallSpy.mockReturnValueOnce({content: helloTitle})
-
-  //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(JSON.stringify(body))
-  //   const {workflowNodes} = responseBody
-
-  //   expect(Object.keys(workflowNodes).length).toBe(5)
-  //   // Check first generated node
-  //   expect(workflowNodes[sharikId].title).toBe(sharikTitle)
-  //   expect(workflowNodes[sharikId].parent).toBe(cell.id)
-  //   expect(workflowNodes[sharikId].command).toBe('/chatgpt say hello to Sharik')
-  //   expect(workflowNodes[sharikId].prompts).toEqual([helloId])
-
-  //   // Check post process generated node
-  //   expect(workflowNodes[helloId].title).toBe(helloTitle)
-  //   expect(workflowNodes[helloId].parent).toBe(sharikId)
-
-  //   // Check parent
-  //   expect(workflowNodes[cell.id].children).toEqual([foreach.id, sharikId])
-  //   expect(workflowNodes[cell.id].prompts).toEqual([sharikId])
-  //   expect(responseBody.cell).toEqual({...cell, children: [foreach.id, sharikId], prompts: [sharikId]})
-
-  //   // other properties should not change
-  //   expect(responseBody.workflowId).toBe(body.workflowId)
-  //   expect(responseBody.context).toBe(body.context)
-  //   expect(responseBody.prompt).toBe(body.prompt)
-  //   expect(responseBody.queryType).toBe(body.queryType)
-  // })
-
-  // it('should return json with substituted command execution and reference', async () => {
-  //   // Setup
+  // it('should execute /steps', async () => {
+  //   // Setup:
   //   // Unnamed Workflow (root)
   //   //   /steps
-  //   //     #0 /chatgpt write one cat name @cat
-  //   //       /foreach /chatgpt say hello to @@
-  //   //     #1 /chatgpt what is text about? @@cat
-  //   const cell = {
-  //     id: '7mFFHDnP26Q',
-  //     x: 0,
-  //     y: 0,
-  //     width: 280.8,
-  //     scale: 0.6666666666666666,
-  //     height: 171.6,
-  //     parent: 'NB32tn6dBNn',
-  //     color: '@salmon-light',
-  //     children: ['FdFnfQnn7J7', 'jJqn6tHPjHh'],
-  //     command: '/steps',
-  //     title: '/steps',
-  //   }
+  //   //     /chatgpt hello
+  //   //     /chatgpt world
+  //
   //   const root = {
   //     id: 'NB32tn6dBNn',
   //     x: 0,
@@ -290,233 +288,79 @@ describe('ExecutorController', () => {
   //     scale: 0.6666666666666666,
   //     height: 768,
   //     title: 'Unnamed Workflow',
-  //     children: ['7mFFHDnP26Q'],
+  //     children: ['HtB8mPBrJbH'],
   //   }
-  //   const step1 = {
-  //     id: 'FdFnfQnn7J7',
+  //   const parent = {
+  //     id: 'HtB8mPBrJbH',
   //     x: 0,
   //     y: 0,
-  //     width: 374.4,
-  //     scale: 0.6666666666666666,
-  //     height: 109.2,
-  //     parent: '7mFFHDnP26Q',
-  //     color: '@white',
-  //     children: ['BLGLGhM2PGj'],
-  //     command: '#0 /chatgpt write one cat name @cat',
-  //     title: '#0 /chatgpt write one cat name @cat',
-  //   }
-  //   const foreach = {
-  //     id: 'BLGLGhM2PGj',
-  //     x: 0,
-  //     y: 0,
-  //     width: 514.8,
+  //     width: 280.8,
   //     scale: 0.6666666666666666,
   //     height: 31.2,
-  //     parent: 'FdFnfQnn7J7',
+  //     parent: 'NB32tn6dBNn',
   //     color: '@salmon-light',
-  //     command: '/foreach /chatgpt say hello to @@',
-  //     title: '/foreach /chatgpt say hello to @@',
+  //     command: '/steps',
+  //     title: '/steps',
+  //     children: ['x3bx96xdLrg', 'w8Mz9BxZQxk'],
   //   }
-  //   const step2 = {
-  //     id: 'jJqn6tHPjHh',
+  //   const childFirst = {
+  //     id: 'x3bx96xdLrg',
   //     x: 0,
-  //     y: 124.8,
-  //     width: 374.4,
+  //     y: 0,
+  //     width: 280.8,
   //     scale: 0.6666666666666666,
   //     height: 31.2,
-  //     parent: '7mFFHDnP26Q',
-  //     color: '@white',
-  //     command: '#1 /chatgpt what is text about? @@cat',
-  //     title: '#1 /chatgpt what is text about? @@cat',
+  //     parent: 'HtB8mPBrJbH',
+  //     command: '/chatgpt hello',
+  //     title: '/chatgpt hello',
+  //   }
+  //   const childSecond = {
+  //     id: 'w8Mz9BxZQxk',
+  //     x: 0,
+  //     y: 0,
+  //     width: 280.8,
+  //     scale: 0.6666666666666666,
+  //     height: 31.2,
+  //     parent: 'HtB8mPBrJbH',
+  //     command: '/chatgpt world',
+  //     title: '/chatgpt world',
   //   }
   //   const body = {
   //     workflowId: 'n3F4HRqbJpD',
-  //     cell: {...cell},
+  //     cell: {...parent},
+  //     context: 'Context:\n```\n```\n',
+  //     prompt: 'hello',
   //     queryType: 'steps',
   //     workflowNodes: {
   //       [root.id]: root,
-  //       [cell.id]: {...cell},
-  //       [step1.id]: step1,
-  //       [foreach.id]: foreach,
-  //       [step2.id]: step2,
-  //     },
-  //     workflowFiles: {},
-  //   }
-
-  //   const sharikId = 'sharikId'
-  //   const helloId = 'helloId'
-  //   const summaryId = 'summaryId'
-  //   generateNodeId.mockReturnValueOnce(sharikId)
-  //   generateNodeId.mockReturnValueOnce(helloId)
-  //   generateNodeId.mockReturnValueOnce(summaryId)
-
-  //   const sharikTitle = 'Sharik'
-  //   const helloTitle = 'Hello, Sharik!'
-  //   const summaryTitle = 'Here comes the greeting of a dog named Sharik'
-  //   modelCallSpy.mockReturnValueOnce({content: sharikTitle})
-  //   modelCallSpy.mockReturnValueOnce({content: helloTitle})
-  //   modelCallSpy.mockReturnValueOnce({content: summaryTitle})
-
-  //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(JSON.stringify(body))
-  //   const {workflowNodes} = responseBody
-
-  //   expect(Object.keys(workflowNodes).length).toBe(8)
-  //   // Check first step generated node
-  //   expect(workflowNodes[sharikId].title).toBe(sharikTitle)
-  //   expect(workflowNodes[sharikId].parent).toBe(step1.id)
-  //   expect(workflowNodes[sharikId].command).toBe('/chatgpt say hello to Sharik')
-  //   expect(workflowNodes[sharikId].prompts).toEqual([helloId])
-
-  //   // Check post process generated node
-  //   expect(workflowNodes[helloId].title).toBe(helloTitle)
-  //   expect(workflowNodes[helloId].parent).toBe(sharikId)
-
-  //   // Check parent
-  //   expect(workflowNodes[step1.id].children).toEqual([foreach.id, sharikId])
-  //   expect(workflowNodes[step1.id].prompts).toEqual([sharikId])
-
-  //   // Check second step generated node
-  //   expect(workflowNodes[summaryId].title).toBe(summaryTitle)
-  //   expect(workflowNodes[summaryId].parent).toBe(step2.id)
-
-  //   // Check parent
-  //   expect(workflowNodes[step2.id].children).toEqual([summaryId])
-  //   expect(workflowNodes[step2.id].prompts).toEqual([summaryId])
-
-  //   // Cell doesn't changed in this case
-  //   expect(responseBody.cell).toEqual(cell)
-
-  //   // other properties should not change
-  //   expect(responseBody.workflowId).toBe(body.workflowId)
-  //   expect(responseBody.context).toBe(body.context)
-  //   expect(responseBody.prompt).toBe(body.prompt)
-  //   expect(responseBody.queryType).toBe(body.queryType)
-  // })
-
-  // it('should return json with substituted foreach execution', async () => {
-  //   // Setup
-  //   // Unnamed Workflow (root)
-  //   //   Cats
-  //   //     Barsik
-  //   //     Sam
-  //   //     /foreach /chatgpt say hello to @@
-  //   const cell = {
-  //     id: 'HH9qGR92j9D',
-  //     x: 0,
-  //     y: 93.6,
-  //     width: 374.4,
-  //     scale: 0.6666666666666666,
-  //     height: 31.2,
-  //     parent: '989HNNQfQ6n',
-  //     color: '@white',
-  //     command: '/foreach /chatgpt say hello to @@',
-  //     title: '/foreach /chatgpt say hello to @@',
-  //   }
-  //   const root = {
-  //     id: 'NB32tn6dBNn',
-  //     x: 0,
-  //     y: 0,
-  //     width: 1024,
-  //     scale: 0.6666666666666666,
-  //     height: 768,
-  //     title: 'Unnamed Workflow',
-  //     children: ['989HNNQfQ6n'],
-  //   }
-  //   const parent = {
-  //     id: '989HNNQfQ6n',
-  //     x: 0,
-  //     y: 0,
-  //     width: 280.8,
-  //     scale: 0.6666666666666666,
-  //     height: 156,
-  //     parent: 'NB32tn6dBNn',
-  //     color: '@salmon-light',
-  //     children: ['F8NfQDP4jfb', 'F36jb28Tgm3', 'HH9qGR92j9D'],
-  //     title: 'Cats',
-  //   }
-  //   const child1 = {
-  //     id: 'F8NfQDP4jfb',
-  //     x: 0,
-  //     y: 0,
-  //     width: 374.4,
-  //     scale: 0.6666666666666666,
-  //     height: 31.2,
-  //     parent: '989HNNQfQ6n',
-  //     color: '@white',
-  //     title: 'Barsik',
-  //   }
-  //   const child2 = {
-  //     id: 'F36jb28Tgm3',
-  //     x: 0,
-  //     y: 46.8,
-  //     width: 374.4,
-  //     scale: 0.6666666666666666,
-  //     height: 31.2,
-  //     parent: '989HNNQfQ6n',
-  //     color: '@white',
-  //     title: 'Sam',
-  //   }
-  //   const foreach = {
-  //     id: 'HH9qGR92j9D',
-  //     x: 0,
-  //     y: 93.6,
-  //     width: 374.4,
-  //     scale: 0.6666666666666666,
-  //     height: 31.2,
-  //     parent: '989HNNQfQ6n',
-  //     color: '@white',
-  //     command: '/foreach /chatgpt say hello to @@',
-  //     title: '/foreach /chatgpt say hello to @@',
-  //   }
-  //   const body = {
-  //     workflowId: 'n3F4HRqbJpD',
-  //     cell: {...cell},
-  //     queryType: 'foreach',
-  //     workflowNodes: {
-  //       [root.id]: root,
   //       [parent.id]: parent,
-  //       [child1.id]: child1,
-  //       [child2.id]: child2,
-  //       [foreach.id]: foreach,
+  //       [childFirst.id]: childFirst,
+  //       [childSecond.id]: childSecond,
   //     },
   //     workflowFiles: {},
   //   }
-
-  //   const newChild_1_id = 'newChild1'
-  //   const newChild_2_id = 'newChild2'
-  //   generateNodeId.mockReturnValueOnce(newChild_1_id)
-  //   generateNodeId.mockReturnValueOnce(newChild_2_id)
-
-  //   const barsikTitle = 'Hello, Barsik!'
-  //   const samTitle = 'Hello, Sam!'
-  //   modelCallSpy.mockReturnValueOnce({content: barsikTitle})
-  //   modelCallSpy.mockReturnValueOnce({content: samTitle})
-
+  //
+  //   const firstResId = 'newId1'
+  //   const firstResponse = 'Hello'
+  //   const secondResId = 'newId2'
+  //   const secondResponse = 'World'
+  //   generateNodeId.mockReturnValueOnce(firstResId)
+  //   generateNodeId.mockReturnValueOnce(secondResId)
+  //   modelCallSpy.mockReturnValueOnce({content: firstResponse})
+  //   modelCallSpy.mockReturnValueOnce({content: secondResponse})
+  //
   //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(JSON.stringify(body))
   //   const {workflowNodes} = responseBody
-
-  //   expect(Object.keys(workflowNodes).length).toBe(7)
-  //   // Check first created child node
-  //   expect(workflowNodes[newChild_1_id].title).toBe(barsikTitle)
-  //   expect(workflowNodes[newChild_1_id].parent).toBe(child1.id)
-  //   expect(workflowNodes[child1.id].command).toBe('/chatgpt say hello to Barsik')
-
-  //   // Check second created child node
-  //   expect(workflowNodes[newChild_2_id].title).toBe(samTitle)
-  //   expect(workflowNodes[newChild_2_id].parent).toBe(child2.id)
-  //   expect(workflowNodes[child2.id].command).toBe('/chatgpt say hello to Sam')
-
-  //   // Check child1
-  //   expect(workflowNodes[child1.id].children).toEqual([newChild_1_id])
-  //   expect(workflowNodes[child1.id].prompts).toEqual([newChild_1_id])
-
-  //   // Check child2
-  //   expect(workflowNodes[child2.id].children).toEqual([newChild_2_id])
-  //   expect(workflowNodes[child2.id].prompts).toEqual([newChild_2_id])
-
-  //   // Cell doesn't changed in this case
-  //   expect(responseBody.cell).toEqual(cell)
-
+  //
+  //   expect(Object.keys(workflowNodes).length).toBe(6)
+  //   expect(workflowNodes[firstResId].title).toBe(firstResponse)
+  //   expect(workflowNodes[firstResId].parent).toBe(childFirst.id)
+  //   expect(workflowNodes[secondResId].title).toBe(secondResponse)
+  //   expect(workflowNodes[secondResId].parent).toBe(childSecond.id)
+  //   expect(workflowNodes[parent.id].children).toEqual([childFirst.id, childSecond.id])
+  //   expect(workflowNodes[childFirst.id].children).toEqual([firstResId])
+  //   expect(workflowNodes[childSecond.id].children).toEqual([secondResId])
+  //
   //   // other properties should not change
   //   expect(responseBody.workflowId).toBe(body.workflowId)
   //   expect(responseBody.context).toBe(body.context)
@@ -524,163 +368,213 @@ describe('ExecutorController', () => {
   //   expect(responseBody.queryType).toBe(body.queryType)
   // })
 
-  // it('should return json with nested foreach execution', async () => {
-  //   // Setup
-  //   // Unnamed Workflow (root)
-  //   //   Cats
-  //   //     Barsik
-  //   //       Hello, Barsik!
-  //   //     Sam
-  //   //       Hello, Sam!
-  //   //     /foreach /chatgpt say hello to @@
-  //   const cell = {
-  //     id: 'HH9qGR92j9D',
-  //     x: 0,
-  //     y: 93.6,
-  //     width: 374.4,
-  //     scale: 0.6666666666666666,
-  //     height: 31.2,
-  //     parent: '989HNNQfQ6n',
-  //     color: '@white',
-  //     command: '/foreach /chatgpt say hello to @@',
-  //     title: '/foreach /chatgpt say hello to @@',
-  //   }
-  //   const root = {
-  //     id: 'NB32tn6dBNn',
-  //     x: 0,
-  //     y: 0,
-  //     width: 1024,
-  //     scale: 0.6666666666666666,
-  //     height: 768,
-  //     title: 'Unnamed Workflow',
-  //     children: ['989HNNQfQ6n'],
-  //   }
-  //   const parent = {
-  //     id: '989HNNQfQ6n',
-  //     x: 0,
-  //     y: 0,
-  //     width: 280.8,
-  //     scale: 0.6666666666666666,
-  //     height: 156,
-  //     parent: 'NB32tn6dBNn',
-  //     color: '@salmon-light',
-  //     children: ['F8NfQDP4jfb', 'F36jb28Tgm3', 'HH9qGR92j9D'],
-  //     title: 'Cats',
-  //   }
-  //   const child1 = {
-  //     id: 'F8NfQDP4jfb',
-  //     x: 0,
-  //     y: 0,
-  //     width: 374.4,
-  //     scale: 0.6666666666666666,
-  //     height: 31.2,
-  //     parent: '989HNNQfQ6n',
-  //     color: '@white',
-  //     title: 'Barsik',
-  //     children: ['newChild1'],
-  //     prompts: ['newChild1'],
-  //   }
-  //   const child2 = {
-  //     id: 'F36jb28Tgm3',
-  //     x: 0,
-  //     y: 46.8,
-  //     width: 374.4,
-  //     scale: 0.6666666666666666,
-  //     height: 31.2,
-  //     parent: '989HNNQfQ6n',
-  //     color: '@white',
-  //     title: 'Sam',
-  //     children: ['newChild2'],
-  //     prompts: ['newChild2'],
-  //   }
-  //   const foreach = {
-  //     id: 'HH9qGR92j9D',
-  //     x: 0,
-  //     y: 93.6,
-  //     width: 374.4,
-  //     scale: 0.6666666666666666,
-  //     height: 31.2,
-  //     parent: '989HNNQfQ6n',
-  //     color: '@white',
-  //     command: '/foreach /chatgpt say hello to @@',
-  //     title: '/foreach /chatgpt say hello to @@',
-  //   }
-  //   const newChild1 = {
-  //     id: 'newChild1',
-  //     title: 'Hello, Barsik!',
-  //     children: [],
-  //     parent: 'F8NfQDP4jfb',
-  //   }
-  //   const newChild2 = {
-  //     id: 'newChild2',
-  //     title: 'Hello, Sam!',
-  //     children: [],
-  //     parent: 'F36jb28Tgm3',
-  //   }
-  //   const body = {
-  //     workflowId: 'n3F4HRqbJpD',
-  //     cell: {...cell},
-  //     queryType: 'foreach',
-  //     workflowNodes: {
-  //       [root.id]: root,
-  //       [parent.id]: parent,
-  //       [child1.id]: child1,
-  //       [child2.id]: child2,
-  //       [foreach.id]: foreach,
-  //       [newChild1.id]: newChild1,
-  //       [newChild2.id]: newChild2,
-  //     },
-  //     workflowFiles: {},
-  //   }
-
-  //   const nested1 = 'nested1'
-  //   const nested2 = 'nested2'
-  //   generateNodeId.mockReturnValueOnce(nested1)
-  //   generateNodeId.mockReturnValueOnce(nested2)
-
-  //   const barsikTitle = 'Hello, Barsik!'
-  //   const samTitle = 'Hello, Sam!'
-  //   modelCallSpy.mockReturnValueOnce({content: barsikTitle})
-  //   modelCallSpy.mockReturnValueOnce({content: samTitle})
-
-  //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(JSON.stringify(body))
-  //   const {workflowNodes} = responseBody
-
-  //   expect(Object.keys(workflowNodes).length).toBe(9)
-  //   // Check first created child node
-  //   expect(workflowNodes[nested1].title).toBe(barsikTitle)
-  //   expect(workflowNodes[nested1].parent).toBe(newChild1.id)
-  //   expect(workflowNodes[newChild1.id].command).toBe('/chatgpt say hello to Hello, Barsik!')
-
-  //   // Check second created child node
-  //   expect(workflowNodes[nested2].title).toBe(samTitle)
-  //   expect(workflowNodes[nested2].parent).toBe(newChild2.id)
-  //   expect(workflowNodes[newChild2.id].command).toBe('/chatgpt say hello to Hello, Sam!')
-
-  //   // Check child1
-  //   expect(workflowNodes[newChild1.id].children).toEqual([nested1])
-  //   expect(workflowNodes[newChild1.id].prompts).toEqual([nested1])
-
-  //   // Check child2
-  //   expect(workflowNodes[newChild2.id].children).toEqual([nested2])
-  //   expect(workflowNodes[newChild2.id].prompts).toEqual([nested2])
-
-  //   // Cell doesn't changed in this case
-  //   expect(responseBody.cell).toEqual(cell)
-
-  //   // other properties should not change
-  //   expect(responseBody.workflowId).toBe(body.workflowId)
-  //   expect(responseBody.context).toBe(body.context)
-  //   expect(responseBody.prompt).toBe(body.prompt)
-  //   expect(responseBody.queryType).toBe(body.queryType)
-  // })
-
-  // it('should update node IDs when re-executing a command', async () => {
+  // it('should execute foreach with no context', async () => {
   //   // Setup:
   //   // Unnamed Workflow (root)
-  //   //  hi
-  //   //   Hello! How can I assist you today?
-  //   //  new node
+  //   //   /foreach @goals
+  //   //     /chatgpt @@item Ensure young writer writes about white bears and has dramatic ending. When it has bears and drama, say it's good enough.
+  //   //       - write an essay @goal897
+  //   //       - provide feedback
+  //
+  //   const root = {
+  //     id: 'NB32tn6dBNn',
+  //     x: 0,
+  //     y: 0,
+  //     width: 1024,
+  //     scale: 0.6666666666666666,
+  //     height: 768,
+  //     title: 'Unnamed Workflow',
+  //     children: ['HtB8mPBrJbH'],
+  //   }
+  //   const parent = {
+  //     id: 'HtB8mPBrJbH',
+  //     x: 0,
+  //     y: 0,
+  //     width: 280.8,
+  //     scale: 0.6666666666666666,
+  //     height: 31.2,
+  //     parent: 'NB32tn6dBNn',
+  //     color: '@salmon-light',
+  //     command: '/foreach @goals',
+  //     title: '/foreach @goals',
+  //     children: ['x3bx96xdLrg'],
+  //   }
+  //   const child = {
+  //     id: 'x3bx96xdLrg',
+  //     x: 0,
+  //     y: 0,
+  //     width: 280.8,
+  //     scale: 0.6666666666666666,
+  //     height: 31.2,
+  //     parent: 'HtB8mPBrJbH',
+  //     command:
+  //       "@@item Ensure young writer writes about white bears and has dramatic ending. When it has bears and drama, say it's good enough. @goal897",
+  //     title:
+  //       "@@item Ensure young writer writes about white bears and has dramatic ending. When it has bears and drama, say it's good enough. @goal897",
+  //     children: ['5Pgx6h8qLqB', '4Tgx7h9qLqB'],
+  //   }
+  //   const childFirst = {
+  //     id: '5Pgx6h8qLqB',
+  //     x: 0,
+  //     y: 0,
+  //     width: 280.8,
+  //     scale: 0.6666666666666666,
+  //     height: 31.2,
+  //     parent: 'x3bx96xdLrg',
+  //     command: '- write an essay',
+  //     title: '- write an essay',
+  //   }
+  //   const childSecond = {
+  //     id: '4Tgx7h9qLqB',
+  //     x: 0,
+  //     y: 0,
+  //     width: 280.8,
+  //     scale: 0.6666666666666666,
+  //     height: 31.2,
+  //     parent: 'x3bx96xdLrg',
+  //     command: '- provide feedback',
+  //     title: '- provide feedback',
+  //   }
+  //   const body = {
+  //     workflowId: 'n3F4HRqbJpD',
+  //     cell: {...parent},
+  //     queryType: 'foreach',
+  //     workflowNodes: {
+  //       [root.id]: root,
+  //       [parent.id]: parent,
+  //       [child.id]: child,
+  //       [childFirst.id]: childFirst,
+  //       [childSecond.id]: childSecond,
+  //     },
+  //     workflowFiles: {},
+  //   }
+  //
+  //   const firstResId = 'newId1'
+  //   const firstResponse = 'Result'
+  //   generateNodeId.mockReturnValueOnce(firstResId)
+  //   modelCallSpy.mockReturnValueOnce({content: firstResponse})
+  //
+  //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(JSON.stringify(body))
+  //   const {workflowNodes} = responseBody
+  //
+  //   expect(Object.keys(workflowNodes).length).toBe(6)
+  //   expect(workflowNodes[firstResId].title).toBe(firstResponse)
+  //   expect(workflowNodes[firstResId].parent).toBe(child.id)
+  //   expect(workflowNodes[parent.id].children).toEqual([child.id])
+  //   expect(workflowNodes[child.id].children).toEqual([childFirst.id, childSecond.id, firstResId])
+  //
+  //   // other properties should not change
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
+  //   expect(responseBody.queryType).toBe(body.queryType)
+  // })
+
+  // it('should execute foreach with context', async () => {
+  //   // Setup:
+  //   // Unnamed Workflow (root)
+  //   //   /foreach @goals
+  //   //     /chatgpt @@item Ensure young writer writes about white bears and has dramatic ending. When it has bears and drama, say it's good enough.
+  //   //       - write an essay @goal897
+  //   //       - provide feedback
+  //
+  //   const root = {
+  //     id: 'NB32tn6dBNn',
+  //     x: 0,
+  //     y: 0,
+  //     width: 1024,
+  //     scale: 0.6666666666666666,
+  //     height: 768,
+  //     title: 'Unnamed Workflow',
+  //     children: ['HtB8mPBrJbH'],
+  //   }
+  //   const parent = {
+  //     id: 'HtB8mPBrJbH',
+  //     x: 0,
+  //     y: 0,
+  //     width: 280.8,
+  //     scale: 0.6666666666666666,
+  //     height: 31.2,
+  //     parent: 'NB32tn6dBNn',
+  //     color: '@salmon-light',
+  //     command: '/foreach @goals',
+  //     title: '/foreach @goals',
+  //     children: ['x3bx96xdLrg'],
+  //   }
+  //   const child = {
+  //     id: 'x3bx96xdLrg',
+  //     x: 0,
+  //     y: 0,
+  //     width: 280.8,
+  //     scale: 0.6666666666666666,
+  //     height: 31.2,
+  //     parent: 'HtB8mPBrJbH',
+  //     command:
+  //       "@@item Ensure young writer writes about white bears and has dramatic ending. When it has bears and drama, say it's good enough. @goal897",
+  //     title:
+  //       "@@item Ensure young writer writes about white bears and has dramatic ending. When it has bears and drama, say it's good enough. @goal897",
+  //     children: ['5Pgx6h8qLqB', '4Tgx7h9qLqB'],
+  //   }
+  //   const childFirst = {
+  //     id: '5Pgx6h8qLqB',
+  //     x: 0,
+  //     y: 0,
+  //     width: 280.8,
+  //     scale: 0.6666666666666666,
+  //     height: 31.2,
+  //     parent: 'x3bx96xdLrg',
+  //     command: '- write an essay',
+  //     title: '- write an essay',
+  //   }
+  //   const childSecond = {
+  //     id: '4Tgx7h9qLqB',
+  //     x: 0,
+  //     y: 0,
+  //     width: 280.8,
+  //     scale: 0.6666666666666666,
+  //     height: 31.2,
+  //     parent: 'x3bx96xdLrg',
+  //     command: '- provide feedback',
+  //     title: '- provide feedback',
+  //   }
+  //   const body = {
+  //     workflowId: 'n3F4HRqbJpD',
+  //     cell: {...parent},
+  //     context: 'Context:\n```\n- write an essay\n- provide feedback\n```\n',
+  //     prompt: '@goals',
+  //     queryType: 'foreach',
+  //     workflowNodes: {
+  //       [root.id]: root,
+  //       [parent.id]: parent,
+  //       [child.id]: child,
+  //       [childFirst.id]: childFirst,
+  //       [childSecond.id]: childSecond,
+  //     },
+  //     workflowFiles: {},
+  //   }
+  //
+  //   const firstResId = 'newId1'
+  //   const firstResponse = 'Result 1'
+  //   const secondResId = 'newId2'
+  //   const secondResponse = 'Result 2'
+  //   generateNodeId.mockReturnValueOnce(firstResId)
+  //   generateNodeId.mockReturnValueOnce(secondResId)
+  //   modelCallSpy.mockReturnValueOnce({content: firstResponse})
+  //   modelCallSpy.mockReturnValueOnce({content: secondResponse})
+  //
+  //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(JSON.stringify(body))
+  //   const {workflowNodes} = responseBody
+  //
+  //   expect(Object.keys(workflowNodes).length).toBe(7)
+  //   expect(workflowNodes[parent.id].children).toEqual([child.id])
+  //   expect(workflowNodes[child.id].children).toEqual([childFirst.id, childSecond.id, firstResId, secondResId])
+  //
+  //   // other properties should not change
+  //   expect(responseBody.workflowId).toBe(body.workflowId)
+  //   expect(responseBody.context).toBe(body.context)
+  //   expect(responseBody.prompt).toBe(body.prompt)
+  //   expect(responseBody.queryType).toBe(body.queryType)
+  // })
+
+  // it('should execute /refine', async () => {
   //   const root = {
   //     id: 'r7N6TRJttHd',
   //     x: 0,
@@ -688,183 +582,100 @@ describe('ExecutorController', () => {
   //     width: 1024,
   //     scale: 0.6666666666666666,
   //     height: 768,
-  //     title: 'Unnamed Workflow',
+  //     title: 'Execute Keep Output Structure Test',
+  //     children: ['tjbT7M4n2nD', 'LQffD2r83pf'],
   //   }
-  //   const cell = {
-  //     id: 'GQtLbdGdTJn',
-  //     x: 0,
-  //     y: -234,
-  //     width: 280.8,
+  //   const workflowMaterials = {
+  //     id: 'tjbT7M4n2nD',
+  //     title: 'Write a story about dog',
+  //     color: '@white',
   //     scale: 0.6666666666666666,
-  //     height: 31.2,
-  //     parent: 'r7N6TRJttHd',
-  //     command: ' hi',
-  //     title: ' hi',
-  //     prompts: ['RMJQDGBmdnQ'],
-  //     children: ['RMJQDGBmdnQ'],
-  //   }
-  //   const existingResponse = {
-  //     id: 'RMJQDGBmdnQ',
-  //     title: 'Hello! How can I assist you today?',
-  //     children: [],
-  //     parent: 'GQtLbdGdTJn',
-  //   }
-  //   const anotherNode = {
-  //     height: 31.2,
-  //     width: 280.8,
   //     x: 0,
-  //     y: -187.20000000000002,
+  //     y: 0,
+  //     width: 374.4,
+  //     height: 31.2,
+  //     autoshrink: false,
   //     parent: 'r7N6TRJttHd',
-  //     scale: 0.6666666666666666,
-  //     id: 'jg7JrBgL23r',
   //   }
   //   const body = {
-  //     workflowId: 'qdb4dFjg4Hm',
-  //     cell: {...cell},
-  //     context: 'Context:\n```\n```\n',
-  //     prompt: 'hi',
-  //     queryType: 'chat',
-  //     workflowNodes: {
-  //       [root.id]: root,
-  //       [cell.id]: {...cell},
-  //       [anotherNode.id]: anotherNode,
-  //       [existingResponse.id]: existingResponse,
-  //     },
-  //     workflowFiles: {},
-  //     userId: 'admin',
-  //   }
-
-  //   const helloResId = 'newId'
-  //   const helloResponse = 'Hello! How can I help you today?'
-  //   generateNodeId.mockReturnValueOnce(helloResId)
-  //   modelCallSpy.mockReturnValueOnce({content: helloResponse})
-
-  //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(JSON.stringify(body))
-  //   const {workflowNodes} = responseBody
-
-  //   expect(Object.keys(workflowNodes).length).toBe(4)
-  //   expect(workflowNodes[helloResId].title).toBe(helloResponse)
-  //   expect(workflowNodes[helloResId].parent).toBe(cell.id)
-  //   expect(workflowNodes[cell.id].children).toEqual([helloResId])
-  //   expect(workflowNodes[cell.id].prompts).toEqual([helloResId])
-  //   expect(responseBody.cell).toEqual({...cell, children: [helloResId], prompts: [helloResId]})
-
-  //   // other properties should not change
-  //   expect(responseBody.workflowId).toBe(body.workflowId)
-  //   expect(responseBody.context).toBe(body.context)
-  //   expect(responseBody.prompt).toBe(body.prompt)
-  //   expect(responseBody.queryType).toBe(body.queryType)
-  // })
-
-  // it('should update node IDs when re-executing a refine command', async () => {
-  //   const body = {
-  //     nodesChanged: [
-  //       {
-  //         id: 'G3nqbfp47rL',
-  //         title:
-  //           "**\"Hi, Green Dog!** ��🐾 (Maybe you're extra eco-friendly or just love the color green? Either way, you're pawsome!) ",
-  //         children: [],
-  //         parent: 'tjbT7M4n2nD',
-  //       },
-  //       {
-  //         id: 'mg7GqDHbGpM',
-  //         title: 'Let me know if "Green Dog" has a special story—I’d love to hear it! 🌱😄"',
-  //         children: [],
-  //         parent: 'tjbT7M4n2nD',
-  //       },
-  //     ],
-  //     queryType: 'refine',
   //     cell: {
-  //       id: 'tjbT7M4n2nD',
-  //       x: 15.599999999999966,
-  //       y: -234,
-  //       width: 280.8,
+  //       id: 'LQffD2r83pf',
+  //       title: '/refine Write a better story',
+  //       color: '@salmon-light',
   //       scale: 0.6666666666666666,
-  //       height: 62.4,
+  //       width: 280.8,
+  //       height: 405.59999999999997,
+  //       autoshrink: false,
+  //       command: '/refine Write a better story',
+  //       prompts: [],
+  //       tags: [],
   //       parent: 'r7N6TRJttHd',
-  //       children: ['G3nqbfp47rL', 'mg7GqDHbGpM'],
-  //       command: '/refine Say hi to green dog',
-  //       title: '/refine Say hi to green dog',
-  //       prompts: ['G3nqbfp47rL', 'mg7GqDHbGpM'],
+  //       x: 327.59999999999997,
+  //       y: 140.39999999999998,
+  //       children: [],
   //     },
-  //     userId: 'admin',
-  //     workflowId: 'qdb4dFjg4Hm',
+  //     queryType: 'refine',
   //     workflowNodes: {
-  //       r7N6TRJttHd: {
-  //         id: 'r7N6TRJttHd',
-  //         x: 0,
-  //         y: 0,
-  //         width: 1024,
+  //       r7N6TRJttHd: root,
+  //       tjbT7M4n2nD: workflowMaterials,
+  //       LQffD2r83pf: {
+  //         id: 'LQffD2r83pf',
+  //         title: '/refine Write a better story',
+  //         color: '@salmon-light',
   //         scale: 0.6666666666666666,
-  //         height: 768,
-  //         title: 'Execute Keep Output Structure Test',
-  //         children: ['hRgFBLLmRBR', '7dn3N8mpnGm', 'tjbT7M4n2nD'],
-  //       },
-  //       tjbT7M4n2nD: {
-  //         id: 'tjbT7M4n2nD',
-  //         x: 15.599999999999966,
-  //         y: -234,
   //         width: 280.8,
-  //         scale: 0.6666666666666666,
-  //         height: 62.4,
+  //         height: 405.59999999999997,
+  //         autoshrink: false,
+  //         command: '/refine Write a better story',
+  //         prompts: [],
+  //         tags: [],
   //         parent: 'r7N6TRJttHd',
-  //         children: ['G3nqbfp47rL', 'mg7GqDHbGpM'],
-  //         command: '/refine Say hi to green dog',
-  //         title: '/refine Say hi to green dog',
-  //         prompts: ['G3nqbfp47rL', 'mg7GqDHbGpM'],
-  //       },
-  //       G3nqbfp47rL: {
-  //         id: 'G3nqbfp47rL',
-  //         title:
-  //           "**\"Hi, Green Dog!** ��🐾 (Maybe you're extra eco-friendly or just love the color green? Either way, you're pawsome!) ",
+  //         x: 327.59999999999997,
+  //         y: 140.39999999999998,
   //         children: [],
-  //         parent: 'tjbT7M4n2nD',
-  //       },
-  //       mg7GqDHbGpM: {
-  //         id: 'mg7GqDHbGpM',
-  //         title: 'Let me know if "Green Dog" has a special story—I’d love to hear it! 🌱😄"',
-  //         children: [],
-  //         parent: 'tjbT7M4n2nD',
   //       },
   //     },
   //     workflowFiles: {},
   //   }
-
-  //   generateNodeId.mockReturnValueOnce('DTNJLhPGbjG')
-  //   generateNodeId.mockReturnValueOnce('PtTgj6t8bTb')
-
-  //   chainCallSpy.mockReturnValueOnce({text: 'Greeting line #1\nGreeting line #2'})
-
-  //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(JSON.stringify(body))
-
+  //   generateNodeId.mockReturnValueOnce('g26fG76b39g')
+  //
+  //   chainCallSpy.mockReturnValueOnce({
+  //     text: 'Once upon a time, there was a young dog who always wanted to explore the world.',
+  //   })
+  //
+  //   const {body: responseBody} = await customerRequest.post(apiEndpoint).send(body)
+  //
   //   expect(responseBody.nodesChanged).toEqual([
   //     {
-  //       id: 'DTNJLhPGbjG',
-  //       title: 'Greeting line #1',
-  //       children: [],
-  //       parent: 'tjbT7M4n2nD',
+  //       id: 'LQffD2r83pf',
+  //       title: '/refine Write a better story',
+  //       color: '@salmon-light',
+  //       scale: 0.6666666666666666,
+  //       width: 280.8,
+  //       height: 405.59999999999997,
+  //       autoshrink: false,
+  //       command: '/refine Write a better story',
+  //       prompts: ['g26fG76b39g'],
+  //       tags: [],
+  //       parent: 'r7N6TRJttHd',
+  //       x: 327.59999999999997,
+  //       y: 140.39999999999998,
+  //       children: ['g26fG76b39g'],
   //     },
   //     {
-  //       id: 'PtTgj6t8bTb',
-  //       title: 'Greeting line #2',
+  //       id: 'g26fG76b39g',
+  //       title: 'Once upon a time, there was a young dog who always wanted to explore the world.',
   //       children: [],
-  //       parent: 'tjbT7M4n2nD',
+  //       parent: 'LQffD2r83pf',
   //     },
   //   ])
-  //   expect(responseBody.cell.children).toEqual(['DTNJLhPGbjG', 'PtTgj6t8bTb'])
-  //   expect(responseBody.cell.prompts).toEqual(['DTNJLhPGbjG', 'PtTgj6t8bTb'])
-  //   expect(Object.keys(responseBody.workflowNodes)).toHaveLength(4)
-  //   expect(responseBody.workflowNodes).toHaveProperty('DTNJLhPGbjG')
-  //   expect(responseBody.workflowNodes).toHaveProperty('PtTgj6t8bTb')
-  //   expect(responseBody.workflowNodes).not.toHaveProperty('G3nqbfp47rL')
-  //   expect(responseBody.workflowNodes).not.toHaveProperty('mg7GqDHbGpM')
-  //   expect(responseBody.workflowId).toBe(body.workflowId)
+  //   expect(responseBody.cell.children).toEqual(['g26fG76b39g'])
+  //   expect(responseBody.workflowNodes).toHaveProperty('g26fG76b39g')
   //   expect(responseBody.queryType).toBe('refine')
   // })
 
   it('should maintain output structure when executing steps feedback loop', async () => {
     const body = {
-      workflowId: 'qdb4dFjg4Hm',
       cell: {
         id: 'LQffD2r83pf',
         title: '/steps Feedback Loop',
@@ -1077,5 +888,339 @@ describe('ExecutorController', () => {
     expect(responseBody.workflowNodes).not.toHaveProperty('hBQMG8rTH7T')
     expect(responseBody.workflowId).toBe(body.workflowId)
     expect(responseBody.queryType).toBe('steps')
+  })
+
+  describe('alias resolution and queryType dispatch', () => {
+    const createTestNode = (id, command, parent = 'root') => ({
+      id,
+      x: 0,
+      y: 0,
+      width: 280,
+      height: 50,
+      parent,
+      command,
+      title: command,
+    })
+
+    const createTestWorkflow = (cellId, command, workflowId = 'test-workflow') => {
+      const root = {
+        id: 'root',
+        x: 0,
+        y: 0,
+        width: 1024,
+        height: 768,
+        title: 'Test Workflow',
+        children: [cellId],
+      }
+      const cell = createTestNode(cellId, command)
+      return {
+        workflowId,
+        cell,
+        workflowNodes: {root, [cellId]: cell},
+        workflowFiles: {},
+      }
+    }
+
+    describe('MCP alias priority', () => {
+      it('should override LLM built-in queryType when MCP alias shadows command', async () => {
+        loadUserAliases.mockResolvedValueOnce({
+          mcp: [{alias: '/custom', name: 'Custom Agent'}],
+          rpc: [],
+        })
+
+        const body = {
+          ...createTestWorkflow('cell1', '/custom test prompt'),
+          queryType: 'custom_llm',
+        }
+
+        const {body: responseBody} = await customerRequest.post(apiEndpoint).send(body)
+
+        expect(MCPCommand.prototype.run).toHaveBeenCalled()
+        expect(responseBody.queryType).toBe('mcp:custom')
+        expect(loadUserAliases).toHaveBeenCalledWith(expect.any(String), 'test-workflow')
+      })
+
+      it.each([
+        ['/chatgpt', 'chat', 'mcp:chatgpt'],
+        ['/web', 'web', 'mcp:web'],
+        ['/claude', 'claude', 'mcp:claude'],
+        ['/custom', 'custom_llm', 'mcp:custom'],
+      ])(
+        'should dispatch %s to MCP when alias exists (frontend: %s → backend: %s)',
+        async (command, frontendQueryType, expectedBackendQueryType) => {
+          loadUserAliases.mockResolvedValueOnce({
+            mcp: [{alias: command, name: 'Test Agent'}],
+            rpc: [],
+          })
+
+          const body = {
+            ...createTestWorkflow('test-cell', `${command} prompt`),
+            queryType: frontendQueryType,
+          }
+
+          const {body: responseBody} = await customerRequest.post(apiEndpoint).send(body)
+
+          expect(MCPCommand.prototype.run).toHaveBeenCalled()
+          expect(responseBody.queryType).toBe(expectedBackendQueryType)
+        },
+      )
+    })
+
+    describe('RPC alias priority', () => {
+      it('should override LLM built-in queryType when RPC alias shadows command', async () => {
+        loadUserAliases.mockResolvedValueOnce({
+          mcp: [],
+          rpc: [{alias: '/custom', name: 'Custom RPC'}],
+        })
+
+        const body = {
+          ...createTestWorkflow('cell2', '/custom test'),
+          queryType: 'custom_llm',
+        }
+
+        const {body: responseBody} = await customerRequest.post(apiEndpoint).send(body)
+
+        expect(RPCCommand.prototype.run).toHaveBeenCalled()
+        expect(responseBody.queryType).toBe('rpc:custom')
+      })
+
+      it('should prioritize MCP over RPC when both have same alias', async () => {
+        loadUserAliases.mockResolvedValueOnce({
+          mcp: [{alias: '/shared', name: 'MCP Shared'}],
+          rpc: [{alias: '/shared', name: 'RPC Shared'}],
+        })
+
+        const body = {
+          ...createTestWorkflow('cell3', '/shared cmd'),
+          queryType: 'chat',
+        }
+
+        const {body: responseBody} = await customerRequest.post(apiEndpoint).send(body)
+
+        expect(MCPCommand.prototype.run).toHaveBeenCalled()
+        expect(RPCCommand.prototype.run).not.toHaveBeenCalled()
+        expect(responseBody.queryType).toBe('mcp:shared')
+      })
+    })
+
+    describe('control-flow command protection', () => {
+      it.each([
+        ['/steps', 'steps'],
+        ['/foreach', 'foreach'],
+        ['/refine', 'refine'],
+        ['/memorize', 'memorize'],
+      ])('should protect %s from alias override (remains %s)', async (command, expectedQueryType) => {
+        loadUserAliases.mockResolvedValueOnce({
+          mcp: [{alias: command, name: 'Malicious Override'}],
+          rpc: [],
+        })
+        generateNodeId.mockReturnValueOnce('childId')
+        modelCallSpy.mockReturnValueOnce({content: 'Result'})
+        chainCallSpy.mockReturnValueOnce({text: 'Result'})
+
+        const body = {
+          ...createTestWorkflow('test-cell', command),
+          queryType: expectedQueryType,
+        }
+
+        const {body: responseBody} = await customerRequest.post(apiEndpoint).send(body)
+
+        expect(responseBody.queryType).toBe(expectedQueryType)
+        expect(MCPCommand.prototype.run).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('non-alias command preservation', () => {
+      it('should preserve frontend queryType when command matches no alias', async () => {
+        loadUserAliases.mockResolvedValueOnce({
+          mcp: [{alias: '/qa', name: 'QA Agent'}],
+          rpc: [],
+        })
+        modelCallSpy.mockReturnValueOnce({content: 'LLM response'})
+        generateNodeId.mockReturnValueOnce('llm-response-id')
+
+        const body = {
+          ...createTestWorkflow('cell4', '/chatgpt hello'),
+          context: 'Context:\n```\n```\n',
+          prompt: 'hello',
+          queryType: 'chat',
+        }
+
+        const {body: responseBody} = await customerRequest.post(apiEndpoint).send(body)
+
+        expect(responseBody.queryType).toBe('chat')
+        expect(MCPCommand.prototype.run).not.toHaveBeenCalled()
+        expect(modelCallSpy).toHaveBeenCalled()
+      })
+
+      it('should dispatch /chatgpt to built-in chat handler when no alias exists', async () => {
+        loadUserAliases.mockResolvedValueOnce({mcp: [], rpc: []})
+        modelCallSpy.mockReturnValueOnce({content: 'Response'})
+        generateNodeId.mockReturnValueOnce('response-id')
+
+        const body = {
+          ...createTestWorkflow('test-cell', '/chatgpt prompt'),
+          context: 'Context:\n```\n```\n',
+          prompt: 'prompt',
+          queryType: 'chat',
+        }
+
+        const {body: responseBody} = await customerRequest.post(apiEndpoint).send(body)
+
+        expect(responseBody.queryType).toBe('chat')
+        expect(MCPCommand.prototype.run).not.toHaveBeenCalled()
+        expect(modelCallSpy).toHaveBeenCalled()
+      })
+    })
+
+    describe('edge cases', () => {
+      it('should handle undefined cell.command gracefully', async () => {
+        loadUserAliases.mockResolvedValueOnce({
+          mcp: [{alias: '/custom', name: 'Agent'}],
+          rpc: [],
+        })
+        modelCallSpy.mockReturnValueOnce({content: 'Response'})
+        generateNodeId.mockReturnValueOnce('responseId')
+
+        const body = {
+          ...createTestWorkflow('cell5', undefined),
+          queryType: 'chat',
+        }
+        body.cell.command = undefined
+
+        const {body: responseBody} = await customerRequest.post(apiEndpoint).send(body)
+
+        expect(responseBody.queryType).toBe('chat')
+      })
+
+      it('should handle empty alias arrays', async () => {
+        loadUserAliases.mockResolvedValueOnce({mcp: [], rpc: []})
+        modelCallSpy.mockReturnValueOnce({content: 'Response'})
+        generateNodeId.mockReturnValueOnce('responseId')
+
+        const body = {
+          ...createTestWorkflow('cell6', '/chatgpt test'),
+          queryType: 'chat',
+        }
+
+        const {body: responseBody} = await customerRequest.post(apiEndpoint).send(body)
+
+        expect(responseBody.queryType).toBe('chat')
+        expect(loadUserAliases).toHaveBeenCalled()
+      })
+
+      it('should handle alias loading failure gracefully', async () => {
+        loadUserAliases.mockRejectedValueOnce(new Error('DB connection failed'))
+        modelCallSpy.mockReturnValueOnce({content: 'Response'})
+        generateNodeId.mockReturnValueOnce('fallback-response-id')
+
+        const body = {
+          ...createTestWorkflow('cell7', '/chatgpt test'),
+          context: 'Context:\n```\n```\n',
+          prompt: 'test',
+          queryType: 'chat',
+        }
+
+        const {body: responseBody} = await customerRequest.post(apiEndpoint).send(body)
+
+        expect(responseBody.queryType).toBe('chat')
+        expect(modelCallSpy).toHaveBeenCalled()
+      })
+
+      it('should pass workflowId to alias loader for scoped resolution', async () => {
+        loadUserAliases.mockResolvedValueOnce({mcp: [], rpc: []})
+        modelCallSpy.mockReturnValueOnce({content: 'Response'})
+        generateNodeId.mockReturnValueOnce('responseId')
+
+        const body = {
+          ...createTestWorkflow('cell8', '/chatgpt test', 'specific-workflow-id'),
+          queryType: 'chat',
+        }
+
+        await customerRequest.post(apiEndpoint).send(body)
+
+        expect(loadUserAliases).toHaveBeenCalledWith(expect.any(String), 'specific-workflow-id')
+      })
+
+      it('should handle null workflowId', async () => {
+        loadUserAliases.mockResolvedValueOnce({mcp: [], rpc: []})
+        modelCallSpy.mockReturnValueOnce({content: 'Response'})
+        generateNodeId.mockReturnValueOnce('responseId')
+
+        const body = {
+          ...createTestWorkflow('cell9', '/chatgpt test'),
+          queryType: 'chat',
+        }
+        delete body.workflowId
+
+        const {body: responseBody} = await customerRequest.post(apiEndpoint).send(body)
+
+        expect(responseBody.queryType).toBe('chat')
+        expect(loadUserAliases).toHaveBeenCalledWith(expect.any(String), undefined)
+      })
+    })
+
+    describe('queryType consistency across response and events', () => {
+      it('should ensure resolved queryType in HTTP response matches what runCommand received', async () => {
+        loadUserAliases.mockResolvedValueOnce({
+          mcp: [{alias: '/custom', name: 'Agent'}],
+          rpc: [],
+        })
+
+        const body = {
+          ...createTestWorkflow('cell10', '/custom test'),
+          queryType: 'custom_llm',
+        }
+
+        const {body: responseBody} = await customerRequest.post(apiEndpoint).send(body)
+
+        expect(responseBody.queryType).toBe('mcp:custom')
+      })
+
+      it('should emit consistent queryType across all progress events', async () => {
+        const {progressEventEmitter} = require('../../services/progress-event-emitter')
+
+        loadUserAliases.mockResolvedValueOnce({
+          mcp: [{alias: '/custom', name: 'Agent'}],
+          rpc: [],
+        })
+
+        const body = {
+          ...createTestWorkflow('cell11', '/custom test'),
+          queryType: 'custom_llm',
+        }
+
+        await customerRequest.post(apiEndpoint).send(body)
+
+        expect(progressEventEmitter.emitStart).toHaveBeenCalledWith('cell11', {queryType: 'mcp:custom'})
+        expect(progressEventEmitter.emitRunning).toHaveBeenCalledWith('cell11', {queryType: 'mcp:custom'})
+        expect(progressEventEmitter.emitComplete).toHaveBeenCalledWith('cell11', {queryType: 'mcp:custom'})
+      })
+
+      it('should emit error events with resolved queryType', async () => {
+        const {progressEventEmitter} = require('../../services/progress-event-emitter')
+
+        loadUserAliases.mockResolvedValueOnce({
+          mcp: [{alias: '/custom', name: 'Agent'}],
+          rpc: [],
+        })
+        MCPCommand.prototype.run = jest.fn().mockRejectedValue(new Error('MCP failed'))
+
+        const body = {
+          ...createTestWorkflow('cell12', '/custom test'),
+          queryType: 'custom_llm',
+        }
+
+        try {
+          await customerRequest.post(apiEndpoint).send(body)
+        } catch {
+          // eslint-disable-next-line no-empty
+        }
+
+        expect(progressEventEmitter.emitError).toHaveBeenCalledWith('cell12', expect.any(Error), {
+          queryType: 'mcp:custom',
+        })
+      })
+    })
   })
 })

@@ -10,6 +10,8 @@ export const FRONTEND_PATH = env.FRONTEND_PATH || '../frontend/build'
 
 export const JWT_SECRET = env.JWT_SECRET || 'test-jwt-secret-change-in-production'
 
+export const FIELD_ENCRYPTION_KEY = env.FIELD_ENCRYPTION_KEY
+
 export let JWT_TTL = Number(env.JWT_TTL || 86400)
 
 export const {
@@ -49,6 +51,18 @@ export const GOOGLE_API_KEY = env.GOOGLE_API_KEY
 export const SERP_API_KEY = env.SERP_API_KEY
 
 export const OPENAI_API_KEY = env.OPENAI_API_KEY
+
+export const CLAUDE_API_KEY = env.CLAUDE_API_KEY
+
+export const PERPLEXITY_API_KEY = env.PERPLEXITY_API_KEY
+
+export const DEEPSEEK_API_KEY = env.DEEPSEEK_API_KEY
+
+export const QWEN_API_KEY = env.QWEN_API_KEY
+
+export const YANDEX_API_KEY = env.YANDEX_API_KEY
+
+export const YANDEX_FOLDER_ID = env.YANDEX_FOLDER_ID
 
 export const OPENAI_API_KEY_EMPTY = 'EMPTY'
 

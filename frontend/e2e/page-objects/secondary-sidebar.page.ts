@@ -131,6 +131,14 @@ export class SecondarySidebarPage extends PageComponent {
     await this.page.waitForTimeout(TEST_TIMEOUTS.SIDEBAR_TRANSITION)
   }
 
+  async waitForMobileVisible(): Promise<void> {
+    await this.mobileRoot.waitFor({ state: 'visible', timeout: 15000 })
+  }
+
+  async waitForMobileHidden(): Promise<void> {
+    await this.mobileRoot.waitFor({ state: 'hidden', timeout: 15000 })
+  }
+
   async isMobileOverlayVisible(): Promise<boolean> {
     const overlay = this.page.locator('[role="dialog"][data-state="open"]').locator('..').locator('> div[data-state="open"][data-aria-hidden="true"]').first()
     const isVisible = await overlay.isVisible().catch(() => false)

@@ -12,7 +12,7 @@ export class YandexOperationTimeoutError extends Error {
 
 class YandexService {
   completions = async params => {
-    const {messages, modelUri, completionOptions} = params
+    const {messages, modelUri, completionOptions, apiKey, folderId} = params
     const {temperature, maxTokens} = completionOptions || {}
 
     const body = {
@@ -20,6 +20,8 @@ class YandexService {
       model: modelUri,
       temperature,
       maxTokens,
+      apiKey,
+      folderId,
     }
     const response = await yandexService.completion(body)
 
@@ -34,8 +36,8 @@ class YandexService {
     return operation.response
   }
 
-  embeddings = async ({modelUri, text}) => {
-    const result = await yandexService.embeddings({modelUri, text})
+  embeddings = async ({modelUri, text, apiKey, folderId}) => {
+    const result = await yandexService.embeddings({modelUri, text, apiKey, folderId})
     return result
   }
 

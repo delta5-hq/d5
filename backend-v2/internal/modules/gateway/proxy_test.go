@@ -449,3 +449,359 @@ func TestProxy_Forward_EmptyBody(t *testing.T) {
 		t.Errorf("Response status = %v, want %v", resp.StatusCode, http.StatusOK)
 	}
 }
+
+func TestProxy_ForwardStream_Success(t *testing.T) {
+	backendServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.WriteHeader(http.StatusOK)
+
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Error("ResponseWriter does not support flushing")
+			return
+		}
+
+		for i := 1; i <= 3; i++ {
+			data := "data: event" + string(rune('0'+i)) + "\n\n"
+			if _, err := w.Write([]byte(data)); err != nil {
+				t.Errorf("Failed to write event %d: %v", i, err)
+				return
+			}
+			flusher.Flush()
+		}
+	}))
+	defer backendServer.Close()
+
+	config := &Config{
+		NodeJSBackendURL: backendServer.URL,
+		NodeJSAPIRoot:    "/api/v1",
+	}
+	proxy := NewProxy(config)
+
+	app := fiber.New(fiber.Config{
+		BodyLimit: 10 * 1024 * 1024,
+	})
+	app.Get("/stream", proxy.ForwardStream("/execute/stream"))
+
+	req := httptest.NewRequest("GET", "/stream", nil)
+	resp, err := app.Test(req, int(5*time.Second/time.Millisecond))
+	if err != nil {
+		t.Fatalf("Test request failed: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Response status = %v, want %v", resp.StatusCode, http.StatusOK)
+	}
+
+	if contentType := resp.Header.Get("Content-Type"); contentType != "text/event-stream" {
+		t.Errorf("Content-Type = %v, want text/event-stream", contentType)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "data: event1") {
+		t.Error("Response body missing event1")
+	}
+}
+
+func TestProxy_ForwardStream_NonOKStatus(t *testing.T) {
+	backendServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		if _, err := w.Write([]byte(`{"error":"bad request"}`)); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
+	}))
+	defer backendServer.Close()
+
+	config := &Config{
+		NodeJSBackendURL: backendServer.URL,
+		NodeJSAPIRoot:    "/api/v1",
+	}
+	proxy := NewProxy(config)
+
+	app := fiber.New(fiber.Config{
+		BodyLimit: 10 * 1024 * 1024,
+	})
+	app.Get("/stream", proxy.ForwardStream("/execute/stream"))
+
+	req := httptest.NewRequest("GET", "/stream", nil)
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Test request failed: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Response status = %v, want %v", resp.StatusCode, http.StatusBadRequest)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "error") {
+		t.Error("Response body should contain error message")
+	}
+}
+
+func TestProxy_ForwardStream_BackendUnavailable(t *testing.T) {
+	config := &Config{
+		NodeJSBackendURL: "http://localhost:9999",
+		NodeJSAPIRoot:    "/api/v1",
+	}
+	proxy := NewProxy(config)
+
+	app := fiber.New(fiber.Config{
+		BodyLimit: 10 * 1024 * 1024,
+	})
+	app.Get("/stream", proxy.ForwardStream("/execute/stream"))
+
+	req := httptest.NewRequest("GET", "/stream", nil)
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Test request failed: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Errorf("Response status = %v, want %v", resp.StatusCode, http.StatusInternalServerError)
+	}
+}
+
+func TestProxy_ForwardStream_HeaderForwarding(t *testing.T) {
+	backendServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if auth := r.Header.Get("Authorization"); auth != "Bearer test-token" {
+			t.Errorf("Authorization header = %v, want Bearer test-token", auth)
+		}
+
+		if cookie := r.Header.Get("Cookie"); cookie != "auth=token123" {
+			t.Errorf("Cookie header = %v, want auth=token123", cookie)
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("X-Custom-Header", "custom-value")
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write([]byte("data: test\n\n")); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
+	}))
+	defer backendServer.Close()
+
+	config := &Config{
+		NodeJSBackendURL: backendServer.URL,
+		NodeJSAPIRoot:    "/api/v1",
+	}
+	proxy := NewProxy(config)
+
+	app := fiber.New(fiber.Config{
+		BodyLimit: 10 * 1024 * 1024,
+	})
+	app.Get("/stream", proxy.ForwardStream("/execute/stream"))
+
+	req := httptest.NewRequest("GET", "/stream", nil)
+	req.Header.Set("Authorization", "Bearer test-token")
+	req.Header.Set("Cookie", "auth=token123")
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Test request failed: %v", err)
+	}
+
+	if customHeader := resp.Header.Get("X-Custom-Header"); customHeader != "custom-value" {
+		t.Errorf("X-Custom-Header = %v, want custom-value", customHeader)
+	}
+
+	if contentType := resp.Header.Get("Content-Type"); contentType != "text/event-stream" {
+		t.Errorf("Content-Type = %v, want text/event-stream", contentType)
+	}
+}
+
+func TestProxy_ForwardStream_QueryStringPreservation(t *testing.T) {
+	backendServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if sessionId := r.URL.Query().Get("sessionId"); sessionId != "test-session-123" {
+			t.Errorf("sessionId query param = %v, want test-session-123", sessionId)
+		}
+
+		if userId := r.URL.Query().Get("userId"); userId != "user-456" {
+			t.Errorf("userId query param = %v, want user-456", userId)
+		}
+
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write([]byte("data: ok\n\n")); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
+	}))
+	defer backendServer.Close()
+
+	config := &Config{
+		NodeJSBackendURL: backendServer.URL,
+		NodeJSAPIRoot:    "/api/v1",
+	}
+	proxy := NewProxy(config)
+
+	app := fiber.New(fiber.Config{
+		BodyLimit: 10 * 1024 * 1024,
+	})
+	app.Get("/stream", proxy.ForwardStream("/execute/stream"))
+
+	req := httptest.NewRequest("GET", "/stream?sessionId=test-session-123&userId=user-456", nil)
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Test request failed: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Response status = %v, want %v", resp.StatusCode, http.StatusOK)
+	}
+}
+
+func TestProxy_ForwardStream_StatusCodePreservation(t *testing.T) {
+	tests := []struct {
+		name           string
+		backendStatus  int
+		expectedStatus int
+	}{
+		{
+			name:           "400 Bad Request",
+			backendStatus:  http.StatusBadRequest,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "401 Unauthorized",
+			backendStatus:  http.StatusUnauthorized,
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:           "403 Forbidden",
+			backendStatus:  http.StatusForbidden,
+			expectedStatus: http.StatusForbidden,
+		},
+		{
+			name:           "404 Not Found",
+			backendStatus:  http.StatusNotFound,
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "500 Internal Server Error",
+			backendStatus:  http.StatusInternalServerError,
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			name:           "503 Service Unavailable",
+			backendStatus:  http.StatusServiceUnavailable,
+			expectedStatus: http.StatusServiceUnavailable,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			backendServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.backendStatus)
+				if _, err := w.Write([]byte(`{"error":"test"}`)); err != nil {
+					t.Errorf("Failed to write response: %v", err)
+				}
+			}))
+			defer backendServer.Close()
+
+			config := &Config{
+				NodeJSBackendURL: backendServer.URL,
+				NodeJSAPIRoot:    "/api/v1",
+			}
+			proxy := NewProxy(config)
+
+			app := fiber.New(fiber.Config{
+				BodyLimit: 10 * 1024 * 1024,
+			})
+			app.Get("/stream", proxy.ForwardStream("/execute/stream"))
+
+			req := httptest.NewRequest("GET", "/stream", nil)
+			resp, err := app.Test(req, -1)
+			if err != nil {
+				t.Fatalf("Test request failed: %v", err)
+			}
+
+			if resp.StatusCode != tt.expectedStatus {
+				t.Errorf("Response status = %v, want %v", resp.StatusCode, tt.expectedStatus)
+			}
+		})
+	}
+}
+
+func TestProxy_ForwardStream_EmptyStreamBody(t *testing.T) {
+	backendServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backendServer.Close()
+
+	config := &Config{
+		NodeJSBackendURL: backendServer.URL,
+		NodeJSAPIRoot:    "/api/v1",
+	}
+	proxy := NewProxy(config)
+
+	app := fiber.New(fiber.Config{
+		BodyLimit: 10 * 1024 * 1024,
+	})
+	app.Get("/stream", proxy.ForwardStream("/execute/stream"))
+
+	req := httptest.NewRequest("GET", "/stream", nil)
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Test request failed: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Response status = %v, want %v", resp.StatusCode, http.StatusOK)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	if len(body) != 0 {
+		t.Errorf("Response body length = %v, want 0", len(body))
+	}
+}
+
+func TestProxy_ForwardStream_LargeStreamData(t *testing.T) {
+	backendServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Error("ResponseWriter does not support flushing")
+			return
+		}
+
+		for i := 0; i < 100; i++ {
+			data := "data: " + strings.Repeat("x", 1000) + "\n\n"
+			if _, err := w.Write([]byte(data)); err != nil {
+				return
+			}
+			flusher.Flush()
+		}
+	}))
+	defer backendServer.Close()
+
+	config := &Config{
+		NodeJSBackendURL: backendServer.URL,
+		NodeJSAPIRoot:    "/api/v1",
+	}
+	proxy := NewProxy(config)
+
+	app := fiber.New(fiber.Config{
+		BodyLimit: 10 * 1024 * 1024,
+	})
+	app.Get("/stream", proxy.ForwardStream("/execute/stream"))
+
+	req := httptest.NewRequest("GET", "/stream", nil)
+	resp, err := app.Test(req, int(10*time.Second/time.Millisecond))
+	if err != nil {
+		t.Fatalf("Test request failed: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Response status = %v, want %v", resp.StatusCode, http.StatusOK)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	expectedMinLength := 100 * 1000
+	if len(body) < expectedMinLength {
+		t.Errorf("Response body length = %v, want >= %v", len(body), expectedMinLength)
+	}
+}

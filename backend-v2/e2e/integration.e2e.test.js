@@ -37,7 +37,10 @@ describe('Integration Router', () => {
       expect(typeof res.body.openai).toBe('object')
       expect(res.body.openai).toHaveProperty('apiKey')
       expect(typeof res.body.openai.apiKey).toBe('string')
-      expect(res.body.openai.apiKey).toBe('test-key')
+      expect(res.body.openai.apiKey).toBe('')
+      expect(res.body).toHaveProperty('secretsMeta')
+      expect(res.body.secretsMeta).toHaveProperty('openai')
+      expect(res.body.secretsMeta.openai.apiKey).toBe(true)
       expect(res.body).toHaveProperty('lang')
       expect(res.body).toHaveProperty('model')
       expect(res.body.lang).toBe('none')
@@ -138,16 +141,17 @@ describe('Integration Router', () => {
   })
 
   describe('GET /integration/:service', () => {
-    it('returns integration details', async () => {
+    it('returns integration details with redacted secrets', async () => {
       const res = await subscriberRequest.get('/integration/openai')
-      
+
       expect(res.status).toBe(200)
       expect(typeof res.body).toBe('object')
       expect(res.body).toHaveProperty('openai')
       expect(typeof res.body.openai).toBe('object')
-      expect(res.body.openai).toHaveProperty('apiKey')
-      expect(typeof res.body.openai.apiKey).toBe('string')
-      expect(res.body.openai.apiKey).toBe('test-key')
+      expect(res.body.openai.apiKey).toBe('')
+      expect(res.body).toHaveProperty('secretsMeta')
+      expect(res.body.secretsMeta).toHaveProperty('openai')
+      expect(res.body.secretsMeta.openai.apiKey).toBe(true)
     })
   })
 
@@ -247,7 +251,10 @@ describe('Integration Router - Administrator Tests', () => {
       expect(res.body).toHaveProperty('userId', 'admin')
       expect(res.body).toHaveProperty('openai')
       expect(res.body.openai).toHaveProperty('apiKey')
-      expect(res.body.openai.apiKey).toBe('admin-test-key')
+      expect(res.body.openai.apiKey).toBe('')
+      expect(res.body).toHaveProperty('secretsMeta')
+      expect(res.body.secretsMeta).toHaveProperty('openai')
+      expect(res.body.secretsMeta.openai.apiKey).toBe(true)
     })
     
     it('should update integration settings', async () => {
@@ -282,7 +289,10 @@ describe('Integration Router - Customer Tests', () => {
       expect(res.body).toHaveProperty('userId', 'customer')
       expect(res.body).toHaveProperty('openai')
       expect(res.body.openai).toHaveProperty('apiKey')
-      expect(res.body.openai.apiKey).toBe('customer-test-key')
+      expect(res.body.openai.apiKey).toBe('')
+      expect(res.body).toHaveProperty('secretsMeta')
+      expect(res.body.secretsMeta).toHaveProperty('openai')
+      expect(res.body.secretsMeta.openai.apiKey).toBe(true)
     })
     
     it('should set model preferences', async () => {

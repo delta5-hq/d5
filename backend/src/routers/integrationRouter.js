@@ -6,6 +6,8 @@ const integrationRouter = new Router({prefix: '/integration'})
 
 integrationRouter
   .use(IntegrationController.authorization)
+  .get('/', IntegrationController.getAll)
+  .put('/:service/update', IntegrationController.updateService)
   .post('/scrape_v2', IntegrationController.scrapeV2)
   .post('/scrape_files', IntegrationController.scrapeFiles)
   .post('/translate', IntegrationController.translate)

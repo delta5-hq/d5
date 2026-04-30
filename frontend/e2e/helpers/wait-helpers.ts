@@ -37,3 +37,39 @@ export async function safeFill(page: Page, selector: string, value: string): Pro
   await element.waitFor({ state: 'visible', timeout: DEFAULT_WAIT_TIMEOUT })
   await element.fill(value)
 }
+
+/**
+ * Selects a workflow scope in the workflow scope selector dropdown.
+ * This function is idempotent - calling it multiple times with the same
+ * workflowId is safe and will not hang.
+ *
+ * Response listener is registered before clicking to prevent race conditions
+ * where the response arrives before the listener is ready.
+ */
+export async function selectWorkflowScope(
+  page: Page,
+  workflowId: string,
+  timeout: number = DEFAULT_NAVIGATION_TIMEOUT
+): Promise<void> {
+  const selector = page.locator('[data-type="workflow-scope-selector"]')
+  await selector.click()
+
+  const targetItem = page.locator(`[data-type="scope-workflow-${workflowId}"]`)
+  const currentState = await targetItem.getAttribute('data-state')
+
+  if (currentState === 'checked') {
+    await page.keyboard.press('Escape')
+    return
+  }
+
+  const scopedResponsePromise = page.waitForResponse(
+    resp =>
+      resp.url().includes(`workflowId=${workflowId}`) &&
+      resp.request().method() === 'GET' &&
+      resp.ok(),
+    { timeout }
+  )
+
+  await targetItem.click()
+  await scopedResponsePromise
+}

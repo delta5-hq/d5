@@ -1,7 +1,8 @@
 import debug from 'debug'
-import {getQueryType} from '../constants'
 import {runCommand} from './utils/runCommand'
 import {StepsNodeTraverser} from './utils/StepsNodeTraverser'
+import {resolveCommand} from './utils/queryTypeResolver'
+import {SSHClientPool} from './rpc/SSHClientPool'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 // eslint-disable-next-line no-unused-vars
@@ -32,8 +33,9 @@ export class StepsCommand {
     this.logError = this.log.extend('ERROR*', '::')
   }
 
-  findMatchingNodes = node => {
-    const traverser = new StepsNodeTraverser(this.store._nodes)
+  findMatchingNodes = async node => {
+    const allDynamicAliases = [...this.store._aliases.mcp, ...this.store._aliases.rpc]
+    const traverser = new StepsNodeTraverser(this.store._nodes, allDynamicAliases)
     traverser.traverse(node)
     return {
       nodesByOrder: traverser.nodesByOrder,
@@ -41,7 +43,7 @@ export class StepsCommand {
     }
   }
 
-  executePrompts = async nodes => {
+  executePrompts = async (nodes, sshClientPool, signal) => {
     const parallelProgress = new ProgressReporter({title: 'parallel'}, this.progress)
 
     await Promise.all(
@@ -51,11 +53,17 @@ export class StepsCommand {
 
           this.store.editNode({...node, command: promptString})
 
+          const {queryType, mcpAlias, rpcAlias} = resolveCommand(promptString, this.store._aliases)
+
           const result = await runCommand(
             {
-              queryType: getQueryType(promptString),
+              queryType,
               cell: {...node, command: promptString},
               store: this.store,
+              mcpAlias,
+              rpcAlias,
+              sshClientPool,
+              signal,
             },
             parallelProgress,
           )
@@ -71,19 +79,20 @@ export class StepsCommand {
     )
   }
 
-  async executePromptsByOrder(nodes) {
+  async executePromptsByOrder(nodes, sshClientPool, signal) {
     const orderNumbers = Object.keys(nodes)
       .map(Number)
       .sort((a, b) => a - b)
 
     const orderedProgress = new ProgressReporter({title: 'ordered'}, this.progress)
 
-    // Execute command by order
     for (let i = 0; i < orderNumbers.length; i += 1) {
+      if (signal?.aborted) break
+
       const orderedTracker = await orderedProgress.add('group')
 
       const currentOrder = nodes[orderNumbers[i]]
-      await this.executePrompts(currentOrder)
+      await this.executePrompts(currentOrder, sshClientPool, signal)
 
       orderedProgress.remove(orderedTracker)
     }
@@ -91,17 +100,20 @@ export class StepsCommand {
     orderedProgress.dispose()
   }
 
-  async run(node) {
+  async run(node, options = {}) {
+    const {signal} = options
+    const sshClientPool = new SSHClientPool()
+
     try {
-      const {nodesByOrder, nodesWithoutOrder} = this.findMatchingNodes(node)
+      const {nodesByOrder, nodesWithoutOrder} = await this.findMatchingNodes(node)
 
-      // Execute command by order
-      await this.executePromptsByOrder(nodesByOrder)
+      await this.executePromptsByOrder(nodesByOrder, sshClientPool, signal)
 
-      // Execute command without order
-      await this.executePrompts(nodesWithoutOrder)
+      await this.executePrompts(nodesWithoutOrder, sshClientPool, signal)
     } catch (e) {
       this.logError(e)
+    } finally {
+      sshClientPool.disposeAll()
     }
   }
 }

@@ -144,7 +144,7 @@ build_go() {
   log_info "Building Go binary via Docker..."
   ensure_docker_network
   
-  docker build --target builder -t "${binary_name}-builder" . > /tmp/go-build.log 2>&1 || {
+  docker build --network "$DOCKER_NETWORK" --target builder -t "${binary_name}-builder" . > /tmp/go-build.log 2>&1 || {
     log_error "Build failed"
     tail -30 /tmp/go-build.log
     return 1

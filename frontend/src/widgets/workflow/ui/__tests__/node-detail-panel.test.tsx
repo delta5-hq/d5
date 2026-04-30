@@ -5,6 +5,16 @@ import type { ReactNode } from 'react'
 import messages from '@shared/lib/intl'
 import type { NodeData } from '@shared/base-types'
 import { NodeDetailPanel } from '../node-detail-panel'
+import { AliasProvider } from '@entities/aliases'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+  },
+})
 
 vi.mock('@shared/lib/use-genie-state', () => ({
   useGenieState: () => 'idle',
@@ -20,9 +30,11 @@ vi.mock('@features/workflow-tree/hooks/use-node-preview', () => ({
 }))
 
 const wrapper = ({ children }: { children: ReactNode }) => (
-  <IntlProvider locale="en" messages={messages.en}>
-    {children}
-  </IntlProvider>
+  <QueryClientProvider client={queryClient}>
+    <IntlProvider locale="en" messages={messages.en}>
+      <AliasProvider>{children}</AliasProvider>
+    </IntlProvider>
+  </QueryClientProvider>
 )
 
 function makeNode(overrides: Partial<NodeData> = {}): NodeData {
@@ -243,5 +255,78 @@ describe('NodeDetailPanel — preview auto-expand on execution complete', () => 
     const node = makeNode({ title: 'result' })
     renderPanel(node, true, { isExecuting: false })
     expect(screen.getByTestId('preview-trigger')).toHaveAttribute('data-state', 'open')
+  })
+})
+
+describe('NodeDetailPanel — Execute button behavior', () => {
+  describe('queryType resolution for all command types', () => {
+    it('resolves static command to mapped queryType', () => {
+      const node = makeNode({ command: '/web search query' })
+      const onExecute = vi.fn().mockResolvedValue(true)
+      renderPanel(node, false, { onExecute })
+
+      fireEvent.click(screen.getByTestId('execute-node-button'))
+
+      expect(onExecute).toHaveBeenCalledWith(node, 'web')
+    })
+
+    it('resolves control-flow command to mapped queryType', () => {
+      const node = makeNode({ command: '/foreach item in list' })
+      const onExecute = vi.fn().mockResolvedValue(true)
+      renderPanel(node, false, { onExecute })
+
+      fireEvent.click(screen.getByTestId('execute-node-button'))
+
+      expect(onExecute).toHaveBeenCalledWith(node, 'foreach')
+    })
+
+    it('resolves LLM provider command to mapped queryType', () => {
+      const node = makeNode({ command: '/claude explain this' })
+      const onExecute = vi.fn().mockResolvedValue(true)
+      renderPanel(node, false, { onExecute })
+
+      fireEvent.click(screen.getByTestId('execute-node-button'))
+
+      expect(onExecute).toHaveBeenCalledWith(node, 'claude')
+    })
+
+    it('handles command without trailing text', () => {
+      const node = makeNode({ command: '/web' })
+      const onExecute = vi.fn().mockResolvedValue(true)
+      renderPanel(node, false, { onExecute })
+
+      fireEvent.click(screen.getByTestId('execute-node-button'))
+
+      expect(onExecute).toHaveBeenCalledWith(node, 'web')
+    })
+
+    it('handles command with leading whitespace', () => {
+      const node = makeNode({ command: '  /web search' })
+      const onExecute = vi.fn().mockResolvedValue(true)
+      renderPanel(node, false, { onExecute })
+
+      fireEvent.click(screen.getByTestId('execute-node-button'))
+
+      expect(onExecute).toHaveBeenCalledWith(node, 'web')
+    })
+  })
+
+  describe('button state management', () => {
+    it('calls onExecute when enabled', () => {
+      const node = makeNode({ command: '/chat test' })
+      const onExecute = vi.fn().mockResolvedValue(true)
+      renderPanel(node, false, { onExecute, executeDisabled: false })
+
+      fireEvent.click(screen.getByTestId('execute-node-button'))
+
+      expect(onExecute).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not render when node is root', () => {
+      const node = makeNode({ command: '/chat test', parent: null })
+      renderPanel(node, true, {})
+
+      expect(screen.queryByTestId('execute-node-button')).not.toBeInTheDocument()
+    })
   })
 })

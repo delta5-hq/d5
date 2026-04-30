@@ -264,7 +264,7 @@ export class SummarizeCommand {
   async replyDefault(node, command, prompt, params) {
     const {lang = Lang.en, sizeLabel = SUMMARIZE_SIZE_DEFAULT, structured = false} = params ?? {}
 
-    const settings = await getIntegrationSettings(this.userId)
+    const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     const llmType = determineLLMType(command, settings)
     const {llm, chunkSize} = getLLM({settings, type: llmType})
 

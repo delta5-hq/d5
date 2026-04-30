@@ -92,6 +92,7 @@ export const GenieLottie = ({ size = 36, className, variant = 'base', flashColor
       await loadPlayerRuntime()
 
       const waitForPlayer = () => {
+        if (typeof window === 'undefined') return
         if (window.TgsPlayer && containerRef.current && !playersRef.current.length) {
           playersRef.current = animations.map((data, i) => {
             const id = `${playerId}-${i}`

@@ -183,7 +183,7 @@ func (s *WorkflowService) CreateWorkflow(ctx context.Context, dto CreateWorkflow
 	data := models.Workflow{
 		UserID:     dto.UserID,
 		WorkflowID: workflowId,
-		Title:      "",
+		Title:      dto.Title,
 		UpdatedAt:  time.Now().Unix() * 1000, // Milliseconds timestamp for frontend compatibility
 		Share:      share,
 	}
