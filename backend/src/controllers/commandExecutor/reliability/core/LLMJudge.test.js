@@ -243,55 +243,6 @@ describe('LLMJudge', () => {
     })
   })
 
-  describe('serializeNodeTree', () => {
-    it('should create indented hierarchy', () => {
-      const allNodes = {
-        1: {id: '1', title: 'Root', children: ['2', '3']},
-        2: {id: '2', title: 'Child 1', children: []},
-        3: {id: '3', title: 'Child 2', children: ['4']},
-        4: {id: '4', title: 'Grandchild', children: []},
-      }
-
-      const outputNodes = [allNodes['1']]
-
-      const result = LLMJudge.serializeNodeTree(outputNodes, allNodes)
-
-      expect(result).toBe(`Root
-  Child 1
-  Child 2
-    Grandchild`)
-    })
-
-    it('should handle untitled nodes', () => {
-      const outputNodes = [{id: '1', children: []}]
-      const allNodes = {1: outputNodes[0]}
-
-      const result = LLMJudge.serializeNodeTree(outputNodes, allNodes)
-
-      expect(result).toBe('(untitled)')
-    })
-
-    it('should handle table nodes', () => {
-      const outputNodes = [{id: '1', gridOptions: {columnDefs: []}, children: []}]
-      const allNodes = {1: outputNodes[0]}
-
-      const result = LLMJudge.serializeNodeTree(outputNodes, allNodes)
-
-      expect(result).toBe('(table)')
-    })
-
-    it('should handle multiple roots', () => {
-      const outputNodes = [
-        {id: '1', title: 'Root1'},
-        {id: '2', title: 'Root2'},
-      ]
-      const allNodes = Object.fromEntries(outputNodes.map(n => [n.id, n]))
-
-      const result = LLMJudge.serializeNodeTree(outputNodes, allNodes)
-
-      expect(result).toBe('Root1\nRoot2')
-    })
-  })
   describe('criteria-based evaluation', () => {
     it('should pass criteria to judge prompt when provided', async () => {
       const candidates = [
@@ -448,6 +399,115 @@ describe('LLMJudge', () => {
       expect(invokeCall.content).toContain('Line 1')
       expect(invokeCall.content).toContain('Line 2')
       expect(invokeCall.content).toContain('Line 3')
+    })
+  })
+
+  describe('parseJudgeResponse', () => {
+    describe('fast path — bare integer', () => {
+      it('should return index for exact bare integer within range', () => {
+        expect(LLMJudge.parseJudgeResponse('2', 3)).toEqual({index: 2, reason: null})
+      })
+
+      it('should return index for lower bound (1)', () => {
+        expect(LLMJudge.parseJudgeResponse('1', 3)).toEqual({index: 1, reason: null})
+      })
+
+      it('should return index for upper bound', () => {
+        expect(LLMJudge.parseJudgeResponse('3', 3)).toEqual({index: 3, reason: null})
+      })
+
+      it('should trim surrounding whitespace before evaluating', () => {
+        expect(LLMJudge.parseJudgeResponse('  2  ', 3)).toEqual({index: 2, reason: null})
+      })
+    })
+
+    describe('extraction path — verbose LLM response', () => {
+      it('should extract single in-range integer from verbose response', () => {
+        expect(LLMJudge.parseJudgeResponse('Candidate 2 is best', 3)).toEqual({index: 2, reason: null})
+      })
+
+      it('should extract from natural language response', () => {
+        expect(LLMJudge.parseJudgeResponse("I'd pick number 2", 3)).toEqual({index: 2, reason: null})
+      })
+
+      it('should extract when integer appears at end of response', () => {
+        expect(LLMJudge.parseJudgeResponse('The answer is 2', 3)).toEqual({index: 2, reason: null})
+      })
+
+      it('should ignore out-of-range integers and extract the only in-range one', () => {
+        expect(LLMJudge.parseJudgeResponse('Out of 10 options I choose 2', 3)).toEqual({index: 2, reason: null})
+      })
+
+      it('should deduplicate repeated in-range integers and resolve unambiguously', () => {
+        expect(LLMJudge.parseJudgeResponse('Candidate 2 and again 2', 3)).toEqual({index: 2, reason: null})
+      })
+
+      it('should route verbose response through evaluate end-to-end', async () => {
+        const candidates = [
+          {getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}},
+          {getOutput: () => ({nodes: [{title: 'B'}]}), _nodes: {}},
+        ]
+        ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
+        getLLM.mockReturnValue({
+          llm: {invoke: jest.fn().mockResolvedValue({content: 'Candidate 2 is better'})},
+        })
+
+        const result = await LLMJudge.evaluate(
+          'prompt',
+          candidates,
+          'OpenAI',
+          {},
+          {
+            shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
+          },
+        )
+
+        expect(result.winnerIndex).toBe(1)
+        expect(result.reason).toBeNull()
+      })
+    })
+
+    describe('fallback — unparseable or ambiguous', () => {
+      it.each([
+        ['empty string', ''],
+        ['whitespace only', '   '],
+        ['null', null],
+        ['undefined', undefined],
+      ])('should return unparseable for %s', (_, input) => {
+        expect(LLMJudge.parseJudgeResponse(input, 3)).toEqual({index: null, reason: 'unparseable_judge_response'})
+      })
+
+      it.each([
+        ['zero', '0'],
+        ['too high', '5'],
+      ])('should return unparseable when out of range — %s', (_, input) => {
+        expect(LLMJudge.parseJudgeResponse(input, 3)).toEqual({index: null, reason: 'unparseable_judge_response'})
+      })
+
+      it('should return unparseable when no integers found in response', () => {
+        expect(LLMJudge.parseJudgeResponse('I refuse to judge', 3)).toEqual({
+          index: null,
+          reason: 'unparseable_judge_response',
+        })
+      })
+
+      it('should return unparseable when multiple distinct in-range integers are present', () => {
+        expect(LLMJudge.parseJudgeResponse('Between 1 and 2, both are good', 3)).toEqual({
+          index: null,
+          reason: 'unparseable_judge_response',
+        })
+      })
+
+      it('should return unparseable when N=1 and response references out-of-range index', () => {
+        expect(LLMJudge.parseJudgeResponse('Candidate 2 is best', 1)).toEqual({
+          index: null,
+          reason: 'unparseable_judge_response',
+        })
+      })
+
+      it('should accept index 1 when N=1 and response is exact', () => {
+        expect(LLMJudge.parseJudgeResponse('1', 1)).toEqual({index: 1, reason: null})
+      })
     })
   })
 })

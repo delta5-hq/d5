@@ -133,7 +133,7 @@ describe('runCommand - Post-process dispatch', () => {
       expect(refineSpy).toHaveBeenCalledWith(refineNode, 'Once upon a time')
     })
 
-    it('joins multiple parent output nodes with double newline', async () => {
+    it('joins multiple parent output nodes with single newline', async () => {
       const {root, refineNode, store} = buildRefineScenario({
         prompts: ['o1', 'o2', 'o3'],
         extraNodes: {
@@ -146,7 +146,7 @@ describe('runCommand - Post-process dispatch', () => {
 
       await runCommand({queryType: 'chat', cell: root, store, userId: 'userId'})
 
-      expect(refineSpy).toHaveBeenCalledWith(refineNode, 'First\n\nSecond\n\nThird')
+      expect(refineSpy).toHaveBeenCalledWith(refineNode, 'First\nSecond\nThird')
     })
 
     it.each([
@@ -161,20 +161,33 @@ describe('runCommand - Post-process dispatch', () => {
       expect(refineSpy).toHaveBeenCalledWith(refineNode, '')
     })
 
-    it('skips deleted nodes and empty titles in parent prompts', async () => {
+    it('excludes nodes not found in store from parent output', async () => {
       const {root, refineNode, store} = buildRefineScenario({
-        prompts: ['exists', 'deleted', 'empty', 'nil'],
-        extraNodes: {
-          exists: {id: 'exists', parent: 'root', title: 'Content'},
-          empty: {id: 'empty', parent: 'root', title: ''},
-          nil: {id: 'nil', parent: 'root', title: null},
-        },
+        prompts: ['exists', 'deleted'],
+        extraNodes: {exists: {id: 'exists', parent: 'root', title: 'Content'}},
       })
       const refineSpy = jest.spyOn(RefineCommand.prototype, 'replyRefine').mockResolvedValue('Result')
 
       await runCommand({queryType: 'chat', cell: root, store, userId: 'userId'})
 
       expect(refineSpy).toHaveBeenCalledWith(refineNode, 'Content')
+    })
+
+    it('includes children from store._nodes in tree-serialized output', async () => {
+      const {root, store} = buildRefineScenario({
+        prompts: ['parent'],
+        extraNodes: {
+          parent: {id: 'parent', parent: 'root', title: 'Section', children: ['child']},
+          child: {id: 'child', parent: 'parent', title: 'Sub-point', children: []},
+        },
+      })
+      const refineSpy = jest.spyOn(RefineCommand.prototype, 'replyRefine').mockResolvedValue('Result')
+
+      await runCommand({queryType: 'chat', cell: root, store, userId: 'userId'})
+
+      const received = refineSpy.mock.calls[0][1]
+      expect(received).toContain('Section')
+      expect(received).toContain('Sub-point')
     })
 
     it('dispatches /refine using title field when command field absent', async () => {

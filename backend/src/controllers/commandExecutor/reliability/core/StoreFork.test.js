@@ -124,6 +124,59 @@ describe('StoreFork', () => {
       expect(fork._workflowId).toBeUndefined()
       expect(fork._nodes).toEqual(original._nodes)
     })
+
+    describe('memory guard', () => {
+      let warnSpy
+
+      beforeEach(() => {
+        warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
+      })
+
+      afterEach(() => {
+        warnSpy.mockRestore()
+      })
+
+      it('should warn when node count exceeds threshold', () => {
+        const nodes = {}
+        for (let i = 0; i < StoreFork.FORK_WARN_THRESHOLD + 1; i++) {
+          nodes[`n${i}`] = {id: `n${i}`, title: `Node ${i}`}
+        }
+        const store = new Store({userId: 'user1', nodes})
+
+        StoreFork.createFork(store)
+
+        expect(warnSpy).toHaveBeenCalledTimes(1)
+        expect(warnSpy.mock.calls[0][0]).toContain(`${StoreFork.FORK_WARN_THRESHOLD + 1} nodes`)
+      })
+
+      it('should not warn when node count is exactly at threshold', () => {
+        const nodes = {}
+        for (let i = 0; i < StoreFork.FORK_WARN_THRESHOLD; i++) {
+          nodes[`n${i}`] = {id: `n${i}`, title: `Node ${i}`}
+        }
+        const store = new Store({userId: 'user1', nodes})
+
+        StoreFork.createFork(store)
+
+        expect(warnSpy).not.toHaveBeenCalled()
+      })
+
+      it('should not warn for typical small workflows', () => {
+        const store = new Store({userId: 'user1', nodes: {n1: {id: 'n1', title: 'test'}}})
+
+        StoreFork.createFork(store)
+
+        expect(warnSpy).not.toHaveBeenCalled()
+      })
+
+      it('should not warn for empty store', () => {
+        const store = new Store({userId: 'user1'})
+
+        StoreFork.createFork(store)
+
+        expect(warnSpy).not.toHaveBeenCalled()
+      })
+    })
   })
 
   describe('applyCandidate', () => {

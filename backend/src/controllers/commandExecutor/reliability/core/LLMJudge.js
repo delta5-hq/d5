@@ -2,9 +2,9 @@ import {getLLM} from '../../commands/utils/langchain/getLLM'
 import {HumanMessage} from '@langchain/core/messages'
 import ModelFamilyRouter from '../models/ModelFamilyRouter'
 import ShuffleMapper from './ShuffleMapper'
+import serializeNodeTree from '../../commands/utils/serializeNodeTree'
 
 /**
- * LLM-based quality judge for selecting best candidate
  * Provides semantic evaluation beyond structural validation (β≈0.15)
  * Eliminates positional bias through presentation order randomization
  */
@@ -16,8 +16,6 @@ class LLMJudge {
    */
 
   /**
-   * Evaluate candidates and select best one
-   *
    * @param {string} prompt - Original user prompt
    * @param {Array<import('../../commands/utils/Store').default>} candidates
    * @param {string} generatorFamily
@@ -50,20 +48,16 @@ class LLMJudge {
       const judgePrompt = this.buildJudgePrompt(prompt, serialized, candidates.length, criteria)
 
       const result = await llm.invoke([new HumanMessage(judgePrompt)])
-      const content = result.content?.trim()
 
-      const parsed = parseInt(content, 10)
-      if (parsed >= 1 && parsed <= candidates.length) {
+      const {index, reason} = this.parseJudgeResponse(result.content, candidates.length)
+      if (index !== null) {
         return {
-          winnerIndex: shuffle.remapToOriginal(parsed - 1),
+          winnerIndex: shuffle.remapToOriginal(index - 1),
           reason: null,
         }
       }
 
-      return {
-        winnerIndex: 0,
-        reason: 'unparseable_judge_response',
-      }
+      return {winnerIndex: 0, reason}
     } catch (error) {
       return {
         winnerIndex: 0,
@@ -73,41 +67,47 @@ class LLMJudge {
   }
 
   /**
-   * @private
+   * Tolerates verbose judge phrasing (e.g. "Candidate 2 is best") in addition to bare integers.
+   * Ambiguous when multiple distinct in-range integers appear — returns null to force fallback.
+   *
+   * @param {string|null|undefined} content
+   * @param {number} candidateCount
+   * @returns {{index: number|null, reason: string|null}}
    */
+  static parseJudgeResponse(content, candidateCount) {
+    const trimmed = content?.trim() ?? ''
+
+    if (!trimmed) {
+      return {index: null, reason: 'unparseable_judge_response'}
+    }
+
+    const direct = parseInt(trimmed, 10)
+    if (!Number.isNaN(direct) && direct >= 1 && direct <= candidateCount && String(direct) === trimmed) {
+      return {index: direct, reason: null}
+    }
+
+    const unique = [
+      ...new Set(
+        [...trimmed.matchAll(/\b(\d+)\b/g)].map(m => parseInt(m[1], 10)).filter(n => n >= 1 && n <= candidateCount),
+      ),
+    ]
+
+    if (unique.length === 1) {
+      return {index: unique[0], reason: null}
+    }
+
+    return {index: null, reason: 'unparseable_judge_response'}
+  }
+
+  /** @private */
   static serializeCandidate(store, candidateNumber) {
     const output = store.getOutput()
-    const tree = this.serializeNodeTree(output.nodes, store._nodes)
+    const tree = serializeNodeTree(output.nodes, store._nodes)
 
     return `Candidate ${candidateNumber}:\n${tree || '(empty)'}`
   }
 
-  /**
-   * @private
-   */
-  static serializeNodeTree(outputNodes, allNodes) {
-    const lines = []
-    const roots = outputNodes.filter(node => {
-      const hasParentInOutput = outputNodes.some(other => other.id === node.parent)
-      return !hasParentInOutput
-    })
-
-    const walk = (node, depth) => {
-      const title = node.title || (node.gridOptions ? '(table)' : '(untitled)')
-      lines.push('  '.repeat(depth) + title)
-
-      const children = (node.children || []).map(id => allNodes[id]).filter(Boolean)
-      children.forEach(child => walk(child, depth + 1))
-    }
-
-    roots.forEach(root => walk(root, 0))
-
-    return lines.join('\n')
-  }
-
-  /**
-   * @private
-   */
+  /** @private */
   static buildJudgePrompt(originalPrompt, serializedCandidates, candidateCount, criteria) {
     const baseInstruction = `You are evaluating LLM outputs. Given the original prompt and ${candidateCount} candidate responses, respond with ONLY the number (1-${candidateCount}) of the best candidate. No explanation.`
 

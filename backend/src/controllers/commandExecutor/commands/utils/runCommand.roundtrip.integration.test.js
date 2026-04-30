@@ -29,7 +29,10 @@ import {resolveCommand} from './queryTypeResolver'
 
 Object.assign(global, {ReadableStream, WritableStream, TransformStream})
 
-const TEST_DB_URI = 'mongodb://localhost:29017/delta5_roundtrip_test'
+const TEST_DB_URI = process.env.TEST_MONGO_URI
+if (!TEST_DB_URI) {
+  throw new Error('TEST_MONGO_URI env var is required (set by Makefile test-backend target)')
+}
 const TEST_USER_PREFIX = 'roundtrip-test-user-'
 
 describe('runCommand round-trip integration', () => {

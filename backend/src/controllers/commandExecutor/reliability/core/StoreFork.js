@@ -6,6 +6,7 @@ import ImportHandler from '../../commands/utils/ImportHandler'
  * Each fork maintains full isolation to prevent cross-candidate mutation
  */
 class StoreFork {
+  static FORK_WARN_THRESHOLD = 500
   /**
    * Deep clone helper for Node < 17 environments
    * @private
@@ -24,6 +25,10 @@ class StoreFork {
    * @returns {Store}
    */
   static createFork(sourceStore) {
+    const nodeCount = Object.keys(sourceStore._nodes).length
+    if (nodeCount > StoreFork.FORK_WARN_THRESHOLD) {
+      console.warn(`[StoreFork] Forking store with ${nodeCount} nodes. Deep clone may use significant memory.`)
+    }
     const forked = new Store({
       userId: sourceStore._userId,
       workflowId: sourceStore._workflowId,

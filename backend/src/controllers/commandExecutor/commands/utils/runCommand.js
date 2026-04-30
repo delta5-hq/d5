@@ -19,11 +19,13 @@ import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {WEB_QUERY_TYPE} from '../../constants/web'
 import {YANDEX_QUERY_TYPE} from '../../constants/yandex'
 import {readReliabilityN} from '../../constants/reliability'
+import {getQueryType} from '../../constants'
 import {readTableParam} from '../../constants/yandex'
 import ProgressReporter from '../../ProgressReporter'
-import {BestOfNStrategy, CommandFactory, NullProgress} from '../../reliability'
+import {BestOfNStrategy, CommandFactory, NullProgress, RefineNStrategy} from '../../reliability'
 import {determineLLMType, getIntegrationSettings} from './langchain/getLLM'
 import {getNodeCommand} from './isCommand'
+import serializeNodeTree from './serializeNodeTree'
 import {ForeachCommand} from '../ForeachCommand'
 import {MemorizeCommand} from '../MemorizeCommand'
 import {OutlineCommand} from '../OutlineCommand'
@@ -35,10 +37,7 @@ import {substituteReferencesAndHashrefsChildrenAndSelf} from '../references/subs
 // eslint-disable-next-line no-unused-vars
 import Store from './Store'
 
-/**
- * Get command name for progress tracking
- * @private
- */
+/** @private */
 function getCommandName(queryType) {
   const nameMap = {
     [YANDEX_QUERY_TYPE]: 'YandexCommand',
@@ -64,10 +63,7 @@ function getCommandName(queryType) {
   return nameMap[queryType]
 }
 
-/**
- * Execute command with progress tracking
- * @private
- */
+/** @private */
 async function executeCommandWithProgress(queryType, context, prompt, cell, store, progress) {
   const runCommandProgress = new ProgressReporter({title: 'runCommand'}, progress)
   const commandName = getCommandName(queryType)
@@ -83,18 +79,6 @@ async function executeCommandWithProgress(queryType, context, prompt, cell, stor
 }
 
 /**
- * Executes a command based on the given query type and performs post-processing if needed.
- *
- * @param {Object} params - The parameters for the function
- * @param {string} params.queryType - The type of query to run (e.g., 'yandex', 'web', etc.).=
- * @param {Object} params.context - The prompt context
- * @param {string} params.prompt - The prompt or query text to be processed
- * @param {Object} params.cell - The cell object containing information like its ID and other relevant data for the command execution
- * @param {Store} params.store - The store object, which likely holds the state, user details, and workflow information
- *
- */
-/**
- *
  * @param {{
  *  queryType: string,
  *  context: string,
@@ -108,13 +92,9 @@ async function executeCommandWithProgress(queryType, context, prompt, cell, stor
  *  signal: AbortSignal
  * }} params
  * @param {ProgressReporter} progress
- * @returns
  */
 
-/**
- * Extracts and joins criteria from /validate child nodes
- * @private
- */
+/** @private */
 function extractValidateCriteria(cell, store) {
   if (!cell.children || cell.children.length === 0) {
     return ''
@@ -142,6 +122,26 @@ function extractValidateCriteria(cell, store) {
   }
 
   return criteriaSegments.join('\n\n')
+}
+
+/** @private */
+function extractRefineCriteria(refineNode, store) {
+  if (!refineNode.children?.length) return undefined
+
+  const segments = refineNode.children
+    .map(id => store.getNode(id))
+    .filter(Boolean)
+    .map(child =>
+      substituteReferencesAndHashrefsChildrenAndSelf(child, store, {
+        saveFirst: true,
+        nonPromptNode: false,
+        useCommand: false,
+        ignorePostProccessCommand: false,
+      }).trim(),
+    )
+    .filter(Boolean)
+
+  return segments.length ? segments.join('\n\n') : undefined
 }
 
 export const runCommand = async (
@@ -261,20 +261,42 @@ export const runCommand = async (
           postProcessTracker = await postProcessProgress.add('OutlineCommand.run')
           flag = await command.run(childNode, undefined, {signal})
         } else if (query?.startsWith(REFINE_QUERY)) {
-          const command = new RefineCommand(store._userId, store._workflowId, store)
+          const refineN = readReliabilityN(query)
+          const parentQueryType = getQueryType(getNodeCommand(cell))
+          const isRefineNEligible =
+            refineN > 1 &&
+            CommandFactory.isLLMCommand(parentQueryType) &&
+            !CommandFactory.isOrchestrator(parentQueryType)
 
-          postProcessTracker = await postProcessProgress.add('RefineCommand.replyRefine')
+          if (isRefineNEligible) {
+            const settings = await getIntegrationSettings(store._userId)
+            const generatorFamily = determineLLMType(getNodeCommand(cell), settings)
+            const isTableCommand = readTableParam(getNodeCommand(cell))
+            const criteria = extractRefineCriteria(childNode, store)
+            const parentRunner = CommandFactory.createRunner(parentQueryType, cell, context, prompt)
 
-          const parentOutput = (node.prompts || [])
-            .map(id => store.getNode(id))
-            .filter(Boolean)
-            .map(n => n.title || '')
-            .filter(Boolean)
-            .join('\n\n')
+            postProcessTracker = await postProcessProgress.add('RefineNStrategy.execute')
+            await RefineNStrategy.execute(
+              async (fork, prog) => parentRunner(fork, prog),
+              store,
+              node.id,
+              childNode.id,
+              prompt,
+              refineN,
+              {isTableCommand, generatorFamily, settings, criteria},
+            )
+          } else {
+            const command = new RefineCommand(store._userId, store._workflowId, store)
 
-          const result = await command.replyRefine(childNode, parentOutput)
-          if (result) {
-            store.importer.createNodes(result, childNode.id)
+            postProcessTracker = await postProcessProgress.add('RefineCommand.replyRefine')
+
+            const parentOutputNodes = (node.prompts || []).map(id => store.getNode(id)).filter(Boolean)
+            const parentOutput = serializeNodeTree(parentOutputNodes, store._nodes)
+
+            const result = await command.replyRefine(childNode, parentOutput)
+            if (result) {
+              store.importer.createNodes(result, childNode.id)
+            }
           }
 
           flag = true
