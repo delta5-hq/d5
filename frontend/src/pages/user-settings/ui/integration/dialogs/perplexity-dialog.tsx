@@ -10,6 +10,7 @@ import { useApiMutation } from '@shared/composables'
 import { PERPLEXITY_DEFAULT_MODEL, PerplexityModels } from '@shared/config'
 import type { HttpError } from '@shared/lib/error'
 import { buildIntegrationUrl } from '../utils/build-integration-url'
+import { toastIntegrationError } from '../utils/toast-integration-error'
 import { createPerplexityResponse } from '@shared/lib/llm'
 import { Button } from '@shared/ui/button'
 import {
@@ -87,20 +88,7 @@ export const PerplexityDialog: React.FC<Props> = ({ data, open, onClose, refresh
       await refresh()
       onClose?.()
     } catch (e: unknown) {
-      const error = e as HttpError
-      const status = error?.response?.status
-
-      if (status === 401) {
-        toast.error(<FormattedMessage id="dialog.integration.authenticationError" />)
-      } else if (status === 429) {
-        toast.error(<FormattedMessage id="dialog.integration.rateLimitExceeded" />)
-      } else if (status === 404) {
-        toast.error(<FormattedMessage id="dialog.integration.noAccess" values={{ model: values.model }} />)
-      } else if (status === 503) {
-        toast.error(<FormattedMessage id="dialog.integration.serverError" />)
-      } else {
-        toast.error(<FormattedMessage id="dialog.integration.wrongRequest" />)
-      }
+      toastIntegrationError(e, { model: values.model })
     }
   }
 

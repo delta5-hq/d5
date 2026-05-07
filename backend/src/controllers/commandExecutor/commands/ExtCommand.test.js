@@ -61,6 +61,7 @@ describe('ExtCommand', () => {
       mockStore.importer.createNodes = jest.fn()
       mockStore.importer.createTable = jest.fn()
       mockStore.importer.createJoinNode = jest.fn()
+      mockStore.importer.createErrorNode = jest.fn()
 
       createResponseExtSpy = jest.spyOn(ExtCommand.prototype, 'createResponseExt').mockResolvedValue('Response')
     })
@@ -108,7 +109,7 @@ describe('ExtCommand', () => {
 
       await command.run(node, 'test prompt')
 
-      expect(command.store.importer.createNodes).toHaveBeenCalledWith(
+      expect(command.store.importer.createErrorNode).toHaveBeenCalledWith(
         'Error: Vector store initialization failed',
         'node',
       )
@@ -121,7 +122,7 @@ describe('ExtCommand', () => {
 
       await command.run(node, 'test')
 
-      expect(command.store.importer.createNodes).toHaveBeenCalledWith('Error: ECONNREFUSED', 'node')
+      expect(command.store.importer.createErrorNode).toHaveBeenCalledWith('Error: ECONNREFUSED', 'node')
     })
 
     it('should create error node on LLM errors from createResponseExt', async () => {
@@ -131,7 +132,7 @@ describe('ExtCommand', () => {
 
       await command.run(node, 'query')
 
-      expect(command.store.importer.createNodes).toHaveBeenCalledWith('Error: Rate limit exceeded', 'node')
+      expect(command.store.importer.createErrorNode).toHaveBeenCalledWith('Error: Rate limit exceeded', 'node')
     })
   })
 })

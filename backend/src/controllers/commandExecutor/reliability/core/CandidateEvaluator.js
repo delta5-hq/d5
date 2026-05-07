@@ -1,7 +1,5 @@
-/**
- * Structural validation for LLM command outputs
- * Provides zero-cost, zero-false-positive filtering (β≈0)
- */
+const LLM_COMMAND_ERROR_PREFIX = 'Error:'
+
 class CandidateEvaluator {
   /**
    * @typedef {Object} ValidationResult
@@ -25,6 +23,9 @@ class CandidateEvaluator {
     const echoCheck = this.checkEcho(output, originalPrompt)
     if (!echoCheck.pass) return echoCheck
 
+    const errorCheck = this.checkErrorContent(output)
+    if (!errorCheck.pass) return errorCheck
+
     if (options.isTableCommand) {
       const tableCheck = this.checkTableOutput(output)
       if (!tableCheck.pass) return tableCheck
@@ -34,8 +35,14 @@ class CandidateEvaluator {
   }
 
   /**
-   * @private
+   * @param {string|null|undefined} text
+   * @returns {boolean}
    */
+  static isErrorText(text) {
+    return typeof text === 'string' && text.trim().startsWith(LLM_COMMAND_ERROR_PREFIX)
+  }
+
+  /** @private */
   static checkEmpty(output) {
     if (output.nodes.length === 0 && output.edges.length === 0) {
       return {pass: false, reason: 'empty_output'}
@@ -43,9 +50,7 @@ class CandidateEvaluator {
     return {pass: true, reason: null}
   }
 
-  /**
-   * @private
-   */
+  /** @private */
   static checkEcho(output, originalPrompt) {
     if (!originalPrompt?.trim()) {
       return {pass: true, reason: null}
@@ -65,9 +70,18 @@ class CandidateEvaluator {
     return {pass: true, reason: null}
   }
 
-  /**
-   * @private
-   */
+  // LLM commands emit caught errors as `Error: …` node titles — a candidate where all nodes carry this is a failed call.
+  /** @private */
+  static checkErrorContent(output) {
+    const meaningfulNodes = output.nodes.filter(n => n.title?.trim())
+    if (meaningfulNodes.length === 0) return {pass: true, reason: null}
+
+    const allAreErrorOutput = meaningfulNodes.every(n => n.title.trim().startsWith(LLM_COMMAND_ERROR_PREFIX))
+
+    return allAreErrorOutput ? {pass: false, reason: 'error_content'} : {pass: true, reason: null}
+  }
+
+  /** @private */
   static checkTableOutput(output) {
     const hasGridOptions = output.nodes.some(n => n.gridOptions)
 

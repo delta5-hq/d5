@@ -5,9 +5,10 @@ import { useForm } from 'react-hook-form'
 import { FormattedMessage } from 'react-intl'
 import { z } from 'zod'
 
-import type { ApiError, Claude, DialogProps, LLMSecretMetadata } from '@shared/base-types'
+import type { Claude, DialogProps, LLMSecretMetadata } from '@shared/base-types'
 import { useApiMutation } from '@shared/composables'
 import { CLAUDE_DEFAULT_MODEL, ClaudeModels } from '@shared/config'
+import type { HttpError } from '@shared/lib/error'
 import { createResponseClaude, getClaudeMaxOutput } from '@shared/lib/llm'
 import { Button } from '@shared/ui/button'
 import {
@@ -23,8 +24,8 @@ import { Input } from '@shared/ui/input'
 import { Label } from '@shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
 import { toast } from 'sonner'
-import type { HttpError } from '@shared/lib/error'
 import { buildIntegrationUrl } from '../utils/build-integration-url'
+import { toastIntegrationError } from '../utils/toast-integration-error'
 
 const claudeSchema = z.object({
   apiKey: z.string().optional(),
@@ -101,18 +102,7 @@ export const ClaudeDialog: React.FC<Props> = ({ data, secretMeta, open, onClose,
       await refresh()
       onClose?.()
     } catch (e: unknown) {
-      const error = e as ApiError
-      const status = error?.response?.status
-
-      if (status === 401) {
-        toast.error(<FormattedMessage id="dialog.integration.authenticationError" />)
-      } else if (status === 429) {
-        toast.error(<FormattedMessage id="dialog.integration.rateLimitExceeded" />)
-      } else if (status === 404) {
-        toast.error(<FormattedMessage id="dialog.integration.noAccess" values={{ model: values.model }} />)
-      } else {
-        toast.error(<FormattedMessage id="dialog.integration.wrongRequest" />)
-      }
+      toastIntegrationError(e, { model: values.model })
     }
   }
 

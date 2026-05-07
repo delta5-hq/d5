@@ -8,10 +8,16 @@ export class DatabaseFixtures {
   constructor(databaseUri) {
     this.databaseUri = databaseUri
     this.isConnected = false
+    this._borrowedConnection = false
   }
 
   async connect() {
     if (this.isConnected) return
+    if (mongoose.connection.readyState === 1) {
+      this.isConnected = true
+      this._borrowedConnection = true
+      return
+    }
     await mongoose.connect(this.databaseUri, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
@@ -20,13 +26,13 @@ export class DatabaseFixtures {
   }
 
   async disconnect() {
-    if (!this.isConnected) return
+    if (!this.isConnected || this._borrowedConnection) return
     await mongoose.disconnect()
     this.isConnected = false
   }
 
   async dropDatabase() {
-    if (!this.isConnected) return
+    if (!this.isConnected || this._borrowedConnection) return
     await mongoose.connection.dropDatabase()
   }
 
@@ -40,7 +46,14 @@ export class DatabaseFixtures {
     return IntegrationSession.create({userId, alias, protocol, lastSessionId})
   }
 
+  async cleanupUserData(userId) {
+    if (!this.isConnected) return
+    await Integration.deleteMany({userId})
+    await IntegrationSession.deleteMany({userId})
+  }
+
   async cleanup() {
+    if (this._borrowedConnection) return
     await this.dropDatabase()
     await this.disconnect()
   }

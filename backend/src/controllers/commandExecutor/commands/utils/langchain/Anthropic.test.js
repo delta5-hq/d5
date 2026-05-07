@@ -26,6 +26,49 @@ describe('Claude parseChatHistory', () => {
   })
 })
 
+describe('ChatClaude invocationParams', () => {
+  describe('optional sampling parameters', () => {
+    it('omits top_k and top_p when neither has been configured', () => {
+      const claude = new ChatClaude({apiKey: 'test-key'})
+      const params = claude.invocationParams({})
+      expect(params).not.toHaveProperty('top_k')
+      expect(params).not.toHaveProperty('top_p')
+    })
+
+    it.each([
+      ['positive integer', 10],
+      ['zero — a valid sampling boundary', 0],
+    ])('includes top_k when configured as a %s', (_label, topK) => {
+      expect(new ChatClaude({apiKey: 'test-key', topK}).invocationParams({}).top_k).toBe(topK)
+    })
+
+    it.each([
+      ['fraction', 0.9],
+      ['zero — a valid probability boundary', 0],
+    ])('includes top_p when configured as a %s', (_label, topP) => {
+      expect(new ChatClaude({apiKey: 'test-key', topP}).invocationParams({}).top_p).toBe(topP)
+    })
+
+    it('includes both top_k and top_p when both are explicitly configured', () => {
+      const params = new ChatClaude({apiKey: 'test-key', topK: 5, topP: 0.8}).invocationParams({})
+      expect(params.top_k).toBe(5)
+      expect(params.top_p).toBe(0.8)
+    })
+  })
+
+  it('always includes model, temperature, and max_tokens regardless of optional params', () => {
+    const params = new ChatClaude({
+      apiKey: 'test-key',
+      model: 'claude-3-haiku',
+      temperature: 0.5,
+      maxTokens: 512,
+    }).invocationParams({})
+    expect(params.model).toBe('claude-3-haiku')
+    expect(params.temperature).toBe(0.5)
+    expect(params.max_tokens).toBe(512)
+  })
+})
+
 describe('ChatClaude request formatting', () => {
   beforeEach(() => {
     jest.clearAllMocks()
@@ -64,5 +107,16 @@ describe('ChatClaude request formatting', () => {
 
     const systemInMessages = body.messages.some(m => m.role === 'system')
     expect(systemInMessages).toBe(false)
+  })
+
+  it('omits top_k and top_p from the request body when neither has been configured', async () => {
+    fetch.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({content: [{type: 'text', text: 'ok'}]}),
+    })
+    await new ChatClaude({apiKey: 'test-key'}).invoke([new HumanMessage('hi')])
+    const body = JSON.parse(fetch.mock.calls[0][1].body)
+    expect(body).not.toHaveProperty('top_k')
+    expect(body).not.toHaveProperty('top_p')
   })
 })

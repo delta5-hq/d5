@@ -267,7 +267,7 @@ export class OutlineCommand {
       }
     } catch (e) {
       this.logError(e)
-      this.store.importer.createNodes(`Error: ${e.message}`, node.id)
+      this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }
   }
 }

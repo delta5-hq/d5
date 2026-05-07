@@ -1,4 +1,4 @@
-import type { ApiError, DialogProps, Yandex } from '@shared/base-types'
+import type { DialogProps, Yandex } from '@shared/base-types'
 import { useApiMutation } from '@shared/composables'
 import { YANDEX_DEFAULT_MODEL, YandexGPTModel } from '@shared/config'
 import { createResponseYandexGPT } from '@shared/lib/llm'
@@ -25,6 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner'
 import type { HttpError } from '@shared/lib/error'
 import { buildIntegrationUrl } from '../utils/build-integration-url'
+import { toastIntegrationError } from '../utils/toast-integration-error'
 
 const YandexModelNames: Record<YandexGPTModel, string> = {
   [YandexGPTModel.GPT_PRO_LATEST]: 'YandexGPT 5 Pro',
@@ -97,20 +98,7 @@ export const YandexDialog: React.FC<Props> = ({ data, open, onClose, refresh, wo
       onClose?.()
       toast.success('Saved successfully')
     } catch (e: unknown) {
-      const error = e as ApiError
-      const status = error?.response?.status
-
-      if (status === 401) {
-        toast.error(<FormattedMessage id="dialog.integration.authenticationError" />)
-      } else if (status === 429) {
-        toast.error(<FormattedMessage id="dialog.integration.rateLimitExceeded" />)
-      } else if (status === 404) {
-        toast.error(<FormattedMessage id="dialog.integration.noAccess" values={{ model: values.model }} />)
-      } else if (status === 503) {
-        toast.error(<FormattedMessage id="dialog.integration.serverError" />)
-      } else {
-        toast.error(<FormattedMessage id="dialog.integration.wrongRequest" />)
-      }
+      toastIntegrationError(e, { model: values.model })
     }
   }
 

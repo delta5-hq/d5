@@ -112,6 +112,7 @@ describe('ChatCommand', () => {
       mockStore.importer.createNodes = jest.fn()
       mockStore.importer.createTable = jest.fn()
       mockStore.importer.createJoinNode = jest.fn()
+      mockStore.importer.createErrorNode = jest.fn()
     })
     it('should create table nodes when readTableParam is true', async () => {
       callSpy.mockResolvedValue({
@@ -189,7 +190,7 @@ describe('ChatCommand', () => {
 
         await command.run(node, null, node.command)
 
-        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: API connection timeout', node.id)
+        expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: API connection timeout', node.id)
       })
 
       it('should create error node when getIntegrationSettings fails', async () => {
@@ -199,7 +200,7 @@ describe('ChatCommand', () => {
 
         await command.run(node, null, node.command)
 
-        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: Database connection lost', node.id)
+        expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: Database connection lost', node.id)
       })
 
       it('should create error node when prompt processing throws', async () => {
@@ -211,7 +212,7 @@ describe('ChatCommand', () => {
 
         await command.run(node, null, null)
 
-        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: Reference resolution failed', node.id)
+        expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: Reference resolution failed', node.id)
       })
 
       it('should log error details when execution fails', async () => {
@@ -236,7 +237,7 @@ describe('ChatCommand', () => {
 
         expect(mockStore.importer.createTable).not.toHaveBeenCalled()
         expect(mockStore.importer.createJoinNode).not.toHaveBeenCalled()
-        expect(mockStore.importer.createNodes).toHaveBeenCalledWith(expect.stringContaining('Error:'), node.id)
+        expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(expect.stringContaining('Error:'), node.id)
       })
     })
   })

@@ -22,6 +22,7 @@ import { useApiMutation } from '@shared/composables'
 import type { Deepseek, DialogProps } from '@shared/base-types'
 import type { HttpError } from '@shared/lib/error'
 import { buildIntegrationUrl } from '../utils/build-integration-url'
+import { toastIntegrationError } from '../utils/toast-integration-error'
 import { DEEPSEEK_DEFAULT_MODEL, DeepseekModels } from '@shared/config'
 import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
 import { createResponseDeepseek } from '@shared/lib/llm'
@@ -83,20 +84,7 @@ export const DeepseekDialog: React.FC<DeepseekDialogProps> = ({ data, open, onCl
       await refresh()
       onClose?.()
     } catch (e: unknown) {
-      const error = e as HttpError
-      const status = error?.response?.status
-
-      if (status === 401) {
-        toast.error(<FormattedMessage id="dialog.integration.authenticationError" />)
-      } else if (status === 429) {
-        toast.error(<FormattedMessage id="dialog.integration.rateLimitExceeded" />)
-      } else if (status === 404) {
-        toast.error(<FormattedMessage id="dialog.integration.noAccess" values={{ model: values.model }} />)
-      } else if (status === 503) {
-        toast.error(<FormattedMessage id="dialog.integration.serverError" />)
-      } else {
-        toast.error(<FormattedMessage id="dialog.integration.wrongRequest" />)
-      }
+      toastIntegrationError(e, { model: values.model })
     }
   }
 

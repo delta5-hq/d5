@@ -2,6 +2,13 @@ import BestOfNStrategy from './BestOfNStrategy'
 import StoreFork from '../core/StoreFork'
 import LLMJudge from '../core/LLMJudge'
 import CandidateEvaluator from '../core/CandidateEvaluator'
+import {
+  buildCandidateSuffix,
+  buildGateFailureSuffix,
+  buildFirstSurvivorSuffix,
+  REFINED_SUFFIX,
+  REFINE_FAILURE_SUFFIX,
+} from '../core/reliabilitySuffix'
 
 jest.mock('../core/StoreFork')
 jest.mock('../core/LLMJudge')
@@ -12,27 +19,17 @@ describe('BestOfNStrategy', () => {
     jest.clearAllMocks()
   })
 
-  describe('execute', () => {
-    it('should execute command N times on separate forks', async () => {
-      const store = {_userId: 'user1'}
-      const forks = [
-        {getOutput: () => ({nodes: [{title: 'F1'}], edges: []})},
-        {getOutput: () => ({nodes: [{title: 'F2'}], edges: []})},
-        {getOutput: () => ({nodes: [{title: 'F3'}], edges: []})},
-      ]
-
-      let forkIndex = 0
-      StoreFork.createFork.mockImplementation(() => forks[forkIndex++])
+  describe('parallel candidate generation', () => {
+    it('runs N commands on N isolated forks', async () => {
+      const forks = [{}, {}, {}]
+      let idx = 0
+      StoreFork.createFork.mockImplementation(() => forks[idx++])
       CandidateEvaluator.validate.mockReturnValue({pass: true})
-      LLMJudge.evaluate.mockResolvedValue({winnerIndex: 1})
+      LLMJudge.evaluate.mockResolvedValue({winnerIndex: 0, reason: null})
       StoreFork.applyCandidate.mockImplementation(() => {})
 
       const executor = jest.fn()
-
-      await BestOfNStrategy.execute(executor, store, 'cell1', 'prompt', 3, {
-        generatorFamily: 'OpenAI',
-        settings: {},
-      })
+      await BestOfNStrategy.execute(executor, {}, 'c1', 'prompt', 3, {})
 
       expect(executor).toHaveBeenCalledTimes(3)
       expect(executor).toHaveBeenNthCalledWith(1, forks[0])
@@ -40,173 +37,44 @@ describe('BestOfNStrategy', () => {
       expect(executor).toHaveBeenNthCalledWith(3, forks[2])
     })
 
-    it('should filter out candidates that fail structural validation', async () => {
-      const forks = [{}, {}, {}]
-      let forkIndex = 0
-      StoreFork.createFork.mockImplementation(() => forks[forkIndex++])
-
-      CandidateEvaluator.validate
-        .mockReturnValueOnce({pass: false, reason: 'empty'})
-        .mockReturnValueOnce({pass: true})
-        .mockReturnValueOnce({pass: true})
-
-      LLMJudge.evaluate.mockResolvedValue({winnerIndex: 0})
-      StoreFork.applyCandidate.mockImplementation(() => {})
-
-      const executor = jest.fn()
-
-      await BestOfNStrategy.execute(executor, {}, 'cell1', 'prompt', 3, {
-        generatorFamily: 'OpenAI',
-        settings: {},
-      })
-
-      expect(LLMJudge.evaluate).toHaveBeenCalledWith(
-        'prompt',
-        [forks[1], forks[2]],
-        'OpenAI',
-        {},
-        {criteria: undefined},
-      )
-    })
-
-    it('should skip judge when only one candidate survives', async () => {
-      const fork = {}
-      StoreFork.createFork.mockReturnValue(fork)
-
-      CandidateEvaluator.validate
-        .mockReturnValueOnce({pass: true})
-        .mockReturnValueOnce({pass: false})
-        .mockReturnValueOnce({pass: false})
-
-      StoreFork.applyCandidate.mockImplementation(() => {})
-
-      const executor = jest.fn()
-
-      await BestOfNStrategy.execute(executor, {}, 'cell1', 'prompt', 3, {
-        generatorFamily: 'OpenAI',
-        settings: {},
-      })
-
-      expect(LLMJudge.evaluate).not.toHaveBeenCalled()
-      expect(StoreFork.applyCandidate).toHaveBeenCalledWith(expect.anything(), fork, 'cell1')
-    })
-
-    it('should throw when all candidates fail', async () => {
-      StoreFork.createFork.mockReturnValue({})
-      CandidateEvaluator.validate.mockReturnValue({pass: false})
-
-      const executor = jest.fn()
-
-      await expect(
-        BestOfNStrategy.execute(executor, {}, 'cell1', 'prompt', 3, {
-          generatorFamily: 'OpenAI',
-          settings: {},
-        }),
-      ).rejects.toThrow('All candidates failed structural validation')
-    })
-
-    it('should handle executor exceptions and continue', async () => {
-      const forks = [{}, {}]
-      let forkIndex = 0
-      StoreFork.createFork.mockImplementation(() => forks[forkIndex++])
-
-      const executor = jest.fn().mockRejectedValueOnce(new Error('Fail')).mockResolvedValueOnce(undefined)
-
+    it('runs all N candidates in parallel, not serially', async () => {
+      StoreFork.createFork.mockImplementation(() => ({}))
       CandidateEvaluator.validate.mockReturnValue({pass: true})
+      LLMJudge.evaluate.mockResolvedValue({winnerIndex: 0, reason: null})
       StoreFork.applyCandidate.mockImplementation(() => {})
 
-      await BestOfNStrategy.execute(executor, {}, 'cell1', 'prompt', 2, {
-        generatorFamily: 'OpenAI',
-        settings: {},
-      })
-
-      expect(executor).toHaveBeenCalledTimes(2)
-      expect(StoreFork.applyCandidate).toHaveBeenCalledWith(expect.anything(), forks[1], 'cell1')
-    })
-
-    it('should apply winner to original store', async () => {
-      const originalStore = {}
-      const winnerFork = {}
-
-      StoreFork.createFork.mockReturnValue(winnerFork)
-      CandidateEvaluator.validate.mockReturnValue({pass: true})
-      StoreFork.applyCandidate.mockImplementation(() => {})
-
-      const executor = jest.fn()
-
-      await BestOfNStrategy.execute(executor, originalStore, 'cell1', 'prompt', 1, {
-        generatorFamily: 'OpenAI',
-        settings: {},
-      })
-
-      expect(StoreFork.applyCandidate).toHaveBeenCalledWith(originalStore, winnerFork, 'cell1')
-    })
-
-    it('should execute candidates in parallel', async () => {
-      const executionTimestamps = []
-      const forks = [{}, {}, {}]
-      let forkIndex = 0
-
-      StoreFork.createFork.mockImplementation(() => forks[forkIndex++])
-      CandidateEvaluator.validate.mockReturnValue({pass: true})
-      LLMJudge.evaluate.mockResolvedValue({winnerIndex: 0})
-      StoreFork.applyCandidate.mockImplementation(() => {})
-
-      const executor = jest.fn().mockImplementation(async fork => {
-        const startTime = Date.now()
-        executionTimestamps.push({fork, startTime})
-        await new Promise(resolve => setTimeout(resolve, 10))
-      })
+      const executor = jest.fn().mockImplementation(() => new Promise(resolve => setTimeout(resolve, 10)))
 
       const start = Date.now()
-      await BestOfNStrategy.execute(executor, {}, 'cell1', 'prompt', 3, {
-        generatorFamily: 'OpenAI',
-        settings: {},
-      })
-      const duration = Date.now() - start
-
-      expect(executor).toHaveBeenCalledTimes(3)
-      expect(duration).toBeLessThan(50)
+      await BestOfNStrategy.execute(executor, {}, 'c1', 'prompt', 3, {})
+      expect(Date.now() - start).toBeLessThan(50)
     })
 
-    it('should handle Promise.allSettled with mixed outcomes', async () => {
-      const forks = [{id: 1}, {id: 2}, {id: 3}, {id: 4}]
-      let forkIndex = 0
-
-      StoreFork.createFork.mockImplementation(() => forks[forkIndex++])
-
-      const executor = jest
-        .fn()
-        .mockRejectedValueOnce(new Error('Executor fail'))
-        .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error('Executor fail'))
-        .mockResolvedValueOnce(undefined)
-
-      CandidateEvaluator.validate.mockReturnValueOnce({pass: true}).mockReturnValueOnce({pass: false})
-
+    it('treats a throwing executor as a failed candidate without propagating', async () => {
+      const forks = [{}, {}]
+      let idx = 0
+      StoreFork.createFork.mockImplementation(() => forks[idx++])
+      const executor = jest.fn().mockRejectedValueOnce(new Error('LLM error')).mockResolvedValueOnce(undefined)
+      CandidateEvaluator.validate.mockReturnValue({pass: true})
       StoreFork.applyCandidate.mockImplementation(() => {})
 
-      await BestOfNStrategy.execute(executor, {}, 'cell1', 'prompt', 4, {
-        generatorFamily: 'OpenAI',
-        settings: {},
-      })
+      await BestOfNStrategy.execute(executor, {}, 'c1', 'prompt', 2, {})
 
-      expect(executor).toHaveBeenCalledTimes(4)
-      expect(StoreFork.applyCandidate).toHaveBeenCalledWith(expect.anything(), forks[1], 'cell1')
+      expect(executor).toHaveBeenCalledTimes(2)
+      expect(StoreFork.applyCandidate).toHaveBeenCalledWith(expect.anything(), forks[1], 'c1')
     })
 
-    it('should collect only fulfilled and validated candidates', async () => {
+    it('collects only fulfilled and validated candidates from mixed-outcome runs', async () => {
       const forks = Array.from({length: 5}, (_, i) => ({id: i}))
-      let forkIndex = 0
-
-      StoreFork.createFork.mockImplementation(() => forks[forkIndex++])
+      let idx = 0
+      StoreFork.createFork.mockImplementation(() => forks[idx++])
 
       const executor = jest
         .fn()
-        .mockRejectedValueOnce(new Error('Fail'))
+        .mockRejectedValueOnce(new Error('fail'))
         .mockResolvedValueOnce(undefined)
         .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error('Fail'))
+        .mockRejectedValueOnce(new Error('fail'))
         .mockResolvedValueOnce(undefined)
 
       CandidateEvaluator.validate
@@ -214,10 +82,10 @@ describe('BestOfNStrategy', () => {
         .mockReturnValueOnce({pass: false})
         .mockReturnValueOnce({pass: true})
 
-      LLMJudge.evaluate.mockResolvedValue({winnerIndex: 0})
+      LLMJudge.evaluate.mockResolvedValue({winnerIndex: 0, reason: null})
       StoreFork.applyCandidate.mockImplementation(() => {})
 
-      await BestOfNStrategy.execute(executor, {}, 'cell1', 'prompt', 5, {
+      await BestOfNStrategy.execute(executor, {}, 'c1', 'prompt', 5, {
         generatorFamily: 'OpenAI',
         settings: {},
       })
@@ -227,278 +95,268 @@ describe('BestOfNStrategy', () => {
         [forks[1], forks[4]],
         'OpenAI',
         {},
-        {criteria: undefined},
+        expect.objectContaining({criteria: undefined}),
       )
     })
   })
-  describe('store mutation', () => {
-    describe('title annotation', () => {
-      it('should annotate cell title with execution summary when store has _nodes', async () => {
-        const store = {
-          _userId: 'user1',
-          _nodes: {
-            cell1: {id: 'cell1', title: 'Original'},
-          },
-        }
-        const forks = [{}, {}, {}]
-        let forkIndex = 0
 
-        StoreFork.createFork.mockImplementation(() => forks[forkIndex++])
-        CandidateEvaluator.validate.mockReturnValue({pass: true})
-        LLMJudge.evaluate.mockResolvedValue({winnerIndex: 1})
-        StoreFork.applyCandidate.mockImplementation(() => {})
+  describe('gate filtering', () => {
+    it('passes only gate-passing candidates to the judge', async () => {
+      const forks = [{}, {}, {}]
+      let idx = 0
+      StoreFork.createFork.mockImplementation(() => forks[idx++])
+      CandidateEvaluator.validate
+        .mockReturnValueOnce({pass: false})
+        .mockReturnValueOnce({pass: true})
+        .mockReturnValueOnce({pass: true})
+      LLMJudge.evaluate.mockResolvedValue({winnerIndex: 0, reason: null})
+      StoreFork.applyCandidate.mockImplementation(() => {})
 
-        await BestOfNStrategy.execute(jest.fn(), store, 'cell1', 'prompt', 3, {
-          generatorFamily: 'OpenAI',
-          settings: {},
-        })
-
-        expect(store._nodes.cell1.title).toMatch(/Original/)
-        expect(store._nodes.cell1.title).toMatch(/\[✓ \d+\/\d+ best of \d+\]/)
+      await BestOfNStrategy.execute(jest.fn(), {}, 'c1', 'prompt', 3, {
+        generatorFamily: 'OpenAI',
+        settings: {},
       })
 
-      it('should annotate with pass count matching validated candidates', async () => {
-        const store = {
-          _userId: 'user1',
-          _nodes: {
-            cell1: {id: 'cell1', title: 'T'},
-          },
-        }
-        const forks = [{}, {}, {}]
-        let forkIndex = 0
-
-        StoreFork.createFork.mockImplementation(() => forks[forkIndex++])
-        CandidateEvaluator.validate
-          .mockReturnValueOnce({pass: true})
-          .mockReturnValueOnce({pass: false})
-          .mockReturnValueOnce({pass: true})
-        LLMJudge.evaluate.mockResolvedValue({winnerIndex: 0})
-        StoreFork.applyCandidate.mockImplementation(() => {})
-
-        await BestOfNStrategy.execute(jest.fn(), store, 'cell1', 'prompt', 3, {
-          generatorFamily: 'OpenAI',
-          settings: {},
-        })
-
-        expect(store._nodes.cell1.title).toBe('T [✓ 2/3 best of 3]')
-      })
-
-      it('should annotate failure when all candidates rejected by validator', async () => {
-        const store = {
-          _nodes: {
-            cell1: {id: 'cell1', title: 'T'},
-          },
-        }
-
-        StoreFork.createFork.mockReturnValue({})
-        CandidateEvaluator.validate.mockReturnValue({pass: false})
-
-        await expect(
-          BestOfNStrategy.execute(jest.fn(), store, 'cell1', 'prompt', 3, {
-            generatorFamily: 'OpenAI',
-            settings: {},
-          }),
-        ).rejects.toThrow()
-
-        expect(store._nodes.cell1.title).toBe('T [✗ 0/3 passed]')
-      })
-
-      it('should preserve idempotency by stripping prior annotation', async () => {
-        const store = {
-          _userId: 'user1',
-          _nodes: {
-            cell1: {id: 'cell1', title: 'Base [✓ 2/2 best of 2]'},
-          },
-        }
-        const fork = {}
-
-        StoreFork.createFork.mockReturnValue(fork)
-        CandidateEvaluator.validate.mockReturnValue({pass: true})
-        StoreFork.applyCandidate.mockImplementation(() => {})
-
-        await BestOfNStrategy.execute(jest.fn(), store, 'cell1', 'prompt', 1, {
-          generatorFamily: 'OpenAI',
-          settings: {},
-        })
-
-        expect(store._nodes.cell1.title).toBe('Base [✓ 1/1 best of 1]')
-      })
-
-      it('should strip failure annotations before re-execution', async () => {
-        const store = {
-          _userId: 'user1',
-          _nodes: {
-            cell1: {id: 'cell1', title: 'Base [✗ 0/5 passed]'},
-          },
-        }
-        const fork = {}
-
-        StoreFork.createFork.mockReturnValue(fork)
-        CandidateEvaluator.validate.mockReturnValue({pass: true})
-        StoreFork.applyCandidate.mockImplementation(() => {})
-
-        await BestOfNStrategy.execute(jest.fn(), store, 'cell1', 'prompt', 1, {
-          generatorFamily: 'OpenAI',
-          settings: {},
-        })
-
-        expect(store._nodes.cell1.title).toBe('Base [✓ 1/1 best of 1]')
-      })
-
-      it('should not mutate when single survivor bypasses judge', async () => {
-        const store = {
-          _userId: 'user1',
-          _nodes: {
-            cell1: {id: 'cell1', title: 'T'},
-          },
-        }
-        const fork = {}
-
-        StoreFork.createFork.mockReturnValue(fork)
-        CandidateEvaluator.validate
-          .mockReturnValueOnce({pass: true})
-          .mockReturnValueOnce({pass: false})
-          .mockReturnValueOnce({pass: false})
-        StoreFork.applyCandidate.mockImplementation(() => {})
-
-        await BestOfNStrategy.execute(jest.fn(), store, 'cell1', 'prompt', 3, {
-          generatorFamily: 'OpenAI',
-          settings: {},
-        })
-
-        expect(LLMJudge.evaluate).not.toHaveBeenCalled()
-        expect(store._nodes.cell1.title).toBe('T [✓ 1/3 best of 3]')
-      })
-
-      it('should handle missing store._nodes gracefully', async () => {
-        const store = {_userId: 'user1'}
-        const fork = {}
-
-        StoreFork.createFork.mockReturnValue(fork)
-        CandidateEvaluator.validate.mockReturnValue({pass: true})
-        StoreFork.applyCandidate.mockImplementation(() => {})
-
-        await expect(
-          BestOfNStrategy.execute(jest.fn(), store, 'cell1', 'prompt', 1, {
-            generatorFamily: 'OpenAI',
-            settings: {},
-          }),
-        ).resolves.not.toThrow()
-
-        expect(store._nodes).toBeUndefined()
-      })
-
-      it('should handle missing cellId in store._nodes gracefully', async () => {
-        const store = {
-          _userId: 'user1',
-          _nodes: {},
-        }
-        const fork = {}
-
-        StoreFork.createFork.mockReturnValue(fork)
-        CandidateEvaluator.validate.mockReturnValue({pass: true})
-        StoreFork.applyCandidate.mockImplementation(() => {})
-
-        await expect(
-          BestOfNStrategy.execute(jest.fn(), store, 'missing', 'prompt', 1, {
-            generatorFamily: 'OpenAI',
-            settings: {},
-          }),
-        ).resolves.not.toThrow()
-
-        expect(store._nodes.missing).toBeUndefined()
-      })
+      expect(LLMJudge.evaluate).toHaveBeenCalledWith(
+        'prompt',
+        [forks[1], forks[2]],
+        'OpenAI',
+        {},
+        expect.objectContaining({criteria: undefined}),
+      )
     })
 
-    describe('criteria forwarding', () => {
-      it('should forward criteria option to LLMJudge.evaluate', async () => {
-        const forks = [{}, {}]
-        let forkIndex = 0
-        StoreFork.createFork.mockImplementation(() => forks[forkIndex++])
-        CandidateEvaluator.validate.mockReturnValue({pass: true})
-        LLMJudge.evaluate.mockResolvedValue({winnerIndex: 0})
-        StoreFork.applyCandidate.mockImplementation(() => {})
+    it('skips judge and applies sole survivor directly', async () => {
+      const fork = {}
+      StoreFork.createFork.mockReturnValue(fork)
+      CandidateEvaluator.validate
+        .mockReturnValueOnce({pass: true})
+        .mockReturnValueOnce({pass: false})
+        .mockReturnValueOnce({pass: false})
+      StoreFork.applyCandidate.mockImplementation(() => {})
 
-        const executor = jest.fn()
-        const criteria = 'Check grammar and spelling'
+      await BestOfNStrategy.execute(jest.fn(), {}, 'c1', 'prompt', 3, {})
 
-        await BestOfNStrategy.execute(executor, {}, 'cell1', 'prompt', 2, {
-          generatorFamily: 'OpenAI',
-          settings: {},
-          criteria,
-        })
+      expect(LLMJudge.evaluate).not.toHaveBeenCalled()
+      expect(StoreFork.applyCandidate).toHaveBeenCalledWith(expect.anything(), fork, 'c1')
+    })
 
-        expect(LLMJudge.evaluate).toHaveBeenCalledWith('prompt', [forks[0], forks[1]], 'OpenAI', {}, {criteria})
+    it('resolves without throwing when all candidates fail the gate', async () => {
+      StoreFork.createFork.mockReturnValue({})
+      CandidateEvaluator.validate.mockReturnValue({pass: false})
+
+      await expect(BestOfNStrategy.execute(jest.fn(), {}, 'c1', 'prompt', 3, {})).resolves.toBeUndefined()
+    })
+
+    it('does not apply any candidate when all fail the gate', async () => {
+      StoreFork.createFork.mockReturnValue({})
+      CandidateEvaluator.validate.mockReturnValue({pass: false})
+
+      await BestOfNStrategy.execute(jest.fn(), {}, 'c1', 'prompt', 3, {})
+
+      expect(StoreFork.applyCandidate).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('winner selection', () => {
+    it('applies the judge-selected winner to the original store', async () => {
+      const forks = [{}, {}]
+      let idx = 0
+      StoreFork.createFork.mockImplementation(() => forks[idx++])
+      CandidateEvaluator.validate.mockReturnValue({pass: true})
+      LLMJudge.evaluate.mockResolvedValue({winnerIndex: 1, reason: null})
+      StoreFork.applyCandidate.mockImplementation(() => {})
+
+      const store = {}
+      await BestOfNStrategy.execute(jest.fn(), store, 'c1', 'prompt', 2, {
+        generatorFamily: 'OpenAI',
+        settings: {},
       })
 
-      it('should pass undefined criteria when option omitted', async () => {
-        const forks = [{}, {}]
-        let forkIndex = 0
-        StoreFork.createFork.mockImplementation(() => forks[forkIndex++])
-        CandidateEvaluator.validate.mockReturnValue({pass: true})
-        LLMJudge.evaluate.mockResolvedValue({winnerIndex: 0})
-        StoreFork.applyCandidate.mockImplementation(() => {})
+      expect(StoreFork.applyCandidate).toHaveBeenCalledWith(store, forks[1], 'c1')
+    })
 
-        const executor = jest.fn()
+    it('applies the sole survivor when judge is bypassed (N=1)', async () => {
+      const fork = {}
+      StoreFork.createFork.mockReturnValue(fork)
+      CandidateEvaluator.validate.mockReturnValue({pass: true})
+      StoreFork.applyCandidate.mockImplementation(() => {})
 
-        await BestOfNStrategy.execute(executor, {}, 'cell1', 'prompt', 2, {
-          generatorFamily: 'OpenAI',
-          settings: {},
-        })
+      const store = {}
+      await BestOfNStrategy.execute(jest.fn(), store, 'c1', 'prompt', 1, {})
 
-        expect(LLMJudge.evaluate).toHaveBeenCalledWith(
-          'prompt',
-          [forks[0], forks[1]],
-          'OpenAI',
-          {},
-          {criteria: undefined},
-        )
+      expect(StoreFork.applyCandidate).toHaveBeenCalledWith(store, fork, 'c1')
+    })
+  })
+
+  describe('title annotation', () => {
+    it('writes candidate suffix with accurate pass fraction after judgment', async () => {
+      const store = {_nodes: {c1: {id: 'c1', title: 'T'}}}
+      const forks = [{}, {}, {}]
+      let idx = 0
+      StoreFork.createFork.mockImplementation(() => forks[idx++])
+      CandidateEvaluator.validate
+        .mockReturnValueOnce({pass: true})
+        .mockReturnValueOnce({pass: false})
+        .mockReturnValueOnce({pass: true})
+      LLMJudge.evaluate.mockResolvedValue({winnerIndex: 0, reason: null})
+      StoreFork.applyCandidate.mockImplementation(() => {})
+
+      await BestOfNStrategy.execute(jest.fn(), store, 'c1', 'prompt', 3, {
+        generatorFamily: 'OpenAI',
+        settings: {},
       })
 
-      it('should forward empty string criteria', async () => {
-        const forks = [{}, {}]
-        let forkIndex = 0
-        StoreFork.createFork.mockImplementation(() => forks[forkIndex++])
-        CandidateEvaluator.validate.mockReturnValue({pass: true})
-        LLMJudge.evaluate.mockResolvedValue({winnerIndex: 0})
-        StoreFork.applyCandidate.mockImplementation(() => {})
+      expect(store._nodes.c1.title).toBe(`T ${buildCandidateSuffix(2, 3)}`)
+    })
 
-        const executor = jest.fn()
+    it('writes gate failure suffix and resolves when all candidates fail', async () => {
+      const store = {_nodes: {c1: {id: 'c1', title: 'T'}}}
+      StoreFork.createFork.mockReturnValue({})
+      CandidateEvaluator.validate.mockReturnValue({pass: false})
 
-        await BestOfNStrategy.execute(executor, {}, 'cell1', 'prompt', 2, {
-          generatorFamily: 'OpenAI',
-          settings: {},
-          criteria: '',
-        })
+      await BestOfNStrategy.execute(jest.fn(), store, 'c1', 'prompt', 3, {})
 
-        expect(LLMJudge.evaluate).toHaveBeenCalledWith('prompt', [forks[0], forks[1]], 'OpenAI', {}, {criteria: ''})
+      expect(store._nodes.c1.title).toBe(`T ${buildGateFailureSuffix(3)}`)
+    })
+
+    it('writes candidate suffix for sole survivor (N=1 judge bypass)', async () => {
+      const store = {_nodes: {c1: {id: 'c1', title: 'T'}}}
+      StoreFork.createFork.mockReturnValue({})
+      CandidateEvaluator.validate.mockReturnValue({pass: true})
+      StoreFork.applyCandidate.mockImplementation(() => {})
+
+      await BestOfNStrategy.execute(jest.fn(), store, 'c1', 'prompt', 1, {})
+
+      expect(store._nodes.c1.title).toBe(`T ${buildCandidateSuffix(1, 1)}`)
+    })
+
+    it.each([
+      ['candidate suffix', buildCandidateSuffix(2, 2)],
+      ['gate failure suffix', buildGateFailureSuffix(5)],
+      ['first-survivor suffix', buildFirstSurvivorSuffix(2, 3)],
+      ['REFINED_SUFFIX', REFINED_SUFFIX],
+      ['REFINE_FAILURE_SUFFIX', REFINE_FAILURE_SUFFIX],
+    ])('strips %s from prior execution before writing new suffix', async (_label, priorSuffix) => {
+      const store = {
+        _nodes: {c1: {id: 'c1', title: `Base ${priorSuffix}`}},
+      }
+      StoreFork.createFork.mockReturnValue({})
+      CandidateEvaluator.validate.mockReturnValue({pass: true})
+      StoreFork.applyCandidate.mockImplementation(() => {})
+
+      await BestOfNStrategy.execute(jest.fn(), store, 'c1', 'prompt', 1, {})
+
+      expect(store._nodes.c1.title).toBe(`Base ${buildCandidateSuffix(1, 1)}`)
+    })
+
+    it.each([
+      ['no_alternative_model_available', 'no_alternative_model_available'],
+      ['judge_invocation_failed', 'judge_invocation_failed'],
+      ['unparseable_judge_response', 'unparseable_judge_response'],
+    ])('writes first-survivor suffix when judge returns reason "%s"', async (_label, reason) => {
+      const store = {_nodes: {c1: {id: 'c1', title: 'T'}}}
+      const forks = [{}, {}]
+      let idx = 0
+      StoreFork.createFork.mockImplementation(() => forks[idx++])
+      CandidateEvaluator.validate.mockReturnValue({pass: true})
+      LLMJudge.evaluate.mockResolvedValue({winnerIndex: 0, reason})
+      StoreFork.applyCandidate.mockImplementation(() => {})
+
+      await BestOfNStrategy.execute(jest.fn(), store, 'c1', 'prompt', 2, {
+        generatorFamily: 'OpenAI',
+        settings: {},
       })
 
-      it('should forward multi-segment criteria joined from multiple /validate nodes', async () => {
-        const forks = [{}, {}]
-        let forkIndex = 0
-        StoreFork.createFork.mockImplementation(() => forks[forkIndex++])
-        CandidateEvaluator.validate.mockReturnValue({pass: true})
-        LLMJudge.evaluate.mockResolvedValue({winnerIndex: 0})
-        StoreFork.applyCandidate.mockImplementation(() => {})
+      expect(store._nodes.c1.title).toBe(`T ${buildFirstSurvivorSuffix(2, 2)}`)
+    })
 
-        const executor = jest.fn()
-        const multiSegmentCriteria = 'Check grammar\n\nEnsure JSON output\n\nVerify all fields present'
+    it('handles absent store._nodes without throwing', async () => {
+      StoreFork.createFork.mockReturnValue({})
+      CandidateEvaluator.validate.mockReturnValue({pass: true})
+      StoreFork.applyCandidate.mockImplementation(() => {})
 
-        await BestOfNStrategy.execute(executor, {}, 'cell1', 'prompt', 2, {
-          generatorFamily: 'OpenAI',
-          settings: {},
-          criteria: multiSegmentCriteria,
-        })
+      await expect(BestOfNStrategy.execute(jest.fn(), {}, 'c1', 'prompt', 1, {})).resolves.not.toThrow()
+    })
 
-        expect(LLMJudge.evaluate).toHaveBeenCalledWith(
-          'prompt',
-          [forks[0], forks[1]],
-          'OpenAI',
-          {},
-          {criteria: multiSegmentCriteria},
-        )
+    it('handles absent cellId in store._nodes without throwing', async () => {
+      const store = {_nodes: {}}
+      StoreFork.createFork.mockReturnValue({})
+      CandidateEvaluator.validate.mockReturnValue({pass: true})
+      StoreFork.applyCandidate.mockImplementation(() => {})
+
+      await expect(BestOfNStrategy.execute(jest.fn(), store, 'missing', 'prompt', 1, {})).resolves.not.toThrow()
+      expect(store._nodes.missing).toBeUndefined()
+    })
+  })
+
+  describe('criteria forwarding', () => {
+    it('forwards criteria to the judge', async () => {
+      const forks = [{}, {}]
+      let idx = 0
+      StoreFork.createFork.mockImplementation(() => forks[idx++])
+      CandidateEvaluator.validate.mockReturnValue({pass: true})
+      LLMJudge.evaluate.mockResolvedValue({winnerIndex: 0, reason: null})
+      StoreFork.applyCandidate.mockImplementation(() => {})
+
+      await BestOfNStrategy.execute(jest.fn(), {}, 'c1', 'prompt', 2, {
+        generatorFamily: 'OpenAI',
+        settings: {},
+        criteria: 'Must include revenue figures',
       })
+
+      expect(LLMJudge.evaluate).toHaveBeenCalledWith(
+        'prompt',
+        [forks[0], forks[1]],
+        'OpenAI',
+        {},
+        expect.objectContaining({criteria: 'Must include revenue figures'}),
+      )
+    })
+
+    it('forwards undefined criteria when option is absent', async () => {
+      const forks = [{}, {}]
+      let idx = 0
+      StoreFork.createFork.mockImplementation(() => forks[idx++])
+      CandidateEvaluator.validate.mockReturnValue({pass: true})
+      LLMJudge.evaluate.mockResolvedValue({winnerIndex: 0, reason: null})
+      StoreFork.applyCandidate.mockImplementation(() => {})
+
+      await BestOfNStrategy.execute(jest.fn(), {}, 'c1', 'prompt', 2, {
+        generatorFamily: 'OpenAI',
+        settings: {},
+      })
+
+      expect(LLMJudge.evaluate).toHaveBeenCalledWith(
+        'prompt',
+        [forks[0], forks[1]],
+        'OpenAI',
+        {},
+        expect.objectContaining({criteria: undefined}),
+      )
+    })
+
+    it('forwards empty string criteria — distinct from absent criteria', async () => {
+      const forks = [{}, {}]
+      let idx = 0
+      StoreFork.createFork.mockImplementation(() => forks[idx++])
+      CandidateEvaluator.validate.mockReturnValue({pass: true})
+      LLMJudge.evaluate.mockResolvedValue({winnerIndex: 0, reason: null})
+      StoreFork.applyCandidate.mockImplementation(() => {})
+
+      await BestOfNStrategy.execute(jest.fn(), {}, 'c1', 'prompt', 2, {
+        generatorFamily: 'OpenAI',
+        settings: {},
+        criteria: '',
+      })
+
+      expect(LLMJudge.evaluate).toHaveBeenCalledWith(
+        'prompt',
+        [forks[0], forks[1]],
+        'OpenAI',
+        {},
+        expect.objectContaining({criteria: ''}),
+      )
     })
   })
 })

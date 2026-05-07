@@ -8,7 +8,7 @@ import {HumanMessage} from '@langchain/core/messages'
 import {DEEPSEEK_API_URL} from '../../../shared/config/constants'
 import {DEEPSEEK_DEFAULT_MODEL} from '../../../constants'
 import {referencePatterns} from './references/utils/referencePatterns'
-import {clearReferences} from './references/utils/referenceUtils' // Direct import
+import {clearReferences} from './references/utils/referenceUtils'
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
@@ -16,16 +16,7 @@ import {createContextForChat} from './utils/createContextForChat'
 
 const log = debug('delta5:app:Command:Deepseek')
 
-/**
- * Class representing a Deepseek Command.
- */
 export class DeepseekCommand {
-  /**
-   * Creates an instance of DeepseekCommand
-   * @param {string} userId - The unique identifier for the user
-   * @param {string} workflowId - The unique identifier for the workflow (optional)
-   * @param {Store} store - The store object
-   */
   constructor(userId, workflowId, store) {
     this.store = store
     this.userId = userId
@@ -48,10 +39,10 @@ export class DeepseekCommand {
     }
 
     const llm = new ChatOpenAI({
-      openAIApiKey: apiKey,
-      modelName: model || DEEPSEEK_DEFAULT_MODEL,
+      apiKey,
+      model: model || DEEPSEEK_DEFAULT_MODEL,
       configuration: {
-        basePath: DEEPSEEK_API_URL,
+        baseURL: DEEPSEEK_API_URL,
       },
       maxRetries: 1,
     })
@@ -81,7 +72,7 @@ export class DeepseekCommand {
       this.store.importer.createNodes(text, node.id)
     } catch (e) {
       this.logError(e)
-      this.store.importer.createNodes(`Error: ${e.message}`, node.id)
+      this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }
   }
 }

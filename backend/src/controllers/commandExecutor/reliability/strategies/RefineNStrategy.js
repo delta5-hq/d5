@@ -3,55 +3,60 @@ import StoreFork from '../core/StoreFork'
 import LLMJudge from '../core/LLMJudge'
 import NullProgress from '../core/NullProgress'
 import ImportHandler from '../../commands/utils/ImportHandler'
-
-const SUFFIX_PATTERN = /\s*\[[✓✗]\s+\d+\/\d+\s+(best\s+of\s+\d+|passed)\]\s*$/i
+import {stripReliabilitySuffix, buildGateFailureSuffix, buildJudgmentSuffix} from '../core/reliabilitySuffix'
 
 class RefineNStrategy {
-  /**
-   * @param {Function} commandRunner - async (forkStore, progress) => void
-   * @param {import('../../commands/utils/Store').default} store
-   * @param {string} parentCellId
-   * @param {string} refineNodeId
-   * @param {string} prompt - Original user prompt for judge evaluation
-   * @param {number} N - Total candidates (1 existing + N-1 new runs)
-   * @param {Object} [options]
-   * @param {boolean} [options.isTableCommand]
-   * @param {string} [options.generatorFamily]
-   * @param {Object} [options.settings]
-   * @param {string} [options.criteria]
-   */
   static async execute(commandRunner, store, parentCellId, refineNodeId, prompt, N, options = {}) {
-    const {isTableCommand = false, generatorFamily, settings, criteria} = options
-
-    const existingCandidate = this.wrapExistingOutput(store, parentCellId)
-    const existingPasses = CandidateEvaluator.validate(existingCandidate, prompt, {isTableCommand}).pass
-
-    const newForks = await this.runNewCandidates(commandRunner, store, prompt, N - 1, {isTableCommand})
-
-    const candidates = [...(existingPasses ? [existingCandidate] : []), ...newForks]
-
-    const forks = [...(existingPasses ? [null] : []), ...newForks]
+    const {
+      isTableCommand = false,
+      generatorFamily,
+      settings,
+      criteria,
+      judgeFamily = null,
+      judgeReasoning = false,
+      judgeSamples = 1,
+      judgeEnsemble = 1,
+    } = options
 
     const refineNode = store._nodes[refineNodeId]
-    const originalTitle = this.stripSuffix(refineNode?.title ?? '')
+    const originalTitle = stripReliabilitySuffix(refineNode?.title ?? '')
+    let suffix = buildGateFailureSuffix(N)
 
-    if (candidates.length === 0) {
-      if (refineNode) refineNode.title = `${originalTitle} [✗ 0/${N} passed]`
-      return
-    }
+    try {
+      const existingCandidate = this.wrapExistingOutput(store, parentCellId)
+      const existingPasses = CandidateEvaluator.validate(existingCandidate, prompt, {isTableCommand}).pass
 
-    const winnerIdx =
-      candidates.length >= 2
-        ? (await LLMJudge.evaluate(prompt, candidates, generatorFamily, settings, {criteria})).winnerIndex
-        : 0
+      const newForks = await this.runNewCandidates(commandRunner, store, prompt, N - 1, {isTableCommand})
 
-    const winnerFork = forks[winnerIdx]
-    if (winnerFork !== null) {
-      this.applyForkOutput(store, parentCellId, winnerFork)
-    }
+      const candidates = [...(existingPasses ? [existingCandidate] : []), ...newForks]
+      const forks = [...(existingPasses ? [null] : []), ...newForks]
 
-    if (refineNode) {
-      refineNode.title = `${originalTitle} [✓ ${candidates.length}/${N} best of ${N}]`
+      if (candidates.length === 0) {
+        return
+      }
+
+      const judgment =
+        candidates.length >= 2
+          ? await LLMJudge.evaluate(prompt, candidates, generatorFamily, settings, {
+              criteria,
+              judgeFamily,
+              judgeReasoning,
+              judgeSamples,
+              judgeEnsemble,
+            })
+          : {winnerIndex: 0, confidence: null, reason: null}
+
+      const winnerFork = forks[judgment.winnerIndex]
+      if (winnerFork !== null) {
+        this.applyForkOutput(store, parentCellId, winnerFork)
+      }
+
+      suffix = buildJudgmentSuffix(judgment, candidates.length, N)
+    } finally {
+      if (refineNode) {
+        refineNode.title = `${originalTitle} ${suffix}`.trim()
+        store.saveNodeToOutput(refineNodeId)
+      }
     }
   }
 
@@ -109,11 +114,6 @@ class RefineNStrategy {
     }
 
     store.importer = new ImportHandler(store)
-  }
-
-  /** @private */
-  static stripSuffix(title) {
-    return title.replace(SUFFIX_PATTERN, '')
   }
 }
 

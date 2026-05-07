@@ -44,6 +44,9 @@ vi.mock('@shared/composables', () => ({
     isLoading: false,
   }),
 }))
+vi.mock('@entities/auth', () => ({
+  useAuthContext: () => ({ isLoggedIn: false }),
+}))
 
 beforeEach(() => {
   Object.keys(storage).forEach(k => delete storage[k])

@@ -1,79 +1,156 @@
-import {getLLM} from '../../commands/utils/langchain/getLLM'
+import {getLLM, Model} from '../../commands/utils/langchain/getLLM'
 import {HumanMessage} from '@langchain/core/messages'
 import ModelFamilyRouter from '../models/ModelFamilyRouter'
 import ShuffleMapper from './ShuffleMapper'
+import VoteAggregator from './VoteAggregator'
+import {JudgeErrorClassifier, JudgeNonTransientError} from './JudgeErrorClassifier'
 import serializeNodeTree from '../../commands/utils/serializeNodeTree'
 
-/**
- * Provides semantic evaluation beyond structural validation (β≈0.15)
- * Eliminates positional bias through presentation order randomization
- */
+const DEEPSEEK_REASONER_MODEL = 'deepseek-reasoner'
+
 class LLMJudge {
   /**
    * @typedef {Object} JudgmentResult
    * @property {number} winnerIndex
+   * @property {number|null} confidence
    * @property {string|null} reason
    */
 
   /**
-   * @param {string} prompt - Original user prompt
-   * @param {Array<import('../../commands/utils/Store').default>} candidates
+   * @param {string} prompt
+   * @param {Array} candidates
    * @param {string} generatorFamily
-   * @param {Object} settings - User integration settings
-   * @param {Object} [options] - Evaluation options
-   * @param {function(number): Object} [options.shuffleMapperFactory] - Injectable shuffle factory for testing
-   * @param {string} [options.criteria] - User-provided validation criteria
+   * @param {Object} settings
+   * @param {Object} [options]
+   * @param {string|null} [options.judgeFamily]
+   * @param {boolean} [options.judgeReasoning]
+   * @param {number} [options.judgeSamples]
+   * @param {number} [options.judgeEnsemble]
+   * @param {function} [options.shuffleMapperFactory]
+   * @param {string} [options.criteria]
    * @returns {Promise<JudgmentResult>}
    */
   static async evaluate(prompt, candidates, generatorFamily, settings, options = {}) {
-    const judgeFamily = ModelFamilyRouter.selectJudgeModel(generatorFamily, settings)
+    const {
+      judgeFamily: overrideFamily = null,
+      judgeReasoning = false,
+      judgeSamples = 1,
+      judgeEnsemble = 1,
+      shuffleMapperFactory = ShuffleMapper.createShuffleMapping,
+      criteria,
+    } = options
 
-    if (!judgeFamily) {
-      return {
-        winnerIndex: 0,
-        reason: 'no_alternative_model_available',
-      }
+    const families = ModelFamilyRouter.selectJudgeModels(generatorFamily, settings, judgeEnsemble, overrideFamily)
+
+    if (families.length === 0) {
+      return {winnerIndex: 0, confidence: null, reason: 'no_alternative_model_available'}
     }
 
-    const {shuffleMapperFactory = ShuffleMapper.createShuffleMapping, criteria} = options
-    const shuffle = shuffleMapperFactory(candidates.length)
+    const allVoteSettled = await Promise.allSettled(
+      families.map(family =>
+        this.collectSamplesForFamily(
+          prompt,
+          candidates,
+          family,
+          settings,
+          judgeSamples,
+          judgeReasoning,
+          shuffleMapperFactory,
+          criteria,
+        ),
+      ),
+    )
 
-    try {
-      const {llm} = getLLM({type: judgeFamily, settings})
+    const flatVotes = allVoteSettled.filter(r => r.status === 'fulfilled').flatMap(r => r.value)
 
-      const serialized = shuffle.presentationOrder.map((originalIdx, presentIdx) =>
-        this.serializeCandidate(candidates[originalIdx], presentIdx + 1),
+    if (flatVotes.length === 0) {
+      const nonTransientRejection = allVoteSettled.find(
+        r => r.status === 'rejected' && r.reason instanceof JudgeNonTransientError,
       )
-
-      const judgePrompt = this.buildJudgePrompt(prompt, serialized, candidates.length, criteria)
-
-      const result = await llm.invoke([new HumanMessage(judgePrompt)])
-
-      const {index, reason} = this.parseJudgeResponse(result.content, candidates.length)
-      if (index !== null) {
-        return {
-          winnerIndex: shuffle.remapToOriginal(index - 1),
-          reason: null,
-        }
-      }
-
-      return {winnerIndex: 0, reason}
-    } catch (error) {
-      return {
-        winnerIndex: 0,
-        reason: 'judge_invocation_failed',
-      }
+      const reason = nonTransientRejection ? nonTransientRejection.reason.reason : 'all_judge_calls_failed'
+      return {winnerIndex: 0, confidence: null, reason}
     }
+
+    const winnerIndex = VoteAggregator.majority(flatVotes, candidates.length)
+    const confidence = VoteAggregator.confidence(flatVotes, candidates.length)
+
+    return {winnerIndex, confidence, reason: null}
   }
 
-  /**
-   * Tolerates verbose judge phrasing (e.g. "Candidate 2 is best") in addition to bare integers.
-   * Ambiguous when multiple distinct in-range integers appear — returns null to force fallback.
-   *
-   * @param {string|null|undefined} content
-   * @param {number} candidateCount
-   * @returns {{index: number|null, reason: string|null}}
-   */
+  /** @private */
+  static async collectSamplesForFamily(
+    prompt,
+    candidates,
+    family,
+    settings,
+    sampleCount,
+    judgeReasoning,
+    shuffleMapperFactory,
+    criteria,
+  ) {
+    const votes = []
+    for (let i = 0; i < sampleCount; i++) {
+      try {
+        const vote = await this.singleJudgeCall(
+          prompt,
+          candidates,
+          family,
+          settings,
+          judgeReasoning,
+          shuffleMapperFactory,
+          criteria,
+        )
+        if (vote !== null) votes.push(vote)
+      } catch (error) {
+        const nonTransient = JudgeErrorClassifier.wrapIfNonTransient(error)
+        if (nonTransient) throw nonTransient
+      }
+    }
+    return votes
+  }
+
+  /** @private */
+  static async singleJudgeCall(prompt, candidates, family, settings, judgeReasoning, shuffleMapperFactory, criteria) {
+    const shuffle = shuffleMapperFactory(candidates.length)
+    const {llm} = this.createJudgeLLM(family, settings, judgeReasoning)
+
+    const serialized = shuffle.presentationOrder.map((originalIdx, presentIdx) =>
+      this.serializeCandidate(candidates[originalIdx], presentIdx + 1),
+    )
+
+    const judgePrompt = this.buildJudgePrompt(prompt, serialized, candidates.length, criteria)
+    const result = await llm.invoke([new HumanMessage(judgePrompt)])
+    const {index} = this.parseJudgeResponse(result.content, candidates.length)
+
+    if (index === null) return null
+    return shuffle.remapToOriginal(index - 1)
+  }
+
+  /** @private */
+  static createJudgeLLM(family, settings, judgeReasoning) {
+    if (!judgeReasoning) {
+      return getLLM({type: family, settings})
+    }
+
+    if (family === Model.Deepseek) {
+      return getLLM({
+        type: family,
+        settings: {
+          ...settings,
+          deepseek: {...(settings?.deepseek ?? {}), model: DEEPSEEK_REASONER_MODEL},
+        },
+      })
+    }
+
+    if (family === Model.Claude) {
+      return getLLM({type: family, settings, thinkingBudgetTokens: 2000})
+    }
+
+    return getLLM({type: family, settings})
+  }
+
+  // Accepts verbose LLM phrasing; returns null when no single unambiguous in-range integer is found.
+  /** @private */
   static parseJudgeResponse(content, candidateCount) {
     const trimmed = content?.trim() ?? ''
 
@@ -103,7 +180,6 @@ class LLMJudge {
   static serializeCandidate(store, candidateNumber) {
     const output = store.getOutput()
     const tree = serializeNodeTree(output.nodes, store._nodes)
-
     return `Candidate ${candidateNumber}:\n${tree || '(empty)'}`
   }
 

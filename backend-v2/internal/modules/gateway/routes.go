@@ -21,6 +21,7 @@ func (r *RouteRegistry) RegisterNodeJSRoutes(router fiber.Router) {
 	r.registerExecuteRoutes(router)
 	r.registerScrapingRoutes(router)
 	r.registerExternalAPIRoutes(router)
+	r.registerJudgeRoutes(router)
 }
 
 func (r *RouteRegistry) registerExecuteRoutes(router fiber.Router) {
@@ -40,4 +41,9 @@ func (r *RouteRegistry) registerExternalAPIRoutes(router fiber.Router) {
 	integrationGroup.Get("/search", r.proxy.Forward("/integration/search"))
 	integrationGroup.Post("/downloadImage", r.proxy.Forward("/integration/downloadImage"))
 	integrationGroup.Post("/images/generations", r.proxy.Forward("/integration/images/generations"))
+}
+
+func (r *RouteRegistry) registerJudgeRoutes(router fiber.Router) {
+	judgeGroup := router.Group("/judge")
+	judgeGroup.Post("/eval", r.proxy.Forward("/judge/eval"))
 }

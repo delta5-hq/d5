@@ -82,31 +82,31 @@ e2e: e2e-backend e2e-frontend
 	@echo "✓ All E2E tests completed"
 
 e2e-db-init:
-	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users/main.go seed-users
+	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users seed-users
 	@echo "→ Initializing E2E database (port 27018)..."
 	@DROP_DB=true MONGO_PORT=27018 bash backend-v2/e2e-db-init.sh
 	@echo "✓ E2E database initialized"
 
 e2e-db-drop:
-	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users/main.go seed-users
+	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users seed-users
 	@echo "→ Dropping E2E database (port 27018)..."
 	@MONGO_PORT=27018 bash backend-v2/e2e-db-drop.sh
 	@echo "✓ E2E database dropped"
 
 dev-db-init:
-	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users/main.go seed-users
+	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users seed-users
 	@echo "→ Initializing development database (port 27017)..."
 	@MONGO_PORT=27017 bash backend-v2/e2e-db-init.sh
 	@echo "✓ Development database initialized"
 
 dev-db-reset:
-	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users/main.go seed-users
+	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users seed-users
 	@echo "→ Resetting development database..."
 	@DROP_DB=true MONGO_PORT=27017 bash backend-v2/e2e-db-init.sh
 	@echo "✓ Development database reset"
 
 dev-db-drop:
-	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users/main.go seed-users
+	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users seed-users
 	@echo "→ Dropping development database (port 27017)..."
 	@MONGO_PORT=27017 bash backend-v2/e2e-db-drop.sh
 	@echo "✓ Development database dropped"

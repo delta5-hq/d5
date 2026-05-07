@@ -16,16 +16,7 @@ import {createContextForChat} from './utils/createContextForChat'
 
 const log = debug('delta5:app:Command:Chat')
 
-/**
- * Class representing a Chat Command.
- */
 export class ChatCommand {
-  /**
-   * Creates an instance of ChatCommand
-   * @param {string} userId - The unique identifier for the user
-   * @param {string} workflowId - The unique identifier for the workflow (optional)
-   * @param {Store} store - The store object
-   */
   constructor(userId, workflowId, store) {
     this.store = store
     this.userId = userId
@@ -48,8 +39,8 @@ export class ChatCommand {
     }
 
     const llm = new ChatOpenAI({
-      openAIApiKey: openai.apiKey,
-      modelName: openai?.model || DEFAULT_OPENAI_MODEL_NAME,
+      apiKey: openai.apiKey,
+      model: openai?.model || DEFAULT_OPENAI_MODEL_NAME,
     })
 
     const result = await llm.invoke(
@@ -102,7 +93,7 @@ export class ChatCommand {
       }
     } catch (e) {
       this.logError(e)
-      this.store.importer.createNodes(`Error: ${e.message}`, node.id)
+      this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }
   }
 }

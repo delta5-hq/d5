@@ -3,6 +3,7 @@ import type { DynamicAlias } from '@shared/lib/command-querytype-mapper'
 import type { IntegrationSettings } from '@shared/base-types'
 import { useApiQuery } from '@shared/composables'
 import { queryKeys } from '@shared/config'
+import { useAuthContext } from '@entities/auth'
 
 interface AliasContextValue {
   aliases: DynamicAlias[]
@@ -16,10 +17,12 @@ interface AliasProviderProps {
 }
 
 export const AliasProvider: React.FC<AliasProviderProps> = ({ children }) => {
+  const { isLoggedIn } = useAuthContext()
   const { data: integration, isLoading } = useApiQuery<IntegrationSettings>({
     queryKey: queryKeys.integration,
     url: '/integration',
     staleTime: 5 * 60 * 1000,
+    enabled: isLoggedIn,
   })
 
   const aliases = useMemo((): DynamicAlias[] => {

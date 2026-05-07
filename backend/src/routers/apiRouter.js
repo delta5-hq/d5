@@ -9,6 +9,7 @@ import extractUserId from '../middlewares/extractUserId'
 import integrationRouter from './integrationRouter'
 import executorRouter from './executorRouter'
 import progressStreamRouter from './progressStreamRouter'
+import judgeRouter from './judgeRouter'
 
 const apiRouter = new Router({prefix: API_BASE_PATH})
 
@@ -33,5 +34,6 @@ apiRouter
   .use(integrationRouter.routes(), integrationRouter.allowedMethods())
   .use(corsExecutorRouter.routes(), corsExecutorRouter.allowedMethods())
   .use(progressStreamRouter.routes(), progressStreamRouter.allowedMethods())
+  .use(judgeRouter.routes(), judgeRouter.allowedMethods())
 
 export default apiRouter

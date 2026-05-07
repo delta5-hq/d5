@@ -28,6 +28,9 @@ vi.mock('@features/workflow-tree/store', () => ({
 vi.mock('@features/workflow-tree/hooks/use-node-preview', () => ({
   useNodePreview: () => ({ previewText: '' }),
 }))
+vi.mock('@entities/auth', () => ({
+  useAuthContext: () => ({ isLoggedIn: false }),
+}))
 
 const wrapper = ({ children }: { children: ReactNode }) => (
   <QueryClientProvider client={queryClient}>
@@ -328,5 +331,61 @@ describe('NodeDetailPanel — Execute button behavior', () => {
 
       expect(screen.queryByTestId('execute-node-button')).not.toBeInTheDocument()
     })
+  })
+})
+
+describe('NodeDetailPanel — handleCommandChange title sync', () => {
+  // exhaustive suffix-pattern coverage for all variant types is in reliability-suffix.test.ts
+  const COMMAND_DERIVED_CASES = [
+    ['title exactly equals command', '/chat list colors', '/chat list colors'],
+    ['title is command plus bestOfN suffix', '/chat :n=2 list colors', '/chat :n=2 list colors [✓ 2/2 best of 2]'],
+    ['title is command plus refined suffix', '/chat list', '/chat list [✓ refined]'],
+  ] as const
+
+  it.each(COMMAND_DERIVED_CASES)('syncs both command and title to new command when %s', (_label, command, title) => {
+    const node = makeNode({ command, title })
+    const onUpdateNode = vi.fn()
+    renderPanel(node, false, { onUpdateNode })
+
+    const textarea = screen.getByPlaceholderText(/command/i)
+    fireEvent.change(textarea, { target: { value: '/chat list fruits' } })
+    fireEvent.blur(textarea)
+
+    expect(onUpdateNode).toHaveBeenCalledWith('n1', {
+      command: '/chat list fruits',
+      title: '/chat list fruits',
+    })
+  })
+
+  it('syncs title to new command when node has no title', () => {
+    const node = makeNode({ command: '/chat list colors', title: undefined })
+    const onUpdateNode = vi.fn()
+    renderPanel(node, false, { onUpdateNode })
+
+    const textarea = screen.getByPlaceholderText(/command/i)
+    fireEvent.change(textarea, { target: { value: '/chat list fruits' } })
+    fireEvent.blur(textarea)
+
+    expect(onUpdateNode).toHaveBeenCalledWith('n1', {
+      command: '/chat list fruits',
+      title: '/chat list fruits',
+    })
+  })
+
+  const USER_AUTHORED_CASES = [
+    ['user-authored title with a reliability suffix', '/chat analyse', 'My competitor analysis [✓ 2/2 best of 2]'],
+    ['user-authored title without any suffix', '/chat analyse', 'My competitor analysis'],
+  ] as const
+
+  it.each(USER_AUTHORED_CASES)('updates only command when node has %s', (_label, command, title) => {
+    const node = makeNode({ command, title })
+    const onUpdateNode = vi.fn()
+    renderPanel(node, false, { onUpdateNode })
+
+    const textarea = screen.getByPlaceholderText(/command/i)
+    fireEvent.change(textarea, { target: { value: '/chat list fruits' } })
+    fireEvent.blur(textarea)
+
+    expect(onUpdateNode).toHaveBeenCalledWith('n1', { command: '/chat list fruits' })
   })
 })

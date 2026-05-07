@@ -45,6 +45,7 @@ import {YANDEX_QUERY_TYPE} from '../constants/yandex'
 class CommandFactory {
   static LLM_QUERY_TYPES = new Set([
     CHAT_QUERY_TYPE,
+    COMPLETION_QUERY_TYPE,
     CLAUDE_QUERY_TYPE,
     DEEPSEEK_QUERY_TYPE,
     QWEN_QUERY_TYPE,

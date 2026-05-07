@@ -18,7 +18,7 @@ describe('LLMJudge', () => {
         {getOutput: () => ({nodes: [{title: 'Good'}]}), _nodes: {}},
       ]
 
-      ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
+      ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude'])
       getLLM.mockReturnValue({
         llm: {
           invoke: jest.fn().mockResolvedValue({content: '2'}),
@@ -36,6 +36,7 @@ describe('LLMJudge', () => {
       )
 
       expect(result.winnerIndex).toBe(1)
+      expect(result.confidence).toBeNull()
       expect(result.reason).toBeNull()
     })
 
@@ -43,7 +44,7 @@ describe('LLMJudge', () => {
       it('should return first candidate when no alternative model available', async () => {
         const candidates = [{getOutput: () => ({nodes: []}), _nodes: {}}]
 
-        ModelFamilyRouter.selectJudgeModel.mockReturnValue(null)
+        ModelFamilyRouter.selectJudgeModels.mockReturnValue([])
 
         const result = await LLMJudge.evaluate(
           'prompt',
@@ -59,50 +60,18 @@ describe('LLMJudge', () => {
         expect(result.reason).toBe('no_alternative_model_available')
       })
 
-      it('should return first candidate on judge response parsing failures', async () => {
-        const testCases = [
-          {content: 'not a number', reason: 'unparseable_judge_response'},
-          {content: '0', reason: 'unparseable_judge_response'},
-          {content: '5', reason: 'unparseable_judge_response'},
-          {content: '', reason: 'unparseable_judge_response'},
-          {content: '  ', reason: 'unparseable_judge_response'},
-          {content: 'one', reason: 'unparseable_judge_response'},
-        ]
-
-        for (const {content, reason} of testCases) {
-          const candidates = [{getOutput: () => ({nodes: []}), _nodes: {}}]
-
-          ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
-          getLLM.mockReturnValue({
-            llm: {
-              invoke: jest.fn().mockResolvedValue({content}),
-            },
-          })
-
-          const result = await LLMJudge.evaluate(
-            'prompt',
-            candidates,
-            'OpenAI',
-            {},
-            {
-              shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
-            },
-          )
-
-          expect(result.winnerIndex).toBe(0)
-          expect(result.reason).toBe(reason)
-        }
-      })
-
-      it('should return first candidate on judge invocation exceptions', async () => {
+      it.each([
+        ['word', 'not a number'],
+        ['zero (below range)', '0'],
+        ['above range', '5'],
+        ['empty string', ''],
+        ['whitespace', '  '],
+        ['spelled-out number', 'one'],
+      ])('returns first candidate and all_judge_calls_failed when judge responds with %s', async (_label, content) => {
         const candidates = [{getOutput: () => ({nodes: []}), _nodes: {}}]
 
-        ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
-        getLLM.mockReturnValue({
-          llm: {
-            invoke: jest.fn().mockRejectedValue(new Error('API Error')),
-          },
-        })
+        ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude'])
+        getLLM.mockReturnValue({llm: {invoke: jest.fn().mockResolvedValue({content})}})
 
         const result = await LLMJudge.evaluate(
           'prompt',
@@ -115,21 +84,37 @@ describe('LLMJudge', () => {
         )
 
         expect(result.winnerIndex).toBe(0)
-        expect(result.reason).toBe('judge_invocation_failed')
+        expect(result.reason).toBe('all_judge_calls_failed')
       })
 
-      it('should preserve fallback to original index 0 regardless of shuffle', async () => {
+      it('returns first candidate and all_judge_calls_failed on transient invocation error', async () => {
+        const candidates = [{getOutput: () => ({nodes: []}), _nodes: {}}]
+
+        ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude'])
+        getLLM.mockReturnValue({llm: {invoke: jest.fn().mockRejectedValue(new Error('ETIMEDOUT'))}})
+
+        const result = await LLMJudge.evaluate(
+          'prompt',
+          candidates,
+          'OpenAI',
+          {},
+          {
+            shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
+          },
+        )
+
+        expect(result.winnerIndex).toBe(0)
+        expect(result.reason).toBe('all_judge_calls_failed')
+      })
+
+      it('returns hardcoded index 0 as fallback regardless of configured shuffle order', async () => {
         const candidates = [
           {getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}},
           {getOutput: () => ({nodes: [{title: 'B'}]}), _nodes: {}},
         ]
 
-        ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
-        getLLM.mockReturnValue({
-          llm: {
-            invoke: jest.fn().mockResolvedValue({content: 'garbage'}),
-          },
-        })
+        ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude'])
+        getLLM.mockReturnValue({llm: {invoke: jest.fn().mockResolvedValue({content: 'garbage'})}})
 
         const result = await LLMJudge.evaluate(
           'prompt',
@@ -142,7 +127,35 @@ describe('LLMJudge', () => {
         )
 
         expect(result.winnerIndex).toBe(0)
-        expect(result.reason).toBe('unparseable_judge_response')
+        expect(result.reason).toBe('all_judge_calls_failed')
+      })
+
+      it.each([
+        ['auth error (401)', new Error('Request failed with status 401'), 'judge_auth_error'],
+        ['auth error (403)', new Error('Request failed with status 403'), 'judge_auth_error'],
+        ['quota error (429)', new Error('Request failed with status 429'), 'judge_quota_error'],
+        ['rate limit', new Error('Rate limit reached for requests per minute'), 'judge_quota_error'],
+      ])('surfaces non-transient reason when judge throws %s', async (_label, error, expectedReason) => {
+        const candidates = [
+          {getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}},
+          {getOutput: () => ({nodes: [{title: 'B'}]}), _nodes: {}},
+        ]
+
+        ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude'])
+        getLLM.mockReturnValue({llm: {invoke: jest.fn().mockRejectedValue(error)}})
+
+        const result = await LLMJudge.evaluate(
+          'prompt',
+          candidates,
+          'OpenAI',
+          {},
+          {
+            shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
+          },
+        )
+
+        expect(result.winnerIndex).toBe(0)
+        expect(result.reason).toBe(expectedReason)
       })
     })
 
@@ -162,7 +175,7 @@ describe('LLMJudge', () => {
             _nodes: {},
           }))
 
-          ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
+          ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude'])
           getLLM.mockReturnValue({
             llm: {
               invoke: jest.fn().mockResolvedValue({content: judgeSelects}),
@@ -195,7 +208,7 @@ describe('LLMJudge', () => {
           {getOutput: () => ({nodes: [node3]}), _nodes: {3: node3}},
         ]
 
-        ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
+        ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude'])
         const invokeMock = jest.fn().mockResolvedValue({content: '1'})
         getLLM.mockReturnValue({llm: {invoke: invokeMock}})
 
@@ -223,7 +236,7 @@ describe('LLMJudge', () => {
             _nodes: {},
           }))
 
-          ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
+          ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude'])
 
           for (let selection = 1; selection <= count; selection++) {
             getLLM.mockReturnValue({
@@ -241,6 +254,202 @@ describe('LLMJudge', () => {
         })
       })
     })
+
+    describe('ensemble voting across multiple judge families', () => {
+      it('aggregates votes from all families and returns non-null confidence', async () => {
+        const candidates = [
+          {getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}},
+          {getOutput: () => ({nodes: [{title: 'B'}]}), _nodes: {}},
+        ]
+
+        ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude', 'Deepseek'])
+        getLLM.mockReturnValue({llm: {invoke: jest.fn().mockResolvedValue({content: '2'})}})
+
+        const result = await LLMJudge.evaluate(
+          'prompt',
+          candidates,
+          'OpenAI',
+          {},
+          {
+            shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
+          },
+        )
+
+        expect(result.winnerIndex).toBe(1)
+        expect(result.confidence).not.toBeNull()
+        expect(result.reason).toBeNull()
+      })
+
+      it('resolves by majority when families disagree', async () => {
+        const candidates = [
+          {getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}},
+          {getOutput: () => ({nodes: [{title: 'B'}]}), _nodes: {}},
+        ]
+
+        const invokeMock = jest
+          .fn()
+          .mockResolvedValueOnce({content: '2'})
+          .mockResolvedValueOnce({content: '2'})
+          .mockResolvedValueOnce({content: '1'})
+
+        ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude', 'Deepseek', 'Qwen'])
+        getLLM.mockReturnValue({llm: {invoke: invokeMock}})
+
+        const result = await LLMJudge.evaluate(
+          'prompt',
+          candidates,
+          'OpenAI',
+          {},
+          {
+            shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
+          },
+        )
+
+        expect(result.winnerIndex).toBe(1)
+        expect(result.reason).toBeNull()
+      })
+
+      it('uses surviving family votes when one family fails with a transient error', async () => {
+        const candidates = [
+          {getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}},
+          {getOutput: () => ({nodes: [{title: 'B'}]}), _nodes: {}},
+        ]
+
+        let callCount = 0
+        getLLM.mockImplementation(() => {
+          callCount++
+          if (callCount === 1) {
+            return {llm: {invoke: jest.fn().mockRejectedValue(new Error('ETIMEDOUT'))}}
+          }
+          return {llm: {invoke: jest.fn().mockResolvedValue({content: '2'})}}
+        })
+
+        ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude', 'Deepseek'])
+
+        const result = await LLMJudge.evaluate(
+          'prompt',
+          candidates,
+          'OpenAI',
+          {},
+          {
+            shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
+          },
+        )
+
+        expect(result.winnerIndex).toBe(1)
+        expect(result.reason).toBeNull()
+      })
+
+      it('returns all_judge_calls_failed when all families fail with transient errors', async () => {
+        const candidates = [
+          {getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}},
+          {getOutput: () => ({nodes: [{title: 'B'}]}), _nodes: {}},
+        ]
+
+        ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude', 'Deepseek'])
+        getLLM.mockReturnValue({llm: {invoke: jest.fn().mockRejectedValue(new Error('ETIMEDOUT'))}})
+
+        const result = await LLMJudge.evaluate(
+          'prompt',
+          candidates,
+          'OpenAI',
+          {},
+          {
+            shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
+          },
+        )
+
+        expect(result.winnerIndex).toBe(0)
+        expect(result.reason).toBe('all_judge_calls_failed')
+      })
+    })
+
+    describe('multi-sample voting per family', () => {
+      it('accumulates multiple votes from a single family when judgeSamples > 1', async () => {
+        const candidates = [
+          {getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}},
+          {getOutput: () => ({nodes: [{title: 'B'}]}), _nodes: {}},
+          {getOutput: () => ({nodes: [{title: 'C'}]}), _nodes: {}},
+        ]
+
+        const invokeMock = jest
+          .fn()
+          .mockResolvedValueOnce({content: '1'})
+          .mockResolvedValueOnce({content: '2'})
+          .mockResolvedValueOnce({content: '2'})
+
+        ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude'])
+        getLLM.mockReturnValue({llm: {invoke: invokeMock}})
+
+        const result = await LLMJudge.evaluate(
+          'prompt',
+          candidates,
+          'OpenAI',
+          {},
+          {
+            shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
+            judgeSamples: 3,
+          },
+        )
+
+        expect(result.winnerIndex).toBe(1)
+        expect(result.confidence).toBeCloseTo(2 / 3, 2)
+        expect(result.reason).toBeNull()
+      })
+
+      it('returns null confidence when only one sample is collected', async () => {
+        const candidates = [
+          {getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}},
+          {getOutput: () => ({nodes: [{title: 'B'}]}), _nodes: {}},
+        ]
+
+        ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude'])
+        getLLM.mockReturnValue({llm: {invoke: jest.fn().mockResolvedValue({content: '1'})}})
+
+        const result = await LLMJudge.evaluate(
+          'prompt',
+          candidates,
+          'OpenAI',
+          {},
+          {
+            shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
+            judgeSamples: 1,
+          },
+        )
+
+        expect(result.confidence).toBeNull()
+      })
+
+      it('skips unparseable samples and tallies the remaining valid ones', async () => {
+        const candidates = [
+          {getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}},
+          {getOutput: () => ({nodes: [{title: 'B'}]}), _nodes: {}},
+        ]
+
+        const invokeMock = jest
+          .fn()
+          .mockResolvedValueOnce({content: 'garbage'})
+          .mockResolvedValueOnce({content: '2'})
+          .mockResolvedValueOnce({content: '2'})
+
+        ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude'])
+        getLLM.mockReturnValue({llm: {invoke: invokeMock}})
+
+        const result = await LLMJudge.evaluate(
+          'prompt',
+          candidates,
+          'OpenAI',
+          {},
+          {
+            shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
+            judgeSamples: 3,
+          },
+        )
+
+        expect(result.winnerIndex).toBe(1)
+        expect(result.reason).toBeNull()
+      })
+    })
   })
 
   describe('criteria-based evaluation', () => {
@@ -252,7 +461,7 @@ describe('LLMJudge', () => {
 
       const mockInvoke = jest.fn().mockResolvedValue({content: '1'})
 
-      ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
+      ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude'])
       getLLM.mockReturnValue({
         llm: {invoke: mockInvoke},
       })
@@ -273,15 +482,17 @@ describe('LLMJudge', () => {
       expect(invokeCall.content).toContain('Check for technical accuracy')
     })
 
-    it('should use generic prompt when criteria is empty string', async () => {
+    it.each([
+      ['empty string', {criteria: ''}],
+      ['whitespace only', {criteria: '   \n  '}],
+      ['undefined', {criteria: undefined}],
+      ['omitted', {}],
+    ])('uses generic prompt when criteria is %s', async (_label, extraOptions) => {
       const candidates = [{getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}}]
-
       const mockInvoke = jest.fn().mockResolvedValue({content: '1'})
 
-      ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
-      getLLM.mockReturnValue({
-        llm: {invoke: mockInvoke},
-      })
+      ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude'])
+      getLLM.mockReturnValue({llm: {invoke: mockInvoke}})
 
       await LLMJudge.evaluate(
         'prompt',
@@ -290,81 +501,7 @@ describe('LLMJudge', () => {
         {},
         {
           shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
-          criteria: '',
-        },
-      )
-
-      const invokeCall = mockInvoke.mock.calls[0][0][0]
-      expect(invokeCall.content).not.toContain('Evaluate candidates against these criteria')
-    })
-
-    it('should use generic prompt when criteria is whitespace only', async () => {
-      const candidates = [{getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}}]
-
-      const mockInvoke = jest.fn().mockResolvedValue({content: '1'})
-
-      ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
-      getLLM.mockReturnValue({
-        llm: {invoke: mockInvoke},
-      })
-
-      await LLMJudge.evaluate(
-        'prompt',
-        candidates,
-        'OpenAI',
-        {},
-        {
-          shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
-          criteria: '   \n  ',
-        },
-      )
-
-      const invokeCall = mockInvoke.mock.calls[0][0][0]
-      expect(invokeCall.content).not.toContain('Evaluate candidates against these criteria')
-    })
-
-    it('should use generic prompt when criteria is undefined', async () => {
-      const candidates = [{getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}}]
-
-      const mockInvoke = jest.fn().mockResolvedValue({content: '1'})
-
-      ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
-      getLLM.mockReturnValue({
-        llm: {invoke: mockInvoke},
-      })
-
-      await LLMJudge.evaluate(
-        'prompt',
-        candidates,
-        'OpenAI',
-        {},
-        {
-          shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
-          criteria: undefined,
-        },
-      )
-
-      const invokeCall = mockInvoke.mock.calls[0][0][0]
-      expect(invokeCall.content).not.toContain('Evaluate candidates against these criteria')
-    })
-
-    it('should use generic prompt when criteria option is omitted', async () => {
-      const candidates = [{getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}}]
-
-      const mockInvoke = jest.fn().mockResolvedValue({content: '1'})
-
-      ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
-      getLLM.mockReturnValue({
-        llm: {invoke: mockInvoke},
-      })
-
-      await LLMJudge.evaluate(
-        'prompt',
-        candidates,
-        'OpenAI',
-        {},
-        {
-          shuffleMapperFactory: ShuffleMapper.createIdentityMapping,
+          ...extraOptions,
         },
       )
 
@@ -377,7 +514,7 @@ describe('LLMJudge', () => {
 
       const mockInvoke = jest.fn().mockResolvedValue({content: '1'})
 
-      ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
+      ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude'])
       getLLM.mockReturnValue({
         llm: {invoke: mockInvoke},
       })
@@ -447,7 +584,7 @@ describe('LLMJudge', () => {
           {getOutput: () => ({nodes: [{title: 'A'}]}), _nodes: {}},
           {getOutput: () => ({nodes: [{title: 'B'}]}), _nodes: {}},
         ]
-        ModelFamilyRouter.selectJudgeModel.mockReturnValue('Claude')
+        ModelFamilyRouter.selectJudgeModels.mockReturnValue(['Claude'])
         getLLM.mockReturnValue({
           llm: {invoke: jest.fn().mockResolvedValue({content: 'Candidate 2 is better'})},
         })

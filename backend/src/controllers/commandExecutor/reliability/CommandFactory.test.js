@@ -2,15 +2,18 @@ import CommandFactory from './CommandFactory'
 import Store from '../commands/utils/Store'
 import {CHAT_QUERY_TYPE} from '../constants/chat'
 import {CLAUDE_QUERY_TYPE} from '../constants/claude'
+import {COMPLETION_QUERY_TYPE} from '../constants/completion'
+import {CUSTOM_LLM_CHAT_QUERY_TYPE} from '../constants/custom_llm'
+import {DEEPSEEK_QUERY_TYPE} from '../constants/deepseek'
+import {FOREACH_QUERY_TYPE} from '../constants/foreach'
 import {OUTLINE_QUERY_TYPE} from '../constants/outline'
+import {PERPLEXITY_QUERY_TYPE} from '../constants/perplexity'
+import {QWEN_QUERY_TYPE} from '../constants/qwen'
 import {REFINE_QUERY_TYPE} from '../constants/refine'
 import {STEPS_QUERY_TYPE} from '../constants/steps'
-import {COMPLETION_QUERY_TYPE} from '../constants/completion'
-import {DEEPSEEK_QUERY_TYPE} from '../constants/deepseek'
-import {YANDEX_QUERY_TYPE} from '../constants/yandex'
 import {SUMMARIZE_QUERY_TYPE} from '../constants/summarize'
-import {FOREACH_QUERY_TYPE} from '../constants/foreach'
 import {SWITCH_QUERY_TYPE} from '../constants/switch'
+import {YANDEX_QUERY_TYPE} from '../constants/yandex'
 
 jest.mock('debug', () => {
   const fn = jest.fn(() => fn)
@@ -20,51 +23,72 @@ jest.mock('debug', () => {
 
 describe('CommandFactory', () => {
   describe('isLLMCommand', () => {
-    it('should classify chat commands as LLM', () => {
-      expect(CommandFactory.isLLMCommand(CHAT_QUERY_TYPE)).toBe(true)
-      expect(CommandFactory.isLLMCommand(CLAUDE_QUERY_TYPE)).toBe(true)
+    it.each([
+      [CHAT_QUERY_TYPE, 'chatgpt'],
+      [COMPLETION_QUERY_TYPE, 'completion'],
+      [CLAUDE_QUERY_TYPE, 'claude'],
+      [DEEPSEEK_QUERY_TYPE, 'deepseek'],
+      [QWEN_QUERY_TYPE, 'qwen'],
+      [PERPLEXITY_QUERY_TYPE, 'perplexity'],
+      [CUSTOM_LLM_CHAT_QUERY_TYPE, 'custom_llm_chat'],
+      [YANDEX_QUERY_TYPE, 'yandex'],
+      [REFINE_QUERY_TYPE, 'refine'],
+      [OUTLINE_QUERY_TYPE, 'outline'],
+      [SUMMARIZE_QUERY_TYPE, 'summarize'],
+    ])('classifies %s (%s) as LLM', type => {
+      expect(CommandFactory.isLLMCommand(type)).toBe(true)
     })
 
-    it('should classify outline/summarize as LLM', () => {
-      expect(CommandFactory.isLLMCommand(OUTLINE_QUERY_TYPE)).toBe(true)
+    it.each([
+      [STEPS_QUERY_TYPE, 'steps'],
+      [FOREACH_QUERY_TYPE, 'foreach'],
+      [SWITCH_QUERY_TYPE, 'switch'],
+    ])('does not classify orchestrator %s (%s) as LLM', type => {
+      expect(CommandFactory.isLLMCommand(type)).toBe(false)
     })
 
-    it('should not classify completion as LLM (dispatcher)', () => {
-      expect(CommandFactory.isLLMCommand(COMPLETION_QUERY_TYPE)).toBe(false)
-    })
-
-    it('should not classify orchestrators as LLM', () => {
-      expect(CommandFactory.isLLMCommand(STEPS_QUERY_TYPE)).toBe(false)
-    })
-
-    it('should return false for unknown types', () => {
-      expect(CommandFactory.isLLMCommand('unknown')).toBe(false)
-    })
-
-    it('should return false for null', () => {
-      expect(CommandFactory.isLLMCommand(null)).toBe(false)
-    })
-
-    it('should return false for undefined', () => {
-      expect(CommandFactory.isLLMCommand(undefined)).toBe(false)
+    it.each([
+      ['unknown string', 'unknown'],
+      ['null', null],
+      ['undefined', undefined],
+    ])('returns false for %s', (_label, type) => {
+      expect(CommandFactory.isLLMCommand(type)).toBe(false)
     })
   })
 
   describe('isOrchestrator', () => {
-    it('should classify steps as orchestrator', () => {
-      expect(CommandFactory.isOrchestrator(STEPS_QUERY_TYPE)).toBe(true)
+    it.each([
+      [STEPS_QUERY_TYPE, 'steps'],
+      [FOREACH_QUERY_TYPE, 'foreach'],
+      [SWITCH_QUERY_TYPE, 'switch'],
+    ])('classifies %s (%s) as orchestrator', type => {
+      expect(CommandFactory.isOrchestrator(type)).toBe(true)
     })
 
-    it('should not classify LLM commands as orchestrator', () => {
-      expect(CommandFactory.isOrchestrator(CHAT_QUERY_TYPE)).toBe(false)
+    it.each([
+      [CHAT_QUERY_TYPE, 'chatgpt'],
+      [COMPLETION_QUERY_TYPE, 'completion'],
+      [REFINE_QUERY_TYPE, 'refine'],
+    ])('does not classify %s (%s) as orchestrator', type => {
+      expect(CommandFactory.isOrchestrator(type)).toBe(false)
     })
 
-    it('should not classify refine as orchestrator', () => {
-      expect(CommandFactory.isOrchestrator(REFINE_QUERY_TYPE)).toBe(false)
-    })
-
-    it('should return false for unknown types', () => {
+    it('returns false for unknown types', () => {
       expect(CommandFactory.isOrchestrator('unknown')).toBe(false)
+    })
+  })
+
+  describe('LLM / orchestrator mutual exclusion', () => {
+    it('no LLM command type is also an orchestrator', () => {
+      for (const type of CommandFactory.LLM_QUERY_TYPES) {
+        expect(CommandFactory.isOrchestrator(type)).toBe(false)
+      }
+    })
+
+    it('no orchestrator type is also an LLM command', () => {
+      for (const type of CommandFactory.ORCHESTRATOR_QUERY_TYPES) {
+        expect(CommandFactory.isLLMCommand(type)).toBe(false)
+      }
     })
   })
 
@@ -182,25 +206,25 @@ describe('CommandFactory', () => {
     })
 
     describe('command type coverage', () => {
-      const testCases = [
-        {queryType: CHAT_QUERY_TYPE, name: 'chat'},
-        {queryType: CLAUDE_QUERY_TYPE, name: 'claude'},
-        {queryType: DEEPSEEK_QUERY_TYPE, name: 'deepseek'},
-        {queryType: YANDEX_QUERY_TYPE, name: 'yandex'},
-        {queryType: OUTLINE_QUERY_TYPE, name: 'outline'},
-        {queryType: SUMMARIZE_QUERY_TYPE, name: 'summarize'},
-        {queryType: REFINE_QUERY_TYPE, name: 'refine'},
-        {queryType: STEPS_QUERY_TYPE, name: 'steps'},
-        {queryType: FOREACH_QUERY_TYPE, name: 'foreach'},
-        {queryType: SWITCH_QUERY_TYPE, name: 'switch'},
-      ]
+      it.each([
+        [CHAT_QUERY_TYPE, 'chat'],
+        [COMPLETION_QUERY_TYPE, 'completion'],
+        [CLAUDE_QUERY_TYPE, 'claude'],
+        [DEEPSEEK_QUERY_TYPE, 'deepseek'],
+        [QWEN_QUERY_TYPE, 'qwen'],
+        [PERPLEXITY_QUERY_TYPE, 'perplexity'],
+        [CUSTOM_LLM_CHAT_QUERY_TYPE, 'custom_llm_chat'],
+        [YANDEX_QUERY_TYPE, 'yandex'],
+        [OUTLINE_QUERY_TYPE, 'outline'],
+        [SUMMARIZE_QUERY_TYPE, 'summarize'],
+        [REFINE_QUERY_TYPE, 'refine'],
+        [STEPS_QUERY_TYPE, 'steps'],
+        [FOREACH_QUERY_TYPE, 'foreach'],
+        [SWITCH_QUERY_TYPE, 'switch'],
+      ])('creates runner for %s (%s) command', queryType => {
+        const runner = CommandFactory.createRunner(queryType, mockCell, mockContext, mockPrompt)
 
-      testCases.forEach(({queryType, name}) => {
-        it(`should create runner for ${name} command`, () => {
-          const runner = CommandFactory.createRunner(queryType, mockCell, mockContext, mockPrompt)
-
-          expect(typeof runner).toBe('function')
-        })
+        expect(typeof runner).toBe('function')
       })
     })
 
