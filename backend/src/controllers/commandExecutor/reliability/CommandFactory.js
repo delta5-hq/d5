@@ -10,7 +10,6 @@ import {MemorizeCommand} from '../commands/MemorizeCommand'
 import {OutlineCommand} from '../commands/OutlineCommand'
 import {PerplexityCommand} from '../commands/PerplexityCommand'
 import {QwenCommand} from '../commands/QwenCommand'
-import {RefineCommand} from '../commands/RefineCommand'
 import {ScholarCommand} from '../commands/ScholarCommand'
 import {StepsCommand} from '../commands/StepsCommand'
 import {SummarizeCommand} from '../commands/SummarizeCommand'
@@ -30,7 +29,6 @@ import {MEMORIZE_QUERY_TYPE} from '../constants/memorize'
 import {OUTLINE_QUERY_TYPE} from '../constants/outline'
 import {PERPLEXITY_QUERY_TYPE} from '../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../constants/qwen'
-import {REFINE_QUERY_TYPE} from '../constants/refine'
 import {SCHOLAR_QUERY_TYPE} from '../constants/scholar'
 import {STEPS_QUERY_TYPE} from '../constants/steps'
 import {SUMMARIZE_QUERY_TYPE} from '../constants/summarize'
@@ -77,8 +75,6 @@ class CommandFactory {
         return new DownloadCommand(userId, workflowId, store)
       case CUSTOM_LLM_CHAT_QUERY_TYPE:
         return new CustomLLMChatCommand(userId, workflowId, store)
-      case REFINE_QUERY_TYPE:
-        return new RefineCommand(userId, workflowId, store)
       case EXT_QUERY_TYPE:
         return new ExtCommand(userId, workflowId, store)
       case COMPLETION_QUERY_TYPE:
@@ -124,7 +120,6 @@ class CommandFactory {
         case SWITCH_QUERY_TYPE:
           return command.run(resolvedCell, prompt)
 
-        case REFINE_QUERY_TYPE:
         case COMPLETION_QUERY_TYPE:
         case MEMORIZE_QUERY_TYPE:
         case FOREACH_QUERY_TYPE:

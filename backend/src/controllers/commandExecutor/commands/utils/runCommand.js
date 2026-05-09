@@ -10,7 +10,7 @@ import {MEMORIZE_QUERY, MEMORIZE_QUERY_TYPE} from '../../constants/memorize'
 import {OUTLINE_QUERY, OUTLINE_QUERY_TYPE, readSummarizeParam} from '../../constants/outline'
 import {PERPLEXITY_QUERY_TYPE} from '../../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../../constants/qwen'
-import {REFINE_QUERY, REFINE_QUERY_TYPE} from '../../constants/refine'
+import {REFINE_QUERY} from '../../constants/refine'
 import {SCHOLAR_QUERY_TYPE} from '../../constants/scholar'
 import {STEPS_QUERY_TYPE} from '../../constants/steps'
 import {SUMMARIZE_QUERY, SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
@@ -19,15 +19,13 @@ import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {WEB_QUERY_TYPE} from '../../constants/web'
 import {YANDEX_QUERY_TYPE} from '../../constants/yandex'
 import ProgressReporter from '../../ProgressReporter'
-import {CandidateEvaluator, CommandFactory} from '../../reliability'
-import {stripReliabilitySuffix, REFINED_SUFFIX, REFINE_FAILURE_SUFFIX} from '../../reliability/core/reliabilitySuffix'
+import {CommandFactory} from '../../reliability'
+import {stripReliabilitySuffix} from '../../reliability/core/reliabilitySuffix'
 import {getNodeCommand} from './isCommand'
-import serializeNodeTree from './serializeNodeTree'
 import {ForeachCommand} from '../ForeachCommand'
 import {MemorizeCommand} from '../MemorizeCommand'
 import {OutlineCommand} from '../OutlineCommand'
 import {SummarizeCommand} from '../SummarizeCommand'
-import {RefineCommand} from '../RefineCommand'
 import {MCPCommand} from '../MCPCommand'
 import {RPCCommand} from '../RPCCommand'
 // eslint-disable-next-line no-unused-vars
@@ -51,7 +49,6 @@ function getCommandName(queryType) {
     [DEEPSEEK_QUERY_TYPE]: 'DeepseekCommand',
     [DOWNLOAD_QUERY_TYPE]: 'DownloadCommand',
     [CUSTOM_LLM_CHAT_QUERY_TYPE]: 'CustomLLMChatCommand',
-    [REFINE_QUERY_TYPE]: 'RefineCommand',
     [EXT_QUERY_TYPE]: 'ExtCommand',
     [COMPLETION_QUERY_TYPE]: 'CompletionCommand',
     [MEMORIZE_QUERY_TYPE]: 'MemorizeCommand',
@@ -194,26 +191,13 @@ export const runCommand = async (
           postProcessTracker = await postProcessProgress.add('OutlineCommand.run')
           flag = await command.run(childNode, undefined, {signal})
         } else if (query?.startsWith(REFINE_QUERY)) {
-          const command = new RefineCommand(store._userId, store._workflowId, store)
-
-          postProcessTracker = await postProcessProgress.add('RefineCommand.replyRefine')
-
-          const parentOutputNodes = (node.prompts || []).map(id => store.getNode(id)).filter(Boolean)
-          const parentOutput = serializeNodeTree(parentOutputNodes, store._nodes)
-
-          const result = await command.replyRefine(childNode, parentOutput)
+          // P0.1: legacy iterative `/refine` removed. New `/refine :n=N` best-of-N
+          // arrives in P0.3-P0.11. Until then, every `/refine` cell produces a
+          // visible error so users discover the migration immediately.
           const baseTitle = stripReliabilitySuffix(childNode.title || '')
-
-          if (result?.trim() && !CandidateEvaluator.isErrorText(result)) {
-            store.importer.createNodes(result, childNode.id)
-            childNode.title = `${baseTitle} ${REFINED_SUFFIX}`.trim()
-          } else {
-            childNode.title = `${baseTitle} ${REFINE_FAILURE_SUFFIX}`.trim()
-          }
-
+          childNode.title = `${baseTitle} [✗]`.trim()
+          store.importer.createErrorNode('Error: /refine requires :n=N (legacy iterative refine removed)', childNode.id)
           store.saveNodeToOutput(childNode.id)
-
-          flag = true
         }
 
         if (postProcessTracker) postProcessProgress.remove(postProcessTracker)

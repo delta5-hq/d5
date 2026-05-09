@@ -1,4 +1,4 @@
-import {stripReliabilitySuffix, REFINED_SUFFIX, REFINE_FAILURE_SUFFIX} from './reliabilitySuffix'
+import {stripReliabilitySuffix} from './reliabilitySuffix'
 
 describe('stripReliabilitySuffix', () => {
   it('returns empty string for falsy input', () => {
@@ -29,12 +29,5 @@ describe('stripReliabilitySuffix', () => {
 
   it('only strips the trailing suffix, not internal occurrences', () => {
     expect(stripReliabilitySuffix('[✓] foo [✗]')).toBe('[✓] foo')
-  })
-})
-
-describe('suffix constants', () => {
-  it('refined and refine-failure markers are locale-neutral symbols', () => {
-    expect(REFINED_SUFFIX).toBe('[✓]')
-    expect(REFINE_FAILURE_SUFFIX).toBe('[✗]')
   })
 })

@@ -9,7 +9,6 @@ import {FOREACH_QUERY_TYPE} from '../constants/foreach'
 import {OUTLINE_QUERY_TYPE} from '../constants/outline'
 import {PERPLEXITY_QUERY_TYPE} from '../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../constants/qwen'
-import {REFINE_QUERY_TYPE} from '../constants/refine'
 import {STEPS_QUERY_TYPE} from '../constants/steps'
 import {SUMMARIZE_QUERY_TYPE} from '../constants/summarize'
 import {SWITCH_QUERY_TYPE} from '../constants/switch'
@@ -89,8 +88,8 @@ describe('CommandFactory', () => {
         const cell1 = {id: 'c1', title: 'Cell 1'}
         const cell2 = {id: 'c2', title: 'Cell 2'}
 
-        const runner1 = CommandFactory.createRunner(REFINE_QUERY_TYPE, cell1, mockContext, mockPrompt)
-        const runner2 = CommandFactory.createRunner(REFINE_QUERY_TYPE, cell2, mockContext, mockPrompt)
+        const runner1 = CommandFactory.createRunner(COMPLETION_QUERY_TYPE, cell1, mockContext, mockPrompt)
+        const runner2 = CommandFactory.createRunner(COMPLETION_QUERY_TYPE, cell2, mockContext, mockPrompt)
 
         expect(runner1).not.toBe(runner2)
       })
@@ -105,23 +104,23 @@ describe('CommandFactory', () => {
 
     describe('store parameter handling', () => {
       it('should accept store at invocation time', async () => {
-        const runner = CommandFactory.createRunner(REFINE_QUERY_TYPE, mockCell, mockContext, mockPrompt)
+        const runner = CommandFactory.createRunner(COMPLETION_QUERY_TYPE, mockCell, mockContext, mockPrompt)
 
-        const RefineCommand = require('../commands/RefineCommand').RefineCommand
-        const runSpy = jest.spyOn(RefineCommand.prototype, 'run').mockResolvedValue()
+        const CompletionCommand = require('../commands/CompletionCommand').CompletionCommand
+        const runSpy = jest.spyOn(CompletionCommand.prototype, 'run').mockResolvedValue()
 
         await runner(mockStore)
 
-        expect(RefineCommand.prototype.run).toHaveBeenCalled()
+        expect(CompletionCommand.prototype.run).toHaveBeenCalled()
 
         runSpy.mockRestore()
       })
 
       it('should allow different stores for same runner', async () => {
-        const runner = CommandFactory.createRunner(REFINE_QUERY_TYPE, mockCell, mockContext, mockPrompt)
+        const runner = CommandFactory.createRunner(COMPLETION_QUERY_TYPE, mockCell, mockContext, mockPrompt)
 
-        const RefineCommand = require('../commands/RefineCommand').RefineCommand
-        const runSpy = jest.spyOn(RefineCommand.prototype, 'run').mockResolvedValue()
+        const CompletionCommand = require('../commands/CompletionCommand').CompletionCommand
+        const runSpy = jest.spyOn(CompletionCommand.prototype, 'run').mockResolvedValue()
 
         const store1 = new Store({userId: 'u1', nodes: {}})
         const store2 = new Store({userId: 'u2', nodes: {}})
@@ -147,7 +146,6 @@ describe('CommandFactory', () => {
         [YANDEX_QUERY_TYPE, 'yandex'],
         [OUTLINE_QUERY_TYPE, 'outline'],
         [SUMMARIZE_QUERY_TYPE, 'summarize'],
-        [REFINE_QUERY_TYPE, 'refine'],
         [STEPS_QUERY_TYPE, 'steps'],
         [FOREACH_QUERY_TYPE, 'foreach'],
         [SWITCH_QUERY_TYPE, 'switch'],
@@ -160,8 +158,8 @@ describe('CommandFactory', () => {
 
     describe('cell resolution from fork store', () => {
       it('should resolve cell from fork store when node exists', async () => {
-        const originalCell = {id: 'cell1', command: '/refine test', title: 'Original'}
-        const forkCell = {id: 'cell1', command: '/refine test', title: 'Fork Version'}
+        const originalCell = {id: 'cell1', command: '/completion test', title: 'Original'}
+        const forkCell = {id: 'cell1', command: '/completion test', title: 'Fork Version'}
 
         const storeWithNode = new Store({
           userId: 'user1',
@@ -169,10 +167,10 @@ describe('CommandFactory', () => {
           nodes: {cell1: forkCell},
         })
 
-        const runner = CommandFactory.createRunner(REFINE_QUERY_TYPE, originalCell, mockContext, mockPrompt)
+        const runner = CommandFactory.createRunner(COMPLETION_QUERY_TYPE, originalCell, mockContext, mockPrompt)
 
-        const RefineCommand = require('../commands/RefineCommand').RefineCommand
-        const runSpy = jest.spyOn(RefineCommand.prototype, 'run').mockImplementation(cell => {
+        const CompletionCommand = require('../commands/CompletionCommand').CompletionCommand
+        const runSpy = jest.spyOn(CompletionCommand.prototype, 'run').mockImplementation(cell => {
           expect(cell).toBe(forkCell)
           expect(cell.title).toBe('Fork Version')
         })
@@ -183,12 +181,12 @@ describe('CommandFactory', () => {
       })
 
       it('should fallback to original cell when node not in store', async () => {
-        const originalCell = {id: 'nonexistent', command: '/refine test', title: 'Original'}
+        const originalCell = {id: 'nonexistent', command: '/completion test', title: 'Original'}
 
-        const runner = CommandFactory.createRunner(REFINE_QUERY_TYPE, originalCell, mockContext, mockPrompt)
+        const runner = CommandFactory.createRunner(COMPLETION_QUERY_TYPE, originalCell, mockContext, mockPrompt)
 
-        const RefineCommand = require('../commands/RefineCommand').RefineCommand
-        const runSpy = jest.spyOn(RefineCommand.prototype, 'run').mockImplementation(cell => {
+        const CompletionCommand = require('../commands/CompletionCommand').CompletionCommand
+        const runSpy = jest.spyOn(CompletionCommand.prototype, 'run').mockImplementation(cell => {
           expect(cell).toBe(originalCell)
           expect(cell.title).toBe('Original')
         })
@@ -202,7 +200,7 @@ describe('CommandFactory', () => {
         const cell = {id: 'cell1', command: '/chatgpt test', title: 'Test'}
 
         const chatRunner = CommandFactory.createRunner(CHAT_QUERY_TYPE, cell, 'context', 'prompt')
-        const refineRunner = CommandFactory.createRunner(REFINE_QUERY_TYPE, cell, 'context', 'prompt')
+        const refineRunner = CommandFactory.createRunner(COMPLETION_QUERY_TYPE, cell, 'context', 'prompt')
 
         expect(typeof chatRunner).toBe('function')
         expect(typeof refineRunner).toBe('function')

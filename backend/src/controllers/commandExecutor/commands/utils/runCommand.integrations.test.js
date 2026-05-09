@@ -1006,94 +1006,40 @@ describe('DownloadCommand run test', () => {
   })
 })
 
-describe('RefineCommand run test', () => {
+describe('/refine top-level run (P0.1: legacy removed)', () => {
+  /*
+   * Legacy iterative /refine was removed in P0.1. The class no longer exists
+   * and `/refine` is no longer dispatched via createRunner — it only fires
+   * as a post-processor where it now emits a parse-time error suffix.
+   *
+   * Top-level `/refine` (queryType=REFINE_QUERY_TYPE) therefore reaches
+   * CommandFactory.createRunner's default branch and throws.
+   *
+   * Post-processor parse-time-error behavior is covered by
+   * runCommand.postprocess.test.js > "legacy /refine — parse-time error (P0.1)".
+   */
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
-  it('should successfully refine content with children nodes', async () => {
-    const childNode = {id: 'childNode', title: 'Original content to refine'}
+  it('rejects /refine as a top-level runnable command (use as post-processor only)', async () => {
     const refineNode = {
       id: 'refineNode',
       title: '/refine make it more concise',
       command: '/refine make it more concise',
-      children: [childNode.id],
+      children: [],
+      parent: 'rootNode',
     }
-    childNode.parent = refineNode.id
-
     const rootNode = {id: 'rootNode', title: 'Workflow', children: [refineNode.id]}
-    refineNode.parent = rootNode.id
+    const mockStore = new Store({userId, workflowId, nodes: {refineNode, rootNode}})
 
-    const mockStore = new Store({
-      userId,
-      workflowId,
-      nodes: {
-        refineNode,
-        childNode,
-        rootNode,
-      },
-    })
-
-    const mockLLMResponse = 'Refined content'
-    const llmSpy = jest.spyOn(LLMChain.prototype, 'invoke').mockResolvedValueOnce({text: mockLLMResponse})
-
-    await runCommand({
-      cell: refineNode,
-      queryType: REFINE_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          title: mockLLMResponse,
-          parent: refineNode.id,
-        }),
-      ]),
-    )
-
-    expect(llmSpy).toHaveBeenCalled()
-    llmSpy.mockRestore()
-  })
-
-  it('should handle LLM errors gracefully', async () => {
-    const childNode = {id: 'childNode', title: 'Original content to refine'}
-    const refineNode = {
-      id: 'refineNode',
-      title: '/refine make it more concise',
-      command: '/refine make it more concise',
-      children: [childNode.id],
-    }
-    childNode.parent = refineNode.id
-
-    const rootNode = {id: 'rootNode', title: 'Workflow', children: [refineNode.id]}
-    refineNode.parent = rootNode.id
-
-    const mockStore = new Store({
-      userId,
-      workflowId,
-      nodes: {
-        refineNode,
-        childNode,
-        rootNode,
-      },
-    })
-
-    const llmSpy = jest.spyOn(LLMChain.prototype, 'invoke').mockRejectedValueOnce(new Error('LLM Error'))
-
-    await runCommand({
-      cell: refineNode,
-      queryType: REFINE_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual([])
-    expect(llmSpy).toHaveBeenCalled()
-    llmSpy.mockRestore()
+    await expect(
+      runCommand({
+        cell: refineNode,
+        queryType: REFINE_QUERY_TYPE,
+        store: mockStore,
+      }),
+    ).rejects.toThrow(/Unknown queryType: refine/)
   })
 })
 
