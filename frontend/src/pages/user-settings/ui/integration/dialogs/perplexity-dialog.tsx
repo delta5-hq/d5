@@ -9,9 +9,10 @@ import type { DialogProps, Perplexity } from '@shared/base-types'
 import { useApiMutation } from '@shared/composables'
 import { PERPLEXITY_DEFAULT_MODEL, PerplexityModels } from '@shared/config'
 import type { HttpError } from '@shared/lib/error'
-import { buildIntegrationUrl } from '../utils/build-integration-url'
-import { toastIntegrationError } from '../utils/toast-integration-error'
 import { createPerplexityResponse } from '@shared/lib/llm'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
+import { submitIntegrationChanges } from '../utils/submit-integration-changes'
+import { toastIntegrationError } from '../utils/toast-integration-error'
 import { Button } from '@shared/ui/button'
 import {
   GlassDialog,
@@ -70,23 +71,10 @@ export const PerplexityDialog: React.FC<Props> = ({ data, open, onClose, refresh
 
   const onSubmit = async (values: PerplexityFormValues) => {
     try {
-      const apiKeyChanged = values.apiKey !== data?.apiKey
-      const modelChanged = values.model !== data?.model
-
-      if (apiKeyChanged || modelChanged) {
-        await createPerplexityResponse(
-          'Hello!',
-          {
-            apiKey: values.apiKey,
-            model: values.model,
-          },
-          { maxRetries: 0 },
-        )
-        await save(values)
+      if (values.apiKey?.trim()) {
+        await createPerplexityResponse('Hello!', { apiKey: values.apiKey, model: values.model }, { maxRetries: 0 })
       }
-
-      await refresh()
-      onClose?.()
+      await submitIntegrationChanges(() => save(values), { refresh, onClose })
     } catch (e: unknown) {
       toastIntegrationError(e, { model: values.model })
     }

@@ -24,10 +24,10 @@ import { useApiMutation } from '@shared/composables'
 import { OpenaiModels } from '@shared/config'
 import type { HttpError } from '@shared/lib/error'
 import { createResponseChat } from '@shared/lib/llm'
-import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
 import { X } from 'lucide-react'
 import { z } from 'zod'
 import { buildIntegrationUrl } from '../utils/build-integration-url'
+import { submitIntegrationChanges } from '../utils/submit-integration-changes'
 import { toastIntegrationError } from '../utils/toast-integration-error'
 
 export const openaiSchema = z.object({
@@ -86,18 +86,12 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data, workflowI
 
   const onSubmit = async (values: OpenaiFormValues) => {
     try {
-      const apiKeyChanged = values.apiKey && values.apiKey.trim() !== data?.apiKey && values.apiKey
-      const modelChanged = values.model.trim() !== data?.model
-
-      if (apiKeyChanged || modelChanged) {
-        await createResponseChat('Hello!', values)
-        await save(values)
-      } else if (!objectsAreEqual(values, data || {})) {
-        await save(values)
+      const payload: Partial<Openai> = { model: values.model }
+      if (values.apiKey?.trim()) {
+        payload.apiKey = values.apiKey
+        await createResponseChat('Hello!', { apiKey: values.apiKey, model: values.model })
       }
-
-      await refresh()
-      onClose?.()
+      await submitIntegrationChanges(() => save(payload as Openai), { refresh, onClose })
     } catch (e: unknown) {
       toastIntegrationError(e, { model: values.model })
     }

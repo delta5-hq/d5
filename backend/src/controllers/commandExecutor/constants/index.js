@@ -43,7 +43,6 @@ import {
   MEMORIZE_QUERY,
   MEMORIZE_QUERY_TYPE,
 } from './memorize'
-import {RELIABILITY_PARAM_N_REGEX} from './reliability'
 import {queryCommands} from './commandRegExp'
 
 export const getQueryType = title => {
@@ -284,7 +283,6 @@ export const clearCommandsWithParams = str => {
         MEMORIZE_PARAM_RECHUNK_REGEX,
         MEMORIZE_PARAM_KEEP_REGEX,
         MEMORIZE_PARAM_SPLIT_REGEX,
-        RELIABILITY_PARAM_N_REGEX,
       ].join('|'),
       'g',
     )

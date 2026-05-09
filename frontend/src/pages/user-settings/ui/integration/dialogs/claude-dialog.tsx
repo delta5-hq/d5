@@ -25,6 +25,7 @@ import { Label } from '@shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
 import { toast } from 'sonner'
 import { buildIntegrationUrl } from '../utils/build-integration-url'
+import { submitIntegrationChanges } from '../utils/submit-integration-changes'
 import { toastIntegrationError } from '../utils/toast-integration-error'
 
 const claudeSchema = z.object({
@@ -71,36 +72,19 @@ export const ClaudeDialog: React.FC<Props> = ({ data, secretMeta, open, onClose,
 
   const onSubmit = async (values: ClaudeFormValues) => {
     try {
-      const apiKeyProvided = !!values.apiKey?.trim()
-      const modelChanged = values.model.trim() !== data?.model
-
-      const payload: Partial<Claude> = {}
-      if (apiKeyProvided) {
+      const payload: Partial<Claude> = { model: values.model }
+      if (values.apiKey?.trim()) {
         payload.apiKey = values.apiKey
-      }
-      if (modelChanged || data?.model === undefined) {
-        payload.model = values.model
-      }
-
-      if (Object.keys(payload).length === 0) {
-        onClose?.()
-        return
-      }
-
-      if (apiKeyProvided) {
         await createResponseClaude(
           {
             model: values.model,
             messages: [{ role: 'user', content: 'Hello, world!' }],
             max_tokens: getClaudeMaxOutput(values.model),
           },
-          values.apiKey!,
+          values.apiKey,
         )
       }
-
-      await save(payload as Claude)
-      await refresh()
-      onClose?.()
+      await submitIntegrationChanges(() => save(payload as Claude), { refresh, onClose })
     } catch (e: unknown) {
       toastIntegrationError(e, { model: values.model })
     }

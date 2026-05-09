@@ -14,18 +14,13 @@ import {REFINE_QUERY, REFINE_QUERY_TYPE} from '../../constants/refine'
 import {SCHOLAR_QUERY_TYPE} from '../../constants/scholar'
 import {STEPS_QUERY_TYPE} from '../../constants/steps'
 import {SUMMARIZE_QUERY, SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
-import {VALIDATE_QUERY, VALIDATE_QUERY_TYPE} from '../../constants/validate'
+import {VALIDATE_QUERY_TYPE} from '../../constants/validate'
 import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {WEB_QUERY_TYPE} from '../../constants/web'
 import {YANDEX_QUERY_TYPE} from '../../constants/yandex'
-import {readReliabilityN} from '../../constants/reliability'
-import {readJudgeOptions} from '../../constants/judgeOptions'
-import {getQueryType} from '../../constants'
-import {readTableParam} from '../../constants/yandex'
 import ProgressReporter from '../../ProgressReporter'
-import {BestOfNStrategy, CandidateEvaluator, CommandFactory, NullProgress, RefineNStrategy} from '../../reliability'
+import {CandidateEvaluator, CommandFactory} from '../../reliability'
 import {stripReliabilitySuffix, REFINED_SUFFIX, REFINE_FAILURE_SUFFIX} from '../../reliability/core/reliabilitySuffix'
-import {determineLLMType, getIntegrationSettings} from './langchain/getLLM'
 import {getNodeCommand} from './isCommand'
 import serializeNodeTree from './serializeNodeTree'
 import {ForeachCommand} from '../ForeachCommand'
@@ -35,7 +30,6 @@ import {SummarizeCommand} from '../SummarizeCommand'
 import {RefineCommand} from '../RefineCommand'
 import {MCPCommand} from '../MCPCommand'
 import {RPCCommand} from '../RPCCommand'
-import {substituteReferencesAndHashrefsChildrenAndSelf} from '../references/substitution'
 // eslint-disable-next-line no-unused-vars
 import Store from './Store'
 
@@ -80,56 +74,6 @@ async function executeCommandWithProgress(queryType, context, prompt, cell, stor
   }
 }
 
-/** @private */
-function extractValidateCriteria(cell, store) {
-  if (!cell.children || cell.children.length === 0) {
-    return ''
-  }
-
-  const criteriaSegments = []
-
-  for (const childId of cell.children) {
-    const childNode = store.getNode(childId)
-    if (!childNode) continue
-
-    const command = getNodeCommand(childNode)
-    if (!command.startsWith(VALIDATE_QUERY)) continue
-    const resolvedContent = substituteReferencesAndHashrefsChildrenAndSelf(childNode, store, {
-      saveFirst: true,
-      nonPromptNode: false,
-      useCommand: false,
-      ignorePostProccessCommand: false,
-    })
-
-    const stripped = resolvedContent.replace(new RegExp(`^${VALIDATE_QUERY}\\s*`), '').trim()
-    if (stripped) {
-      criteriaSegments.push(stripped)
-    }
-  }
-
-  return criteriaSegments.join('\n\n')
-}
-
-/** @private */
-function extractRefineCriteria(refineNode, store) {
-  if (!refineNode.children?.length) return undefined
-
-  const segments = refineNode.children
-    .map(id => store.getNode(id))
-    .filter(Boolean)
-    .map(child =>
-      substituteReferencesAndHashrefsChildrenAndSelf(child, store, {
-        saveFirst: true,
-        nonPromptNode: false,
-        useCommand: false,
-        ignorePostProccessCommand: false,
-      }).trim(),
-    )
-    .filter(Boolean)
-
-  return segments.length ? segments.join('\n\n') : undefined
-}
-
 /**
  * @param {{
  *  queryType: string,
@@ -164,37 +108,12 @@ export const runCommand = async (
     return
   }
 
-  const N = readReliabilityN(cell.command || cell.title || '')
-  const isLLM = CommandFactory.isLLMCommand(queryType)
-  const isOrchestrator = CommandFactory.isOrchestrator(queryType)
-
-  if (isLLM && !isOrchestrator) {
-    const cellNode = store.getNode(cell.id)
-    if (cellNode) {
-      cellNode.title = stripReliabilitySuffix(cellNode.title || '')
-    }
+  const cellNode = store.getNode(cell.id)
+  if (cellNode) {
+    cellNode.title = stripReliabilitySuffix(cellNode.title || '')
   }
 
-  if (N > 1 && isLLM && !isOrchestrator) {
-    const commandRunner = CommandFactory.createRunner(queryType, cell, context, prompt)
-    const nullProgress = new NullProgress()
-    const wrappedRunner = async store => commandRunner(store, nullProgress)
-
-    const settings = await getIntegrationSettings(store._userId, store._workflowId, store)
-    const generatorFamily = determineLLMType(getNodeCommand(cell), settings)
-    const isTableCommand = readTableParam(getNodeCommand(cell))
-
-    const criteria = extractValidateCriteria(cell, store)
-    const judgeOpts = readJudgeOptions(getNodeCommand(cell))
-
-    await BestOfNStrategy.execute(wrappedRunner, store, cell.id, prompt, N, {
-      isTableCommand,
-      generatorFamily,
-      settings,
-      criteria,
-      ...judgeOpts,
-    })
-  } else if (mcpAlias) {
+  if (mcpAlias) {
     const command = new MCPCommand(store._userId, store._workflowId, store, mcpAlias)
     await command.run(cell, context, prompt, {signal})
   } else if (rpcAlias) {
@@ -274,54 +193,25 @@ export const runCommand = async (
 
           postProcessTracker = await postProcessProgress.add('OutlineCommand.run')
           flag = await command.run(childNode, undefined, {signal})
-        } else if (query?.startsWith(VALIDATE_QUERY)) {
-          // passive annotation node — consumed by extractValidateCriteria before post-processing
         } else if (query?.startsWith(REFINE_QUERY)) {
-          const refineN = readReliabilityN(query)
-          const parentQueryType = getQueryType(getNodeCommand(cell))
-          const isRefineNEligible =
-            refineN > 1 &&
-            CommandFactory.isLLMCommand(parentQueryType) &&
-            !CommandFactory.isOrchestrator(parentQueryType)
+          const command = new RefineCommand(store._userId, store._workflowId, store)
 
-          if (isRefineNEligible) {
-            const settings = await getIntegrationSettings(store._userId, store._workflowId, store)
-            const generatorFamily = determineLLMType(getNodeCommand(cell), settings)
-            const isTableCommand = readTableParam(getNodeCommand(cell))
-            const criteria = extractRefineCriteria(childNode, store)
-            const judgeOpts = readJudgeOptions(query)
-            const parentRunner = CommandFactory.createRunner(parentQueryType, cell, context, prompt)
+          postProcessTracker = await postProcessProgress.add('RefineCommand.replyRefine')
 
-            postProcessTracker = await postProcessProgress.add('RefineNStrategy.execute')
-            await RefineNStrategy.execute(
-              async (fork, prog) => parentRunner(fork, prog),
-              store,
-              node.id,
-              childNode.id,
-              prompt,
-              refineN,
-              {isTableCommand, generatorFamily, settings, criteria, ...judgeOpts},
-            )
+          const parentOutputNodes = (node.prompts || []).map(id => store.getNode(id)).filter(Boolean)
+          const parentOutput = serializeNodeTree(parentOutputNodes, store._nodes)
+
+          const result = await command.replyRefine(childNode, parentOutput)
+          const baseTitle = stripReliabilitySuffix(childNode.title || '')
+
+          if (result?.trim() && !CandidateEvaluator.isErrorText(result)) {
+            store.importer.createNodes(result, childNode.id)
+            childNode.title = `${baseTitle} ${REFINED_SUFFIX}`.trim()
           } else {
-            const command = new RefineCommand(store._userId, store._workflowId, store)
-
-            postProcessTracker = await postProcessProgress.add('RefineCommand.replyRefine')
-
-            const parentOutputNodes = (node.prompts || []).map(id => store.getNode(id)).filter(Boolean)
-            const parentOutput = serializeNodeTree(parentOutputNodes, store._nodes)
-
-            const result = await command.replyRefine(childNode, parentOutput)
-            const baseTitle = stripReliabilitySuffix(childNode.title || '')
-
-            if (result?.trim() && !CandidateEvaluator.isErrorText(result)) {
-              store.importer.createNodes(result, childNode.id)
-              childNode.title = `${baseTitle} ${REFINED_SUFFIX}`.trim()
-            } else {
-              childNode.title = `${baseTitle} ${REFINE_FAILURE_SUFFIX}`.trim()
-            }
-
-            store.saveNodeToOutput(childNode.id)
+            childNode.title = `${baseTitle} ${REFINE_FAILURE_SUFFIX}`.trim()
           }
+
+          store.saveNodeToOutput(childNode.id)
 
           flag = true
         }

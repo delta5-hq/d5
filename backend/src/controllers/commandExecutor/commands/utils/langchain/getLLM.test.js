@@ -2,6 +2,32 @@ import {EmbStorageType} from '../../../../../shared/config/constants'
 import {determineLLMType, getEmbeddings, getIntegrationSettings, Model} from './getLLM'
 import IntegrationFacade from '../../../../../repositories/IntegrationFacade'
 
+const withEnv = async (vars, fn) => {
+  const originals = Object.fromEntries(Object.keys(vars).map(k => [k, process.env[k]]))
+  Object.entries(vars).forEach(([k, v]) => {
+    if (v === undefined) delete process.env[k]
+    else process.env[k] = v
+  })
+  try {
+    return await fn()
+  } finally {
+    Object.entries(originals).forEach(([k, v]) => {
+      if (v === undefined) delete process.env[k]
+      else process.env[k] = v
+    })
+  }
+}
+
+const ALL_PROVIDER_ENV_VARS = {
+  OPENAI_API_KEY: undefined,
+  CLAUDE_API_KEY: undefined,
+  PERPLEXITY_API_KEY: undefined,
+  DEEPSEEK_API_KEY: undefined,
+  QWEN_API_KEY: undefined,
+  YANDEX_API_KEY: undefined,
+  YANDEX_FOLDER_ID: undefined,
+}
+
 jest.mock('../../../../../repositories/IntegrationFacade')
 
 describe('determineLLMType', () => {
@@ -303,10 +329,12 @@ describe('getIntegrationSettings', () => {
     jest.clearAllMocks()
   })
 
-  it('throws when integration not found', async () => {
+  it('throws when no DB record exists and no env vars are set', async () => {
     IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged: null, workflowDoc: null})
 
-    await expect(getIntegrationSettings('user-1')).rejects.toThrow('Integration not found')
+    await expect(withEnv(ALL_PROVIDER_ENV_VARS, () => getIntegrationSettings('user-1'))).rejects.toThrow(
+      'No LLM credentials configured',
+    )
   })
 
   it('returns merged settings when workflowId is null', async () => {
@@ -500,7 +528,7 @@ describe('getIntegrationSettings', () => {
       expect(result.model).toBe(Model.Qwen)
     })
 
-    it('does not mutate original merged object when setting model', async () => {
+    it('propagates detected workflow provider into the model field of the returned settings', async () => {
       const merged = {
         userId: 'user-1',
         workflowId: 'wf-1',
@@ -518,22 +546,21 @@ describe('getIntegrationSettings', () => {
   })
 
   describe('environment variable fallback behavior', () => {
-    it('env fallback is applied after merge in getIntegrationSettings', async () => {
+    it('fills absent provider credential from env when DB record exists', async () => {
       const merged = {userId: 'user-1', workflowId: null, model: 'auto'}
       IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged, workflowDoc: null})
 
-      const result = await getIntegrationSettings('user-1', null)
+      const result = await withEnv({OPENAI_API_KEY: 'sk-env-only'}, () => getIntegrationSettings('user-1', null))
 
-      expect(result).toBeDefined()
+      expect(result.openai.apiKey).toBe('sk-env-only')
     })
 
-    it('user credentials take precedence when both user key and env exist in merged settings', async () => {
-      const merged = {userId: 'user-1', workflowId: null, claude: {apiKey: 'sk-user-claude'}, model: 'auto'}
-      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged, workflowDoc: null})
+    it('builds synthetic settings from env when DB returns null', async () => {
+      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged: null, workflowDoc: null})
 
-      const result = await getIntegrationSettings('user-1', null)
+      const result = await withEnv({OPENAI_API_KEY: 'sk-env-synthetic'}, () => getIntegrationSettings('user-1', null))
 
-      expect(result.claude.apiKey).toBe('sk-user-claude')
+      expect(result.openai.apiKey).toBe('sk-env-synthetic')
     })
 
     it('workflow-scoped key wins over global after merge', async () => {
@@ -634,6 +661,49 @@ describe('getLLM error handling for missing API keys', () => {
       expect(() =>
         getLLM({type: Model.CustomLLM, settings: {custom_llm: {apiRootUrl: 'https://api.custom.com'}}}),
       ).not.toThrow()
+    })
+  })
+})
+
+describe('getLLM thinkingBudgetTokens passthrough', () => {
+  const {getLLM} = require('./getLLM')
+
+  describe('Claude — budget propagation', () => {
+    it.each([500, 1000, 2000, 10000])('passes thinkingBudgetTokens=%i to ChatClaude', budget => {
+      const {llm} = getLLM({
+        type: Model.Claude,
+        settings: {claude: {apiKey: 'sk-ant-test', model: 'claude-sonnet-4-6'}},
+        thinkingBudgetTokens: budget,
+      })
+      expect(llm.thinkingBudgetTokens).toBe(budget)
+    })
+
+    it('leaves thinkingBudgetTokens null on ChatClaude when not provided', () => {
+      const {llm} = getLLM({
+        type: Model.Claude,
+        settings: {claude: {apiKey: 'sk-ant-test', model: 'claude-sonnet-4-6'}},
+      })
+      expect(llm.thinkingBudgetTokens).toBeNull()
+    })
+
+    it('leaves thinkingBudgetTokens null on ChatClaude when explicitly passed null', () => {
+      const {llm} = getLLM({
+        type: Model.Claude,
+        settings: {claude: {apiKey: 'sk-ant-test', model: 'claude-sonnet-4-6'}},
+        thinkingBudgetTokens: null,
+      })
+      expect(llm.thinkingBudgetTokens).toBeNull()
+    })
+  })
+
+  describe('non-Claude providers — thinkingBudgetTokens silently ignored', () => {
+    it.each([
+      [Model.OpenAI, {openai: {apiKey: 'sk-key'}}],
+      [Model.Deepseek, {deepseek: {apiKey: 'sk-key'}}],
+      [Model.Qwen, {qwen: {apiKey: 'sk-key'}}],
+      [Model.CustomLLM, {custom_llm: {apiRootUrl: 'https://api.custom.com'}}],
+    ])('does not throw for %s when thinkingBudgetTokens provided', (type, settings) => {
+      expect(() => getLLM({type, settings, thinkingBudgetTokens: 2000})).not.toThrow()
     })
   })
 })

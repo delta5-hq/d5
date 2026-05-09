@@ -1,16 +1,10 @@
 import Store from '../../commands/utils/Store'
 import ImportHandler from '../../commands/utils/ImportHandler'
 
-/**
- * Provides isolated Store snapshots for candidate execution
- * Each fork maintains full isolation to prevent cross-candidate mutation
- */
 class StoreFork {
   static FORK_WARN_THRESHOLD = 500
-  /**
-   * Deep clone helper for Node < 17 environments
-   * @private
-   */
+
+  /** @private */
   static deepClone(obj) {
     if (typeof structuredClone === 'function') {
       return structuredClone(obj)
@@ -18,12 +12,6 @@ class StoreFork {
     return JSON.parse(JSON.stringify(obj))
   }
 
-  /**
-   * Create isolated deep clone of Store state
-   *
-   * @param {Store} sourceStore
-   * @returns {Store}
-   */
   static createFork(sourceStore) {
     const nodeCount = Object.keys(sourceStore._nodes).length
     if (nodeCount > StoreFork.FORK_WARN_THRESHOLD) {
@@ -40,14 +28,7 @@ class StoreFork {
     return forked
   }
 
-  /**
-   * Merge winning candidate's output into target store
-   * Only transfers newly created nodes/edges/files to preserve concurrent mutations
-   *
-   * @param {Store} targetStore
-   * @param {Store} candidateStore
-   * @param {string} cellId - The command cell that produced the output
-   */
+  // Only transfers newly created nodes/edges/files to preserve concurrent mutations
   static applyCandidate(targetStore, candidateStore, cellId) {
     for (const nodeId of candidateStore._output.nodes) {
       const node = candidateStore._nodes[nodeId]

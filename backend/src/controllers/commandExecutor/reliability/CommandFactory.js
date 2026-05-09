@@ -40,25 +40,9 @@ import {YANDEX_QUERY_TYPE} from '../constants/yandex'
 
 /**
  * Factory for creating command instances
- * Centralizes command instantiation logic for cleaner best-of-N integration
+ * Centralizes command instantiation logic + uniform runner-arity adapter
  */
 class CommandFactory {
-  static LLM_QUERY_TYPES = new Set([
-    CHAT_QUERY_TYPE,
-    COMPLETION_QUERY_TYPE,
-    CLAUDE_QUERY_TYPE,
-    DEEPSEEK_QUERY_TYPE,
-    QWEN_QUERY_TYPE,
-    PERPLEXITY_QUERY_TYPE,
-    CUSTOM_LLM_CHAT_QUERY_TYPE,
-    YANDEX_QUERY_TYPE,
-    REFINE_QUERY_TYPE,
-    OUTLINE_QUERY_TYPE,
-    SUMMARIZE_QUERY_TYPE,
-  ])
-
-  static ORCHESTRATOR_QUERY_TYPES = new Set([STEPS_QUERY_TYPE, FOREACH_QUERY_TYPE, SWITCH_QUERY_TYPE])
-
   static createCommand(queryType, store, progress) {
     const {_userId: userId, _workflowId: workflowId} = store
 
@@ -104,14 +88,6 @@ class CommandFactory {
       default:
         return null
     }
-  }
-
-  static isLLMCommand(queryType) {
-    return this.LLM_QUERY_TYPES.has(queryType)
-  }
-
-  static isOrchestrator(queryType) {
-    return this.ORCHESTRATOR_QUERY_TYPES.has(queryType)
   }
 
   /**

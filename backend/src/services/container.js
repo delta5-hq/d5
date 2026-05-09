@@ -402,8 +402,8 @@ class RealClaudeService {
     log('RealClaudeService initialized', {baseUrl: config.baseUrl})
   }
 
-  async sendMessages(body) {
-    const apiKey = body.apiKey || this.config.apiKey
+  async sendMessages({apiKey: callerApiKey, userId: _userId, ...payload}) {
+    const apiKey = callerApiKey || this.config.apiKey
     const fetch = (await import('node-fetch')).default
     const response = await fetch(`${this.config.baseUrl}/messages`, {
       method: 'POST',
@@ -412,7 +412,7 @@ class RealClaudeService {
         'x-api-key': apiKey,
         'anthropic-version': this.config.version,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     })
 
     const result = await response.json()
@@ -454,9 +454,9 @@ class RealYandexService {
     log('RealYandexService initialized', {baseUrl: config.baseUrl})
   }
 
-  async completion(body) {
-    const apiKey = body.apiKey || this.config.apiKey
-    const folderId = body.folderId || this.config.folderId
+  async completion({apiKey: callerApiKey, folderId: callerFolderId, ...payload}) {
+    const apiKey = callerApiKey || this.config.apiKey
+    const folderId = callerFolderId || this.config.folderId
     const fetch = (await import('node-fetch')).default
     const response = await fetch(`${this.config.baseUrl}/foundationModels/v1/completion`, {
       method: 'POST',
@@ -465,7 +465,7 @@ class RealYandexService {
         Authorization: `Bearer ${apiKey}`,
         'x-folder-id': folderId,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     })
 
     if (!response.ok) {
@@ -474,9 +474,9 @@ class RealYandexService {
     return response.json()
   }
 
-  async embeddings(body) {
-    const apiKey = body.apiKey || this.config.apiKey
-    const folderId = body.folderId || this.config.folderId
+  async embeddings({apiKey: callerApiKey, folderId: callerFolderId, ...payload}) {
+    const apiKey = callerApiKey || this.config.apiKey
+    const folderId = callerFolderId || this.config.folderId
     const fetch = (await import('node-fetch')).default
     const response = await fetch(`${this.config.baseUrl}/foundationModels/v1/textEmbedding`, {
       method: 'POST',
@@ -485,7 +485,7 @@ class RealYandexService {
         Authorization: `Bearer ${apiKey}`,
         'x-folder-id': folderId,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     })
 
     if (!response.ok) {

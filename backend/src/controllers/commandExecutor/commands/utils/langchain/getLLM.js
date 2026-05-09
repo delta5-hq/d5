@@ -1,4 +1,5 @@
 import IntegrationFacade from '../../../../../repositories/IntegrationFacade'
+import {resolveSettings} from './IntegrationSettingsResolver'
 import {YandexGPT, YandexGPTEmbeddings} from './YandexGPT'
 import {
   getClaudeMaxTokens,
@@ -11,13 +12,6 @@ import {
 import {
   DEEPSEEK_DEFAULT_MODEL,
   CustomLLMApiType,
-  OPENAI_API_KEY,
-  CLAUDE_API_KEY,
-  PERPLEXITY_API_KEY,
-  DEEPSEEK_API_KEY,
-  QWEN_API_KEY,
-  YANDEX_API_KEY,
-  YANDEX_FOLDER_ID,
   QWEN_DEFAULT_MODEL,
   YANDEX_DEFAULT_MODEL,
 } from '../../../../../constants'
@@ -52,33 +46,6 @@ const hasCredentialConfigured = (settings, providerKey, credentialPath) => {
   return Boolean(value && (typeof value !== 'string' || value.trim()))
 }
 
-const ENV_FALLBACK_CONFIG = {
-  openai: {apiKey: OPENAI_API_KEY},
-  claude: {apiKey: CLAUDE_API_KEY},
-  perplexity: {apiKey: PERPLEXITY_API_KEY},
-  deepseek: {apiKey: DEEPSEEK_API_KEY},
-  qwen: {apiKey: QWEN_API_KEY},
-  yandex: {apiKey: YANDEX_API_KEY, folder_id: YANDEX_FOLDER_ID},
-}
-
-const applyEnvFallbacks = settings => {
-  if (!settings) return settings
-
-  for (const [provider, fallbacks] of Object.entries(ENV_FALLBACK_CONFIG)) {
-    for (const [field, envValue] of Object.entries(fallbacks)) {
-      if (!envValue) continue
-      if (settings[provider]?.[field]) continue
-
-      if (!settings[provider]) {
-        settings[provider] = {}
-      }
-      settings[provider][field] = envValue
-    }
-  }
-
-  return settings
-}
-
 const detectConfiguredProvider = settings => {
   const providers = [
     [Model.OpenAI, 'openai', 'apiKey'],
@@ -94,8 +61,6 @@ const detectConfiguredProvider = settings => {
       return model
     }
   }
-
-  if (OPENAI_API_KEY) return Model.OpenAI
 
   return null
 }
@@ -122,28 +87,24 @@ export const getIntegrationSettings = async (userId, workflowId = null, store = 
     return store._integrationSettingsCache
   }
 
-  const {merged, workflowDoc} = await IntegrationFacade.findMergedDecryptedWithMetadata(userId, workflowId)
-  if (!merged) {
-    throw new Error('Integration not found')
-  }
+  const fetched = await IntegrationFacade.findMergedDecryptedWithMetadata(userId, workflowId)
+  const {settings, workflowDoc} = resolveSettings({...fetched, userId, workflowId})
 
-  if (workflowDoc && merged.model === USER_DEFAULT_MODEL) {
+  if (workflowDoc && settings.model === USER_DEFAULT_MODEL) {
     const workflowProvider = detectConfiguredProvider(workflowDoc)
     if (workflowProvider) {
-      merged.model = workflowProvider
+      settings.model = workflowProvider
     }
   }
 
-  applyEnvFallbacks(merged)
-
   if (store) {
-    store._integrationSettingsCache = merged
+    store._integrationSettingsCache = settings
   }
 
-  return merged
+  return settings
 }
 
-export const getLLM = ({type, settings, log}) => {
+export const getLLM = ({type, settings, log, thinkingBudgetTokens = null}) => {
   switch (type) {
     case Model.OpenAI: {
       const {apiKey} = settings?.openai || {}
@@ -182,6 +143,7 @@ export const getLLM = ({type, settings, log}) => {
         model: modelName,
         apiKey,
         maxRetries: 3,
+        ...(thinkingBudgetTokens !== null && {thinkingBudgetTokens}),
       })
 
       return {llm, chunkSize}

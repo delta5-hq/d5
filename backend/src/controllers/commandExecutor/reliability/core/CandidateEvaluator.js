@@ -1,19 +1,6 @@
 const LLM_COMMAND_ERROR_PREFIX = 'Error:'
 
 class CandidateEvaluator {
-  /**
-   * @typedef {Object} ValidationResult
-   * @property {boolean} pass
-   * @property {string|null} reason
-   */
-
-  /**
-   * @param {import('../../commands/utils/Store').default} store
-   * @param {string} originalPrompt
-   * @param {Object} options
-   * @param {boolean} [options.isTableCommand]
-   * @returns {ValidationResult}
-   */
   static validate(store, originalPrompt, options = {}) {
     const output = store.getOutput()
 
@@ -34,10 +21,6 @@ class CandidateEvaluator {
     return {pass: true, reason: null}
   }
 
-  /**
-   * @param {string|null|undefined} text
-   * @returns {boolean}
-   */
   static isErrorText(text) {
     return typeof text === 'string' && text.trim().startsWith(LLM_COMMAND_ERROR_PREFIX)
   }

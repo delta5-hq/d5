@@ -21,9 +21,10 @@ import { useApiMutation } from '@shared/composables'
 import type { DialogProps, Qwen } from '@shared/base-types'
 import { QWEN_DEFAULT_MODEL, QwenModels } from '@shared/config'
 import type { HttpError } from '@shared/lib/error'
-import { buildIntegrationUrl } from '../utils/build-integration-url'
-import { toastIntegrationError } from '../utils/toast-integration-error'
 import { createResponseQwen } from '@shared/lib/llm'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
+import { submitIntegrationChanges } from '../utils/submit-integration-changes'
+import { toastIntegrationError } from '../utils/toast-integration-error'
 import { X } from 'lucide-react'
 
 const qwenSchema = z.object({
@@ -76,17 +77,10 @@ export const QwenDialog: React.FC<QwenDialogProps> = ({ data, open, onClose, ref
 
   const onSubmit = async (values: QwenFormValues) => {
     try {
-      const apiKeyChanged = values.apiKey.trim() !== data?.apiKey
-      const modelChanged = values.model.trim() !== data?.model
-
-      if (apiKeyChanged || modelChanged) {
+      if (values.apiKey?.trim()) {
         await createResponseQwen('Hello!', values)
-        await save(values)
       }
-
-      await refresh()
-      onClose?.()
-      toast.success('Saved successfully')
+      await submitIntegrationChanges(() => save(values), { refresh, onClose })
     } catch (e: unknown) {
       toastIntegrationError(e, { model: values.model })
     }

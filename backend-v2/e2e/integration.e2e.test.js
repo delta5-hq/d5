@@ -158,13 +158,12 @@ describe('Integration Router', () => {
   describe('PUT /integration/:service/update', () => {
     it('updates integration configuration', async () => {
       const res = await subscriberRequest.put('/integration/openai/update').send({apiKey: 'updated-test-key'})
-      
+
       expect(res.status).toBe(200)
       expect(typeof res.body).toBe('object')
-      expect(res.body).toHaveProperty('vectors')
-      expect(typeof res.body.vectors).toBe('object')
-      expect(res.body.vectors).toHaveProperty('store')
-      expect(typeof res.body.vectors.store).toBe('object')
+      expect(res.body).toHaveProperty('openai')
+      expect(res.body).toHaveProperty('secretsMeta')
+      expect(res.body.secretsMeta.openai.apiKey).toBe(true)
     })
 
     it('creates new llmvectors document for deepseek when none exists', async () => {
@@ -177,25 +176,25 @@ describe('Integration Router', () => {
       })
       
       expect(res.status).toBe(200)
-      expect(res.body).toHaveProperty('vectors')
-      expect(res.body.vectors).toHaveProperty('store')
-      expect(res.body.vectors.store).toHaveProperty('deepseek')
-      expect(typeof res.body.vectors.store.deepseek).toBe('object')
+      expect(res.body).toHaveProperty('deepseek')
+      expect(res.body.secretsMeta.deepseek.apiKey).toBe(true)
     })
 
     it('updates existing llmvectors document when adding new service', async () => {
       /* Setup: Create openai integration first */
       await subscriberRequest.put('/integration/openai/update').send({apiKey: 'openai-key'})
-      
-      /* Add deepseek to existing llmvectors doc - triggers update path */
+
+      /* Add deepseek to existing record - triggers update path */
       const res = await subscriberRequest.put('/integration/deepseek/update').send({
         apiKey: 'sk-deepseek-key',
         model: 'deepseek-chat'
       })
-      
+
       expect(res.status).toBe(200)
-      expect(res.body.vectors.store).toHaveProperty('openai')
-      expect(res.body.vectors.store).toHaveProperty('deepseek')
+      expect(res.body).toHaveProperty('openai')
+      expect(res.body).toHaveProperty('deepseek')
+      expect(res.body.secretsMeta.openai.apiKey).toBe(true)
+      expect(res.body.secretsMeta.deepseek.apiKey).toBe(true)
     })
 
     it('handles multiple services without store isolation violations', async () => {
@@ -259,12 +258,12 @@ describe('Integration Router - Administrator Tests', () => {
     
     it('should update integration settings', async () => {
       const res = await administratorRequest.put('/integration/openai/update').send({apiKey: 'updated-admin-key'})
-      
+
       expect(res.status).toBe(200)
       expect(typeof res.body).toBe('object')
-      expect(res.body).toHaveProperty('vectors')
-      expect(res.body.vectors).toHaveProperty('store')
-      expect(typeof res.body.vectors.store).toBe('object')
+      expect(res.body).toHaveProperty('userId', 'admin')
+      expect(res.body).toHaveProperty('openai')
+      expect(res.body.secretsMeta.openai.apiKey).toBe(true)
     })
   })
 })
