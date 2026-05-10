@@ -45,40 +45,6 @@ export class OutlineTool {
     }
   }
 
-  getSchema() {
-    return {
-      name: this.getName(),
-      description: this.getDescription(),
-      inputSchema: {
-        type: 'object',
-        properties: {
-          query: {type: 'string', description: 'The topic or question to outline.'},
-          web: {
-            type: 'string',
-            description:
-              'Web search mode with chunk size (xxs, xs, s, m, l, xl, xxl). Mutually exclusive with scholar/ext.',
-          },
-          scholar: {
-            type: 'string',
-            description:
-              'Academic search mode with chunk size (xxs, xs, s, m, l, xl, xxl). Mutually exclusive with web/ext.',
-          },
-          ext: {
-            type: 'boolean',
-            description: 'Use knowledge base instead of web/scholar. Mutually exclusive with web/scholar.',
-          },
-          context: {type: 'string', description: 'Knowledge base context name (when ext=true).'},
-          href: {type: 'string', description: 'Specific URL to outline from.'},
-          minYear: {type: 'number', description: 'Minimum publication year for scholar search.'},
-          lang: {type: 'string', description: 'Output language code (e.g., "ru", "en").'},
-          citations: {type: 'boolean', description: 'Include source citations in the response.'},
-          maxChunks: {type: 'string', description: 'Direct chunk size override (xxs, xs, s, m, l, xl, xxl).'},
-        },
-        required: ['query'],
-      },
-    }
-  }
-
   async execute(args) {
     try {
       const params = this.paramsAdapter.adaptParams(args)

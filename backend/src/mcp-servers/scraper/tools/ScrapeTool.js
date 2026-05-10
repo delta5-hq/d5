@@ -33,29 +33,6 @@ export class ScrapeTool {
     }
   }
 
-  getSchema() {
-    return {
-      name: this.getName(),
-      description: this.getDescription(),
-      inputSchema: {
-        type: 'object',
-        properties: {
-          urls: {
-            type: 'array',
-            items: {type: 'string'},
-            description: 'Array of URLs to scrape. Optional if text is provided.',
-          },
-          text: {
-            type: 'string',
-            description: 'Freeform text containing URLs to extract and scrape. Optional if urls is provided.',
-          },
-          maxSize: {type: 'string', description: 'Maximum file size (e.g., "5mb", "10mb"). Default: "5mb".'},
-          maxPages: {type: 'string', description: 'Maximum pages for PDFs. Default: "100".'},
-        },
-      },
-    }
-  }
-
   async execute(args) {
     try {
       let urls = args.urls || []

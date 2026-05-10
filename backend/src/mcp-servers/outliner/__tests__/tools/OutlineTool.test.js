@@ -28,30 +28,29 @@ describe('OutlineTool', () => {
     jest.clearAllMocks()
   })
 
-  describe('getSchema', () => {
-    it('returns valid MCP tool schema', () => {
-      const schema = tool.getSchema()
-
-      expect(schema.name).toBe('generate_outline')
-      expect(schema.description).toBeDefined()
-      expect(schema.inputSchema.type).toBe('object')
-      expect(schema.inputSchema.properties.query).toBeDefined()
-      expect(schema.inputSchema.required).toContain('query')
+  describe('Zod API', () => {
+    it('getName() returns expected name', () => {
+      expect(tool.getName()).toBe('generate_outline')
     })
 
-    it('schema includes all mode parameters', () => {
-      const schema = tool.getSchema()
-      const props = schema.inputSchema.properties
+    it('getDescription() returns non-empty description', () => {
+      expect(typeof tool.getDescription()).toBe('string')
+      expect(tool.getDescription().length).toBeGreaterThan(20)
+    })
 
-      expect(props.web).toBeDefined()
-      expect(props.scholar).toBeDefined()
-      expect(props.ext).toBeDefined()
-      expect(props.context).toBeDefined()
-      expect(props.href).toBeDefined()
-      expect(props.minYear).toBeDefined()
-      expect(props.lang).toBeDefined()
-      expect(props.citations).toBeDefined()
-      expect(props.maxChunks).toBeDefined()
+    it('getZodShape() exposes all mode parameters', () => {
+      const shape = tool.getZodShape()
+
+      expect(shape.query).toBeDefined()
+      expect(shape.web).toBeDefined()
+      expect(shape.scholar).toBeDefined()
+      expect(shape.ext).toBeDefined()
+      expect(shape.context).toBeDefined()
+      expect(shape.href).toBeDefined()
+      expect(shape.minYear).toBeDefined()
+      expect(shape.lang).toBeDefined()
+      expect(shape.citations).toBeDefined()
+      expect(shape.maxChunks).toBeDefined()
     })
   })
 
@@ -196,30 +195,14 @@ describe('OutlineTool', () => {
     })
   })
 
-  describe('Zod API (getName / getDescription / getZodShape)', () => {
-    it('getName() matches getSchema().name', () => {
-      expect(tool.getName()).toBe(tool.getSchema().name)
-    })
-
-    it('getDescription() matches getSchema().description', () => {
-      expect(tool.getDescription()).toBe(tool.getSchema().description)
-    })
-
-    it('getZodShape() returns an object with parseable ZodType values', () => {
+  describe('Zod shape semantics', () => {
+    it('getZodShape() returns ZodType values', () => {
       const shape = tool.getZodShape()
 
-      expect(typeof shape).toBe('object')
-      expect(shape).not.toBeNull()
       Object.values(shape).forEach(value => {
         expect(typeof value.safeParse).toBe('function')
         expect(typeof value.parse).toBe('function')
       })
-    })
-
-    it('getZodShape() field names align with getSchema() properties', () => {
-      const zodKeys = Object.keys(tool.getZodShape()).sort()
-      const schemaKeys = Object.keys(tool.getSchema().inputSchema.properties).sort()
-      expect(zodKeys).toEqual(schemaKeys)
     })
 
     it('getZodShape() query field rejects missing value', () => {
@@ -230,8 +213,7 @@ describe('OutlineTool', () => {
 
     it('getZodShape() optional fields accept missing values', () => {
       const shape = tool.getZodShape()
-      const required = tool.getSchema().inputSchema.required
-      const optionalFields = Object.keys(shape).filter(f => !required.includes(f))
+      const optionalFields = Object.keys(shape).filter(f => f !== 'query')
 
       optionalFields.forEach(field => {
         const schema = z.object({[field]: shape[field]})

@@ -76,14 +76,6 @@ describe('ToolRegistry', () => {
       expect(tools1).toEqual(tools2)
     })
 
-    it('returned array contains tool instances with getSchema method', () => {
-      const tools = registry.getAllTools()
-
-      tools.forEach(tool => {
-        expect(typeof tool.getSchema).toBe('function')
-      })
-    })
-
     it('returned array contains tool instances with execute method', () => {
       const tools = registry.getAllTools()
 

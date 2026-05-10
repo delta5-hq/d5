@@ -14,17 +14,14 @@ describe('ScrapeTool', () => {
     jest.clearAllMocks()
   })
 
-  describe('getSchema', () => {
-    it('returns valid MCP tool schema', () => {
-      const schema = tool.getSchema()
+  describe('Zod shape', () => {
+    it('exposes urls/text/maxSize/maxPages fields', () => {
+      const shape = tool.getZodShape()
 
-      expect(schema.name).toBe('scrape_web_pages')
-      expect(schema.description).toBeDefined()
-      expect(schema.inputSchema.type).toBe('object')
-      expect(schema.inputSchema.properties.urls).toBeDefined()
-      expect(schema.inputSchema.properties.text).toBeDefined()
-      expect(schema.inputSchema.properties.maxSize).toBeDefined()
-      expect(schema.inputSchema.properties.maxPages).toBeDefined()
+      expect(shape.urls).toBeDefined()
+      expect(shape.text).toBeDefined()
+      expect(shape.maxSize).toBeDefined()
+      expect(shape.maxPages).toBeDefined()
     })
   })
 
@@ -143,12 +140,13 @@ describe('ScrapeTool', () => {
   })
 
   describe('Zod API (getName / getDescription / getZodShape)', () => {
-    it('getName() matches getSchema().name', () => {
-      expect(tool.getName()).toBe(tool.getSchema().name)
+    it('getName() returns expected name', () => {
+      expect(tool.getName()).toBe('scrape_web_pages')
     })
 
-    it('getDescription() matches getSchema().description', () => {
-      expect(tool.getDescription()).toBe(tool.getSchema().description)
+    it('getDescription() returns non-empty description', () => {
+      expect(typeof tool.getDescription()).toBe('string')
+      expect(tool.getDescription().length).toBeGreaterThan(20)
     })
 
     it('getZodShape() returns an object with parseable ZodType values', () => {
@@ -160,12 +158,6 @@ describe('ScrapeTool', () => {
         expect(typeof value.safeParse).toBe('function')
         expect(typeof value.parse).toBe('function')
       })
-    })
-
-    it('getZodShape() field names align with getSchema() properties', () => {
-      const zodKeys = Object.keys(tool.getZodShape()).sort()
-      const schemaKeys = Object.keys(tool.getSchema().inputSchema.properties).sort()
-      expect(zodKeys).toEqual(schemaKeys)
     })
 
     it('getZodShape() accepts empty object (all fields optional)', () => {

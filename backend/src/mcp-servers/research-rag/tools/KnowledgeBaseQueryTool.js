@@ -31,24 +31,6 @@ export class KnowledgeBaseQueryTool {
     }
   }
 
-  getSchema() {
-    return {
-      name: this.getName(),
-      description: this.getDescription(),
-      inputSchema: {
-        type: 'object',
-        properties: {
-          query: {type: 'string', description: 'The query to search in the knowledge base'},
-          context: {type: 'string', description: 'Knowledge base context name. Optional.'},
-          lang: {type: 'string', description: 'Output language code (e.g., "ru", "en"). Optional.'},
-          citations: {type: 'boolean', description: 'Include source citations in the response. Optional.'},
-          maxChunks: {type: 'string', description: 'Maximum chunks size: xxs, xs, s, m, l, xl, xxl. Optional.'},
-        },
-        required: ['query'],
-      },
-    }
-  }
-
   async execute(args) {
     try {
       const params = this.commandContextAdapter.parseKnowledgeBaseParams(args)

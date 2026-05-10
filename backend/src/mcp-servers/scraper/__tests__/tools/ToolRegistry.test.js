@@ -12,7 +12,7 @@ describe('ToolRegistry', () => {
       const tools = registry.getAllTools()
 
       expect(tools).toHaveLength(1)
-      expect(tools[0].getSchema().name).toBe('scrape_web_pages')
+      expect(tools[0].getName()).toBe('scrape_web_pages')
     })
   })
 
@@ -57,14 +57,6 @@ describe('ToolRegistry', () => {
 
       expect(Array.isArray(tools)).toBe(true)
       expect(tools.length).toBeGreaterThan(0)
-    })
-
-    it('returned tools have getSchema method', () => {
-      const tools = registry.getAllTools()
-
-      tools.forEach(tool => {
-        expect(typeof tool.getSchema).toBe('function')
-      })
     })
 
     it('returned tools have execute method', () => {

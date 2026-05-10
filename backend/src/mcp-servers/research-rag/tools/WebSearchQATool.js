@@ -30,23 +30,6 @@ export class WebSearchQATool {
     }
   }
 
-  getSchema() {
-    return {
-      name: this.getName(),
-      description: this.getDescription(),
-      inputSchema: {
-        type: 'object',
-        properties: {
-          query: {type: 'string', description: 'The search query or question'},
-          lang: {type: 'string', description: 'Output language code (e.g., "ru", "en"). Optional.'},
-          citations: {type: 'boolean', description: 'Include source citations in the response. Optional.'},
-          maxChunks: {type: 'string', description: 'Maximum chunks size: xxs, xs, s, m, l, xl, xxl. Optional.'},
-        },
-        required: ['query'],
-      },
-    }
-  }
-
   async execute(args) {
     try {
       const params = this.commandContextAdapter.parseWebSearchParams(args)

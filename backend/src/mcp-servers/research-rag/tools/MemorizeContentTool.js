@@ -31,23 +31,6 @@ export class MemorizeContentTool {
     }
   }
 
-  getSchema() {
-    return {
-      name: this.getName(),
-      description: this.getDescription(),
-      inputSchema: {
-        type: 'object',
-        properties: {
-          text: {type: 'string', description: 'The text content to memorize'},
-          context: {type: 'string', description: 'Knowledge base context name. Optional.'},
-          keep: {type: 'boolean', description: 'Keep existing vectors in the context. Defaults to true.'},
-          split: {type: 'string', description: 'Delimiter to split text into chunks. Optional.'},
-        },
-        required: ['text'],
-      },
-    }
-  }
-
   async execute(args) {
     try {
       const params = this.commandContextAdapter.parseMemorizeParams(args)
