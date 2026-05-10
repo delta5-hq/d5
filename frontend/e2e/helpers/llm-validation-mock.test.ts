@@ -1,227 +1,183 @@
-import { test, expect } from '@playwright/test'
-import { mockLLMValidation, mockAllLLMValidations, unmockLLMValidation } from './llm-validation-mock'
+import { test, expect, type Page } from '@playwright/test'
+import {
+  mockLLMValidation,
+  mockAllLLMValidations,
+  unmockLLMValidation,
+  unmockAllLLMValidations,
+} from './llm-validation-mock'
+
+const QWEN_EXTERNAL_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions'
+
+async function postJson(page: Page, url: string): Promise<any> {
+  return page.evaluate(
+    (u: string) =>
+      fetch(u, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'test' }] }),
+      }).then(r => r.json()),
+    url,
+  )
+}
 
 test.describe('LLM Validation Mock Helper', () => {
-  test('mockLLMValidation handles OpenAI format providers', async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await page.goto('/')
-    await mockLLMValidation(page, { provider: 'openai' })
-
-    const response = await page.evaluate(async () => {
-      return await fetch('/api/v2/integration/openai/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: 'test' }] }),
-      }).then(r => r.json())
-    })
-
-    expect(response.choices[0].message.content).toBe('Hello!')
-    expect(response.object).toBe('chat.completion')
   })
 
-  test('mockLLMValidation handles Claude format', async ({ page }) => {
-    await page.goto('/')
-    await mockLLMValidation(page, { provider: 'claude' })
-
-    const response = await page.evaluate(async () => {
-      return await fetch('/api/v2/integration/claude/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: 'test' }] }),
-      }).then(r => r.json())
+  test.describe('response format contracts', () => {
+    test('OpenAI-compatible response: choices array with message content and completion metadata', async ({ page }) => {
+      await mockLLMValidation(page, { provider: 'deepseek' })
+      const response = await postJson(page, '/api/v2/integration/deepseek/chat/completions')
+      expect(response.object).toBe('chat.completion')
+      expect(response.choices[0].message.content).toBe('Hello!')
+      expect(response.choices[0].finish_reason).toBe('stop')
     })
 
-    expect(response.type).toBe('message')
-    expect(response.content[0].text).toBe('Hello!')
-    expect(response.stop_reason).toBe('end_turn')
-  })
-
-  test('mockLLMValidation handles Yandex format', async ({ page }) => {
-    await page.goto('/')
-    await mockLLMValidation(page, { provider: 'yandex' })
-
-    const response = await page.evaluate(async () => {
-      return await fetch('/api/v2/integration/yandex/completion', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', text: 'test' }] }),
-      }).then(r => r.json())
+    test('Claude/Anthropic response: content array with text and stop_reason', async ({ page }) => {
+      await mockLLMValidation(page, { provider: 'claude' })
+      const response = await postJson(page, '/api/v2/integration/claude/messages')
+      expect(response.type).toBe('message')
+      expect(response.role).toBe('assistant')
+      expect(response.content[0].text).toBe('Hello!')
+      expect(response.stop_reason).toBe('end_turn')
     })
 
-    expect(response.result.alternatives[0].message.text).toBe('Hello!')
-    expect(response.result.alternatives[0].status).toBe('ALTERNATIVE_STATUS_FINAL')
+    test('YandexGPT response: result.alternatives with ALTERNATIVE_STATUS_FINAL status', async ({ page }) => {
+      await mockLLMValidation(page, { provider: 'yandex' })
+      const response = await postJson(page, '/api/v2/integration/yandex/completion')
+      expect(response.result.alternatives[0].message.text).toBe('Hello!')
+      expect(response.result.alternatives[0].status).toBe('ALTERNATIVE_STATUS_FINAL')
+    })
   })
 
-  test('mockLLMValidation accepts custom response text', async ({ page }) => {
-    await page.goto('/')
-    await mockLLMValidation(page, { provider: 'deepseek', mockResponse: 'Custom mock response' })
-
-    const response = await page.evaluate(async () => {
-      return await fetch('/api/v2/integration/deepseek/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: 'test' }] }),
-      }).then(r => r.json())
+  test.describe('route registration', () => {
+    test('openai routes to the shared /integration/chat/completions endpoint without a provider URL segment', async ({ page }) => {
+      await mockLLMValidation(page, { provider: 'openai' })
+      const response = await postJson(page, '/api/v2/integration/chat/completions')
+      expect(response.choices[0].message.content).toBe('Hello!')
     })
 
-    expect(response.choices[0].message.content).toBe('Custom mock response')
+    test('qwen routes to the external Dashscope API domain instead of the backend proxy', async ({ page }) => {
+      await mockLLMValidation(page, { provider: 'qwen' })
+      const response = await postJson(page, QWEN_EXTERNAL_URL)
+      expect(response.choices[0].message.content).toBe('Hello!')
+    })
   })
 
-  test('mockLLMValidation mocks both backend proxy and external API when both exist', async ({ page }) => {
-    await page.goto('/')
-    await mockLLMValidation(page, { provider: 'deepseek' })
-
-    const backendResponse = await page.evaluate(async () => {
-      return await fetch('/api/v2/integration/deepseek/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: 'test' }] }),
-      }).then(r => r.json())
+  test.describe('custom response text', () => {
+    test('mockLLMValidation accepts custom response text for any provider', async ({ page }) => {
+      await mockLLMValidation(page, { provider: 'perplexity', mockResponse: 'Custom text' })
+      const response = await postJson(page, '/api/v2/integration/perplexity/chat/completions')
+      expect(response.choices[0].message.content).toBe('Custom text')
     })
 
-    expect(backendResponse.choices[0].message.content).toBe('Hello!')
+    test('mockAllLLMValidations propagates custom response text to all format families', async ({ page }) => {
+      await mockAllLLMValidations(page, 'Broadcast')
+      const openai = await postJson(page, '/api/v2/integration/chat/completions')
+      const claude = await postJson(page, '/api/v2/integration/claude/messages')
+      const yandex = await postJson(page, '/api/v2/integration/yandex/completion')
+      expect(openai.choices[0].message.content).toBe('Broadcast')
+      expect(claude.content[0].text).toBe('Broadcast')
+      expect(yandex.result.alternatives[0].message.text).toBe('Broadcast')
+    })
   })
 
-  test('mockAllLLMValidations mocks all 7 providers at once', async ({ page }) => {
-    await page.goto('/')
-    await mockAllLLMValidations(page)
+  test.describe('mockAllLLMValidations', () => {
+    test('covers all 7 providers with their correct endpoints and format shapes', async ({ page }) => {
+      await mockAllLLMValidations(page)
 
-    const providers = [
-      { name: 'openai', endpoint: '/api/v2/integration/openai/chat/completions', field: 'choices[0].message.content' },
-      { name: 'deepseek', endpoint: '/api/v2/integration/deepseek/chat/completions', field: 'choices[0].message.content' },
-      { name: 'qwen', endpoint: '/api/v2/integration/qwen/chat/completions', field: 'choices[0].message.content' },
-      { name: 'perplexity', endpoint: '/api/v2/integration/perplexity/chat/completions', field: 'choices[0].message.content' },
-      { name: 'custom_llm', endpoint: '/api/v2/integration/custom_llm/chat/completions', field: 'choices[0].message.content' },
-      { name: 'claude', endpoint: '/api/v2/integration/claude/messages', field: 'content[0].text' },
-      { name: 'yandex', endpoint: '/api/v2/integration/yandex/completion', field: 'result.alternatives[0].message.text' },
-    ]
+      const scenarios: Array<{ endpoint: string; extract: (r: any) => string }> = [
+        { endpoint: '/api/v2/integration/chat/completions',          extract: r => r.choices[0].message.content },
+        { endpoint: '/api/v2/integration/deepseek/chat/completions', extract: r => r.choices[0].message.content },
+        { endpoint: '/api/v2/integration/perplexity/chat/completions', extract: r => r.choices[0].message.content },
+        { endpoint: '/api/v2/integration/custom_llm/chat/completions', extract: r => r.choices[0].message.content },
+        { endpoint: QWEN_EXTERNAL_URL,                               extract: r => r.choices[0].message.content },
+        { endpoint: '/api/v2/integration/claude/messages',           extract: r => r.content[0].text },
+        { endpoint: '/api/v2/integration/yandex/completion',         extract: r => r.result.alternatives[0].message.text },
+      ]
 
-    for (const { name, endpoint, field } of providers) {
-      const response = await page.evaluate(
-        async ({ url }) => {
-          return await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ messages: [{ role: 'user', content: 'test' }] }),
-          }).then(r => r.json())
-        },
-        { url: endpoint },
-      )
-
-      const fieldParts = field.split(/[\.\[\]]/).filter(Boolean)
-      let value: any = response
-      for (const part of fieldParts) {
-        value = value[part]
+      for (const { endpoint, extract } of scenarios) {
+        const response = await postJson(page, endpoint)
+        expect(extract(response)).toBe('Mock response')
       }
-
-      expect(value).toBe('Mock response')
-    }
+    })
   })
 
-  test('unmockLLMValidation allows route to proceed normally', async ({ page }) => {
-    await page.goto('/')
-    
-    await mockLLMValidation(page, { provider: 'deepseek', mockResponse: 'Mocked' })
+  test.describe('unmock lifecycle', () => {
+    test('unmockLLMValidation removes the route so subsequent requests are no longer intercepted', async ({ page }) => {
+      await mockLLMValidation(page, { provider: 'deepseek', mockResponse: 'Mocked' })
+      const mocked = await postJson(page, '/api/v2/integration/deepseek/chat/completions')
+      expect(mocked.choices[0].message.content).toBe('Mocked')
 
-    const mockedResponse = await page.evaluate(async () => {
-      return await fetch('/api/v2/integration/deepseek/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: 'test' }] }),
-      }).then(r => r.json())
-    })
-    expect(mockedResponse.choices[0].message.content).toBe('Mocked')
+      await unmockLLMValidation(page, { provider: 'deepseek' })
 
-    await unmockLLMValidation(page, { provider: 'deepseek' })
-
-    await page.route('**/api/v2/integration/deepseek/chat/completions', route => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          choices: [{ message: { content: 'Real backend' } }],
+      await page.route('**/api/v2/integration/deepseek/chat/completions', route =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ choices: [{ message: { content: 'Passthrough' } }] }),
         }),
-      })
+      )
+      const passthrough = await postJson(page, '/api/v2/integration/deepseek/chat/completions')
+      expect(passthrough.choices[0].message.content).toBe('Passthrough')
     })
 
-    const unmockedResponse = await page.evaluate(async () => {
-      return await fetch('/api/v2/integration/deepseek/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: 'test' }] }),
-      }).then(r => r.json())
+    test('unmockAllLLMValidations removes all provider routes', async ({ page }) => {
+      await mockAllLLMValidations(page, 'Mocked')
+      const mocked = await postJson(page, '/api/v2/integration/claude/messages')
+      expect(mocked.content[0].text).toBe('Mocked')
+
+      await unmockAllLLMValidations(page)
+
+      await page.route('**/api/v2/integration/claude/messages', route =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ content: [{ text: 'Passthrough' }] }),
+        }),
+      )
+      const passthrough = await postJson(page, '/api/v2/integration/claude/messages')
+      expect(passthrough.content[0].text).toBe('Passthrough')
+    })
+  })
+
+  test.describe('mock composition', () => {
+    test('sequential mocks on the same provider: last registration wins', async ({ page }) => {
+      await mockLLMValidation(page, { provider: 'openai', mockResponse: 'First' })
+      await mockLLMValidation(page, { provider: 'openai', mockResponse: 'Second' })
+      const response = await postJson(page, '/api/v2/integration/chat/completions')
+      expect(response.choices[0].message.content).toBe('Second')
     })
 
-    expect(unmockedResponse.choices[0].message.content).toBe('Real backend')
+    test('concurrent mocks on different providers are independent', async ({ page }) => {
+      await Promise.all([
+        mockLLMValidation(page, { provider: 'openai',   mockResponse: 'OpenAI'   }),
+        mockLLMValidation(page, { provider: 'claude',   mockResponse: 'Claude'   }),
+        mockLLMValidation(page, { provider: 'deepseek', mockResponse: 'Deepseek' }),
+      ])
+      const [openai, claude, deepseek] = await Promise.all([
+        postJson(page, '/api/v2/integration/chat/completions'),
+        postJson(page, '/api/v2/integration/claude/messages'),
+        postJson(page, '/api/v2/integration/deepseek/chat/completions'),
+      ])
+      expect(openai.choices[0].message.content).toBe('OpenAI')
+      expect(claude.content[0].text).toBe('Claude')
+      expect(deepseek.choices[0].message.content).toBe('Deepseek')
+    })
   })
 
-  test('mockLLMValidation throws error for unsupported provider', async ({ page }) => {
-    await page.goto('/')
-
-    await expect(
-      mockLLMValidation(page, { provider: 'nonexistent' as any }),
-    ).rejects.toThrow('Unsupported LLM provider: nonexistent')
-  })
-
-  test('unmockLLMValidation handles unsupported provider gracefully', async ({ page }) => {
-    await page.goto('/')
-
-    await expect(
-      unmockLLMValidation(page, { provider: 'nonexistent' as any }),
-    ).resolves.toBeUndefined()
-  })
-
-  test('multiple sequential mocks of same provider overwrite each other', async ({ page }) => {
-    await page.goto('/')
-
-    await mockLLMValidation(page, { provider: 'openai', mockResponse: 'First' })
-    await mockLLMValidation(page, { provider: 'openai', mockResponse: 'Second' })
-
-    const response = await page.evaluate(async () => {
-      return await fetch('/api/v2/integration/openai/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: 'test' }] }),
-      }).then(r => r.json())
+  test.describe('error handling', () => {
+    test('mockLLMValidation throws for an unregistered provider', async ({ page }) => {
+      await expect(
+        mockLLMValidation(page, { provider: 'nonexistent' as any }),
+      ).rejects.toThrow('Unsupported LLM provider: nonexistent')
     })
 
-    expect(response.choices[0].message.content).toBe('Second')
-  })
-
-  test('concurrent mocks of different providers do not interfere', async ({ page }) => {
-    await page.goto('/')
-
-    await Promise.all([
-      mockLLMValidation(page, { provider: 'openai', mockResponse: 'OpenAI response' }),
-      mockLLMValidation(page, { provider: 'claude', mockResponse: 'Claude response' }),
-      mockLLMValidation(page, { provider: 'deepseek', mockResponse: 'Deepseek response' }),
-    ])
-
-    const [openaiResp, claudeResp, deepseekResp] = await Promise.all([
-      page.evaluate(async () => {
-        return await fetch('/api/v2/integration/openai/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: [{ role: 'user', content: 'test' }] }),
-        }).then(r => r.json())
-      }),
-      page.evaluate(async () => {
-        return await fetch('/api/v2/integration/claude/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: [{ role: 'user', content: 'test' }] }),
-        }).then(r => r.json())
-      }),
-      page.evaluate(async () => {
-        return await fetch('/api/v2/integration/deepseek/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: [{ role: 'user', content: 'test' }] }),
-        }).then(r => r.json())
-      }),
-    ])
-
-    expect(openaiResp.choices[0].message.content).toBe('OpenAI response')
-    expect(claudeResp.content[0].text).toBe('Claude response')
-    expect(deepseekResp.choices[0].message.content).toBe('Deepseek response')
+    test('unmockLLMValidation is a no-op for an unregistered provider', async ({ page }) => {
+      await expect(
+        unmockLLMValidation(page, { provider: 'nonexistent' as any }),
+      ).resolves.toBeUndefined()
+    })
   })
 })

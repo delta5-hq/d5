@@ -15,7 +15,10 @@
     "format": "eslint src --fix",
     "lint": "eslint src",
     "lint:steiger": "cd ../frontend && steiger ./src",
-    "user": "babel-node --presets @babel/preset-env scripts/createUser.js"
+    "user": "babel-node --presets @babel/preset-env scripts/createUser.js",
+    "mcp:research": "node build/mcp-servers/research-rag/server.js",
+    "mcp:outliner": "node build/mcp-servers/outliner/server.js",
+    "mcp:scraper": "node build/mcp-servers/scraper/server.js"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "0.14.0",

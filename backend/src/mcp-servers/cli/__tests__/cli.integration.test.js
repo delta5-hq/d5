@@ -2,7 +2,7 @@ import {ToolInvoker} from '../ToolInvoker'
 import path from 'path'
 
 describe('CLI integration', () => {
-  const scraperServerPath = path.resolve(__dirname, '../../scraper/server.js')
+  const scraperServerPath = path.resolve(__dirname, '../../../../build/mcp-servers/scraper/server.js')
 
   it('invokes scraper server scrape_web_pages tool via stdio', async () => {
     const invoker = new ToolInvoker(30000)

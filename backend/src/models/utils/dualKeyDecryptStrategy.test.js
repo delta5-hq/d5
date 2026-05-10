@@ -295,6 +295,7 @@ describe('DualKeyDecryptStrategy', () => {
 
   describe('Data integrity', () => {
     it('maintains plaintext integrity through fallback chain', () => {
+      const consoleWarn = jest.spyOn(console, 'warn').mockImplementation()
       const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
       const plaintext = 'sensitive-data-with-special-chars-!@#$%^&*()'
       const ciphertext = cipher.encrypt(plaintext, legacyKey, null)
@@ -302,6 +303,7 @@ describe('DualKeyDecryptStrategy', () => {
       const result = strategy.decrypt(ciphertext, null, aad)
 
       expect(result).toBe(plaintext)
+      consoleWarn.mockRestore()
     })
 
     it('maintains UTF-8 multibyte character integrity', () => {
@@ -388,6 +390,61 @@ describe('DualKeyDecryptStrategy', () => {
 
       expect(consoleWarn).not.toHaveBeenCalled()
 
+      consoleWarn.mockRestore()
+    })
+  })
+
+  describe('AAD binding enforcement (enforceAadBinding enabled)', () => {
+    it('throws when primary-key ciphertext lacks AAD binding and includes original error', () => {
+      const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, null, true)
+      const ciphertext = cipher.encrypt('secret', primaryKey, null)
+
+      expect(() => strategy.decrypt(ciphertext, null, aad)).toThrow(/AAD migration enforcement is active/)
+      expect(() => strategy.decrypt(ciphertext, null, aad)).toThrow(/Original:/)
+    })
+
+    it('throws when legacy-key ciphertext lacks AAD binding', () => {
+      const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey, true)
+      const ciphertext = cipher.encrypt('secret', legacyKey, null)
+
+      expect(() => strategy.decrypt(ciphertext, null, aad)).toThrow(/AAD migration enforcement is active/)
+    })
+
+    it('is inactive when caller provides null AAD — single key', () => {
+      const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, null, true)
+      const ciphertext = cipher.encrypt('secret', primaryKey, null)
+
+      expect(strategy.decrypt(ciphertext, null, null)).toBe('secret')
+    })
+
+    it('is inactive when caller provides null AAD — dual key with legacy', () => {
+      const consoleWarn = jest.spyOn(console, 'warn').mockImplementation()
+      const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey, true)
+      const ciphertext = cipher.encrypt('secret', legacyKey, null)
+
+      expect(strategy.decrypt(ciphertext, null, null)).toBe('secret')
+      consoleWarn.mockRestore()
+    })
+
+    it('is inactive when caller provides undefined AAD', () => {
+      const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, null, true)
+      const ciphertext = cipher.encrypt('secret', primaryKey, null)
+
+      expect(strategy.decrypt(ciphertext, null, undefined)).toBe('secret')
+    })
+
+    it('does not emit security warning when blocking fallback', () => {
+      const consoleWarn = jest.spyOn(console, 'warn').mockImplementation()
+      const strategy = new DualKeyDecryptStrategy(cipher, primaryKey, null, true)
+      const ciphertext = cipher.encrypt('secret', primaryKey, null)
+
+      try {
+        strategy.decrypt(ciphertext, null, aad)
+      } catch {
+        // expected
+      }
+
+      expect(consoleWarn).not.toHaveBeenCalled()
       consoleWarn.mockRestore()
     })
   })

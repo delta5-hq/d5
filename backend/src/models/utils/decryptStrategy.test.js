@@ -41,39 +41,92 @@ describe('DecryptStrategy', () => {
   const cipher = new TestCipher()
   const key = crypto.pbkdf2Sync('test-secret', 'salt', 10000, 32, 'sha256')
 
-  describe('FallbackDecrypt', () => {
-    const fallback = new FallbackDecrypt(cipher)
+  describe('FallbackDecrypt — AAD fallback mode (enforceAadBinding disabled)', () => {
+    const strategy = new FallbackDecrypt(cipher)
 
-    it('decrypts with matching AD', () => {
+    it('decrypts when AAD matches', () => {
       const ad = Buffer.from('context')
       const encrypted = cipher.encrypt('secret', key, ad)
 
-      const decrypted = fallback.decrypt(encrypted, key, ad)
-      expect(decrypted).toBe('secret')
+      expect(strategy.decrypt(encrypted, key, ad)).toBe('secret')
     })
 
-    it('falls back to nil when AD mismatches', () => {
+    it('falls back to null AAD when ciphertext lacks AAD binding', () => {
+      const consoleWarn = jest.spyOn(console, 'warn').mockImplementation()
       const encrypted = cipher.encrypt('legacy-secret', key, null)
-      const wrongAD = Buffer.from('wrong-context')
 
-      const decrypted = fallback.decrypt(encrypted, key, wrongAD)
-      expect(decrypted).toBe('legacy-secret')
+      expect(strategy.decrypt(encrypted, key, Buffer.from('any-context'))).toBe('legacy-secret')
+      consoleWarn.mockRestore()
     })
 
-    it('throws when both AD and nil fail', () => {
-      const ad = Buffer.from('context')
-      const encrypted = cipher.encrypt('secret', key, ad)
+    it('emits security warning on AAD binding fallback', () => {
+      const consoleWarn = jest.spyOn(console, 'warn').mockImplementation()
+      const encrypted = cipher.encrypt('legacy-secret', key, null)
 
+      strategy.decrypt(encrypted, key, Buffer.from('any-context'))
+
+      expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('AAD fallback triggered'))
+      consoleWarn.mockRestore()
+    })
+
+    it('throws when decryption fails on all attempts', () => {
+      const consoleWarn = jest.spyOn(console, 'warn').mockImplementation()
       const wrongKey = crypto.pbkdf2Sync('different-secret', 'salt', 10000, 32, 'sha256')
+      const encrypted = cipher.encrypt('secret', key, Buffer.from('context'))
 
-      expect(() => fallback.decrypt(encrypted, wrongKey, Buffer.from('any-ad'))).toThrow()
+      expect(() => strategy.decrypt(encrypted, wrongKey, Buffer.from('any-context'))).toThrow()
+      consoleWarn.mockRestore()
     })
 
-    it('does not fallback when AD is nil', () => {
+    it('throws when caller provides null AAD and ciphertext has AAD binding', () => {
+      const encrypted = cipher.encrypt('secret', key, Buffer.from('context'))
+
+      expect(() => strategy.decrypt(encrypted, key, null)).toThrow()
+    })
+  })
+
+  describe('FallbackDecrypt — AAD binding enforcement (enforceAadBinding enabled)', () => {
+    const strategy = new FallbackDecrypt(cipher, true)
+
+    it('decrypts without interference when AAD matches', () => {
       const ad = Buffer.from('context')
       const encrypted = cipher.encrypt('secret', key, ad)
 
-      expect(() => fallback.decrypt(encrypted, key, null)).toThrow()
+      expect(strategy.decrypt(encrypted, key, ad)).toBe('secret')
+    })
+
+    it('throws when ciphertext lacks AAD binding and includes original error', () => {
+      const encrypted = cipher.encrypt('secret', key, null)
+      const ad = Buffer.from('context')
+
+      expect(() => strategy.decrypt(encrypted, key, ad)).toThrow(/AAD migration enforcement is active/)
+      expect(() => strategy.decrypt(encrypted, key, ad)).toThrow(/Original:/)
+    })
+
+    it('enforcement is inactive when caller provides null AAD', () => {
+      const encrypted = cipher.encrypt('secret', key, null)
+
+      expect(strategy.decrypt(encrypted, key, null)).toBe('secret')
+    })
+
+    it('does not fall back when caller provides undefined AAD', () => {
+      const encrypted = cipher.encrypt('secret', key, null)
+
+      expect(strategy.decrypt(encrypted, key, undefined)).toBe('secret')
+    })
+
+    it('does not emit security warning when blocking fallback', () => {
+      const consoleWarn = jest.spyOn(console, 'warn').mockImplementation()
+      const encrypted = cipher.encrypt('secret', key, null)
+
+      try {
+        strategy.decrypt(encrypted, key, Buffer.from('context'))
+      } catch {
+        // expected
+      }
+
+      expect(consoleWarn).not.toHaveBeenCalled()
+      consoleWarn.mockRestore()
     })
   })
 })

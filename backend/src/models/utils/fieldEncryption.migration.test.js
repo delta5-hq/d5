@@ -288,79 +288,87 @@ describe('Field Encryption - Key and AAD Migration Scenarios', () => {
       expect(decrypted).toEqual(largeData)
     })
   })
+})
 
-  describe('Production migration path documentation', () => {
-    it('documents operational migration steps for production deployment', () => {
-      const operationalGuide = {
-        prerequisites: [
-          'All application servers must support dual-key decryption',
-          'FIELD_ENCRYPTION_KEY must be generated and stored securely',
-          'Rollback plan must be documented',
-        ],
-        steps: {
-          '1_prepare': 'Generate new FIELD_ENCRYPTION_KEY different from JWT_SECRET',
-          '2_configure': 'Set FIELD_ENCRYPTION_KEY in environment configuration',
-          '3_deploy': 'Deploy application with updated environment variables',
-          '4_verify': 'Monitor logs for Legacy encryption key warnings',
-          '5_migrate': 'Allow lazy migration via normal application operations',
-          '6_optional_batch': 'Run batch migration script to force immediate migration',
-          '7_monitor': 'Track migration progress via warning frequency decrease',
-          '8_complete': 'Verify all data migrated (no more legacy key warnings)',
-        },
-        rollback: {
-          condition: 'If decryption failures occur',
-          action: 'Remove FIELD_ENCRYPTION_KEY from environment, restart',
-          result: 'System returns to single-key mode using JWT_SECRET',
-        },
-        validation: {
-          success_indicator: 'No legacy key warnings in logs',
-          failure_indicator: 'Decryption errors or authentication failures',
-          monitoring: 'Track warning counts in centralized logging',
-        },
-      }
+describe('AAD migration deadline enforcement — factory wiring', () => {
+  const config = {fields: ['apiKey']}
+  const dataWithoutAad = {apiKey: 'plaintext-value'}
 
-      expect(operationalGuide).toBeDefined()
-      expect(operationalGuide.steps).toHaveProperty('1_prepare')
-      expect(operationalGuide.rollback).toHaveProperty('condition')
-    })
+  const pastDeadline = new Date(Date.now() - 60_000).toISOString()
+  const futureDeadline = new Date(Date.now() + 60_000).toISOString()
 
-    it('documents lazy migration characteristics', () => {
-      const lazyMigration = {
-        mechanism: 'Decrypt with legacy key, re-encrypt with primary key on next save',
-        trigger: 'Any operation that writes encrypted fields',
-        progress: 'Gradual, proportional to data access frequency',
-        advantages: [
-          'Zero downtime',
-          'No bulk operation required',
-          'Natural data access patterns determine migration speed',
-          'Low operational risk',
-        ],
-        disadvantages: [
-          'Infrequently accessed data remains on legacy key',
-          'Migration completion time is unpredictable',
-          'Legacy key must be maintained until all data migrated',
-        ],
-      }
+  const contextWithAad = {userId: 'user-deadline-test', workflowId: null}
 
-      expect(lazyMigration.mechanism).toContain('Decrypt with legacy key')
-      expect(lazyMigration.advantages).toContain('Zero downtime')
-    })
+  beforeEach(() => {
+    __resetForTesting()
+    delete process.env.AAD_MIGRATION_DEADLINE
+  })
 
-    it('documents batch migration alternative', () => {
-      const batchMigration = {
-        use_case: 'Fast, complete migration of all encrypted data',
-        implementation: 'Script that reads, decrypts, and re-encrypts all integration docs',
-        characteristics: {
-          idempotent: 'Can be run multiple times safely',
-          skips_migrated: 'Primary key decryption success = already migrated',
-          transactional: 'Each document updated atomically',
-        },
-        timing: 'Run during maintenance window or low-traffic period',
-        validation: 'Compare document count before/after, verify no decryption errors',
-      }
+  afterEach(() => {
+    __resetForTesting()
+    delete process.env.AAD_MIGRATION_DEADLINE
+  })
 
-      expect(batchMigration.use_case).toContain('complete migration')
-      expect(batchMigration.characteristics.idempotent).toBeTruthy()
-    })
+  it('throws on no-AAD ciphertext when deadline is exceeded and caller provides AAD', () => {
+    const encryptedWithoutAad = encryptFields(dataWithoutAad, config, null)
+
+    __resetForTesting()
+    process.env.AAD_MIGRATION_DEADLINE = pastDeadline
+
+    expect(() => decryptFields(encryptedWithoutAad, config, contextWithAad)).toThrow(
+      /AAD migration enforcement is active/,
+    )
+  })
+
+  it('succeeds with fallback and warns when deadline is unset and ciphertext lacks AAD', () => {
+    const consoleWarn = jest.spyOn(console, 'warn').mockImplementation()
+
+    const encryptedWithoutAad = encryptFields(dataWithoutAad, config, null)
+
+    __resetForTesting()
+
+    const result = decryptFields(encryptedWithoutAad, config, contextWithAad)
+
+    expect(result).toEqual(dataWithoutAad)
+    expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('AAD fallback triggered'))
+
+    consoleWarn.mockRestore()
+  })
+
+  it('succeeds when deadline is exceeded but ciphertext carries matching AAD', () => {
+    const encryptedWithAad = encryptFields(dataWithoutAad, config, contextWithAad)
+
+    __resetForTesting()
+    process.env.AAD_MIGRATION_DEADLINE = pastDeadline
+
+    const result = decryptFields(encryptedWithAad, config, contextWithAad)
+
+    expect(result).toEqual(dataWithoutAad)
+  })
+
+  it('allows fallback when deadline is set but has not yet passed', () => {
+    const consoleWarn = jest.spyOn(console, 'warn').mockImplementation()
+
+    const encryptedWithoutAad = encryptFields(dataWithoutAad, config, null)
+
+    __resetForTesting()
+    process.env.AAD_MIGRATION_DEADLINE = futureDeadline
+
+    const result = decryptFields(encryptedWithoutAad, config, contextWithAad)
+
+    expect(result).toEqual(dataWithoutAad)
+
+    consoleWarn.mockRestore()
+  })
+
+  it('allows decryption when deadline is exceeded but caller passes null context', () => {
+    const encryptedWithoutAad = encryptFields(dataWithoutAad, config, null)
+
+    __resetForTesting()
+    process.env.AAD_MIGRATION_DEADLINE = pastDeadline
+
+    const result = decryptFields(encryptedWithoutAad, config, null)
+
+    expect(result).toEqual(dataWithoutAad)
   })
 })

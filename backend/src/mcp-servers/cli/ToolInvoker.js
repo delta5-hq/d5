@@ -10,8 +10,8 @@ export class ToolInvoker {
   async invoke({serverPath, toolName, toolArguments, env}) {
     const result = await callTool({
       transport: MCP_TRANSPORT.STDIO,
-      command: 'npx',
-      args: ['babel-node', serverPath],
+      command: 'node',
+      args: [serverPath],
       env,
       toolName,
       toolArguments,
