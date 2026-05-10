@@ -62,7 +62,7 @@ export const NodeDetailPanel = ({
   const mutationDisabled = isExecuting
   const { formatMessage } = useIntl()
   const showPreview = isPrompt || Boolean(node.command) || Boolean(node.title)
-  const canExecute = canExecuteNode(node.command, executeDisabled, aliases)
+  const canExecute = canExecuteNode(node.command, executeDisabled)
   const siblingActionsEnabled = !isRoot && canExecute
 
   const [settingsOpen, setSettingsOpen] = useState(!isPrompt)

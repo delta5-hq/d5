@@ -13,38 +13,13 @@
  * - Option text collisions across different selects
  */
 
-import { expect, test as base } from '@playwright/test'
-import { adminLogin } from './utils'
-import * as path from 'path'
-import * as fs from 'fs'
+import { expect } from '@playwright/test'
 import { cleanArrayIntegrations } from './helpers/array-integration-helpers'
 import { ArrayIntegrationPage } from './pages/ArrayIntegrationPage'
+import { createParallelUserTest } from './fixtures/parallel-user-test'
 import { selectRadixOption } from './helpers/radix-select-helper'
 
-const test = base.extend<{}, { workerStorageState: string }>({
-  storageState: ({ workerStorageState }, use) => use(workerStorageState),
-  workerStorageState: [
-    async ({ browser }, use, workerInfo) => {
-      const id = workerInfo.parallelIndex
-      const dir = path.resolve(process.cwd(), 'playwright/.auth')
-
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-
-      const fileName = path.join(dir, `radix-select-user.${id}.json`)
-      const page = await browser.newPage({
-        baseURL: workerInfo.project.use.baseURL,
-      })
-
-      await adminLogin(page)
-
-      await page.context().storageState({ path: fileName })
-      await page.close()
-
-      await use(fileName)
-    },
-    { scope: 'worker' },
-  ],
-})
+const test = createParallelUserTest('radix-select-user')
 
 test.describe('Radix Select Portal Edge Cases', () => {
   test.beforeEach(async ({ page }) => {

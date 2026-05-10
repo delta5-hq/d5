@@ -39,6 +39,7 @@ import {WebCommand} from '../WebCommand'
 import {YandexCommand} from '../YandexCommand'
 import {MCPCommand} from '../MCPCommand'
 import {RPCCommand} from '../RPCCommand'
+import {createUnknownCommandNode} from './unknownCommandNode'
 // eslint-disable-next-line no-unused-vars
 import Store from './Store'
 
@@ -278,6 +279,8 @@ export const runCommand = async (
 
     runCommandTracker = await runCommandProgress.add('RPCCommand.run')
     await command.run(cell, context, prompt, {signal})
+  } else {
+    createUnknownCommandNode(store, cell)
   }
 
   if (runPostProccess) {

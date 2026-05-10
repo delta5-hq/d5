@@ -122,7 +122,10 @@ export async function mockAllLLMValidations(page: Page, mockResponse = 'Mock res
 /**
  * Removes LLM validation mock to allow real API calls.
  */
-export async function unmockLLMValidation(page: Page, { provider }: Pick<LLMValidationMockOptions, 'provider'>): Promise<void> {
+export async function unmockLLMValidation(
+  page: Page,
+  { provider }: Pick<LLMValidationMockOptions, 'provider'>,
+): Promise<void> {
   const config = ENDPOINT_MAP[provider]
   if (!config) return
 

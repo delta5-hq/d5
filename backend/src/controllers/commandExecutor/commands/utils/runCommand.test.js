@@ -5,6 +5,7 @@ import {runCommand} from './runCommand'
 import Store from './Store'
 import ProgressReporter from '../../ProgressReporter'
 import {ForeachCommand} from '../ForeachCommand'
+import * as unknownCommandNode from './unknownCommandNode'
 
 jest.useFakeTimers()
 jest.mock('../../ProgressReporter', () => {
@@ -219,5 +220,38 @@ describe('runCommand', () => {
     expect(postProcessReporter.dispose).toHaveBeenCalled()
 
     chatSpy.mockRestore()
+  })
+
+  describe('unrecognized command dispatch', () => {
+    it('delegates to createUnknownCommandNode when no built-in, MCP alias, or RPC alias is matched', async () => {
+      const cell = {id: 'root', parent: 'root', command: '/unregistered-alias prompt', children: []}
+      const store = new Store({userId: 'user-id', nodes: {root: cell}})
+      const spy = jest.spyOn(unknownCommandNode, 'createUnknownCommandNode')
+
+      await runCommand({queryType: undefined, mcpAlias: undefined, rpcAlias: undefined, cell, store})
+
+      expect(spy).toHaveBeenCalledWith(store, cell)
+      spy.mockRestore()
+    })
+
+    it('error node title contains the alias extracted from the unrecognized command', async () => {
+      const cell = {id: 'root', parent: 'root', command: '/ghost-alias run task', children: []}
+      const store = new Store({userId: 'user-id', nodes: {root: cell}})
+      jest.spyOn(store.importer, 'createNodes')
+
+      await runCommand({queryType: undefined, mcpAlias: undefined, rpcAlias: undefined, cell, store})
+
+      expect(store.importer.createNodes).toHaveBeenCalledWith('Error: Unknown command "/ghost-alias"', 'root')
+    })
+
+    it('error node title contains (unknown) when cell command is absent', async () => {
+      const cell = {id: 'root', parent: 'root', command: undefined, children: []}
+      const store = new Store({userId: 'user-id', nodes: {root: cell}})
+      jest.spyOn(store.importer, 'createNodes')
+
+      await runCommand({queryType: undefined, mcpAlias: undefined, rpcAlias: undefined, cell, store})
+
+      expect(store.importer.createNodes).toHaveBeenCalledWith('Error: Unknown command "(unknown)"', 'root')
+    })
   })
 })

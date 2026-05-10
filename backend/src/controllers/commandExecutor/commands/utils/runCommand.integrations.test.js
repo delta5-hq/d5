@@ -2413,3 +2413,77 @@ describe('RPCCommand run test', () => {
     )
   })
 })
+
+describe('Unknown command dispatch', () => {
+  const makeNode = (id, command) => {
+    const node = {id, title: command, command}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [id]}
+    node.parent = rootNode.id
+    return {node, rootNode}
+  }
+
+  const makeStore = ({node, rootNode}) => new Store({userId, workflowId, nodes: {[node.id]: node, rootNode}})
+
+  it('creates error node when no queryType, mcpAlias, or rpcAlias resolves', async () => {
+    const {node, rootNode} = makeNode('unknownNode', '/deleted-alias run something')
+    const mockStore = makeStore({node, rootNode})
+
+    await runCommand({cell: node, store: mockStore})
+
+    const output = mockStore.getOutput()
+    expect(output.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'Error: Unknown command "/deleted-alias"',
+          parent: node.id,
+        }),
+      ]),
+    )
+  })
+
+  it('creates error node when queryType is set but does not match any handler and no alias resolves', async () => {
+    const {node, rootNode} = makeNode('unknownNode2', '/nonexistent-command prompt')
+    const mockStore = makeStore({node, rootNode})
+
+    await runCommand({cell: node, store: mockStore, queryType: 'nonexistent-command'})
+
+    const output = mockStore.getOutput()
+    expect(output.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: expect.stringMatching(/^Error: Unknown command/),
+          parent: node.id,
+        }),
+      ]),
+    )
+  })
+
+  it('creates error node with (unknown) alias when cell has no command', async () => {
+    const {node, rootNode} = makeNode('noCommandNode', undefined)
+    node.title = 'untitled'
+    const mockStore = makeStore({node, rootNode})
+
+    await runCommand({cell: node, store: mockStore})
+
+    const output = mockStore.getOutput()
+    expect(output.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'Error: Unknown command "(unknown)"',
+          parent: node.id,
+        }),
+      ]),
+    )
+  })
+
+  it('error node title starts with "Error:" matching the codebase-wide error convention', async () => {
+    const {node, rootNode} = makeNode('errorConvNode', '/any-alias prompt')
+    const mockStore = makeStore({node, rootNode})
+
+    await runCommand({cell: node, store: mockStore})
+
+    const output = mockStore.getOutput()
+    const errorNode = output.nodes.find(n => n.parent === node.id)
+    expect(errorNode.title).toMatch(/^Error:/)
+  })
+})

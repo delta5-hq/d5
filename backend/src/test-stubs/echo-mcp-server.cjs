@@ -1,13 +1,3 @@
-/**
- * Echo MCP Server Test Stub
- *
- * Minimal MCP server that registers one tool 'echo' which returns its input unchanged.
- * Used for integration testing of MCPClientManager without external dependencies.
- *
- * Protocol: MCP (Model Context Protocol) over stdio
- * Transport: StdioServerTransport (JSON-RPC via stdin/stdout)
- */
-
 const {McpServer} = require('@modelcontextprotocol/sdk/server/mcp.js')
 const {StdioServerTransport} = require('@modelcontextprotocol/sdk/server/stdio.js')
 const {z} = require('zod')

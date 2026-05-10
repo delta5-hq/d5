@@ -1,23 +1,3 @@
-/**
- * MCPClientManager Integration Tests
- *
- * Tests real subprocess spawning and MCP protocol communication using echo-mcp-server stub.
- * Complements MCPClientManager.test.js (mocked SDK) by proving transport layer works.
- *
- * Scope:
- * - Subprocess lifecycle (spawn, connect, close)
- * - Protocol handshake over real stdio pipes
- * - Data integrity across process boundaries
- * - Error propagation from external processes
- * - Concurrent subprocess management
- *
- * Out of scope (covered by unit tests):
- * - Transport parameter validation
- * - Timeout configuration
- * - Result formatting edge cases
- * - Transport type switching
- */
-
 import path from 'path'
 import {callTool, listTools} from './MCPClientManager'
 import {MCP_TRANSPORT} from '../../constants/mcp'
@@ -108,37 +88,29 @@ describe('MCPClientManager integration', () => {
   })
 
   describe('MCP protocol error propagation', () => {
-    it('propagates tool-not-found errors from subprocess with isError=true', async () => {
-      const result = await callTool({
-        transport: MCP_TRANSPORT.STDIO,
-        command: 'node',
-        args: [ECHO_SERVER_PATH],
-        toolName: 'nonexistent_tool',
-        toolArguments: {},
-        timeoutMs: 10000,
-      })
+    it.each([
+      ['nonexistent_tool', /not found|unknown/i],
+      ['invalid_tool_name', /not found|unknown/i],
+      ['', /not found|unknown|invalid/i],
+    ])(
+      'returns {isError: true, content: string} when tool name is %j',
+      async (toolName, contentPattern) => {
+        const result = await callTool({
+          transport: MCP_TRANSPORT.STDIO,
+          command: 'node',
+          args: [ECHO_SERVER_PATH],
+          toolName,
+          toolArguments: {},
+          timeoutMs: 10000,
+        })
 
-      expect(result.isError).toBe(true)
-      expect(result.content).toBeTruthy()
-      expect(result.content.toLowerCase()).toMatch(/not found|unknown/i)
-    }, 15000)
-
-    it('maintains {isError, content} structure for all error responses', async () => {
-      const result = await callTool({
-        transport: MCP_TRANSPORT.STDIO,
-        command: 'node',
-        args: [ECHO_SERVER_PATH],
-        toolName: 'invalid_tool_name',
-        toolArguments: {},
-        timeoutMs: 10000,
-      })
-
-      expect(result).toMatchObject({
-        isError: expect.any(Boolean),
-        content: expect.any(String),
-      })
-      expect(result.isError).toBe(true)
-    }, 15000)
+        expect(result).toMatchObject({
+          isError: true,
+          content: expect.stringMatching(contentPattern),
+        })
+      },
+      15000,
+    )
   })
 
   describe('MCP tools/list protocol operation', () => {

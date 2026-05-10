@@ -14,7 +14,7 @@ const IntegrationPage = () => {
 
   const { currentScopeData, appWideScopeData, refetch } = useScopedIntegrations(selectedWorkflowId)
 
-  const { editable, inherited } = classifyInheritedData(currentScopeData, appWideScopeData)
+  const { editable, inherited } = classifyInheritedData(currentScopeData, appWideScopeData, selectedWorkflowId)
 
   const redrawPage = async () => {
     await refetch()

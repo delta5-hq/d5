@@ -54,3 +54,4 @@ backend-e2e-output.log
 contribot.*.json
 transcripts/
 .playwright-cli/
+.claude

@@ -19,16 +19,13 @@ export async function cleanArrayIntegrations(page: Page) {
 
     if (hasMcp) {
       for (const item of integration.mcp) {
-        const status = await page.evaluate(
-          async alias => {
-            const r = await fetch(`/api/v2/integration/mcp/items/${encodeURIComponent(alias)}`, {
-              method: 'DELETE',
-              credentials: 'include',
-            })
-            return { ok: r.ok, status: r.status }
-          },
-          item.alias,
-        )
+        const status = await page.evaluate(async alias => {
+          const r = await fetch(`/api/v2/integration/mcp/items/${encodeURIComponent(alias)}`, {
+            method: 'DELETE',
+            credentials: 'include',
+          })
+          return { ok: r.ok, status: r.status }
+        }, item.alias)
         if (!status.ok) {
           throw new Error(`DELETE mcp/${item.alias} failed with status ${status.status}`)
         }
@@ -37,16 +34,13 @@ export async function cleanArrayIntegrations(page: Page) {
 
     if (hasRpc) {
       for (const item of integration.rpc) {
-        const status = await page.evaluate(
-          async alias => {
-            const r = await fetch(`/api/v2/integration/rpc/items/${encodeURIComponent(alias)}`, {
-              method: 'DELETE',
-              credentials: 'include',
-            })
-            return { ok: r.ok, status: r.status }
-          },
-          item.alias,
-        )
+        const status = await page.evaluate(async alias => {
+          const r = await fetch(`/api/v2/integration/rpc/items/${encodeURIComponent(alias)}`, {
+            method: 'DELETE',
+            credentials: 'include',
+          })
+          return { ok: r.ok, status: r.status }
+        }, item.alias)
         if (!status.ok) {
           throw new Error(`DELETE rpc/${item.alias} failed with status ${status.status}`)
         }

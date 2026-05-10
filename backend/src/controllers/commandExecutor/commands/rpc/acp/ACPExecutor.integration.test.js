@@ -1,23 +1,3 @@
-/**
- * ACPExecutor Integration Tests
- *
- * Tests real subprocess spawning and ACP protocol communication using echo-acp-server stub.
- * Complements ACPExecutor.test.js (mocked connections) by proving transport layer works.
- *
- * Scope:
- * - Subprocess lifecycle (spawn, initialize, newSession, prompt, close)
- * - Protocol handshake over real stdio pipes (ndjson)
- * - Session ID management across process boundaries
- * - Data integrity for prompt/response round-trips
- * - Timeout and abort signal enforcement
- *
- * Out of scope (covered by unit tests):
- * - Permission policy logic
- * - Response aggregator text/tool extraction
- * - Parameter validation
- * - Error message formatting
- */
-
 import path from 'path'
 import {ReadableStream, WritableStream, TransformStream} from 'stream/web'
 import {ACPExecutor} from './ACPExecutor'
@@ -73,21 +53,28 @@ describe('ACPExecutor integration', () => {
       15000,
     )
 
-    it('handles large prompt payloads (10KB) without truncation or buffering issues', async () => {
-      const executor = new ACPExecutor()
-      const largePrompt = 'x'.repeat(10000)
+    it.each([
+      [1000, 'kilobyte-scale'],
+      [10000, 'ten-kilobyte-scale'],
+    ])(
+      'handles %d character prompt (%s) without truncation or buffering issues',
+      async size => {
+        const executor = new ACPExecutor()
+        const largePrompt = 'x'.repeat(size)
 
-      const result = await executor.execute({
-        command: 'node',
-        args: [ECHO_SERVER_PATH],
-        prompt: largePrompt,
-        timeoutMs: 10000,
-      })
+        const result = await executor.execute({
+          command: 'node',
+          args: [ECHO_SERVER_PATH],
+          prompt: largePrompt,
+          timeoutMs: 10000,
+        })
 
-      expect(result.exitCode).toBe(0)
-      expect(result.output).toBe(`Echo: ${largePrompt}`)
-      expect(result.output.length).toBe(largePrompt.length + 6)
-    }, 15000)
+        expect(result.exitCode).toBe(0)
+        expect(result.output).toBe(`Echo: ${largePrompt}`)
+        expect(result.output.length).toBe(size + 6)
+      },
+      15000,
+    )
   })
 
   describe('ACP session ID management', () => {

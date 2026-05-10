@@ -80,6 +80,11 @@ describe('RPC_PRESETS', () => {
       })
     })
 
+    it('labels are unique across all presets', () => {
+      const labels = RPC_PRESETS.map(p => p.label)
+      expect(new Set(labels).size).toBe(labels.length)
+    })
+
     it('labels indicate the protocol type', () => {
       RPC_PRESETS.forEach(preset => {
         const label = preset.label.toLowerCase()

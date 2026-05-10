@@ -1,19 +1,6 @@
-/**
- * Echo ACP Agent Test Stub
- *
- * Minimal ACP (Agent Client Protocol) agent that echoes prompts back.
- * Used for integration testing of ACPExecutor without external dependencies.
- *
- * Protocol: ACP over stdio (ndjson)
- * Implements: initialize, newSession, prompt (minimal Agent interface)
- */
-
 const {AgentSideConnection, ndJsonStream, PROTOCOL_VERSION} = require('@agentclientprotocol/sdk')
 const {Writable, Readable} = require('stream')
 
-/**
- * Minimal Agent implementation that echoes prompts
- */
 class EchoAgent {
   constructor(connection) {
     this.connection = connection
@@ -60,8 +47,6 @@ class EchoAgent {
     if (!this.sessions.has(sessionId)) {
       throw new Error(`Session not found: ${sessionId}`)
     }
-
-    // Extract text from prompt content array
     const textParts = prompt
       .filter(part => part.type === 'text')
       .map(part => part.text)
@@ -82,8 +67,6 @@ class EchoAgent {
       stopReason: 'end_turn',
     }
   }
-
-  // Other required methods - not implemented for echo stub
   async listSessions() {
     return {sessions: Array.from(this.sessions.keys()).map(id => ({sessionId: id}))}
   }
@@ -113,18 +96,11 @@ class EchoAgent {
   }
 
   async cancel() {
-    // Cancel notification - no response needed
   }
 }
-
-// Create stdio transport
 const output = Writable.toWeb(process.stdout)
 const input = Readable.toWeb(process.stdin)
 const stream = ndJsonStream(output, input)
-
-// Create agent connection
 const connection = new AgentSideConnection(conn => new EchoAgent(conn), stream)
-
-// Handle process termination
 process.on('SIGTERM', () => process.exit(0))
 process.on('SIGINT', () => process.exit(0))

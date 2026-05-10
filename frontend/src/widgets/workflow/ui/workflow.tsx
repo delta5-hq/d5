@@ -22,7 +22,7 @@ import { Button } from '@shared/ui/button'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { getDescendantIds, normalizeNodeTitle, hasUsableRoot } from '@entities/workflow/lib'
 import { useClickOutside } from '@shared/lib/hooks'
-import { matchesAnyCommandWithOrder } from '@shared/lib/command-validation'
+import { isSlashCommand } from '@shared/lib/commands/command-validator'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import { useAliases } from '@entities/aliases'
 import { EmptyWorkflowView } from './empty-workflow-view'
@@ -69,10 +69,7 @@ const WorkflowContent = () => {
     if (autoFocusCommandNodeId) setAutoFocusCommandNodeId(undefined)
   }, [autoFocusCommandNodeId])
 
-  const hasValidCommand = useMemo(() => {
-    if (!selectedNode?.command?.trim()) return false
-    return matchesAnyCommandWithOrder(selectedNode.command, aliases)
-  }, [selectedNode?.command, aliases])
+  const hasValidCommand = useMemo(() => isSlashCommand(selectedNode?.command), [selectedNode?.command])
   const visibleOrderRef = useRef<readonly string[]>([])
   const treeContainerRef = useRef<HTMLDivElement>(null)
   const workspaceContainerRef = useRef<HTMLDivElement>(null)

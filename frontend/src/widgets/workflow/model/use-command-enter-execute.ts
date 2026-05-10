@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import type { NodeData, NodeId } from '@shared/base-types'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
-import { hasValidCommand } from '@shared/lib/commands/command-validator'
+import { isSlashCommand } from '@shared/lib/commands/command-validator'
 import { useAliases } from '@entities/aliases'
 
 export interface UseCommandEnterExecuteOptions {
@@ -30,7 +30,7 @@ export function useCommandEnterExecute({
   const handleCommandEnter = useCallback(() => {
     if (isRoot) return
     if (isExecuting) return
-    if (!hasValidCommand(node.command, aliases)) return
+    if (!isSlashCommand(node.command)) return
 
     const queryType = extractQueryTypeFromCommand(node.command, aliases)
 

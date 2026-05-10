@@ -5,18 +5,10 @@ interface ClassifiedIntegrationData {
   inherited: IntegrationSettings
 }
 
-/**
- * Classifies integration data into editable (current scope) and inherited (app-wide).
- *
- * Rules:
- * - If currentScope has workflowId field, it's workflow-scoped → editable
- * - If currentScope lacks workflowId field, it's app-wide (fallback) → treat as editable, no inherited
- * - Inherited items: app-wide items not overridden in workflow scope
- * - Cross-type shadowing: workflow RPC /qa hides app-wide MCP /qa
- */
 export function classifyInheritedData(
   currentScope: IntegrationSettings | undefined,
   appWideScope: IntegrationSettings | undefined,
+  selectedWorkflowId?: string | null,
 ): ClassifiedIntegrationData {
   const empty: IntegrationSettings = {}
 
@@ -28,10 +20,16 @@ export function classifyInheritedData(
     return { editable: empty, inherited: appWideScope }
   }
 
-  const isWorkflowScoped = 'workflowId' in currentScope && currentScope.workflowId !== null
+  const hasWorkflowInResponse = 'workflowId' in currentScope && currentScope.workflowId !== null
+  const isInWorkflowView = selectedWorkflowId !== null && selectedWorkflowId !== undefined
 
-  if (!isWorkflowScoped) {
+  if (!isInWorkflowView && !hasWorkflowInResponse) {
     return { editable: currentScope, inherited: empty }
+  }
+
+  if (isInWorkflowView && !hasWorkflowInResponse) {
+    // Fallback: API returned app-wide data because no workflow-specific doc exists yet.
+    return { editable: empty, inherited: appWideScope }
   }
 
   const workflowAliases = new Set<string>([

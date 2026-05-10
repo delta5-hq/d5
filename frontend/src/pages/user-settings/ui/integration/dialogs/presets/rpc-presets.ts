@@ -91,7 +91,7 @@ export const RPC_PRESETS: PresetDefinition<RPCFormFlat>[] = [
   },
   {
     id: 'qa-playwright-ssh',
-    label: 'Playwright CLI (SSH)',
+    label: 'QA Playwright (SSH)',
     icon: '🧪',
     fill: setValue => {
       setValue('protocol', 'ssh')

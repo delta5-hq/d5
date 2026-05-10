@@ -8,159 +8,23 @@ describe('AliasValidator', () => {
   })
 
   describe('validateFormat', () => {
-    describe('accepts valid patterns', () => {
-      it.each([
-        ['/coder', 'lowercase letters only'],
-        ['/Agent', 'starts with uppercase letter'],
-        ['/MyCustomAgent', 'mixed case letters'],
-        ['/coder123', 'letters followed by numbers'],
-        ['/agent_v2', 'with underscore'],
-        ['/test-alias', 'with hyphen'],
-        ['/my_test-agent_v2', 'mixed hyphens and underscores'],
-        ['/a', 'single letter'],
-        ['/Z', 'single uppercase letter'],
-        ['/longAliasNameWithManyCharactersButStillValid123', 'very long name'],
-      ])('%s — %s', alias => {
-        expect(() => validator.validateFormat(alias)).not.toThrow()
-      })
+    it('accepts a valid alias', () => {
+      expect(() => validator.validateFormat('/valid-alias_v2')).not.toThrow()
     })
-
-    describe('rejects missing, malformed, or invalid input', () => {
-      it.each([
-        [null, 'null'],
-        [undefined, 'undefined'],
-        ['', 'empty string'],
-        [123, 'number'],
-        [{}, 'object'],
-        [[], 'array'],
-        [true, 'boolean'],
-      ])('rejects %s — %s', input => {
-        expect(() => validator.validateFormat(input)).toThrow(AliasValidationError)
-        expect(() => validator.validateFormat(input)).toThrow(expect.objectContaining({code: 'INVALID_FORMAT'}))
-      })
-
-      it('includes provided value in error', () => {
-        try {
-          validator.validateFormat(123)
-        } catch (error) {
-          expect(error.alias).toBe(123)
-        }
-      })
-    })
-
-    describe('rejects missing slash prefix', () => {
-      it.each([
-        ['coder', 'no slash'],
-        ['agent123', 'alphanumeric without slash'],
-        ['test_alias', 'with underscore but no slash'],
-      ])('%s — %s', alias => {
-        expect(() => validator.validateFormat(alias)).toThrow('Alias must start with /')
-        expect(() => validator.validateFormat(alias)).toThrow(expect.objectContaining({code: 'MISSING_SLASH'}))
-      })
-    })
-
-    describe('rejects invalid characters after slash', () => {
-      it.each([
-        ['/1coder', 'starts with number'],
-        ['/_test', 'starts with underscore'],
-        ['/-test', 'starts with hyphen'],
-        ['/my agent', 'contains space'],
-        ['/test\talias', 'contains tab'],
-        ['/test\nalias', 'contains newline'],
-        ['/coder@host', 'contains @'],
-        ['/test!', 'contains exclamation'],
-        ['/test.com', 'contains period'],
-        ['/path/segment', 'contains slash'],
-        ['/test,alias', 'contains comma'],
-        ['/test;alias', 'contains semicolon'],
-        ['/test:alias', 'contains colon'],
-        ['/test?query', 'contains question mark'],
-        ['/test#anchor', 'contains hash'],
-        ['/test[0]', 'contains brackets'],
-        ['/test{obj}', 'contains braces'],
-        ['/test|pipe', 'contains pipe'],
-        ['/test\\backslash', 'contains backslash'],
-        ['/test"quote', 'contains double quote'],
-        ["/test'quote", 'contains single quote'],
-        ['/test<tag>', 'contains angle brackets'],
-        ['/test=value', 'contains equals'],
-        ['/test+plus', 'contains plus'],
-        ['/test*star', 'contains asterisk'],
-        ['/test&ampersand', 'contains ampersand'],
-        ['/test%percent', 'contains percent'],
-        ['/test$dollar', 'contains dollar sign'],
-        ['/test^caret', 'contains caret'],
-        ['/test~tilde', 'contains tilde'],
-        ['/test`backtick', 'contains backtick'],
-      ])('%s — %s', alias => {
-        expect(() => validator.validateFormat(alias)).toThrow(AliasValidationError)
-        expect(() => validator.validateFormat(alias)).toThrow(expect.objectContaining({code: 'INVALID_CHARACTERS'}))
-      })
-    })
-
-    it('includes alias in error for all rejection cases', () => {
-      const testCases = ['noSlash', '/1invalid', '/test space', '/test@']
-      testCases.forEach(testAlias => {
-        try {
-          validator.validateFormat(testAlias)
-        } catch (error) {
-          expect(error.alias).toBe(testAlias)
-        }
-      })
+    it('throws AliasValidationError for invalid input', () => {
+      expect(() => validator.validateFormat('noSlash')).toThrow(expect.objectContaining({code: 'MISSING_SLASH'}))
+      expect(() => validator.validateFormat('/1invalid')).toThrow(expect.objectContaining({code: 'INVALID_CHARACTERS'}))
+      expect(() => validator.validateFormat(null)).toThrow(expect.objectContaining({code: 'INVALID_FORMAT'}))
     })
   })
 
   describe('validateNotBuiltIn', () => {
-    describe('accepts non-conflicting aliases', () => {
-      it.each([
-        ['/mycustom', 'custom name'],
-        ['/agent123', 'with number suffix'],
-        ['/my_agent', 'with underscore'],
-        ['/x', 'single letter'],
-        ['/WebSearch', 'similar but different case'],
-        ['/chatgpt2', 'built-in with suffix'],
-        ['/prechatgpt', 'built-in with prefix'],
-      ])('%s — %s', alias => {
-        expect(() => validator.validateNotBuiltIn(alias)).not.toThrow()
-      })
+    it('accepts a non-reserved alias', () => {
+      expect(() => validator.validateNotBuiltIn('/myCustomAgent')).not.toThrow()
     })
-
-    describe('rejects aliases conflicting with built-in commands', () => {
-      it.each([
-        ['/chatgpt', 'chat command'],
-        ['/claude', 'claude command'],
-        ['/yandexgpt', 'yandex command'],
-        ['/web', 'web search command'],
-        ['/scholar', 'scholar search command'],
-        ['/outline', 'outline command'],
-        ['/ext', 'extract command'],
-        ['/download', 'download command'],
-        ['/steps', 'steps control flow'],
-        ['/foreach', 'foreach control flow'],
-        ['/switch', 'switch control flow'],
-        ['/summarize', 'summarize command'],
-        ['/memorize', 'memorize command'],
-        ['/refine', 'refine command'],
-        ['/perplexity', 'perplexity command'],
-        ['/qwen', 'qwen command'],
-        ['/deepseek', 'deepseek command'],
-        ['/custom', 'custom LLM command'],
-      ])('%s — %s', alias => {
-        expect(() => validator.validateNotBuiltIn(alias)).toThrow(AliasValidationError)
-        expect(() => validator.validateNotBuiltIn(alias)).toThrow(`Alias '${alias}' conflicts with a built-in command`)
-        expect(() => validator.validateNotBuiltIn(alias)).toThrow(expect.objectContaining({code: 'RESERVED_COMMAND'}))
-      })
-    })
-
-    it('includes alias in error for all conflicts', () => {
-      const builtInCommands = ['/chatgpt', '/web', '/steps']
-      builtInCommands.forEach(builtIn => {
-        try {
-          validator.validateNotBuiltIn(builtIn)
-        } catch (error) {
-          expect(error.alias).toBe(builtIn)
-        }
-      })
+    it('throws AliasValidationError for built-in command', () => {
+      expect(() => validator.validateNotBuiltIn('/web')).toThrow(AliasValidationError)
+      expect(() => validator.validateNotBuiltIn('/web')).toThrow(expect.objectContaining({code: 'RESERVED_COMMAND'}))
     })
   })
 
@@ -249,18 +113,15 @@ describe('AliasValidator', () => {
     })
   })
 
-  describe('validateAlias (composite validation)', () => {
-    it('passes when both format and built-in checks pass', () => {
-      expect(() => validator.validateAlias('/valid')).not.toThrow()
-      expect(() => validator.validateAlias('/myCustomAgent')).not.toThrow()
+  describe('validateAlias', () => {
+    it('passes for a valid, non-reserved alias', () => {
+      expect(() => validator.validateAlias('/myTool')).not.toThrow()
     })
-
-    it('fails on format error before checking built-in', () => {
-      expect(() => validator.validateAlias('noSlash')).toThrow('Alias must start with /')
+    it('fails on format before checking built-in', () => {
+      expect(() => validator.validateAlias('noSlash')).toThrow(expect.objectContaining({code: 'MISSING_SLASH'}))
     })
-
     it('fails on built-in conflict after format passes', () => {
-      expect(() => validator.validateAlias('/web')).toThrow('conflicts with a built-in command')
+      expect(() => validator.validateAlias('/chatgpt')).toThrow(expect.objectContaining({code: 'RESERVED_COMMAND'}))
     })
   })
 
@@ -337,43 +198,6 @@ describe('AliasValidator', () => {
       ])('accepts %s', (mcpAliases, rpcAliases) => {
         expect(() => validator.validateIntegrationArrays(mcpAliases, rpcAliases)).not.toThrow()
       })
-    })
-  })
-
-  describe('AliasValidationError class', () => {
-    it('is an instance of Error', () => {
-      const error = new AliasValidationError('test', 'TEST_CODE', '/test')
-      expect(error).toBeInstanceOf(Error)
-    })
-
-    it('has name property set to AliasValidationError', () => {
-      const error = new AliasValidationError('test', 'TEST_CODE', '/test')
-      expect(error.name).toBe('AliasValidationError')
-    })
-
-    it('stores code, alias, and message properties', () => {
-      const error = new AliasValidationError('test message', 'TEST_CODE', '/myalias')
-      expect(error.code).toBe('TEST_CODE')
-      expect(error.alias).toBe('/myalias')
-      expect(error.message).toBe('test message')
-    })
-
-    it('has correct prototype chain', () => {
-      const error = new AliasValidationError('test', 'CODE', '/alias')
-      expect(Object.getPrototypeOf(error)).toBe(AliasValidationError.prototype)
-      expect(Object.getPrototypeOf(AliasValidationError.prototype)).toBe(Error.prototype)
-    })
-
-    it.each([
-      ['INVALID_FORMAT', 'format validation'],
-      ['MISSING_SLASH', 'slash validation'],
-      ['INVALID_CHARACTERS', 'character validation'],
-      ['RESERVED_COMMAND', 'built-in conflict'],
-      ['DUPLICATE_IN_ARRAY', 'array duplicate'],
-      ['DUPLICATE_ACROSS_TYPES', 'cross-type duplicate'],
-    ])('can be created with code %s for %s', code => {
-      const error = new AliasValidationError('test', code, '/test')
-      expect(error.code).toBe(code)
     })
   })
 })

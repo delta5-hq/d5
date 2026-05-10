@@ -60,6 +60,17 @@ export class AliasValidator {
     this.validateNoDuplicatesInArray(rpcAliases, 'RPC')
     this.validateNoCrossDuplicates(mcpAliases, rpcAliases)
   }
+  validateSubmittedAgainstEffective(submittedAliases = [], service, effectiveOppositeAliases = []) {
+    const label = service === 'mcp' ? 'MCP' : 'RPC'
+    for (const config of submittedAliases) {
+      this.validateAlias(config.alias)
+    }
+    this.validateNoDuplicatesInArray(submittedAliases, label)
+
+    const mcpAliases = service === 'mcp' ? submittedAliases : effectiveOppositeAliases
+    const rpcAliases = service === 'rpc' ? submittedAliases : effectiveOppositeAliases
+    this.validateNoCrossDuplicates(mcpAliases, rpcAliases)
+  }
 }
 
 export default new AliasValidator()

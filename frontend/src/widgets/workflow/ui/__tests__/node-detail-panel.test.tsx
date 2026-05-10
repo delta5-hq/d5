@@ -322,6 +322,15 @@ describe('NodeDetailPanel — Execute button behavior', () => {
       expect(onExecute).toHaveBeenCalledTimes(1)
     })
 
+    it('is enabled for an unregistered slash command when executeDisabled is false', () => {
+      const node = makeNode({ command: '/unregistered-alias task' })
+      const onExecute = vi.fn().mockResolvedValue(true)
+      renderPanel(node, false, { onExecute, executeDisabled: false })
+
+      fireEvent.click(screen.getByTestId('execute-node-button'))
+
+      expect(onExecute).toHaveBeenCalledTimes(1)
+    })
     it('does not render when node is root', () => {
       const node = makeNode({ command: '/chat test', parent: null })
       renderPanel(node, true, {})

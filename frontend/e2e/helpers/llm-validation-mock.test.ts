@@ -52,7 +52,9 @@ test.describe('LLM Validation Mock Helper', () => {
   })
 
   test.describe('route registration', () => {
-    test('openai routes to the shared /integration/chat/completions endpoint without a provider URL segment', async ({ page }) => {
+    test('openai routes to the shared /integration/chat/completions endpoint without a provider URL segment', async ({
+      page,
+    }) => {
       await mockLLMValidation(page, { provider: 'openai' })
       const response = await postJson(page, '/api/v2/integration/chat/completions')
       expect(response.choices[0].message.content).toBe('Hello!')
@@ -88,13 +90,13 @@ test.describe('LLM Validation Mock Helper', () => {
       await mockAllLLMValidations(page)
 
       const scenarios: Array<{ endpoint: string; extract: (r: any) => string }> = [
-        { endpoint: '/api/v2/integration/chat/completions',          extract: r => r.choices[0].message.content },
+        { endpoint: '/api/v2/integration/chat/completions', extract: r => r.choices[0].message.content },
         { endpoint: '/api/v2/integration/deepseek/chat/completions', extract: r => r.choices[0].message.content },
         { endpoint: '/api/v2/integration/perplexity/chat/completions', extract: r => r.choices[0].message.content },
         { endpoint: '/api/v2/integration/custom_llm/chat/completions', extract: r => r.choices[0].message.content },
-        { endpoint: QWEN_EXTERNAL_URL,                               extract: r => r.choices[0].message.content },
-        { endpoint: '/api/v2/integration/claude/messages',           extract: r => r.content[0].text },
-        { endpoint: '/api/v2/integration/yandex/completion',         extract: r => r.result.alternatives[0].message.text },
+        { endpoint: QWEN_EXTERNAL_URL, extract: r => r.choices[0].message.content },
+        { endpoint: '/api/v2/integration/claude/messages', extract: r => r.content[0].text },
+        { endpoint: '/api/v2/integration/yandex/completion', extract: r => r.result.alternatives[0].message.text },
       ]
 
       for (const { endpoint, extract } of scenarios) {
@@ -152,8 +154,8 @@ test.describe('LLM Validation Mock Helper', () => {
 
     test('concurrent mocks on different providers are independent', async ({ page }) => {
       await Promise.all([
-        mockLLMValidation(page, { provider: 'openai',   mockResponse: 'OpenAI'   }),
-        mockLLMValidation(page, { provider: 'claude',   mockResponse: 'Claude'   }),
+        mockLLMValidation(page, { provider: 'openai', mockResponse: 'OpenAI' }),
+        mockLLMValidation(page, { provider: 'claude', mockResponse: 'Claude' }),
         mockLLMValidation(page, { provider: 'deepseek', mockResponse: 'Deepseek' }),
       ])
       const [openai, claude, deepseek] = await Promise.all([
@@ -169,15 +171,13 @@ test.describe('LLM Validation Mock Helper', () => {
 
   test.describe('error handling', () => {
     test('mockLLMValidation throws for an unregistered provider', async ({ page }) => {
-      await expect(
-        mockLLMValidation(page, { provider: 'nonexistent' as any }),
-      ).rejects.toThrow('Unsupported LLM provider: nonexistent')
+      await expect(mockLLMValidation(page, { provider: 'nonexistent' as any })).rejects.toThrow(
+        'Unsupported LLM provider: nonexistent',
+      )
     })
 
     test('unmockLLMValidation is a no-op for an unregistered provider', async ({ page }) => {
-      await expect(
-        unmockLLMValidation(page, { provider: 'nonexistent' as any }),
-      ).resolves.toBeUndefined()
+      await expect(unmockLLMValidation(page, { provider: 'nonexistent' as any })).resolves.toBeUndefined()
     })
   })
 })

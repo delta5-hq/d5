@@ -2,7 +2,6 @@ import debug from 'debug'
 import {getWorkflowData} from './commands/utils/getWorkflowData'
 import {runCommand} from './commands/utils/runCommand'
 import Store from './commands/utils/Store'
-import {allowedCommands} from './constants'
 import {loadUserAliases} from './commands/aliases/loadUserAliases'
 import {resolveCommand} from './commands/utils/queryTypeResolver'
 import ProgressReporter from './ProgressReporter'
@@ -39,7 +38,6 @@ const ExecutorController = {
     ctx.req.on('close', requestCloseHandler)
 
     try {
-      // queryType, context, prompt, cell, userId, workflowId, workflowNodes, workflowFiles
       let {workflowNodes, workflowEdges, workflowId, workflowFiles, ...otherData} = body
 
       try {
@@ -55,12 +53,6 @@ const ExecutorController = {
 
       if (nodeId) {
         progressEventEmitter.emitStart(nodeId, {queryType})
-      }
-
-      if (!allowedCommands.includes(queryType)) {
-        if (!mcpAlias && !rpcAlias) {
-          ctx.throw(400, 'Not allowed query')
-        }
       }
 
       otherData.queryType = queryType
