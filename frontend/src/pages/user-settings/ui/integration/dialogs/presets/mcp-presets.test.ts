@@ -129,7 +129,7 @@ describe('MCP_PRESETS', () => {
         ['command', 'node'],
         ['args', D5_BACKEND_PATHS.mcpScraper],
         ['toolName', 'scrape_web_pages'],
-        ['toolInputField', 'urls'],
+        ['toolInputField', 'text'],
         ['timeoutMs', 180000],
       ])
     })

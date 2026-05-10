@@ -19,30 +19,28 @@ describe('ToolRegistry', () => {
   describe('registerAll', () => {
     it('registers all tools with MCP server', () => {
       const mockServer = {
-        registerTool: jest.fn(),
+        tool: jest.fn(),
       }
 
       registry.registerAll(mockServer)
 
-      expect(mockServer.registerTool).toHaveBeenCalledTimes(1)
-      expect(mockServer.registerTool).toHaveBeenCalledWith(
+      expect(mockServer.tool).toHaveBeenCalledTimes(1)
+      expect(mockServer.tool).toHaveBeenCalledWith(
         'scrape_web_pages',
-        expect.objectContaining({
-          name: 'scrape_web_pages',
-          description: expect.any(String),
-        }),
+        expect.any(String),
+        expect.any(Object),
         expect.any(Function),
       )
     })
 
     it('registered handler delegates to tool execute', async () => {
       const mockServer = {
-        registerTool: jest.fn(),
+        tool: jest.fn(),
       }
 
       registry.registerAll(mockServer)
 
-      const handler = mockServer.registerTool.mock.calls[0][2]
+      const handler = mockServer.tool.mock.calls[0][3]
       const mockArgs = {urls: ['https://example.com']}
 
       const executeSpy = jest.spyOn(registry.tools[0], 'execute').mockResolvedValue({content: []})

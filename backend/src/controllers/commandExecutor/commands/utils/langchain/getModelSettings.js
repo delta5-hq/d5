@@ -104,7 +104,7 @@ const CLAUDE_4_5_MAX_OUTPUT = 64000
 const CLAUDE_4_1_MAX_OUTPUT = 32000
 
 export function getClaudeMaxOutput(model) {
-  if (model.includes('opus-4')) return CLAUDE_4_1_MAX_OUTPUT
+  if (model?.includes('opus-4')) return CLAUDE_4_1_MAX_OUTPUT
   return CLAUDE_4_5_MAX_OUTPUT
 }
 

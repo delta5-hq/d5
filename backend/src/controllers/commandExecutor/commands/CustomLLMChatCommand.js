@@ -37,7 +37,11 @@ export class CustomLLMChatCommand {
 
   async replyChat(messages) {
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
-    const {custom_llm} = settings
+    const {custom_llm} = settings || {}
+
+    if (!custom_llm?.apiRootUrl) {
+      throw new Error('Custom LLM not configured. Set the API URL in Integration Settings at user or workflow scope.')
+    }
 
     const llm = new CustomLLMChat({
       apiRootUrl: custom_llm.apiRootUrl,

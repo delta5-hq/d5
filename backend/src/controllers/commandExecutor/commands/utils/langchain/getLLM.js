@@ -262,6 +262,13 @@ export const getLLM = ({type, settings, log}) => {
 
 export const getEmbeddings = ({type, settings}) => {
   switch (type) {
+    case Model.Claude:
+    case Model.Deepseek: {
+      if (settings?.openai?.apiKey) return getEmbeddings({type: Model.OpenAI, settings})
+      if (settings?.qwen?.apiKey) return getEmbeddings({type: Model.Qwen, settings})
+      if (settings?.custom_llm?.apiRootUrl) return getEmbeddings({type: Model.CustomLLM, settings})
+      return getEmbeddings({type: Model.YandexGPT, settings})
+    }
     case Model.OpenAI: {
       const {apiKey} = settings?.openai || {}
       if (!apiKey) {

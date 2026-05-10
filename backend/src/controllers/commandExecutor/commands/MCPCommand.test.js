@@ -21,6 +21,7 @@ jest.mock('./utils/langchain/getLLM', () => ({
 
 jest.mock('./utils/langchain/getAgentExecutor', () => ({
   createSimpleAgentExecutor: jest.fn(),
+  createMCPAgentExecutor: jest.fn(),
 }))
 
 jest.mock('./mcp/MCPToolAdapter', () => ({
@@ -77,8 +78,8 @@ describe('MCPCommand', () => {
   const setupAgentMocks = agentOutput => {
     const mockClient = {listTools: jest.fn().mockResolvedValue({tools: mockToolDescriptors})}
     MCPClientManager.withClient.mockImplementation(async (_config, fn) => fn(mockClient))
-    const executor = {call: jest.fn().mockResolvedValue({output: agentOutput})}
-    getAgentExecutorModule.createSimpleAgentExecutor.mockReturnValue(executor)
+    const executor = {invoke: jest.fn().mockResolvedValue({output: agentOutput})}
+    getAgentExecutorModule.createMCPAgentExecutor.mockReturnValue(executor)
     return {mockClient, executor}
   }
 
@@ -294,12 +295,12 @@ describe('MCPCommand', () => {
       expect(MCPToolAdapter).toHaveBeenCalledWith(expect.objectContaining({timeoutMs: 900_000}))
     })
 
-    it('passes the LLM and adapter tools to createSimpleAgentExecutor', async () => {
+    it('passes the LLM and adapter tools to createMCPAgentExecutor', async () => {
       setupAgentMocks('done')
       const cmd = new MCPCommand(userId, workflowId, mockStore, autoConfig)
       await cmd.run(node, undefined, '/coder1 build a feature')
 
-      expect(getAgentExecutorModule.createSimpleAgentExecutor).toHaveBeenCalledWith(
+      expect(getAgentExecutorModule.createMCPAgentExecutor).toHaveBeenCalledWith(
         expect.any(Object),
         expect.arrayContaining([expect.objectContaining({name: 'read_file'})]),
       )
@@ -311,7 +312,7 @@ describe('MCPCommand', () => {
         const cmd = new MCPCommand(userId, workflowId, mockStore, autoConfig)
         await cmd.run(node, 'context text\n', '/coder1 task')
 
-        expect(executor.call).toHaveBeenCalledWith({input: 'context text\ntask'}, {signal: undefined})
+        expect(executor.invoke).toHaveBeenCalledWith({input: 'context text\ntask'}, {signal: undefined})
       })
     })
 

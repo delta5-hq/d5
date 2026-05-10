@@ -1,4 +1,5 @@
 import debug from 'debug'
+import {z} from 'zod'
 import {MemorizeCommand} from '../../../controllers/commandExecutor/commands/MemorizeCommand'
 import {CommandStringBuilder} from '../context/CommandStringBuilder'
 import {DEFAULT_CONTEXT_NAME} from '../../../controllers/commandExecutor/constants/ext'
@@ -13,29 +14,34 @@ export class MemorizeContentTool {
     this.logError = log.extend('ERROR*', '::')
   }
 
+  getName() {
+    return 'memorize_content'
+  }
+
+  getDescription() {
+    return 'Store text content in the user knowledge base for later retrieval'
+  }
+
+  getZodShape() {
+    return {
+      text: z.string().describe('The text content to memorize'),
+      context: z.string().optional().describe('Knowledge base context name.'),
+      keep: z.boolean().optional().describe('Keep existing vectors in the context. Defaults to true.'),
+      split: z.string().optional().describe('Delimiter to split text into chunks.'),
+    }
+  }
+
   getSchema() {
     return {
-      name: 'memorize_content',
-      description: 'Store text content in the user knowledge base for later retrieval',
+      name: this.getName(),
+      description: this.getDescription(),
       inputSchema: {
         type: 'object',
         properties: {
-          text: {
-            type: 'string',
-            description: 'The text content to memorize',
-          },
-          context: {
-            type: 'string',
-            description: 'Knowledge base context name. Optional.',
-          },
-          keep: {
-            type: 'boolean',
-            description: 'Keep existing vectors in the context. Defaults to true.',
-          },
-          split: {
-            type: 'string',
-            description: 'Delimiter to split text into chunks. Optional.',
-          },
+          text: {type: 'string', description: 'The text content to memorize'},
+          context: {type: 'string', description: 'Knowledge base context name. Optional.'},
+          keep: {type: 'boolean', description: 'Keep existing vectors in the context. Defaults to true.'},
+          split: {type: 'string', description: 'Delimiter to split text into chunks. Optional.'},
         },
         required: ['text'],
       },
@@ -46,9 +52,10 @@ export class MemorizeContentTool {
     try {
       const params = this.commandContextAdapter.parseMemorizeParams(args)
       const userId = this.userContextProvider.getUserId()
+      const workflowId = this.userContextProvider.getWorkflowId()
       const commandString = this.commandStringBuilder.buildCommandString(params)
 
-      const memorizeCommand = new MemorizeCommand(userId, null, null)
+      const memorizeCommand = new MemorizeCommand(userId, workflowId, null)
       const contextName = params.context || DEFAULT_CONTEXT_NAME
       const vectorStore = await memorizeCommand._getVectorStore(commandString, contextName)
 

@@ -85,7 +85,7 @@ export const MCP_PRESETS: PresetDefinition<MCPFormFlat>[] = [
       setValue('command', 'node')
       setValue('args', D5_BACKEND_PATHS.mcpScraper)
       setValue('toolName', 'scrape_web_pages')
-      setValue('toolInputField', 'urls')
+      setValue('toolInputField', 'text')
       setValue('timeoutMs', 180000)
     },
   },

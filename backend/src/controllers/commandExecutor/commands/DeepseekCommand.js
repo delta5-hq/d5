@@ -8,7 +8,7 @@ import {HumanMessage} from '@langchain/core/messages'
 import {DEEPSEEK_API_URL} from '../../../shared/config/constants'
 import {DEEPSEEK_DEFAULT_MODEL} from '../../../constants'
 import {referencePatterns} from './references/utils/referencePatterns'
-import {clearReferences} from './references/utils/referenceUtils' // Direct import
+import {clearReferences} from './references/utils/referenceUtils'
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
@@ -48,10 +48,10 @@ export class DeepseekCommand {
     }
 
     const llm = new ChatOpenAI({
-      openAIApiKey: apiKey,
-      modelName: model || DEEPSEEK_DEFAULT_MODEL,
+      apiKey,
+      model: model || DEEPSEEK_DEFAULT_MODEL,
       configuration: {
-        basePath: DEEPSEEK_API_URL,
+        baseURL: DEEPSEEK_API_URL,
       },
       maxRetries: 1,
     })

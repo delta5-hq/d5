@@ -1,3 +1,4 @@
+import {z} from 'zod'
 import {ScrapeTool} from '../../tools/ScrapeTool'
 import * as scrape from '../../../../controllers/utils/scrape'
 
@@ -138,6 +139,45 @@ describe('ScrapeTool', () => {
       const result = await tool.execute({urls: ['not-a-url']})
 
       expect(result.isError).toBe(true)
+    })
+  })
+
+  describe('Zod API (getName / getDescription / getZodShape)', () => {
+    it('getName() matches getSchema().name', () => {
+      expect(tool.getName()).toBe(tool.getSchema().name)
+    })
+
+    it('getDescription() matches getSchema().description', () => {
+      expect(tool.getDescription()).toBe(tool.getSchema().description)
+    })
+
+    it('getZodShape() returns an object with parseable ZodType values', () => {
+      const shape = tool.getZodShape()
+
+      expect(typeof shape).toBe('object')
+      expect(shape).not.toBeNull()
+      Object.values(shape).forEach(value => {
+        expect(typeof value.safeParse).toBe('function')
+        expect(typeof value.parse).toBe('function')
+      })
+    })
+
+    it('getZodShape() field names align with getSchema() properties', () => {
+      const zodKeys = Object.keys(tool.getZodShape()).sort()
+      const schemaKeys = Object.keys(tool.getSchema().inputSchema.properties).sort()
+      expect(zodKeys).toEqual(schemaKeys)
+    })
+
+    it('getZodShape() accepts empty object (all fields optional)', () => {
+      const shape = tool.getZodShape()
+      const schema = z.object(shape)
+      expect(schema.safeParse({}).success).toBe(true)
+    })
+
+    it('getZodShape returns consistent field set across multiple calls', () => {
+      const shape1 = tool.getZodShape()
+      const shape2 = tool.getZodShape()
+      expect(Object.keys(shape1).sort()).toEqual(Object.keys(shape2).sort())
     })
   })
 })

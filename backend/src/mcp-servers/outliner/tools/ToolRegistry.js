@@ -7,8 +7,7 @@ export class ToolRegistry {
 
   registerAll(mcpServer) {
     this.tools.forEach(tool => {
-      const schema = tool.getSchema()
-      mcpServer.registerTool(schema.name, schema, args => tool.execute(args))
+      mcpServer.tool(tool.getName(), tool.getDescription(), tool.getZodShape(), args => tool.execute(args))
     })
   }
 

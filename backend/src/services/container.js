@@ -119,14 +119,14 @@ class NoopYandexService {
   }
 
   async completion(body) {
-    log('NOOP: Yandex completion', {model: body.model})
+    log('NOOP: Yandex completion', {modelUri: body.modelUri})
     return {
       result: {
         alternatives: [
           {message: {role: 'assistant', text: 'Mock response from Yandex'}, status: 'ALTERNATIVE_STATUS_FINAL'},
         ],
         usage: {inputTextTokens: '10', completionTokens: '10', totalTokens: '20'},
-        modelVersion: body.model || this.config.defaultModel,
+        modelVersion: body.modelUri || this.config.defaultModel,
       },
     }
   }
@@ -396,6 +396,23 @@ class RealThumbnailService {
   }
 }
 
+const CLAUDE_ALLOWED_FIELDS = [
+  'model',
+  'messages',
+  'max_tokens',
+  'system',
+  'temperature',
+  'top_p',
+  'top_k',
+  'stop_sequences',
+  'stream',
+]
+const YANDEX_COMPLETION_ALLOWED_FIELDS = ['modelUri', 'messages', 'completionOptions']
+const YANDEX_EMBEDDINGS_ALLOWED_FIELDS = ['modelUri', 'text']
+
+const pickAllowedFields = (obj, allowedKeys) =>
+  Object.fromEntries(allowedKeys.filter(k => k in obj).map(k => [k, obj[k]]))
+
 class RealClaudeService {
   constructor(config) {
     this.config = config
@@ -404,6 +421,7 @@ class RealClaudeService {
 
   async sendMessages(body) {
     const apiKey = body.apiKey || this.config.apiKey
+    const requestBody = pickAllowedFields(body, CLAUDE_ALLOWED_FIELDS)
     const fetch = (await import('node-fetch')).default
     const response = await fetch(`${this.config.baseUrl}/messages`, {
       method: 'POST',
@@ -412,7 +430,7 @@ class RealClaudeService {
         'x-api-key': apiKey,
         'anthropic-version': this.config.version,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(requestBody),
     })
 
     const result = await response.json()
@@ -457,15 +475,16 @@ class RealYandexService {
   async completion(body) {
     const apiKey = body.apiKey || this.config.apiKey
     const folderId = body.folderId || this.config.folderId
+    const requestBody = pickAllowedFields(body, YANDEX_COMPLETION_ALLOWED_FIELDS)
     const fetch = (await import('node-fetch')).default
     const response = await fetch(`${this.config.baseUrl}/foundationModels/v1/completion`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Api-Key ${apiKey}`,
         'x-folder-id': folderId,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(requestBody),
     })
 
     if (!response.ok) {
@@ -477,15 +496,16 @@ class RealYandexService {
   async embeddings(body) {
     const apiKey = body.apiKey || this.config.apiKey
     const folderId = body.folderId || this.config.folderId
+    const requestBody = pickAllowedFields(body, YANDEX_EMBEDDINGS_ALLOWED_FIELDS)
     const fetch = (await import('node-fetch')).default
     const response = await fetch(`${this.config.baseUrl}/foundationModels/v1/textEmbedding`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Api-Key ${apiKey}`,
         'x-folder-id': folderId,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(requestBody),
     })
 
     if (!response.ok) {

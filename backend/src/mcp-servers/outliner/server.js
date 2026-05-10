@@ -21,9 +21,10 @@ async function main() {
     await lifecycle.startup()
 
     const userId = environmentValidator.getUserId()
+    const workflowId = environmentValidator.getWorkflowId()
     log(`Starting outliner MCP server for user: ${userId}`)
 
-    const userContextProvider = new UserContextProvider(userId)
+    const userContextProvider = new UserContextProvider(userId, workflowId)
     const toolRegistry = new ToolRegistry(userContextProvider)
 
     const mcpServer = new McpServer(

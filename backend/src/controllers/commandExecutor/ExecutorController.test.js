@@ -4,12 +4,14 @@ import {customerRequest} from '../../utils/test/userRequests'
 import {getIntegrationSettings, getLLM} from './commands/utils/langchain/getLLM'
 import {generateNodeId} from '../../shared/utils/generateId'
 import {loadUserAliases} from './commands/aliases/loadUserAliases'
+import {getWorkflowData} from './commands/utils/getWorkflowData'
 import {MCPCommand} from './commands/MCPCommand'
 import {RPCCommand} from './commands/RPCCommand'
 
 jest.mock('./commands/utils/langchain/getLLM')
 jest.mock('../../shared/utils/generateId')
 jest.mock('./commands/aliases/loadUserAliases')
+jest.mock('./commands/utils/getWorkflowData')
 jest.mock('./commands/MCPCommand')
 jest.mock('./commands/RPCCommand')
 jest.mock('../../services/progress-event-emitter', () => ({
@@ -1220,6 +1222,115 @@ describe('ExecutorController', () => {
         expect(progressEventEmitter.emitError).toHaveBeenCalledWith('cell12', expect.any(Error), {
           queryType: 'mcp:custom',
         })
+      })
+
+      it.each([
+        ['generic Error', 'tool schema invalid', new Error('tool schema invalid')],
+        [
+          'AbortError',
+          'The operation was aborted',
+          Object.assign(new Error('The operation was aborted'), {name: 'AbortError'}),
+        ],
+      ])(
+        'should return 200 with error node for %s thrown after store is created',
+        async (_errorType, expectedMessage, thrownError) => {
+          loadUserAliases.mockResolvedValueOnce({
+            mcp: [{alias: '/fail', name: 'FailAgent'}],
+            rpc: [],
+          })
+          MCPCommand.prototype.run = jest.fn().mockRejectedValue(thrownError)
+
+          const body = {
+            ...createTestWorkflow('cell13', '/fail test'),
+            queryType: 'mcp:fail',
+          }
+
+          const response = await customerRequest.post(apiEndpoint).send(body)
+
+          expect(response.status).toBe(200)
+          const errorNode = Object.values(response.body.nodesChanged ?? {}).find(n => n.title?.startsWith('Error:'))
+          expect(errorNode).toBeDefined()
+          expect(errorNode.title).toContain(expectedMessage)
+          expect(errorNode.parent).toBe('cell13')
+        },
+      )
+
+      it('should return 200 with error node when getWorkflowData fails before store is initialized', async () => {
+        getWorkflowData.mockRejectedValueOnce(new Error('database unavailable'))
+        generateNodeId.mockReturnValueOnce('pre-store-error-node-id')
+
+        const {workflowNodes: _wn, ...bodyWithoutNodes} = createTestWorkflow('cell15', '/chatgpt test')
+        const body = {...bodyWithoutNodes, workflowNodes: undefined}
+
+        const response = await customerRequest.post(apiEndpoint).send(body)
+
+        expect(response.status).toBe(200)
+        const errorNode = Object.values(response.body.nodesChanged ?? {}).find(n => n.title?.startsWith('Error:'))
+        expect(errorNode).toBeDefined()
+        expect(errorNode.title).toContain('database unavailable')
+        expect(errorNode.parent).toBe('cell15')
+        expect(response.body.workflowId).toBe('test-workflow')
+        expect(response.body.cell).toBeDefined()
+      })
+
+      it('should return 200 with error node when Store constructor fails before store is initialized', async () => {
+        generateNodeId.mockReturnValueOnce('store-ctor-error-node-id')
+
+        const body = {
+          ...createTestWorkflow('cell16', '/chatgpt test'),
+          workflowNodes: [],
+        }
+
+        const response = await customerRequest.post(apiEndpoint).send(body)
+
+        expect(response.status).toBe(200)
+        const errorNode = Object.values(response.body.nodesChanged ?? {}).find(n => n.title?.startsWith('Error:'))
+        expect(errorNode).toBeDefined()
+        expect(errorNode.parent).toBe('cell16')
+        expect(response.body.workflowId).toBe('test-workflow')
+      })
+    })
+
+    describe('error observability', () => {
+      let consoleErrorSpy
+
+      beforeEach(() => {
+        consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+        MCPCommand.prototype.run = jest.fn().mockResolvedValue(undefined)
+      })
+
+      afterEach(() => {
+        consoleErrorSpy.mockRestore()
+      })
+
+      it('does not call console.error on successful command execution', async () => {
+        const body = createTestWorkflow('cell-ok', '/chatgpt test')
+        await customerRequest.post(apiEndpoint).send(body)
+        expect(consoleErrorSpy).not.toHaveBeenCalled()
+      })
+
+      it('calls console.error when command throws after store is created', async () => {
+        loadUserAliases.mockResolvedValueOnce({mcp: [{alias: '/fail', name: 'FailAgent'}], rpc: []})
+        MCPCommand.prototype.run = jest.fn().mockRejectedValue(new Error('tool failed'))
+        const body = {...createTestWorkflow('cell-err', '/fail test'), queryType: 'mcp:fail'}
+        await customerRequest.post(apiEndpoint).send(body)
+        expect(consoleErrorSpy).toHaveBeenCalledTimes(1)
+      })
+
+      it('calls console.error when error occurs before store is initialized', async () => {
+        getWorkflowData.mockRejectedValueOnce(new Error('db error'))
+        const {workflowNodes: _wn, ...bodyWithoutNodes} = createTestWorkflow('cell-pre', '/chatgpt test')
+        await customerRequest.post(apiEndpoint).send({...bodyWithoutNodes, workflowNodes: undefined})
+        expect(consoleErrorSpy).toHaveBeenCalledTimes(1)
+      })
+
+      it('passes the thrown error object to console.error', async () => {
+        loadUserAliases.mockResolvedValueOnce({mcp: [{alias: '/err', name: 'ErrAgent'}], rpc: []})
+        const cause = new Error('original cause')
+        MCPCommand.prototype.run = jest.fn().mockRejectedValue(cause)
+        const body = {...createTestWorkflow('cell-cause', '/err test'), queryType: 'mcp:err'}
+        await customerRequest.post(apiEndpoint).send(body)
+        expect(consoleErrorSpy).toHaveBeenCalledWith(cause)
       })
     })
   })

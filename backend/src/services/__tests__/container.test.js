@@ -112,6 +112,41 @@ describe('ServiceContainer', () => {
       })
     })
 
+    describe('request body', () => {
+      it('does not include apiKey in serialized body', async () => {
+        successResponse()
+        await claudeService.sendMessages(minimalBody({apiKey: 'user-key'}))
+        const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body)
+        expect(sentBody).not.toHaveProperty('apiKey')
+      })
+
+      it('includes model, messages, and max_tokens in serialized body', async () => {
+        successResponse()
+        await claudeService.sendMessages(minimalBody())
+        const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body)
+        expect(sentBody).toMatchObject({
+          model: 'claude-3-5-sonnet-20241022',
+          messages: [{role: 'user', content: 'test'}],
+          max_tokens: 100,
+        })
+      })
+
+      it('passes optional Anthropic-accepted fields through', async () => {
+        successResponse()
+        await claudeService.sendMessages(minimalBody({temperature: 0.7, system: 'be concise', top_p: 0.9}))
+        const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body)
+        expect(sentBody).toMatchObject({temperature: 0.7, system: 'be concise', top_p: 0.9})
+      })
+
+      it('strips fields not in the Anthropic allowlist', async () => {
+        successResponse()
+        await claudeService.sendMessages(minimalBody({internalTag: 'xyz', userId: '123'}))
+        const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body)
+        expect(sentBody).not.toHaveProperty('internalTag')
+        expect(sentBody).not.toHaveProperty('userId')
+      })
+    })
+
     describe('error propagation', () => {
       it('throws with API error message when response is not ok', async () => {
         errorResponse(401, 'Invalid API key')
@@ -153,14 +188,14 @@ describe('ServiceContainer', () => {
         await yandexService.completion({
           apiKey: 'user-yandex-key',
           folderId: 'user-folder-id',
-          model: 'yandexgpt/latest',
+          modelUri: 'gpt://folder/yandexgpt',
           messages: [{role: 'user', text: 'test'}],
         })
         expect(mockFetch).toHaveBeenCalledWith(
           'https://llm.api.cloud.yandex.net/foundationModels/v1/completion',
           expect.objectContaining({
             headers: expect.objectContaining({
-              Authorization: 'Bearer user-yandex-key',
+              Authorization: 'Api-Key user-yandex-key',
               'x-folder-id': 'user-folder-id',
             }),
           }),
@@ -169,16 +204,48 @@ describe('ServiceContainer', () => {
 
       it('falls back to system credentials when body.apiKey and body.folderId are absent', async () => {
         completionSuccessResponse()
-        await yandexService.completion({model: 'yandexgpt/latest', messages: [{role: 'user', text: 'test'}]})
+        await yandexService.completion({modelUri: 'gpt://folder/yandexgpt', messages: [{role: 'user', text: 'test'}]})
         expect(mockFetch).toHaveBeenCalledWith(
           expect.any(String),
           expect.objectContaining({
             headers: expect.objectContaining({
-              Authorization: 'Bearer system-yandex-key',
+              Authorization: 'Api-Key system-yandex-key',
               'x-folder-id': 'system-folder-id',
             }),
           }),
         )
+      })
+    })
+
+    describe('completion — request body', () => {
+      it('serializes only Yandex-accepted fields (modelUri, messages, completionOptions)', async () => {
+        completionSuccessResponse()
+        await yandexService.completion({
+          modelUri: 'gpt://folder/yandexgpt',
+          messages: [{role: 'user', text: 'test'}],
+          completionOptions: {temperature: 0.5, maxTokens: 200},
+          apiKey: 'key',
+          folderId: 'folder-id',
+        })
+        const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body)
+        expect(sentBody).toMatchObject({
+          modelUri: 'gpt://folder/yandexgpt',
+          messages: [{role: 'user', text: 'test'}],
+          completionOptions: {temperature: 0.5, maxTokens: 200},
+        })
+      })
+
+      it('strips apiKey and folderId from request body', async () => {
+        completionSuccessResponse()
+        await yandexService.completion({
+          modelUri: 'gpt://folder/yandexgpt',
+          messages: [{role: 'user', text: 'test'}],
+          apiKey: 'key',
+          folderId: 'folder-id',
+        })
+        const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body)
+        expect(sentBody).not.toHaveProperty('apiKey')
+        expect(sentBody).not.toHaveProperty('folderId')
       })
     })
 
@@ -195,7 +262,7 @@ describe('ServiceContainer', () => {
           'https://llm.api.cloud.yandex.net/foundationModels/v1/textEmbedding',
           expect.objectContaining({
             headers: expect.objectContaining({
-              Authorization: 'Bearer user-yandex-key',
+              Authorization: 'Api-Key user-yandex-key',
               'x-folder-id': 'user-folder-id',
             }),
           }),
@@ -209,7 +276,7 @@ describe('ServiceContainer', () => {
           expect.any(String),
           expect.objectContaining({
             headers: expect.objectContaining({
-              Authorization: 'Bearer system-yandex-key',
+              Authorization: 'Api-Key system-yandex-key',
               'x-folder-id': 'system-folder-id',
             }),
           }),
@@ -221,7 +288,7 @@ describe('ServiceContainer', () => {
       it('throws on non-ok completion response', async () => {
         yandexErrorResponse(403)
         await expect(
-          yandexService.completion({model: 'yandexgpt/latest', messages: [{role: 'user', text: 'test'}]}),
+          yandexService.completion({modelUri: 'gpt://folder/yandexgpt', messages: [{role: 'user', text: 'test'}]}),
         ).rejects.toThrow('Yandex API error: 403')
       })
 

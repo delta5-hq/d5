@@ -236,12 +236,12 @@ export class SummarizeCommand {
   }
 
   getStartNode(node, title) {
-    let startNode = this.store.getNode(node.parent)
+    let startNode = this.store.getNode(node.parent) || node
 
     const parentParam = readSummarizeParentParam(title)
 
     let loopIteration = 0
-    while (this.store.getNode(startNode.parent) && loopIteration < parentParam) {
+    while (startNode?.parent && this.store.getNode(startNode.parent) && loopIteration < parentParam) {
       startNode = this.store.getNode(startNode.parent)
       loopIteration += 1
     }

@@ -48,8 +48,8 @@ export class ChatCommand {
     }
 
     const llm = new ChatOpenAI({
-      openAIApiKey: openai.apiKey,
-      modelName: openai?.model || DEFAULT_OPENAI_MODEL_NAME,
+      apiKey: openai.apiKey,
+      model: openai?.model || DEFAULT_OPENAI_MODEL_NAME,
     })
 
     const result = await llm.invoke(

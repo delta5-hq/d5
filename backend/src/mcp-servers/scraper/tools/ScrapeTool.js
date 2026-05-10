@@ -1,4 +1,5 @@
 import debug from 'debug'
+import {z} from 'zod'
 import {scrapeFiles} from '../../../controllers/utils/scrape'
 import {UrlExtractor} from '../context/UrlExtractor'
 import {ScrapeParamsAdapter} from '../context/ScrapeParamsAdapter'
@@ -12,10 +13,30 @@ export class ScrapeTool {
     this.logError = log.extend('ERROR*', '::')
   }
 
+  getName() {
+    return 'scrape_web_pages'
+  }
+
+  getDescription() {
+    return 'Scrape text content from web pages and PDFs. Returns filename and content for each URL.'
+  }
+
+  getZodShape() {
+    return {
+      urls: z.array(z.string()).optional().describe('Array of URLs to scrape. Optional if text is provided.'),
+      text: z
+        .string()
+        .optional()
+        .describe('Freeform text containing URLs to extract and scrape. Optional if urls is provided.'),
+      maxSize: z.string().optional().describe('Maximum file size (e.g., "5mb", "10mb"). Default: "5mb".'),
+      maxPages: z.string().optional().describe('Maximum pages for PDFs. Default: "100".'),
+    }
+  }
+
   getSchema() {
     return {
-      name: 'scrape_web_pages',
-      description: 'Scrape text content from web pages and PDFs. Returns filename and content for each URL.',
+      name: this.getName(),
+      description: this.getDescription(),
       inputSchema: {
         type: 'object',
         properties: {
@@ -28,14 +49,8 @@ export class ScrapeTool {
             type: 'string',
             description: 'Freeform text containing URLs to extract and scrape. Optional if urls is provided.',
           },
-          maxSize: {
-            type: 'string',
-            description: 'Maximum file size (e.g., "5mb", "10mb"). Default: "5mb".',
-          },
-          maxPages: {
-            type: 'string',
-            description: 'Maximum pages for PDFs. Default: "100".',
-          },
+          maxSize: {type: 'string', description: 'Maximum file size (e.g., "5mb", "10mb"). Default: "5mb".'},
+          maxPages: {type: 'string', description: 'Maximum pages for PDFs. Default: "100".'},
         },
       },
     }

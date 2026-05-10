@@ -22,6 +22,7 @@ describe('Delegation Integration Tests', () => {
 
     mockUserContext = {
       getUserId: jest.fn().mockReturnValue('test-user-id'),
+      getWorkflowId: jest.fn().mockReturnValue(null),
       getIntegrationSettings: jest.fn(),
     }
     mockAdapter = new CommandContextAdapter()

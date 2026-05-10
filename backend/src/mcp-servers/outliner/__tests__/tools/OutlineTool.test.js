@@ -1,3 +1,4 @@
+import {z} from 'zod'
 import {OutlineTool} from '../../tools/OutlineTool'
 import {OutlineCommand} from '../../../../controllers/commandExecutor/commands/OutlineCommand'
 
@@ -11,6 +12,7 @@ describe('OutlineTool', () => {
   beforeEach(() => {
     mockUserContextProvider = {
       getUserId: jest.fn().mockReturnValue('test-user-123'),
+      getWorkflowId: jest.fn().mockReturnValue('test-workflow-456'),
     }
 
     mockOutlineCommand = {
@@ -59,7 +61,7 @@ describe('OutlineTool', () => {
 
       const result = await tool.execute({query: 'AI research', web: 's'})
 
-      expect(OutlineCommand).toHaveBeenCalledWith('test-user-123', null, null)
+      expect(OutlineCommand).toHaveBeenCalledWith('test-user-123', 'test-workflow-456', null)
       expect(mockOutlineCommand.createResponseOutline).toHaveBeenCalledWith(
         expect.objectContaining({command: expect.stringContaining('--max-chunks=')}),
         'AI research',
@@ -191,6 +193,56 @@ describe('OutlineTool', () => {
         'Test',
         expect.any(Object),
       )
+    })
+  })
+
+  describe('Zod API (getName / getDescription / getZodShape)', () => {
+    it('getName() matches getSchema().name', () => {
+      expect(tool.getName()).toBe(tool.getSchema().name)
+    })
+
+    it('getDescription() matches getSchema().description', () => {
+      expect(tool.getDescription()).toBe(tool.getSchema().description)
+    })
+
+    it('getZodShape() returns an object with parseable ZodType values', () => {
+      const shape = tool.getZodShape()
+
+      expect(typeof shape).toBe('object')
+      expect(shape).not.toBeNull()
+      Object.values(shape).forEach(value => {
+        expect(typeof value.safeParse).toBe('function')
+        expect(typeof value.parse).toBe('function')
+      })
+    })
+
+    it('getZodShape() field names align with getSchema() properties', () => {
+      const zodKeys = Object.keys(tool.getZodShape()).sort()
+      const schemaKeys = Object.keys(tool.getSchema().inputSchema.properties).sort()
+      expect(zodKeys).toEqual(schemaKeys)
+    })
+
+    it('getZodShape() query field rejects missing value', () => {
+      const shape = tool.getZodShape()
+      const schema = z.object({query: shape.query})
+      expect(schema.safeParse({}).success).toBe(false)
+    })
+
+    it('getZodShape() optional fields accept missing values', () => {
+      const shape = tool.getZodShape()
+      const required = tool.getSchema().inputSchema.required
+      const optionalFields = Object.keys(shape).filter(f => !required.includes(f))
+
+      optionalFields.forEach(field => {
+        const schema = z.object({[field]: shape[field]})
+        expect(schema.safeParse({}).success).toBe(true)
+      })
+    })
+
+    it('getZodShape returns consistent field set across multiple calls', () => {
+      const shape1 = tool.getZodShape()
+      const shape2 = tool.getZodShape()
+      expect(Object.keys(shape1).sort()).toEqual(Object.keys(shape2).sort())
     })
   })
 })

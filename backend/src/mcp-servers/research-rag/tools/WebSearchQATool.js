@@ -1,4 +1,5 @@
 import debug from 'debug'
+import {z} from 'zod'
 import {WebCommand} from '../../../controllers/commandExecutor/commands/WebCommand'
 import {CommandStringBuilder} from '../context/CommandStringBuilder'
 
@@ -12,29 +13,34 @@ export class WebSearchQATool {
     this.logError = log.extend('ERROR*', '::')
   }
 
+  getName() {
+    return 'web_search_qa'
+  }
+
+  getDescription() {
+    return 'Search the web and answer questions based on search results'
+  }
+
+  getZodShape() {
+    return {
+      query: z.string().describe('The search query or question'),
+      lang: z.string().optional().describe('Output language code (e.g., "ru", "en").'),
+      citations: z.boolean().optional().describe('Include source citations in the response.'),
+      maxChunks: z.string().optional().describe('Maximum chunks size: xxs, xs, s, m, l, xl, xxl.'),
+    }
+  }
+
   getSchema() {
     return {
-      name: 'web_search_qa',
-      description: 'Search the web and answer questions based on search results',
+      name: this.getName(),
+      description: this.getDescription(),
       inputSchema: {
         type: 'object',
         properties: {
-          query: {
-            type: 'string',
-            description: 'The search query or question',
-          },
-          lang: {
-            type: 'string',
-            description: 'Output language code (e.g., "ru", "en"). Optional.',
-          },
-          citations: {
-            type: 'boolean',
-            description: 'Include source citations in the response. Optional.',
-          },
-          maxChunks: {
-            type: 'string',
-            description: 'Maximum chunks size: xxs, xs, s, m, l, xl, xxl. Optional.',
-          },
+          query: {type: 'string', description: 'The search query or question'},
+          lang: {type: 'string', description: 'Output language code (e.g., "ru", "en"). Optional.'},
+          citations: {type: 'boolean', description: 'Include source citations in the response. Optional.'},
+          maxChunks: {type: 'string', description: 'Maximum chunks size: xxs, xs, s, m, l, xl, xxl. Optional.'},
         },
         required: ['query'],
       },
@@ -45,9 +51,10 @@ export class WebSearchQATool {
     try {
       const params = this.commandContextAdapter.parseWebSearchParams(args)
       const userId = this.userContextProvider.getUserId()
+      const workflowId = this.userContextProvider.getWorkflowId()
       const syntheticNode = this.commandStringBuilder.buildSyntheticNode(params)
 
-      const command = new WebCommand(userId, null, null)
+      const command = new WebCommand(userId, workflowId, null)
       const result = await command.createResponseWeb(syntheticNode, args.query, params)
 
       return {

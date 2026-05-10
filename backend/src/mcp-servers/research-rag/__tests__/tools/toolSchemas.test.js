@@ -1,3 +1,4 @@
+import {z} from 'zod'
 import {WebSearchQATool} from '../../tools/WebSearchQATool'
 import {ScholarSearchQATool} from '../../tools/ScholarSearchQATool'
 import {KnowledgeBaseQueryTool} from '../../tools/KnowledgeBaseQueryTool'
@@ -237,6 +238,81 @@ describe('Tool Schemas', () => {
       const schema = tool.getSchema()
 
       expect(schema.inputSchema.properties.keep.type).toBe('boolean')
+    })
+  })
+
+  describe('Zod API (getName / getDescription / getZodShape)', () => {
+    const allTools = [
+      ['WebSearchQATool', WebSearchQATool],
+      ['ScholarSearchQATool', ScholarSearchQATool],
+      ['KnowledgeBaseQueryTool', KnowledgeBaseQueryTool],
+      ['MemorizeContentTool', MemorizeContentTool],
+    ]
+
+    it.each(allTools)('%s.getName() matches getSchema().name', (_name, ToolClass) => {
+      const tool = new ToolClass(mockUserContext, mockAdapter)
+      expect(tool.getName()).toBe(tool.getSchema().name)
+    })
+
+    it.each(allTools)('%s.getDescription() matches getSchema().description', (_name, ToolClass) => {
+      const tool = new ToolClass(mockUserContext, mockAdapter)
+      expect(tool.getDescription()).toBe(tool.getSchema().description)
+    })
+
+    it.each(allTools)('%s.getZodShape() returns an object with parseable ZodType values', (_name, ToolClass) => {
+      const tool = new ToolClass(mockUserContext, mockAdapter)
+      const shape = tool.getZodShape()
+
+      expect(typeof shape).toBe('object')
+      expect(shape).not.toBeNull()
+      Object.values(shape).forEach(value => {
+        expect(typeof value.safeParse).toBe('function')
+        expect(typeof value.parse).toBe('function')
+      })
+    })
+
+    it.each(allTools)('%s.getZodShape() field names align with getSchema() properties', (_name, ToolClass) => {
+      const tool = new ToolClass(mockUserContext, mockAdapter)
+      const zodKeys = Object.keys(tool.getZodShape()).sort()
+      const schemaKeys = Object.keys(tool.getSchema().inputSchema.properties).sort()
+      expect(zodKeys).toEqual(schemaKeys)
+    })
+
+    it.each(allTools)('%s.getZodShape() required fields reject missing values', (_name, ToolClass) => {
+      const tool = new ToolClass(mockUserContext, mockAdapter)
+      const shape = tool.getZodShape()
+      const required = tool.getSchema().inputSchema.required
+
+      required.forEach(field => {
+        const schema = z.object({[field]: shape[field]})
+        expect(schema.safeParse({}).success).toBe(false)
+      })
+    })
+
+    it.each(allTools)('%s.getZodShape() optional fields accept missing values', (_name, ToolClass) => {
+      const tool = new ToolClass(mockUserContext, mockAdapter)
+      const shape = tool.getZodShape()
+      const required = tool.getSchema().inputSchema.required
+      const optionalFields = Object.keys(shape).filter(f => !required.includes(f))
+
+      optionalFields.forEach(field => {
+        const schema = z.object({[field]: shape[field]})
+        expect(schema.safeParse({}).success).toBe(true)
+      })
+    })
+
+    it('all tools have unique getName() values', () => {
+      const names = allTools.map(([, ToolClass]) => new ToolClass(mockUserContext, mockAdapter).getName())
+      expect(new Set(names).size).toBe(names.length)
+    })
+
+    it('getZodShape returns consistent field set across multiple calls', () => {
+      allTools.forEach(([, ToolClass]) => {
+        const tool = new ToolClass(mockUserContext, mockAdapter)
+        const shape1 = tool.getZodShape()
+        const shape2 = tool.getZodShape()
+        expect(Object.keys(shape1).sort()).toEqual(Object.keys(shape2).sort())
+      })
     })
   })
 })
