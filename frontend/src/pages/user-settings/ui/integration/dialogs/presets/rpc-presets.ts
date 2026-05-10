@@ -1,4 +1,5 @@
 import type { PresetDefinition } from './types'
+import { D5_BACKEND_PATHS, D5_BACKEND_ROOT } from './d5-backend-paths'
 
 interface RPCFormFlat {
   alias: string
@@ -109,7 +110,7 @@ export const RPC_PRESETS: PresetDefinition<RPCFormFlat>[] = [
       setValue('protocol', 'ssh')
       setValue(
         'commandTemplate',
-        'cd /path/to/backend && npx babel-node src/mcp-servers/cli.js src/mcp-servers/outliner/server.js generate_outline --query="{{prompt}}"',
+        `cd ${D5_BACKEND_ROOT} && node ${D5_BACKEND_PATHS.mcpCli} ${D5_BACKEND_PATHS.mcpOutliner} generate_outline --query="{{prompt}}"`,
       )
       setValue('outputFormat', 'text')
     },
@@ -122,7 +123,7 @@ export const RPC_PRESETS: PresetDefinition<RPCFormFlat>[] = [
       setValue('protocol', 'ssh')
       setValue(
         'commandTemplate',
-        'cd /path/to/backend && npx babel-node src/mcp-servers/cli.js src/mcp-servers/scraper/server.js scrape_web_pages --urls="{{prompt}}"',
+        `cd ${D5_BACKEND_ROOT} && node ${D5_BACKEND_PATHS.mcpCli} ${D5_BACKEND_PATHS.mcpScraper} scrape_web_pages --urls="{{prompt}}"`,
       )
       setValue('outputFormat', 'text')
     },

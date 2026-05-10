@@ -1,332 +1,86 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { UseFormSetValue } from 'react-hook-form'
 import { RPC_PRESETS } from './rpc-presets'
+import { D5_BACKEND_ROOT, D5_BACKEND_PATHS } from './d5-backend-paths'
 
 interface RPCFormFlat {
   alias: string
   protocol: 'ssh' | 'http' | 'acp-local'
   description?: string
-  commandTemplate?: string
+  timeoutMs?: number
   outputFormat?: 'text' | 'json'
   outputField?: string
   sessionIdField?: string
+  host?: string
+  port?: number
+  username?: string
+  privateKey?: string
+  passphrase?: string
+  commandTemplate?: string
+  workingDir?: string
   url?: string
   method?: 'GET' | 'POST' | 'PUT'
+  headers?: string
   bodyTemplate?: string
   command?: string
   args?: string
-  workingDir?: string
+  env?: string
   autoApprove?: 'all' | 'none' | 'whitelist'
+  allowedTools?: string
 }
 
+const fillAll = () =>
+  RPC_PRESETS.map(preset => {
+    const setValue = vi.fn()
+    preset.fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+    return { preset, setValue }
+  })
+
+const getField = (setValue: ReturnType<typeof vi.fn>, field: string) =>
+  setValue.mock.calls.find((call: unknown[]) => call[0] === field)?.[1]
+
 describe('RPC_PRESETS', () => {
-  describe('preset collection structure', () => {
-    it('maintains stable preset count (breaking change detection)', () => {
+  describe('collection structure', () => {
+    it('count matches expected (breaking-change sentinel)', () => {
       expect(RPC_PRESETS).toHaveLength(8)
     })
 
-    it('enforces unique preset identifiers', () => {
+    it('ids are unique across all presets', () => {
       const ids = RPC_PRESETS.map(p => p.id)
-      const uniqueIds = new Set(ids)
-      expect(uniqueIds.size).toBe(ids.length)
+      expect(new Set(ids).size).toBe(ids.length)
     })
 
-    it('requires all presets to have non-empty ids', () => {
+    it('ids are non-empty', () => {
       RPC_PRESETS.forEach(preset => {
-        expect(preset.id).toBeTruthy()
         expect(preset.id.length).toBeGreaterThan(0)
       })
     })
 
-    it('enforces kebab-case convention for preset ids', () => {
+    it('ids follow kebab-case convention', () => {
       RPC_PRESETS.forEach(preset => {
         expect(preset.id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/)
       })
     })
-  })
 
-  describe('preset metadata requirements', () => {
-    it('requires icon for each preset', () => {
-      RPC_PRESETS.forEach(preset => {
-        expect(preset.icon).toBeTruthy()
-        expect(typeof preset.icon).toBe('string')
-        expect(preset.icon.length).toBeGreaterThan(0)
-      })
-    })
-
-    it('requires label for each preset', () => {
-      RPC_PRESETS.forEach(preset => {
-        expect(preset.label).toBeTruthy()
-        expect(typeof preset.label).toBe('string')
-        expect(preset.label.length).toBeGreaterThan(0)
-      })
-    })
-
-    it('requires fill function for each preset', () => {
-      RPC_PRESETS.forEach(preset => {
-        expect(preset.fill).toBeDefined()
-        expect(typeof preset.fill).toBe('function')
-      })
-    })
-
-    it('ensures labels are descriptive (minimum length)', () => {
-      RPC_PRESETS.forEach(preset => {
-        expect(preset.label.length).toBeGreaterThanOrEqual(5)
-      })
-    })
-  })
-
-  describe('Claude CLI SSH preset behavior', () => {
-    const getPreset = () => RPC_PRESETS.find(p => p.id === 'claude-cli-ssh')!
-
-    it('exists in preset collection', () => {
-      expect(getPreset()).toBeDefined()
-    })
-
-    it('sets protocol to SSH before other fields', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      const firstCall = setValue.mock.calls[0] as unknown[]
-      expect(firstCall).toEqual(['protocol', 'ssh'])
-    })
-
-    it('configures complete SSH integration fields', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      expect(setValue).toHaveBeenCalledWith('protocol', 'ssh')
-      expect(setValue).toHaveBeenCalledWith(
-        'commandTemplate',
-        'claude -p "{{prompt}}" --output-format json --dangerously-skip-permissions',
-      )
-      expect(setValue).toHaveBeenCalledWith('outputFormat', 'json')
-      expect(setValue).toHaveBeenCalledWith('outputField', 'output')
-      expect(setValue).toHaveBeenCalledWith('sessionIdField', 'session_id')
-    })
-
-    it('sets exactly 5 fields (no more, no less)', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      expect(setValue).toHaveBeenCalledTimes(5)
-    })
-
-    it('uses JSON output format for structured data', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      expect(setValue).toHaveBeenCalledWith('outputFormat', 'json')
-    })
-  })
-
-  describe('IDE HTTP preset behavior', () => {
-    const getPreset = () => RPC_PRESETS.find(p => p.id === 'ide-http')!
-
-    it('exists in preset collection', () => {
-      expect(getPreset()).toBeDefined()
-    })
-
-    it('sets protocol to HTTP before other fields', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      const firstCall = setValue.mock.calls[0] as unknown[]
-      expect(firstCall).toEqual(['protocol', 'http'])
-    })
-
-    it('configures complete HTTP integration fields', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      expect(setValue).toHaveBeenCalledWith('protocol', 'http')
-      expect(setValue).toHaveBeenCalledWith('url', 'http://localhost:8080/api/v1/execute')
-      expect(setValue).toHaveBeenCalledWith('method', 'POST')
-      expect(setValue).toHaveBeenCalledWith('bodyTemplate', '{"command":"{{prompt}}"}')
-      expect(setValue).toHaveBeenCalledWith('outputFormat', 'json')
-      expect(setValue).toHaveBeenCalledWith('outputField', 'result')
-    })
-
-    it('uses localhost URL for local development', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      const urlCall = setValue.mock.calls.find((call: unknown[]) => call[0] === 'url')
-      expect(urlCall![1]).toContain('localhost')
-    })
-
-    it('uses POST method for command execution', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      expect(setValue).toHaveBeenCalledWith('method', 'POST')
-    })
-
-    it('provides valid JSON body template', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      const bodyCall = setValue.mock.calls.find((call: unknown[]) => call[0] === 'bodyTemplate')
-      expect(() => JSON.parse(bodyCall![1] as string)).not.toThrow()
-    })
-  })
-
-  describe('IDE ACP preset behavior', () => {
-    const getPreset = () => RPC_PRESETS.find(p => p.id === 'ide-acp')!
-
-    it('exists in preset collection', () => {
-      expect(getPreset()).toBeDefined()
-    })
-
-    it('sets protocol to ACP-local before other fields', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      const firstCall = setValue.mock.calls[0] as unknown[]
-      expect(firstCall).toEqual(['protocol', 'acp-local'])
-    })
-
-    it('configures complete ACP integration fields', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      expect(setValue).toHaveBeenCalledWith('protocol', 'acp-local')
-      expect(setValue).toHaveBeenCalledWith('command', 'npx')
-      expect(setValue).toHaveBeenCalledWith('args', '-y @agentclientprotocol/claude-agent-acp')
-      expect(setValue).toHaveBeenCalledWith('workingDir', '/workspace')
-      expect(setValue).toHaveBeenCalledWith('autoApprove', 'all')
-    })
-
-    it('enables auto-approve for IDE workflow', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      expect(setValue).toHaveBeenCalledWith('autoApprove', 'all')
-    })
-  })
-
-  describe('QA Testing ACP preset behavior', () => {
-    const getPreset = () => RPC_PRESETS.find(p => p.id === 'qa-testing-acp')!
-
-    it('exists in preset collection', () => {
-      expect(getPreset()).toBeDefined()
-    })
-
-    it('sets protocol to ACP-local before other fields', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      const firstCall = setValue.mock.calls[0] as unknown[]
-      expect(firstCall).toEqual(['protocol', 'acp-local'])
-    })
-
-    it('configures complete QA testing fields', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      expect(setValue).toHaveBeenCalledWith('protocol', 'acp-local')
-      expect(setValue).toHaveBeenCalledWith('command', 'npx')
-      expect(setValue).toHaveBeenCalledWith('args', 'playwright test')
-      expect(setValue).toHaveBeenCalledWith('workingDir', '/workspace')
-      expect(setValue).toHaveBeenCalledWith('autoApprove', 'none')
-    })
-
-    it('disables auto-approve for security in test execution', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      expect(setValue).toHaveBeenCalledWith('autoApprove', 'none')
-    })
-
-    it('uses npx for package execution without installation', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      expect(setValue).toHaveBeenCalledWith('command', 'npx')
-    })
-  })
-
-  describe('protocol distribution', () => {
-    it('includes at least one SSH preset', () => {
-      const sshPresets = RPC_PRESETS.filter(p => {
-        const setValue = vi.fn()
-        p.fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-        return setValue.mock.calls.some((call: unknown[]) => call[0] === 'protocol' && call[1] === 'ssh')
-      })
-      expect(sshPresets.length).toBeGreaterThanOrEqual(1)
-    })
-
-    it('includes at least one HTTP preset', () => {
-      const httpPresets = RPC_PRESETS.filter(p => {
-        const setValue = vi.fn()
-        p.fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-        return setValue.mock.calls.some((call: unknown[]) => call[0] === 'protocol' && call[1] === 'http')
-      })
-      expect(httpPresets.length).toBeGreaterThanOrEqual(1)
-    })
-
-    it('includes at least one ACP preset', () => {
-      const acpPresets = RPC_PRESETS.filter(p => {
-        const setValue = vi.fn()
-        p.fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-        return setValue.mock.calls.some((call: unknown[]) => call[0] === 'protocol' && call[1] === 'acp-local')
-      })
-      expect(acpPresets.length).toBeGreaterThanOrEqual(1)
-    })
-  })
-
-  describe('edge cases and error handling', () => {
-    it('handles multiple invocations without side effects', () => {
-      const preset = RPC_PRESETS[0]
-      const setValue1 = vi.fn()
-      const setValue2 = vi.fn()
-
-      preset.fill(setValue1 as unknown as UseFormSetValue<RPCFormFlat>)
-      preset.fill(setValue2 as unknown as UseFormSetValue<RPCFormFlat>)
-
-      expect(setValue1).toHaveBeenCalled()
-      expect(setValue2).toHaveBeenCalled()
-      expect(setValue1.mock.calls).toEqual(setValue2.mock.calls)
-    })
-
-    it('does not mutate preset objects during fill', () => {
-      const preset = { ...RPC_PRESETS[0] }
-      const originalPreset = JSON.parse(JSON.stringify(preset))
-      const setValue = vi.fn()
-
-      preset.fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      expect(preset.id).toBe(originalPreset.id)
-      expect(preset.label).toBe(originalPreset.label)
-      expect(preset.icon).toBe(originalPreset.icon)
-    })
-
-    it('all presets call setValue at least once', () => {
-      RPC_PRESETS.forEach(preset => {
-        const setValue = vi.fn()
-        preset.fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-        expect(setValue).toHaveBeenCalled()
-      })
-    })
-
-    it('all presets set protocol as first action', () => {
-      RPC_PRESETS.forEach(preset => {
-        const setValue = vi.fn()
-        preset.fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-        const firstCall = setValue.mock.calls[0] as unknown[]
-        expect(firstCall[0]).toBe('protocol')
-      })
-    })
-  })
-
-  describe('preset naming conventions', () => {
-    it('uses consistent icon-label pattern', () => {
+    it('icons are emoji characters', () => {
       RPC_PRESETS.forEach(preset => {
         expect(preset.icon).toMatch(/[\u{1F000}-\u{1F9FF}]/u)
       })
     })
 
-    it('labels indicate protocol type', () => {
+    it('labels are descriptive (minimum 5 characters)', () => {
+      RPC_PRESETS.forEach(preset => {
+        expect(preset.label.length).toBeGreaterThanOrEqual(5)
+      })
+    })
+
+    it('each preset exposes a fill function', () => {
+      RPC_PRESETS.forEach(preset => {
+        expect(typeof preset.fill).toBe('function')
+      })
+    })
+
+    it('labels indicate the protocol type', () => {
       RPC_PRESETS.forEach(preset => {
         const label = preset.label.toLowerCase()
         const hasProtocol = label.includes('ssh') || label.includes('http') || label.includes('acp')
@@ -335,155 +89,231 @@ describe('RPC_PRESETS', () => {
     })
   })
 
-  describe('Outliner SSH preset behavior', () => {
-    const getPreset = () => RPC_PRESETS.find(p => p.id === 'outliner-ssh')!
+  describe('per-preset field snapshots', () => {
+    const fillPreset = (id: string) => {
+      const preset = RPC_PRESETS.find(p => p.id === id)!
+      const setValue = vi.fn()
+      preset.fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+      return setValue.mock.calls
+    }
 
-    it('exists in preset collection', () => {
-      expect(getPreset()).toBeDefined()
+    it('claude-cli-ssh: SSH execution via claude binary', () => {
+      expect(fillPreset('claude-cli-ssh')).toEqual([
+        ['protocol', 'ssh'],
+        ['commandTemplate', 'claude -p "{{prompt}}" --output-format json --dangerously-skip-permissions'],
+        ['outputFormat', 'json'],
+        ['outputField', 'output'],
+        ['sessionIdField', 'session_id'],
+      ])
     })
 
-    it('sets protocol to SSH before other fields', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      const firstCall = setValue.mock.calls[0] as unknown[]
-      expect(firstCall).toEqual(['protocol', 'ssh'])
+    it('playwright-ssh: SSH execution via npx playwright', () => {
+      expect(fillPreset('playwright-ssh')).toEqual([
+        ['protocol', 'ssh'],
+        ['commandTemplate', 'cd /workspace && npx playwright test {{prompt}} --reporter=json'],
+        ['outputFormat', 'json'],
+        ['outputField', 'suites'],
+        ['sessionIdField', 'session_id'],
+      ])
     })
 
-    it('configures CLI command template for outliner MCP server', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      expect(setValue).toHaveBeenCalledWith('protocol', 'ssh')
-      expect(setValue).toHaveBeenCalledWith('commandTemplate', expect.stringContaining('cli.js'))
-      expect(setValue).toHaveBeenCalledWith('commandTemplate', expect.stringContaining('outliner/server.js'))
-      expect(setValue).toHaveBeenCalledWith('commandTemplate', expect.stringContaining('generate_outline'))
-      expect(setValue).toHaveBeenCalledWith('outputFormat', 'text')
+    it('ide-http: HTTP POST to local IDE endpoint', () => {
+      expect(fillPreset('ide-http')).toEqual([
+        ['protocol', 'http'],
+        ['url', 'http://localhost:8080/api/v1/execute'],
+        ['method', 'POST'],
+        ['bodyTemplate', '{"command":"{{prompt}}"}'],
+        ['outputFormat', 'json'],
+        ['outputField', 'result'],
+      ])
     })
 
-    it('uses text output format for outline trees', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+    it('ide-acp: ACP local agent with auto-approve', () => {
+      expect(fillPreset('ide-acp')).toEqual([
+        ['protocol', 'acp-local'],
+        ['command', 'npx'],
+        ['args', '-y @agentclientprotocol/claude-agent-acp'],
+        ['workingDir', '/workspace'],
+        ['autoApprove', 'all'],
+      ])
+    })
 
-      expect(setValue).toHaveBeenCalledWith('outputFormat', 'text')
+    it('qa-testing-acp: ACP local agent without auto-approve', () => {
+      expect(fillPreset('qa-testing-acp')).toEqual([
+        ['protocol', 'acp-local'],
+        ['command', 'npx'],
+        ['args', 'playwright test'],
+        ['workingDir', '/workspace'],
+        ['autoApprove', 'none'],
+      ])
+    })
+
+    it('qa-playwright-ssh: SSH execution with explicit timeout and description', () => {
+      expect(fillPreset('qa-playwright-ssh')).toEqual([
+        ['protocol', 'ssh'],
+        ['commandTemplate', 'cd /workspace && npx playwright test {{prompt}} --reporter=json'],
+        ['outputFormat', 'json'],
+        ['outputField', 'output'],
+        ['description', 'Run Playwright tests via SSH'],
+        ['timeoutMs', 300000],
+      ])
+    })
+
+    it('outliner-ssh: SSH execution via d5 CLI invoker to outliner MCP server', () => {
+      expect(fillPreset('outliner-ssh')).toEqual([
+        ['protocol', 'ssh'],
+        [
+          'commandTemplate',
+          `cd ${D5_BACKEND_ROOT} && node ${D5_BACKEND_PATHS.mcpCli} ${D5_BACKEND_PATHS.mcpOutliner} generate_outline --query="{{prompt}}"`,
+        ],
+        ['outputFormat', 'text'],
+      ])
+    })
+
+    it('scraper-ssh: SSH execution via d5 CLI invoker to scraper MCP server', () => {
+      expect(fillPreset('scraper-ssh')).toEqual([
+        ['protocol', 'ssh'],
+        [
+          'commandTemplate',
+          `cd ${D5_BACKEND_ROOT} && node ${D5_BACKEND_PATHS.mcpCli} ${D5_BACKEND_PATHS.mcpScraper} scrape_web_pages --urls="{{prompt}}"`,
+        ],
+        ['outputFormat', 'text'],
+      ])
     })
   })
 
-  describe('Web Scraper SSH preset behavior', () => {
-    const getPreset = () => RPC_PRESETS.find(p => p.id === 'scraper-ssh')!
-
-    it('exists in preset collection', () => {
-      expect(getPreset()).toBeDefined()
+  describe('fill behavior', () => {
+    it('protocol is always set as the first field', () => {
+      fillAll().forEach(({ setValue }) => {
+        expect((setValue.mock.calls[0] as unknown[])[0]).toBe('protocol')
+      })
     })
 
-    it('sets protocol to SSH before other fields', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      const firstCall = setValue.mock.calls[0] as unknown[]
-      expect(firstCall).toEqual(['protocol', 'ssh'])
+    it('consecutive fills produce identical call sequences (idempotency)', () => {
+      RPC_PRESETS.forEach(preset => {
+        const first = vi.fn()
+        const second = vi.fn()
+        preset.fill(first as unknown as UseFormSetValue<RPCFormFlat>)
+        preset.fill(second as unknown as UseFormSetValue<RPCFormFlat>)
+        expect(first.mock.calls).toEqual(second.mock.calls)
+      })
     })
 
-    it('configures CLI command template for scraper MCP server', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      expect(setValue).toHaveBeenCalledWith('protocol', 'ssh')
-      expect(setValue).toHaveBeenCalledWith('commandTemplate', expect.stringContaining('cli.js'))
-      expect(setValue).toHaveBeenCalledWith('commandTemplate', expect.stringContaining('scraper/server.js'))
-      expect(setValue).toHaveBeenCalledWith('commandTemplate', expect.stringContaining('scrape_web_pages'))
-      expect(setValue).toHaveBeenCalledWith('outputFormat', 'text')
+    it('fill does not mutate the preset definition', () => {
+      RPC_PRESETS.forEach(preset => {
+        const { id, label, icon } = preset
+        preset.fill(vi.fn() as unknown as UseFormSetValue<RPCFormFlat>)
+        expect(preset.id).toBe(id)
+        expect(preset.label).toBe(label)
+        expect(preset.icon).toBe(icon)
+      })
     })
 
-    it('uses text output format for scraped content', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+    it('string field values are non-empty and trimmed', () => {
+      fillAll().forEach(({ setValue }) => {
+        setValue.mock.calls.forEach((call: unknown[]) => {
+          if (typeof call[1] === 'string') {
+            expect(call[1].length).toBeGreaterThan(0)
+            expect(call[1].trim()).toBe(call[1])
+          }
+        })
+      })
+    })
 
-      expect(setValue).toHaveBeenCalledWith('outputFormat', 'text')
+    it('args values do not contain shell metacharacters', () => {
+      fillAll().forEach(({ setValue }) => {
+        const args = getField(setValue, 'args')
+        if (args) {
+          expect(args).not.toMatch(/[;&|`$()]/)
+        }
+      })
+    })
+
+    it('protocol values are constrained to the allowed enum', () => {
+      const allowed = new Set(['ssh', 'http', 'acp-local'])
+      fillAll().forEach(({ setValue }) => {
+        expect(allowed.has(getField(setValue, 'protocol'))).toBe(true)
+      })
     })
   })
 
-  describe('Playwright CLI SSH preset behavior', () => {
-    const getPreset = () => RPC_PRESETS.find(p => p.id === 'qa-playwright-ssh')!
-
-    it('exists in preset collection', () => {
-      expect(getPreset()).toBeDefined()
+  describe('protocol distribution', () => {
+    it('collection includes at least one SSH preset', () => {
+      const count = fillAll().filter(({ setValue }) => getField(setValue, 'protocol') === 'ssh').length
+      expect(count).toBeGreaterThanOrEqual(1)
     })
 
-    it('sets protocol to SSH before other fields', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      const firstCall = setValue.mock.calls[0] as unknown[]
-      expect(firstCall).toEqual(['protocol', 'ssh'])
+    it('collection includes at least one HTTP preset', () => {
+      const count = fillAll().filter(({ setValue }) => getField(setValue, 'protocol') === 'http').length
+      expect(count).toBeGreaterThanOrEqual(1)
     })
 
-    it('configures complete SSH integration fields', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+    it('collection includes at least one ACP preset', () => {
+      const count = fillAll().filter(({ setValue }) => getField(setValue, 'protocol') === 'acp-local').length
+      expect(count).toBeGreaterThanOrEqual(1)
+    })
+  })
 
-      expect(setValue).toHaveBeenCalledWith('protocol', 'ssh')
-      expect(setValue).toHaveBeenCalledWith(
-        'commandTemplate',
-        'cd /workspace && npx playwright test {{prompt}} --reporter=json',
-      )
-      expect(setValue).toHaveBeenCalledWith('outputFormat', 'json')
-      expect(setValue).toHaveBeenCalledWith('outputField', 'output')
-      expect(setValue).toHaveBeenCalledWith('description', 'Run Playwright tests via SSH')
-      expect(setValue).toHaveBeenCalledWith('timeoutMs', 300000)
+  describe('ssh commandTemplate requirements', () => {
+    it('all SSH presets include the {{prompt}} placeholder in their commandTemplate', () => {
+      fillAll()
+        .filter(({ setValue }) => getField(setValue, 'protocol') === 'ssh')
+        .forEach(({ setValue }) => {
+          expect(getField(setValue, 'commandTemplate')).toContain('{{prompt}}')
+        })
+    })
+  })
+
+  describe('http preset requirements', () => {
+    it('HTTP presets target localhost for local development', () => {
+      fillAll()
+        .filter(({ setValue }) => getField(setValue, 'protocol') === 'http')
+        .forEach(({ setValue }) => {
+          expect(getField(setValue, 'url')).toContain('localhost')
+        })
     })
 
-    it('sets exactly 6 fields (no more, no less)', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
+    it('HTTP body templates are structurally valid JSON', () => {
+      fillAll()
+        .filter(({ setValue }) => getField(setValue, 'protocol') === 'http')
+        .forEach(({ setValue }) => {
+          const bodyTemplate = getField(setValue, 'bodyTemplate')
+          if (bodyTemplate) {
+            expect(() => JSON.parse(bodyTemplate as string)).not.toThrow()
+          }
+        })
+    })
+  })
 
-      expect(setValue).toHaveBeenCalledTimes(6)
+  describe('acp preset requirements', () => {
+    it('all ACP presets configure workingDir', () => {
+      fillAll()
+        .filter(({ setValue }) => getField(setValue, 'protocol') === 'acp-local')
+        .forEach(({ setValue }) => {
+          expect(getField(setValue, 'workingDir')).toBeTruthy()
+        })
+    })
+  })
+
+  describe('field value enum constraints', () => {
+    it('outputFormat values are constrained to text or json', () => {
+      const allowed = new Set(['text', 'json'])
+      fillAll().forEach(({ setValue }) => {
+        const outputFormat = getField(setValue, 'outputFormat')
+        if (outputFormat !== undefined) {
+          expect(allowed.has(outputFormat)).toBe(true)
+        }
+      })
     })
 
-    it('uses JSON output format for structured data', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      expect(setValue).toHaveBeenCalledWith('outputFormat', 'json')
-    })
-
-    it('sets 5-minute timeout for test execution', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      expect(setValue).toHaveBeenCalledWith('timeoutMs', 300000)
-    })
-
-    it('includes working directory in command template', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      const commandTemplateCall = setValue.mock.calls.find((call: unknown[]) => call[0] === 'commandTemplate')
-      expect(commandTemplateCall![1]).toContain('cd /workspace')
-    })
-
-    it('uses npx for package execution', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      const commandTemplateCall = setValue.mock.calls.find((call: unknown[]) => call[0] === 'commandTemplate')
-      expect(commandTemplateCall![1]).toContain('npx playwright test')
-    })
-
-    it('uses JSON reporter for structured output', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      const commandTemplateCall = setValue.mock.calls.find((call: unknown[]) => call[0] === 'commandTemplate')
-      expect(commandTemplateCall![1]).toContain('--reporter=json')
-    })
-
-    it('includes prompt placeholder in command template', () => {
-      const setValue = vi.fn()
-      getPreset().fill(setValue as unknown as UseFormSetValue<RPCFormFlat>)
-
-      const commandTemplateCall = setValue.mock.calls.find((call: unknown[]) => call[0] === 'commandTemplate')
-      expect(commandTemplateCall![1]).toContain('{{prompt}}')
+    it('autoApprove values are constrained to all, none, or whitelist', () => {
+      const allowed = new Set(['all', 'none', 'whitelist'])
+      fillAll().forEach(({ setValue }) => {
+        const autoApprove = getField(setValue, 'autoApprove')
+        if (autoApprove !== undefined) {
+          expect(allowed.has(autoApprove)).toBe(true)
+        }
+      })
     })
   })
 })
