@@ -7,5 +7,7 @@ export default {
   setupFilesAfterEnv: ['<rootDir>/setupAfterEnv.js'],
   testMatch: ['<rootDir>/**/*.e2e.test.js'],
   reporters: ['default', 'jest-junit'],
-  maxWorkers: 2,
+  // Suites share fixed user IDs and each beforeEach deleteMany's shared collections;
+  // parallel workers wipe each other's in-flight writes.
+  maxWorkers: 1,
 }

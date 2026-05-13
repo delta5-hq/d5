@@ -179,98 +179,84 @@ describe('StoreFork', () => {
     })
   })
 
-  describe('applyCandidate', () => {
-    it('should merge only new nodes from candidate output', () => {
-      const target = new Store({
-        userId: 'user1',
-        nodes: {n1: {id: 'n1', title: 'Existing'}},
-      })
-
-      const candidate = new Store({
-        userId: 'user1',
-        nodes: {
-          n1: {id: 'n1', title: 'Existing'},
-          n2: {id: 'n2', title: 'New from candidate'},
-        },
-      })
-      candidate.saveNodeToOutput('n2')
-
-      StoreFork.applyCandidate(target, candidate, 'n1')
-
-      expect(target._nodes.n2).toEqual({id: 'n2', title: 'New from candidate'})
-      expect(target._output.nodes).toContain('n2')
-    })
-
-    it('should merge multiple new nodes from candidate output', () => {
+  describe('applyCandidate — full subtree transfer', () => {
+    it('transfers all nodes reachable from cellId in candidate', () => {
       const target = new Store({userId: 'user1', nodes: {}})
 
       const candidate = new Store({
         userId: 'user1',
         nodes: {
-          n1: {id: 'n1', title: 'Node 1'},
-          n2: {id: 'n2', title: 'Node 2'},
-          n3: {id: 'n3', title: 'Node 3'},
+          cell: {id: 'cell', title: 'Cell', children: ['n1', 'n2'], prompts: []},
+          n1: {id: 'n1', parent: 'cell', title: 'Child 1', children: []},
+          n2: {id: 'n2', parent: 'cell', title: 'Child 2', children: ['n3']},
+          n3: {id: 'n3', parent: 'n2', title: 'Grandchild', children: []},
         },
       })
-      candidate.saveNodeToOutput('n1')
-      candidate.saveNodeToOutput('n2')
-      candidate.saveNodeToOutput('n3')
 
       StoreFork.applyCandidate(target, candidate, 'cell')
 
-      expect(target._nodes.n1).toEqual({id: 'n1', title: 'Node 1'})
-      expect(target._nodes.n2).toEqual({id: 'n2', title: 'Node 2'})
-      expect(target._nodes.n3).toEqual({id: 'n3', title: 'Node 3'})
-      expect(target._output.nodes).toEqual(['n1', 'n2', 'n3'])
+      expect(target._nodes.cell).toBeDefined()
+      expect(target._nodes.n1).toBeDefined()
+      expect(target._nodes.n2).toBeDefined()
+      expect(target._nodes.n3).toBeDefined()
     })
 
-    it('should not merge nodes not in candidate output', () => {
+    it('does not transfer nodes not reachable from cellId', () => {
       const target = new Store({userId: 'user1', nodes: {}})
 
       const candidate = new Store({
         userId: 'user1',
         nodes: {
-          n1: {id: 'n1', title: 'In output'},
-          n2: {id: 'n2', title: 'Not in output'},
+          cell: {id: 'cell', title: 'Cell', children: ['n1'], prompts: []},
+          n1: {id: 'n1', parent: 'cell', title: 'In subtree', children: []},
+          orphan: {id: 'orphan', title: 'Not in subtree', children: []},
         },
       })
-      candidate.saveNodeToOutput('n1')
 
       StoreFork.applyCandidate(target, candidate, 'cell')
 
       expect(target._nodes.n1).toBeDefined()
-      expect(target._nodes.n2).toBeUndefined()
+      expect(target._nodes.orphan).toBeUndefined()
     })
 
-    it('should merge only new edges from candidate output', () => {
+    it('syncs cell node children and prompts', () => {
       const target = new Store({
         userId: 'user1',
-        edges: {},
+        nodes: {cell: {id: 'cell', title: 'Cell', children: [], prompts: []}},
       })
 
       const candidate = new Store({
         userId: 'user1',
-        edges: {e1: {id: 'e1', start: 'n1', end: 'n2'}},
+        nodes: {
+          cell: {id: 'cell', title: 'Cell', children: ['n1', 'n2'], prompts: ['p1']},
+          n1: {id: 'n1', parent: 'cell', title: 'Child 1', children: []},
+          n2: {id: 'n2', parent: 'cell', title: 'Child 2', children: []},
+          p1: {id: 'p1', parent: 'cell', title: 'Prompt', children: []},
+        },
       })
-      candidate.saveEdgeToOutput('e1')
 
-      StoreFork.applyCandidate(target, candidate, 'n1')
+      StoreFork.applyCandidate(target, candidate, 'cell')
 
-      expect(target._edges.e1).toEqual({id: 'e1', start: 'n1', end: 'n2'})
-      expect(target._output.edges).toContain('e1')
+      expect(target._nodes.cell.children).toEqual(['n1', 'n2'])
+      expect(target._nodes.cell.prompts).toEqual(['p1'])
+      expect(target._nodes.n1).toBeDefined()
+      expect(target._nodes.p1).toBeDefined()
     })
 
-    it('should not merge edges not in candidate output', () => {
+    it('transfers edges between subtree nodes', () => {
       const target = new Store({userId: 'user1', edges: {}})
 
       const candidate = new Store({
         userId: 'user1',
+        nodes: {
+          cell: {id: 'cell', children: ['n1']},
+          n1: {id: 'n1', parent: 'cell', children: []},
+        },
         edges: {
-          e1: {id: 'e1', start: 'n1', end: 'n2'},
-          e2: {id: 'e2', start: 'n2', end: 'n3'},
+          e1: {id: 'e1', start: 'cell', end: 'n1'},
+          e2: {id: 'e2', start: 'outsider', end: 'other'},
         },
       })
-      candidate.saveEdgeToOutput('e1')
 
       StoreFork.applyCandidate(target, candidate, 'cell')
 
@@ -278,7 +264,7 @@ describe('StoreFork', () => {
       expect(target._edges.e2).toBeUndefined()
     })
 
-    it('should merge new files without overwriting existing ones', () => {
+    it('transfers new files without overwriting existing ones', () => {
       const target = new Store({
         userId: 'user1',
         files: {f1: 'original content'},
@@ -286,96 +272,80 @@ describe('StoreFork', () => {
 
       const candidate = new Store({
         userId: 'user1',
+        nodes: {cell: {id: 'cell', children: []}},
         files: {f1: 'should not overwrite', f2: 'new file'},
       })
 
-      StoreFork.applyCandidate(target, candidate, 'n1')
+      StoreFork.applyCandidate(target, candidate, 'cell')
 
       expect(target._files.f1).toBe('original content')
       expect(target._files.f2).toBe('new file')
     })
 
-    it('should handle empty candidate files without errors', () => {
-      const target = new Store({
-        userId: 'user1',
-        files: {f1: 'original'},
-      })
-
-      const candidate = new Store({userId: 'user1', files: {}})
-
-      StoreFork.applyCandidate(target, candidate, 'cell')
-
-      expect(target._files.f1).toBe('original')
-    })
-
-    it('should sync cell node state including children and prompts', () => {
-      const target = new Store({
-        userId: 'user1',
-        nodes: {cell1: {id: 'cell1', title: 'Cell', children: [], prompts: []}},
-      })
-
-      const candidate = new Store({
-        userId: 'user1',
-        nodes: {cell1: {id: 'cell1', title: 'Cell', children: ['n2', 'n3'], prompts: ['p1']}},
-      })
-
-      StoreFork.applyCandidate(target, candidate, 'cell1')
-
-      expect(target._nodes.cell1.children).toEqual(['n2', 'n3'])
-      expect(target._nodes.cell1.prompts).toEqual(['p1'])
-    })
-
-    it('should handle missing cell node gracefully', () => {
+    it('handles missing cellId in candidate gracefully', () => {
       const target = new Store({userId: 'user1', nodes: {}})
       const candidate = new Store({userId: 'user1', nodes: {}})
 
       expect(() => StoreFork.applyCandidate(target, candidate, 'non-existent')).not.toThrow()
     })
 
-    it('should rebind ImportHandler after merge', () => {
+    it('rebinds ImportHandler after transfer', () => {
       const target = new Store({userId: 'user1'})
-      const candidate = new Store({userId: 'user1'})
+      const candidate = new Store({
+        userId: 'user1',
+        nodes: {cell: {id: 'cell', children: []}},
+      })
 
       const originalImporter = target.importer
 
-      StoreFork.applyCandidate(target, candidate, 'cell1')
+      StoreFork.applyCandidate(target, candidate, 'cell')
 
       expect(target.importer).not.toBe(originalImporter)
       expect(target.importer.store).toBe(target)
     })
 
-    it('should handle complex merge with nodes, edges, and files', () => {
+    it('P0.10a acceptance: /steps → /chat → /summarize subtree fully transferred', () => {
       const target = new Store({
         userId: 'user1',
-        nodes: {existing: {id: 'existing', title: 'Existing Node'}},
-        edges: {e0: {id: 'e0', start: 'a', end: 'b'}},
-        files: {f0: 'existing file'},
+        nodes: {
+          steps: {id: 'steps', command: '/steps', children: ['chat', 'refine']},
+          chat: {id: 'chat', parent: 'steps', command: '/chat', children: []},
+          refine: {id: 'refine', parent: 'steps', command: '/refine :n=2', children: []},
+        },
       })
 
       const candidate = new Store({
         userId: 'user1',
         nodes: {
-          cell: {id: 'cell', title: 'Cell', children: ['new1', 'new2']},
-          new1: {id: 'new1', title: 'New Node 1'},
-          new2: {id: 'new2', title: 'New Node 2'},
+          steps: {id: 'steps', command: '/steps', children: ['chat', 'refine', 'sum']},
+          chat: {id: 'chat', parent: 'steps', command: '/chat', children: ['out1']},
+          out1: {id: 'out1', parent: 'chat', title: 'LLM output', children: []},
+          sum: {id: 'sum', parent: 'steps', command: '/summarize', children: ['sumOut']},
+          sumOut: {id: 'sumOut', parent: 'sum', title: 'Summary output', children: []},
+          refine: {id: 'refine', parent: 'steps', command: '/refine :n=2', children: []},
         },
-        edges: {e1: {id: 'e1', start: 'new1', end: 'new2'}},
-        files: {f1: 'new file'},
+        edges: {
+          e1: {id: 'e1', start: 'chat', end: 'out1'},
+          e2: {id: 'e2', start: 'sum', end: 'sumOut'},
+        },
       })
-      candidate.saveNodeToOutput('new1')
-      candidate.saveNodeToOutput('new2')
-      candidate.saveEdgeToOutput('e1')
 
-      StoreFork.applyCandidate(target, candidate, 'cell')
+      StoreFork.applyCandidate(target, candidate, 'steps')
 
-      expect(target._nodes.existing).toBeDefined()
-      expect(target._nodes.new1).toBeDefined()
-      expect(target._nodes.new2).toBeDefined()
-      expect(target._nodes.cell.children).toEqual(['new1', 'new2'])
-      expect(target._edges.e0).toBeDefined()
+      // All subtree nodes transferred
+      expect(target._nodes.steps).toBeDefined()
+      expect(target._nodes.chat).toBeDefined()
+      expect(target._nodes.out1).toBeDefined()
+      expect(target._nodes.sum).toBeDefined()
+      expect(target._nodes.sumOut).toBeDefined()
+      expect(target._nodes.refine).toBeDefined()
+
+      // Edges transferred
       expect(target._edges.e1).toBeDefined()
-      expect(target._files.f0).toBe('existing file')
-      expect(target._files.f1).toBe('new file')
+      expect(target._edges.e2).toBeDefined()
+
+      // No orphaned nodes — steps.children updated
+      expect(target._nodes.steps.children).toContain('sum')
     })
   })
 })

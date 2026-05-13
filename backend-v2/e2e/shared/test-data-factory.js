@@ -272,8 +272,9 @@ export const testDataFactory = new TestDataFactory()
  */
 export const testOrchestrator = {
   async prepareTestEnvironment() {
-    /* Clean MongoDB collections for test isolation (local dev + CI consistency) */
     await cleanupUserCollections(['subscriber', 'admin', 'customer'])
+    /* Stale llmvectors docs make CreateLLMVector short-circuit service-store init. */
+    await cleanupLLMVectors(['subscriber', 'admin', 'customer'])
   },
 
   async cleanupLLMVectors() {

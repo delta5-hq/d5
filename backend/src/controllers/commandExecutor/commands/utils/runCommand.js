@@ -14,13 +14,18 @@ import {REFINE_QUERY} from '../../constants/refine'
 import {SCHOLAR_QUERY_TYPE} from '../../constants/scholar'
 import {STEPS_QUERY_TYPE} from '../../constants/steps'
 import {SUMMARIZE_QUERY, SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
-import {VALIDATE_QUERY_TYPE} from '../../constants/validate'
+import {VALIDATE_QUERY, VALIDATE_QUERY_TYPE} from '../../constants/validate'
+import {ValidateCommand} from '../../reliability/core/ValidateCommand'
+import {readValidateRetry} from '../../reliability/core/validateParams'
+import {CriteriaFailedError} from '../../reliability/core/CriteriaFailedError'
+import {resolveRefineCell} from '../../reliability/core/resolveRefineCell'
+import RefineTopology from '../../reliability/core/RefineTopology'
 import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {WEB_QUERY_TYPE} from '../../constants/web'
 import {YANDEX_QUERY_TYPE} from '../../constants/yandex'
 import ProgressReporter from '../../ProgressReporter'
 import {CommandFactory} from '../../reliability'
-import {stripReliabilitySuffix} from '../../reliability/core/reliabilitySuffix'
+import {stripReliabilitySuffix, appendValidateSuffix} from '../../reliability/core/reliabilitySuffix'
 import {getNodeCommand} from './isCommand'
 import {ForeachCommand} from '../ForeachCommand'
 import {MemorizeCommand} from '../MemorizeCommand'
@@ -71,6 +76,14 @@ async function executeCommandWithProgress(queryType, context, prompt, cell, stor
   }
 }
 
+/** @private */
+function buildValidateRetryContext(originalContext, criterion, reason) {
+  const injected = reason
+    ? `[Validation retry] Ensure your response satisfies: "${criterion}". Previous attempt failed because: ${reason}. `
+    : `[Validation retry] Ensure your response satisfies: "${criterion}". `
+  return injected + (originalContext || '')
+}
+
 /**
  * @param {{
  *  queryType: string,
@@ -82,7 +95,8 @@ async function executeCommandWithProgress(queryType, context, prompt, cell, stor
  *  mcpAlias: import('../mcp/aliasResolver').MCPAliasConfig,
  *  rpcAlias: Object,
  *  sshClientPool: Object,
- *  signal: AbortSignal
+ *  signal: AbortSignal,
+ *  memoMap: Map<string,*>|null
  * }} params
  * @param {ProgressReporter} progress
  */
@@ -98,6 +112,7 @@ export const runCommand = async (
     rpcAlias,
     sshClientPool = null,
     signal,
+    memoMap = null,
   },
   progress,
 ) => {
@@ -191,18 +206,74 @@ export const runCommand = async (
           postProcessTracker = await postProcessProgress.add('OutlineCommand.run')
           flag = await command.run(childNode, undefined, {signal})
         } else if (query?.startsWith(REFINE_QUERY)) {
-          // P0.1: legacy iterative `/refine` removed. New `/refine :n=N` best-of-N
-          // arrives in P0.3-P0.11. Until then, every `/refine` cell produces a
-          // visible error so users discover the migration immediately.
-          const baseTitle = stripReliabilitySuffix(childNode.title || '')
-          childNode.title = `${baseTitle} [✗]`.trim()
-          store.importer.createErrorNode('Error: /refine requires :n=N (legacy iterative refine removed)', childNode.id)
-          store.saveNodeToOutput(childNode.id)
+          if (!memoMap?.has(childNode.id)) {
+            if (!memoMap) memoMap = new Map()
+            const refineParent = store.getNode(childNode.parent)
+            if (refineParent) {
+              for (const {refineNode: inner, depth} of RefineTopology(refineParent, store)) {
+                if (depth > 1 && inner.id !== childNode.id && !memoMap.has(inner.id)) {
+                  await resolveRefineCell(inner, store, memoMap, signal)
+                }
+              }
+            }
+            await resolveRefineCell(childNode, store, memoMap, signal)
+          }
+        } else if (query?.startsWith(VALIDATE_QUERY)) {
+          const remainingValidates = sortedNodes.filter(
+            n => getNodeCommand(n)?.startsWith(VALIDATE_QUERY) && !ids.includes(n.id),
+          )
+          remainingValidates.forEach(v => ids.push(v.id))
+          const allValidates = [childNode, ...remainingValidates]
+
+          const maxRetry = Math.max(...allValidates.map(v => readValidateRetry(getNodeCommand(v))))
+          const validateCommand = new ValidateCommand(store._userId, store._workflowId, store)
+          postProcessTracker = await postProcessProgress.add('ValidateCommand.run')
+
+          let attempt = 0
+          let passed = false
+          let lastFailCriterion = ''
+          let lastFailReason = ''
+
+          while (attempt <= maxRetry) {
+            if (attempt > 0) {
+              const retryContext = buildValidateRetryContext(context, lastFailCriterion, lastFailReason)
+              await executeCommandWithProgress(queryType, retryContext, prompt, cell, store, progress)
+              await postProcessNode(
+                store.getNode(cell.id),
+                allValidates.map(v => v.id),
+              )
+            }
+
+            const results = await Promise.all(allValidates.map(v => validateCommand.run(v, {signal})))
+            const firstFail = results.find(r => !r.passed)
+
+            if (!firstFail) {
+              passed = true
+              break
+            }
+            lastFailCriterion = firstFail.criterion
+            lastFailReason = firstFail.reason
+            attempt++
+          }
+
+          const persistValidateSuffixes = succeeded =>
+            allValidates.forEach(v => {
+              v.title = appendValidateSuffix(v.title || '', {passed: succeeded, retryCount: attempt})
+              store.saveNodeToOutput(v.id)
+            })
+
+          if (!passed) {
+            persistValidateSuffixes(false)
+            throw new CriteriaFailedError(lastFailCriterion, attempt)
+          }
+
+          persistValidateSuffixes(true)
         }
 
         if (postProcessTracker) postProcessProgress.remove(postProcessTracker)
         postProcessProgress.dispose()
       } catch (e) {
+        if (e instanceof CriteriaFailedError) throw e
         console.error('Error during query post-processing', {query, error: e})
         continue
       }
