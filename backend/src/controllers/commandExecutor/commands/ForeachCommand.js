@@ -17,6 +17,7 @@ import {STEPS_QUERY} from '../constants/steps'
 import {SUMMARIZE_QUERY} from '../constants/summarize'
 import {CHAT_PARAM_PARENTS} from '../constants/chat'
 import {runCommand} from './utils/runCommand'
+import {runWithErrorNode} from './shared/runWithErrorNode'
 import {StepsCommand} from './StepsCommand'
 import {createDeepClone} from './utils/createDeepClone'
 import {SSHClientPool} from './rpc/SSHClientPool'
@@ -220,7 +221,8 @@ export class ForeachCommand {
           }
         } catch (e) {
           this.logError(e)
-          throw e
+          const message = e instanceof Error ? e.message : String(e)
+          this.store.importer.createNodes(`Error: ${message || 'Unknown error'}`, node.id)
         }
       }),
     )
@@ -262,6 +264,8 @@ export class ForeachCommand {
         sequentialProgress.remove(sequentialTracker)
       } catch (e) {
         this.logError(e)
+        const message = e instanceof Error ? e.message : String(e)
+        this.store.importer.createNodes(`Error: ${message || 'Unknown error'}`, nodes[i].node.id)
       }
     }
 
@@ -269,23 +273,21 @@ export class ForeachCommand {
   }
 
   runDefault = async (node, command, params, signal) => {
-    const leafs = []
-    const mainCommand = command.replace(FOREACH_PARAM_PARALLEL, '').trim()
-
     const parentNode = this.store.getNode(node.parent)
     const isRoot = !parentNode?.parent
 
-    try {
-      if (parentNode && !isRoot) {
-        leafs.push(...this.findLeafs(parentNode, mainCommand, params.useFile))
+    if (!parentNode || isRoot) {
+      throw new Error('/foreach requires the node to have a parent with sibling nodes to iterate over')
+    }
 
-        await this.executePrompts(leafs, params.parallel, signal)
-      }
+    const mainCommand = command.replace(FOREACH_PARAM_PARALLEL, '').trim()
+    const leafs = this.findLeafs(parentNode, mainCommand, params.useFile)
+
+    try {
+      await this.executePrompts(leafs, params.parallel, signal)
     } catch (e) {
       this.logError(e)
     }
-
-    return {}
   }
 
   async _processLeaf(leaf, matchingNode) {
@@ -347,15 +349,16 @@ export class ForeachCommand {
     const {signal} = options
     const command = node?.command || node?.title || ''
     const prompt = this.stripCommand(command)
-
     const promptParams = this.getParams(command)
 
-    if (prompt?.startsWith(STEPS_QUERY)) {
-      await this.runSteps(node, promptParams, signal)
-    } else if (prompt?.match(simpleRefRegexp) || prompt?.match(refWithParentsRegexp)) {
-      await this.runDefault(node, prompt, promptParams, signal)
-    } else if (prompt) {
-      await this.runDefault(node, prompt, promptParams, signal)
-    }
+    await runWithErrorNode(this.store, node, this.logError.bind(this), async () => {
+      if (prompt?.startsWith(STEPS_QUERY)) {
+        await this.runSteps(node, promptParams, signal)
+      } else if (prompt?.match(simpleRefRegexp) || prompt?.match(refWithParentsRegexp)) {
+        await this.runDefault(node, prompt, promptParams, signal)
+      } else if (prompt) {
+        await this.runDefault(node, prompt, promptParams, signal)
+      }
+    })
   }
 }

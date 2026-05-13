@@ -163,6 +163,20 @@ async function createWorkflow(page: Page): Promise<string> {
   return await createActions.createNewWorkflow()
 }
 
+async function purgeUserWorkflows(page: Page): Promise<void> {
+  const ids: string[] = await page.evaluate(async () => {
+    const r = await fetch('/api/v2/workflow?limit=100', { credentials: 'include' })
+    if (!r.ok) return []
+    const data = await r.json()
+    return (data.data ?? []).map((w: { workflowId: string }) => w.workflowId)
+  })
+  for (const id of ids) {
+    await page.evaluate(async (wid) => {
+      await fetch(`/api/v2/workflow/${wid}`, { method: 'DELETE', credentials: 'include' })
+    }, id)
+  }
+}
+
 async function clearAuthState(page: Page) {
   await page.goto('/')
   await page.evaluate(() => {
@@ -192,4 +206,4 @@ async function closeMobileSidebar(page: Page) {
   }
 }
 
-export { approveUser, rejectUser, login, logout, signup, openLoginDialogFromSignup, adminLogin, subscriberLogin, setupUnauthenticatedPage, createWorkflow, clearAuthState, closeMobileSidebar }
+export { approveUser, rejectUser, login, logout, signup, openLoginDialogFromSignup, adminLogin, subscriberLogin, setupUnauthenticatedPage, createWorkflow, purgeUserWorkflows, clearAuthState, closeMobileSidebar }

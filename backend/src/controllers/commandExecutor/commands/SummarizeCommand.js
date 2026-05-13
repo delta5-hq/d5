@@ -39,6 +39,7 @@ import {clearReferences} from './references/utils/referenceUtils'
 import {clearCommandsWithParams} from '../constants'
 import {clearStepsPrefix} from '../constants/steps'
 import {NodeTextExtractor} from './utils/NodeTextExtractor'
+import {runWithErrorNode} from './shared/runWithErrorNode'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 
@@ -301,22 +302,24 @@ export class SummarizeCommand {
   }
 
   async run(node, originalPrompt) {
-    let prompt = originalPrompt
-    const command = node?.command || node?.title
+    await runWithErrorNode(this.store, node, this.logError.bind(this), async () => {
+      let prompt = originalPrompt
+      const command = node?.command || node?.title
 
-    if (!prompt || referencePatterns.withAssignmentPrefix().test(command)) {
-      prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
-    } else {
-      prompt = clearCommandsWithParams(
-        clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
-      )
-    }
+      if (!prompt || referencePatterns.withAssignmentPrefix().test(command)) {
+        prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
+      } else {
+        prompt = clearCommandsWithParams(
+          clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+        )
+      }
 
-    const answer = await this.replyDefault(node, command, prompt, {
-      lang: readLangParam(command),
-      sizeLabel: readEmbedParam(command) || readMaxChunksParam(command),
+      const answer = await this.replyDefault(node, command, prompt, {
+        lang: readLangParam(command),
+        sizeLabel: readEmbedParam(command) || readMaxChunksParam(command),
+      })
+
+      this.store.importer.createNodes(answer, node.id)
     })
-
-    this.store.importer.createNodes(answer, node.id)
   }
 }

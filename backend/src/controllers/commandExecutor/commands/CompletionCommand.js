@@ -5,30 +5,36 @@ import {CUSTOM_LLM_CHAT_QUERY_TYPE} from '../constants/custom_llm'
 import {DEEPSEEK_QUERY_TYPE} from '../constants/deepseek'
 import {QWEN_QUERY_TYPE} from '../constants/qwen'
 import {YANDEX_QUERY_TYPE} from '../constants/yandex'
+import debug from 'debug'
 import {getIntegrationSettings, Model} from './utils/langchain/getLLM'
+import {runWithErrorNode} from './shared/runWithErrorNode'
 import {runCommand} from './utils/runCommand'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 
-/**
- * Class representing a Completion Command.
- */
+const log = debug('delta5:app:Command:Completion')
+
 export class CompletionCommand {
-  /**
-   * Creates an instance of CompletionCommand
-   * @param {string} userId - The unique identifier for the user
-   * @param {string} workflowId - The unique identifier for the workflow (optional)
-   * @param {Store} store - The store object
-   * @param {ProgressReporter} progress
-   */
   constructor(userId, workflowId, store, progress) {
     this.userId = userId
     this.workflowId = workflowId
     this.store = store
     this.progress = progress
+    this.log = log.extend(userId || 'anon', '/')
+    if (this.workflowId) {
+      this.log = this.log.extend(workflowId, '#')
+    }
+    this.logError = this.log.extend('ERROR*', '::')
   }
 
   async run(cell, options = {}) {
+    if (!this.store) {
+      return this._resolveAndRun(cell, options)
+    }
+    return runWithErrorNode(this.store, cell, this.logError.bind(this), () => this._resolveAndRun(cell, options))
+  }
+
+  async _resolveAndRun(cell, options = {}) {
     const {signal} = options
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     if (!settings) throw new Error('No integration enabled')

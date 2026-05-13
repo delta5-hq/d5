@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { UseFormSetValue } from 'react-hook-form'
 import { MCP_PRESETS } from './mcp-presets'
-import { D5_BACKEND_PATHS } from './d5-backend-paths'
+import { D5_BACKEND_ROOT, D5_BACKEND_PATHS } from './d5-backend-paths'
 
 interface MCPFormFlat {
   alias: string
@@ -114,7 +114,7 @@ describe('MCP_PRESETS', () => {
         ['description', 'Deep research with web and academic paper search'],
         ['transport', 'stdio'],
         ['command', 'node'],
-        ['args', D5_BACKEND_PATHS.mcpResearchRag],
+        ['args', `${D5_BACKEND_ROOT}/${D5_BACKEND_PATHS.mcpResearchRag}`],
         ['toolName', 'auto'],
         ['toolInputField', 'prompt'],
         ['timeoutMs', 300000],
@@ -127,7 +127,7 @@ describe('MCP_PRESETS', () => {
         ['description', 'Web page scraper with content extraction'],
         ['transport', 'stdio'],
         ['command', 'node'],
-        ['args', D5_BACKEND_PATHS.mcpScraper],
+        ['args', `${D5_BACKEND_ROOT}/${D5_BACKEND_PATHS.mcpScraper}`],
         ['toolName', 'scrape_web_pages'],
         ['toolInputField', 'text'],
         ['timeoutMs', 180000],
@@ -140,7 +140,7 @@ describe('MCP_PRESETS', () => {
         ['description', 'Generate structured outlines from topics'],
         ['transport', 'stdio'],
         ['command', 'node'],
-        ['args', D5_BACKEND_PATHS.mcpOutliner],
+        ['args', `${D5_BACKEND_ROOT}/${D5_BACKEND_PATHS.mcpOutliner}`],
         ['toolName', 'generate_outline'],
         ['toolInputField', 'query'],
         ['timeoutMs', 300000],

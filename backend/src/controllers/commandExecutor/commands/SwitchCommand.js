@@ -4,6 +4,7 @@ import {HumanMessage, SystemMessage} from '@langchain/core/messages'
 import {clearStepsPrefix} from '../constants/steps'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import {runCommand} from './utils/runCommand'
+import {runWithErrorNode} from './shared/runWithErrorNode'
 import {referencePatterns} from './references/utils/referencePatterns'
 import {clearReferences} from './references/utils/referenceUtils' // Direct import
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
@@ -72,6 +73,11 @@ export class SwitchCommand {
 
   async processPromptAndExecuteCase(node, prompt) {
     const options = this.getCaseOptions(node)
+
+    if (Object.keys(options).length === 0) {
+      throw new Error('/switch requires child nodes prefixed with /case to define branches')
+    }
+
     const formattedOptions = Object.keys(options)
       .map(str => `'${str}'`)
       .join(', ')
@@ -102,15 +108,17 @@ export class SwitchCommand {
         if (command && isAnyCommand(command, allDynamicAliases)) {
           const {queryType, mcpAlias, rpcAlias} = resolveCommand(command, this.store._aliases)
 
-          await runCommand(
-            {
-              queryType,
-              cell: executeNode,
-              store: this.store,
-              mcpAlias,
-              rpcAlias,
-            },
-            this.progress,
+          await runWithErrorNode(this.store, executeNode, this.logError.bind(this), () =>
+            runCommand(
+              {
+                queryType,
+                cell: executeNode,
+                store: this.store,
+                mcpAlias,
+                rpcAlias,
+              },
+              this.progress,
+            ),
           )
         }
       }
@@ -118,18 +126,20 @@ export class SwitchCommand {
   }
 
   async run(node, originalPrompt) {
-    let prompt = originalPrompt
-    const title = node?.command || node?.title
+    await runWithErrorNode(this.store, node, this.logError.bind(this), async () => {
+      let prompt = originalPrompt
+      const title = node?.command || node?.title
 
-    if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
-      prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
-    } else {
-      prompt = clearCommandsWithParams(
-        clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
-      )
-    }
+      if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
+        prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
+      } else {
+        prompt = clearCommandsWithParams(
+          clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+        )
+      }
 
-    await this.processPromptAndExecuteCase(node, prompt)
+      await this.processPromptAndExecuteCase(node, prompt)
+    })
   }
 
   getOptionsKeyFromExecutionResult(str) {

@@ -9,17 +9,21 @@ const test = createParallelUserTest('command-autocomplete-user')
 test.describe('Command Autocomplete', () => {
   test.describe.configure({ mode: 'serial' })
 
+  let createdWorkflowId = ''
+
   test.beforeEach(async ({ page }) => {
     await page.goto('/workflows')
     await cleanArrayIntegrations(page)
-    await createWorkflow(page)
-    await page.waitForLoadState('networkidle')
-
+    createdWorkflowId = await createWorkflow(page)
     await setupWorkflowWithCommandField(page)
   })
 
   test.afterEach(async ({ page }) => {
     await cleanArrayIntegrations(page)
+    if (createdWorkflowId) {
+      await page.request.delete(`/api/v2/workflow/${createdWorkflowId}`)
+      createdWorkflowId = ''
+    }
   })
 
   test('popover appears when / typed at start of field', async ({ page }) => {

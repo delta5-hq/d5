@@ -1,6 +1,12 @@
-require('dotenv').config()
+const __dotenvResult = require('dotenv').config()
 
 const {env} = process
+
+if (__dotenvResult.error && !env.JWT_SECRET && !env.MONGO_DATABASE && !env.MONGO_URI) {
+  process.stderr.write(
+    '[STARTUP WARNING] backend started without env. cwd has no .env, shell has no JWT_SECRET / MONGO_*. run via `make dev` from project root.\n',
+  )
+}
 
 export const PORT = process.env.PORT || 3001
 

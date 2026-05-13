@@ -56,10 +56,15 @@ const MCP_AGENT_PROMPT = ChatPromptTemplate.fromMessages([
   ['placeholder', '{agent_scratchpad}'],
 ])
 
-export const createMCPAgentExecutor = (llm, tools) => {
-  if (typeof llm.bindTools === 'function') {
-    const agent = createToolCallingAgent({llm, tools, prompt: MCP_AGENT_PROMPT})
-    return new AgentExecutor({agent, tools, maxIterations: 5})
+export const assertToolCallingCapability = llm => {
+  if (typeof llm?.bindTools !== 'function') {
+    throw new Error(
+      'Agent mode requires an LLM with tool-calling support. Configure OpenAI, Claude, Qwen, or Deepseek as your Default model.',
+    )
   }
-  return createSimpleAgentExecutor(llm, tools)
+}
+
+export const createMCPAgentExecutor = (llm, tools) => {
+  const agent = createToolCallingAgent({llm, tools, prompt: MCP_AGENT_PROMPT})
+  return new AgentExecutor({agent, tools, maxIterations: 5})
 }

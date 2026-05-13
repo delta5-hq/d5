@@ -4,6 +4,7 @@ import type { WorkflowStoreState } from '../workflow-store-types'
 import { INITIAL_WORKFLOW_STATE } from '../workflow-store-types'
 import { bindExecuteAction } from '../workflow-store-execution'
 import type { DebouncedPersister } from '../workflow-store-persistence'
+import type { NodeData } from '@shared/base-types'
 
 vi.mock('@entities/workflow/lib', () => ({
   mergeWorkflowChanges: vi.fn(),
@@ -972,6 +973,188 @@ describe('bindExecuteAction', () => {
 
         expect(() => abortExecution('n1')).not.toThrow()
       })
+    })
+  })
+
+  describe('auto-selection of single new child', () => {
+    it('selects the single new child produced by the executed node', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({
+        nodesChanged: { child1: { id: 'child1', parent: 'n1' } },
+      })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: { n1: { id: 'n1' }, child1: { id: 'child1', parent: 'n1' } },
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().selectedId).toBe('child1')
+    })
+
+    it('does not auto-select when multiple new children are produced', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({
+        nodesChanged: {
+          child1: { id: 'child1', parent: 'n1' },
+          child2: { id: 'child2', parent: 'n1' },
+        },
+      })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: { n1: { id: 'n1' }, child1: { id: 'child1' }, child2: { id: 'child2' } },
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().selectedId).toBeUndefined()
+    })
+
+    it('does not auto-select a node that already existed before execution', async () => {
+      const preExistingChild = { id: 'child1', parent: 'n1' } as NodeData
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({
+        nodesChanged: { child1: preExistingChild },
+      })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: { n1: { id: 'n1' }, child1: preExistingChild },
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({
+        nodes: { n1: { id: 'n1' }, child1: preExistingChild } as WorkflowStoreState['nodes'],
+        root: 'n1',
+      })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().selectedId).toBeUndefined()
+    })
+
+    it('does not auto-select a new child whose parent is a different node', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({
+        nodesChanged: { child1: { id: 'child1', parent: 'n2' } },
+      })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: { n1: { id: 'n1' }, n2: { id: 'n2' }, child1: { id: 'child1', parent: 'n2' } },
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: N2, root: 'n1' })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().selectedId).toBeUndefined()
+    })
+
+    it('clears selectedIds when auto-selecting a new child', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({
+        nodesChanged: { child1: { id: 'child1', parent: 'n1' } },
+      })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: { n1: { id: 'n1' }, child1: { id: 'child1', parent: 'n1' } },
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: N1, root: 'n1', selectedIds: new Set(['n1']) })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().selectedId).toBe('child1')
+      expect(store.getState().selectedIds.size).toBe(0)
+    })
+
+    it('does not auto-select when nodesChanged is absent from the response', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({})
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: N1,
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().selectedId).toBeUndefined()
+    })
+
+    it('auto-selects the single new child even when the previously selected node was removed by the merge', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({
+        nodesChanged: { child1: { id: 'child1', parent: 'n1' } },
+      })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: { child1: { id: 'child1', parent: 'n1' } },
+        edges: {},
+        root: 'child1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: N1, root: 'n1', selectedId: 'n1' })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().selectedId).toBe('child1')
+    })
+
+    it('auto-selects the single new child when nodesChanged also contains updated existing nodes', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({
+        nodesChanged: {
+          n1: { id: 'n1', title: 'Updated' },
+          child1: { id: 'child1', parent: 'n1' },
+        },
+      })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: { n1: { id: 'n1', title: 'Updated' }, child1: { id: 'child1', parent: 'n1' } },
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().selectedId).toBe('child1')
+    })
+
+    it('does not auto-select a node in nodesChanged that has no parent field', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({
+        nodesChanged: { child1: { id: 'child1' } },
+      })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: { n1: { id: 'n1' }, child1: { id: 'child1' } },
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().selectedId).toBeUndefined()
     })
   })
 })

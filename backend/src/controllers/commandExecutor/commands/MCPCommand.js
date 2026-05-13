@@ -2,8 +2,9 @@ import debug from 'debug'
 import {callTool, withClient} from './mcp/MCPClientManager'
 import {MCPToolAdapter} from './mcp/MCPToolAdapter'
 import {determineLLMType, getIntegrationSettings, getLLM} from './utils/langchain/getLLM'
-import {createMCPAgentExecutor} from './utils/langchain/getAgentExecutor'
+import {assertToolCallingCapability, createMCPAgentExecutor} from './utils/langchain/getAgentExecutor'
 import {isInternalMcpServer, buildInternalServerEnv} from './mcp/internalServerEnv'
+import {runWithErrorNode} from './shared/runWithErrorNode'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 
@@ -53,6 +54,8 @@ export class MCPCommand {
       throw new Error('No LLM provider configured. Add an API key in Settings → Integrations to use agent mode.')
     }
 
+    assertToolCallingCapability(llm)
+
     const {timeoutMs} = this.aliasConfig
 
     return withClient(this.transportConfig(extraEnv), async client => {
@@ -80,34 +83,35 @@ export class MCPCommand {
   }
 
   async run(node, context, originalPrompt, options = {}) {
-    const {signal} = options
-    const prompt = this.extractPrompt(node, originalPrompt)
-    const fullPrompt = context ? context + prompt : prompt
+    await runWithErrorNode(this.store, node, this.logError.bind(this), async () => {
+      const {signal} = options
+      const prompt = this.extractPrompt(node, originalPrompt)
+      const fullPrompt = context ? context + prompt : prompt
 
-    const {command, args} = this.aliasConfig
-    const internal = isInternalMcpServer(command, args)
+      const {command, args} = this.aliasConfig
+      const internal = isInternalMcpServer(command, args)
 
-    let extraEnv
-    if (internal) {
-      const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
-      extraEnv = buildInternalServerEnv(this.userId, this.workflowId, settings)
-    }
+      let extraEnv
+      if (internal) {
+        const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
+        extraEnv = buildInternalServerEnv(this.userId, this.workflowId, settings)
+      }
 
-    if (this.aliasConfig.toolName === MCP_TOOL_NAME_AUTO) {
-      const text = await this.runAgentMode(fullPrompt, signal, extraEnv)
-      this.store.importer.createNodes(text || '(empty MCP response)', node.id)
-      return
-    }
+      if (this.aliasConfig.toolName === MCP_TOOL_NAME_AUTO) {
+        const text = await this.runAgentMode(fullPrompt, signal, extraEnv)
+        this.store.importer.createNodes(text || '(empty MCP response)', node.id)
+        return
+      }
 
-    const result = await this.runDirectMode(fullPrompt, signal, extraEnv)
+      const result = await this.runDirectMode(fullPrompt, signal, extraEnv)
 
-    if (result.isError) {
-      this.logError(result.content)
-      throw new Error(result.content || 'MCP tool returned an error')
-    }
+      if (result.isError) {
+        throw new Error(result.content || 'MCP tool returned an error')
+      }
 
-    const text = result.content || '(empty MCP response)'
-    this.store.importer.createNodes(text, node.id)
+      const text = result.content || '(empty MCP response)'
+      this.store.importer.createNodes(text, node.id)
+    })
   }
 
   extractPrompt(node, originalPrompt) {

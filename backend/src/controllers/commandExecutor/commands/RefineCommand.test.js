@@ -1,4 +1,3 @@
-import {BaseChatModel} from '@langchain/core/language_models/chat_models'
 import {RefineCommand} from './RefineCommand'
 import Store from './utils/Store'
 
@@ -15,6 +14,7 @@ describe('RefineCommand', () => {
   const command = new RefineCommand(userId, workflowId, mockStore)
   beforeEach(() => {
     jest.clearAllMocks()
+    jest.spyOn(mockStore.importer, 'createNodes')
   })
 
   it('should should concatenate substituted reference', () => {
@@ -105,33 +105,51 @@ describe('RefineCommand', () => {
     spy.mockRestore()
   })
 
-  it('should return empty array when llm throw error with replyDefault', async () => {
-    const node = {id: 'n', title: '/chatgpt write summary'}
-    mockStore._nodes = {
-      [node.id]: node,
-    }
+  describe('run — error handling', () => {
+    let node
 
-    const spy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValue()
-    await command.run(node)
-    const result = mockStore.getOutput()
+    beforeEach(() => {
+      node = {id: 'n', title: '/chatgpt write summary'}
+      mockStore._nodes = {[node.id]: node}
+    })
 
-    expect(result.nodes).toEqual([])
-    spy.mockRestore()
-  })
+    it('creates error node on the command node when replyDefault throws', async () => {
+      const spy = jest.spyOn(command, 'replyDefault').mockRejectedValue(new Error('LLM connection failed'))
+      await command.run(node)
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: LLM connection failed', node.id)
+      spy.mockRestore()
+    })
 
-  it('should return empty array when llm throw error with replyRefine', async () => {
-    const node = {id: 'n', title: '/chatgpt write summary'}
-    mockStore._nodes = {
-      [node.id]: node,
-    }
+    it('creates error node on the command node when replyRefine throws', async () => {
+      const refineSpy = jest.spyOn(command, 'replyRefine').mockRejectedValue(new Error('LLM connection failed'))
+      const promptSpy = jest.spyOn(command, 'getRefinePrompt').mockReturnValue('some prior content')
+      await command.run(node)
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: LLM connection failed', node.id)
+      refineSpy.mockRestore()
+      promptSpy.mockRestore()
+    })
 
-    const spy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValue()
-    const getRefineSpy = jest.spyOn(command, 'getRefinePrompt').mockReturnValue(true)
-    await command.run(node)
-    const result = mockStore.getOutput()
+    it('logs the thrown error', async () => {
+      const err = new Error('LLM connection failed')
+      const replySpy = jest.spyOn(command, 'replyDefault').mockRejectedValue(err)
+      const logSpy = jest.spyOn(command, 'logError')
+      await command.run(node)
+      expect(logSpy).toHaveBeenCalledWith(err)
+      replySpy.mockRestore()
+      logSpy.mockRestore()
+    })
 
-    expect(result.nodes).toEqual([])
-    spy.mockRestore()
-    getRefineSpy.mockRestore()
+    it('does not throw to caller when LLM throws', async () => {
+      const spy = jest.spyOn(command, 'replyDefault').mockRejectedValue(new Error('crash'))
+      await expect(command.run(node)).resolves.toBeUndefined()
+      spy.mockRestore()
+    })
+
+    it('creates exactly one error node per thrown error', async () => {
+      const spy = jest.spyOn(command, 'replyDefault').mockRejectedValue(new Error('crash'))
+      await command.run(node)
+      expect(mockStore.importer.createNodes).toHaveBeenCalledTimes(1)
+      spy.mockRestore()
+    })
   })
 })

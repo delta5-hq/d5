@@ -95,8 +95,6 @@ const detectConfiguredProvider = settings => {
     }
   }
 
-  if (OPENAI_API_KEY) return Model.OpenAI
-
   return null
 }
 
@@ -109,12 +107,15 @@ export const determineLLMType = (command, settings) => {
     return lang === Lang.ru ? Model.YandexGPT : Model.OpenAI
   }
 
-  if (command && readLangParam(command) === Lang.ru) {
-    return Model.YandexGPT
+  const commandLang = command ? readLangParam(command) : null
+  if (commandLang) {
+    return commandLang === Lang.ru ? Model.YandexGPT : Model.OpenAI
   }
 
   const detectedModel = detectConfiguredProvider(settings)
-  return detectedModel || Model.OpenAI
+  if (detectedModel) return detectedModel
+
+  return Model.OpenAI
 }
 
 export const getIntegrationSettings = async (userId, workflowId = null, store = null) => {
@@ -267,7 +268,11 @@ export const getEmbeddings = ({type, settings}) => {
       if (settings?.openai?.apiKey) return getEmbeddings({type: Model.OpenAI, settings})
       if (settings?.qwen?.apiKey) return getEmbeddings({type: Model.Qwen, settings})
       if (settings?.custom_llm?.apiRootUrl) return getEmbeddings({type: Model.CustomLLM, settings})
-      return getEmbeddings({type: Model.YandexGPT, settings})
+      if (settings?.yandex?.apiKey && settings?.yandex?.folder_id)
+        return getEmbeddings({type: Model.YandexGPT, settings})
+      throw new Error(
+        'Embeddings require a configured provider. Add OpenAI, Qwen, CustomLLM, or YandexGPT in Integration Settings.',
+      )
     }
     case Model.OpenAI: {
       const {apiKey} = settings?.openai || {}

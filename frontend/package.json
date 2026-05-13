@@ -19,8 +19,7 @@
     "test:e2e:chromium": "playwright test --project=chromium",
     "test:e2e:ci": "CI=true playwright test",
     "test:e2e:throttled": "playwright test --config=playwright.config.throttled.ts",
-    "genversion": "node genversion.js",
-    "test:e2e:gate": "playwright test --config=playwright.config.gate.ts"
+    "genversion": "node genversion.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^4.1.3",

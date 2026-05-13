@@ -1091,7 +1091,14 @@ describe('RefineCommand run test', () => {
 
     const output = mockStore.getOutput()
 
-    expect(output.nodes).toEqual([])
+    expect(output.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'Error: LLM Error',
+          parent: refineNode.id,
+        }),
+      ]),
+    )
     expect(llmSpy).toHaveBeenCalled()
     llmSpy.mockRestore()
   })
@@ -1278,13 +1285,22 @@ describe('SummarizeCommand run test', () => {
     const llmSpy = jest.spyOn(LLMChain.prototype, 'invoke').mockResolvedValue({output_text: ''})
     const translateSpy = jest.spyOn(require('./translate'), 'translate')
 
-    await expect(
-      runCommand({
-        cell: summarizeNode,
-        queryType: SUMMARIZE_QUERY_TYPE,
-        store: mockStore,
-      }),
-    ).rejects.toThrow('Nothing to summarize')
+    await runCommand({
+      cell: summarizeNode,
+      queryType: SUMMARIZE_QUERY_TYPE,
+      store: mockStore,
+    })
+
+    const output = mockStore.getOutput()
+
+    expect(output.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'Error: Nothing to summarize',
+          parent: summarizeNode.id,
+        }),
+      ]),
+    )
 
     llmSpy.mockRestore()
     translateSpy.mockRestore()
@@ -1975,13 +1991,22 @@ describe('MCPCommand run test', () => {
 
     MCPClientManager.callTool.mockRejectedValueOnce(new Error('Connection refused'))
 
-    await expect(
-      runCommand({
-        cell: mcpNode,
-        store: mockStore,
-        mcpAlias,
-      }),
-    ).rejects.toThrow('Connection refused')
+    await runCommand({
+      cell: mcpNode,
+      store: mockStore,
+      mcpAlias,
+    })
+
+    const output = mockStore.getOutput()
+
+    expect(output.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'Error: Connection refused',
+          parent: mcpNode.id,
+        }),
+      ]),
+    )
   })
 
   it('should handle error when MCP tool returns isError', async () => {
@@ -2000,13 +2025,22 @@ describe('MCPCommand run test', () => {
 
     MCPClientManager.callTool.mockResolvedValueOnce({content: 'Tool execution failed', isError: true})
 
-    await expect(
-      runCommand({
-        cell: mcpNode,
-        store: mockStore,
-        mcpAlias,
-      }),
-    ).rejects.toThrow('Tool execution failed')
+    await runCommand({
+      cell: mcpNode,
+      store: mockStore,
+      mcpAlias,
+    })
+
+    const output = mockStore.getOutput()
+
+    expect(output.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'Error: Tool execution failed',
+          parent: mcpNode.id,
+        }),
+      ]),
+    )
   })
 
   it('should handle empty MCP response by creating placeholder node', async () => {

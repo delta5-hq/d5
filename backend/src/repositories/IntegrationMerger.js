@@ -1,3 +1,61 @@
+const PROVIDER_FIELDS = ['openai', 'claude', 'yandex', 'deepseek', 'qwen', 'perplexity', 'custom_llm', 'google']
+
+const SENTINEL_VALUES = {
+  lang: 'none',
+  model: 'auto',
+}
+
+const SENTINEL_FIELDS = ['lang', 'model']
+
+const ARRAY_FIELDS = ['mcp', 'rpc']
+
+const isPresent = value => value !== null && value !== undefined
+
+const isSentinelValue = (field, value) => {
+  const sentinel = SENTINEL_VALUES[field]
+  return sentinel !== undefined && value === sentinel
+}
+
+const isEmptyObject = obj => typeof obj === 'object' && obj !== null && Object.keys(obj).length === 0
+
+const mergeProviderObject = (globalObj, workflowObj) => {
+  if (!globalObj) return workflowObj
+  if (!workflowObj) return globalObj
+  if (isEmptyObject(workflowObj)) return workflowObj
+  const result = {...globalObj}
+  for (const [key, value] of Object.entries(workflowObj)) {
+    if (value !== null && value !== undefined) {
+      result[key] = value
+    }
+  }
+  return result
+}
+
+const mergeSentinelField = (field, globalValue, workflowValue) => {
+  if (isPresent(workflowValue) && !isSentinelValue(field, workflowValue)) {
+    return workflowValue
+  }
+  return globalValue
+}
+
+const mergeArrayField = (globalArray, workflowArray) => {
+  const globalItems = globalArray || []
+  const workflowItems = workflowArray || []
+
+  const combined = [...globalItems]
+
+  for (const workflowItem of workflowItems) {
+    const existingIndex = combined.findIndex(item => item.alias === workflowItem.alias)
+    if (existingIndex >= 0) {
+      combined[existingIndex] = workflowItem
+    } else {
+      combined.push(workflowItem)
+    }
+  }
+
+  return combined
+}
+
 export class IntegrationMerger {
   merge(appWide, workflow) {
     if (!appWide && !workflow) return null
@@ -5,51 +63,28 @@ export class IntegrationMerger {
     if (!workflow) return appWide
 
     return {
-      ...this._mergeScalarFields(appWide, workflow),
+      ...this._mergeIdentityFields(appWide, workflow),
       ...this._mergeLLMProviders(appWide, workflow),
       ...this._mergeAliasArrays(appWide, workflow),
     }
   }
 
-  _mergeScalarFields(appWide, workflow) {
+  _mergeIdentityFields(appWide, workflow) {
     return {
       userId: workflow.userId,
       workflowId: workflow.workflowId,
-      model: workflow.model ?? appWide.model,
-      lang: workflow.lang ?? appWide.lang,
+      model: mergeSentinelField('model', appWide.model, workflow.model),
+      lang: mergeSentinelField('lang', appWide.lang, workflow.lang),
     }
   }
 
   _mergeLLMProviders(appWide, workflow) {
-    const llmProviders = ['openai', 'claude', 'yandex', 'qwen', 'deepseek', 'perplexity', 'custom_llm', 'google']
     const merged = {}
 
-    for (const provider of llmProviders) {
-      const appProvider = appWide[provider]
-      const workflowProvider = workflow[provider]
-
-      if (!appProvider && !workflowProvider) continue
-      if (!appProvider) {
-        merged[provider] = workflowProvider
-        continue
-      }
-      if (!workflowProvider) {
-        merged[provider] = appProvider
-        continue
-      }
-
-      merged[provider] = this._mergeProviderObject(appProvider, workflowProvider)
-    }
-
-    return merged
-  }
-
-  _mergeProviderObject(appProvider, workflowProvider) {
-    const merged = {...appProvider}
-
-    for (const [key, value] of Object.entries(workflowProvider)) {
-      if (value !== undefined && value !== null) {
-        merged[key] = value
+    for (const provider of PROVIDER_FIELDS) {
+      const mergedProvider = mergeProviderObject(appWide[provider], workflow[provider])
+      if (isPresent(mergedProvider)) {
+        merged[provider] = mergedProvider
       }
     }
 
@@ -98,56 +133,6 @@ export class IntegrationMerger {
 
 export default new IntegrationMerger()
 
-const SENTINEL_VALUES = {
-  lang: 'none',
-  model: 'auto',
-}
-
-const SCALAR_FIELDS = ['openai', 'claude', 'yandex', 'deepseek', 'qwen', 'perplexity', 'custom_llm', 'google']
-
-const SENTINEL_FIELDS = ['lang', 'model']
-
-const ARRAY_FIELDS = ['mcp', 'rpc']
-
-const isPresent = value => value !== null && value !== undefined
-
-const isSentinelValue = (field, value) => {
-  const sentinel = SENTINEL_VALUES[field]
-  return sentinel !== undefined && value === sentinel
-}
-
-const mergeScalarField = (globalValue, workflowValue) => {
-  if (isPresent(workflowValue)) {
-    return workflowValue
-  }
-  return globalValue
-}
-
-const mergeSentinelField = (field, globalValue, workflowValue) => {
-  if (isPresent(workflowValue) && !isSentinelValue(field, workflowValue)) {
-    return workflowValue
-  }
-  return globalValue
-}
-
-const mergeArrayField = (globalArray, workflowArray) => {
-  const globalItems = globalArray || []
-  const workflowItems = workflowArray || []
-
-  const combined = [...globalItems]
-
-  for (const workflowItem of workflowItems) {
-    const existingIndex = combined.findIndex(item => item.alias === workflowItem.alias)
-    if (existingIndex >= 0) {
-      combined[existingIndex] = workflowItem
-    } else {
-      combined.push(workflowItem)
-    }
-  }
-
-  return combined
-}
-
 export const mergeIntegrations = (globalDoc, workflowDoc) => {
   if (!globalDoc && !workflowDoc) {
     return null
@@ -166,8 +151,8 @@ export const mergeIntegrations = (globalDoc, workflowDoc) => {
     workflowId: workflowDoc.workflowId,
   }
 
-  for (const field of SCALAR_FIELDS) {
-    const mergedValue = mergeScalarField(globalDoc[field], workflowDoc[field])
+  for (const field of PROVIDER_FIELDS) {
+    const mergedValue = mergeProviderObject(globalDoc[field], workflowDoc[field])
     if (isPresent(mergedValue)) {
       merged[field] = mergedValue
     }

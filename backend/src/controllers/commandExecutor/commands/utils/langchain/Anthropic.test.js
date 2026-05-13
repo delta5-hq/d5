@@ -65,4 +65,82 @@ describe('ChatClaude request formatting', () => {
     const systemInMessages = body.messages.some(m => m.role === 'system')
     expect(systemInMessages).toBe(false)
   })
+
+  it('does not include apiKey or constructor kwargs in the request body', async () => {
+    fetch.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        content: [{type: 'text', text: 'OK'}],
+      }),
+    })
+
+    const claude = new ChatClaude({
+      apiKey: 'secret-key',
+      model: 'claude-3-haiku-20240307',
+      maxRetries: 3,
+    })
+
+    await claude.invoke([new HumanMessage('Hi')])
+
+    const body = JSON.parse(fetch.mock.calls[0][1].body)
+
+    expect(body).not.toHaveProperty('apiKey')
+    expect(body).not.toHaveProperty('anthropicApiKey')
+    expect(body).not.toHaveProperty('maxRetries')
+  })
+
+  it('sends apiKey exclusively in the x-api-key header, not in the body', async () => {
+    fetch.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        content: [{type: 'text', text: 'OK'}],
+      }),
+    })
+
+    const claude = new ChatClaude({apiKey: 'header-only-key', model: 'claude-3-haiku-20240307'})
+
+    await claude.invoke([new HumanMessage('Ping')])
+
+    const [, init] = fetch.mock.calls[0]
+    expect(init.headers['x-api-key']).toBe('header-only-key')
+    const body = JSON.parse(init.body)
+    expect(body).not.toHaveProperty('apiKey')
+  })
+
+  it('request body contains only Anthropic-accepted fields', async () => {
+    fetch.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        content: [{type: 'text', text: 'OK'}],
+      }),
+    })
+
+    const claude = new ChatClaude({
+      apiKey: 'test-key',
+      model: 'claude-3-haiku-20240307',
+      temperature: 0.5,
+      topK: 5,
+      topP: 0.8,
+      maxTokens: 512,
+    })
+
+    await claude.invoke([new HumanMessage('Test')])
+
+    const body = JSON.parse(fetch.mock.calls[0][1].body)
+    const bodyKeys = Object.keys(body)
+    const acceptedKeys = [
+      'model',
+      'messages',
+      'system',
+      'temperature',
+      'top_k',
+      'top_p',
+      'max_tokens',
+      'stop_sequences',
+    ]
+
+    for (const key of bodyKeys) {
+      expect(acceptedKeys).toContain(key)
+    }
+  })
 })

@@ -3,7 +3,6 @@ export const COMMAND_TO_QUERYTYPE_MAP: Record<string, string> = {
   '/reason': 'chat',
   '/chatgpt': 'chat',
   '/chat': 'chat',
-  '/completion': 'completion',
   '/web': 'web',
   '/scholar': 'scholar',
   '/refine': 'refine',
@@ -28,8 +27,7 @@ export const COMMAND_DESCRIPTIONS: Record<string, string> = {
   '/instruct': 'Send instruction to LLM with system prompt',
   '/reason': 'Step-by-step reasoning with LLM',
   '/chatgpt': 'ChatGPT conversation',
-  '/chat': 'Chat with LLM',
-  '/completion': 'Text completion without chat formatting',
+  '/chat': 'Invokes the Default LLM configured in Settings → Default Model',
   '/web': 'Search web with Perplexity',
   '/scholar': 'Search academic papers',
   '/refine': 'Iteratively refine text with LLM',
@@ -80,13 +78,11 @@ export const extractQueryTypeFromCommand = (command: string | undefined, dynamic
   const trimmed = command.trim()
   const firstWord = trimmed.split(/\s+/)[0]
 
+  if (!firstWord.startsWith('/')) return 'chat'
+
   const fullMap = getFullCommandMap(dynamicAliases)
   const mappedQueryType = fullMap[firstWord]
   if (mappedQueryType) return mappedQueryType
 
-  if (firstWord.startsWith('/')) {
-    return firstWord.substring(1)
-  }
-
-  return firstWord || 'chat'
+  return firstWord.substring(1)
 }

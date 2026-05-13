@@ -15,6 +15,6 @@ export class UserContextProvider {
   }
 
   async getIntegrationSettings() {
-    return IntegrationFacade.findDecryptedOrThrow(this.userId, null)
+    return IntegrationFacade.findDecryptedOrThrow(this.userId, this.workflowId)
   }
 }

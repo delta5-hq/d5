@@ -122,9 +122,11 @@ describe('DownloadCommand', () => {
 
   describe('run', () => {
     let downloadAndInsertSpy
+    let createNodesSpy
 
     beforeEach(() => {
       downloadAndInsertSpy = jest.spyOn(command, 'insertFileToWorkflow').mockResolvedValue([])
+      createNodesSpy = jest.spyOn(mockStore.importer, 'createNodes').mockImplementation(() => {})
     })
 
     afterEach(() => {
@@ -211,6 +213,43 @@ describe('DownloadCommand', () => {
       expect(clearStepsPrefix).toHaveBeenCalledWith(originalPrompt)
       // Check specifically that the second argument (cleared prompt) is what we expect
       expect(downloadAndInsertSpy.mock.calls[0][1]).toBe('cleared https://example.com')
+    })
+
+    it('creates error node on the download node when insertFileToWorkflow throws', async () => {
+      const node = {id: 'download-node', title: '/download https://example.com'}
+      downloadAndInsertSpy.mockRejectedValue(new Error('network timeout'))
+
+      await command.run(node, 'https://example.com')
+
+      expect(createNodesSpy).toHaveBeenCalledWith('Error: network timeout', 'download-node')
+    })
+
+    it('logs the error when insertFileToWorkflow throws', async () => {
+      const node = {id: 'download-node', title: '/download https://example.com'}
+      const err = new Error('network timeout')
+      downloadAndInsertSpy.mockRejectedValue(err)
+      const logSpy = jest.spyOn(command, 'logError')
+
+      await command.run(node, 'https://example.com')
+
+      expect(logSpy).toHaveBeenCalledWith(err)
+      logSpy.mockRestore()
+    })
+
+    it('does not throw to caller when insertFileToWorkflow rejects', async () => {
+      const node = {id: 'download-node', title: '/download https://example.com'}
+      downloadAndInsertSpy.mockRejectedValue(new Error('fetch failed'))
+
+      await expect(command.run(node, 'https://example.com')).resolves.toBeUndefined()
+    })
+
+    it('creates exactly one error node per download failure', async () => {
+      const node = {id: 'download-node', title: '/download https://example.com'}
+      downloadAndInsertSpy.mockRejectedValue(new Error('fetch failed'))
+
+      await command.run(node, 'https://example.com')
+
+      expect(createNodesSpy).toHaveBeenCalledTimes(1)
     })
   })
 })

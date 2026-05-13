@@ -10,7 +10,7 @@ import {
   reloadAndGetExistingSetup,
   type WorkflowNodeSetupResult,
 } from './helpers/workflow-node-setup'
-import { createWorkflow } from './utils'
+import { createWorkflow, purgeUserWorkflows } from './utils'
 import { TIMEOUTS } from './config/test-timeouts'
 
 const test = createParallelUserTest('mcp-rpc-exec')
@@ -75,6 +75,7 @@ test.describe('MCP / RPC Execution Flow', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.goto('/workflows')
+    await purgeUserWorkflows(page)
     await cleanArrayIntegrations(page)
     await clearLLMProviderSettings(page, 'claude')
     await createWorkflow(page)

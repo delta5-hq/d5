@@ -3,14 +3,19 @@ import { adminLogin } from './utils'
 import { PrimaryNavigationPage, SecondarySidebarPage, CreateWorkflowActionsPage } from './page-objects'
 import { TEST_TIMEOUTS, VIEWPORT } from './constants/test-timeouts'
 
+const PRIMARY_SIDEBAR = '[data-testid="primary-sidebar"]'
+
+async function waitForAuthenticatedApp(page: import('@playwright/test').Page): Promise<void> {
+  await page.locator(PRIMARY_SIDEBAR).waitFor({ state: 'visible', timeout: TEST_TIMEOUTS.NAVIGATION })
+}
+
 test.describe('Dual sidebar system', () => {
   test.describe('Sidebar coordination and state management', () => {
     test.beforeEach(async ({ page }) => {
       await page.setViewportSize(VIEWPORT.DESKTOP)
       await page.goto('/')
       await adminLogin(page)
-      await page.goto('/')
-      await page.waitForLoadState('networkidle')
+      await waitForAuthenticatedApp(page)
     })
 
     test('primary sidebar triggers secondary sidebar visibility', async ({ page }) => {
@@ -19,7 +24,7 @@ test.describe('Dual sidebar system', () => {
       
       await page.evaluate(() => localStorage.removeItem('secondary_sidebar_state'))
       await page.reload()
-      await page.waitForLoadState('networkidle')
+      await waitForAuthenticatedApp(page)
 
       await expect(secondarySidebar.root).toHaveCount(0)
 
@@ -80,8 +85,7 @@ test.describe('Dual sidebar system', () => {
       await page.setViewportSize(VIEWPORT.DESKTOP)
       await page.goto('/')
       await adminLogin(page)
-      await page.goto('/')
-      await page.waitForLoadState('networkidle')
+      await waitForAuthenticatedApp(page)
     })
 
     const sectionContentTypes = [
@@ -126,11 +130,10 @@ test.describe('Dual sidebar system', () => {
         await page.goto('/')
         
         if (!authRequired) {
-          await page.waitForLoadState('networkidle')
+          await page.waitForLoadState('domcontentloaded')
         } else {
           await adminLogin(page)
-          await page.goto('/')
-          await page.waitForLoadState('networkidle')
+          await waitForAuthenticatedApp(page)
         }
 
         if (authRequired) {
@@ -161,7 +164,7 @@ test.describe('Dual sidebar system', () => {
       
       await page.setViewportSize(VIEWPORT.DESKTOP)
       await page.goto('/')
-      await page.waitForLoadState('networkidle')
+      await page.waitForLoadState('domcontentloaded')
 
       await expect(primaryNav.homeItem).toHaveCount(0)
       await expect(primaryNav.item('landing')).toBeVisible()
@@ -183,8 +186,7 @@ test.describe('Dual sidebar system', () => {
       await page.setViewportSize(VIEWPORT.DESKTOP)
       await page.goto('/')
       await adminLogin(page)
-      await page.goto('/')
-      await page.waitForLoadState('networkidle')
+      await waitForAuthenticatedApp(page)
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
@@ -200,8 +202,7 @@ test.describe('Dual sidebar system', () => {
       await page.setViewportSize(VIEWPORT.DESKTOP)
       await page.goto('/')
       await adminLogin(page)
-      await page.goto('/')
-      await page.waitForLoadState('networkidle')
+      await waitForAuthenticatedApp(page)
       await page.waitForURL(/\/workflows/, { timeout: TEST_TIMEOUTS.NAVIGATION })
     })
 
@@ -252,14 +253,13 @@ test.describe('Dual sidebar system', () => {
       await page.setViewportSize(VIEWPORT.DESKTOP)
       await page.goto('/')
       await adminLogin(page)
-      await page.goto('/')
-      await page.waitForLoadState('networkidle')
+      await waitForAuthenticatedApp(page)
     })
 
     test('secondary sidebar open state persists across reloads', async ({ page }) => {
       await page.evaluate(() => localStorage.removeItem('secondary_sidebar_state'))
       await page.reload()
-      await page.waitForLoadState('networkidle')
+      await waitForAuthenticatedApp(page)
 
       const primaryNav = new PrimaryNavigationPage(page)
       const secondarySidebar = new SecondarySidebarPage(page)
@@ -274,7 +274,7 @@ test.describe('Dual sidebar system', () => {
       expect(storedState).toBe('true')
 
       await page.reload()
-      await page.waitForLoadState('networkidle')
+      await waitForAuthenticatedApp(page)
 
       await expect(secondarySidebar.root).toBeVisible()
     })
@@ -290,7 +290,7 @@ test.describe('Dual sidebar system', () => {
       expect(storedSection).toBe('settings')
 
       await page.reload()
-      await page.waitForLoadState('networkidle')
+      await waitForAuthenticatedApp(page)
 
       await expect(secondarySidebar.root).toBeVisible()
       await expect(secondarySidebar.groupLabel('Settings')).toBeVisible()
@@ -302,7 +302,7 @@ test.describe('Dual sidebar system', () => {
         localStorage.removeItem('active_section')
       })
       await page.reload()
-      await page.waitForLoadState('networkidle')
+      await waitForAuthenticatedApp(page)
 
       const primaryNav = new PrimaryNavigationPage(page)
       const secondarySidebar = new SecondarySidebarPage(page)
@@ -321,7 +321,7 @@ test.describe('Dual sidebar system', () => {
         localStorage.setItem('active_section', '{}')
       })
       await page.reload()
-      await page.waitForLoadState('networkidle')
+      await waitForAuthenticatedApp(page)
 
       const primaryNav = new PrimaryNavigationPage(page)
       await expect(primaryNav.homeItem).toBeVisible()
@@ -336,7 +336,7 @@ test.describe('Dual sidebar system', () => {
         localStorage.removeItem('secondary_sidebar_state')
       })
       await page.reload()
-      await page.waitForLoadState('networkidle')
+      await waitForAuthenticatedApp(page)
 
       await expect(secondarySidebar.root).toHaveCount(0)
 
@@ -354,7 +354,7 @@ test.describe('Dual sidebar system', () => {
         localStorage.setItem('secondary_sidebar_state', 'false')
       })
       await page.reload()
-      await page.waitForLoadState('networkidle')
+      await waitForAuthenticatedApp(page)
 
       await expect(secondarySidebar.root).toHaveCount(0)
 
@@ -389,8 +389,7 @@ test.describe('Dual sidebar system', () => {
       await page.setViewportSize(VIEWPORT.DESKTOP)
       await page.goto('/')
       await adminLogin(page)
-      await page.goto('/')
-      await page.waitForLoadState('networkidle')
+      await waitForAuthenticatedApp(page)
     })
 
     test('create workflow button triggers navigation to new workflow', async ({ page }) => {
@@ -420,8 +419,7 @@ test.describe('Dual sidebar system', () => {
       await page.setViewportSize(VIEWPORT.DESKTOP)
       await page.goto('/')
       await adminLogin(page)
-      await page.goto('/')
-      await page.waitForLoadState('networkidle')
+      await waitForAuthenticatedApp(page)
     })
 
     test('navigating to deep nested route maintains parent section state', async ({ page }) => {
@@ -434,7 +432,7 @@ test.describe('Dual sidebar system', () => {
       await expect(secondarySidebar.root).toBeVisible()
       
       await page.goto('/admin/users')
-      await page.waitForLoadState('networkidle')
+      await waitForAuthenticatedApp(page)
 
       const userRows = page.locator('table tbody tr')
       const userRowCount = await userRows.count()
@@ -477,7 +475,7 @@ test.describe('Dual sidebar system', () => {
 
       await page.evaluate(() => localStorage.removeItem('secondary_sidebar_state'))
       await page.reload()
-      await page.waitForLoadState('networkidle')
+      await waitForAuthenticatedApp(page)
 
       await expect(primarySidebar).toBeVisible()
 

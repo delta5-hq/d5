@@ -1,5 +1,6 @@
 import debug from 'debug'
 import {runCommand} from './utils/runCommand'
+import {runWithErrorNode} from './shared/runWithErrorNode'
 import {StepsNodeTraverser} from './utils/StepsNodeTraverser'
 import {resolveCommand} from './utils/queryTypeResolver'
 import {SSHClientPool} from './rpc/SSHClientPool'
@@ -105,13 +106,16 @@ export class StepsCommand {
     const sshClientPool = new SSHClientPool()
 
     try {
-      const {nodesByOrder, nodesWithoutOrder} = await this.findMatchingNodes(node)
+      await runWithErrorNode(this.store, node, this.logError.bind(this), async () => {
+        const {nodesByOrder, nodesWithoutOrder} = await this.findMatchingNodes(node)
 
-      await this.executePromptsByOrder(nodesByOrder, sshClientPool, signal)
+        if (Object.keys(nodesByOrder).length === 0 && nodesWithoutOrder.length === 0) {
+          throw new Error('/steps requires child nodes containing commands to execute')
+        }
 
-      await this.executePrompts(nodesWithoutOrder, sshClientPool, signal)
-    } catch (e) {
-      this.logError(e)
+        await this.executePromptsByOrder(nodesByOrder, sshClientPool, signal)
+        await this.executePrompts(nodesWithoutOrder, sshClientPool, signal)
+      })
     } finally {
       sshClientPool.disposeAll()
     }

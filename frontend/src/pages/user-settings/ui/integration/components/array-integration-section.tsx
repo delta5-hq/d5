@@ -83,8 +83,8 @@ const ArrayIntegrationSection: React.FC<Props> = ({
   }
 
   const cardClassName = inherited
-    ? 'cursor-pointer transition-shadow border-dashed opacity-60'
-    : 'cursor-pointer hover:shadow-md transition-shadow'
+    ? 'w-full sm:w-60 cursor-pointer transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border-dashed opacity-60'
+    : 'w-full sm:w-60 cursor-pointer hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
 
   return (
     <>
@@ -106,7 +106,7 @@ const ArrayIntegrationSection: React.FC<Props> = ({
           ) : null}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="flex flex-wrap gap-4 justify-start w-full">
           {items.map(item => {
             const keyDetail = getKeyConfigDetail(item)
             const integrationType = getIntegrationType(item)
@@ -145,8 +145,8 @@ const ArrayIntegrationSection: React.FC<Props> = ({
                     </Button>
                   ) : null}
                   <div className="flex-1 min-w-0 pr-8">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h4 className="font-mono text-lg font-bold truncate">{item.alias}</h4>
+                    <div className="flex items-center gap-2 mb-2 min-w-0">
+                      <h4 className="font-mono text-lg font-bold break-all min-w-0">{item.alias}</h4>
                       {integrationType ? <IntegrationTypeBadge type={integrationType} /> : null}
                     </div>
                     {keyDetail ? (

@@ -1,9 +1,13 @@
 #!/bin/sh
-# Pre-push hook - comprehensive checks before pushing to remote
+# Pre-push hook - comprehensive checks before pushing to remote.
+#
+# `git push` is a deliberate human action, so MANUAL_RUN=1 is set to unlock the
+# full e2e-frontend suite. Any unattended/agentic invocation of `make e2e-frontend`
+# without MANUAL_RUN=1 refuses with a non-zero exit by design — see Makefile.
 
 echo "🔍 Running pre-push validation..."
 
-make ci-full
+MANUAL_RUN=1 make ci-full
 
 if [ $? -ne 0 ]; then
     echo "❌ Pre-push validation failed. Push aborted."

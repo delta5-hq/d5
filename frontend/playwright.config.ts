@@ -5,6 +5,15 @@ dotenv.config()
 
 const PARALLEL_USER_COUNT = 2
 
+const E2E_BASE_URL = process.env.E2E_BASE_URL
+if (!E2E_BASE_URL) {
+  throw new Error(
+    'E2E_BASE_URL is required and must point at the e2e frontend (e.g. http://localhost:5174). ' +
+      'Run e2e through `make e2e-frontend` (or set E2E_BASE_URL explicitly). ' +
+      'No default fallback — defaulting to the dev frontend has wiped dev Mongo through the shared backend.',
+  )
+}
+
 export default defineConfig({
   testDir: './e2e',
   timeout: process.env.CI ? 120000 : 60000,
@@ -14,7 +23,7 @@ export default defineConfig({
   workers: PARALLEL_USER_COUNT,
   reporter: process.env.CI ? [['list'], ['junit', { outputFile: 'junit.xml' }]] : 'html',
   use: {
-    baseURL: process.env.E2E_BASE_URL || 'http://localhost:5173',
+    baseURL: E2E_BASE_URL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

@@ -66,6 +66,8 @@ describe('ForeachCommand', () => {
     command.logError = jest.fn().mockImplementation(e => {
       throw e
     })
+
+    mockStore.importer.createNodes = jest.fn()
   })
 
   describe('getParentsTitles', () => {
@@ -639,6 +641,25 @@ describe('ForeachCommand', () => {
     afterEach(() => {
       runCommand.mockImplementation(() => jest.fn())
       jest.clearAllMocks()
+    })
+
+    it('should throw when node has no parent (executed at root level)', async () => {
+      const foreachNode = {id: 'f', command: '/foreach /chatgpt @@', parent: undefined}
+      mockStore._nodes = {[foreachNode.id]: foreachNode}
+
+      await expect(command.run(foreachNode)).rejects.toThrow(
+        '/foreach requires the node to have a parent with sibling nodes to iterate over',
+      )
+    })
+
+    it('should throw when parent is the workflow root (no grandparent)', async () => {
+      const rootNode = {id: 'root', children: ['f']}
+      const foreachNode = {id: 'f', command: '/foreach /chatgpt @@', parent: rootNode.id}
+      mockStore._nodes = {[rootNode.id]: rootNode, [foreachNode.id]: foreachNode}
+
+      await expect(command.run(foreachNode)).rejects.toThrow(
+        '/foreach requires the node to have a parent with sibling nodes to iterate over',
+      )
     })
 
     it('should use yandex credentials', async () => {
@@ -2987,6 +3008,50 @@ describe('ForeachCommand', () => {
     })
   })
 
+  describe('run — error handling', () => {
+    let errorCmd
+
+    beforeEach(() => {
+      errorCmd = new ForeachCommand(userId, workflowId, mockStore)
+      errorCmd.logError = jest.fn()
+    })
+
+    it('creates error node on the foreach node when parent is missing', async () => {
+      const foreachNode = {id: 'foreach-node', command: '/foreach /chatgpt @@', parent: undefined}
+      mockStore._nodes = {[foreachNode.id]: foreachNode}
+
+      await errorCmd.run(foreachNode)
+
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith(expect.stringMatching(/^Error:/), 'foreach-node')
+    })
+
+    it('creates error node on the foreach node when parent is the workflow root', async () => {
+      const rootNode = {id: 'root', children: ['foreach-node']}
+      const foreachNode = {id: 'foreach-node', command: '/foreach /chatgpt @@', parent: rootNode.id}
+      mockStore._nodes = {[rootNode.id]: rootNode, [foreachNode.id]: foreachNode}
+
+      await errorCmd.run(foreachNode)
+
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith(expect.stringMatching(/^Error:/), 'foreach-node')
+    })
+
+    it('does not throw to caller when parent is missing', async () => {
+      const foreachNode = {id: 'foreach-node', command: '/foreach /chatgpt @@', parent: undefined}
+      mockStore._nodes = {[foreachNode.id]: foreachNode}
+
+      await expect(errorCmd.run(foreachNode)).resolves.toBeUndefined()
+    })
+
+    it('logs the error when parent is missing', async () => {
+      const foreachNode = {id: 'foreach-node', command: '/foreach /chatgpt @@', parent: undefined}
+      mockStore._nodes = {[foreachNode.id]: foreachNode}
+
+      await errorCmd.run(foreachNode)
+
+      expect(errorCmd.logError).toHaveBeenCalledWith(expect.any(Error))
+    })
+  })
+
   describe('executePrompts', () => {
     it('should skip errors when execute in parallel', async () => {
       const nodes = [
@@ -3123,6 +3188,44 @@ describe('ForeachCommand', () => {
 
       expect(outputNodes.map(({id}) => id)).toEqual(expect.arrayContaining(['n1', 'n2', 'n5', 'n6']))
 
+      command.logError = t
+    })
+
+    it('creates error node on failing child node when executing in parallel', async () => {
+      const failingNode = {id: 'fail-node', command: '/chatgpt prompt'}
+      const nodes = [
+        {node: failingNode, promptString: '/chatgpt prompt'},
+        {node: {id: 'ok-node'}, promptString: '/chatgpt prompt'},
+      ]
+
+      const t = command.logError
+      command.logError = jest.fn()
+
+      runCommand.mockRejectedValueOnce(new Error('child parallel failure'))
+      runCommand.mockResolvedValueOnce({nodes: []})
+
+      await command.executePrompts(nodes)
+
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: child parallel failure', 'fail-node')
+      command.logError = t
+    })
+
+    it('creates error node on failing child node when executing sequentially', async () => {
+      const failingNode = {id: 'fail-node', command: '/chatgpt prompt'}
+      const nodes = [
+        {node: failingNode, promptString: '/chatgpt prompt'},
+        {node: {id: 'ok-node'}, promptString: '/chatgpt prompt'},
+      ]
+
+      const t = command.logError
+      command.logError = jest.fn()
+
+      runCommand.mockRejectedValueOnce(new Error('child sequential failure'))
+      runCommand.mockResolvedValueOnce({nodes: []})
+
+      await command.executePrompts(nodes, false)
+
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: child sequential failure', 'fail-node')
       command.logError = t
     })
   })

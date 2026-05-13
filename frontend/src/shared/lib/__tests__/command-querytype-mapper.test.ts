@@ -104,12 +104,16 @@ describe('extractQueryTypeFromCommand - Command Mapping', () => {
       expect(extractQueryTypeFromCommand('/newfeature Test')).toBe('newfeature')
     })
 
-    it('handles commands without slash prefix', () => {
+    it('handles commands without slash prefix — defaults to chat', () => {
       expect(extractQueryTypeFromCommand('chat Hello')).toBe('chat')
     })
 
-    it('returns non-slash command as-is', () => {
-      expect(extractQueryTypeFromCommand('custom Direct query')).toBe('custom')
+    it('returns chat for non-slash text (generated output has no command)', () => {
+      expect(extractQueryTypeFromCommand('custom Direct query')).toBe('chat')
+    })
+
+    it('returns chat for arbitrary generated text without slash prefix', () => {
+      expect(extractQueryTypeFromCommand('Here is your outline:')).toBe('chat')
     })
   })
 
@@ -158,8 +162,8 @@ describe('extractQueryTypeFromCommand - Command Mapping', () => {
       expect(extractQueryTypeFromCommand('//web')).toBe('/web')
     })
 
-    it('handles slash in middle as regular word', () => {
-      expect(extractQueryTypeFromCommand('web/search query')).toBe('web/search')
+    it('returns chat for input without leading slash even if it contains a slash mid-word', () => {
+      expect(extractQueryTypeFromCommand('web/search query')).toBe('chat')
     })
 
     it('preserves case for unknown commands', () => {
@@ -185,10 +189,6 @@ describe('extractQueryTypeFromCommand - Command Mapping', () => {
   })
 
   describe('new commands in COMMAND_TO_QUERYTYPE_MAP', () => {
-    it('maps /completion to completion', () => {
-      expect(extractQueryTypeFromCommand('/completion Continue text')).toBe('completion')
-    })
-
     it('maps /download to download', () => {
       expect(extractQueryTypeFromCommand('/download https://example.com')).toBe('download')
     })
@@ -358,7 +358,6 @@ describe('getSupportedCommands - Command List Generation', () => {
       expect(commands).toContain('/chatgpt')
       expect(commands).toContain('/claude')
       expect(commands).toContain('/download')
-      expect(commands).toContain('/completion')
       expect(commands).toContain('/case')
     })
 
@@ -602,9 +601,9 @@ describe('extractQueryTypeFromCommand - With Dynamic Aliases', () => {
       expect(typeof result === 'string').toBe(true)
     })
 
-    it('handles alias without leading slash in command', () => {
+    it('returns chat when command has no leading slash, even if a matching no-slash alias is registered', () => {
       const aliases: DynamicAlias[] = [{ alias: 'noslash', queryType: 'custom' }]
-      expect(extractQueryTypeFromCommand('noslash cmd', aliases)).toBe('custom')
+      expect(extractQueryTypeFromCommand('noslash cmd', aliases)).toBe('chat')
     })
   })
 
@@ -656,5 +655,43 @@ describe('COMMAND_DESCRIPTIONS and COMMAND_TO_QUERYTYPE_MAP consistency', () => 
     const mapKeys = new Set(Object.keys(COMMAND_TO_QUERYTYPE_MAP))
     const descKeys = new Set(Object.keys(COMMAND_DESCRIPTIONS))
     expect(mapKeys).toEqual(descKeys)
+  })
+
+  it('all description values are non-empty non-whitespace strings', () => {
+    for (const [cmd, desc] of Object.entries(COMMAND_DESCRIPTIONS)) {
+      expect(typeof desc, `${cmd} description must be a string`).toBe('string')
+      expect(desc.trim().length, `${cmd} description must not be blank`).toBeGreaterThan(0)
+    }
+  })
+
+  it('all description values are free of leading and trailing whitespace', () => {
+    for (const [cmd, desc] of Object.entries(COMMAND_DESCRIPTIONS)) {
+      expect(desc, `${cmd} description must be trimmed`).toBe(desc.trim())
+    }
+  })
+
+  it('every description is unique across all commands', () => {
+    const seen = new Map<string, string>()
+    for (const [cmd, desc] of Object.entries(COMMAND_DESCRIPTIONS)) {
+      const firstCmd = seen.get(desc)
+      expect(firstCmd, `"${desc}" is shared by "${firstCmd}" and "${cmd}"`).toBeUndefined()
+      seen.set(desc, cmd)
+    }
+  })
+
+  it('commands that share a queryType each carry a distinct description', () => {
+    const cmdsByQueryType = new Map<string, string[]>()
+    for (const [cmd, qt] of Object.entries(COMMAND_TO_QUERYTYPE_MAP)) {
+      cmdsByQueryType.set(qt, [...(cmdsByQueryType.get(qt) ?? []), cmd])
+    }
+    for (const [qt, cmds] of cmdsByQueryType) {
+      if (cmds.length <= 1) continue
+      const descs = cmds.map(cmd => COMMAND_DESCRIPTIONS[cmd])
+      const uniqueCount = new Set(descs).size
+      expect(
+        uniqueCount,
+        `queryType "${qt}" shared by ${cmds.join(', ')} — each must have a distinct description`,
+      ).toBe(cmds.length)
+    }
   })
 })

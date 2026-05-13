@@ -91,7 +91,6 @@ export class ChatClaude extends BaseChatModel {
       top_p: this.topP,
       stop_sequences: options?.stop ?? this.stopSequences,
       max_tokens: this.maxTokens,
-      ...this.invocationKwargs,
     }
   }
 

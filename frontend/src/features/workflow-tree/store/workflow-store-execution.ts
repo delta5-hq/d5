@@ -1,5 +1,5 @@
 import type { Store } from '@shared/lib/store'
-import type { NodeData, NodeId, WorkflowContentData } from '@shared/base-types'
+import type { NodeData, NodeId, WorkflowContentData, NodeDatas } from '@shared/base-types'
 import { mergeWorkflowChanges } from '@entities/workflow/lib'
 import { executeWorkflowCommand } from '../api/execute-workflow-command'
 import type { WorkflowStoreState } from './workflow-store-types'
@@ -11,6 +11,15 @@ function addExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): voi
   store.setState(prev => ({
     executingNodeIds: new Set([...prev.executingNodeIds, nodeId]),
   }))
+}
+
+function singleNewChildId(
+  nodesChanged: Record<string, NodeData>,
+  parentId: NodeId,
+  existingNodes: NodeDatas,
+): NodeId | undefined {
+  const newChildren = Object.values(nodesChanged).filter(n => n.parent === parentId && !(n.id in existingNodes))
+  return newChildren.length === 1 ? newChildren[0].id : undefined
 }
 
 function removeExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): void {
@@ -66,15 +75,20 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
         share: current.share ?? { access: [] },
       }
       const merged = mergeWorkflowChanges(currentData, response)
-      const selectionStale = current.selectedId !== undefined && !(current.selectedId in merged.nodes)
+      const autoSelected = singleNewChildId(response.nodesChanged ?? {}, node.id, nodes)
+      const selectionStale = !autoSelected && current.selectedId !== undefined && !(current.selectedId in merged.nodes)
       const anchorStale = current.anchorId !== undefined && !(current.anchorId in merged.nodes)
-      const cleanedIds = retainExistingIds(current.selectedIds, merged.nodes)
+      const cleanedIds = autoSelected ? new Set<string>() : retainExistingIds(current.selectedIds, merged.nodes)
       store.setState({
         nodes: merged.nodes,
         edges: merged.edges ?? {},
         root: merged.root,
         isDirty: true,
-        ...(selectionStale ? { selectedId: undefined } : {}),
+        ...(autoSelected !== undefined
+          ? { selectedId: autoSelected }
+          : selectionStale
+            ? { selectedId: undefined }
+            : {}),
         ...(anchorStale ? { anchorId: undefined } : {}),
         ...(cleanedIds !== current.selectedIds ? { selectedIds: cleanedIds } : {}),
       })

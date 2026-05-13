@@ -46,6 +46,5 @@ export async function getExistingWorkflowSetup(page: Page): Promise<WorkflowNode
 
 export async function reloadAndGetExistingSetup(page: Page): Promise<WorkflowNodeSetupResult> {
   await page.reload()
-  await page.waitForLoadState('networkidle')
   return getExistingWorkflowSetup(page)
 }

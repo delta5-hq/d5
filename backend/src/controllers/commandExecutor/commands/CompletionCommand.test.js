@@ -7,7 +7,6 @@ import {DEEPSEEK_QUERY_TYPE} from '../constants/deepseek'
 import {QWEN_QUERY_TYPE} from '../constants/qwen'
 import {YANDEX_QUERY_TYPE} from '../constants/yandex'
 import {Model} from './utils/langchain/getLLM'
-
 import {getIntegrationSettings} from './utils/langchain/getLLM'
 import {runCommand} from './utils/runCommand'
 
@@ -27,10 +26,42 @@ describe('CompletionCommand', () => {
     runCommand.mockResolvedValue({success: true})
   })
 
-  it('should throw error when no integration settings found', async () => {
-    getIntegrationSettings.mockResolvedValue(null)
-    const command = new CompletionCommand(userId, workflowId)
-    await expect(command.run(mockCell, mockNodes, mockFiles)).rejects.toThrow('No integration enabled')
+  describe('run — error handling', () => {
+    let storeWithImporter
+
+    beforeEach(() => {
+      storeWithImporter = {
+        importer: {createNodes: jest.fn()},
+        _integrationSettingsCache: null,
+      }
+      getIntegrationSettings.mockResolvedValue(null)
+    })
+
+    it('creates error node on the cell when no integration is enabled', async () => {
+      const command = new CompletionCommand(userId, workflowId, storeWithImporter)
+      await command.run(mockCell)
+      expect(storeWithImporter.importer.createNodes).toHaveBeenCalledWith('Error: No integration enabled', mockCell.id)
+    })
+
+    it('does not throw to caller when no integration is enabled', async () => {
+      const command = new CompletionCommand(userId, workflowId, storeWithImporter)
+      await expect(command.run(mockCell)).resolves.toBeUndefined()
+    })
+
+    it('creates error node on the cell when runCommand rejects', async () => {
+      getIntegrationSettings.mockResolvedValue({model: 'OpenAI', openai: true})
+      runCommand.mockRejectedValue(new Error('command dispatch failed'))
+      const command = new CompletionCommand(userId, workflowId, storeWithImporter)
+      await command.run(mockCell)
+      expect(storeWithImporter.importer.createNodes).toHaveBeenCalledWith('Error: command dispatch failed', mockCell.id)
+    })
+
+    it('does not throw to caller when runCommand rejects', async () => {
+      getIntegrationSettings.mockResolvedValue({model: 'OpenAI', openai: true})
+      runCommand.mockRejectedValue(new Error('command dispatch failed'))
+      const command = new CompletionCommand(userId, workflowId, storeWithImporter)
+      await expect(command.run(mockCell)).resolves.toBeUndefined()
+    })
   })
 
   it('should use CUSTOM_LLM_CHAT_QUERY_TYPE when model is default and custom_llm is enabled', async () => {

@@ -16,16 +16,19 @@ jest.mock('./mcp/MCPClientManager', () => ({
 jest.mock('./utils/langchain/getLLM', () => ({
   getIntegrationSettings: jest.fn(),
   determineLLMType: jest.fn().mockReturnValue('OpenAI'),
-  getLLM: jest.fn().mockReturnValue({llm: {}, chunkSize: 4096}),
+  getLLM: jest.fn().mockReturnValue({llm: {bindTools: jest.fn()}, chunkSize: 4096}),
 }))
 
 jest.mock('./utils/langchain/getAgentExecutor', () => ({
   createSimpleAgentExecutor: jest.fn(),
   createMCPAgentExecutor: jest.fn(),
+  assertToolCallingCapability: jest.fn(),
 }))
 
 jest.mock('./mcp/MCPToolAdapter', () => ({
-  MCPToolAdapter: jest.fn().mockImplementation(({toolDescriptor}) => ({name: toolDescriptor.name})),
+  MCPToolAdapter: jest.fn().mockImplementation(({toolDescriptor}) => ({
+    name: toolDescriptor.name,
+  })),
 }))
 
 const userId = 'userId'
@@ -56,11 +59,18 @@ const stdioAliasConfig = {
 }
 
 const mockToolDescriptors = [
-  {name: 'read_file', description: 'read a file', inputSchema: {type: 'object', properties: {path: {type: 'string'}}}},
+  {
+    name: 'read_file',
+    description: 'read a file',
+    inputSchema: {type: 'object', properties: {path: {type: 'string'}}},
+  },
   {
     name: 'write_file',
     description: 'write a file',
-    inputSchema: {type: 'object', properties: {path: {type: 'string'}, content: {type: 'string'}}},
+    inputSchema: {
+      type: 'object',
+      properties: {path: {type: 'string'}, content: {type: 'string'}},
+    },
   },
 ]
 
@@ -71,14 +81,24 @@ describe('MCPCommand', () => {
     jest.clearAllMocks()
     mockStore = makeStore()
     mockStore.importer.createNodes = jest.fn()
-    MCPClientManager.callTool.mockResolvedValue({isError: false, content: 'MCP result text'})
-    getLLMModule.getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'key'}})
+    MCPClientManager.callTool.mockResolvedValue({
+      isError: false,
+      content: 'MCP result text',
+    })
+    getLLMModule.getIntegrationSettings.mockResolvedValue({
+      openai: {apiKey: 'key'},
+    })
+    getAgentExecutorModule.assertToolCallingCapability.mockImplementation(() => {})
   })
 
   const setupAgentMocks = agentOutput => {
-    const mockClient = {listTools: jest.fn().mockResolvedValue({tools: mockToolDescriptors})}
+    const mockClient = {
+      listTools: jest.fn().mockResolvedValue({tools: mockToolDescriptors}),
+    }
     MCPClientManager.withClient.mockImplementation(async (_config, fn) => fn(mockClient))
-    const executor = {invoke: jest.fn().mockResolvedValue({output: agentOutput})}
+    const executor = {
+      invoke: jest.fn().mockResolvedValue({output: agentOutput}),
+    }
     getAgentExecutorModule.createMCPAgentExecutor.mockReturnValue(executor)
     return {mockClient, executor}
   }
@@ -144,12 +164,20 @@ describe('MCPCommand', () => {
       await cmd.run(node, undefined, '/coder1 test')
 
       expect(MCPClientManager.callTool).toHaveBeenCalledWith(
-        expect.objectContaining({transport: 'stdio', command: 'claude', args: ['mcp', 'serve'], env: {API_KEY: 'x'}}),
+        expect.objectContaining({
+          transport: 'stdio',
+          command: 'claude',
+          args: ['mcp', 'serve'],
+          env: {API_KEY: 'x'},
+        }),
       )
     })
 
     it('passes timeoutMs from aliasConfig to callTool', async () => {
-      const cmd = new MCPCommand(userId, workflowId, mockStore, {...httpAliasConfig, timeoutMs: 300_000})
+      const cmd = new MCPCommand(userId, workflowId, mockStore, {
+        ...httpAliasConfig,
+        timeoutMs: 300_000,
+      })
       await cmd.run(node, undefined, '/coder1 test')
 
       expect(MCPClientManager.callTool).toHaveBeenCalledWith(expect.objectContaining({timeoutMs: 300_000}))
@@ -192,14 +220,19 @@ describe('MCPCommand', () => {
         await cmd.run(node, undefined, '/coder1 line1\nline2\nline3')
 
         expect(MCPClientManager.callTool).toHaveBeenCalledWith(
-          expect.objectContaining({toolArguments: {prompt: 'line1\nline2\nline3'}}),
+          expect.objectContaining({
+            toolArguments: {prompt: 'line1\nline2\nline3'},
+          }),
         )
       })
     })
 
     describe('toolArguments mapping', () => {
       it('uses custom toolInputField as the argument key', async () => {
-        const cmd = new MCPCommand(userId, workflowId, mockStore, {...httpAliasConfig, toolInputField: 'query'})
+        const cmd = new MCPCommand(userId, workflowId, mockStore, {
+          ...httpAliasConfig,
+          toolInputField: 'query',
+        })
         await cmd.run(node, undefined, '/coder1 search term')
 
         expect(MCPClientManager.callTool).toHaveBeenCalledWith(
@@ -208,11 +241,16 @@ describe('MCPCommand', () => {
       })
 
       it('merges toolStaticArgs with the dynamic prompt field', async () => {
-        const cmd = new MCPCommand(userId, workflowId, mockStore, {...httpAliasConfig, toolStaticArgs: {lang: 'en'}})
+        const cmd = new MCPCommand(userId, workflowId, mockStore, {
+          ...httpAliasConfig,
+          toolStaticArgs: {lang: 'en'},
+        })
         await cmd.run(node, undefined, '/coder1 hello')
 
         expect(MCPClientManager.callTool).toHaveBeenCalledWith(
-          expect.objectContaining({toolArguments: {prompt: 'hello', lang: 'en'}}),
+          expect.objectContaining({
+            toolArguments: {prompt: 'hello', lang: 'en'},
+          }),
         )
       })
     })
@@ -230,27 +268,47 @@ describe('MCPCommand', () => {
         ['null', null],
         ['undefined', undefined],
       ])('creates fallback node when content is %s', async (_label, content) => {
-        MCPClientManager.callTool.mockResolvedValue({isError: false, content})
+        MCPClientManager.callTool.mockResolvedValue({
+          isError: false,
+          content,
+        })
         const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
         await cmd.run(node, undefined, '/coder1 test')
 
         expect(mockStore.importer.createNodes).toHaveBeenCalledWith('(empty MCP response)', 'node')
       })
 
-      it('throws when the tool reports isError', async () => {
-        MCPClientManager.callTool.mockResolvedValue({isError: true, content: 'tool error detail'})
+      it('creates error node when the tool reports isError', async () => {
+        MCPClientManager.callTool.mockResolvedValue({
+          isError: true,
+          content: 'tool error detail',
+        })
         const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
 
-        await expect(cmd.run(node, undefined, '/coder1 test')).rejects.toThrow('tool error detail')
-        expect(mockStore.importer.createNodes).not.toHaveBeenCalled()
+        await cmd.run(node, undefined, '/coder1 test')
+        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: tool error detail', 'node')
       })
 
-      it('throws when callTool rejects', async () => {
+      it('does not throw to caller when the tool reports isError', async () => {
+        MCPClientManager.callTool.mockResolvedValue({isError: true, content: 'fail'})
+        const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
+
+        await expect(cmd.run(node, undefined, '/coder1 test')).resolves.toBeUndefined()
+      })
+
+      it('creates error node when callTool rejects', async () => {
         MCPClientManager.callTool.mockRejectedValue(new Error('connection refused'))
         const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
 
-        await expect(cmd.run(node, undefined, '/coder1 test')).rejects.toThrow('connection refused')
-        expect(mockStore.importer.createNodes).not.toHaveBeenCalled()
+        await cmd.run(node, undefined, '/coder1 test')
+        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: connection refused', 'node')
+      })
+
+      it('does not throw to caller when callTool rejects', async () => {
+        MCPClientManager.callTool.mockRejectedValue(new Error('connection refused'))
+        const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
+
+        await expect(cmd.run(node, undefined, '/coder1 test')).resolves.toBeUndefined()
       })
     })
   })
@@ -289,7 +347,10 @@ describe('MCPCommand', () => {
 
     it('forwards timeoutMs to every MCPToolAdapter instance', async () => {
       setupAgentMocks('done')
-      const cmd = new MCPCommand(userId, workflowId, mockStore, {...autoConfig, timeoutMs: 900_000})
+      const cmd = new MCPCommand(userId, workflowId, mockStore, {
+        ...autoConfig,
+        timeoutMs: 900_000,
+      })
       await cmd.run(node, undefined, '/coder1 task')
 
       expect(MCPToolAdapter).toHaveBeenCalledWith(expect.objectContaining({timeoutMs: 900_000}))
@@ -333,12 +394,48 @@ describe('MCPCommand', () => {
         expect(mockStore.importer.createNodes).toHaveBeenCalledWith('(empty MCP response)', 'node')
       })
 
-      it('throws when the agent run throws', async () => {
+      it('creates error node when the agent run throws', async () => {
         MCPClientManager.withClient.mockRejectedValue(new Error('server unreachable'))
         const cmd = new MCPCommand(userId, workflowId, mockStore, autoConfig)
 
-        await expect(cmd.run(node, undefined, '/coder1 build')).rejects.toThrow('server unreachable')
-        expect(mockStore.importer.createNodes).not.toHaveBeenCalled()
+        await cmd.run(node, undefined, '/coder1 build')
+        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: server unreachable', 'node')
+      })
+
+      it('does not throw to caller when the agent run throws', async () => {
+        MCPClientManager.withClient.mockRejectedValue(new Error('server unreachable'))
+        const cmd = new MCPCommand(userId, workflowId, mockStore, autoConfig)
+
+        await expect(cmd.run(node, undefined, '/coder1 build')).resolves.toBeUndefined()
+      })
+    })
+
+    describe('adapter selection by LLM capability', () => {
+      it('uses MCPToolAdapter when LLM has bindTools', async () => {
+        getLLMModule.getLLM.mockReturnValue({llm: {bindTools: jest.fn()}, chunkSize: 4096})
+        setupAgentMocks('ok')
+        const cmd = new MCPCommand(userId, workflowId, mockStore, autoConfig)
+        await cmd.run(node, undefined, '/coder1 task')
+
+        expect(MCPToolAdapter).toHaveBeenCalledTimes(mockToolDescriptors.length)
+        expect(MCPClientManager.withClient).toHaveBeenCalledTimes(1)
+      })
+
+      it.each([
+        ['bindTools is absent', {}],
+        ['bindTools is a string', {bindTools: 'string'}],
+        ['bindTools is null', {bindTools: null}],
+      ])('%s — throws before opening MCP connection', async (_label, llmShape) => {
+        getLLMModule.getLLM.mockReturnValue({llm: llmShape, chunkSize: 4096})
+        getAgentExecutorModule.assertToolCallingCapability.mockImplementation(() => {
+          throw new Error('Agent mode requires an LLM with tool-calling support.')
+        })
+        setupAgentMocks('ok')
+        const cmd = new MCPCommand(userId, workflowId, mockStore, autoConfig)
+        await cmd.run(node, undefined, '/coder1 task')
+
+        expect(MCPClientManager.withClient).not.toHaveBeenCalled()
+        expect(mockStore.importer.createNodes).toHaveBeenCalledWith(expect.stringContaining('Error:'), node.id)
       })
     })
   })
@@ -351,12 +448,18 @@ describe('MCPCommand', () => {
     })
 
     it('uses a custom toolInputField name when specified', () => {
-      const c = new MCPCommand(userId, workflowId, mockStore, {...httpAliasConfig, toolInputField: 'query'})
+      const c = new MCPCommand(userId, workflowId, mockStore, {
+        ...httpAliasConfig,
+        toolInputField: 'query',
+      })
       expect(c.buildToolArguments('hello')).toEqual({query: 'hello'})
     })
 
     it('treats empty string toolInputField as absent and falls back to "prompt"', () => {
-      const c = new MCPCommand(userId, workflowId, mockStore, {...httpAliasConfig, toolInputField: ''})
+      const c = new MCPCommand(userId, workflowId, mockStore, {
+        ...httpAliasConfig,
+        toolInputField: '',
+      })
       expect(c.buildToolArguments('hello')).toEqual({prompt: 'hello'})
     })
 
@@ -365,7 +468,11 @@ describe('MCPCommand', () => {
         ...httpAliasConfig,
         toolStaticArgs: {format: 'json', verbose: true},
       })
-      expect(c.buildToolArguments('hello')).toEqual({prompt: 'hello', format: 'json', verbose: true})
+      expect(c.buildToolArguments('hello')).toEqual({
+        prompt: 'hello',
+        format: 'json',
+        verbose: true,
+      })
     })
 
     it('dynamic input field overrides a colliding key in toolStaticArgs', () => {
@@ -380,7 +487,10 @@ describe('MCPCommand', () => {
       ['empty toolStaticArgs', {}],
       ['undefined toolStaticArgs', undefined],
     ])('handles %s without error', (_label, toolStaticArgs) => {
-      const c = new MCPCommand(userId, workflowId, mockStore, {...httpAliasConfig, toolStaticArgs})
+      const c = new MCPCommand(userId, workflowId, mockStore, {
+        ...httpAliasConfig,
+        toolStaticArgs,
+      })
       expect(c.buildToolArguments('hello')).toEqual({prompt: 'hello'})
     })
   })

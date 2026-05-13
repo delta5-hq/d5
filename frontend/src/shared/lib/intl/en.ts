@@ -247,6 +247,7 @@ export default {
       deleteConfirmMessage: 'Are you sure you want to delete "{alias}"? This action cannot be undone.',
       editAction: 'Edit integration',
       deleteAction: 'Delete integration',
+      presets: 'Presets',
       claudePreset: 'Claude CLI Preset',
     },
   },

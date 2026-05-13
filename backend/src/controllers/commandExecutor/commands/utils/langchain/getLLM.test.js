@@ -64,11 +64,45 @@ describe('determineLLMType', () => {
       expect(determineLLMType(undefined, settings)).toBe(Model.YandexGPT)
     })
 
-    it('prefers command --lang over credentials', () => {
+    it('command --lang=ru takes priority over configured credentials', () => {
       const settings = {
         claude: {apiKey: 'claude-key'},
       }
       expect(determineLLMType('/web prompt --lang=ru', settings)).toBe(Model.YandexGPT)
+    })
+
+    it('command --lang=en returns OpenAI when no credentials configured', () => {
+      expect(determineLLMType('/web prompt --lang=en', {})).toBe(Model.OpenAI)
+    })
+
+    it('command --lang=en overrides Yandex-only credentials to return OpenAI', () => {
+      const settings = {yandex: {apiKey: 'yandex-key', folder_id: 'folder-1'}}
+      expect(determineLLMType('/web prompt --lang=en', settings)).toBe(Model.OpenAI)
+    })
+
+    it('command --lang with unknown locale returns OpenAI (any non-ru maps to OpenAI)', () => {
+      const settings = {}
+      expect(determineLLMType('/web prompt --lang=fr', settings)).toBe(Model.OpenAI)
+    })
+
+    it('settings lang takes priority over command --lang when both present (settings lang=ru beats command --lang=en)', () => {
+      const settings = {lang: 'ru'}
+      expect(determineLLMType('/web prompt --lang=en', settings)).toBe(Model.YandexGPT)
+    })
+
+    it('settings lang takes priority over command --lang when both present (settings lang=en beats command --lang=ru)', () => {
+      const settings = {lang: 'en'}
+      expect(determineLLMType('/web prompt --lang=ru', settings)).toBe(Model.OpenAI)
+    })
+
+    it('settings lang sentinel "none" falls through to command --lang=ru', () => {
+      const settings = {lang: 'none'}
+      expect(determineLLMType('/web prompt --lang=ru', settings)).toBe(Model.YandexGPT)
+    })
+
+    it('command with no --lang flag falls through to credential detection', () => {
+      const settings = {claude: {apiKey: 'claude-key'}}
+      expect(determineLLMType('/web prompt', settings)).toBe(Model.Claude)
     })
   })
 
@@ -295,6 +329,77 @@ describe('getEmbeddingsSettings', () => {
       }),
     )
     expect(result.storageType).toBe(EmbStorageType.yandex)
+  })
+
+  describe('Claude and Deepseek embedding cascade', () => {
+    it.each([[Model.Claude], [Model.Deepseek]])('%s with OpenAI also configured — uses OpenAI embeddings', type => {
+      const result = getEmbeddings({
+        type,
+        settings: {
+          openai: {apiKey: 'sk-openai'},
+          claude: {apiKey: 'sk-claude'},
+          deepseek: {apiKey: 'sk-deepseek'},
+        },
+      })
+      expect(result.embeddings.constructor.name).toBe('OpenAIEmbeddings')
+      expect(result.storageType).toBe(EmbStorageType.openai)
+    })
+
+    it.each([[Model.Claude], [Model.Deepseek]])(
+      '%s with Qwen configured (no OpenAI) — cascades to Qwen embeddings',
+      type => {
+        const result = getEmbeddings({
+          type,
+          settings: {qwen: {apiKey: 'sk-qwen'}},
+        })
+        expect(result.embeddings.constructor.name).toBe('OpenAIEmbeddings')
+        expect(result.storageType).toBe(EmbStorageType.qwen)
+      },
+    )
+
+    it.each([[Model.Claude], [Model.Deepseek]])(
+      '%s with CustomLLM configured (no OpenAI/Qwen) — cascades to CustomLLM embeddings',
+      type => {
+        const result = getEmbeddings({
+          type,
+          settings: {custom_llm: {apiRootUrl: 'http://custom.llm'}},
+        })
+        expect(result.storageType).toBe(EmbStorageType.custom_llm)
+      },
+    )
+
+    it.each([[Model.Claude], [Model.Deepseek]])(
+      '%s with Yandex configured (no OpenAI/Qwen/CustomLLM) — cascades to Yandex embeddings',
+      type => {
+        const result = getEmbeddings({
+          type,
+          settings: {yandex: {apiKey: 'yandex-key', folder_id: 'folder-1'}},
+        })
+        expect(result.storageType).toBe(EmbStorageType.yandex)
+      },
+    )
+
+    it.each([[Model.Claude], [Model.Deepseek]])(
+      '%s with no secondary embedding provider — throws descriptive error',
+      type => {
+        expect(() => getEmbeddings({type, settings: {}})).toThrow('Embeddings require a configured provider')
+      },
+    )
+
+    it.each([[Model.Claude], [Model.Deepseek]])(
+      '%s OpenAI takes precedence over Qwen and Yandex when all are configured',
+      type => {
+        const result = getEmbeddings({
+          type,
+          settings: {
+            openai: {apiKey: 'sk-openai'},
+            qwen: {apiKey: 'sk-qwen'},
+            yandex: {apiKey: 'yandex-key', folder_id: 'folder-1'},
+          },
+        })
+        expect(result.storageType).toBe(EmbStorageType.openai)
+      },
+    )
   })
 })
 
