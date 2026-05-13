@@ -124,24 +124,22 @@ export const getIntegrationSettings = async (userId, workflowId = null, store = 
   }
 
   const {merged, workflowDoc} = await IntegrationFacade.findMergedDecryptedWithMetadata(userId, workflowId)
-  if (!merged) {
-    throw new Error('Integration not found')
-  }
+  const settings = merged ?? {}
 
-  if (workflowDoc && merged.model === USER_DEFAULT_MODEL) {
+  if (workflowDoc && settings.model === USER_DEFAULT_MODEL) {
     const workflowProvider = detectConfiguredProvider(workflowDoc)
     if (workflowProvider) {
-      merged.model = workflowProvider
+      settings.model = workflowProvider
     }
   }
 
-  applyEnvFallbacks(merged)
+  applyEnvFallbacks(settings)
 
   if (store) {
-    store._integrationSettingsCache = merged
+    store._integrationSettingsCache = settings
   }
 
-  return merged
+  return settings
 }
 
 export const getLLM = ({type, settings, log}) => {

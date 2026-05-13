@@ -79,11 +79,20 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
       const selectionStale = !autoSelected && current.selectedId !== undefined && !(current.selectedId in merged.nodes)
       const anchorStale = current.anchorId !== undefined && !(current.anchorId in merged.nodes)
       const cleanedIds = autoSelected ? new Set<string>() : retainExistingIds(current.selectedIds, merged.nodes)
+
+      const mergedNodes =
+        autoSelected !== undefined && merged.nodes[node.id]
+          ? { ...merged.nodes, [node.id]: { ...merged.nodes[node.id], collapsed: false } }
+          : merged.nodes
+      const nextExpandedIds =
+        autoSelected !== undefined ? new Set([...current.expandedIds, node.id]) : current.expandedIds
+
       store.setState({
-        nodes: merged.nodes,
+        nodes: mergedNodes,
         edges: merged.edges ?? {},
         root: merged.root,
         isDirty: true,
+        expandedIds: nextExpandedIds,
         ...(autoSelected !== undefined
           ? { selectedId: autoSelected }
           : selectionStale

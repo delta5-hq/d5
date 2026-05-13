@@ -1156,5 +1156,45 @@ describe('bindExecuteAction', () => {
 
       expect(store.getState().selectedId).toBeUndefined()
     })
+
+    it('expands the executed node and sets collapsed:false when a single new child is produced', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({
+        nodesChanged: { child1: { id: 'child1', parent: 'n1' } },
+      })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: {
+          n1: { id: 'n1', children: ['child1'] } as NodeData,
+          child1: { id: 'child1', parent: 'n1', children: [] } as NodeData,
+        },
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: N1, root: 'n1', expandedIds: new Set<string>() })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().expandedIds.has('n1')).toBe(true)
+      expect(store.getState().nodes['n1']?.collapsed).toBe(false)
+    })
+
+    it('does not expand the executed node when no new child is auto-selected', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: N1,
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: N1, root: 'n1', expandedIds: new Set<string>() })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().expandedIds.has('n1')).toBe(false)
+    })
   })
 })

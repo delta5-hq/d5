@@ -1,6 +1,6 @@
 import { test, expect, type Browser } from '@playwright/test'
 
-import { establishWorkerSession, MAX_AUTH_RETRIES } from './parallel-user-test'
+import { establishWorkerSession, exponentialDelay, MAX_AUTH_RETRIES, AUTH_RETRY_BASE_DELAY_MS, AUTH_MAX_DELAY_MS } from './worker-session'
 
 const CREDENTIALS = { usernameOrEmail: 'worker@test.com', password: 'secret' }
 const SESSION_PATH = '/tmp/pw-unit-test-session.json'
@@ -125,12 +125,12 @@ test.describe('establishWorkerSession', () => {
     })
   })
 
-  test.describe('two consecutive failures then success (boundary at MAX_AUTH_RETRIES - 1)', () => {
+  test.describe('two consecutive failures then success', () => {
     test('retries twice and resolves on the third attempt', async () => {
       const { browser, records } = buildMockBrowser([{ login: 500 }, { login: 503 }, { login: 200 }])
       await establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH)
-      expect(records).toHaveLength(MAX_AUTH_RETRIES)
-      expect(records[MAX_AUTH_RETRIES - 1].storageStateCalled).toBe(true)
+      expect(records).toHaveLength(3)
+      expect(records[2].storageStateCalled).toBe(true)
     })
 
     test('closes every failed context before the next attempt', async () => {
@@ -144,11 +144,13 @@ test.describe('establishWorkerSession', () => {
   })
 
   test.describe('all retries exhausted', () => {
+    const noDelay = () => 0
+
     test(`throws after ${MAX_AUTH_RETRIES} consecutive failures`, async () => {
       const failAll = Array.from({ length: MAX_AUTH_RETRIES }, () => ({ login: 401 }))
       const { browser } = buildMockBrowser(failAll)
       await expect(
-        establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH),
+        establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, noDelay),
       ).rejects.toThrow()
     })
 
@@ -156,7 +158,7 @@ test.describe('establishWorkerSession', () => {
       const failAll = Array.from({ length: MAX_AUTH_RETRIES }, () => ({ login: 401 }))
       const { browser } = buildMockBrowser(failAll)
       await expect(
-        establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH),
+        establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, noDelay),
       ).rejects.toThrow(new RegExp(`${MAX_AUTH_RETRIES} attempts`))
     })
 
@@ -164,7 +166,7 @@ test.describe('establishWorkerSession', () => {
       const failAll = Array.from({ length: MAX_AUTH_RETRIES }, () => ({ login: 401 }))
       const { browser } = buildMockBrowser(failAll)
       await expect(
-        establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH),
+        establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, noDelay),
       ).rejects.toThrow(/login/)
     })
 
@@ -172,7 +174,7 @@ test.describe('establishWorkerSession', () => {
       const failAll = Array.from({ length: MAX_AUTH_RETRIES }, () => ({ login: 200, refresh: 500 }))
       const { browser } = buildMockBrowser(failAll)
       await expect(
-        establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH),
+        establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, noDelay),
       ).rejects.toThrow(/refresh/)
     })
 
@@ -180,7 +182,7 @@ test.describe('establishWorkerSession', () => {
       const failAll = Array.from({ length: MAX_AUTH_RETRIES }, () => ({ login: 401 }))
       const { browser, records } = buildMockBrowser(failAll)
       await expect(
-        establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH),
+        establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, noDelay),
       ).rejects.toThrow()
       expect(records).toHaveLength(MAX_AUTH_RETRIES)
     })
@@ -189,7 +191,7 @@ test.describe('establishWorkerSession', () => {
       const failAll = Array.from({ length: MAX_AUTH_RETRIES }, () => ({ login: 401 }))
       const { browser, records } = buildMockBrowser(failAll)
       await expect(
-        establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH),
+        establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, noDelay),
       ).rejects.toThrow()
       for (const record of records) {
         expect(record.closeCalled).toBe(true)
@@ -200,7 +202,7 @@ test.describe('establishWorkerSession', () => {
       const failAll = Array.from({ length: MAX_AUTH_RETRIES }, () => ({ login: 401 }))
       const { browser, records } = buildMockBrowser(failAll)
       await expect(
-        establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH),
+        establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, noDelay),
       ).rejects.toThrow()
       for (const record of records) {
         expect(record.storageStateCalled).toBe(false)
@@ -231,3 +233,189 @@ test.describe('establishWorkerSession', () => {
     })
   })
 })
+
+test.describe('exponentialDelay', () => {
+  test.describe('return type', () => {
+    test('returns a number', () => {
+      expect(typeof exponentialDelay(1)).toBe('number')
+    })
+
+    test('never returns a negative value', () => {
+      for (let attempt = 1; attempt <= 10; attempt++) {
+        expect(exponentialDelay(attempt)).toBeGreaterThanOrEqual(0)
+      }
+    })
+  })
+
+  test.describe('cap contract', () => {
+    test('never exceeds AUTH_MAX_DELAY_MS', () => {
+      for (let attempt = 1; attempt <= 20; attempt++) {
+        expect(exponentialDelay(attempt)).toBeLessThanOrEqual(AUTH_MAX_DELAY_MS)
+      }
+    })
+
+    test('returns exactly AUTH_MAX_DELAY_MS once base alone exceeds the cap', () => {
+      for (let run = 0; run < 20; run++) {
+        expect(exponentialDelay(6)).toBe(AUTH_MAX_DELAY_MS)
+      }
+    })
+
+    test('large attempt numbers are also capped at AUTH_MAX_DELAY_MS', () => {
+      expect(exponentialDelay(50)).toBe(AUTH_MAX_DELAY_MS)
+      expect(exponentialDelay(100)).toBe(AUTH_MAX_DELAY_MS)
+    })
+  })
+
+  test.describe('base contract', () => {
+    test('at attempt 1, result is at least AUTH_RETRY_BASE_DELAY_MS (jitter only adds)', () => {
+      for (let run = 0; run < 20; run++) {
+        expect(exponentialDelay(1)).toBeGreaterThanOrEqual(AUTH_RETRY_BASE_DELAY_MS)
+      }
+    })
+
+    test('at attempt 1, result is less than 2 * AUTH_RETRY_BASE_DELAY_MS (base + max jitter)', () => {
+      for (let run = 0; run < 20; run++) {
+        expect(exponentialDelay(1)).toBeLessThan(2 * AUTH_RETRY_BASE_DELAY_MS)
+      }
+    })
+
+    test('attempt 2 base exceeds attempt 1 maximum (exponential growth separates ranges)', () => {
+      const maxAttempt1 = 2 * AUTH_RETRY_BASE_DELAY_MS - 1
+      for (let run = 0; run < 20; run++) {
+        expect(exponentialDelay(2)).toBeGreaterThan(maxAttempt1)
+      }
+    })
+  })
+})
+
+test.describe('retryDelay invocation contract', () => {
+  function makeSpyDelay(): { fn: (attempt: number) => number; calls: number[] } {
+    const calls: number[] = []
+    return { fn: (attempt: number) => { calls.push(attempt); return 0 }, calls }
+  }
+
+  test('not called when first attempt succeeds', async () => {
+    const { browser } = buildMockBrowser([{ login: 200 }])
+    const { fn, calls } = makeSpyDelay()
+    await establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, fn)
+    expect(calls).toHaveLength(0)
+  })
+
+  test('called once between the first failure and the second attempt', async () => {
+    const { browser } = buildMockBrowser([{ login: 401 }, { login: 200 }])
+    const { fn, calls } = makeSpyDelay()
+    await establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, fn)
+    expect(calls).toHaveLength(1)
+  })
+
+  test('called with attempt number 1 after the first failure', async () => {
+    const { browser } = buildMockBrowser([{ login: 401 }, { login: 200 }])
+    const { fn, calls } = makeSpyDelay()
+    await establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, fn)
+    expect(calls[0]).toBe(1)
+  })
+
+  test('called with monotonically increasing attempt numbers across retries', async () => {
+    const { browser } = buildMockBrowser([{ login: 401 }, { login: 401 }, { login: 401 }, { login: 200 }])
+    const { fn, calls } = makeSpyDelay()
+    await establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, fn)
+    expect(calls).toEqual([1, 2, 3])
+  })
+
+  test('not called after the final exhausted attempt (no delay before throwing)', async () => {
+    const failAll = Array.from({ length: MAX_AUTH_RETRIES }, () => ({ login: 401 }))
+    const { browser } = buildMockBrowser(failAll)
+    const { fn, calls } = makeSpyDelay()
+    await expect(
+      establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, fn),
+    ).rejects.toThrow()
+    expect(calls).toHaveLength(MAX_AUTH_RETRIES - 1)
+  })
+
+  test('called exactly N-1 times when success arrives at attempt N', async () => {
+    const n = 4
+    const specs = [...Array.from({ length: n - 1 }, () => ({ login: 503 })), { login: 200 }]
+    const { browser } = buildMockBrowser(specs)
+    const { fn, calls } = makeSpyDelay()
+    await establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, fn)
+    expect(calls).toHaveLength(n - 1)
+  })
+})
+
+test.describe('success at the last allowed attempt', () => {
+  const noDelay = () => 0
+
+  test(`resolves when attempt ${MAX_AUTH_RETRIES} succeeds after ${MAX_AUTH_RETRIES - 1} failures`, async () => {
+    const specs = [
+      ...Array.from({ length: MAX_AUTH_RETRIES - 1 }, () => ({ login: 503 })),
+      { login: 200 },
+    ]
+    const { browser, records } = buildMockBrowser(specs)
+    await establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, noDelay)
+    expect(records).toHaveLength(MAX_AUTH_RETRIES)
+    expect(records[MAX_AUTH_RETRIES - 1].storageStateCalled).toBe(true)
+  })
+
+  test('writes storage state only for the final successful attempt', async () => {
+    const specs = [
+      ...Array.from({ length: MAX_AUTH_RETRIES - 1 }, () => ({ login: 503 })),
+      { login: 200 },
+    ]
+    const { browser, records } = buildMockBrowser(specs)
+    await establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, noDelay)
+    for (let i = 0; i < MAX_AUTH_RETRIES - 1; i++) {
+      expect(records[i].storageStateCalled).toBe(false)
+    }
+    expect(records[MAX_AUTH_RETRIES - 1].storageStateCalled).toBe(true)
+  })
+
+  test('closes all prior contexts before writing storage state on the last attempt', async () => {
+    const specs = [
+      ...Array.from({ length: MAX_AUTH_RETRIES - 1 }, () => ({ login: 503 })),
+      { login: 200 },
+    ]
+    const { browser, records } = buildMockBrowser(specs)
+    await establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, noDelay)
+    for (let i = 0; i < MAX_AUTH_RETRIES - 1; i++) {
+      expect(records[i].closeCalled).toBe(true)
+    }
+  })
+})
+
+test.describe('mixed-phase failure sequences', () => {
+  const noDelay = () => 0
+
+  test('recovers when login fails on one attempt and refresh fails on the next', async () => {
+    const { browser, records } = buildMockBrowser([{ login: 401 }, { login: 200, refresh: 503 }, { login: 200 }])
+    await establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, noDelay)
+    expect(records).toHaveLength(3)
+    expect(records[2].storageStateCalled).toBe(true)
+  })
+
+  test('does not write storage state for login-failed or refresh-failed attempts', async () => {
+    const { browser, records } = buildMockBrowser([{ login: 401 }, { login: 200, refresh: 503 }, { login: 200 }])
+    await establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, noDelay)
+    expect(records[0].storageStateCalled).toBe(false)
+    expect(records[1].storageStateCalled).toBe(false)
+    expect(records[2].storageStateCalled).toBe(true)
+  })
+
+  test('error message phase reflects the last failing step when all attempts exhausted', async () => {
+    const failAll = [
+      ...Array.from({ length: MAX_AUTH_RETRIES - 1 }, () => ({ login: 401 })),
+      { login: 200, refresh: 500 },
+    ]
+    const { browser } = buildMockBrowser(failAll)
+    await expect(
+      establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, noDelay),
+    ).rejects.toThrow(/refresh/)
+  })
+
+  test('all contexts closed regardless of which phase failed', async () => {
+    const { browser, records } = buildMockBrowser([{ login: 401 }, { login: 200, refresh: 503 }, { login: 200 }])
+    await establishWorkerSession(browser, undefined, CREDENTIALS, SESSION_PATH, 0, noDelay)
+    expect(records[0].closeCalled).toBe(true)
+    expect(records[1].closeCalled).toBe(true)
+  })
+})
+

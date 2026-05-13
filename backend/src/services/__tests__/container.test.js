@@ -300,4 +300,180 @@ describe('ServiceContainer', () => {
       })
     })
   })
+
+  describe('E2E mode (isE2EMode: true) — noop services', () => {
+    let e2eContainer
+
+    beforeEach(() => {
+      e2eContainer = new ServiceContainer({
+        ...mockConfig,
+        mode: {isE2EMode: true},
+        openai: {apiKey: 'sys-openai-key', defaultModel: 'gpt-4'},
+        claude: {
+          baseUrl: 'https://api.anthropic.com/v1',
+          apiKey: 'sys-claude-key',
+          version: '2023-06-01',
+          defaultModel: 'claude-3-sonnet-20240229',
+        },
+        yandex: {
+          baseUrl: 'https://llm.api.cloud.yandex.net',
+          apiKey: 'sys-yandex-key',
+          folderId: 'sys-folder-id',
+          defaultModel: 'yandexgpt/latest',
+        },
+      })
+    })
+
+    describe('service selection', () => {
+      it('claudeService does not call fetch when E2E mode is active', async () => {
+        const svc = e2eContainer.get('claudeService')
+        await svc.sendMessages({model: 'claude-3-sonnet', messages: [{role: 'user', content: 'hi'}], max_tokens: 10})
+        expect(mockFetch).not.toHaveBeenCalled()
+      })
+
+      it('openaiService chatCompletion does not call fetch when E2E mode is active', async () => {
+        const svc = e2eContainer.get('openaiService')
+        await svc.chatCompletion([{role: 'user', content: 'hi'}], 'gpt-4')
+        expect(mockFetch).not.toHaveBeenCalled()
+      })
+
+      it('yandexService completion does not call fetch when E2E mode is active', async () => {
+        const svc = e2eContainer.get('yandexService')
+        await svc.completion({modelUri: 'gpt://folder/yandexgpt', messages: [{role: 'user', text: 'hi'}]})
+        expect(mockFetch).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('NoopClaudeService response contract', () => {
+      let claudeSvc
+
+      beforeEach(() => {
+        claudeSvc = e2eContainer.get('claudeService')
+      })
+
+      it('returns the Anthropic message envelope shape', async () => {
+        const result = await claudeSvc.sendMessages({
+          model: 'claude-3-sonnet',
+          messages: [{role: 'user', content: 'hi'}],
+          max_tokens: 10,
+        })
+        expect(result).toMatchObject({
+          type: 'message',
+          role: 'assistant',
+          content: expect.arrayContaining([expect.objectContaining({type: 'text'})]),
+          stop_reason: 'end_turn',
+        })
+      })
+
+      it('returns fixed text content matching the Go backend noop response', async () => {
+        const result = await claudeSvc.sendMessages({
+          model: 'claude-3-sonnet',
+          messages: [{role: 'user', content: 'hi'}],
+          max_tokens: 10,
+        })
+        expect(result.content[0].text).toBe('Mock response from Claude')
+      })
+
+      it('echoes the requested model back in the response', async () => {
+        const result = await claudeSvc.sendMessages({
+          model: 'claude-3-haiku',
+          messages: [{role: 'user', content: 'hi'}],
+          max_tokens: 10,
+        })
+        expect(result.model).toBe('claude-3-haiku')
+      })
+
+      it('falls back to configured defaultModel when no model is provided', async () => {
+        const result = await claudeSvc.sendMessages({
+          messages: [{role: 'user', content: 'hi'}],
+          max_tokens: 10,
+        })
+        expect(result.model).toBe('claude-3-sonnet-20240229')
+      })
+
+      it('does not require an apiKey in the request body', async () => {
+        await expect(
+          claudeSvc.sendMessages({model: 'claude-3-sonnet', messages: [{role: 'user', content: 'hi'}], max_tokens: 10}),
+        ).resolves.toBeDefined()
+      })
+    })
+
+    describe('NoopOpenAIService response contract', () => {
+      let openaiSvc
+
+      beforeEach(() => {
+        openaiSvc = e2eContainer.get('openaiService')
+      })
+
+      it('returns the OpenAI chat completion envelope shape', async () => {
+        const result = await openaiSvc.chatCompletion([{role: 'user', content: 'hi'}], 'gpt-4')
+        expect(result).toMatchObject({
+          object: 'chat.completion',
+          choices: expect.arrayContaining([
+            expect.objectContaining({message: expect.objectContaining({role: 'assistant'})}),
+          ]),
+        })
+      })
+
+      it('returns fixed text content from the first choice', async () => {
+        const result = await openaiSvc.chatCompletion([{role: 'user', content: 'hi'}], 'gpt-4')
+        expect(result.choices[0].message.content).toBe('Mock OpenAI response')
+      })
+
+      it('echoes the requested model in the response', async () => {
+        const result = await openaiSvc.chatCompletion([{role: 'user', content: 'hi'}], 'gpt-3.5-turbo')
+        expect(result.model).toBe('gpt-3.5-turbo')
+      })
+
+      it('returns embeddings as a list with one entry per input element', async () => {
+        const result = await openaiSvc.embeddings(['hello', 'world'], 'text-embedding-ada-002')
+        expect(result.object).toBe('list')
+        expect(result.data).toHaveLength(2)
+      })
+
+      it('embeddings data entries have an embedding array', async () => {
+        const result = await openaiSvc.embeddings(['hello'], 'text-embedding-ada-002')
+        expect(Array.isArray(result.data[0].embedding)).toBe(true)
+        expect(result.data[0].embedding.length).toBeGreaterThan(0)
+      })
+    })
+
+    describe('NoopYandexService response contract', () => {
+      let yandexSvc
+
+      beforeEach(() => {
+        yandexSvc = e2eContainer.get('yandexService')
+      })
+
+      it('returns the YandexGPT completion envelope shape', async () => {
+        const result = await yandexSvc.completion({
+          modelUri: 'gpt://folder/yandexgpt',
+          messages: [{role: 'user', text: 'hi'}],
+        })
+        expect(result).toMatchObject({
+          result: expect.objectContaining({
+            alternatives: expect.arrayContaining([
+              expect.objectContaining({message: expect.objectContaining({role: 'assistant'})}),
+            ]),
+          }),
+        })
+      })
+
+      it('returns fixed text matching the Go backend noop response', async () => {
+        const result = await yandexSvc.completion({
+          modelUri: 'gpt://folder/yandexgpt',
+          messages: [{role: 'user', text: 'hi'}],
+        })
+        expect(result.result.alternatives[0].message.text).toBe('Mock response from Yandex')
+      })
+
+      it('does not call fetch', async () => {
+        await yandexSvc.completion({
+          modelUri: 'gpt://folder/yandexgpt',
+          messages: [{role: 'user', text: 'hi'}],
+        })
+        expect(mockFetch).not.toHaveBeenCalled()
+      })
+    })
+  })
 })

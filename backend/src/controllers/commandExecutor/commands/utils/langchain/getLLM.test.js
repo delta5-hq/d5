@@ -408,10 +408,12 @@ describe('getIntegrationSettings', () => {
     jest.clearAllMocks()
   })
 
-  it('throws when integration not found', async () => {
+  it('returns env-fallback settings when no DB record exists', async () => {
     IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged: null, workflowDoc: null})
 
-    await expect(getIntegrationSettings('user-1')).rejects.toThrow('Integration not found')
+    const result = await getIntegrationSettings('user-1')
+    expect(result).toBeDefined()
+    expect(typeof result).toBe('object')
   })
 
   it('returns merged settings when workflowId is null', async () => {

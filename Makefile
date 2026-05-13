@@ -279,6 +279,7 @@ start-backend-e2e:
 	@PORT=$(E2E_NODEJS_BACKEND_PORT) \
 		MONGO_URI='$(MONGO_E2E_URI)' \
 		JWT_SECRET='$(JWT_SECRET)' \
+		MOCK_EXTERNAL_SERVICES=true \
 		nohup node backend/build/index.js > backend/backend-e2e.log 2>&1 & \
 		echo $$! > backend/backend-e2e.pid
 	@sleep 3

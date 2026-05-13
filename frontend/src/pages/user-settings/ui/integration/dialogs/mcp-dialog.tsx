@@ -100,8 +100,13 @@ const MCPDialog: React.FC<Props> = ({
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => {
       const { message } = err
-      if (message) toast.error(message)
-      else toast.error(<FormattedMessage id="errorServer" />)
+      if (message && /already exists in field/i.test(message)) {
+        toast.error('Alias already in use by another integration')
+      } else if (message) {
+        toast.error(message)
+      } else {
+        toast.error(<FormattedMessage id="errorServer" />)
+      }
     },
   })
 
