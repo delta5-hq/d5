@@ -10,8 +10,9 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o service .
+# Build binaries (main service + cmd/* helpers)
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o service . \
+ && CGO_ENABLED=0 GOOS=linux go build -o seed-users ./cmd/seed-users
 
 # Runtime stage - minimal image
 FROM alpine:3.21

@@ -164,7 +164,7 @@ jobs:
       - run: cd backend-v2 && go mod tidy
       - run: cd backend-v2 && go build -ldflags="-s -w" -o backend-v2 .
       - run: cd backend-v2 && chmod +x backend-v2
-      - run: cd backend-v2 && go build -o seed-users ./cmd/seed-users/main.go
+      - run: cd backend-v2 && go build -o seed-users ./cmd/seed-users
       - uses: actions/upload-artifact@v4
         with:
           name: backend-v2-binaries
