@@ -1,16 +1,23 @@
-// Suffixes are emitted into node titles which are bilingual (RU/EN). To avoid
-// per-locale forks, suffix grammar uses **symbols only** (no translatable words).
-// Rich breakdown lives in structured cell metadata; the frontend i18n layer
-// renders prose labels separately.
-//
-// Strip pattern is broad on purpose — purges legacy English suffixes
-// ("best of N", "first-survivor", "refined", "refine failed") and bare symbol
-// suffixes left in user-data titles by previously-deleted mechanisms so
-// existing workflows render cleanly when re-executed.
+// Suffix grammar is symbols-only (no translatable words) so titles stay locale-neutral.
+// Rich breakdown lives in cell metadata; the frontend i18n layer renders prose labels.
+
+// Purges legacy English suffixes left in persisted titles by the now-deleted reliability
+// subsystem so existing workflows render cleanly on re-execution.
 const LEGACY_SUFFIX_PATTERN =
   /\s*\[[✓✗⚠]\s+(\d+\/\d+\s+(best\s+of\s+\d+(\s+·\s+[\d.]+)?|first-survivor[^\]]*|passed)|refined|refine\s+failed)\]\s*$/i
 
-const SYMBOL_SUFFIX_PATTERN = /\s*\[[✓✗⚠][^\]]*\]\s*$/
+// Longest/most-specific entries first to minimise backtracking on ✓-prefixed alternates.
+const ENGINE_SUFFIX_SHAPES = [
+  '✓ retry-\\d+',
+  '✓ \\d+/\\d+',
+  '✓',
+  '✗ \\d+ attempts',
+  '✗ \\d+/\\d+',
+  '⚠ no judge signal',
+  '⚠ fallback: 0/\\d+ passed; chose fork-\\d+',
+]
+
+const ENGINE_SUFFIX_PATTERN = new RegExp(`\\s*\\[(?:${ENGINE_SUFFIX_SHAPES.join('|')})\\]\\s*$`)
 
 const MAX_TITLE_LEN = 80
 
@@ -23,29 +30,24 @@ const clamp = (title, suffix) => {
 
 export const stripReliabilitySuffix = title => {
   if (!title) return ''
-  return title.replace(LEGACY_SUFFIX_PATTERN, '').replace(SYMBOL_SUFFIX_PATTERN, '')
+  return title.replace(LEGACY_SUFFIX_PATTERN, '').replace(ENGINE_SUFFIX_PATTERN, '')
 }
 
-/**
- * Append a validate-result suffix to a node title.
- * @param {string} title
- * @param {{passed: boolean, retryCount: number}} opts
- */
 export const appendValidateSuffix = (title, {passed, retryCount}) => {
   const base = stripReliabilitySuffix(title)
   const suffix = passed ? (retryCount > 0 ? `[✓ retry-${retryCount}]` : '[✓]') : `[✗ ${retryCount} attempts]`
   return clamp(base, suffix)
 }
 
-/**
- * Append a refine-result suffix to a node title.
- * @param {string} title
- * @param {{eligible: number, total: number, fallback?: boolean, winnerForkIndex?: number|null}} opts
- */
-export const appendRefineSuffix = (title, {eligible, total, fallback = false, winnerForkIndex = null}) => {
+export const appendRefineSuffix = (
+  title,
+  {eligible, total, fallback = false, winnerForkIndex = null, noSignal = false},
+) => {
   const base = stripReliabilitySuffix(title)
   let suffix
-  if (eligible === 0 && fallback && winnerForkIndex !== null) {
+  if (noSignal) {
+    suffix = '[⚠ no judge signal]'
+  } else if (eligible === 0 && fallback && winnerForkIndex !== null) {
     suffix = `[⚠ fallback: 0/${total} passed; chose fork-${winnerForkIndex}]`
   } else if (eligible === 0) {
     suffix = `[✗ 0/${total}]`
