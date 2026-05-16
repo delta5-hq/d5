@@ -28,6 +28,7 @@ import {
 } from '../../../../../shared/config/constants'
 import {ChatClaude} from './Anthropic'
 import {CustomLLMChat, CustomEmbeddings} from './CustomLLMChat'
+import {createNoopLLM} from './noopLLM'
 
 export const Model = {
   YandexGPT: 'YandexGPT',
@@ -105,6 +106,9 @@ export const getIntegrationSettings = async (userId, workflowId = null, store = 
 }
 
 export const getLLM = ({type, settings, log, thinkingBudgetTokens = null}) => {
+  if (process.env.MOCK_EXTERNAL_SERVICES === 'true') {
+    return createNoopLLM()
+  }
   switch (type) {
     case Model.OpenAI: {
       const {apiKey} = settings?.openai || {}
