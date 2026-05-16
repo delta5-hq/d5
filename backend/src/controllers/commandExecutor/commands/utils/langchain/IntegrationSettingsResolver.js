@@ -47,6 +47,10 @@ export const resolveSettings = ({merged, workflowDoc, userId, workflowId}) => {
 
   fillAbsentCredentialsFromEnv(settings)
 
+  if (process.env.MOCK_EXTERNAL_SERVICES === 'true') {
+    return {settings, workflowDoc}
+  }
+
   if (!merged && !hasAnyRegisteredCredential(settings)) {
     throw new Error(NO_CREDENTIALS_ERROR)
   }

@@ -292,4 +292,29 @@ describe('resolveSettings', () => {
       })
     })
   })
+
+  describe('MOCK_EXTERNAL_SERVICES gate', () => {
+    it('skips the no-credentials throw when MOCK_EXTERNAL_SERVICES=true', () => {
+      expect(() =>
+        withEnv({...ALL_PROVIDER_ENV_VARS_ABSENT, MOCK_EXTERNAL_SERVICES: 'true'}, () => resolveSettings(nullDbArgs)),
+      ).not.toThrow()
+    })
+
+    it('returns a usable settings object with the default model when in mock mode', () => {
+      const {settings} = withEnv({...ALL_PROVIDER_ENV_VARS_ABSENT, MOCK_EXTERNAL_SERVICES: 'true'}, () =>
+        resolveSettings(nullDbArgs),
+      )
+      expect(settings.userId).toBe('u1')
+      expect(settings.model).toBeDefined()
+    })
+
+    it.each(['false', '', '1', 'TRUE', undefined])(
+      'still enforces credential presence when MOCK_EXTERNAL_SERVICES=%s (strict "true" gate)',
+      value => {
+        expect(() =>
+          withEnv({...ALL_PROVIDER_ENV_VARS_ABSENT, MOCK_EXTERNAL_SERVICES: value}, () => resolveSettings(nullDbArgs)),
+        ).toThrow(/No LLM credentials configured/)
+      },
+    )
+  })
 })

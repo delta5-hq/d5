@@ -12,6 +12,7 @@ MONGO_E2E_DATABASE := delta5
 MONGO_E2E_URI := mongodb://localhost:27018/$(MONGO_E2E_DATABASE)
 FRONTEND_PORT := 5173
 E2E_BACKEND_PORT := 3003
+E2E_NODEJS_BACKEND_PORT := 3004
 E2E_FRONTEND_PORT := 5174
 
 help:
@@ -286,9 +287,25 @@ e2e-backend: start-mongodb-e2e e2e-db-init
 		rm -f backend-v2/logs/backend-e2e.pid; \
 		exit $$TEST_EXIT
 
-e2e-frontend: start-mongodb-e2e e2e-db-init
+e2e-frontend: start-mongodb-e2e e2e-db-init build-backend
 	@echo "→ Building backend-v2..."
 	@cd backend-v2 && $(MAKE) build > /dev/null 2>&1
+	@echo "→ Starting Node.js backend for E2E (port $(E2E_NODEJS_BACKEND_PORT), MOCK_EXTERNAL_SERVICES=true)..."
+	@lsof -ti:$(E2E_NODEJS_BACKEND_PORT) 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+	@cd backend && mkdir -p logs && ( \
+		MOCK_EXTERNAL_SERVICES=true \
+		PORT=$(E2E_NODEJS_BACKEND_PORT) \
+		MONGO_URI='$(MONGO_E2E_URI)' \
+		JWT_SECRET='$(JWT_SECRET)' \
+		nohup node build/index.js > logs/backend-e2e.log 2>&1 & echo $$! > logs/backend-e2e.pid )
+	@sleep 3
+	@if [ -f backend/logs/backend-e2e.pid ] && kill -0 $$(cat backend/logs/backend-e2e.pid) 2>/dev/null; then \
+		echo "✓ Node.js E2E backend started (PID $$(cat backend/logs/backend-e2e.pid))"; \
+	else \
+		echo "✗ Node.js E2E backend failed to start"; \
+		tail -20 backend/logs/backend-e2e.log 2>/dev/null || true; \
+		exit 1; \
+	fi
 	@echo "→ Starting backend-v2 for E2E (port $(E2E_BACKEND_PORT))..."
 	@lsof -ti:$(E2E_BACKEND_PORT) 2>/dev/null | xargs -r kill -9 2>/dev/null || true
 	@cd backend-v2 && mkdir -p logs && ( \
@@ -298,6 +315,7 @@ e2e-frontend: start-mongodb-e2e e2e-db-init
 		PORT=$(E2E_BACKEND_PORT) \
 		API_ROOT='$(API_ROOT)' \
 		MOCK_EXTERNAL_SERVICES=true \
+		NODEJS_BACKEND_URL=http://localhost:$(E2E_NODEJS_BACKEND_PORT) \
 		nohup ./backend-v2 > logs/backend-e2e.log 2>&1 & echo $$! > logs/backend-e2e.pid )
 	@sleep 3
 	@if [ -f backend-v2/logs/backend-e2e.pid ] && kill -0 $$(cat backend-v2/logs/backend-e2e.pid) 2>/dev/null; then \
@@ -305,6 +323,7 @@ e2e-frontend: start-mongodb-e2e e2e-db-init
 	else \
 		echo "✗ E2E backend failed to start"; \
 		tail -10 backend-v2/logs/backend-e2e.log 2>/dev/null || true; \
+		kill $$(cat backend/logs/backend-e2e.pid 2>/dev/null) 2>/dev/null || true; \
 		exit 1; \
 	fi
 	@until curl -s http://localhost:$(E2E_BACKEND_PORT)$(API_ROOT)/health > /dev/null 2>&1; do sleep 2; done
@@ -317,7 +336,9 @@ e2e-frontend: start-mongodb-e2e e2e-db-init
 	@TEST_EXIT=0; cd frontend && E2E_BASE_URL=http://localhost:$(E2E_FRONTEND_PORT) E2E_ADMIN_USER=admin E2E_ADMIN_PASS='P@ssw0rd!' CI=true npm run test:e2e:ci || TEST_EXIT=$$?; \
 		kill $$(cat /tmp/vite-e2e.pid 2>/dev/null) 2>/dev/null || true; \
 		lsof -ti:$(E2E_BACKEND_PORT) 2>/dev/null | xargs -r kill -9 2>/dev/null || true; \
-		rm -f backend-v2/logs/backend-e2e.pid; \
+		kill $$(cat backend/logs/backend-e2e.pid 2>/dev/null) 2>/dev/null || true; \
+		lsof -ti:$(E2E_NODEJS_BACKEND_PORT) 2>/dev/null | xargs -r kill -9 2>/dev/null || true; \
+		rm -f backend-v2/logs/backend-e2e.pid backend/logs/backend-e2e.pid; \
 		exit $$TEST_EXIT
 
 e2e-frontend-throttled: start-mongodb-e2e e2e-db-init
