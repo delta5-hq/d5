@@ -265,8 +265,16 @@ jobs:
       JWT_SECRET: test-jwt-secret-change-in-production
       API_ROOT: /api/v2
       BACKEND_PORT: 3002
+      NODEJS_BACKEND_PORT: 3004
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - run: cd backend && npm ci
+      - run: cd backend && npm run build
       - uses: actions/download-artifact@v4
         with:
           name: backend-v2-binaries
@@ -274,8 +282,17 @@ jobs:
       - run: chmod +x backend-v2/backend-v2 backend-v2/seed-users
       - run: DROP_DB=true bash backend-v2/e2e-db-init.sh
       - run: |
+          cd backend
+          MOCK_EXTERNAL_SERVICES=true PORT="${NODEJS_BACKEND_PORT}" MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" nohup node build/index.js > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
+          sleep 5
+          if ! kill -0 $(cat backend-e2e.pid); then
+            echo "Node.js backend failed to start"
+            cat backend-e2e.log
+            exit 1
+          fi
+      - run: |
           cd backend-v2
-          MONGO_DATABASE="delta5_${{ github.run_id }}" MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" PORT="${BACKEND_PORT}" API_ROOT="${API_ROOT}" MOCK_EXTERNAL_SERVICES=true nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
+          MONGO_DATABASE="delta5_${{ github.run_id }}" MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" PORT="${BACKEND_PORT}" API_ROOT="${API_ROOT}" MOCK_EXTERNAL_SERVICES=true NODEJS_BACKEND_URL="http://localhost:${NODEJS_BACKEND_PORT}" nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
           sleep 5
           if ! kill -0 $(cat backend-e2e.pid); then
             echo "Backend failed to start"
@@ -304,6 +321,7 @@ jobs:
           E2E_ADMIN_USER=admin E2E_ADMIN_PASS='P@ssw0rd!' E2E_OPEN_API_KEY='mock-openai-key' E2E_DEEPSEEK_API_KEY='mock-deepseek-key' E2E_QWEN_API_KEY='mock-qwen-key' E2E_CLAUDE_API_KEY='mock-claude-key' E2E_PERPLEXITY_API_KEY='mock-perplexity-key' E2E_YANDEX_API_KEY='mock-yandex-key' E2E_YANDEX_FOLDER_ID='mock-folder-id' E2E_CUSTOM_LLM_URL='http://localhost:8080' CI=true pnpm run test:e2e:ci || TEST_EXIT=$?
           kill $(cat vite-e2e.pid) || true
           kill $(cat ../backend-v2/backend-e2e.pid) || true
+          kill $(cat ../backend/backend-e2e.pid) || true
           exit ${TEST_EXIT:-0}
       - run: cd backend-v2 && bash e2e-db-drop.sh 2>/dev/null || true
         if: always()
@@ -315,6 +333,7 @@ jobs:
             frontend/playwright-report
             frontend/test-results
             frontend/vite-e2e.log
+            backend/backend-e2e.log
             backend-v2/backend-e2e.log
 
   time-report:

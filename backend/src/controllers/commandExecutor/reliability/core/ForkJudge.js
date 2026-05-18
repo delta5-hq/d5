@@ -5,6 +5,7 @@ import {NodeTextExtractor} from '../../commands/utils/NodeTextExtractor'
 import {getNodeCommand} from '../../commands/utils/isCommand'
 import {isValidateCell, readValidateCriterion, readValidateN} from './validateParams'
 import {selfJudgingGuard, selectJurors} from './ModelFamilyRouter'
+import {parseRankingResponse} from './rankingParser'
 
 const log = debug('delta5:forkjudge')
 
@@ -18,29 +19,6 @@ const buildRankMessage = (criterion, contents) => {
   return `Criterion: ${criterion}\n\n${candidates}\n\nRank from best (1) to worst (${contents.length}), comma-separated:`
 }
 
-const parseRankingResponse = (raw, n) => {
-  const text = (typeof raw === 'string' ? raw : raw?.content ?? '').trim()
-  const nums = text
-    .split(/[\s,]+/)
-    .map(s => parseInt(s, 10))
-    .filter(x => !isNaN(x) && x >= 1 && x <= n)
-  // Deduplicate preserving order
-  const seen = new Set()
-  const ranking = []
-  for (const x of nums) {
-    if (!seen.has(x)) {
-      seen.add(x)
-      ranking.push(x - 1) // 0-indexed
-    }
-  }
-  // Append any missing indices in order
-  for (let i = 0; i < n; i++) {
-    if (!seen.has(i + 1)) ranking.push(i)
-  }
-  return ranking
-}
-
-// Extract readable text for a fork's cell content
 const extractForkContent = async (parentNodeId, forkStore) => {
   const parentNode = forkStore.getNode(parentNodeId)
   if (!parentNode) return ''
@@ -49,10 +27,6 @@ const extractForkContent = async (parentNodeId, forkStore) => {
   return extractor.extractFullContent(parentNode)
 }
 
-/**
- * Selects the winning fork using Borda-count aggregation over N criteria.
- * Each validate node provides criteria; each juror ranks the forks per criterion.
- */
 export class ForkJudge {
   constructor(userId, workflowId, store) {
     this.userId = userId
@@ -74,6 +48,7 @@ export class ForkJudge {
    *   perCriterionVerdict: object[],
    *   mode: 'strict'|'fallback',
    *   selectionLayer: 'primary'|'fallback'|'none',
+   *   noSignal: boolean,
    * }>}
    */
   async selectWinner({forks, validateNodes, parentNodeId, fallback = false, signal = null}) {
@@ -116,6 +91,7 @@ export class ForkJudge {
 
     const perCriterionVerdict = []
     const bordaScores = new Array(candidateForks.length).fill(0)
+    let totalRankingsCollected = 0
 
     const contents = await Promise.all(candidateForks.map(f => extractForkContent(parentNodeId, f.forkStore)))
 
@@ -126,7 +102,13 @@ export class ForkJudge {
             criterion: readValidateCriterion(getNodeCommand(v)),
             jurorCount: readValidateN(getNodeCommand(v)),
           }))
-        : [{id: '__generic__', criterion: 'Overall quality and completeness', jurorCount: 1}]
+        : [
+            {
+              id: '__generic__',
+              criterion: 'Overall quality and completeness',
+              jurorCount: 1,
+            },
+          ]
 
     for (const {id, criterion, jurorCount} of criteria) {
       const jurors = selectJurors(jurorCount, '__none__', settings)
@@ -141,15 +123,16 @@ export class ForkJudge {
             new HumanMessage(buildRankMessage(criterion, contents)),
           ]
           const resp = await llm.invoke(messages, signal ? {signal} : undefined)
-          allRankings.push(parseRankingResponse(resp, candidateForks.length))
+          const ranking = parseRankingResponse(resp, candidateForks.length)
+          if (ranking !== null) allRankings.push(ranking)
+          else this.log('juror excluded — unparseable response')
         } catch (err) {
-          this.log('juror rank error: %o', err)
-          // Default: original order
-          allRankings.push(candidateForks.map((_, i) => i))
+          this.log('juror excluded — invoke error: %o', err)
         }
       }
 
-      // Borda-count: sum ranks from all jurors; lower is better
+      totalRankingsCollected += allRankings.length
+
       const criterionScores = new Array(candidateForks.length).fill(0)
       for (const ranking of allRankings) {
         ranking.forEach((candidateIdx, rank) => {
@@ -172,7 +155,10 @@ export class ForkJudge {
       })
     }
 
-    // Winner = lowest Borda score (lowest sum of ranks)
+    const noSignal = totalRankingsCollected === 0
+
+    // When noSignal, all scores are zero — fork 0 wins deterministically;
+    // the caller is responsible for surfacing the noSignal flag to the user.
     let winnerIdx = 0
     for (let i = 1; i < bordaScores.length; i++) {
       if (bordaScores[i] < bordaScores[winnerIdx]) winnerIdx = i
@@ -183,6 +169,7 @@ export class ForkJudge {
       perCriterionVerdict,
       mode: fallback ? 'fallback' : 'strict',
       selectionLayer,
+      noSignal,
     }
   }
 }

@@ -14,8 +14,7 @@ import {getNodeCommand} from '../../commands/utils/isCommand'
  */
 
 function writeErrorNode(refineNode, store, message) {
-  const base = stripReliabilitySuffix(refineNode.title || '')
-  refineNode.title = `${base} [✗]`.trim()
+  refineNode.title = stripReliabilitySuffix(refineNode.title || '')
   store.importer.createErrorNode(message, refineNode.id)
   store.saveNodeToOutput(refineNode.id)
 }
@@ -54,7 +53,7 @@ export async function resolveRefineCell(refineNode, store, memoMap, signal = nul
   const verdict = await judge.selectWinner({
     forks: forkResults,
     validateNodes: ownedValidates,
-    parentNodeId: refineNode.id,
+    parentNodeId: refineNode.parent,
     fallback,
     signal,
   })
@@ -83,7 +82,17 @@ export async function resolveRefineCell(refineNode, store, memoMap, signal = nul
       total: n,
       fallback: verdict.selectionLayer === 'fallback',
       winnerForkIndex: verdict.winnerForkIndex,
+      noSignal: verdict.noSignal ?? false,
     })
+    winnerNode.reliabilityMetadata = {
+      winnerForkIndex: verdict.winnerForkIndex,
+      perCriterionVerdict: verdict.perCriterionVerdict ?? [],
+      mode: verdict.mode,
+      selectionLayer: verdict.selectionLayer,
+      noSignal: verdict.noSignal ?? false,
+      eligible: okCount,
+      total: n,
+    }
     store.saveNodeToOutput(refineNode.id)
   }
 

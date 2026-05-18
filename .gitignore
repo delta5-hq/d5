@@ -28,6 +28,9 @@ yarn-error.log*
 pnpm-debug.log*
 nohup.out
 
+# Dependency trees (workspace-root hoisting by npm/pnpm/yarn/vitest)
+node_modules/
+
 # Environment files (global)
 .env
 .env.local

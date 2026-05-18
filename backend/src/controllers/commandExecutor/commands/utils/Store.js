@@ -20,6 +20,7 @@
  * @property {boolean} [autoshrink=false] - Whether autoshrink behavior is enabled
  * @property {string} [command] - Command associated with the node(/chatgpt, /web e.t.c)
  * @property {string[]} [prompts] - List of prompt ids that created from command execution
+ * @property {Object} [reliabilityMetadata] - Judge verdict from /refine :n=N execution; includes winner, criteria rankings, and fork counts
  */
 
 /**

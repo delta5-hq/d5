@@ -60,13 +60,23 @@ describe('resolveRefineCell — input guard: :n= absent or invalid', () => {
     expect(mockRunForks).not.toHaveBeenCalled()
   })
 
-  it('marks title with [✗] when :n= is absent', async () => {
+  it('leaves title clean (no reliability suffix) when :n= is absent — failure communicated via error child node', async () => {
     const store = makeStore('/refine')
     const node = store.getNode('r1')
 
     await resolveRefineCell(node, store, new Map())
 
-    expect(node.title).toMatch(/\[✗\]/)
+    expect(node.title).toBe('My Cell')
+  })
+
+  it('strips any pre-existing reliability suffix from title when :n= is absent', async () => {
+    const store = makeStore('/refine')
+    const node = store.getNode('r1')
+    node.title = 'My Cell [✓ 2/3]'
+
+    await resolveRefineCell(node, store, new Map())
+
+    expect(node.title).toBe('My Cell')
   })
 
   it('saves node to output when :n= is absent', async () => {
@@ -94,6 +104,25 @@ describe('resolveRefineCell — input guard: fork cost exceeds :limit=', () => {
     await resolveRefineCell(store.getNode('r1'), store, new Map())
 
     expect(mockRunForks).not.toHaveBeenCalled()
+  })
+
+  it('leaves title clean (no reliability suffix) when cost exceeds :limit= — failure communicated via error child node', async () => {
+    const store = makeStore('/refine :n=3 :limit=0')
+    const node = store.getNode('r1')
+
+    await resolveRefineCell(node, store, new Map())
+
+    expect(node.title).toBe('My Cell')
+  })
+
+  it('strips any pre-existing reliability suffix from title when cost exceeds :limit=', async () => {
+    const store = makeStore('/refine :n=3 :limit=0')
+    const node = store.getNode('r1')
+    node.title = 'My Cell [✓ retry-1]'
+
+    await resolveRefineCell(node, store, new Map())
+
+    expect(node.title).toBe('My Cell')
   })
 })
 
@@ -206,7 +235,7 @@ describe('resolveRefineCell — ForkJudge instantiation and selectWinner paramet
     expect(constructorArgs[1]).toBe('wf99')
   })
 
-  it('passes refineNode.id as parentNodeId to selectWinner', async () => {
+  it('passes refineNode.parent as parentNodeId to selectWinner so judge reads the working cell content', async () => {
     const store = makeStore()
     const winner = okForkStore()
     mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'ok', forkStore: winner}])
@@ -221,7 +250,7 @@ describe('resolveRefineCell — ForkJudge instantiation and selectWinner paramet
 
     await resolveRefineCell(store.getNode('r1'), store, new Map())
 
-    expect(capturedParentNodeId).toBe('r1')
+    expect(capturedParentNodeId).toBe('p1')
   })
 
   it('passes AbortSignal through to selectWinner', async () => {
@@ -332,6 +361,14 @@ describe('resolveRefineCell — all forks fail (strict mode)', () => {
     expect(memoMap.get('r1')).toBeNull()
     expect(StoreFork.applyCandidate).not.toHaveBeenCalled()
   })
+
+  it('reliabilityMetadata is not written when no winner is selected', async () => {
+    const store = makeStore()
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    expect(store._nodes.r1.reliabilityMetadata).toBeUndefined()
+  })
 })
 
 describe('resolveRefineCell — winner selected', () => {
@@ -382,20 +419,139 @@ describe('resolveRefineCell — winner selected', () => {
 
     expect(store.importer.createErrorNode).not.toHaveBeenCalled()
   })
+
+  it('writes reliabilityMetadata to the winner node with full verdict shape', async () => {
+    const perCriterionVerdict = [{criterionId: 'v1', criterion: 'must include numbers', forkRankings: []}]
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: 0,
+        selectionLayer: 'primary',
+        mode: 'strict',
+        perCriterionVerdict,
+        noSignal: false,
+      }),
+    }))
+
+    const store = makeStore('/refine :n=2')
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    const meta = store._nodes.r1.reliabilityMetadata
+    expect(meta).toMatchObject({
+      winnerForkIndex: 0,
+      perCriterionVerdict,
+      mode: 'strict',
+      selectionLayer: 'primary',
+      noSignal: false,
+      eligible: 2,
+      total: 2,
+    })
+  })
+
+  it('perCriterionVerdict absent from verdict defaults to [] in metadata', async () => {
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'primary', mode: 'strict'}),
+    }))
+
+    const store = makeStore('/refine :n=2')
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    expect(store._nodes.r1.reliabilityMetadata.perCriterionVerdict).toEqual([])
+  })
+
+  it('noSignal absent from verdict defaults to false in metadata', async () => {
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'primary', mode: 'strict'}),
+    }))
+
+    const store = makeStore('/refine :n=2')
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    expect(store._nodes.r1.reliabilityMetadata.noSignal).toBe(false)
+  })
+
+  it('eligible counts only ok-status forks, not criteria-failed or runtime-failed', async () => {
+    mockRunForks.mockResolvedValue([
+      {forkIndex: 0, status: 'ok', forkStore: winner},
+      {forkIndex: 1, status: 'ok', forkStore: okForkStore()},
+      {forkIndex: 2, status: 'criteria-failed', forkStore: okForkStore()},
+    ])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'primary', mode: 'strict'}),
+    }))
+
+    const store = makeStore('/refine :n=3')
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    expect(store._nodes.r1.reliabilityMetadata.eligible).toBe(2)
+    expect(store._nodes.r1.reliabilityMetadata.total).toBe(3)
+  })
 })
 
 describe('resolveRefineCell — fallback selection layer', () => {
-  it('applies winner from fallback layer (criteria-failed fork)', async () => {
-    const fallbackStore = okForkStore()
+  let fallbackStore
+
+  beforeEach(() => {
+    fallbackStore = okForkStore()
     mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'criteria-failed', forkStore: fallbackStore}])
     MockForkJudge.mockImplementation(() => ({
-      selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'fallback'}),
+      selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'fallback', mode: 'fallback'}),
     }))
+  })
 
+  it('applies winner from fallback layer (criteria-failed fork)', async () => {
     const store = makeStore('/refine :n=2 :fallback')
 
     await resolveRefineCell(store.getNode('r1'), store, new Map())
 
     expect(StoreFork.applyCandidate).toHaveBeenCalledWith(store, fallbackStore, 'r1')
+  })
+
+  it('reliabilityMetadata records fallback selectionLayer and mode', async () => {
+    const store = makeStore('/refine :n=2 :fallback')
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    expect(store._nodes.r1.reliabilityMetadata).toMatchObject({
+      selectionLayer: 'fallback',
+      mode: 'fallback',
+      winnerForkIndex: 0,
+      eligible: 0,
+      total: 2,
+    })
+  })
+})
+
+describe('resolveRefineCell — noSignal: all jurors excluded from quorum', () => {
+  // noSignal:true means the judge was invoked but every juror was excluded from quorum
+  // (unparseable response or invoke error). The suffix must be [⚠ no judge signal]
+  // regardless of which candidate pool the winner was drawn from.
+  it.each([
+    [
+      'primary layer — ok forks present, all jurors excluded',
+      '/refine :n=2',
+      [
+        {forkIndex: 0, status: 'ok', forkStore: null},
+        {forkIndex: 1, status: 'ok', forkStore: null},
+      ],
+      {winnerForkIndex: 0, selectionLayer: 'primary', mode: 'strict', noSignal: true},
+    ],
+    [
+      'fallback layer — criteria-failed forks only, all jurors excluded',
+      '/refine :n=2 :fallback',
+      [{forkIndex: 0, status: 'criteria-failed', forkStore: null}],
+      {winnerForkIndex: 0, selectionLayer: 'fallback', mode: 'fallback', noSignal: true},
+    ],
+  ])('%s — suffix is [⚠ no judge signal] and metadata records noSignal', async (_, command, forks, verdict) => {
+    mockRunForks.mockResolvedValue(forks)
+    MockForkJudge.mockImplementation(() => ({selectWinner: makeSelectWinner(verdict)}))
+    const store = makeStore(command)
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    expect(store._nodes.r1.title).toBe('My Cell [⚠ no judge signal]')
+    expect(store._nodes.r1.reliabilityMetadata).toMatchObject({
+      noSignal: true,
+      selectionLayer: verdict.selectionLayer,
+    })
   })
 })

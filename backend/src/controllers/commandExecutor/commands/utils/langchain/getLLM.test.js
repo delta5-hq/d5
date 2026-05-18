@@ -1,5 +1,5 @@
 import {EmbStorageType} from '../../../../../shared/config/constants'
-import {determineLLMType, getEmbeddings, getIntegrationSettings, Model} from './getLLM'
+import {determineLLMType, getEmbeddings, getIntegrationSettings, getLLM, Model} from './getLLM'
 import IntegrationFacade from '../../../../../repositories/IntegrationFacade'
 
 const withEnv = async (vars, fn) => {
@@ -736,6 +736,38 @@ describe('getEmbeddings error handling for missing API keys', () => {
       expect(() =>
         getEmbeddings({type: Model.CustomLLM, settings: {custom_llm: {apiRootUrl: 'https://api.custom.com'}}}),
       ).not.toThrow()
+    })
+  })
+})
+
+describe('getLLM MOCK_EXTERNAL_SERVICES gate', () => {
+  it.each([Model.OpenAI, Model.Claude, Model.Deepseek, Model.Qwen, Model.YandexGPT, Model.CustomLLM])(
+    'returns NoopLLM regardless of declared type (%s) and never consults provider credentials',
+    async type => {
+      await withEnv({MOCK_EXTERNAL_SERVICES: 'true'}, async () => {
+        const {llm, chunkSize} = getLLM({type, settings: {}})
+        expect(typeof llm.invoke).toBe('function')
+        expect(chunkSize).toBeGreaterThan(0)
+        const reply = await llm.invoke([{content: 'sample'}])
+        expect(typeof reply.content).toBe('string')
+        expect(reply.content.length).toBeGreaterThan(0)
+      })
+    },
+  )
+
+  it.each(['false', '', '1', 'yes', 'TRUE', undefined])(
+    'does NOT activate mock when MOCK_EXTERNAL_SERVICES=%s (strict "true" gate)',
+    async value => {
+      await withEnv({MOCK_EXTERNAL_SERVICES: value}, () => {
+        expect(() => getLLM({type: Model.OpenAI, settings: {}})).toThrow(/OpenAI API key not configured/)
+      })
+    },
+  )
+
+  it('mock path ignores empty settings (no credential lookup occurs)', async () => {
+    await withEnv({MOCK_EXTERNAL_SERVICES: 'true'}, () => {
+      expect(() => getLLM({type: Model.OpenAI, settings: undefined})).not.toThrow()
+      expect(() => getLLM({type: Model.YandexGPT, settings: {}})).not.toThrow()
     })
   })
 })
