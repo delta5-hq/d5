@@ -1,4 +1,4 @@
-import IntegrationFacade from '../../../repositories/IntegrationFacade'
+import {loadIntegrationSettings} from '../../../controllers/commandExecutor/commands/utils/langchain/IntegrationSettingsLoader'
 
 export class UserContextProvider {
   constructor(userId, workflowId = null) {
@@ -15,6 +15,6 @@ export class UserContextProvider {
   }
 
   async getIntegrationSettings() {
-    return IntegrationFacade.findDecryptedOrThrow(this.userId, this.workflowId)
+    return loadIntegrationSettings(this.userId, this.workflowId)
   }
 }

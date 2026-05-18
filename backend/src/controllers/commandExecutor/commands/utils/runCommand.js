@@ -20,6 +20,12 @@ import {readValidateRetry} from '../../reliability/core/validateParams'
 import {CriteriaFailedError} from '../../reliability/core/CriteriaFailedError'
 import {resolveRefineCell} from '../../reliability/core/resolveRefineCell'
 import RefineTopology from '../../reliability/core/RefineTopology'
+import {readCommodityN} from '../../reliability/core/commodityForkParams'
+import {
+  runCommodityForks,
+  isCommodityForkInProgress,
+  markCommodityForkInProgress,
+} from '../../reliability/core/CommodityForkRunner'
 import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {WEB_QUERY_TYPE} from '../../constants/web'
 import {YANDEX_QUERY_TYPE} from '../../constants/yandex'
@@ -137,6 +143,26 @@ export const runCommand = async (
     await executeCommandWithProgress(queryType, context, prompt, cell, store, progress)
   } else {
     createUnknownCommandNode(store, cell)
+  }
+
+  if (!isCommodityForkInProgress(cell.id, memoMap)) {
+    const commodityN = readCommodityN(queryType, getNodeCommand(cell))
+    if (commodityN !== null) {
+      if (!memoMap) memoMap = new Map()
+      markCommodityForkInProgress(cell.id, memoMap)
+      await runCommodityForks({
+        cell,
+        store,
+        n: commodityN,
+        queryType,
+        mcpAlias,
+        rpcAlias,
+        signal,
+        context,
+        prompt,
+        memoMap,
+      })
+    }
   }
 
   let runPostProccess = !preventPostProcess

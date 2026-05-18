@@ -3,8 +3,8 @@ import {clearCommandsWithParams} from '../constants'
 import {clearStepsPrefix} from '../constants/steps'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import {readJoinParam, readTableParam} from '../constants/yandex'
-import {getIntegrationSettings} from './utils/langchain/getLLM'
-import {DEFAULT_OPENAI_MODEL_NAME} from '../../../constants'
+import {getIntegrationSettings, getLLM} from './utils/langchain/getLLM'
+import {getOpenaiModelSettings} from './utils/langchain/getModelSettings'
 import {ChatOpenAI} from '@langchain/openai'
 import {HumanMessage, SystemMessage} from '@langchain/core/messages'
 import {referencePatterns} from './references/utils/referencePatterns'
@@ -32,22 +32,30 @@ export class ChatCommand {
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     const {openai} = settings
 
+    const lmMessages = messages.map(m =>
+      m.role === 'system' ? new SystemMessage(m.content) : new HumanMessage(m.content),
+    )
+
+    if (process.env.MOCK_EXTERNAL_SERVICES === 'true') {
+      const {llm} = getLLM({type: null, settings})
+      const result = await llm.invoke(lmMessages)
+      return result.content
+    }
+
     if (!openai?.apiKey) {
       throw new Error(
         'OpenAI API key not configured. Set it in Integration Settings or set the OPENAI_API_KEY environment variable.',
       )
     }
 
+    const {model: resolvedModel} = getOpenaiModelSettings(openai?.model)
+
     const llm = new ChatOpenAI({
       apiKey: openai.apiKey,
-      model: openai?.model || DEFAULT_OPENAI_MODEL_NAME,
+      model: resolvedModel,
     })
 
-    const result = await llm.invoke(
-      messages.map(m => {
-        return m.role === 'system' ? new SystemMessage(m.content) : new HumanMessage(m.content)
-      }),
-    )
+    const result = await llm.invoke(lmMessages)
 
     return result.content
   }

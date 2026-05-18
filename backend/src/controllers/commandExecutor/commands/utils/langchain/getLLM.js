@@ -1,5 +1,3 @@
-import IntegrationFacade from '../../../../../repositories/IntegrationFacade'
-import {resolveSettings} from './IntegrationSettingsResolver'
 import {YandexGPT, YandexGPTEmbeddings} from './YandexGPT'
 import {
   getClaudeMaxTokens,
@@ -20,56 +18,18 @@ import {readLangParam} from '../../../constants'
 import {Lang} from '../../../constants/localizedPrompts'
 import {EmbStorageType} from '../../../../../shared/config/constants'
 import {ChatOpenAI} from '@langchain/openai'
-import {
-  QWEN_API_URL,
-  DEEPSEEK_API_URL,
-  USER_DEFAULT_LANGUAGE,
-  USER_DEFAULT_MODEL,
-} from '../../../../../shared/config/constants'
+import {QWEN_API_URL, DEEPSEEK_API_URL, USER_DEFAULT_LANGUAGE} from '../../../../../shared/config/constants'
 import {ChatClaude} from './Anthropic'
 import {CustomLLMChat, CustomEmbeddings} from './CustomLLMChat'
 import {createNoopLLM} from './noopLLM'
+import {Model, detectConfiguredProvider, loadIntegrationSettings} from './IntegrationSettingsLoader'
 
-export const Model = {
-  YandexGPT: 'YandexGPT',
-  OpenAI: 'OpenAI',
-  Claude: 'Claude',
-  Qwen: 'Qwen',
-  Deepseek: 'Deepseek',
-  CustomLLM: 'CustomLLM',
-}
-
-const hasCredentialConfigured = (settings, providerKey, credentialPath) => {
-  if (!settings) return false
-  const provider = settings[providerKey]
-  if (!provider) return false
-  const value = credentialPath.split('.').reduce((obj, key) => obj?.[key], provider)
-  return Boolean(value && (typeof value !== 'string' || value.trim()))
-}
-
-const detectConfiguredProvider = settings => {
-  const providers = [
-    [Model.OpenAI, 'openai', 'apiKey'],
-    [Model.Claude, 'claude', 'apiKey'],
-    [Model.Qwen, 'qwen', 'apiKey'],
-    [Model.Deepseek, 'deepseek', 'apiKey'],
-    [Model.CustomLLM, 'custom_llm', 'apiRootUrl'],
-    [Model.YandexGPT, 'yandex', 'apiKey'],
-  ]
-
-  for (const [model, providerKey, credentialPath] of providers) {
-    if (hasCredentialConfigured(settings, providerKey, credentialPath)) {
-      return model
-    }
-  }
-
-  return null
-}
+export {Model}
 
 export const determineLLMType = (command, settings) => {
-  const {lang = undefined, model = USER_DEFAULT_MODEL} = settings || {}
+  const {lang = undefined, model = 'auto'} = settings || {}
 
-  if (model && model !== USER_DEFAULT_MODEL) return model
+  if (model && model !== 'auto') return model
 
   if (lang && lang !== USER_DEFAULT_LANGUAGE) {
     return lang === Lang.ru ? Model.YandexGPT : Model.OpenAI
@@ -79,8 +39,7 @@ export const determineLLMType = (command, settings) => {
     return Model.YandexGPT
   }
 
-  const detectedModel = detectConfiguredProvider(settings)
-  return detectedModel || Model.OpenAI
+  return detectConfiguredProvider(settings) || Model.OpenAI
 }
 
 export const getIntegrationSettings = async (userId, workflowId = null, store = null) => {
@@ -88,15 +47,7 @@ export const getIntegrationSettings = async (userId, workflowId = null, store = 
     return store._integrationSettingsCache
   }
 
-  const fetched = await IntegrationFacade.findMergedDecryptedWithMetadata(userId, workflowId)
-  const {settings, workflowDoc} = resolveSettings({...fetched, userId, workflowId})
-
-  if (workflowDoc && settings.model === USER_DEFAULT_MODEL) {
-    const workflowProvider = detectConfiguredProvider(workflowDoc)
-    if (workflowProvider) {
-      settings.model = workflowProvider
-    }
-  }
+  const settings = await loadIntegrationSettings(userId, workflowId)
 
   if (store) {
     store._integrationSettingsCache = settings

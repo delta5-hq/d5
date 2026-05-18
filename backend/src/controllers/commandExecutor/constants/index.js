@@ -101,6 +101,10 @@ export const CONTROL_FLOW_COMMANDS = new Set([
   MEMORIZE_QUERY_TYPE,
 ])
 
+export const DETERMINISTIC_COMMANDS = new Set([DOWNLOAD_QUERY_TYPE, EXT_QUERY_TYPE])
+
+export const DELEGATING_COMMANDS = new Set([COMPLETION_QUERY_TYPE])
+
 /**
  * @param {string} title
  * @returns {string|undefined}

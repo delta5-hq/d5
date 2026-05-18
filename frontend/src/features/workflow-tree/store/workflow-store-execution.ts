@@ -22,6 +22,10 @@ function singleNewChildId(
   return newChildren.length === 1 ? newChildren[0].id : undefined
 }
 
+function hasNewChildNodes(nodesChanged: Record<string, NodeData>, parentId: NodeId, existingNodes: NodeDatas): boolean {
+  return Object.values(nodesChanged).some(n => n.parent === parentId && !(n.id in existingNodes))
+}
+
 function removeExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): void {
   store.setState(prev => {
     const next = new Set(prev.executingNodeIds)
@@ -76,16 +80,17 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
       }
       const merged = mergeWorkflowChanges(currentData, response)
       const autoSelected = singleNewChildId(response.nodesChanged ?? {}, node.id, nodes)
+      const newChildrenCreated = hasNewChildNodes(response.nodesChanged ?? {}, node.id, nodes)
       const selectionStale = !autoSelected && current.selectedId !== undefined && !(current.selectedId in merged.nodes)
       const anchorStale = current.anchorId !== undefined && !(current.anchorId in merged.nodes)
       const cleanedIds = autoSelected ? new Set<string>() : retainExistingIds(current.selectedIds, merged.nodes)
 
+      const shouldRevealChildren = autoSelected !== undefined || newChildrenCreated
       const mergedNodes =
-        autoSelected !== undefined && merged.nodes[node.id]
+        shouldRevealChildren && merged.nodes[node.id]
           ? { ...merged.nodes, [node.id]: { ...merged.nodes[node.id], collapsed: false } }
           : merged.nodes
-      const nextExpandedIds =
-        autoSelected !== undefined ? new Set([...current.expandedIds, node.id]) : current.expandedIds
+      const nextExpandedIds = shouldRevealChildren ? new Set([...current.expandedIds, node.id]) : current.expandedIds
 
       store.setState({
         nodes: mergedNodes,

@@ -91,6 +91,8 @@ export const getYandexModelSettings = modelName => {
       return {model: YANDEX_MODELS.GPT_32K_LATEST, chunkSize: YANDEX_4_GEN_MAX_TOKENS}
     case YANDEX_MODELS.GPT_32K_RC:
       return {model: YANDEX_MODELS.GPT_32K_RC, chunkSize: YANDEX_4_GEN_MAX_TOKENS}
+    case YANDEX_MODELS.GPT_32K_DEPRECATED:
+      return {model: YANDEX_MODELS.GPT_32K_DEPRECATED, chunkSize: YANDEX_4_GEN_MAX_TOKENS}
     case YANDEX_MODELS.LLAMA_70B_LATEST:
       return {model: YANDEX_MODELS.LLAMA_70B_LATEST, chunkSize: LLAMA_70B_GEN_MAX_TOKENS}
     case YANDEX_MODELS.LLAMA_8B_LATEST:

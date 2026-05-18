@@ -15,6 +15,8 @@ export class NoopChatModel {
 
   async invoke(messages, options = undefined) {
     respectAbort(options?.signal)
+    await new Promise(resolve => setTimeout(resolve, 60))
+    respectAbort(options?.signal)
     const content = this.plan(messages)
     return new AIMessage({content})
   }

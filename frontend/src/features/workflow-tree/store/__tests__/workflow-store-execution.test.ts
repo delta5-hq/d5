@@ -1196,5 +1196,83 @@ describe('bindExecuteAction', () => {
 
       expect(store.getState().expandedIds.has('n1')).toBe(false)
     })
+
+    it('expands the executed node and sets collapsed:false when multiple new children are produced', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({
+        nodesChanged: {
+          child1: { id: 'child1', parent: 'n1' } as NodeData,
+          child2: { id: 'child2', parent: 'n1' } as NodeData,
+        },
+      })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: {
+          n1: { id: 'n1', children: ['child1', 'child2'] } as NodeData,
+          child1: { id: 'child1', parent: 'n1', children: [] } as NodeData,
+          child2: { id: 'child2', parent: 'n1', children: [] } as NodeData,
+        },
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: N1, root: 'n1', expandedIds: new Set<string>() })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().expandedIds.has('n1')).toBe(true)
+      expect(store.getState().nodes['n1']?.collapsed).toBe(false)
+    })
+
+    it('does not expand the executed node when nodesChanged contains only pre-existing children', async () => {
+      const existingChild = { id: 'child1', parent: 'n1', children: [] } as NodeData
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({
+        nodesChanged: { child1: existingChild },
+      })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: { n1: { id: 'n1' } as NodeData, child1: existingChild },
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({
+        nodes: { n1: { id: 'n1' } as NodeData, child1: existingChild } as WorkflowStoreState['nodes'],
+        root: 'n1',
+        expandedIds: new Set<string>(),
+      })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().expandedIds.has('n1')).toBe(false)
+    })
+
+    it('does not expand the executed node when new children belong to a different parent', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({
+        nodesChanged: {
+          child1: { id: 'child1', parent: 'n2' } as NodeData,
+          child2: { id: 'child2', parent: 'n2' } as NodeData,
+        },
+      })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: {
+          n1: { id: 'n1' } as NodeData,
+          n2: { id: 'n2', children: ['child1', 'child2'] } as NodeData,
+          child1: { id: 'child1', parent: 'n2', children: [] } as NodeData,
+          child2: { id: 'child2', parent: 'n2', children: [] } as NodeData,
+        },
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: N2, root: 'n1', expandedIds: new Set<string>() })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(stubNode, 'query')
+
+      expect(store.getState().expandedIds.has('n1')).toBe(false)
+    })
   })
 })

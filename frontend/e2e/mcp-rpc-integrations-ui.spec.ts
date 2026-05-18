@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test'
 import { cleanArrayIntegrations } from './helpers/array-integration-helpers'
 import { ArrayIntegrationPage } from './pages/ArrayIntegrationPage'
-import { createParallelUserTest } from './fixtures/parallel-user-test'
+import { createParallelUserTest, credentialsForWorker } from './fixtures/parallel-user-test'
 import { selectRadixOption } from './helpers/radix-select-helper'
 import { selectWorkflowScope } from './helpers/wait-helpers'
 import {
@@ -10,7 +10,6 @@ import {
   type ScopeDescriptor,
 } from './helpers/workflow-scoped-cleanup'
 import { authenticateViaAPI } from './helpers/api-auth'
-import { e2eEnv } from './utils/e2e-env-vars'
 
 const test = createParallelUserTest('mcp-rpc-ui-user')
 
@@ -1252,10 +1251,7 @@ test.describe.serial('Cross-Scope Inherited Alias Conflict (15.3, 15.3.1)', () =
   test.beforeAll(async ({ browser }, testInfo) => {
     const context = await browser.newContext({ baseURL: testInfo.project.use.baseURL })
     const page = await context.newPage()
-    const authResult = await authenticateViaAPI(page.request, {
-      usernameOrEmail: e2eEnv.E2E_ADMIN_USER,
-      password: e2eEnv.E2E_ADMIN_PASS,
-    })
+    const authResult = await authenticateViaAPI(page.request, credentialsForWorker(testInfo.parallelIndex))
     if (!authResult.ok) {
       throw new Error(authResult.error || `Auth failed: ${authResult.status}`)
     }
@@ -1267,10 +1263,7 @@ test.describe.serial('Cross-Scope Inherited Alias Conflict (15.3, 15.3.1)', () =
   test.afterAll(async ({ browser }, testInfo) => {
     const context = await browser.newContext({ baseURL: testInfo.project.use.baseURL })
     const page = await context.newPage()
-    const authResult = await authenticateViaAPI(page.request, {
-      usernameOrEmail: e2eEnv.E2E_ADMIN_USER,
-      password: e2eEnv.E2E_ADMIN_PASS,
-    })
+    const authResult = await authenticateViaAPI(page.request, credentialsForWorker(testInfo.parallelIndex))
     if (!authResult.ok) {
       throw new Error(authResult.error || `Auth failed: ${authResult.status}`)
     }

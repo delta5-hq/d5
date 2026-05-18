@@ -6,19 +6,14 @@ import {extractDynamicAlias} from './commandRecognition'
  * @property {string} alias - The command alias (e.g., "/coder1")
  */
 
-/**
- * Converts MCP alias to queryType format
- * @param {string} alias - e.g., "/coder1"
- * @returns {string} - e.g., "mcp:coder1"
- */
-export const mcpAliasToQueryType = alias => `mcp:${alias.replace(/^\//, '')}`
+const MCP_PREFIX = 'mcp:'
+const RPC_PREFIX = 'rpc:'
 
-/**
- * Converts RPC alias to queryType format
- * @param {string} alias - e.g., "/vm3"
- * @returns {string} - e.g., "rpc:vm3"
- */
-export const rpcAliasToQueryType = alias => `rpc:${alias.replace(/^\//, '')}`
+export const isMCPQueryType = queryType => queryType?.startsWith(MCP_PREFIX) ?? false
+export const isRPCQueryType = queryType => queryType?.startsWith(RPC_PREFIX) ?? false
+
+export const mcpAliasToQueryType = alias => `${MCP_PREFIX}${alias.replace(/^\//, '')}`
+export const rpcAliasToQueryType = alias => `${RPC_PREFIX}${alias.replace(/^\//, '')}`
 
 /**
  * Resolves queryType with category-aware priority:
@@ -51,25 +46,23 @@ export const resolveQueryType = (title, {mcpAliases = [], rpcAliases = []} = {})
 }
 
 /**
- * Finds MCP alias config by queryType
  * @param {DynamicAlias[]} aliases
  * @param {string} queryType - e.g., "mcp:coder1"
  * @returns {DynamicAlias|undefined}
  */
 export const findMCPAliasByQueryType = (aliases, queryType) => {
-  if (!queryType?.startsWith('mcp:')) return undefined
+  if (!isMCPQueryType(queryType)) return undefined
   const expectedAlias = `/${queryType.replace(/^mcp:/, '')}`
   return aliases.find(a => a.alias === expectedAlias)
 }
 
 /**
- * Finds RPC alias config by queryType
  * @param {DynamicAlias[]} aliases
  * @param {string} queryType - e.g., "rpc:vm3"
  * @returns {DynamicAlias|undefined}
  */
 export const findRPCAliasByQueryType = (aliases, queryType) => {
-  if (!queryType?.startsWith('rpc:')) return undefined
+  if (!isRPCQueryType(queryType)) return undefined
   const expectedAlias = `/${queryType.replace(/^rpc:/, '')}`
   return aliases.find(a => a.alias === expectedAlias)
 }

@@ -18,7 +18,7 @@ const subscriberCredentials = (): AuthCredentials => ({
   password: e2eEnv.E2E_SUBSCRIBER_PASS || 'P@ssw0rd!',
 })
 
-const credentialsForWorker = (parallelIndex: number): AuthCredentials =>
+export const credentialsForWorker = (parallelIndex: number): AuthCredentials =>
   parallelIndex === 0 ? adminCredentials() : subscriberCredentials()
 
 function workerScopedAuthTest(filePrefix: string, resolveCredentials: (parallelIndex: number) => AuthCredentials) {
