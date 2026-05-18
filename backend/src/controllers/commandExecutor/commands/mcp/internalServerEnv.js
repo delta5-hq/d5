@@ -46,6 +46,18 @@ const LLM_KEY_EXTRACTORS = [
   },
 ]
 
+const LLM_ENV_KEYS = [
+  'OPENAI_API_KEY',
+  'CLAUDE_API_KEY',
+  'QWEN_API_KEY',
+  'DEEPSEEK_API_KEY',
+  'PERPLEXITY_API_KEY',
+  'YANDEX_API_KEY',
+  'YC_API_KEY',
+  'YANDEX_FOLDER_ID',
+  'YC_FOLDER_ID',
+]
+
 export const buildInternalServerEnv = (userId, workflowId, settings) => {
   const env = {
     ...process.env,
@@ -53,6 +65,10 @@ export const buildInternalServerEnv = (userId, workflowId, settings) => {
     D5_WORKFLOW_ID: workflowId ?? '',
     MONGO_URI,
   }
+
+  // Drop ambient LLM keys so the subprocess receives only user-configured
+  // provider credentials, never the server's empty or unrelated env values.
+  LLM_ENV_KEYS.forEach(key => delete env[key])
 
   LLM_KEY_EXTRACTORS.forEach(extractor => extractor(settings, env))
 

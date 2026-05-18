@@ -21,8 +21,10 @@ import { useApiMutation } from '@shared/composables'
 import type { DialogProps, Qwen } from '@shared/base-types'
 import { QWEN_DEFAULT_MODEL, QwenModels } from '@shared/config'
 import type { HttpError } from '@shared/lib/error'
-import { buildIntegrationUrl } from '../utils/build-integration-url'
 import { createResponseQwen } from '@shared/lib/llm'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
+import { submitIntegrationChanges } from '../utils/submit-integration-changes'
+import { toastIntegrationError } from '../utils/toast-integration-error'
 import { X } from 'lucide-react'
 
 const qwenSchema = z.object({
@@ -75,32 +77,12 @@ export const QwenDialog: React.FC<QwenDialogProps> = ({ data, open, onClose, ref
 
   const onSubmit = async (values: QwenFormValues) => {
     try {
-      const apiKeyChanged = values.apiKey.trim() !== data?.apiKey
-      const modelChanged = values.model.trim() !== data?.model
-
-      if (apiKeyChanged || modelChanged) {
+      if (values.apiKey?.trim()) {
         await createResponseQwen('Hello!', values)
-        await save(values)
       }
-
-      await refresh()
-      onClose?.()
-      toast.success('Saved successfully')
+      await submitIntegrationChanges(() => save(values), { refresh, onClose })
     } catch (e: unknown) {
-      const error = e as HttpError
-      const status = error?.response?.status
-
-      if (status === 401) {
-        toast.error(<FormattedMessage id="dialog.integration.authenticationError" />)
-      } else if (status === 429) {
-        toast.error(<FormattedMessage id="dialog.integration.rateLimitExceeded" />)
-      } else if (status === 404) {
-        toast.error(<FormattedMessage id="dialog.integration.noAccess" values={{ model: values.model }} />)
-      } else if (status === 503) {
-        toast.error(<FormattedMessage id="dialog.integration.serverError" />)
-      } else {
-        toast.error(<FormattedMessage id="dialog.integration.wrongRequest" />)
-      }
+      toastIntegrationError(e, { model: values.model })
     }
   }
 

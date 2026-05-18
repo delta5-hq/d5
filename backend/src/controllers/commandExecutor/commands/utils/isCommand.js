@@ -3,10 +3,18 @@ import {OUTLINE_PARAM_SUMMARIZE_REGEX, OUTLINE_QUERY} from '../../constants/outl
 import {clearStepsPrefix, STEPS_QUERY} from '../../constants/steps'
 import {SUMMARIZE_QUERY} from '../../constants/summarize'
 
+/**
+ * @param {Object} node
+ * @returns {string} Command field with fallback to title (precedence: command > title > '')
+ */
+export const getNodeCommand = node => {
+  return node?.command || node?.title || ''
+}
+
 export const isSteps = node => {
   if (!node) return false
 
-  const field = node.command || node.title
+  const field = getNodeCommand(node)
 
   if (field) {
     const clearedField = clearStepsPrefix(field)
@@ -20,7 +28,7 @@ export const isSteps = node => {
 export const isForeach = node => {
   if (!node) return false
 
-  const field = node.command || node.title
+  const field = getNodeCommand(node)
 
   if (field) {
     return field.startsWith(FOREACH_QUERY)
@@ -32,7 +40,7 @@ export const isForeach = node => {
 export const isSummarize = node => {
   if (!node) return false
 
-  const field = node.command || node.title
+  const field = getNodeCommand(node)
 
   if (field) {
     return field.startsWith(SUMMARIZE_QUERY)

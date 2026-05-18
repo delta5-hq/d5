@@ -346,4 +346,76 @@ describe('OutlineCommand', () => {
       )
     })
   })
+
+  describe('command resolution (title-only nodes)', () => {
+    beforeEach(() => {
+      getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'test-key'}})
+      getLLM.mockReturnValue({llm: {}, chunkSize: 1000})
+      jest.clearAllMocks()
+    })
+
+    it('runs successfully with title-only node containing :lang param', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      command.createResponseOutline = jest.fn().mockResolvedValue('outline result')
+
+      const node = {id: 'node', title: '/outline create :lang=ru'}
+
+      await expect(command.run(node, 'test prompt')).resolves.not.toThrow()
+      expect(command.createResponseOutline).toHaveBeenCalledWith(node, expect.anything(), expect.anything())
+    })
+
+    it('runs successfully with title-only node without params', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      command.createResponseOutline = jest.fn().mockResolvedValue('outline result')
+
+      const node = {id: 'node', title: '/outline create'}
+
+      await expect(command.run(node, 'test prompt')).resolves.not.toThrow()
+      expect(command.createResponseOutline).toHaveBeenCalledWith(node, expect.anything(), expect.anything())
+    })
+
+    it('runs successfully with title-only --summarize node', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      command.replyWithSummarize = jest.fn().mockResolvedValue(undefined)
+
+      const node = {id: 'node', title: '/outline test --summarize :lang=yandex'}
+
+      await expect(command.run(node, 'test prompt')).resolves.not.toThrow()
+      expect(command.replyWithSummarize).toHaveBeenCalled()
+    })
+
+    it('prefers command over title when both populated', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      const createSpy = jest.spyOn(command, 'createResponseOutline').mockResolvedValue('result')
+
+      const node = {
+        id: 'node',
+        command: '/outline from-command :lang=openai',
+        title: '/outline from-title :lang=yandex',
+      }
+
+      await command.run(node, 'test prompt')
+
+      expect(createSpy).toHaveBeenCalled()
+    })
+
+    it('handles empty command and empty title gracefully', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      command.replyDefault = jest.fn().mockResolvedValue(undefined)
+
+      const node = {id: 'node', command: '', title: ''}
+
+      await expect(command.run(node, 'test prompt')).resolves.not.toThrow()
+    })
+
+    it('falls back to title when command is undefined', async () => {
+      const command = new OutlineCommand('user-id', null, mockStore)
+      command.replyDefault = jest.fn().mockResolvedValue(undefined)
+
+      const node = {id: 'node', title: '/outline fallback-title'}
+
+      await expect(command.run(node, 'test prompt')).resolves.not.toThrow()
+      expect(command.replyDefault).toHaveBeenCalled()
+    })
+  })
 })

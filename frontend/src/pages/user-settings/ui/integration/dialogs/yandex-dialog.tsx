@@ -1,7 +1,6 @@
-import type { ApiError, DialogProps, Yandex } from '@shared/base-types'
+import type { DialogProps, Yandex } from '@shared/base-types'
 import { useApiMutation } from '@shared/composables'
 import { YANDEX_DEFAULT_MODEL, YandexGPTModel } from '@shared/config'
-import { createResponseYandexGPT } from '@shared/lib/llm'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X } from 'lucide-react'
 import React from 'react'
@@ -24,7 +23,10 @@ import { Label } from '@shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
 import { toast } from 'sonner'
 import type { HttpError } from '@shared/lib/error'
+import { createResponseYandexGPT } from '@shared/lib/llm'
 import { buildIntegrationUrl } from '../utils/build-integration-url'
+import { submitIntegrationChanges } from '../utils/submit-integration-changes'
+import { toastIntegrationError } from '../utils/toast-integration-error'
 
 const YandexModelNames: Record<YandexGPTModel, string> = {
   [YandexGPTModel.GPT_PRO_LATEST]: 'YandexGPT 5 Pro',
@@ -84,33 +86,12 @@ export const YandexDialog: React.FC<Props> = ({ data, open, onClose, refresh, wo
 
   const onSubmit = async (values: YandexFormValues) => {
     try {
-      const apiKeyChanged = values.apiKey.trim() !== data?.apiKey
-      const folderIdChanged = values.folder_id.trim() !== data?.folder_id
-      const modelChanged = values.model.trim() !== data?.model
-
-      if (apiKeyChanged || folderIdChanged || modelChanged) {
+      if (values.apiKey?.trim()) {
         await createResponseYandexGPT('Hello!', values, { maxRetries: 0 })
-        await save(values)
       }
-
-      await refresh()
-      onClose?.()
-      toast.success('Saved successfully')
+      await submitIntegrationChanges(() => save(values), { refresh, onClose })
     } catch (e: unknown) {
-      const error = e as ApiError
-      const status = error?.response?.status
-
-      if (status === 401) {
-        toast.error(<FormattedMessage id="dialog.integration.authenticationError" />)
-      } else if (status === 429) {
-        toast.error(<FormattedMessage id="dialog.integration.rateLimitExceeded" />)
-      } else if (status === 404) {
-        toast.error(<FormattedMessage id="dialog.integration.noAccess" values={{ model: values.model }} />)
-      } else if (status === 503) {
-        toast.error(<FormattedMessage id="dialog.integration.serverError" />)
-      } else {
-        toast.error(<FormattedMessage id="dialog.integration.wrongRequest" />)
-      }
+      toastIntegrationError(e, { model: values.model })
     }
   }
 

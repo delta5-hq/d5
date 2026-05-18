@@ -1006,101 +1006,40 @@ describe('DownloadCommand run test', () => {
   })
 })
 
-describe('RefineCommand run test', () => {
+describe('/refine top-level run (P0.1: legacy removed)', () => {
+  /*
+   * Legacy iterative /refine was removed in P0.1. The class no longer exists
+   * and `/refine` is no longer dispatched via createRunner — it only fires
+   * as a post-processor where it now emits a parse-time error suffix.
+   *
+   * Top-level `/refine` (queryType=REFINE_QUERY_TYPE) therefore reaches
+   * CommandFactory.createRunner's default branch and throws.
+   *
+   * Post-processor parse-time-error behavior is covered by
+   * runCommand.postprocess.test.js > "legacy /refine — parse-time error (P0.1)".
+   */
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
-  it('should successfully refine content with children nodes', async () => {
-    const childNode = {id: 'childNode', title: 'Original content to refine'}
+  it('rejects /refine as a top-level runnable command (use as post-processor only)', async () => {
     const refineNode = {
       id: 'refineNode',
       title: '/refine make it more concise',
       command: '/refine make it more concise',
-      children: [childNode.id],
+      children: [],
+      parent: 'rootNode',
     }
-    childNode.parent = refineNode.id
-
     const rootNode = {id: 'rootNode', title: 'Workflow', children: [refineNode.id]}
-    refineNode.parent = rootNode.id
+    const mockStore = new Store({userId, workflowId, nodes: {refineNode, rootNode}})
 
-    const mockStore = new Store({
-      userId,
-      workflowId,
-      nodes: {
-        refineNode,
-        childNode,
-        rootNode,
-      },
-    })
-
-    const mockLLMResponse = 'Refined content'
-    const llmSpy = jest.spyOn(LLMChain.prototype, 'invoke').mockResolvedValueOnce({text: mockLLMResponse})
-
-    await runCommand({
-      cell: refineNode,
-      queryType: REFINE_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          title: mockLLMResponse,
-          parent: refineNode.id,
-        }),
-      ]),
-    )
-
-    expect(llmSpy).toHaveBeenCalled()
-    llmSpy.mockRestore()
-  })
-
-  it('should handle LLM errors gracefully', async () => {
-    const childNode = {id: 'childNode', title: 'Original content to refine'}
-    const refineNode = {
-      id: 'refineNode',
-      title: '/refine make it more concise',
-      command: '/refine make it more concise',
-      children: [childNode.id],
-    }
-    childNode.parent = refineNode.id
-
-    const rootNode = {id: 'rootNode', title: 'Workflow', children: [refineNode.id]}
-    refineNode.parent = rootNode.id
-
-    const mockStore = new Store({
-      userId,
-      workflowId,
-      nodes: {
-        refineNode,
-        childNode,
-        rootNode,
-      },
-    })
-
-    const llmSpy = jest.spyOn(LLMChain.prototype, 'invoke').mockRejectedValueOnce(new Error('LLM Error'))
-
-    await runCommand({
-      cell: refineNode,
-      queryType: REFINE_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          title: 'Error: LLM Error',
-          parent: refineNode.id,
-        }),
-      ]),
-    )
-    expect(llmSpy).toHaveBeenCalled()
-    llmSpy.mockRestore()
+    await expect(
+      runCommand({
+        cell: refineNode,
+        queryType: REFINE_QUERY_TYPE,
+        store: mockStore,
+      }),
+    ).rejects.toThrow(/Unknown queryType: refine/)
   })
 })
 
@@ -1285,22 +1224,15 @@ describe('SummarizeCommand run test', () => {
     const llmSpy = jest.spyOn(LLMChain.prototype, 'invoke').mockResolvedValue({output_text: ''})
     const translateSpy = jest.spyOn(require('./translate'), 'translate')
 
+    const errorSpy = jest.spyOn(mockStore.importer, 'createNodes')
+
     await runCommand({
       cell: summarizeNode,
       queryType: SUMMARIZE_QUERY_TYPE,
       store: mockStore,
     })
 
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          title: 'Error: Nothing to summarize',
-          parent: summarizeNode.id,
-        }),
-      ]),
-    )
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Nothing to summarize'), summarizeNode.id)
 
     llmSpy.mockRestore()
     translateSpy.mockRestore()
@@ -1990,6 +1922,7 @@ describe('MCPCommand run test', () => {
     })
 
     MCPClientManager.callTool.mockRejectedValueOnce(new Error('Connection refused'))
+    const errorSpy = jest.spyOn(mockStore.importer, 'createNodes')
 
     await runCommand({
       cell: mcpNode,
@@ -1997,16 +1930,7 @@ describe('MCPCommand run test', () => {
       mcpAlias,
     })
 
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          title: 'Error: Connection refused',
-          parent: mcpNode.id,
-        }),
-      ]),
-    )
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Connection refused'), mcpNode.id)
   })
 
   it('should handle error when MCP tool returns isError', async () => {
@@ -2024,6 +1948,7 @@ describe('MCPCommand run test', () => {
     })
 
     MCPClientManager.callTool.mockResolvedValueOnce({content: 'Tool execution failed', isError: true})
+    const errorSpy = jest.spyOn(mockStore.importer, 'createNodes')
 
     await runCommand({
       cell: mcpNode,
@@ -2031,16 +1956,7 @@ describe('MCPCommand run test', () => {
       mcpAlias,
     })
 
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          title: 'Error: Tool execution failed',
-          parent: mcpNode.id,
-        }),
-      ]),
-    )
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Tool execution failed'), mcpNode.id)
   })
 
   it('should handle empty MCP response by creating placeholder node', async () => {
@@ -2445,79 +2361,5 @@ describe('RPCCommand run test', () => {
       'rpc',
       'extracted-123',
     )
-  })
-})
-
-describe('Unknown command dispatch', () => {
-  const makeNode = (id, command) => {
-    const node = {id, title: command, command}
-    const rootNode = {id: 'rootNode', title: 'Workflow', children: [id]}
-    node.parent = rootNode.id
-    return {node, rootNode}
-  }
-
-  const makeStore = ({node, rootNode}) => new Store({userId, workflowId, nodes: {[node.id]: node, rootNode}})
-
-  it('creates error node when no queryType, mcpAlias, or rpcAlias resolves', async () => {
-    const {node, rootNode} = makeNode('unknownNode', '/deleted-alias run something')
-    const mockStore = makeStore({node, rootNode})
-
-    await runCommand({cell: node, store: mockStore})
-
-    const output = mockStore.getOutput()
-    expect(output.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          title: 'Error: Unknown command "/deleted-alias"',
-          parent: node.id,
-        }),
-      ]),
-    )
-  })
-
-  it('creates error node when queryType is set but does not match any handler and no alias resolves', async () => {
-    const {node, rootNode} = makeNode('unknownNode2', '/nonexistent-command prompt')
-    const mockStore = makeStore({node, rootNode})
-
-    await runCommand({cell: node, store: mockStore, queryType: 'nonexistent-command'})
-
-    const output = mockStore.getOutput()
-    expect(output.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          title: expect.stringMatching(/^Error: Unknown command/),
-          parent: node.id,
-        }),
-      ]),
-    )
-  })
-
-  it('creates error node with (unknown) alias when cell has no command', async () => {
-    const {node, rootNode} = makeNode('noCommandNode', undefined)
-    node.title = 'untitled'
-    const mockStore = makeStore({node, rootNode})
-
-    await runCommand({cell: node, store: mockStore})
-
-    const output = mockStore.getOutput()
-    expect(output.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          title: 'Error: Unknown command "(unknown)"',
-          parent: node.id,
-        }),
-      ]),
-    )
-  })
-
-  it('error node title starts with "Error:" matching the codebase-wide error convention', async () => {
-    const {node, rootNode} = makeNode('errorConvNode', '/any-alias prompt')
-    const mockStore = makeStore({node, rootNode})
-
-    await runCommand({cell: node, store: mockStore})
-
-    const output = mockStore.getOutput()
-    const errorNode = output.nodes.find(n => n.parent === node.id)
-    expect(errorNode.title).toMatch(/^Error:/)
   })
 })

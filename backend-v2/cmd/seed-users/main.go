@@ -150,6 +150,9 @@ func main() {
 			log.Fatalf("Failed to insert user %s: %v", user.UserID, err)
 		}
 	}
+	if err := seedAdminIntegration(ctx, db, "admin"); err != nil {
+		log.Fatalf("Failed to seed admin integration: %v", err)
+	}
 
 	portInfo := ""
 	if len(*mongoURI) > 0 {

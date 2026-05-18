@@ -36,6 +36,7 @@ export class ChatClaude extends BaseChatModel {
   modelName = 'claude-2.1'
   model = 'claude-2.1'
   completionRetryCount = 0
+  thinkingBudgetTokens = null
 
   constructor(fields) {
     super(fields ?? {})
@@ -56,6 +57,7 @@ export class ChatClaude extends BaseChatModel {
     this.topP = fields?.topP ?? this.topP
     this.maxTokens = fields?.maxTokens ?? this.maxTokens
     this.stopSequences = fields?.stopSequences ?? this.stopSequences
+    this.thinkingBudgetTokens = fields?.thinkingBudgetTokens ?? null
   }
 
   static lc_name() {
@@ -87,8 +89,8 @@ export class ChatClaude extends BaseChatModel {
     return {
       model: this.model,
       temperature: this.temperature,
-      top_k: this.topK,
-      top_p: this.topP,
+      ...(this.topK >= 0 ? {top_k: this.topK} : {}),
+      ...(this.topP >= 0 ? {top_p: this.topP} : {}),
       stop_sequences: options?.stop ?? this.stopSequences,
       max_tokens: this.maxTokens,
     }
@@ -110,6 +112,12 @@ export class ChatClaude extends BaseChatModel {
         ...params,
         messages: chatHistory,
         system: systemPrompt ?? undefined,
+        ...(this.thinkingBudgetTokens
+          ? {
+              thinking: {type: 'enabled', budget_tokens: this.thinkingBudgetTokens},
+              temperature: 1,
+            }
+          : {}),
       }
 
       const response = await fetch(CLAUDE_API_URL, {

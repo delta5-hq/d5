@@ -676,221 +676,22 @@ describe('ExecutorController', () => {
   //   expect(responseBody.queryType).toBe('refine')
   // })
 
-  it('should maintain output structure when executing steps feedback loop', async () => {
-    const body = {
-      cell: {
-        id: 'LQffD2r83pf',
-        title: '/steps Feedback Loop',
-        color: '@salmon-light',
-        scale: 0.6666666666666666,
-        width: 280.8,
-        height: 405.59999999999997,
-        autoshrink: false,
-        command: '/steps Feedback Loop',
-        prompts: [],
-        tags: [],
-        parent: 'r7N6TRJttHd',
-        children: ['9d66n9242PR', 'LqgRnG28nqf'],
-        x: 327.59999999999997,
-        y: 140.39999999999998,
-      },
-      queryType: 'steps',
-      workflowNodes: {
-        r7N6TRJttHd: {
-          id: 'r7N6TRJttHd',
-          x: 0,
-          y: 0,
-          width: 1024,
-          scale: 0.6666666666666666,
-          height: 768,
-          title: 'Execute Keep Output Structure Test',
-          children: ['tjbT7M4n2nD', 'LQffD2r83pf'],
-        },
-        LQffD2r83pf: {
-          id: 'LQffD2r83pf',
-          title: '/steps Feedback Loop',
-          color: '@salmon-light',
-          scale: 0.6666666666666666,
-          width: 280.8,
-          height: 405.59999999999997,
-          autoshrink: false,
-          command: '/steps Feedback Loop',
-          prompts: [],
-          tags: [],
-          parent: 'r7N6TRJttHd',
-          children: ['9d66n9242PR', 'LqgRnG28nqf'],
-          x: 327.59999999999997,
-          y: 140.39999999999998,
-        },
-        '9d66n9242PR': {
-          id: '9d66n9242PR',
-          scale: 0.6666666666666666,
-          x: 0,
-          y: 0,
-          width: 280.8,
-          height: 62.4,
-          autoshrink: false,
-          prompts: [],
-          tags: [],
-          parent: 'LQffD2r83pf',
-          command:
-            "@goal897 Ensure young writer writes about white bears and has dramatic ending. When it has bears and drama, say it's good enough",
-          title:
-            "@goal897 Ensure young writer writes about white bears and has dramatic ending. When it has bears and drama, say it's good enough",
-        },
-        LqgRnG28nqf: {
-          id: 'LqgRnG28nqf',
-          title: '/steps',
-          color: '@salmon-light',
-          scale: 0.6666666666666666,
-          x: 0,
-          y: 78,
-          width: 280.8,
-          height: 405.59999999999997,
-          autoshrink: false,
-          command: '/steps',
-          prompts: [],
-          tags: [],
-          parent: 'LQffD2r83pf',
-          children: ['QDNRrJTmRQB', '84hqFJb4htM'],
-        },
-        QDNRrJTmRQB: {
-          id: 'QDNRrJTmRQB',
-          scale: 0.6666666666666666,
-          x: 0,
-          y: 15.599999999999998,
-          width: 280.8,
-          height: 156,
-          autoshrink: false,
-          prompts: ['GH68GpRFMfP'],
-          tags: [],
-          parent: 'LqgRnG28nqf',
-          children: ['7DDTLTPG6BH'],
-          command:
-            '#0 /refine rewrite the provided story of 30 words @writing897 , taking into account this feedback: ``` @@feedback897 ```',
-          title:
-            '#0 /refine rewrite the provided story of 30 words @writing897 , taking into account this feedback: ``` @@feedback897 ```',
-        },
-        '84hqFJb4htM': {
-          id: '84hqFJb4htM',
-          scale: 0.6666666666666666,
-          x: 0,
-          y: 187.2,
-          width: 280.8,
-          height: 296.4,
-          autoshrink: false,
-          prompts: ['hBQMG8rTH7T'],
-          tags: [],
-          parent: 'LqgRnG28nqf',
-          command:
-            '#1 /chatgpt writing: ``` @@writing897 ``` give your feedback as a reviewer of a young writer. Your goal: @@goal897 . be concise and constructive, no more than 8 words. @feedback897',
-          title:
-            '#1 /chatgpt writing: ``` @@writing897 ``` give your feedback as a reviewer of a young writer. Your goal: @@goal897 . be concise and constructive, no more than 8 words. @feedback897  ',
-          children: [],
-        },
-        '7DDTLTPG6BH': {
-          id: '7DDTLTPG6BH',
-          x: 0,
-          y: 0,
-          width: 374.4,
-          scale: 0.6666666666666666,
-          height: 31.2,
-          color: '@white',
-          title: 'a dog who jumped over a fox ',
-          command: '',
-          autoshrink: false,
-          parent: 'QDNRrJTmRQB',
-        },
-      },
-      workflowFiles: {},
-    }
-    generateNodeId.mockReturnValueOnce('g26fG76b39g')
-    generateNodeId.mockReturnValueOnce('fr6nT3mpbMG')
-
-    chainCallSpy.mockReturnValueOnce({
-      text: 'A swift dog leaped gracefully over a sly fox, their movements a blur of fur and cunning beneath the golden sun. The chase was brief but thrilling.',
-    })
-    modelCallSpy.mockReturnValueOnce({
-      content: 'Include white bears and a more dramatic ending.',
-    })
-
-    const {body: responseBody} = await customerRequest.post(apiEndpoint).send(body)
-
-    expect(responseBody.nodesChanged).toEqual([
-      {
-        id: 'LqgRnG28nqf',
-        title: '/steps',
-        color: '@salmon-light',
-        scale: 0.6666666666666666,
-        x: 0,
-        y: 78,
-        width: 280.8,
-        height: 405.59999999999997,
-        autoshrink: false,
-        command: '/steps',
-        prompts: [],
-        tags: [],
-        parent: 'LQffD2r83pf',
-        children: ['QDNRrJTmRQB', '84hqFJb4htM'],
-      },
-      {
-        id: 'QDNRrJTmRQB',
-        scale: 0.6666666666666666,
-        x: 0,
-        y: 15.599999999999998,
-        width: 280.8,
-        height: 156,
-        autoshrink: false,
-        prompts: ['g26fG76b39g'],
-        tags: [],
-        parent: 'LqgRnG28nqf',
-        children: ['g26fG76b39g'],
-        command:
-          '#0 /refine rewrite the provided story of 30 words @writing897 , taking into account this feedback: ``` @@feedback897 ```',
-        title:
-          '#0 /refine rewrite the provided story of 30 words @writing897 , taking into account this feedback: ``` @@feedback897 ```',
-      },
-      {
-        id: 'g26fG76b39g',
-        title:
-          'A swift dog leaped gracefully over a sly fox, their movements a blur of fur and cunning beneath the golden sun. The chase was brief but thrilling.',
-        children: [],
-        parent: 'QDNRrJTmRQB',
-      },
-      {
-        id: '84hqFJb4htM',
-        scale: 0.6666666666666666,
-        x: 0,
-        y: 187.2,
-        width: 280.8,
-        height: 296.4,
-        autoshrink: false,
-        prompts: ['fr6nT3mpbMG'],
-        tags: [],
-        parent: 'LqgRnG28nqf',
-        command:
-          '#1 /chatgpt writing: ``` @@writing897 ``` give your feedback as a reviewer of a young writer. Your goal: @@goal897 . be concise and constructive, no more than 8 words. @feedback897',
-        title:
-          '#1 /chatgpt writing: ``` @@writing897 ``` give your feedback as a reviewer of a young writer. Your goal: @@goal897 . be concise and constructive, no more than 8 words. @feedback897  ',
-        children: ['fr6nT3mpbMG'],
-      },
-      {
-        id: 'fr6nT3mpbMG',
-        title: 'Include white bears and a more dramatic ending.',
-        children: [],
-        parent: '84hqFJb4htM',
-      },
-    ])
-    expect(responseBody.cell.children).toEqual(expect.arrayContaining(['9d66n9242PR', 'LqgRnG28nqf']))
-    expect(responseBody.workflowNodes.QDNRrJTmRQB.prompts).toContain('g26fG76b39g')
-    expect(responseBody.workflowNodes['84hqFJb4htM'].prompts).toContain('fr6nT3mpbMG')
-    expect(responseBody.workflowNodes).toHaveProperty('g26fG76b39g')
-    expect(responseBody.workflowNodes).toHaveProperty('fr6nT3mpbMG')
-    expect(responseBody.workflowNodes).not.toHaveProperty('GH68GpRFMfP')
-    expect(responseBody.workflowNodes).not.toHaveProperty('hBQMG8rTH7T')
-    expect(responseBody.workflowId).toBe(body.workflowId)
-    expect(responseBody.queryType).toBe('steps')
-  })
+  /*
+   * REMOVED in P0.1: "should maintain output structure when executing steps feedback loop"
+   *
+   * The deleted test wrapped a /steps cell containing a legacy /refine cell that
+   * iteratively transformed content via the /chatgpt feedback. Legacy /refine was
+   * removed in P0.1; the feedback-loop semantics it provided are now expected to
+   * land via /refine :n=N (P0.3-P0.11) and a /chatgpt-based prompt restructure.
+   *
+   * Surviving architectural coverage:
+   *   - /steps orchestration mechanics: runCommand.integrations.test.js (StepsCommand block)
+   *   - post-processor priority + recursion: runCommand.postprocess.test.js
+   *   - alias resolution + dispatch: this file, "alias resolution and queryType dispatch" describe
+   *
+   * A new /steps + /chatgpt + /refine :n=N feedback-loop integration test will be
+   * added under P0.11 acceptance.
+   */
 
   describe('alias resolution and queryType dispatch', () => {
     const createTestNode = (id, command, parent = 'root') => ({
@@ -1009,7 +810,6 @@ describe('ExecutorController', () => {
       it.each([
         ['/steps', 'steps'],
         ['/foreach', 'foreach'],
-        ['/refine', 'refine'],
         ['/memorize', 'memorize'],
       ])('should protect %s from alias override (remains %s)', async (command, expectedQueryType) => {
         loadUserAliases.mockResolvedValueOnce({
@@ -1029,6 +829,35 @@ describe('ExecutorController', () => {
 
         expect(responseBody.queryType).toBe(expectedQueryType)
         expect(MCPCommand.prototype.run).not.toHaveBeenCalled()
+      })
+
+      // /refine has its own protection test (below) because legacy /refine was
+      // removed in P0.1: /refine top-level execution now errors via
+      // "Unknown queryType: refine" (CommandFactory.createRunner default branch).
+      // The security property — alias cannot hijack the dispatch — is still
+      // verified, but via a different response shape (5xx error, not success body).
+      it('should protect /refine from alias override even though top-level /refine is no longer runnable (P0.1)', async () => {
+        loadUserAliases.mockResolvedValueOnce({
+          mcp: [{alias: '/refine', name: 'Malicious Override'}],
+          rpc: [],
+        })
+        generateNodeId.mockReturnValueOnce('childId')
+        modelCallSpy.mockReturnValueOnce({content: 'Result'})
+        chainCallSpy.mockReturnValueOnce({text: 'Result'})
+
+        const body = {
+          ...createTestWorkflow('test-cell', '/refine'),
+          queryType: 'refine',
+        }
+
+        const response = await customerRequest.post(apiEndpoint).send(body)
+
+        // Security: malicious alias was NOT invoked (the central protection invariant).
+        expect(MCPCommand.prototype.run).not.toHaveBeenCalled()
+        // Behavior: top-level /refine errors per P0.1 (legacy removed; new /refine :n=N
+        // is post-processor-only, not top-level).
+        expect(response.status).toBeGreaterThanOrEqual(500)
+        expect(response.text || JSON.stringify(response.body)).toMatch(/refine/i)
       })
     })
 

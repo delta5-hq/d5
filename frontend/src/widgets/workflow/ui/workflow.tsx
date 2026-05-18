@@ -23,6 +23,8 @@ import { FormattedMessage, useIntl } from 'react-intl'
 import { getDescendantIds, normalizeNodeTitle, hasUsableRoot } from '@entities/workflow/lib'
 import { useClickOutside } from '@shared/lib/hooks'
 import { isSlashCommand } from '@shared/lib/commands/command-validator'
+import { matchesAnyCommandWithOrder } from '@shared/lib/command-validation'
+import { deriveNodeTitle } from '@shared/lib/reliability-suffix'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import { useAliases } from '@entities/aliases'
 import { EmptyWorkflowView } from './empty-workflow-view'
@@ -244,8 +246,12 @@ const WorkflowContent = () => {
     (nodeId: string, committedCommand: string) => {
       const node = nodes[nodeId]
       if (!node) return
+      if (!matchesAnyCommandWithOrder(committedCommand, aliases)) return
       const queryType = extractQueryTypeFromCommand(committedCommand, aliases)
-      void actions.executeCommand({ ...node, command: committedCommand }, queryType)
+      void actions.executeCommand(
+        { ...node, command: committedCommand, title: deriveNodeTitle(node, committedCommand) },
+        queryType,
+      )
     },
     [actions, nodes, aliases],
   )
@@ -254,8 +260,14 @@ const WorkflowContent = () => {
     (nodeId: string, committedCommand: string) => {
       const node = nodes[nodeId]
       if (!node) return
-      const queryType = extractQueryTypeFromCommand(committedCommand, aliases)
-      void actions.executeCommand({ ...node, command: committedCommand }, queryType)
+      const isExecutable = matchesAnyCommandWithOrder(committedCommand, aliases)
+      if (isExecutable) {
+        const queryType = extractQueryTypeFromCommand(committedCommand, aliases)
+        void actions.executeCommand(
+          { ...node, command: committedCommand, title: deriveNodeTitle(node, committedCommand) },
+          queryType,
+        )
+      }
       const newId = actions.addSibling(nodeId, { title: '' })
       if (newId) {
         actions.select(newId)

@@ -55,6 +55,7 @@ describe('RPCCommand', () => {
     jest.clearAllMocks()
     mockStore = makeStore()
     mockStore.importer.createNodes = jest.fn()
+    mockStore.importer.createErrorNode = jest.fn()
 
     mockSSHExecutor = {
       execute: jest.fn().mockResolvedValue({stdout: 'ssh output', stderr: '', exitCode: 0}),
@@ -283,7 +284,7 @@ describe('RPCCommand', () => {
 
       await command.run(node, null, 'test')
 
-      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: Connection failed', 'node5')
+      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: Connection failed', 'node5')
     })
 
     it('throws on unknown protocol', async () => {
@@ -293,7 +294,7 @@ describe('RPCCommand', () => {
 
       await command.run(node, null, 'test')
 
-      expect(mockStore.importer.createNodes).toHaveBeenCalledWith(
+      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(
         expect.stringContaining('Unknown RPC protocol'),
         'node6',
       )
@@ -987,7 +988,7 @@ describe('RPCCommand', () => {
       await command.run(node, null, null, {signal: abortController.signal})
 
       expect(mockHTTPExecutor.execute).not.toHaveBeenCalled()
-      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: Operation aborted', 'node1')
+      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: Operation aborted', 'node1')
     })
 
     it('accepts run with no options parameter for backward compatibility', async () => {

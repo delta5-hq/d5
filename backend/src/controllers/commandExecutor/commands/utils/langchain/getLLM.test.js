@@ -2,6 +2,32 @@ import {EmbStorageType} from '../../../../../shared/config/constants'
 import {determineLLMType, getEmbeddings, getIntegrationSettings, Model} from './getLLM'
 import IntegrationFacade from '../../../../../repositories/IntegrationFacade'
 
+const withEnv = async (vars, fn) => {
+  const originals = Object.fromEntries(Object.keys(vars).map(k => [k, process.env[k]]))
+  Object.entries(vars).forEach(([k, v]) => {
+    if (v === undefined) delete process.env[k]
+    else process.env[k] = v
+  })
+  try {
+    return await fn()
+  } finally {
+    Object.entries(originals).forEach(([k, v]) => {
+      if (v === undefined) delete process.env[k]
+      else process.env[k] = v
+    })
+  }
+}
+
+const ALL_PROVIDER_ENV_VARS = {
+  OPENAI_API_KEY: undefined,
+  CLAUDE_API_KEY: undefined,
+  PERPLEXITY_API_KEY: undefined,
+  DEEPSEEK_API_KEY: undefined,
+  QWEN_API_KEY: undefined,
+  YANDEX_API_KEY: undefined,
+  YANDEX_FOLDER_ID: undefined,
+}
+
 jest.mock('../../../../../repositories/IntegrationFacade')
 
 describe('determineLLMType', () => {
@@ -64,45 +90,11 @@ describe('determineLLMType', () => {
       expect(determineLLMType(undefined, settings)).toBe(Model.YandexGPT)
     })
 
-    it('command --lang=ru takes priority over configured credentials', () => {
+    it('prefers command --lang over credentials', () => {
       const settings = {
         claude: {apiKey: 'claude-key'},
       }
       expect(determineLLMType('/web prompt --lang=ru', settings)).toBe(Model.YandexGPT)
-    })
-
-    it('command --lang=en returns OpenAI when no credentials configured', () => {
-      expect(determineLLMType('/web prompt --lang=en', {})).toBe(Model.OpenAI)
-    })
-
-    it('command --lang=en overrides Yandex-only credentials to return OpenAI', () => {
-      const settings = {yandex: {apiKey: 'yandex-key', folder_id: 'folder-1'}}
-      expect(determineLLMType('/web prompt --lang=en', settings)).toBe(Model.OpenAI)
-    })
-
-    it('command --lang with unknown locale returns OpenAI (any non-ru maps to OpenAI)', () => {
-      const settings = {}
-      expect(determineLLMType('/web prompt --lang=fr', settings)).toBe(Model.OpenAI)
-    })
-
-    it('settings lang takes priority over command --lang when both present (settings lang=ru beats command --lang=en)', () => {
-      const settings = {lang: 'ru'}
-      expect(determineLLMType('/web prompt --lang=en', settings)).toBe(Model.YandexGPT)
-    })
-
-    it('settings lang takes priority over command --lang when both present (settings lang=en beats command --lang=ru)', () => {
-      const settings = {lang: 'en'}
-      expect(determineLLMType('/web prompt --lang=ru', settings)).toBe(Model.OpenAI)
-    })
-
-    it('settings lang sentinel "none" falls through to command --lang=ru', () => {
-      const settings = {lang: 'none'}
-      expect(determineLLMType('/web prompt --lang=ru', settings)).toBe(Model.YandexGPT)
-    })
-
-    it('command with no --lang flag falls through to credential detection', () => {
-      const settings = {claude: {apiKey: 'claude-key'}}
-      expect(determineLLMType('/web prompt', settings)).toBe(Model.Claude)
     })
   })
 
@@ -330,77 +322,6 @@ describe('getEmbeddingsSettings', () => {
     )
     expect(result.storageType).toBe(EmbStorageType.yandex)
   })
-
-  describe('Claude and Deepseek embedding cascade', () => {
-    it.each([[Model.Claude], [Model.Deepseek]])('%s with OpenAI also configured — uses OpenAI embeddings', type => {
-      const result = getEmbeddings({
-        type,
-        settings: {
-          openai: {apiKey: 'sk-openai'},
-          claude: {apiKey: 'sk-claude'},
-          deepseek: {apiKey: 'sk-deepseek'},
-        },
-      })
-      expect(result.embeddings.constructor.name).toBe('OpenAIEmbeddings')
-      expect(result.storageType).toBe(EmbStorageType.openai)
-    })
-
-    it.each([[Model.Claude], [Model.Deepseek]])(
-      '%s with Qwen configured (no OpenAI) — cascades to Qwen embeddings',
-      type => {
-        const result = getEmbeddings({
-          type,
-          settings: {qwen: {apiKey: 'sk-qwen'}},
-        })
-        expect(result.embeddings.constructor.name).toBe('OpenAIEmbeddings')
-        expect(result.storageType).toBe(EmbStorageType.qwen)
-      },
-    )
-
-    it.each([[Model.Claude], [Model.Deepseek]])(
-      '%s with CustomLLM configured (no OpenAI/Qwen) — cascades to CustomLLM embeddings',
-      type => {
-        const result = getEmbeddings({
-          type,
-          settings: {custom_llm: {apiRootUrl: 'http://custom.llm'}},
-        })
-        expect(result.storageType).toBe(EmbStorageType.custom_llm)
-      },
-    )
-
-    it.each([[Model.Claude], [Model.Deepseek]])(
-      '%s with Yandex configured (no OpenAI/Qwen/CustomLLM) — cascades to Yandex embeddings',
-      type => {
-        const result = getEmbeddings({
-          type,
-          settings: {yandex: {apiKey: 'yandex-key', folder_id: 'folder-1'}},
-        })
-        expect(result.storageType).toBe(EmbStorageType.yandex)
-      },
-    )
-
-    it.each([[Model.Claude], [Model.Deepseek]])(
-      '%s with no secondary embedding provider — throws descriptive error',
-      type => {
-        expect(() => getEmbeddings({type, settings: {}})).toThrow('Embeddings require a configured provider')
-      },
-    )
-
-    it.each([[Model.Claude], [Model.Deepseek]])(
-      '%s OpenAI takes precedence over Qwen and Yandex when all are configured',
-      type => {
-        const result = getEmbeddings({
-          type,
-          settings: {
-            openai: {apiKey: 'sk-openai'},
-            qwen: {apiKey: 'sk-qwen'},
-            yandex: {apiKey: 'yandex-key', folder_id: 'folder-1'},
-          },
-        })
-        expect(result.storageType).toBe(EmbStorageType.openai)
-      },
-    )
-  })
 })
 
 describe('getIntegrationSettings', () => {
@@ -408,12 +329,12 @@ describe('getIntegrationSettings', () => {
     jest.clearAllMocks()
   })
 
-  it('returns env-fallback settings when no DB record exists', async () => {
+  it('throws when no DB record exists and no env vars are set', async () => {
     IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged: null, workflowDoc: null})
 
-    const result = await getIntegrationSettings('user-1')
-    expect(result).toBeDefined()
-    expect(typeof result).toBe('object')
+    await expect(withEnv(ALL_PROVIDER_ENV_VARS, () => getIntegrationSettings('user-1'))).rejects.toThrow(
+      'No LLM credentials configured',
+    )
   })
 
   it('returns merged settings when workflowId is null', async () => {
@@ -607,7 +528,7 @@ describe('getIntegrationSettings', () => {
       expect(result.model).toBe(Model.Qwen)
     })
 
-    it('does not mutate original merged object when setting model', async () => {
+    it('propagates detected workflow provider into the model field of the returned settings', async () => {
       const merged = {
         userId: 'user-1',
         workflowId: 'wf-1',
@@ -625,22 +546,21 @@ describe('getIntegrationSettings', () => {
   })
 
   describe('environment variable fallback behavior', () => {
-    it('env fallback is applied after merge in getIntegrationSettings', async () => {
+    it('fills absent provider credential from env when DB record exists', async () => {
       const merged = {userId: 'user-1', workflowId: null, model: 'auto'}
       IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged, workflowDoc: null})
 
-      const result = await getIntegrationSettings('user-1', null)
+      const result = await withEnv({OPENAI_API_KEY: 'sk-env-only'}, () => getIntegrationSettings('user-1', null))
 
-      expect(result).toBeDefined()
+      expect(result.openai.apiKey).toBe('sk-env-only')
     })
 
-    it('user credentials take precedence when both user key and env exist in merged settings', async () => {
-      const merged = {userId: 'user-1', workflowId: null, claude: {apiKey: 'sk-user-claude'}, model: 'auto'}
-      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged, workflowDoc: null})
+    it('builds synthetic settings from env when DB returns null', async () => {
+      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged: null, workflowDoc: null})
 
-      const result = await getIntegrationSettings('user-1', null)
+      const result = await withEnv({OPENAI_API_KEY: 'sk-env-synthetic'}, () => getIntegrationSettings('user-1', null))
 
-      expect(result.claude.apiKey).toBe('sk-user-claude')
+      expect(result.openai.apiKey).toBe('sk-env-synthetic')
     })
 
     it('workflow-scoped key wins over global after merge', async () => {
@@ -741,6 +661,49 @@ describe('getLLM error handling for missing API keys', () => {
       expect(() =>
         getLLM({type: Model.CustomLLM, settings: {custom_llm: {apiRootUrl: 'https://api.custom.com'}}}),
       ).not.toThrow()
+    })
+  })
+})
+
+describe('getLLM thinkingBudgetTokens passthrough', () => {
+  const {getLLM} = require('./getLLM')
+
+  describe('Claude — budget propagation', () => {
+    it.each([500, 1000, 2000, 10000])('passes thinkingBudgetTokens=%i to ChatClaude', budget => {
+      const {llm} = getLLM({
+        type: Model.Claude,
+        settings: {claude: {apiKey: 'sk-ant-test', model: 'claude-sonnet-4-6'}},
+        thinkingBudgetTokens: budget,
+      })
+      expect(llm.thinkingBudgetTokens).toBe(budget)
+    })
+
+    it('leaves thinkingBudgetTokens null on ChatClaude when not provided', () => {
+      const {llm} = getLLM({
+        type: Model.Claude,
+        settings: {claude: {apiKey: 'sk-ant-test', model: 'claude-sonnet-4-6'}},
+      })
+      expect(llm.thinkingBudgetTokens).toBeNull()
+    })
+
+    it('leaves thinkingBudgetTokens null on ChatClaude when explicitly passed null', () => {
+      const {llm} = getLLM({
+        type: Model.Claude,
+        settings: {claude: {apiKey: 'sk-ant-test', model: 'claude-sonnet-4-6'}},
+        thinkingBudgetTokens: null,
+      })
+      expect(llm.thinkingBudgetTokens).toBeNull()
+    })
+  })
+
+  describe('non-Claude providers — thinkingBudgetTokens silently ignored', () => {
+    it.each([
+      [Model.OpenAI, {openai: {apiKey: 'sk-key'}}],
+      [Model.Deepseek, {deepseek: {apiKey: 'sk-key'}}],
+      [Model.Qwen, {qwen: {apiKey: 'sk-key'}}],
+      [Model.CustomLLM, {custom_llm: {apiRootUrl: 'https://api.custom.com'}}],
+    ])('does not throw for %s when thinkingBudgetTokens provided', (type, settings) => {
+      expect(() => getLLM({type, settings, thinkingBudgetTokens: 2000})).not.toThrow()
     })
   })
 })

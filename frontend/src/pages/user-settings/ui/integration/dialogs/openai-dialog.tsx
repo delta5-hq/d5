@@ -19,15 +19,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 import { toast } from 'sonner'
 
-import type { ApiError, DialogProps, Openai } from '@shared/base-types'
+import type { DialogProps, Openai } from '@shared/base-types'
 import { useApiMutation } from '@shared/composables'
 import { OpenaiModels } from '@shared/config'
 import type { HttpError } from '@shared/lib/error'
-import { buildIntegrationUrl } from '../utils/build-integration-url'
 import { createResponseChat } from '@shared/lib/llm'
-import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
 import { X } from 'lucide-react'
 import { z } from 'zod'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
+import { submitIntegrationChanges } from '../utils/submit-integration-changes'
+import { toastIntegrationError } from '../utils/toast-integration-error'
 
 export const openaiSchema = z.object({
   apiKey: z.string().optional(),
@@ -85,33 +86,14 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data, workflowI
 
   const onSubmit = async (values: OpenaiFormValues) => {
     try {
-      const apiKeyChanged = values.apiKey && values.apiKey.trim() !== data?.apiKey && values.apiKey
-      const modelChanged = values.model.trim() !== data?.model
-
-      if (apiKeyChanged || modelChanged) {
-        await createResponseChat('Hello!', values)
-        await save(values)
-      } else if (!objectsAreEqual(values, data || {})) {
-        await save(values)
+      const payload: Partial<Openai> = { model: values.model }
+      if (values.apiKey?.trim()) {
+        payload.apiKey = values.apiKey
+        await createResponseChat('Hello!', { apiKey: values.apiKey, model: values.model })
       }
-
-      await refresh()
-      onClose?.()
+      await submitIntegrationChanges(() => save(payload as Openai), { refresh, onClose })
     } catch (e: unknown) {
-      const error = e as ApiError
-      const { status } = error.response || {}
-
-      if (status === 401) {
-        toast.error(<FormattedMessage id="dialog.integration.authenticationError" />)
-      } else if (status === 429) {
-        toast.error(<FormattedMessage id="dialog.integration.rateLimitExceeded" />)
-      } else if (status === 404) {
-        toast.error(<FormattedMessage id="dialog.integration.noAccess" values={{ model: values.model }} />)
-      } else if (status === 503) {
-        toast.error(<FormattedMessage id="dialog.integration.serverError" />)
-      } else {
-        toast.error(<FormattedMessage id="dialog.integration.wrongRequest" />)
-      }
+      toastIntegrationError(e, { model: values.model })
     }
   }
 

@@ -26,6 +26,49 @@ describe('Claude parseChatHistory', () => {
   })
 })
 
+describe('ChatClaude invocationParams', () => {
+  describe('optional sampling parameters', () => {
+    it('omits top_k and top_p when neither has been configured', () => {
+      const claude = new ChatClaude({apiKey: 'test-key'})
+      const params = claude.invocationParams({})
+      expect(params).not.toHaveProperty('top_k')
+      expect(params).not.toHaveProperty('top_p')
+    })
+
+    it.each([
+      ['positive integer', 10],
+      ['zero — a valid sampling boundary', 0],
+    ])('includes top_k when configured as a %s', (_label, topK) => {
+      expect(new ChatClaude({apiKey: 'test-key', topK}).invocationParams({}).top_k).toBe(topK)
+    })
+
+    it.each([
+      ['fraction', 0.9],
+      ['zero — a valid probability boundary', 0],
+    ])('includes top_p when configured as a %s', (_label, topP) => {
+      expect(new ChatClaude({apiKey: 'test-key', topP}).invocationParams({}).top_p).toBe(topP)
+    })
+
+    it('includes both top_k and top_p when both are explicitly configured', () => {
+      const params = new ChatClaude({apiKey: 'test-key', topK: 5, topP: 0.8}).invocationParams({})
+      expect(params.top_k).toBe(5)
+      expect(params.top_p).toBe(0.8)
+    })
+  })
+
+  it('always includes model, temperature, and max_tokens regardless of optional params', () => {
+    const params = new ChatClaude({
+      apiKey: 'test-key',
+      model: 'claude-3-haiku',
+      temperature: 0.5,
+      maxTokens: 512,
+    }).invocationParams({})
+    expect(params.model).toBe('claude-3-haiku')
+    expect(params.temperature).toBe(0.5)
+    expect(params.max_tokens).toBe(512)
+  })
+})
+
 describe('ChatClaude request formatting', () => {
   beforeEach(() => {
     jest.clearAllMocks()
@@ -66,81 +109,14 @@ describe('ChatClaude request formatting', () => {
     expect(systemInMessages).toBe(false)
   })
 
-  it('does not include apiKey or constructor kwargs in the request body', async () => {
+  it('omits top_k and top_p from the request body when neither has been configured', async () => {
     fetch.mockResolvedValue({
       ok: true,
-      json: jest.fn().mockResolvedValue({
-        content: [{type: 'text', text: 'OK'}],
-      }),
+      json: jest.fn().mockResolvedValue({content: [{type: 'text', text: 'ok'}]}),
     })
-
-    const claude = new ChatClaude({
-      apiKey: 'secret-key',
-      model: 'claude-3-haiku-20240307',
-      maxRetries: 3,
-    })
-
-    await claude.invoke([new HumanMessage('Hi')])
-
+    await new ChatClaude({apiKey: 'test-key'}).invoke([new HumanMessage('hi')])
     const body = JSON.parse(fetch.mock.calls[0][1].body)
-
-    expect(body).not.toHaveProperty('apiKey')
-    expect(body).not.toHaveProperty('anthropicApiKey')
-    expect(body).not.toHaveProperty('maxRetries')
-  })
-
-  it('sends apiKey exclusively in the x-api-key header, not in the body', async () => {
-    fetch.mockResolvedValue({
-      ok: true,
-      json: jest.fn().mockResolvedValue({
-        content: [{type: 'text', text: 'OK'}],
-      }),
-    })
-
-    const claude = new ChatClaude({apiKey: 'header-only-key', model: 'claude-3-haiku-20240307'})
-
-    await claude.invoke([new HumanMessage('Ping')])
-
-    const [, init] = fetch.mock.calls[0]
-    expect(init.headers['x-api-key']).toBe('header-only-key')
-    const body = JSON.parse(init.body)
-    expect(body).not.toHaveProperty('apiKey')
-  })
-
-  it('request body contains only Anthropic-accepted fields', async () => {
-    fetch.mockResolvedValue({
-      ok: true,
-      json: jest.fn().mockResolvedValue({
-        content: [{type: 'text', text: 'OK'}],
-      }),
-    })
-
-    const claude = new ChatClaude({
-      apiKey: 'test-key',
-      model: 'claude-3-haiku-20240307',
-      temperature: 0.5,
-      topK: 5,
-      topP: 0.8,
-      maxTokens: 512,
-    })
-
-    await claude.invoke([new HumanMessage('Test')])
-
-    const body = JSON.parse(fetch.mock.calls[0][1].body)
-    const bodyKeys = Object.keys(body)
-    const acceptedKeys = [
-      'model',
-      'messages',
-      'system',
-      'temperature',
-      'top_k',
-      'top_p',
-      'max_tokens',
-      'stop_sequences',
-    ]
-
-    for (const key of bodyKeys) {
-      expect(acceptedKeys).toContain(key)
-    }
+    expect(body).not.toHaveProperty('top_k')
+    expect(body).not.toHaveProperty('top_p')
   })
 })

@@ -47,6 +47,11 @@ export class IntegrationDocBuilder {
     return this
   }
 
+  addLLMProvider(family, config) {
+    this.doc[family] = config
+    return this
+  }
+
   build() {
     return this.doc
   }

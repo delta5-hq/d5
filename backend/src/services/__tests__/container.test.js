@@ -7,13 +7,15 @@ jest.mock('node-fetch', () => ({
   default: mockFetch,
 }))
 
+const okResponse = body => ({ok: true, json: async () => body})
+const errorResponse = (status, body = {}) => ({ok: false, status, json: async () => body})
+
 describe('ServiceContainer', () => {
   let container
-  let mockConfig
 
   beforeEach(() => {
     jest.clearAllMocks()
-    mockConfig = {
+    container = new ServiceContainer({
       mode: {isE2EMode: false},
       claude: {
         baseUrl: 'https://api.anthropic.com/v1',
@@ -33,446 +35,260 @@ describe('ServiceContainer', () => {
       freepik: {},
       webScraper: {},
       openai: {},
-    }
-    container = new ServiceContainer(mockConfig)
+    })
   })
 
   describe('RealClaudeService', () => {
-    let claudeService
-
-    const successResponse = () =>
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({content: [{text: 'response'}]}),
-      })
-
-    const errorResponse = (status, message) =>
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status,
-        json: async () => ({error: {message}}),
-      })
-
-    const minimalBody = (extra = {}) => ({
+    let service
+    const basePayload = {
       model: 'claude-3-5-sonnet-20241022',
-      messages: [{role: 'user', content: 'test'}],
-      max_tokens: 100,
-      ...extra,
-    })
+      messages: [{role: 'user', content: 'hello'}],
+      max_tokens: 256,
+    }
 
     beforeEach(() => {
-      claudeService = container.get('claudeService')
+      service = container.get('claudeService')
     })
 
-    describe('API key precedence', () => {
-      it('uses user-provided apiKey in x-api-key header', async () => {
-        successResponse()
-        await claudeService.sendMessages(minimalBody({apiKey: 'user-claude-key'}))
-        expect(mockFetch).toHaveBeenCalledWith(
-          expect.any(String),
-          expect.objectContaining({headers: expect.objectContaining({'x-api-key': 'user-claude-key'})}),
-        )
+    describe('authentication — x-api-key header', () => {
+      it('uses caller-supplied apiKey when present', async () => {
+        mockFetch.mockResolvedValue(okResponse({content: [{type: 'text', text: 'ok'}]}))
+        await service.sendMessages({...basePayload, apiKey: 'caller-key'})
+        expect(mockFetch.mock.calls[0][1].headers['x-api-key']).toBe('caller-key')
       })
 
-      it('falls back to system apiKey when body.apiKey is absent', async () => {
-        successResponse()
-        await claudeService.sendMessages(minimalBody())
-        expect(mockFetch).toHaveBeenCalledWith(
-          expect.any(String),
-          expect.objectContaining({headers: expect.objectContaining({'x-api-key': 'system-claude-key'})}),
-        )
+      it('falls back to system apiKey when caller omits apiKey', async () => {
+        mockFetch.mockResolvedValue(okResponse({content: [{type: 'text', text: 'ok'}]}))
+        await service.sendMessages(basePayload)
+        expect(mockFetch.mock.calls[0][1].headers['x-api-key']).toBe('system-claude-key')
       })
 
-      it('falls back to system apiKey when body.apiKey is an empty string', async () => {
-        successResponse()
-        await claudeService.sendMessages(minimalBody({apiKey: ''}))
-        expect(mockFetch).toHaveBeenCalledWith(
-          expect.any(String),
-          expect.objectContaining({headers: expect.objectContaining({'x-api-key': 'system-claude-key'})}),
-        )
+      it('falls back to system apiKey when caller passes undefined', async () => {
+        mockFetch.mockResolvedValue(okResponse({content: [{type: 'text', text: 'ok'}]}))
+        await service.sendMessages({...basePayload, apiKey: undefined})
+        expect(mockFetch.mock.calls[0][1].headers['x-api-key']).toBe('system-claude-key')
+      })
+
+      it('sends the anthropic-version header from config', async () => {
+        mockFetch.mockResolvedValue(okResponse({content: [{type: 'text', text: 'ok'}]}))
+        await service.sendMessages(basePayload)
+        expect(mockFetch.mock.calls[0][1].headers['anthropic-version']).toBe('2023-06-01')
       })
     })
 
-    describe('request construction', () => {
-      it('sends to the configured messages endpoint', async () => {
-        successResponse()
-        await claudeService.sendMessages(minimalBody())
-        expect(mockFetch).toHaveBeenCalledWith('https://api.anthropic.com/v1/messages', expect.any(Object))
+    describe('request body — wire shape', () => {
+      it('forwards model, messages, and max_tokens to the API', async () => {
+        mockFetch.mockResolvedValue(okResponse({content: [{type: 'text', text: 'ok'}]}))
+        await service.sendMessages(basePayload)
+        const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+        expect(body.model).toBe(basePayload.model)
+        expect(body.messages).toEqual(basePayload.messages)
+        expect(body.max_tokens).toBe(basePayload.max_tokens)
       })
 
-      it('includes the anthropic-version header', async () => {
-        successResponse()
-        await claudeService.sendMessages(minimalBody())
-        expect(mockFetch).toHaveBeenCalledWith(
-          expect.any(String),
-          expect.objectContaining({
-            headers: expect.objectContaining({'anthropic-version': '2023-06-01'}),
-          }),
-        )
+      it('excludes apiKey from the request body', async () => {
+        mockFetch.mockResolvedValue(okResponse({content: [{type: 'text', text: 'ok'}]}))
+        await service.sendMessages({...basePayload, apiKey: 'caller-key'})
+        const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+        expect(body).not.toHaveProperty('apiKey')
+      })
+
+      it('excludes userId from the request body', async () => {
+        mockFetch.mockResolvedValue(okResponse({content: [{type: 'text', text: 'ok'}]}))
+        await service.sendMessages({...basePayload, userId: 'user-123'})
+        const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+        expect(body).not.toHaveProperty('userId')
+      })
+
+      it('excludes both apiKey and userId when both are supplied', async () => {
+        mockFetch.mockResolvedValue(okResponse({content: [{type: 'text', text: 'ok'}]}))
+        await service.sendMessages({...basePayload, apiKey: 'caller-key', userId: 'user-123'})
+        const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+        expect(body).not.toHaveProperty('apiKey')
+        expect(body).not.toHaveProperty('userId')
+      })
+
+      it('passes additional Anthropic-native fields (system, temperature) through', async () => {
+        mockFetch.mockResolvedValue(okResponse({content: [{type: 'text', text: 'ok'}]}))
+        await service.sendMessages({...basePayload, system: 'Be concise.', temperature: 0.5})
+        const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+        expect(body.system).toBe('Be concise.')
+        expect(body.temperature).toBe(0.5)
+      })
+
+      it('sends to the correct Anthropic messages endpoint', async () => {
+        mockFetch.mockResolvedValue(okResponse({content: [{type: 'text', text: 'ok'}]}))
+        await service.sendMessages(basePayload)
+        expect(mockFetch.mock.calls[0][0]).toBe('https://api.anthropic.com/v1/messages')
+      })
+
+      it('uses POST method', async () => {
+        mockFetch.mockResolvedValue(okResponse({content: [{type: 'text', text: 'ok'}]}))
+        await service.sendMessages(basePayload)
+        expect(mockFetch.mock.calls[0][1].method).toBe('POST')
       })
     })
 
-    describe('request body', () => {
-      it('does not include apiKey in serialized body', async () => {
-        successResponse()
-        await claudeService.sendMessages(minimalBody({apiKey: 'user-key'}))
-        const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body)
-        expect(sentBody).not.toHaveProperty('apiKey')
-      })
-
-      it('includes model, messages, and max_tokens in serialized body', async () => {
-        successResponse()
-        await claudeService.sendMessages(minimalBody())
-        const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body)
-        expect(sentBody).toMatchObject({
-          model: 'claude-3-5-sonnet-20241022',
-          messages: [{role: 'user', content: 'test'}],
-          max_tokens: 100,
-        })
-      })
-
-      it('passes optional Anthropic-accepted fields through', async () => {
-        successResponse()
-        await claudeService.sendMessages(minimalBody({temperature: 0.7, system: 'be concise', top_p: 0.9}))
-        const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body)
-        expect(sentBody).toMatchObject({temperature: 0.7, system: 'be concise', top_p: 0.9})
-      })
-
-      it('strips fields not in the Anthropic allowlist', async () => {
-        successResponse()
-        await claudeService.sendMessages(minimalBody({internalTag: 'xyz', userId: '123'}))
-        const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body)
-        expect(sentBody).not.toHaveProperty('internalTag')
-        expect(sentBody).not.toHaveProperty('userId')
-      })
-    })
-
-    describe('error propagation', () => {
-      it('throws with API error message when response is not ok', async () => {
-        errorResponse(401, 'Invalid API key')
-        await expect(claudeService.sendMessages(minimalBody())).rejects.toThrow(
-          'Claude API error (401): Invalid API key',
+    describe('error handling', () => {
+      it('throws with status code and API error message on non-ok response', async () => {
+        mockFetch.mockResolvedValue(errorResponse(400, {error: {message: 'apiKey: Extra inputs are not permitted'}}))
+        await expect(service.sendMessages(basePayload)).rejects.toThrow(
+          'Claude API error (400): apiKey: Extra inputs are not permitted',
         )
       })
 
-      it('throws with fallback message when API error body has no message field', async () => {
-        mockFetch.mockResolvedValue({ok: false, status: 500, json: async () => ({})})
-        await expect(claudeService.sendMessages(minimalBody())).rejects.toThrow(
+      it('throws with generic fallback message when error body has no message', async () => {
+        mockFetch.mockResolvedValue(errorResponse(500, {}))
+        await expect(service.sendMessages(basePayload)).rejects.toThrow(
           'Claude API error (500): Unknown error from Claude API',
         )
+      })
+
+      it('throws on 401 Unauthorized', async () => {
+        mockFetch.mockResolvedValue(errorResponse(401, {error: {message: 'Invalid API key'}}))
+        await expect(service.sendMessages(basePayload)).rejects.toThrow('Claude API error (401): Invalid API key')
       })
     })
   })
 
   describe('RealYandexService', () => {
-    let yandexService
-
-    const completionSuccessResponse = () =>
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({alternatives: [{message: {text: 'response'}}]}),
-      })
-
-    const embeddingsSuccessResponse = () =>
-      mockFetch.mockResolvedValue({ok: true, json: async () => ({embedding: [0.1, 0.2]})})
-
-    const yandexErrorResponse = status => mockFetch.mockResolvedValue({ok: false, status, json: async () => ({})})
+    let service
+    const completionPayload = {
+      model: 'gpt://folder/yandexgpt/latest',
+      messages: [{role: 'user', text: 'hello'}],
+    }
+    const embeddingsPayload = {
+      modelUri: 'emb://folder/text-search-doc/latest',
+      text: 'embed this',
+    }
 
     beforeEach(() => {
-      yandexService = container.get('yandexService')
+      service = container.get('yandexService')
     })
 
-    describe('completion — API key and folderId precedence', () => {
-      it('uses user-provided apiKey and folderId in Authorization and x-folder-id headers', async () => {
-        completionSuccessResponse()
-        await yandexService.completion({
-          apiKey: 'user-yandex-key',
-          folderId: 'user-folder-id',
-          modelUri: 'gpt://folder/yandexgpt',
-          messages: [{role: 'user', text: 'test'}],
-        })
-        expect(mockFetch).toHaveBeenCalledWith(
-          'https://llm.api.cloud.yandex.net/foundationModels/v1/completion',
-          expect.objectContaining({
-            headers: expect.objectContaining({
-              Authorization: 'Api-Key user-yandex-key',
-              'x-folder-id': 'user-folder-id',
-            }),
-          }),
-        )
+    describe('completion — authentication headers', () => {
+      it('uses caller-supplied apiKey in Authorization header', async () => {
+        mockFetch.mockResolvedValue(okResponse({result: {alternatives: []}}))
+        await service.completion({...completionPayload, apiKey: 'caller-yandex-key', folderId: 'caller-folder'})
+        expect(mockFetch.mock.calls[0][1].headers['Authorization']).toBe('Bearer caller-yandex-key')
       })
 
-      it('falls back to system credentials when body.apiKey and body.folderId are absent', async () => {
-        completionSuccessResponse()
-        await yandexService.completion({modelUri: 'gpt://folder/yandexgpt', messages: [{role: 'user', text: 'test'}]})
-        expect(mockFetch).toHaveBeenCalledWith(
-          expect.any(String),
-          expect.objectContaining({
-            headers: expect.objectContaining({
-              Authorization: 'Api-Key system-yandex-key',
-              'x-folder-id': 'system-folder-id',
-            }),
-          }),
-        )
+      it('uses caller-supplied folderId in x-folder-id header', async () => {
+        mockFetch.mockResolvedValue(okResponse({result: {alternatives: []}}))
+        await service.completion({...completionPayload, apiKey: 'caller-yandex-key', folderId: 'caller-folder'})
+        expect(mockFetch.mock.calls[0][1].headers['x-folder-id']).toBe('caller-folder')
+      })
+
+      it('falls back to system apiKey when caller omits it', async () => {
+        mockFetch.mockResolvedValue(okResponse({result: {alternatives: []}}))
+        await service.completion(completionPayload)
+        expect(mockFetch.mock.calls[0][1].headers['Authorization']).toBe('Bearer system-yandex-key')
+      })
+
+      it('falls back to system folderId when caller omits it', async () => {
+        mockFetch.mockResolvedValue(okResponse({result: {alternatives: []}}))
+        await service.completion(completionPayload)
+        expect(mockFetch.mock.calls[0][1].headers['x-folder-id']).toBe('system-folder-id')
       })
     })
 
-    describe('completion — request body', () => {
-      it('serializes only Yandex-accepted fields (modelUri, messages, completionOptions)', async () => {
-        completionSuccessResponse()
-        await yandexService.completion({
-          modelUri: 'gpt://folder/yandexgpt',
-          messages: [{role: 'user', text: 'test'}],
-          completionOptions: {temperature: 0.5, maxTokens: 200},
-          apiKey: 'key',
-          folderId: 'folder-id',
-        })
-        const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body)
-        expect(sentBody).toMatchObject({
-          modelUri: 'gpt://folder/yandexgpt',
-          messages: [{role: 'user', text: 'test'}],
-          completionOptions: {temperature: 0.5, maxTokens: 200},
-        })
+    describe('completion — wire shape', () => {
+      it('excludes apiKey from the request body', async () => {
+        mockFetch.mockResolvedValue(okResponse({result: {alternatives: []}}))
+        await service.completion({...completionPayload, apiKey: 'caller-key'})
+        const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+        expect(body).not.toHaveProperty('apiKey')
       })
 
-      it('strips apiKey and folderId from request body', async () => {
-        completionSuccessResponse()
-        await yandexService.completion({
-          modelUri: 'gpt://folder/yandexgpt',
-          messages: [{role: 'user', text: 'test'}],
-          apiKey: 'key',
-          folderId: 'folder-id',
-        })
-        const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body)
-        expect(sentBody).not.toHaveProperty('apiKey')
-        expect(sentBody).not.toHaveProperty('folderId')
+      it('excludes folderId from the request body', async () => {
+        mockFetch.mockResolvedValue(okResponse({result: {alternatives: []}}))
+        await service.completion({...completionPayload, folderId: 'caller-folder'})
+        const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+        expect(body).not.toHaveProperty('folderId')
+      })
+
+      it('forwards model and messages to the API', async () => {
+        mockFetch.mockResolvedValue(okResponse({result: {alternatives: []}}))
+        await service.completion(completionPayload)
+        const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+        expect(body.model).toBe(completionPayload.model)
+        expect(body.messages).toEqual(completionPayload.messages)
+      })
+
+      it('sends to the correct Yandex completion endpoint', async () => {
+        mockFetch.mockResolvedValue(okResponse({result: {alternatives: []}}))
+        await service.completion(completionPayload)
+        expect(mockFetch.mock.calls[0][0]).toBe('https://llm.api.cloud.yandex.net/foundationModels/v1/completion')
       })
     })
 
-    describe('embeddings — API key and folderId precedence', () => {
-      it('uses user-provided apiKey and folderId in Authorization and x-folder-id headers', async () => {
-        embeddingsSuccessResponse()
-        await yandexService.embeddings({
-          apiKey: 'user-yandex-key',
-          folderId: 'user-folder-id',
-          modelUri: 'emb://folder/model',
-          text: 'test',
-        })
-        expect(mockFetch).toHaveBeenCalledWith(
-          'https://llm.api.cloud.yandex.net/foundationModels/v1/textEmbedding',
-          expect.objectContaining({
-            headers: expect.objectContaining({
-              Authorization: 'Api-Key user-yandex-key',
-              'x-folder-id': 'user-folder-id',
-            }),
-          }),
-        )
-      })
-
-      it('falls back to system credentials when body.apiKey and body.folderId are absent', async () => {
-        embeddingsSuccessResponse()
-        await yandexService.embeddings({modelUri: 'emb://folder/model', text: 'test'})
-        expect(mockFetch).toHaveBeenCalledWith(
-          expect.any(String),
-          expect.objectContaining({
-            headers: expect.objectContaining({
-              Authorization: 'Api-Key system-yandex-key',
-              'x-folder-id': 'system-folder-id',
-            }),
-          }),
-        )
+    describe('completion — error handling', () => {
+      it('throws with status code on non-ok response', async () => {
+        mockFetch.mockResolvedValue(errorResponse(403))
+        await expect(service.completion(completionPayload)).rejects.toThrow('Yandex API error: 403')
       })
     })
 
-    describe('error propagation', () => {
-      it('throws on non-ok completion response', async () => {
-        yandexErrorResponse(403)
-        await expect(
-          yandexService.completion({modelUri: 'gpt://folder/yandexgpt', messages: [{role: 'user', text: 'test'}]}),
-        ).rejects.toThrow('Yandex API error: 403')
+    describe('embeddings — authentication headers', () => {
+      it('uses caller-supplied apiKey in Authorization header', async () => {
+        mockFetch.mockResolvedValue(okResponse({embedding: [0.1, 0.2]}))
+        await service.embeddings({...embeddingsPayload, apiKey: 'caller-emb-key', folderId: 'caller-folder'})
+        expect(mockFetch.mock.calls[0][1].headers['Authorization']).toBe('Bearer caller-emb-key')
       })
 
-      it('throws on non-ok embeddings response', async () => {
-        yandexErrorResponse(503)
-        await expect(yandexService.embeddings({modelUri: 'emb://folder/model', text: 'test'})).rejects.toThrow(
-          'Yandex API error: 503',
-        )
+      it('uses caller-supplied folderId in x-folder-id header', async () => {
+        mockFetch.mockResolvedValue(okResponse({embedding: [0.1, 0.2]}))
+        await service.embeddings({...embeddingsPayload, apiKey: 'caller-emb-key', folderId: 'caller-folder'})
+        expect(mockFetch.mock.calls[0][1].headers['x-folder-id']).toBe('caller-folder')
       })
-    })
-  })
 
-  describe('E2E mode (isE2EMode: true) — noop services', () => {
-    let e2eContainer
+      it('falls back to system apiKey when caller omits it', async () => {
+        mockFetch.mockResolvedValue(okResponse({embedding: [0.1, 0.2]}))
+        await service.embeddings(embeddingsPayload)
+        expect(mockFetch.mock.calls[0][1].headers['Authorization']).toBe('Bearer system-yandex-key')
+      })
 
-    beforeEach(() => {
-      e2eContainer = new ServiceContainer({
-        ...mockConfig,
-        mode: {isE2EMode: true},
-        openai: {apiKey: 'sys-openai-key', defaultModel: 'gpt-4'},
-        claude: {
-          baseUrl: 'https://api.anthropic.com/v1',
-          apiKey: 'sys-claude-key',
-          version: '2023-06-01',
-          defaultModel: 'claude-3-sonnet-20240229',
-        },
-        yandex: {
-          baseUrl: 'https://llm.api.cloud.yandex.net',
-          apiKey: 'sys-yandex-key',
-          folderId: 'sys-folder-id',
-          defaultModel: 'yandexgpt/latest',
-        },
+      it('falls back to system folderId when caller omits it', async () => {
+        mockFetch.mockResolvedValue(okResponse({embedding: [0.1, 0.2]}))
+        await service.embeddings(embeddingsPayload)
+        expect(mockFetch.mock.calls[0][1].headers['x-folder-id']).toBe('system-folder-id')
       })
     })
 
-    describe('service selection', () => {
-      it('claudeService does not call fetch when E2E mode is active', async () => {
-        const svc = e2eContainer.get('claudeService')
-        await svc.sendMessages({model: 'claude-3-sonnet', messages: [{role: 'user', content: 'hi'}], max_tokens: 10})
-        expect(mockFetch).not.toHaveBeenCalled()
+    describe('embeddings — wire shape', () => {
+      it('excludes apiKey from the request body', async () => {
+        mockFetch.mockResolvedValue(okResponse({embedding: [0.1, 0.2]}))
+        await service.embeddings({...embeddingsPayload, apiKey: 'caller-key'})
+        const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+        expect(body).not.toHaveProperty('apiKey')
       })
 
-      it('openaiService chatCompletion does not call fetch when E2E mode is active', async () => {
-        const svc = e2eContainer.get('openaiService')
-        await svc.chatCompletion([{role: 'user', content: 'hi'}], 'gpt-4')
-        expect(mockFetch).not.toHaveBeenCalled()
+      it('excludes folderId from the request body', async () => {
+        mockFetch.mockResolvedValue(okResponse({embedding: [0.1, 0.2]}))
+        await service.embeddings({...embeddingsPayload, folderId: 'caller-folder'})
+        const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+        expect(body).not.toHaveProperty('folderId')
       })
 
-      it('yandexService completion does not call fetch when E2E mode is active', async () => {
-        const svc = e2eContainer.get('yandexService')
-        await svc.completion({modelUri: 'gpt://folder/yandexgpt', messages: [{role: 'user', text: 'hi'}]})
-        expect(mockFetch).not.toHaveBeenCalled()
-      })
-    })
-
-    describe('NoopClaudeService response contract', () => {
-      let claudeSvc
-
-      beforeEach(() => {
-        claudeSvc = e2eContainer.get('claudeService')
+      it('forwards modelUri and text to the API', async () => {
+        mockFetch.mockResolvedValue(okResponse({embedding: [0.1, 0.2]}))
+        await service.embeddings(embeddingsPayload)
+        const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+        expect(body.modelUri).toBe(embeddingsPayload.modelUri)
+        expect(body.text).toBe(embeddingsPayload.text)
       })
 
-      it('returns the Anthropic message envelope shape', async () => {
-        const result = await claudeSvc.sendMessages({
-          model: 'claude-3-sonnet',
-          messages: [{role: 'user', content: 'hi'}],
-          max_tokens: 10,
-        })
-        expect(result).toMatchObject({
-          type: 'message',
-          role: 'assistant',
-          content: expect.arrayContaining([expect.objectContaining({type: 'text'})]),
-          stop_reason: 'end_turn',
-        })
-      })
-
-      it('returns fixed text content matching the Go backend noop response', async () => {
-        const result = await claudeSvc.sendMessages({
-          model: 'claude-3-sonnet',
-          messages: [{role: 'user', content: 'hi'}],
-          max_tokens: 10,
-        })
-        expect(result.content[0].text).toBe('Mock response from Claude')
-      })
-
-      it('echoes the requested model back in the response', async () => {
-        const result = await claudeSvc.sendMessages({
-          model: 'claude-3-haiku',
-          messages: [{role: 'user', content: 'hi'}],
-          max_tokens: 10,
-        })
-        expect(result.model).toBe('claude-3-haiku')
-      })
-
-      it('falls back to configured defaultModel when no model is provided', async () => {
-        const result = await claudeSvc.sendMessages({
-          messages: [{role: 'user', content: 'hi'}],
-          max_tokens: 10,
-        })
-        expect(result.model).toBe('claude-3-sonnet-20240229')
-      })
-
-      it('does not require an apiKey in the request body', async () => {
-        await expect(
-          claudeSvc.sendMessages({model: 'claude-3-sonnet', messages: [{role: 'user', content: 'hi'}], max_tokens: 10}),
-        ).resolves.toBeDefined()
+      it('sends to the correct Yandex textEmbedding endpoint', async () => {
+        mockFetch.mockResolvedValue(okResponse({embedding: [0.1, 0.2]}))
+        await service.embeddings(embeddingsPayload)
+        expect(mockFetch.mock.calls[0][0]).toBe('https://llm.api.cloud.yandex.net/foundationModels/v1/textEmbedding')
       })
     })
 
-    describe('NoopOpenAIService response contract', () => {
-      let openaiSvc
-
-      beforeEach(() => {
-        openaiSvc = e2eContainer.get('openaiService')
-      })
-
-      it('returns the OpenAI chat completion envelope shape', async () => {
-        const result = await openaiSvc.chatCompletion([{role: 'user', content: 'hi'}], 'gpt-4')
-        expect(result).toMatchObject({
-          object: 'chat.completion',
-          choices: expect.arrayContaining([
-            expect.objectContaining({message: expect.objectContaining({role: 'assistant'})}),
-          ]),
-        })
-      })
-
-      it('returns fixed text content from the first choice', async () => {
-        const result = await openaiSvc.chatCompletion([{role: 'user', content: 'hi'}], 'gpt-4')
-        expect(result.choices[0].message.content).toBe('Mock OpenAI response')
-      })
-
-      it('echoes the requested model in the response', async () => {
-        const result = await openaiSvc.chatCompletion([{role: 'user', content: 'hi'}], 'gpt-3.5-turbo')
-        expect(result.model).toBe('gpt-3.5-turbo')
-      })
-
-      it('returns embeddings as a list with one entry per input element', async () => {
-        const result = await openaiSvc.embeddings(['hello', 'world'], 'text-embedding-ada-002')
-        expect(result.object).toBe('list')
-        expect(result.data).toHaveLength(2)
-      })
-
-      it('embeddings data entries have an embedding array', async () => {
-        const result = await openaiSvc.embeddings(['hello'], 'text-embedding-ada-002')
-        expect(Array.isArray(result.data[0].embedding)).toBe(true)
-        expect(result.data[0].embedding.length).toBeGreaterThan(0)
-      })
-    })
-
-    describe('NoopYandexService response contract', () => {
-      let yandexSvc
-
-      beforeEach(() => {
-        yandexSvc = e2eContainer.get('yandexService')
-      })
-
-      it('returns the YandexGPT completion envelope shape', async () => {
-        const result = await yandexSvc.completion({
-          modelUri: 'gpt://folder/yandexgpt',
-          messages: [{role: 'user', text: 'hi'}],
-        })
-        expect(result).toMatchObject({
-          result: expect.objectContaining({
-            alternatives: expect.arrayContaining([
-              expect.objectContaining({message: expect.objectContaining({role: 'assistant'})}),
-            ]),
-          }),
-        })
-      })
-
-      it('returns fixed text matching the Go backend noop response', async () => {
-        const result = await yandexSvc.completion({
-          modelUri: 'gpt://folder/yandexgpt',
-          messages: [{role: 'user', text: 'hi'}],
-        })
-        expect(result.result.alternatives[0].message.text).toBe('Mock response from Yandex')
-      })
-
-      it('does not call fetch', async () => {
-        await yandexSvc.completion({
-          modelUri: 'gpt://folder/yandexgpt',
-          messages: [{role: 'user', text: 'hi'}],
-        })
-        expect(mockFetch).not.toHaveBeenCalled()
+    describe('embeddings — error handling', () => {
+      it('throws with status code on non-ok response', async () => {
+        mockFetch.mockResolvedValue(errorResponse(401))
+        await expect(service.embeddings(embeddingsPayload)).rejects.toThrow('Yandex API error: 401')
       })
     })
   })

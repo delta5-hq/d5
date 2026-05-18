@@ -92,8 +92,7 @@ func (ctrl *Controller) UpdateService(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Something is wrong with the provided data")
 	}
 
-	vectors, err := ctrl.service.CreateLLMVector(c.Context(), ctrl.db, scope.UserID, service)
-	if err != nil {
+	if _, err := ctrl.service.CreateLLMVector(c.Context(), ctrl.db, scope.UserID, service); err != nil {
 		return response.InternalError(c, err.Error())
 	}
 
@@ -102,7 +101,19 @@ func (ctrl *Controller) UpdateService(c *fiber.Ctx) error {
 		return response.InternalError(c, err.Error())
 	}
 
-	return c.JSON(fiber.Map{"vectors": vectors})
+	integration, err := ctrl.service.FindWithFallback(c.Context(), scope)
+	if err != nil {
+		log.Error("UpdateService: re-fetch after upsert failed: %v", err)
+		return response.InternalError(c, err.Error())
+	}
+
+	secureResponse, err := ctrl.service.PrepareSecureIntegrationResponse(integration)
+	if err != nil {
+		log.Error("UpdateService: prepare secure response failed: %v", err)
+		return response.InternalError(c, err.Error())
+	}
+
+	return c.JSON(secureResponse)
 }
 
 func (ctrl *Controller) Delete(c *fiber.Ctx) error {

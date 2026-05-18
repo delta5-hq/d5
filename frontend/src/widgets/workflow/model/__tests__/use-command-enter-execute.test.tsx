@@ -5,6 +5,9 @@ import { useCommandEnterExecute } from '../use-command-enter-execute'
 import type { NodeData } from '@shared/base-types'
 import { AliasProvider } from '@entities/aliases'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+vi.mock('@entities/auth', () => ({
+  useAuthContext: () => ({ isLoggedIn: false }),
+}))
 
 const queryClient = new QueryClient({
   defaultOptions: {

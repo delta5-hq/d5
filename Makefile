@@ -52,7 +52,6 @@ help:
 	@echo "  make fix-permissions     - Fix data directory ownership (no sudo required)"
 	@echo "  make cleanup-old-data    - Remove old mongodb data directory"
 	@echo "  make install-hooks       - Install git hooks (pre-commit + pre-push)"
-	@echo "  make test-hook           - Test pre-commit hook with broken code"
 	@echo ""
 	@echo "Build:"
 	@echo "  make build-backend       - Build Node.js backend"
@@ -83,31 +82,31 @@ e2e: e2e-backend-v2 e2e-frontend
 	@echo "✓ All E2E tests completed"
 
 e2e-db-init:
-	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users/main.go seed-users
+	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users seed-users
 	@echo "→ Initializing E2E database (port 27018)..."
 	@DROP_DB=true MONGO_PORT=27018 bash backend-v2/e2e-db-init.sh
 	@echo "✓ E2E database initialized"
 
 e2e-db-drop:
-	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users/main.go seed-users
+	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users seed-users
 	@echo "→ Dropping E2E database (port 27018)..."
 	@MONGO_PORT=27018 bash backend-v2/e2e-db-drop.sh
 	@echo "✓ E2E database dropped"
 
 dev-db-init:
-	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users/main.go seed-users
+	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users seed-users
 	@echo "→ Initializing development database (port 27017)..."
 	@MONGO_PORT=27017 bash backend-v2/e2e-db-init.sh
 	@echo "✓ Development database initialized"
 
 dev-db-reset:
-	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users/main.go seed-users
+	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users seed-users
 	@echo "→ Resetting development database..."
 	@DROP_DB=true MONGO_PORT=27017 bash backend-v2/e2e-db-init.sh
 	@echo "✓ Development database reset"
 
 dev-db-drop:
-	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users/main.go seed-users
+	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users seed-users
 	@echo "→ Dropping development database (port 27017)..."
 	@MONGO_PORT=27017 bash backend-v2/e2e-db-drop.sh
 	@echo "✓ Development database dropped"
@@ -387,19 +386,10 @@ install-hooks:
 	@chmod +x .git/hooks/pre-commit
 	@cp .git-hooks/pre-push .git/hooks/pre-push
 	@chmod +x .git/hooks/pre-push
-	@echo "✓ Git hooks installed (pre-commit + pre-push)"
-
-test-hook:
-	@echo "→ Testing pre-commit hook with broken code..."
-	@echo "const broken = 'test" > backend/src/test-hook-validation.js
-	@echo "Testing: Syntax error should be caught..."
-	@make lint-backend 2>&1 | grep -q "error" && echo "✓ Hook would catch syntax errors" || echo "✗ Hook failed to catch error"
-	@rm -f backend/src/test-hook-validation.js
-	@echo "→ Testing build failure detection..."
-	@echo "package invalid" > backend-v2/test-invalid.go
-	@make build-backend-v2 2>&1 && echo "✗ Build should have failed" || echo "✓ Hook would catch build errors"
-	@rm -f backend-v2/test-invalid.go
-	@echo "✓ Hook validation complete"
+	@# Keepalive prevents the ref-discovery SSH session from idling out
+	@# during ci-full, which otherwise breaks the post-hook pack upload.
+	@git config --local core.sshCommand "ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=240 -o TCPKeepAlive=yes"
+	@echo "✓ Git hooks installed (pre-commit + pre-push) with SSH keepalive"
 
 setup-build-tools:
 	@bash scripts/setup-build-tools.sh

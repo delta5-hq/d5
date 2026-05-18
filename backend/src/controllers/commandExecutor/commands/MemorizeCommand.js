@@ -7,6 +7,7 @@ import {DEFAULT_CONTEXT_NAME, readExtContextParam} from '../constants/ext'
 import {readMaxChunksParam} from '../constants'
 import {NodeTextExtractor} from './utils/NodeTextExtractor'
 import {runWithErrorNode} from './shared/runWithErrorNode'
+import {getNodeCommand} from './utils/isCommand'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 
@@ -162,6 +163,7 @@ export class MemorizeCommand {
   async run(node, options = {}) {
     const {signal} = options || {}
     if (signal?.aborted) return
+    if (!node) return
 
     await runWithErrorNode(this.store, node, this.logError.bind(this), async () => {
       const startNode = this.store.getNode(node.parent)
@@ -169,8 +171,9 @@ export class MemorizeCommand {
         throw new Error('/memorize requires a parent node containing content to store')
       }
 
-      const {context, rechunk, keep, split} = this.getParams(node.command)
-      const vectorStore = await this._getVectorStore(node.command, context)
+      const command = getNodeCommand(node)
+      const {context, rechunk, keep, split} = this.getParams(command)
+      const vectorStore = await this._getVectorStore(command, context)
       const chunks = await this.processChunks(startNode, rechunk, {split})
       await this.saveEmbeddings(vectorStore, chunks, keep)
     })

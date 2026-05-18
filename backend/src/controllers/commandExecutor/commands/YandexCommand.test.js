@@ -174,6 +174,7 @@ describe('YandexCommand', () => {
       mockStore.importer.createNodes = jest.fn()
       mockStore.importer.createTable = jest.fn()
       mockStore.importer.createJoinNode = jest.fn()
+      mockStore.importer.createErrorNode = jest.fn()
     })
 
     it('should use substituteReferencesAndHashrefsChildrenAndSelf when title contains a reference', async () => {
@@ -300,7 +301,12 @@ describe('YandexCommand', () => {
       beforeEach(() => {
         jest.clearAllMocks()
         const store = {
-          importer: {createNodes: jest.fn(), createTable: jest.fn(), createJoinNode: jest.fn()},
+          importer: {
+            createNodes: jest.fn(),
+            createTable: jest.fn(),
+            createJoinNode: jest.fn(),
+            createErrorNode: jest.fn(),
+          },
           getNode: jest.fn(id => ({id})),
         }
         command.store = store
@@ -313,7 +319,7 @@ describe('YandexCommand', () => {
 
         await command.run(node, null, node.command)
 
-        expect(command.store.importer.createNodes).toHaveBeenCalledWith('Error: Yandex API timeout', node.id)
+        expect(command.store.importer.createErrorNode).toHaveBeenCalledWith('Error: Yandex API timeout', node.id)
       })
 
       it('should create error node when getIntegrationSettings fails', async () => {
@@ -322,7 +328,7 @@ describe('YandexCommand', () => {
 
         await command.run(node, null, node.command)
 
-        expect(command.store.importer.createNodes).toHaveBeenCalledWith('Error: Settings fetch failed', node.id)
+        expect(command.store.importer.createErrorNode).toHaveBeenCalledWith('Error: Settings fetch failed', node.id)
       })
     })
   })

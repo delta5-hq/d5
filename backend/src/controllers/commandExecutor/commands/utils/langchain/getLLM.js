@@ -1,4 +1,5 @@
 import IntegrationFacade from '../../../../../repositories/IntegrationFacade'
+import {resolveSettings} from './IntegrationSettingsResolver'
 import {YandexGPT, YandexGPTEmbeddings} from './YandexGPT'
 import {
   getClaudeMaxTokens,
@@ -11,13 +12,6 @@ import {
 import {
   DEEPSEEK_DEFAULT_MODEL,
   CustomLLMApiType,
-  OPENAI_API_KEY,
-  CLAUDE_API_KEY,
-  PERPLEXITY_API_KEY,
-  DEEPSEEK_API_KEY,
-  QWEN_API_KEY,
-  YANDEX_API_KEY,
-  YANDEX_FOLDER_ID,
   QWEN_DEFAULT_MODEL,
   YANDEX_DEFAULT_MODEL,
 } from '../../../../../constants'
@@ -52,33 +46,6 @@ const hasCredentialConfigured = (settings, providerKey, credentialPath) => {
   return Boolean(value && (typeof value !== 'string' || value.trim()))
 }
 
-const ENV_FALLBACK_CONFIG = {
-  openai: {apiKey: OPENAI_API_KEY},
-  claude: {apiKey: CLAUDE_API_KEY},
-  perplexity: {apiKey: PERPLEXITY_API_KEY},
-  deepseek: {apiKey: DEEPSEEK_API_KEY},
-  qwen: {apiKey: QWEN_API_KEY},
-  yandex: {apiKey: YANDEX_API_KEY, folder_id: YANDEX_FOLDER_ID},
-}
-
-const applyEnvFallbacks = settings => {
-  if (!settings) return settings
-
-  for (const [provider, fallbacks] of Object.entries(ENV_FALLBACK_CONFIG)) {
-    for (const [field, envValue] of Object.entries(fallbacks)) {
-      if (!envValue) continue
-      if (settings[provider]?.[field]) continue
-
-      if (!settings[provider]) {
-        settings[provider] = {}
-      }
-      settings[provider][field] = envValue
-    }
-  }
-
-  return settings
-}
-
 const detectConfiguredProvider = settings => {
   const providers = [
     [Model.OpenAI, 'openai', 'apiKey'],
@@ -107,15 +74,12 @@ export const determineLLMType = (command, settings) => {
     return lang === Lang.ru ? Model.YandexGPT : Model.OpenAI
   }
 
-  const commandLang = command ? readLangParam(command) : null
-  if (commandLang) {
-    return commandLang === Lang.ru ? Model.YandexGPT : Model.OpenAI
+  if (command && readLangParam(command) === Lang.ru) {
+    return Model.YandexGPT
   }
 
   const detectedModel = detectConfiguredProvider(settings)
-  if (detectedModel) return detectedModel
-
-  return Model.OpenAI
+  return detectedModel || Model.OpenAI
 }
 
 export const getIntegrationSettings = async (userId, workflowId = null, store = null) => {
@@ -123,8 +87,8 @@ export const getIntegrationSettings = async (userId, workflowId = null, store = 
     return store._integrationSettingsCache
   }
 
-  const {merged, workflowDoc} = await IntegrationFacade.findMergedDecryptedWithMetadata(userId, workflowId)
-  const settings = merged ?? {}
+  const fetched = await IntegrationFacade.findMergedDecryptedWithMetadata(userId, workflowId)
+  const {settings, workflowDoc} = resolveSettings({...fetched, userId, workflowId})
 
   if (workflowDoc && settings.model === USER_DEFAULT_MODEL) {
     const workflowProvider = detectConfiguredProvider(workflowDoc)
@@ -133,8 +97,6 @@ export const getIntegrationSettings = async (userId, workflowId = null, store = 
     }
   }
 
-  applyEnvFallbacks(settings)
-
   if (store) {
     store._integrationSettingsCache = settings
   }
@@ -142,7 +104,7 @@ export const getIntegrationSettings = async (userId, workflowId = null, store = 
   return settings
 }
 
-export const getLLM = ({type, settings, log}) => {
+export const getLLM = ({type, settings, log, thinkingBudgetTokens = null}) => {
   switch (type) {
     case Model.OpenAI: {
       const {apiKey} = settings?.openai || {}
@@ -181,6 +143,7 @@ export const getLLM = ({type, settings, log}) => {
         model: modelName,
         apiKey,
         maxRetries: 3,
+        ...(thinkingBudgetTokens !== null && {thinkingBudgetTokens}),
       })
 
       return {llm, chunkSize}
@@ -261,17 +224,6 @@ export const getLLM = ({type, settings, log}) => {
 
 export const getEmbeddings = ({type, settings}) => {
   switch (type) {
-    case Model.Claude:
-    case Model.Deepseek: {
-      if (settings?.openai?.apiKey) return getEmbeddings({type: Model.OpenAI, settings})
-      if (settings?.qwen?.apiKey) return getEmbeddings({type: Model.Qwen, settings})
-      if (settings?.custom_llm?.apiRootUrl) return getEmbeddings({type: Model.CustomLLM, settings})
-      if (settings?.yandex?.apiKey && settings?.yandex?.folder_id)
-        return getEmbeddings({type: Model.YandexGPT, settings})
-      throw new Error(
-        'Embeddings require a configured provider. Add OpenAI, Qwen, CustomLLM, or YandexGPT in Integration Settings.',
-      )
-    }
     case Model.OpenAI: {
       const {apiKey} = settings?.openai || {}
       if (!apiKey) {

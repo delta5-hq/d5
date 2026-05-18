@@ -85,7 +85,7 @@ describe('CustomLLMChatCommand', () => {
   describe('error handling', () => {
     it('creates error node when custom_llm settings block is absent entirely', async () => {
       getIntegrationSettings.mockResolvedValueOnce({openai: {apiKey: 'k'}})
-      const createSpy = jest.spyOn(mockStore.importer, 'createNodes')
+      const createSpy = jest.spyOn(mockStore.importer, 'createErrorNode')
       const node = {id: 'node', title: '/custom test'}
 
       await command.run(node, null, 'test')
@@ -96,7 +96,7 @@ describe('CustomLLMChatCommand', () => {
 
     it('creates error node when custom_llm.apiRootUrl is absent', async () => {
       getIntegrationSettings.mockResolvedValueOnce({custom_llm: {apiKey: 'key'}})
-      const createSpy = jest.spyOn(mockStore.importer, 'createNodes')
+      const createSpy = jest.spyOn(mockStore.importer, 'createErrorNode')
       const node = {id: 'node', title: '/custom test'}
 
       await command.run(node, null, 'test')
@@ -107,7 +107,7 @@ describe('CustomLLMChatCommand', () => {
 
     it('creates error node when settings resolves to null', async () => {
       getIntegrationSettings.mockResolvedValueOnce(null)
-      const createSpy = jest.spyOn(mockStore.importer, 'createNodes')
+      const createSpy = jest.spyOn(mockStore.importer, 'createErrorNode')
       const node = {id: 'node', title: '/custom test'}
 
       await command.run(node, null, 'test')
@@ -118,7 +118,7 @@ describe('CustomLLMChatCommand', () => {
 
     it('error message mentions configuration when apiRootUrl is absent', async () => {
       getIntegrationSettings.mockResolvedValueOnce({custom_llm: {}})
-      const createSpy = jest.spyOn(mockStore.importer, 'createNodes')
+      const createSpy = jest.spyOn(mockStore.importer, 'createErrorNode')
       const node = {id: 'node', title: '/custom test'}
 
       await command.run(node, null, 'test')

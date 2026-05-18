@@ -129,7 +129,7 @@ describe('DeepseekCommand', () => {
   describe('error handling', () => {
     it('creates error node when deepseek apiKey is absent from settings', async () => {
       getIntegrationSettings.mockResolvedValueOnce({deepseek: {}})
-      const createSpy = jest.spyOn(mockStore.importer, 'createNodes')
+      const createSpy = jest.spyOn(mockStore.importer, 'createErrorNode')
       const cmd = new DeepseekCommand('u', 'w', mockStore)
       const node = {id: 'node', title: '/deepseek test'}
       await cmd.run(node, null, 'test')
@@ -139,7 +139,7 @@ describe('DeepseekCommand', () => {
 
     it('creates error node when deepseek settings block is absent entirely', async () => {
       getIntegrationSettings.mockResolvedValueOnce({openai: {apiKey: 'k'}})
-      const createSpy = jest.spyOn(mockStore.importer, 'createNodes')
+      const createSpy = jest.spyOn(mockStore.importer, 'createErrorNode')
       const cmd = new DeepseekCommand('u', 'w', mockStore)
       const node = {id: 'node', title: '/deepseek test'}
       await cmd.run(node, null, 'test')

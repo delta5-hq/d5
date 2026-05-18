@@ -16,16 +16,7 @@ import {createContextForChat} from './utils/createContextForChat'
 
 const log = debug('delta5:app:Command:Deepseek')
 
-/**
- * Class representing a Deepseek Command.
- */
 export class DeepseekCommand {
-  /**
-   * Creates an instance of DeepseekCommand
-   * @param {string} userId - The unique identifier for the user
-   * @param {string} workflowId - The unique identifier for the workflow (optional)
-   * @param {Store} store - The store object
-   */
   constructor(userId, workflowId, store) {
     this.store = store
     this.userId = userId
@@ -81,7 +72,7 @@ export class DeepseekCommand {
       this.store.importer.createNodes(text, node.id)
     } catch (e) {
       this.logError(e)
-      this.store.importer.createNodes(`Error: ${e.message}`, node.id)
+      this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }
   }
 }

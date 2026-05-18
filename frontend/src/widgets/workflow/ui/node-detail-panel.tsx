@@ -12,6 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@shared/ui/
 import { Eye, FileText, Folder, Play, Loader2, Square, Copy, Trash2, Plus, ChevronRight, ArrowLeft } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
+import { isTitleDerivedFromCommand } from '@shared/lib/reliability-suffix'
 import { NodeTitleEditor } from './node-title-editor'
 import { NodePreviewSection } from './node-preview-section'
 import { CommandField } from './command-field'
@@ -92,9 +93,10 @@ export const NodeDetailPanel = ({
 
   const handleCommandChange = useCallback(
     (command: string) => {
-      onUpdateNode(node.id, { command })
+      const titleIsDerived = !node.title || isTitleDerivedFromCommand(node.title, node.command ?? '')
+      onUpdateNode(node.id, titleIsDerived ? { command, title: command } : { command })
     },
-    [node.id, onUpdateNode],
+    [node, onUpdateNode],
   )
 
   const handleExecute = useCallback(async () => {
