@@ -318,7 +318,7 @@ jobs:
       - run: curl -f http://localhost:5173 || (cat frontend/vite-e2e.log; kill $(cat backend-v2/backend-e2e.pid); exit 1)
       - run: |
           cd frontend
-          E2E_ADMIN_USER=admin E2E_ADMIN_PASS='P@ssw0rd!' E2E_OPEN_API_KEY='mock-openai-key' E2E_DEEPSEEK_API_KEY='mock-deepseek-key' E2E_QWEN_API_KEY='mock-qwen-key' E2E_CLAUDE_API_KEY='mock-claude-key' E2E_PERPLEXITY_API_KEY='mock-perplexity-key' E2E_YANDEX_API_KEY='mock-yandex-key' E2E_YANDEX_FOLDER_ID='mock-folder-id' E2E_CUSTOM_LLM_URL='http://localhost:8080' CI=true pnpm run test:e2e:ci || TEST_EXIT=$?
+          E2E_BASE_URL=http://localhost:5173 E2E_ADMIN_USER=admin E2E_ADMIN_PASS='P@ssw0rd!' E2E_OPEN_API_KEY='mock-openai-key' E2E_DEEPSEEK_API_KEY='mock-deepseek-key' E2E_QWEN_API_KEY='mock-qwen-key' E2E_CLAUDE_API_KEY='mock-claude-key' E2E_PERPLEXITY_API_KEY='mock-perplexity-key' E2E_YANDEX_API_KEY='mock-yandex-key' E2E_YANDEX_FOLDER_ID='mock-folder-id' E2E_CUSTOM_LLM_URL='http://localhost:8080' CI=true pnpm run test:e2e:ci || TEST_EXIT=$?
           kill $(cat vite-e2e.pid) || true
           kill $(cat ../backend-v2/backend-e2e.pid) || true
           kill $(cat ../backend/backend-e2e.pid) || true
