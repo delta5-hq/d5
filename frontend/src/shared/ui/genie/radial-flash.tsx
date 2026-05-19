@@ -65,6 +65,7 @@ export const RadialFlash = forwardRef<RadialFlashRef, RadialFlashProps>(
     const fallbackId = useId().replace(/:/g, '')
     const playerId = nodeId ? `${RADIAL_FLASH_PREFIX}${nodeId}` : `${RADIAL_FLASH_PREFIX}${fallbackId}`
     const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const flashJson = useMemo(() => replaceFlashColor(radialFlashJson, flashColor), [flashColor])
 
@@ -104,7 +105,7 @@ export const RadialFlash = forwardRef<RadialFlashRef, RadialFlashProps>(
             playerRef.current = new window.TgsPlayer!(flashJson, playerId)
             playerCache.set(playerId, playerRef.current)
           } else if (!window.TgsPlayer) {
-            setTimeout(waitForPlayer, 50)
+            pollTimerRef.current = setTimeout(waitForPlayer, 50)
           }
         }
         waitForPlayer()
@@ -115,6 +116,9 @@ export const RadialFlash = forwardRef<RadialFlashRef, RadialFlashProps>(
       return () => {
         if (stopTimerRef.current) {
           clearTimeout(stopTimerRef.current)
+        }
+        if (pollTimerRef.current) {
+          clearTimeout(pollTimerRef.current)
         }
         playerRef.current?.stop()
         playerRef.current = null
