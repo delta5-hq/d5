@@ -2,6 +2,7 @@ import {MCP_TRANSPORT} from '../../constants/mcp'
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js'
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js'
+import {sandboxSpawn} from '../sandbox/ProcessSandbox'
 
 /**
  * @param {{serverUrl?: string, transport: string, headers?: Object, command?: string, args?: string[], env?: Object}} config
@@ -14,8 +15,10 @@ export const createTransport = ({serverUrl, transport, headers, command, args, e
       return new StreamableHTTPClientTransport(new URL(serverUrl), opts)
     }
 
-    case MCP_TRANSPORT.STDIO:
-      return new StdioClientTransport({command, args, env})
+    case MCP_TRANSPORT.STDIO: {
+      const sandboxed = sandboxSpawn(command, args, env)
+      return new StdioClientTransport(sandboxed)
+    }
 
     case MCP_TRANSPORT.SSE: {
       const opts = headers ? {headers} : undefined

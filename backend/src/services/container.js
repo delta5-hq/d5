@@ -462,7 +462,7 @@ class RealYandexService {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Api-Key ${apiKey}`,
         'x-folder-id': folderId,
       },
       body: JSON.stringify(payload),
@@ -482,7 +482,7 @@ class RealYandexService {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Api-Key ${apiKey}`,
         'x-folder-id': folderId,
       },
       body: JSON.stringify(payload),

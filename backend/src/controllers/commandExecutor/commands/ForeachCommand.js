@@ -273,12 +273,7 @@ export class ForeachCommand {
   }
 
   runDefault = async (node, command, params, signal) => {
-    const parentNode = this.store.getNode(node.parent)
-    const isRoot = !parentNode?.parent
-
-    if (!parentNode || isRoot) {
-      throw new Error('/foreach requires the node to have a parent with sibling nodes to iterate over')
-    }
+    const parentNode = this.store.getNode(node.parent) ?? node
 
     const mainCommand = command.replace(FOREACH_PARAM_PARALLEL, '').trim()
     const leafs = this.findLeafs(parentNode, mainCommand, params.useFile)

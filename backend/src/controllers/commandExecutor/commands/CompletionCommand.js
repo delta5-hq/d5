@@ -14,6 +14,46 @@ import Store from './utils/Store'
 
 const log = debug('delta5:app:Command:Completion')
 
+const NO_PROVIDER_CONFIGURED_ERROR = 'No LLM provider configured. Set an API key in Settings → Integrations.'
+
+const AUTO_DETECT_PROVIDERS = [
+  {settingsKey: 'custom_llm', queryType: CUSTOM_LLM_CHAT_QUERY_TYPE},
+  {settingsKey: 'yandex', queryType: YANDEX_QUERY_TYPE, condition: s => s.lang === 'ru'},
+  {settingsKey: 'openai', queryType: CHAT_QUERY_TYPE},
+  {settingsKey: 'claude', queryType: CLAUDE_QUERY_TYPE},
+  {settingsKey: 'qwen', queryType: QWEN_QUERY_TYPE},
+  {settingsKey: 'deepseek', queryType: DEEPSEEK_QUERY_TYPE},
+]
+
+const EXPLICIT_MODEL_PROVIDERS = new Map([
+  [Model.OpenAI, {settingsKey: 'openai', queryType: CHAT_QUERY_TYPE}],
+  [Model.YandexGPT, {settingsKey: 'yandex', queryType: YANDEX_QUERY_TYPE}],
+  [Model.Deepseek, {settingsKey: 'deepseek', queryType: DEEPSEEK_QUERY_TYPE}],
+  [Model.Claude, {settingsKey: 'claude', queryType: CLAUDE_QUERY_TYPE}],
+  [Model.Qwen, {settingsKey: 'qwen', queryType: QWEN_QUERY_TYPE}],
+  [Model.CustomLLM, {settingsKey: 'custom_llm', queryType: CUSTOM_LLM_CHAT_QUERY_TYPE}],
+])
+
+const resolveAutoQueryType = settings => {
+  for (const entry of AUTO_DETECT_PROVIDERS) {
+    if (entry.condition && !entry.condition(settings)) continue
+    if (settings[entry.settingsKey]) return entry.queryType
+  }
+  return null
+}
+
+const resolveExplicitQueryType = (model, settings) => {
+  const entry = EXPLICIT_MODEL_PROVIDERS.get(model)
+  return entry && settings[entry.settingsKey] ? entry.queryType : null
+}
+
+const resolveQueryType = settings => {
+  const {model} = settings
+  return !model || model === USER_DEFAULT_MODEL
+    ? resolveAutoQueryType(settings)
+    : resolveExplicitQueryType(model, settings)
+}
+
 export class CompletionCommand {
   constructor(userId, workflowId, store, progress) {
     this.userId = userId
@@ -39,55 +79,25 @@ export class CompletionCommand {
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     if (!settings) throw new Error('No integration enabled')
 
-    const {model, lang} = settings
-
-    let queryType = null
-
-    if (!model || model === USER_DEFAULT_MODEL) {
-      if (settings.custom_llm) {
-        queryType = CUSTOM_LLM_CHAT_QUERY_TYPE
-      } else if (lang === 'ru' && settings.yandex) {
-        queryType = YANDEX_QUERY_TYPE
-      } else if (settings.openai) {
-        queryType = CHAT_QUERY_TYPE
-      } else if (settings.claude) {
-        queryType = CLAUDE_QUERY_TYPE
-      } else if (settings.qwen) {
-        queryType = QWEN_QUERY_TYPE
-      } else if (settings.deepseek) {
-        queryType = DEEPSEEK_QUERY_TYPE
-      }
-    }
-
-    if (model === Model.OpenAI && settings.openai) {
-      queryType = CHAT_QUERY_TYPE
-    } else if (model === Model.YandexGPT && settings.yandex) {
-      queryType = YANDEX_QUERY_TYPE
-    } else if (model === Model.Deepseek && settings.deepseek) {
-      queryType = DEEPSEEK_QUERY_TYPE
-    } else if (model === Model.Claude && settings.claude) {
-      queryType = CLAUDE_QUERY_TYPE
-    } else if (model === Model.Qwen && settings.qwen) {
-      queryType = QWEN_QUERY_TYPE
-    } else if (model === Model.CustomLLM && settings.custom_llm) {
-      queryType = CUSTOM_LLM_CHAT_QUERY_TYPE
-    }
+    let queryType = resolveQueryType(settings)
 
     if (!queryType && process.env.MOCK_EXTERNAL_SERVICES === 'true') {
       queryType = CHAT_QUERY_TYPE
     }
 
-    if (queryType) {
-      return runCommand(
-        {
-          queryType,
-          cell,
-          store: this.store,
-          preventPostProcess: true,
-          signal,
-        },
-        this.progress,
-      )
+    if (!queryType) {
+      throw new Error(NO_PROVIDER_CONFIGURED_ERROR)
     }
+
+    return runCommand(
+      {
+        queryType,
+        cell,
+        store: this.store,
+        preventPostProcess: true,
+        signal,
+      },
+      this.progress,
+    )
   }
 }

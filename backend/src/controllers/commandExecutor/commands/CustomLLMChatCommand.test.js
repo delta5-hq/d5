@@ -1,50 +1,123 @@
 import {CustomLLMChatCommand} from './CustomLLMChatCommand'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
-import {getIntegrationSettings} from './utils/langchain/getLLM'
-import {CustomLLMChat} from './utils/langchain/CustomLLMChat'
+import {getIntegrationSettings, getLLM, Model} from './utils/langchain/getLLM'
 import {clearStepsPrefix} from '../constants/steps'
 import Store from './utils/Store'
 
 jest.mock('./references/substitution')
 jest.mock('./utils/langchain/getLLM')
-jest.mock('./utils/langchain/CustomLLMChat', () => ({
-  CustomLLMChat: jest.fn().mockImplementation(() => ({invoke: jest.fn()})),
-}))
 jest.mock('../constants/steps', () => ({
   clearStepsPrefix: jest.fn(str => `cleared ${str}`),
 }))
 
+const makeSettings = (overrides = {}) => ({
+  custom_llm: {apiRootUrl: 'http://localhost:8080', apiKey: 'key', apiType: 'openai', model: 'gpt-4o-mini'},
+  ...overrides,
+})
+
+const makeCommand = (opts = {}) => {
+  const userId = opts.userId ?? 'user1'
+  const workflowId = 'workflowId' in opts ? opts.workflowId : 'wf1'
+  const store = new Store({userId, workflowId, nodes: {}})
+  return {command: new CustomLLMChatCommand(userId, workflowId, store), store, userId, workflowId}
+}
+
 describe('CustomLLMChatCommand', () => {
-  const userId = 'userId'
-  const workflowId = 'workflowId'
-  const mockStore = new Store({userId, workflowId, nodes: {}})
-  const command = new CustomLLMChatCommand(userId, workflowId, mockStore)
+  const mockInvoke = jest.fn()
 
   beforeEach(() => {
     jest.clearAllMocks()
     substituteReferencesAndHashrefsChildrenAndSelf.mockReturnValue('substituted prompt')
     clearStepsPrefix.mockImplementation(str => `cleared ${str}`)
-    getIntegrationSettings.mockResolvedValue({
-      custom_llm: {apiRootUrl: 'http://localhost:8080', apiKey: 'key', apiType: 'openai'},
-    })
-    CustomLLMChat.mockImplementation(() => ({
-      invoke: jest.fn().mockResolvedValue({content: 'custom llm response'}),
-    }))
+    getIntegrationSettings.mockResolvedValue(makeSettings())
+    mockInvoke.mockResolvedValue({content: 'llm reply'})
+    getLLM.mockReturnValue({llm: {invoke: mockInvoke}})
   })
 
-  describe('run', () => {
-    it('creates nodes with the LLM response', async () => {
-      const createSpy = jest.spyOn(mockStore.importer, 'createNodes')
-      const node = {id: 'node', title: '/custom test'}
+  describe('integration settings loading', () => {
+    it('loads settings scoped to the command user and workflow', async () => {
+      const {command, store, userId, workflowId} = makeCommand()
+      const node = {id: 'n1', title: '/custom hi'}
 
-      await command.run(node, null, 'test prompt')
+      await command.run(node, null, 'hi')
 
-      expect(createSpy).toHaveBeenCalledWith('custom llm response', node.id)
-      createSpy.mockRestore()
+      expect(getIntegrationSettings).toHaveBeenCalledWith(userId, workflowId, store)
     })
 
-    it('uses substituteReferencesAndHashrefsChildrenAndSelf when prompt is falsy', async () => {
-      const node = {id: 'node', title: '/custom test'}
+    it('loads settings with null workflowId when command has no workflow scope', async () => {
+      const {command, store, userId} = makeCommand({workflowId: null})
+      const node = {id: 'n1', title: '/custom hi'}
+
+      await command.run(node, null, 'hi')
+
+      expect(getIntegrationSettings).toHaveBeenCalledWith(userId, null, store)
+    })
+  })
+
+  describe('LLM construction', () => {
+    it('always requests CustomLLM type from getLLM', async () => {
+      const {command} = makeCommand()
+      const node = {id: 'n1', title: '/custom hi'}
+
+      await command.run(node, null, 'hi')
+
+      expect(getLLM).toHaveBeenCalledWith(expect.objectContaining({type: Model.CustomLLM}))
+    })
+
+    it('passes the full settings object returned by getIntegrationSettings to getLLM', async () => {
+      const {command} = makeCommand()
+      const settings = makeSettings()
+      getIntegrationSettings.mockResolvedValueOnce(settings)
+      const node = {id: 'n1', title: '/custom hi'}
+
+      await command.run(node, null, 'hi')
+
+      expect(getLLM).toHaveBeenCalledWith(expect.objectContaining({settings}))
+    })
+
+    it.each([
+      ['gpt-4o-mini', 'gpt-4o-mini'],
+      ['gpt-4-turbo', 'gpt-4-turbo'],
+      ['claude-haiku-4-5', 'claude-haiku-4-5'],
+    ])('forwards model="%s" inside settings to getLLM without alteration', async (model, expected) => {
+      const {command} = makeCommand()
+      getIntegrationSettings.mockResolvedValueOnce(
+        makeSettings({custom_llm: {apiRootUrl: 'http://x', apiType: 'openai', model}}),
+      )
+      const node = {id: 'n1', title: '/custom hi'}
+
+      await command.run(node, null, 'hi')
+
+      const [[{settings}]] = getLLM.mock.calls
+      expect(settings.custom_llm.model).toBe(expected)
+    })
+  })
+
+  describe('message passing to LLM', () => {
+    it('invokes the LLM returned by getLLM with the resolved prompt', async () => {
+      const {command} = makeCommand()
+      const node = {id: 'n1', title: '/custom hi'}
+
+      await command.run(node, null, 'my prompt')
+
+      expect(mockInvoke).toHaveBeenCalledTimes(1)
+    })
+
+    it('places the final prompt as a user-role message', async () => {
+      const {command} = makeCommand()
+      const node = {id: 'n1', title: '/custom hi'}
+
+      await command.run(node, null, 'my prompt')
+
+      const [[messages]] = mockInvoke.mock.calls
+      expect(messages).toEqual(expect.arrayContaining([expect.objectContaining({content: expect.any(String)})]))
+    })
+  })
+
+  describe('prompt resolution', () => {
+    it('uses substituteReferencesAndHashrefsChildrenAndSelf when prompt is absent', async () => {
+      const {command} = makeCommand()
+      const node = {id: 'n1', title: '/custom hi'}
 
       await command.run(node, null, null)
 
@@ -52,80 +125,123 @@ describe('CustomLLMChatCommand', () => {
       expect(clearStepsPrefix).not.toHaveBeenCalled()
     })
 
-    it('uses clearStepsPrefix when prompt is provided and title has no reference', async () => {
-      const node = {id: 'node', title: '/custom test'}
+    it('uses substituteReferencesAndHashrefsChildrenAndSelf when prompt is empty string', async () => {
+      const {command} = makeCommand()
+      const node = {id: 'n1', title: '/custom hi'}
+
+      await command.run(node, null, '')
+
+      expect(substituteReferencesAndHashrefsChildrenAndSelf).toHaveBeenCalled()
+    })
+
+    it('uses clearStepsPrefix when prompt is provided and title has no reference pattern', async () => {
+      const {command} = makeCommand()
+      const node = {id: 'n1', title: '/custom hi'}
 
       await command.run(node, null, 'original prompt')
 
       expect(substituteReferencesAndHashrefsChildrenAndSelf).not.toHaveBeenCalled()
       expect(clearStepsPrefix).toHaveBeenCalledWith('original prompt')
     })
+
+    it('prepends explicit context when provided', async () => {
+      const {command} = makeCommand()
+      const node = {id: 'n1', title: '/custom hi'}
+      clearStepsPrefix.mockImplementation(str => str)
+
+      await command.run(node, 'CTX:', 'prompt')
+
+      const [[messages]] = mockInvoke.mock.calls
+      const userMessage = messages.find(m => m._getType?.() === 'human' || m.content?.includes('CTX:'))
+      expect(userMessage?.content).toMatch(/CTX:/)
+    })
   })
 
-  describe('CustomLLMChat constructor arguments', () => {
-    const node = {id: 'node', title: '/custom test'}
+  describe('output', () => {
+    it('creates child nodes with the LLM response text', async () => {
+      const {command, store} = makeCommand()
+      const createSpy = jest.spyOn(store.importer, 'createNodes')
+      const node = {id: 'n1', title: '/custom hi'}
+      mockInvoke.mockResolvedValueOnce({content: 'the answer'})
 
-    beforeEach(async () => {
-      await command.run(node, null, 'test prompt')
+      await command.run(node, null, 'hi')
+
+      expect(createSpy).toHaveBeenCalledWith('the answer', node.id)
+      createSpy.mockRestore()
     })
 
-    it('passes apiRootUrl from settings', () => {
-      expect(CustomLLMChat).toHaveBeenCalledWith(expect.objectContaining({apiRootUrl: 'http://localhost:8080'}))
-    })
+    it('attaches output to the executed node id, not a hardcoded id', async () => {
+      const {command, store} = makeCommand()
+      const createSpy = jest.spyOn(store.importer, 'createNodes')
+      const node = {id: 'target-node', title: '/custom hi'}
 
-    it('passes apiKey from settings', () => {
-      expect(CustomLLMChat).toHaveBeenCalledWith(expect.objectContaining({apiKey: 'key'}))
-    })
+      await command.run(node, null, 'hi')
 
-    it('passes apiType from settings', () => {
-      expect(CustomLLMChat).toHaveBeenCalledWith(expect.objectContaining({apiType: 'openai'}))
+      expect(createSpy).toHaveBeenCalledWith(expect.any(String), 'target-node')
+      createSpy.mockRestore()
     })
   })
 
   describe('error handling', () => {
-    it('creates error node when custom_llm settings block is absent entirely', async () => {
-      getIntegrationSettings.mockResolvedValueOnce({openai: {apiKey: 'k'}})
-      const createSpy = jest.spyOn(mockStore.importer, 'createErrorNode')
-      const node = {id: 'node', title: '/custom test'}
+    it.each([
+      [
+        'getLLM throws a configuration error',
+        () =>
+          getLLM.mockImplementationOnce(() => {
+            throw new Error('Custom LLM API URL not configured.')
+          }),
+      ],
+      [
+        'getIntegrationSettings rejects',
+        () => getIntegrationSettings.mockRejectedValueOnce(new Error('DB unavailable')),
+      ],
+      ['LLM invoke rejects', () => mockInvoke.mockRejectedValueOnce(new Error('timeout'))],
+    ])('creates an error node when %s', async (_label, setupFailure) => {
+      const {command, store} = makeCommand()
+      setupFailure()
+      const errorSpy = jest.spyOn(store.importer, 'createErrorNode')
+      const node = {id: 'n1', title: '/custom hi'}
 
-      await command.run(node, null, 'test')
+      await command.run(node, null, 'hi')
 
-      expect(createSpy).toHaveBeenCalledWith(expect.stringContaining('Error:'), node.id)
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Error:'), node.id)
+      errorSpy.mockRestore()
+    })
+
+    it('does not create output nodes when an error occurs', async () => {
+      const {command, store} = makeCommand()
+      getLLM.mockImplementationOnce(() => {
+        throw new Error('fail')
+      })
+      const createSpy = jest.spyOn(store.importer, 'createNodes')
+      const node = {id: 'n1', title: '/custom hi'}
+
+      await command.run(node, null, 'hi')
+
+      expect(createSpy).not.toHaveBeenCalled()
       createSpy.mockRestore()
     })
 
-    it('creates error node when custom_llm.apiRootUrl is absent', async () => {
-      getIntegrationSettings.mockResolvedValueOnce({custom_llm: {apiKey: 'key'}})
-      const createSpy = jest.spyOn(mockStore.importer, 'createErrorNode')
-      const node = {id: 'node', title: '/custom test'}
+    it('attaches the error node to the executed node id', async () => {
+      const {command, store} = makeCommand()
+      getLLM.mockImplementationOnce(() => {
+        throw new Error('fail')
+      })
+      const errorSpy = jest.spyOn(store.importer, 'createErrorNode')
+      const node = {id: 'target-node', title: '/custom hi'}
 
-      await command.run(node, null, 'test')
+      await command.run(node, null, 'hi')
 
-      expect(createSpy).toHaveBeenCalledWith(expect.stringContaining('Error:'), node.id)
-      createSpy.mockRestore()
+      expect(errorSpy).toHaveBeenCalledWith(expect.any(String), 'target-node')
+      errorSpy.mockRestore()
     })
 
-    it('creates error node when settings resolves to null', async () => {
-      getIntegrationSettings.mockResolvedValueOnce(null)
-      const createSpy = jest.spyOn(mockStore.importer, 'createErrorNode')
-      const node = {id: 'node', title: '/custom test'}
+    it('does not throw out of run regardless of the failure source', async () => {
+      const {command} = makeCommand()
+      mockInvoke.mockRejectedValueOnce(new Error('unhandled'))
+      const node = {id: 'n1', title: '/custom hi'}
 
-      await command.run(node, null, 'test')
-
-      expect(createSpy).toHaveBeenCalledWith(expect.stringContaining('Error:'), node.id)
-      createSpy.mockRestore()
-    })
-
-    it('error message mentions configuration when apiRootUrl is absent', async () => {
-      getIntegrationSettings.mockResolvedValueOnce({custom_llm: {}})
-      const createSpy = jest.spyOn(mockStore.importer, 'createErrorNode')
-      const node = {id: 'node', title: '/custom test'}
-
-      await command.run(node, null, 'test')
-
-      const [errorArg] = createSpy.mock.calls[0]
-      expect(errorArg).toMatch(/[Cc]onfigur/)
-      createSpy.mockRestore()
+      await expect(command.run(node, null, 'hi')).resolves.not.toThrow()
     })
   })
 })

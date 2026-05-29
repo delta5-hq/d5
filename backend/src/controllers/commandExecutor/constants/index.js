@@ -43,6 +43,7 @@ import {
   MEMORIZE_QUERY,
   MEMORIZE_QUERY_TYPE,
 } from './memorize'
+import {MCP_FUSION_QUERY, MCP_FUSION_QUERY_TYPE} from './mcpFusion'
 import {queryCommands} from './commandRegExp'
 
 export const getQueryType = title => {
@@ -126,6 +127,8 @@ export const getControlFlowQueryType = title => {
     return VALIDATE_QUERY_TYPE
   } else if (clearedTitle.startsWith(MEMORIZE_QUERY)) {
     return MEMORIZE_QUERY_TYPE
+  } else if (clearedTitle.startsWith(MCP_FUSION_QUERY)) {
+    return MCP_FUSION_QUERY_TYPE
   }
 
   return undefined

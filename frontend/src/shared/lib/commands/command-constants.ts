@@ -20,6 +20,7 @@ export const DEEPSEEK_QUERY = '/deepseek'
 export const CUSTOM_LLM_CHAT_QUERY = '/custom'
 export const REFINE_QUERY = '/refine'
 export const COMPLETION_QUERY = '/chat'
+export const MCP_FUSION_QUERY = '/mcp'
 export const MEMORIZE_QUERY = '/memorize'
 
 export const SUPPORTED_COMMANDS = [
@@ -43,6 +44,7 @@ export const SUPPORTED_COMMANDS = [
   REFINE_QUERY,
   COMPLETION_QUERY,
   MEMORIZE_QUERY,
+  MCP_FUSION_QUERY,
 ] as const
 
 export type CommandQuery = (typeof SUPPORTED_COMMANDS)[number]

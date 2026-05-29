@@ -14,6 +14,18 @@ import IntegrationFacade from '../repositories/IntegrationFacade'
 import {normalizeWorkflowId} from './utils/normalizeWorkflowId'
 import AliasValidator from './commandExecutor/commands/aliases/AliasValidator'
 import EffectiveAliasResolver from './commandExecutor/commands/aliases/EffectiveAliasResolver'
+import IntegrationSessionRepository from '../repositories/IntegrationSessionRepository'
+
+const buildSecretsMeta = integration => {
+  const providers = ['openai', 'yandex', 'claude', 'perplexity', 'qwen', 'deepseek', 'custom_llm']
+  const meta = {}
+  for (const p of providers) {
+    if (integration?.[p]?.apiKey !== undefined && integration[p].apiKey !== null) {
+      meta[p] = {apiKey: !!integration[p].apiKey}
+    }
+  }
+  return meta
+}
 
 const IntegrationController = {
   authorization: async (ctx, next) => {
@@ -29,12 +41,25 @@ const IntegrationController = {
     const {userId} = ctx.state
     const workflowId = normalizeWorkflowId(ctx.query.workflowId)
 
-    const integration = await IntegrationFacade.findMergedDecrypted(userId, workflowId)
+    const [integration, sessions] = await Promise.all([
+      IntegrationFacade.findMergedDecrypted(userId, workflowId),
+      IntegrationSessionRepository.findAllSessionsForUser(userId),
+    ])
     if (!integration) {
       ctx.throw(404, 'Integration not found')
     }
 
-    ctx.body = integration
+    const sessionMap = new Map(sessions.map(s => [`${s.alias}:${s.protocol}`, s.lastSessionId]))
+    const attachSessionId = (items, protocol) =>
+      (items ?? []).map(item => ({...item, lastSessionId: sessionMap.get(`${item.alias}:${protocol}`) ?? null}))
+
+    const secretsMeta = buildSecretsMeta(integration)
+    ctx.body = {
+      ...integration,
+      rpc: attachSessionId(integration.rpc, 'rpc'),
+      mcp: attachSessionId(integration.mcp, 'mcp'),
+      secretsMeta,
+    }
   },
   getService: async ctx => {
     const {userId} = ctx.state

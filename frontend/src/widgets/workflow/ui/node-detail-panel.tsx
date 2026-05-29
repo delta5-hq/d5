@@ -15,6 +15,7 @@ import { normalizeNodeTitle } from '@entities/workflow/lib'
 import { isTitleDerivedFromCommand } from '@shared/lib/reliability-suffix'
 import { NodeTitleEditor } from './node-title-editor'
 import { NodePreviewSection } from './node-preview-section'
+import { McpFusionReportPanel } from './mcp-fusion-report-panel'
 import { CommandField } from './command-field'
 
 interface NodeDetailPanelProps {
@@ -299,6 +300,11 @@ export const NodeDetailPanel = ({
           </CollapsibleTrigger>
           <CollapsibleContent data-testid="node-preview-section">
             <NodePreviewSection nodeId={node.id} />
+            {node.mcpFusionReport ? (
+              <div className="mt-2">
+                <McpFusionReportPanel report={node.mcpFusionReport} />
+              </div>
+            ) : null}
           </CollapsibleContent>
         </Collapsible>
       ) : null}

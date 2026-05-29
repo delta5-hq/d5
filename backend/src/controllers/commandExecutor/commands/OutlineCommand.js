@@ -121,7 +121,7 @@ export class OutlineCommand {
 
     const lang = params?.lang
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
-    const llmType = determineLLMType(getNodeCommand(node), settings)
+    const llmType = determineLLMType(settings)
     const {llm, chunkSize} = getLLM({type: llmType, settings})
 
     const citations = []
@@ -219,10 +219,7 @@ export class OutlineCommand {
     await this.replySecondDebugLevelOutline(node, params)
   }
 
-  // eslint-disable-next-line no-unused-vars
-  replyThirdLevelsOutline = async (node, prompt, params) => {
-    // TODO
-  }
+  replyThirdLevelsOutline = async () => undefined
 
   async replyWithSummarize(node, command, prompt, params) {
     const summarizeExecutor = new SummarizeCommand(this.userId, this.workflowId, this.store)

@@ -53,7 +53,7 @@ export class ExtCommand {
   async createResponseExt(node, userInput, params) {
     const lang = params?.lang
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
-    const llmType = determineLLMType(node?.command, settings)
+    const llmType = determineLLMType(settings)
     const {llm, chunkSize} = getLLM({settings, type: llmType, log: this.log})
     const {storageType, ...extStoreData} = getEmbeddings({settings, type: llmType})
     const vectorStore = new ExtVectorStore({

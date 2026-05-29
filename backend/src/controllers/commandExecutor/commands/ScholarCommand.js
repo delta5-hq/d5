@@ -44,7 +44,7 @@ export class ScholarCommand {
     const serpApiParams = {...SERP_API_SCHOLAR_PARAMS, as_ylo: params?.minYear}
 
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
-    const llmType = determineLLMType(node?.command, settings)
+    const llmType = determineLLMType(settings)
     const {llm, chunkSize} = getLLM({settings, type: llmType})
     const embeddings = getEmbeddings({settings, type: llmType})
 

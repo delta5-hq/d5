@@ -249,10 +249,20 @@ describe('getFullCommandMap - Dynamic Alias Merging', () => {
       expect(map['/claude']).toBe('claude')
     })
 
-    it('does not override static commands with dynamic aliases', () => {
-      const aliases: DynamicAlias[] = [{ alias: '/web', queryType: 'override' }]
+    it.each(Object.entries(COMMAND_TO_QUERYTYPE_MAP))(
+      'does not override static command %s with a dynamic alias',
+      (alias, queryType) => {
+        const aliases: DynamicAlias[] = [{ alias, queryType: 'override' }]
+        const map = getFullCommandMap(aliases)
+        expect(map[alias]).toBe(queryType)
+      },
+    )
+
+    it('does not override static commands during query extraction', () => {
+      const aliases: DynamicAlias[] = [{ alias: '/mcp', queryType: 'override' }]
       const map = getFullCommandMap(aliases)
-      expect(map['/web']).toBe('web')
+      expect(map['/mcp']).toBe('mcp-fusion')
+      expect(extractQueryTypeFromCommand('/mcp use every tool', aliases)).toBe('mcp-fusion')
     })
 
     it('ignores alias with empty string', () => {
@@ -392,11 +402,10 @@ describe('getSupportedCommands - Command List Generation', () => {
       expect(commands).toContain('/custom')
     })
 
-    it('does not duplicate commands when alias shadows static', () => {
-      const aliases: DynamicAlias[] = [{ alias: '/web', queryType: 'override' }]
+    it.each(Object.keys(COMMAND_TO_QUERYTYPE_MAP))('does not duplicate static command %s', alias => {
+      const aliases: DynamicAlias[] = [{ alias, queryType: 'override' }]
       const commands = getSupportedCommands(aliases)
-      const webCount = commands.filter(cmd => cmd === '/web').length
-      expect(webCount).toBe(1)
+      expect(commands.filter(cmd => cmd === alias)).toHaveLength(1)
     })
 
     it('maintains command order (insertion order from map keys)', () => {

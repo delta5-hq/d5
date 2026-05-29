@@ -23,7 +23,7 @@ export const WorkflowScopeSelector: React.FC<WorkflowScopeSelectorProps> = ({ va
   const triggerLabel =
     value === null
       ? intl.formatMessage({ id: 'integration.workflowScope.userLevel' })
-      : selectedWorkflow?.title?.trim() || value
+      : (selectedWorkflow?.displayTitle ?? value)
 
   return (
     <div className="space-y-2">
@@ -44,8 +44,8 @@ export const WorkflowScopeSelector: React.FC<WorkflowScopeSelectorProps> = ({ va
               key={workflow.workflowId}
               value={workflow.workflowId}
             >
-              <span>{workflow.title?.trim() || workflow.workflowId}</span>
-              {workflow.title?.trim() ? (
+              <span>{workflow.displayTitle}</span>
+              {workflow.displayTitle !== workflow.workflowId ? (
                 <span className="ml-2 text-xs text-muted-foreground font-mono">{workflow.workflowId}</span>
               ) : null}
             </SelectItem>

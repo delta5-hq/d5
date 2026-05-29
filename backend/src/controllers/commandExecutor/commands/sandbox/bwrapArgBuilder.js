@@ -1,0 +1,16 @@
+export const buildBwrapArgs = (command, args, {systemDirArgs, bindPaths}) => [
+  '--unshare-pid',
+  '--unshare-uts',
+  '--unshare-ipc',
+  '--proc',
+  '/proc',
+  '--dev',
+  '/dev',
+  '--tmpfs',
+  '/tmp',
+  ...systemDirArgs,
+  ...bindPaths.flatMap(p => ['--ro-bind', p, p]),
+  '--',
+  command,
+  ...(args ?? []),
+]

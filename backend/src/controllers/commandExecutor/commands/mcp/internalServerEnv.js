@@ -3,17 +3,30 @@ import {MONGO_URI} from '../../../../constants'
 
 export const INTERNAL_SERVERS_DIR = path.resolve(__dirname, '../../../../mcp-servers')
 
+const DOCKER_MCP_SERVERS_PREFIX = '/app/mcp-servers'
+
 const isNodeCommand = command => command === 'node'
 
 const resolveScriptPath = scriptPath => path.resolve(scriptPath)
 
 const isUnderInternalServersDir = resolvedScriptPath => resolvedScriptPath.startsWith(INTERNAL_SERVERS_DIR + path.sep)
 
+const isDockerMcpPath = scriptPath =>
+  scriptPath === DOCKER_MCP_SERVERS_PREFIX || scriptPath.startsWith(DOCKER_MCP_SERVERS_PREFIX + '/')
+
+export const resolveInternalServerScript = scriptPath => {
+  if (isDockerMcpPath(scriptPath)) {
+    return INTERNAL_SERVERS_DIR + scriptPath.slice(DOCKER_MCP_SERVERS_PREFIX.length)
+  }
+  return resolveScriptPath(scriptPath)
+}
+
 export const isInternalMcpServer = (command, args) => {
   if (!isNodeCommand(command)) return false
   const scriptPath = args?.[0] ?? ''
   if (!scriptPath) return false
-  return isUnderInternalServersDir(resolveScriptPath(scriptPath))
+  const resolved = resolveInternalServerScript(scriptPath)
+  return isUnderInternalServersDir(resolved)
 }
 
 const LLM_KEY_EXTRACTORS = [
@@ -66,8 +79,6 @@ export const buildInternalServerEnv = (userId, workflowId, settings) => {
     MONGO_URI,
   }
 
-  // Drop ambient LLM keys so the subprocess receives only user-configured
-  // provider credentials, never the server's empty or unrelated env values.
   LLM_ENV_KEYS.forEach(key => delete env[key])
 
   LLM_KEY_EXTRACTORS.forEach(extractor => extractor(settings, env))

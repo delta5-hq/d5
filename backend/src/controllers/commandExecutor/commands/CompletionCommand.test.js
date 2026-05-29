@@ -6,16 +6,20 @@ import {CUSTOM_LLM_CHAT_QUERY_TYPE} from '../constants/custom_llm'
 import {DEEPSEEK_QUERY_TYPE} from '../constants/deepseek'
 import {QWEN_QUERY_TYPE} from '../constants/qwen'
 import {YANDEX_QUERY_TYPE} from '../constants/yandex'
-import {Model} from './utils/langchain/getLLM'
-import {getIntegrationSettings} from './utils/langchain/getLLM'
+import {Model, getIntegrationSettings} from './utils/langchain/getLLM'
 import {runCommand} from './utils/runCommand'
 
 jest.mock('./utils/langchain/getLLM')
 jest.mock('./utils/runCommand')
 
 const mockCell = {id: 'cell1'}
-const mockNodes = {}
-const mockFiles = {}
+
+const makeStore = () => ({
+  importer: {createNodes: jest.fn()},
+  _integrationSettingsCache: null,
+})
+
+const settingsWith = overrides => ({model: USER_DEFAULT_MODEL, ...overrides})
 
 describe('CompletionCommand', () => {
   const userId = 'user123'
@@ -26,149 +30,166 @@ describe('CompletionCommand', () => {
     runCommand.mockResolvedValue({success: true})
   })
 
-  describe('run — error handling', () => {
-    let storeWithImporter
+  describe('provider resolution — auto-detect mode', () => {
+    it.each([
+      ['custom_llm is configured', {custom_llm: true}, CUSTOM_LLM_CHAT_QUERY_TYPE],
+      ['openai is configured', {openai: true}, CHAT_QUERY_TYPE],
+      ['claude is configured', {claude: true}, CLAUDE_QUERY_TYPE],
+      ['qwen is configured', {qwen: true}, QWEN_QUERY_TYPE],
+      ['deepseek is configured', {deepseek: true}, DEEPSEEK_QUERY_TYPE],
+      ['yandex is configured and lang is ru', {yandex: true, lang: 'ru'}, YANDEX_QUERY_TYPE],
+    ])('selects correct queryType when %s', async (_label, providerSettings, expectedQueryType) => {
+      getIntegrationSettings.mockResolvedValue(settingsWith(providerSettings))
+      const command = new CompletionCommand(userId, workflowId, makeStore())
+      await command.run(mockCell)
+      expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({queryType: expectedQueryType}))
+    })
+
+    it.each([
+      ['custom_llm beats openai', {custom_llm: true, openai: true}, CUSTOM_LLM_CHAT_QUERY_TYPE],
+      [
+        'custom_llm beats yandex when lang is ru',
+        {custom_llm: true, yandex: true, lang: 'ru'},
+        CUSTOM_LLM_CHAT_QUERY_TYPE,
+      ],
+      ['yandex (lang=ru) beats openai', {yandex: true, openai: true, lang: 'ru'}, YANDEX_QUERY_TYPE],
+      ['openai beats claude', {openai: true, claude: true}, CHAT_QUERY_TYPE],
+    ])('priority: %s', async (_label, providerSettings, expectedQueryType) => {
+      getIntegrationSettings.mockResolvedValue(settingsWith(providerSettings))
+      const command = new CompletionCommand(userId, workflowId, makeStore())
+      await command.run(mockCell)
+      expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({queryType: expectedQueryType}))
+    })
+
+    it.each([
+      ['USER_DEFAULT_MODEL', USER_DEFAULT_MODEL],
+      ['null', null],
+      ['undefined', undefined],
+    ])('treats model=%s as auto-detect mode', async (_label, model) => {
+      getIntegrationSettings.mockResolvedValue({model, openai: true})
+      const command = new CompletionCommand(userId, workflowId, makeStore())
+      await command.run(mockCell)
+      expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({queryType: CHAT_QUERY_TYPE}))
+    })
+
+    it('skips yandex and falls through to the next configured provider when lang is not ru', async () => {
+      getIntegrationSettings.mockResolvedValue(settingsWith({yandex: true, lang: 'en', openai: true}))
+      const command = new CompletionCommand(userId, workflowId, makeStore())
+      await command.run(mockCell)
+      expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({queryType: CHAT_QUERY_TYPE}))
+    })
+  })
+
+  describe('provider resolution — explicit model mode', () => {
+    it.each([
+      [Model.OpenAI, 'openai', CHAT_QUERY_TYPE],
+      [Model.Claude, 'claude', CLAUDE_QUERY_TYPE],
+      [Model.Qwen, 'qwen', QWEN_QUERY_TYPE],
+      [Model.Deepseek, 'deepseek', DEEPSEEK_QUERY_TYPE],
+      [Model.YandexGPT, 'yandex', YANDEX_QUERY_TYPE],
+      [Model.CustomLLM, 'custom_llm', CUSTOM_LLM_CHAT_QUERY_TYPE],
+    ])('model=%s with %s configured → correct queryType', async (model, settingsKey, expectedQueryType) => {
+      getIntegrationSettings.mockResolvedValue({model, [settingsKey]: true})
+      const command = new CompletionCommand(userId, workflowId, makeStore())
+      await command.run(mockCell)
+      expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({queryType: expectedQueryType}))
+    })
+
+    it('selects yandex for explicit YandexGPT model regardless of lang setting', async () => {
+      getIntegrationSettings.mockResolvedValue({model: Model.YandexGPT, yandex: true, lang: 'en'})
+      const command = new CompletionCommand(userId, workflowId, makeStore())
+      await command.run(mockCell)
+      expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({queryType: YANDEX_QUERY_TYPE}))
+    })
+  })
+
+  describe('error surfacing', () => {
+    let store
 
     beforeEach(() => {
-      storeWithImporter = {
-        importer: {createNodes: jest.fn()},
-        _integrationSettingsCache: null,
-      }
+      store = makeStore()
+    })
+
+    it('creates an error node and does not dispatch when settings are unavailable', async () => {
       getIntegrationSettings.mockResolvedValue(null)
-    })
-
-    it('creates error node on the cell when no integration is enabled', async () => {
-      const command = new CompletionCommand(userId, workflowId, storeWithImporter)
+      const command = new CompletionCommand(userId, workflowId, store)
       await command.run(mockCell)
-      expect(storeWithImporter.importer.createNodes).toHaveBeenCalledWith('Error: No integration enabled', mockCell.id)
+      expect(runCommand).not.toHaveBeenCalled()
+      expect(store.importer.createNodes).toHaveBeenCalledWith('Error: No integration enabled', mockCell.id)
     })
 
-    it('does not throw to caller when no integration is enabled', async () => {
-      const command = new CompletionCommand(userId, workflowId, storeWithImporter)
+    it.each([
+      ['auto-detect mode with no providers configured', {model: USER_DEFAULT_MODEL}],
+      [
+        'auto-detect mode with yandex configured but lang is not ru',
+        {model: USER_DEFAULT_MODEL, yandex: true, lang: 'en'},
+      ],
+      ['explicit model with no credentials for that provider', {model: Model.Claude}],
+      ['explicit model not registered in the system', {model: 'unsupported-provider'}],
+    ])('creates an error node and does not dispatch when %s', async (_label, settings) => {
+      getIntegrationSettings.mockResolvedValue(settings)
+      const command = new CompletionCommand(userId, workflowId, store)
+      await command.run(mockCell)
+      expect(runCommand).not.toHaveBeenCalled()
+      expect(store.importer.createNodes).toHaveBeenCalledWith(
+        expect.stringMatching(/^Error: No LLM provider/),
+        mockCell.id,
+      )
+    })
+
+    it('creates an error node when runCommand rejects', async () => {
+      getIntegrationSettings.mockResolvedValue({model: Model.OpenAI, openai: true})
+      runCommand.mockRejectedValue(new Error('downstream failure'))
+      const command = new CompletionCommand(userId, workflowId, store)
+      await command.run(mockCell)
+      expect(store.importer.createNodes).toHaveBeenCalledWith('Error: downstream failure', mockCell.id)
+    })
+
+    it('resolves without throwing when store is present, regardless of error type', async () => {
+      getIntegrationSettings.mockResolvedValue(null)
+      const command = new CompletionCommand(userId, workflowId, store)
       await expect(command.run(mockCell)).resolves.toBeUndefined()
     })
+  })
 
-    it('creates error node on the cell when runCommand rejects', async () => {
-      getIntegrationSettings.mockResolvedValue({model: 'OpenAI', openai: true})
-      runCommand.mockRejectedValue(new Error('command dispatch failed'))
-      const command = new CompletionCommand(userId, workflowId, storeWithImporter)
+  describe('MOCK_EXTERNAL_SERVICES mode', () => {
+    afterEach(() => {
+      delete process.env.MOCK_EXTERNAL_SERVICES
+    })
+
+    it('dispatches to CHAT_QUERY_TYPE when no provider resolves but MOCK mode is active', async () => {
+      process.env.MOCK_EXTERNAL_SERVICES = 'true'
+      const store = makeStore()
+      getIntegrationSettings.mockResolvedValue({model: USER_DEFAULT_MODEL})
+      const command = new CompletionCommand(userId, workflowId, store)
       await command.run(mockCell)
-      expect(storeWithImporter.importer.createNodes).toHaveBeenCalledWith('Error: command dispatch failed', mockCell.id)
-    })
-
-    it('does not throw to caller when runCommand rejects', async () => {
-      getIntegrationSettings.mockResolvedValue({model: 'OpenAI', openai: true})
-      runCommand.mockRejectedValue(new Error('command dispatch failed'))
-      const command = new CompletionCommand(userId, workflowId, storeWithImporter)
-      await expect(command.run(mockCell)).resolves.toBeUndefined()
+      expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({queryType: CHAT_QUERY_TYPE}))
+      expect(store.importer.createNodes).not.toHaveBeenCalled()
     })
   })
 
-  it('should use CUSTOM_LLM_CHAT_QUERY_TYPE when model is default and custom_llm is enabled', async () => {
-    getIntegrationSettings.mockResolvedValue({
-      model: USER_DEFAULT_MODEL,
-      custom_llm: true,
+  describe('runCommand argument forwarding', () => {
+    beforeEach(() => {
+      getIntegrationSettings.mockResolvedValue({model: Model.OpenAI, openai: true})
     })
 
-    const command = new CompletionCommand(userId, workflowId)
-    await command.run(mockCell, mockNodes, mockFiles)
-
-    const callArgs = runCommand.mock.calls[0][0]
-    expect(callArgs).toEqual(expect.objectContaining({queryType: CUSTOM_LLM_CHAT_QUERY_TYPE}))
-  })
-
-  it('should use YANDEX_QUERY_TYPE when lang is ru and yandex is enabled', async () => {
-    getIntegrationSettings.mockResolvedValue({
-      model: USER_DEFAULT_MODEL,
-      lang: 'ru',
-      yandex: true,
+    it('always sets preventPostProcess to true', async () => {
+      const command = new CompletionCommand(userId, workflowId, makeStore())
+      await command.run(mockCell)
+      expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({preventPostProcess: true}))
     })
 
-    const command = new CompletionCommand(userId, workflowId)
-    await command.run(mockCell, mockNodes, mockFiles)
-
-    const callArgs = runCommand.mock.calls[0][0]
-    expect(callArgs).toEqual(expect.objectContaining({queryType: YANDEX_QUERY_TYPE}))
-  })
-
-  it('should use CHAT_QUERY_TYPE when model is OpenAI and openai is enabled', async () => {
-    getIntegrationSettings.mockResolvedValue({
-      model: Model.OpenAI,
-      openai: true,
+    it('forwards the abort signal to runCommand', async () => {
+      const controller = new AbortController()
+      const command = new CompletionCommand(userId, workflowId, makeStore())
+      await command.run(mockCell, {signal: controller.signal})
+      expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({signal: controller.signal}))
     })
 
-    const command = new CompletionCommand(userId, workflowId)
-    await command.run(mockCell, mockNodes, mockFiles)
-
-    const callArgs = runCommand.mock.calls[0][0]
-    expect(callArgs).toEqual(expect.objectContaining({queryType: CHAT_QUERY_TYPE}))
-  })
-
-  it('should use CLAUDE_QUERY_TYPE when model is Claude and claude is enabled', async () => {
-    getIntegrationSettings.mockResolvedValue({
-      model: Model.Claude,
-      claude: true,
+    it('forwards the cell to runCommand', async () => {
+      const command = new CompletionCommand(userId, workflowId, makeStore())
+      await command.run(mockCell)
+      expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({cell: mockCell}))
     })
-
-    const command = new CompletionCommand(userId, workflowId)
-    await command.run(mockCell, mockNodes, mockFiles)
-
-    const callArgs = runCommand.mock.calls[0][0]
-    expect(callArgs).toEqual(expect.objectContaining({queryType: CLAUDE_QUERY_TYPE}))
-  })
-
-  it('should use DEEPSEEK_QUERY_TYPE when model is Deepseek and deepseek is enabled', async () => {
-    getIntegrationSettings.mockResolvedValue({
-      model: Model.Deepseek,
-      deepseek: true,
-    })
-
-    const command = new CompletionCommand(userId, workflowId)
-    await command.run(mockCell, mockNodes, mockFiles)
-
-    const callArgs = runCommand.mock.calls[0][0]
-    expect(callArgs).toEqual(expect.objectContaining({queryType: DEEPSEEK_QUERY_TYPE}))
-  })
-
-  it('should use QWEN_QUERY_TYPE when model is Qwen and qwen is enabled', async () => {
-    getIntegrationSettings.mockResolvedValue({
-      model: Model.Qwen,
-      qwen: true,
-    })
-
-    const command = new CompletionCommand(userId, workflowId)
-    await command.run(mockCell, mockNodes, mockFiles)
-
-    const callArgs = runCommand.mock.calls[0][0]
-    expect(callArgs).toEqual(expect.objectContaining({queryType: QWEN_QUERY_TYPE}))
-  })
-
-  it('should not call runCommand when no matching queryType found', async () => {
-    getIntegrationSettings.mockResolvedValue({
-      model: 'unknown-model',
-    })
-
-    const command = new CompletionCommand(userId, workflowId)
-    await command.run(mockCell, mockNodes, mockFiles)
-
-    expect(runCommand).not.toHaveBeenCalled()
-  })
-
-  it('should call runCommand with preventPostProcess set to true', async () => {
-    getIntegrationSettings.mockResolvedValue({
-      model: Model.OpenAI,
-      openai: true,
-    })
-
-    const command = new CompletionCommand(userId, workflowId)
-    await command.run(mockCell, mockNodes, mockFiles)
-
-    const callArgs = runCommand.mock.calls[0][0]
-    expect(callArgs).toEqual(
-      expect.objectContaining({
-        preventPostProcess: true,
-      }),
-      undefined,
-    )
   })
 })

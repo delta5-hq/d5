@@ -147,9 +147,9 @@ export class MemorizeCommand {
     await vectorStore.load(chunks, keep)
   }
 
-  async _getVectorStore(command, context) {
+  async _getVectorStore(context) {
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
-    const llmType = determineLLMType(command, settings)
+    const llmType = determineLLMType(settings)
     const {storageType, ...embeddings} = getEmbeddings({type: llmType, settings})
     return new ExtVectorStore({
       ...embeddings,
@@ -173,9 +173,14 @@ export class MemorizeCommand {
 
       const command = getNodeCommand(node)
       const {context, rechunk, keep, split} = this.getParams(command)
-      const vectorStore = await this._getVectorStore(command, context)
+      const vectorStore = await this._getVectorStore(context)
       const chunks = await this.processChunks(startNode, rechunk, {split})
       await this.saveEmbeddings(vectorStore, chunks, keep)
+      const contextLabel = context && context !== DEFAULT_CONTEXT_NAME ? ` (context: ${context})` : ''
+      this.store.importer.createNodes(
+        `Memorized ${chunks.length} chunk${chunks.length === 1 ? '' : 's'}${contextLabel}`,
+        node.id,
+      )
     })
   }
 }

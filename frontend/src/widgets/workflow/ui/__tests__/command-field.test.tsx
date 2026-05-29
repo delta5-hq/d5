@@ -927,7 +927,7 @@ describe('CommandField', () => {
         const item = document.querySelector('[data-command="/web"]')
         expect(item).toBeTruthy()
         expect(item?.getAttribute('data-badge')).toBe('builtin')
-        expect(item?.textContent).toContain('Search web')
+        expect(item?.textContent).toContain('Search and summarize web pages')
       })
 
       it('shows all builtin commands with builtin badge', () => {
@@ -985,6 +985,94 @@ describe('CommandField', () => {
         const item = document.querySelector('[data-command="/nodesc"]')
         expect(item).toBeTruthy()
         expect(item?.getAttribute('data-badge')).toBe('mcp')
+      })
+    })
+
+    describe('Suggestion list deduplication', () => {
+      it('each command name appears at most once when aliases collide with builtins', () => {
+        mockIntegrationData.mcp = [
+          { alias: '/outline', description: 'My outliner' },
+          { alias: '/web', description: 'My web' },
+        ]
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/' } })
+
+        const allItems = document.querySelectorAll('[data-type="autocomplete-item"]')
+        const commands = Array.from(allItems).map(el => el.getAttribute('data-command'))
+        const uniqueCommands = new Set(commands)
+
+        expect(commands.length).toBe(uniqueCommands.size)
+      })
+
+      it('MCP alias wins over builtin when names collide — single entry with mcp badge', () => {
+        mockIntegrationData.mcp = [{ alias: '/outline', description: 'My outliner' }]
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/outline' } })
+
+        const items = document.querySelectorAll('[data-command="/outline"]')
+        expect(items.length).toBe(1)
+        expect(items[0]?.getAttribute('data-badge')).toBe('mcp')
+      })
+
+      it('RPC alias wins over builtin when names collide — single entry with rpc badge', () => {
+        mockIntegrationData.rpc = [{ alias: '/web', description: 'My web scraper' }]
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/web' } })
+
+        const items = document.querySelectorAll('[data-command="/web"]')
+        expect(items.length).toBe(1)
+        expect(items[0]?.getAttribute('data-badge')).toBe('rpc')
+      })
+
+      it('colliding alias description replaces the builtin description', () => {
+        mockIntegrationData.mcp = [{ alias: '/outline', description: 'Custom outline description' }]
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/outline' } })
+
+        const item = document.querySelector('[data-command="/outline"]')
+        expect(item?.textContent).toContain('Custom outline description')
+        expect(item?.textContent).not.toContain('Generate a structured hierarchical outline')
+      })
+
+      it('colliding aliases preserve all other builtin entries unaffected', () => {
+        mockIntegrationData.mcp = [
+          { alias: '/outline', description: 'Override outline' },
+          { alias: '/web', description: 'Override web' },
+        ]
+        const { textarea } = renderField({ value: '/' })
+        fireEvent.change(textarea(), { target: { value: '/' } })
+
+        expect(document.querySelector('[data-command="/chat"]')?.getAttribute('data-badge')).toBe('builtin')
+        expect(document.querySelector('[data-command="/foreach"]')?.getAttribute('data-badge')).toBe('builtin')
+        expect(document.querySelector('[data-command="/summarize"]')?.getAttribute('data-badge')).toBe('builtin')
+      })
+
+      it('non-colliding aliases are present alongside all builtins', () => {
+        mockIntegrationData.mcp = [
+          { alias: '/my-coder', description: 'Coder' },
+          { alias: '/my-qa', description: 'QA' },
+        ]
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/' } })
+
+        expect(document.querySelector('[data-command="/my-coder"]')?.getAttribute('data-badge')).toBe('mcp')
+        expect(document.querySelector('[data-command="/my-qa"]')?.getAttribute('data-badge')).toBe('mcp')
+        expect(document.querySelector('[data-command="/chat"]')?.getAttribute('data-badge')).toBe('builtin')
+        expect(document.querySelector('[data-command="/outline"]')?.getAttribute('data-badge')).toBe('builtin')
+      })
+
+      it('no aliases configured — suggestion list contains only builtins with no duplicates', () => {
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/' } })
+
+        const allItems = document.querySelectorAll('[data-type="autocomplete-item"]')
+        const commands = Array.from(allItems).map(el => el.getAttribute('data-command'))
+        const uniqueCommands = new Set(commands)
+
+        expect(commands.length).toBe(uniqueCommands.size)
+        expect(document.querySelectorAll('[data-badge="builtin"]').length).toBeGreaterThan(20)
+        expect(document.querySelectorAll('[data-badge="mcp"]').length).toBe(0)
+        expect(document.querySelectorAll('[data-badge="rpc"]').length).toBe(0)
       })
     })
 

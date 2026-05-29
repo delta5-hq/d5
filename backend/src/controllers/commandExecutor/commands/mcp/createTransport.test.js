@@ -3,6 +3,7 @@ import {createTransport} from './createTransport'
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js'
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js'
+import {sandboxSpawn} from '../sandbox/ProcessSandbox'
 
 jest.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
   StreamableHTTPClientTransport: jest.fn().mockImplementation(url => ({url, type: 'streamable-http'})),
@@ -14,6 +15,11 @@ jest.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
 
 jest.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
   SSEClientTransport: jest.fn().mockImplementation(url => ({url, type: 'sse'})),
+}))
+
+jest.mock('../sandbox/ProcessSandbox', () => ({
+  sandboxSpawn: jest.fn((command, args, env) => ({command, args, env})),
+  isSandboxActive: jest.fn(() => false),
 }))
 
 describe('createTransport', () => {
@@ -82,6 +88,17 @@ describe('createTransport', () => {
       expect(StdioClientTransport).toHaveBeenCalledTimes(1)
       expect(StreamableHTTPClientTransport).not.toHaveBeenCalled()
       expect(SSEClientTransport).not.toHaveBeenCalled()
+    })
+
+    it('delegates command, args and env to sandboxSpawn before constructing transport', () => {
+      createTransport({
+        transport: MCP_TRANSPORT.STDIO,
+        command: 'npx',
+        args: ['-y', '@scope/pkg'],
+        env: {API_KEY: 'secret'},
+      })
+
+      expect(sandboxSpawn).toHaveBeenCalledWith('npx', ['-y', '@scope/pkg'], {API_KEY: 'secret'})
     })
   })
 

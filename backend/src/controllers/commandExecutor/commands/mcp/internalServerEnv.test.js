@@ -1,5 +1,10 @@
 import path from 'path'
-import {isInternalMcpServer, buildInternalServerEnv, INTERNAL_SERVERS_DIR} from './internalServerEnv'
+import {
+  isInternalMcpServer,
+  buildInternalServerEnv,
+  resolveInternalServerScript,
+  INTERNAL_SERVERS_DIR,
+} from './internalServerEnv'
 
 jest.mock('../../../../constants', () => ({
   MONGO_URI: 'mongodb://localhost:27017/test',
@@ -47,6 +52,18 @@ describe('isInternalMcpServer', () => {
       expect(isInternalMcpServer('node', ['/home/user/mcp-servers/server.js'])).toBe(false)
     })
 
+    it('accepts /app/mcp-servers/... Docker preset path', () => {
+      expect(isInternalMcpServer('node', ['/app/mcp-servers/research-rag/server.js'])).toBe(true)
+    })
+
+    it('accepts /app/mcp-servers/... Docker preset path for scraper', () => {
+      expect(isInternalMcpServer('node', ['/app/mcp-servers/scraper/server.js'])).toBe(true)
+    })
+
+    it('rejects /app/mcp-servers itself (no trailing slash means not a file)', () => {
+      expect(isInternalMcpServer('node', ['/app/mcp-servers'])).toBe(false)
+    })
+
     it('rejects path traversal that escapes internal dir', () => {
       const traversal = internalPath('..', 'evil.js')
       expect(isInternalMcpServer('node', [traversal])).toBe(false)
@@ -72,7 +89,58 @@ describe('isInternalMcpServer', () => {
   })
 })
 
+describe('resolveInternalServerScript', () => {
+  it('maps /app/mcp-servers/... to INTERNAL_SERVERS_DIR/...', () => {
+    const result = resolveInternalServerScript('/app/mcp-servers/research-rag/server.js')
+    expect(result).toBe(path.join(INTERNAL_SERVERS_DIR, 'research-rag/server.js'))
+  })
+
+  it('maps /app/mcp-servers/scraper/server.js to INTERNAL_SERVERS_DIR', () => {
+    const result = resolveInternalServerScript('/app/mcp-servers/scraper/server.js')
+    expect(result).toBe(path.join(INTERNAL_SERVERS_DIR, 'scraper/server.js'))
+  })
+
+  it('returns absolute paths unchanged if already under INTERNAL_SERVERS_DIR', () => {
+    const localPath = path.join(INTERNAL_SERVERS_DIR, 'scraper/server.js')
+    expect(resolveInternalServerScript(localPath)).toBe(localPath)
+  })
+
+  it('returns unrelated paths unchanged', () => {
+    expect(resolveInternalServerScript('/usr/local/bin/server.js')).toBe('/usr/local/bin/server.js')
+  })
+})
+
 describe('buildInternalServerEnv', () => {
+  const llmEnvKeys = [
+    'OPENAI_API_KEY',
+    'CLAUDE_API_KEY',
+    'QWEN_API_KEY',
+    'DEEPSEEK_API_KEY',
+    'PERPLEXITY_API_KEY',
+    'YANDEX_API_KEY',
+    'YC_API_KEY',
+    'YANDEX_FOLDER_ID',
+    'YC_FOLDER_ID',
+  ]
+
+  const providerEnvCases = [
+    ['openai', {openai: {apiKey: 'openai-key'}}, {OPENAI_API_KEY: 'openai-key'}],
+    ['claude', {claude: {apiKey: 'claude-key'}}, {CLAUDE_API_KEY: 'claude-key'}],
+    ['qwen', {qwen: {apiKey: 'qwen-key'}}, {QWEN_API_KEY: 'qwen-key'}],
+    ['deepseek', {deepseek: {apiKey: 'ds-key'}}, {DEEPSEEK_API_KEY: 'ds-key'}],
+    ['perplexity', {perplexity: {apiKey: 'pplx-key'}}, {PERPLEXITY_API_KEY: 'pplx-key'}],
+    [
+      'yandex',
+      {yandex: {apiKey: 'yc-key', folder_id: 'yc-folder'}},
+      {
+        YANDEX_API_KEY: 'yc-key',
+        YC_API_KEY: 'yc-key',
+        YANDEX_FOLDER_ID: 'yc-folder',
+        YC_FOLDER_ID: 'yc-folder',
+      },
+    ],
+  ]
+
   const allProviderSettings = {
     openai: {apiKey: 'openai-key'},
     claude: {apiKey: 'claude-key'},
@@ -123,6 +191,17 @@ describe('buildInternalServerEnv', () => {
   })
 
   describe('LLM key injection', () => {
+    const expectOnlyEnvKeys = (env, expected) => {
+      for (const key of llmEnvKeys) {
+        expect(env[key]).toBe(expected[key])
+      }
+    }
+
+    it.each(providerEnvCases)('injects only %s credential env keys from settings', (_provider, settings, expected) => {
+      const env = buildInternalServerEnv('user-1', null, settings)
+      expectOnlyEnvKeys(env, expected)
+    })
+
     it('injects all provider keys when all settings are present', () => {
       const env = buildInternalServerEnv('user-1', null, allProviderSettings)
       expect(env.OPENAI_API_KEY).toBe('openai-key')
@@ -154,8 +233,26 @@ describe('buildInternalServerEnv', () => {
 
     it('injects no LLM keys when settings is empty object', () => {
       const env = buildInternalServerEnv('user-1', null, {})
-      expect(env.OPENAI_API_KEY).toBeUndefined()
-      expect(env.CLAUDE_API_KEY).toBeUndefined()
+      expectOnlyEnvKeys(env, {})
+    })
+
+    it('removes inherited provider credentials before injecting user-scoped settings', () => {
+      const originals = Object.fromEntries(llmEnvKeys.map(key => [key, process.env[key]]))
+
+      try {
+        for (const key of llmEnvKeys) process.env[key] = `ambient-${key}`
+
+        const env = buildInternalServerEnv('user-1', null, {qwen: {apiKey: 'user-qwen-key'}})
+        expectOnlyEnvKeys(env, {QWEN_API_KEY: 'user-qwen-key'})
+      } finally {
+        for (const key of llmEnvKeys) {
+          if (originals[key] === undefined) {
+            delete process.env[key]
+          } else {
+            process.env[key] = originals[key]
+          }
+        }
+      }
     })
 
     it('does not throw when settings is null', () => {

@@ -45,7 +45,7 @@ export class ValidateCommand {
     if (!content.trim()) return {passed: true, criterion, reason: ''}
 
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
-    const llmType = determineLLMType(getNodeCommand(parentNode), settings)
+    const llmType = determineLLMType(settings)
     const {llm} = getLLM({type: llmType, settings, log: this.log})
 
     const results = await Promise.all(Array.from({length: n}, () => this._callJuror(llm, criterion, content, signal)))

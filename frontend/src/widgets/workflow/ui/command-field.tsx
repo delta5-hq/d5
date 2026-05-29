@@ -93,21 +93,25 @@ export const CommandField = ({
   const isDirty = text !== value
 
   const allSuggestions = useMemo((): CommandSuggestion[] => {
-    const builtins = getSupportedCommands().map(cmd => ({
-      command: cmd,
-      description: COMMAND_DESCRIPTIONS[cmd] || '',
-      badge: 'builtin' as const,
-    }))
+    const byCommand = new Map<string, CommandSuggestion>()
 
-    const dynamics = aliases.map(
-      (alias: DynamicAlias): CommandSuggestion => ({
+    for (const cmd of getSupportedCommands()) {
+      byCommand.set(cmd, {
+        command: cmd,
+        description: COMMAND_DESCRIPTIONS[cmd] || '',
+        badge: 'builtin' as const,
+      })
+    }
+
+    for (const alias of aliases as DynamicAlias[]) {
+      byCommand.set(alias.alias, {
         command: alias.alias,
         description: alias.description || '',
         badge: alias.queryType?.startsWith('mcp:') ? 'mcp' : 'rpc',
-      }),
-    )
+      })
+    }
 
-    return [...builtins, ...dynamics]
+    return Array.from(byCommand.values())
   }, [aliases])
 
   const shouldShowAutocomplete = useMemo((): boolean => {

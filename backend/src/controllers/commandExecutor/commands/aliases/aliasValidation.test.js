@@ -39,6 +39,7 @@ describe('aliasValidation', () => {
       expect(BUILT_IN_COMMANDS.has('/chatgpt')).toBe(true)
       expect(BUILT_IN_COMMANDS.has('/web')).toBe(true)
       expect(BUILT_IN_COMMANDS.has('/steps')).toBe(true)
+      expect(BUILT_IN_COMMANDS.has('/mcp')).toBe(true)
     })
   })
 
@@ -82,10 +83,9 @@ describe('aliasValidation', () => {
   })
 
   describe('validateNotBuiltIn', () => {
-    it('throws RESERVED_COMMAND for built-in conflicts', () => {
-      expect(() => validateNotBuiltIn('/chatgpt')).toThrow(AliasValidationError)
-      expect(() => validateNotBuiltIn('/chatgpt')).toThrow(expect.objectContaining({code: 'RESERVED_COMMAND'}))
-      expect(() => validateNotBuiltIn('/web')).toThrow(expect.objectContaining({code: 'RESERVED_COMMAND'}))
+    it.each(Array.from(BUILT_IN_COMMANDS))('throws RESERVED_COMMAND for built-in conflict: %s', alias => {
+      expect(() => validateNotBuiltIn(alias)).toThrow(AliasValidationError)
+      expect(() => validateNotBuiltIn(alias)).toThrow(expect.objectContaining({code: 'RESERVED_COMMAND'}))
     })
 
     it('succeeds for non-conflicting aliases', () => {
@@ -186,26 +186,7 @@ describe('aliasValidation', () => {
     })
 
     describe('prevents collision with built-in commands', () => {
-      it.each([
-        ['/chatgpt', 'chat command'],
-        ['/claude', 'claude command'],
-        ['/yandexgpt', 'yandex command'],
-        ['/qwen', 'qwen command'],
-        ['/deepseek', 'deepseek command'],
-        ['/perplexity', 'perplexity command'],
-        ['/custom', 'custom LLM command'],
-        ['/steps', 'steps control flow'],
-        ['/foreach', 'foreach control flow'],
-        ['/switch', 'switch control flow'],
-        ['/summarize', 'summarize post-process'],
-        ['/memorize', 'memorize post-process'],
-        ['/outline', 'outline command'],
-        ['/refine', 'refine command'],
-        ['/web', 'web search command'],
-        ['/scholar', 'scholar search command'],
-        ['/download', 'download command'],
-        ['/ext', 'ext (knowledge base) command'],
-      ])('rejects built-in: %s (%s)', alias => {
+      it.each(Array.from(BUILT_IN_COMMANDS))('rejects built-in: %s', alias => {
         expect(isValidAlias(alias)).toBe(false)
       })
     })

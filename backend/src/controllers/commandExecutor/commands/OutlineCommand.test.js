@@ -7,7 +7,6 @@ import Integration from '../../../models/Integration'
 import {RefineDocumentsChain} from '@langchain/classic/chains'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 
-// Mock the reference patterns module
 jest.mock('./references/utils/referencePatterns', () => ({
   referencePatterns: {
     withAssignmentPrefix: jest.fn(() => ({
@@ -16,7 +15,6 @@ jest.mock('./references/utils/referencePatterns', () => ({
   },
 }))
 
-// Mock the constants module before importing from it
 jest.mock('../constants/steps', () => ({
   clearStepsPrefix: jest.fn(str => `cleared ${str}`),
 }))
@@ -28,12 +26,10 @@ jest.mock('../constants', () => {
   }
 })
 
-// Now import the constants after mocking
 import {clearStepsPrefix} from '../constants/steps'
 import {referencePatterns} from './references/utils/referencePatterns'
 import Store from './utils/Store'
 
-// jest.mock('./SummarizeCommand')
 jest.mock('@langchain/classic/chains')
 jest.mock('./utils/langchain/getLLM', () => ({
   ...jest.requireActual('./utils/langchain/getLLM'),
@@ -101,7 +97,6 @@ describe('OutlineCommand', () => {
 
       await command.replyWithSummarize(node1, node1.command, prompt, allNodes, {}, params)
 
-      // expect(result).toHaveLength(2)
       expect(SummarizeCommand.prototype.runAgentExecutor).toHaveBeenCalled()
     })
 
@@ -182,59 +177,29 @@ describe('OutlineCommand', () => {
       )
     })
 
-    it('should use yandex credentials', async () => {
-      getIntegrationSettings.mockImplementation(sourceGetIntegrationSettings)
-      jest.spyOn(Integration, 'findOne').mockReturnValue({
-        lean: jest.fn().mockReturnValue(settings),
-      })
-      jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockReturnValue({output_text: 'response'})
+    it.each([['/outline prompt --web'], ['/outline prompt --web --lang=ru']])(
+      'selects provider by credential priority for "%s"',
+      async commandStr => {
+        getIntegrationSettings.mockImplementation(sourceGetIntegrationSettings)
+        jest.spyOn(Integration, 'findOne').mockReturnValue({
+          lean: jest.fn().mockReturnValue(settings),
+        })
+        jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockReturnValue({output_text: 'response'})
 
-      getLLM.mockImplementationOnce(() => {
-        return {llm: {}, chunkSize: 2000}
-      })
+        getLLM.mockImplementationOnce(() => {
+          return {llm: {}, chunkSize: 2000}
+        })
 
-      const node = {
-        id: 'node',
-        command: '/outline prompt --web --lang=ru',
-      }
+        const node = {id: 'node', command: commandStr}
+        const workflowNodes = {[command.id]: command}
 
-      const workflowNodes = {
-        [command.id]: command,
-      }
+        await command.run(node, 'prompt', workflowNodes, {})
 
-      await command.run(node, 'prompt', workflowNodes, {})
-
-      expect(getLLM).toHaveBeenCalledWith(
-        expect.objectContaining({settings: expect.objectContaining(settings), type: Model.YandexGPT}),
-      )
-    })
-
-    it('should use openai credentials', async () => {
-      getIntegrationSettings.mockImplementation(sourceGetIntegrationSettings)
-      jest.spyOn(Integration, 'findOne').mockReturnValue({
-        lean: jest.fn().mockReturnValue(settings),
-      })
-      jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockReturnValue({output_text: 'response'})
-
-      getLLM.mockImplementationOnce(() => {
-        return {llm: {}, chunkSize: 2000}
-      })
-
-      const node = {
-        id: 'node',
-        command: '/outline prompt --web',
-      }
-
-      const workflowNodes = {
-        [command.id]: command,
-      }
-
-      await command.run(node, 'prompt', workflowNodes, {})
-
-      expect(getLLM).toHaveBeenCalledWith(
-        expect.objectContaining({settings: expect.objectContaining(settings), type: Model.OpenAI}),
-      )
-    })
+        expect(getLLM).toHaveBeenCalledWith(
+          expect.objectContaining({settings: expect.objectContaining(settings), type: Model.OpenAI}),
+        )
+      },
+    )
 
     it('should use substituteReferencesAndHashrefsChildrenAndSelf when title contains a reference', async () => {
       referencePatterns.withAssignmentPrefix().test.mockReturnValue(true)

@@ -33,6 +33,7 @@ import { X } from 'lucide-react'
 const customLLMSchema = z.object({
   apiType: z.nativeEnum(CustomLLMApiType, { errorMap: () => ({ message: 'API Type is required' }) }),
   apiKey: z.string().optional(),
+  model: z.string().optional(),
   apiRootUrl: z.string().min(1, 'API Root URL is required').refine(isUrl, 'Invalid URL'),
   maxTokens: z.number().min(1, 'Max tokens must be positive'),
   embeddingsChunkSize: z.number().min(1, 'Chunk size must be positive'),
@@ -61,6 +62,7 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
     defaultValues: {
       apiType: (data?.apiType as CustomLLMApiType) || CustomLLMApiType.OpenAI_Compatible,
       apiKey: data?.apiKey || '',
+      model: data?.model || '',
       apiRootUrl: data?.apiRootUrl || '',
       maxTokens: data?.maxTokens || 30000,
       embeddingsChunkSize: data?.embeddingsChunkSize || 2048,
@@ -92,7 +94,7 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
           },
           body: JSON.stringify({
             url: values.apiRootUrl,
-            model: 'test',
+            model: values.model || 'gpt-4o-mini',
             messages: [{ role: 'user', content: 'Hello!' }],
             max_tokens: 10,
           }),
@@ -167,6 +169,21 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
             disabled={isSubmitting}
             error={!!errors.apiKey}
             errorHelper={errors.apiKey?.message?.toString()}
+          />
+        </div>
+
+        {/* Model */}
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="model">
+            <FormattedMessage id="dialog.integration.model" />
+          </Label>
+          <Input
+            id="model"
+            {...register('model')}
+            disabled={isSubmitting}
+            error={!!errors.model}
+            errorHelper={errors.model?.message?.toString()}
+            placeholder="e.g. gpt-4o, llama3.2:8b"
           />
         </div>
 

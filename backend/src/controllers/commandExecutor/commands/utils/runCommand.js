@@ -27,6 +27,7 @@ import {
   markCommodityForkInProgress,
 } from '../../reliability/core/CommodityForkRunner'
 import {SWITCH_QUERY_TYPE} from '../../constants/switch'
+import {MCP_FUSION_QUERY_TYPE} from '../../constants/mcpFusion'
 import {WEB_QUERY_TYPE} from '../../constants/web'
 import {YANDEX_QUERY_TYPE} from '../../constants/yandex'
 import {CONTROL_FLOW_COMMANDS} from '../../constants'
@@ -39,6 +40,7 @@ import {MemorizeCommand} from '../MemorizeCommand'
 import {OutlineCommand} from '../OutlineCommand'
 import {SummarizeCommand} from '../SummarizeCommand'
 import {MCPCommand} from '../MCPCommand'
+import {MCPFusionCommand} from '../MCPFusionCommand'
 import {RPCCommand} from '../RPCCommand'
 import {createUnknownCommandNode} from './unknownCommandNode'
 // eslint-disable-next-line no-unused-vars
@@ -47,6 +49,7 @@ import Store from './Store'
 /** @private */
 function getCommandName(queryType) {
   const nameMap = {
+    [MCP_FUSION_QUERY_TYPE]: 'MCPFusionCommand',
     [YANDEX_QUERY_TYPE]: 'YandexCommand',
     [WEB_QUERY_TYPE]: 'WebCommand',
     [SCHOLAR_QUERY_TYPE]: 'ScholarCommand',
@@ -138,6 +141,9 @@ export const runCommand = async (
     await command.run(cell, context, prompt, {signal})
   } else if (rpcAlias) {
     const command = new RPCCommand(store._userId, store._workflowId, store, rpcAlias, progress, sshClientPool)
+    await command.run(cell, context, prompt, {signal})
+  } else if (queryType === MCP_FUSION_QUERY_TYPE) {
+    const command = new MCPFusionCommand(store._userId, store._workflowId, store)
     await command.run(cell, context, prompt, {signal})
   } else if (getCommandName(queryType) || CONTROL_FLOW_COMMANDS.has(queryType)) {
     await executeCommandWithProgress(queryType, context, prompt, cell, store, progress)

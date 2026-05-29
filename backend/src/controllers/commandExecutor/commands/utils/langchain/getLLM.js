@@ -10,50 +10,44 @@ import {
 import {
   DEEPSEEK_DEFAULT_MODEL,
   CustomLLMApiType,
+  CUSTOM_LLM_DEFAULT_MODEL,
+  OPENAI_COMPATIBLE_API_TYPES,
   QWEN_DEFAULT_MODEL,
   YANDEX_DEFAULT_MODEL,
 } from '../../../../../constants'
 import {OpenAIEmbeddings} from '@langchain/openai'
-import {readLangParam} from '../../../constants'
-import {Lang} from '../../../constants/localizedPrompts'
 import {EmbStorageType} from '../../../../../shared/config/constants'
 import {ChatOpenAI} from '@langchain/openai'
-import {QWEN_API_URL, DEEPSEEK_API_URL, USER_DEFAULT_LANGUAGE} from '../../../../../shared/config/constants'
+import {QWEN_API_URL, DEEPSEEK_API_URL} from '../../../../../shared/config/constants'
 import {ChatClaude} from './Anthropic'
 import {CustomLLMChat, CustomEmbeddings} from './CustomLLMChat'
 import {createNoopLLM} from './noopLLM'
 import {Model, detectConfiguredProvider, loadIntegrationSettings} from './IntegrationSettingsLoader'
+import {NATIVE_EMBEDDINGS_TYPES, resolveEmbeddingsFallbackType} from './EmbeddingsFallbackResolver'
+import {
+  getCachedIntegrationSettings,
+  hasCachedIntegrationSettings,
+  setCachedIntegrationSettings,
+} from './IntegrationSettingsCache'
 
 export {Model}
 
-export const determineLLMType = (command, settings) => {
-  const {lang = undefined, model = 'auto'} = settings || {}
+export const determineLLMType = settings => {
+  const {model = 'auto'} = settings || {}
 
   if (model && model !== 'auto') return model
-
-  if (lang && lang !== USER_DEFAULT_LANGUAGE) {
-    return lang === Lang.ru ? Model.YandexGPT : Model.OpenAI
-  }
-
-  if (command && readLangParam(command) === Lang.ru) {
-    return Model.YandexGPT
-  }
 
   return detectConfiguredProvider(settings) || Model.OpenAI
 }
 
 export const getIntegrationSettings = async (userId, workflowId = null, store = null) => {
-  if (store?._integrationSettingsCache) {
-    return store._integrationSettingsCache
+  if (hasCachedIntegrationSettings(store, userId, workflowId)) {
+    return getCachedIntegrationSettings(store, userId, workflowId)
   }
 
   const settings = await loadIntegrationSettings(userId, workflowId)
 
-  if (store) {
-    store._integrationSettingsCache = settings
-  }
-
-  return settings
+  return setCachedIntegrationSettings(store, userId, workflowId, settings)
 }
 
 export const getLLM = ({type, settings, log, thinkingBudgetTokens = null}) => {
@@ -145,11 +139,21 @@ export const getLLM = ({type, settings, log, thinkingBudgetTokens = null}) => {
         apiRootUrl = '',
         apiType = CustomLLMApiType.OpenAI_Compatible,
         maxTokens = 30000,
+        apiKey,
+        model,
       } = settings?.custom_llm || {}
+
+      if (!apiRootUrl) {
+        throw new Error('Custom LLM API URL not configured. Set it in Integration Settings.')
+      }
+
+      const resolvedModel = model || (OPENAI_COMPATIBLE_API_TYPES.has(apiType) ? CUSTOM_LLM_DEFAULT_MODEL : undefined)
 
       const llm = new CustomLLMChat({
         apiType,
         apiRootUrl,
+        apiKey,
+        model: resolvedModel,
       })
 
       return {llm, chunkSize: maxTokens}
@@ -177,7 +181,7 @@ export const getLLM = ({type, settings, log, thinkingBudgetTokens = null}) => {
   }
 }
 
-export const getEmbeddings = ({type, settings}) => {
+const buildNativeEmbeddings = (type, settings) => {
   switch (type) {
     case Model.OpenAI: {
       const {apiKey} = settings?.openai || {}
@@ -187,54 +191,53 @@ export const getEmbeddings = ({type, settings}) => {
         )
       }
 
-      const embeddings = new OpenAIEmbeddings({
-        apiKey,
-      })
-
-      const chunkSize = 8191
-      const similarityThreshold = 0.75
-
-      return {embeddings, chunkSize, similarityThreshold, storageType: EmbStorageType.openai}
+      return {
+        embeddings: new OpenAIEmbeddings({apiKey}),
+        chunkSize: 8191,
+        similarityThreshold: 0.75,
+        storageType: EmbStorageType.openai,
+      }
     }
     case Model.CustomLLM: {
       const {apiRootUrl, embeddingsChunkSize} = settings?.custom_llm ?? {}
 
-      const embeddings = new CustomEmbeddings({
-        apiRootUrl,
-      })
-
-      const chunkSize = embeddingsChunkSize || 2048
-      const similarityThreshold = 0.3
-
-      return {embeddings, chunkSize, similarityThreshold, storageType: EmbStorageType.custom_llm}
+      return {
+        embeddings: new CustomEmbeddings({apiRootUrl}),
+        chunkSize: embeddingsChunkSize || 2048,
+        similarityThreshold: 0.3,
+        storageType: EmbStorageType.custom_llm,
+      }
     }
     case Model.Qwen: {
       const {apiKey} = settings?.qwen ?? {}
 
-      const embeddings = new OpenAIEmbeddings({
-        apiKey,
-        model: 'text-embedding-v3',
-        configuration: {
-          baseURL: QWEN_API_URL,
-        },
-      })
-
-      const chunkSize = 4096
-      const similarityThreshold = 0.75
-
-      return {embeddings, chunkSize, similarityThreshold, storageType: EmbStorageType.qwen}
+      return {
+        embeddings: new OpenAIEmbeddings({
+          apiKey,
+          model: 'text-embedding-v3',
+          configuration: {
+            baseURL: QWEN_API_URL,
+          },
+        }),
+        chunkSize: 4096,
+        similarityThreshold: 0.75,
+        storageType: EmbStorageType.qwen,
+      }
     }
     default: {
       const {apiKey, folder_id: folderID} = settings?.yandex || {}
 
-      const embeddings = new YandexGPTEmbeddings({
-        apiKey,
-        folderID,
-      })
-      const chunkSize = 2048
-      const similarityThreshold = 0.3
-
-      return {embeddings, chunkSize, similarityThreshold, storageType: EmbStorageType.yandex}
+      return {
+        embeddings: new YandexGPTEmbeddings({apiKey, folderID}),
+        chunkSize: 2048,
+        similarityThreshold: 0.3,
+        storageType: EmbStorageType.yandex,
+      }
     }
   }
+}
+
+export const getEmbeddings = ({type, settings}) => {
+  const resolvedType = NATIVE_EMBEDDINGS_TYPES.has(type) ? type : resolveEmbeddingsFallbackType(settings)
+  return buildNativeEmbeddings(resolvedType, settings)
 }

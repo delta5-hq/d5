@@ -10,7 +10,6 @@ import StreamBridge from './streaming/StreamBridge'
 import {StreamEvent} from './streaming/StreamEvent'
 import {progressEventEmitter} from '../../services/progress-event-emitter'
 import {buildExecutionResult, buildPreStoreErrorResult} from './ExecutorResponse'
-import {UnknownQueryTypeError} from './reliability/UnknownQueryTypeError'
 
 const logError = debug('delta5:app:ExecutorController')
 
@@ -108,12 +107,6 @@ const ExecutorController = {
         }
 
         ctx.body = result
-        // A structurally undispatchable command (no runner for the queryType,
-        // e.g. top-level /refine after P0.1) is a request-level error, not a
-        // runtime node failure — surface it as 5xx, not a 200 error node.
-        if (e instanceof UnknownQueryTypeError) {
-          ctx.status = 500
-        }
       } else {
         if (streamSessionId) {
           StreamBridge.emit(streamSessionId, StreamEvent.error(e))

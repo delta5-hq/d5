@@ -58,6 +58,58 @@ export const withClient = async ({serverUrl, transport, headers, command, args, 
   }
 }
 
+export const withMultipleClients = async (configs, fn) => {
+  const clients = []
+  const unregisters = []
+
+  try {
+    for (const {serverUrl, transport, headers, command, args, env} of configs) {
+      const clientTransport = createTransport({serverUrl, transport, headers, command, args, env})
+      const client = new Client(CLIENT_INFO)
+      const unregister = registerMCPClient(client)
+      await withTimeout(client.connect(clientTransport), MCP_CONNECTION_TIMEOUT_MS, 'MCP connection')
+      clients.push(client)
+      unregisters.push(unregister)
+    }
+    return await fn(clients)
+  } finally {
+    for (const unregister of unregisters) {
+      unregister()
+    }
+    await Promise.all(clients.map(c => c.close().catch(() => {})))
+  }
+}
+
+export const withMultipleClientsTolerant = async (configs, fn) => {
+  const pairs = []
+  const skipped = []
+  const unregisters = []
+
+  try {
+    for (let i = 0; i < configs.length; i++) {
+      const {serverUrl, transport, headers, command, args, env} = configs[i]
+      const clientTransport = createTransport({serverUrl, transport, headers, command, args, env})
+      const client = new Client(CLIENT_INFO)
+      const unregister = registerMCPClient(client)
+      try {
+        await withTimeout(client.connect(clientTransport), MCP_CONNECTION_TIMEOUT_MS, 'MCP connection')
+        pairs.push({client, index: i})
+        unregisters.push(unregister)
+      } catch (e) {
+        skipped.push({index: i, error: e})
+        unregister()
+        await client.close().catch(() => {})
+      }
+    }
+    return await fn(pairs, skipped)
+  } finally {
+    for (const unregister of unregisters) {
+      unregister()
+    }
+    await Promise.all(pairs.map(({client}) => client.close().catch(() => {})))
+  }
+}
+
 /**
  * @param {MCPToolRequest} request
  * @returns {Promise<MCPToolResult>}

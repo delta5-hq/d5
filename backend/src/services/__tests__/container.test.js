@@ -170,7 +170,7 @@ describe('ServiceContainer', () => {
       it('uses caller-supplied apiKey in Authorization header', async () => {
         mockFetch.mockResolvedValue(okResponse({result: {alternatives: []}}))
         await service.completion({...completionPayload, apiKey: 'caller-yandex-key', folderId: 'caller-folder'})
-        expect(mockFetch.mock.calls[0][1].headers['Authorization']).toBe('Bearer caller-yandex-key')
+        expect(mockFetch.mock.calls[0][1].headers['Authorization']).toBe('Api-Key caller-yandex-key')
       })
 
       it('uses caller-supplied folderId in x-folder-id header', async () => {
@@ -182,7 +182,7 @@ describe('ServiceContainer', () => {
       it('falls back to system apiKey when caller omits it', async () => {
         mockFetch.mockResolvedValue(okResponse({result: {alternatives: []}}))
         await service.completion(completionPayload)
-        expect(mockFetch.mock.calls[0][1].headers['Authorization']).toBe('Bearer system-yandex-key')
+        expect(mockFetch.mock.calls[0][1].headers['Authorization']).toBe('Api-Key system-yandex-key')
       })
 
       it('falls back to system folderId when caller omits it', async () => {
@@ -233,7 +233,7 @@ describe('ServiceContainer', () => {
       it('uses caller-supplied apiKey in Authorization header', async () => {
         mockFetch.mockResolvedValue(okResponse({embedding: [0.1, 0.2]}))
         await service.embeddings({...embeddingsPayload, apiKey: 'caller-emb-key', folderId: 'caller-folder'})
-        expect(mockFetch.mock.calls[0][1].headers['Authorization']).toBe('Bearer caller-emb-key')
+        expect(mockFetch.mock.calls[0][1].headers['Authorization']).toBe('Api-Key caller-emb-key')
       })
 
       it('uses caller-supplied folderId in x-folder-id header', async () => {
@@ -245,7 +245,7 @@ describe('ServiceContainer', () => {
       it('falls back to system apiKey when caller omits it', async () => {
         mockFetch.mockResolvedValue(okResponse({embedding: [0.1, 0.2]}))
         await service.embeddings(embeddingsPayload)
-        expect(mockFetch.mock.calls[0][1].headers['Authorization']).toBe('Bearer system-yandex-key')
+        expect(mockFetch.mock.calls[0][1].headers['Authorization']).toBe('Api-Key system-yandex-key')
       })
 
       it('falls back to system folderId when caller omits it', async () => {

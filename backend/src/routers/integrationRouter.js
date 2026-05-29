@@ -1,6 +1,7 @@
 import Router from '@koa/router'
 import IntegrationController from '../controllers/IntegrationController'
 import OpenAIController from '../controllers/integrations/OpenAIController'
+import ClaudeController from '../controllers/integrations/claude/ClaudeController'
 
 const integrationRouter = new Router({prefix: '/integration'})
 
@@ -14,5 +15,6 @@ integrationRouter
   .get('/search', IntegrationController.search)
   .post('/downloadImage', IntegrationController.downloadImage)
   .post('/images/generations', OpenAIController.dalleGenerations)
+  .post('/claude/messages', ClaudeController.sendMessages)
 
 export default integrationRouter

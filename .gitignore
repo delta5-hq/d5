@@ -58,3 +58,4 @@ contribot.*.json
 transcripts/
 .playwright-cli/
 .claude
+.github/docs/TODO.md

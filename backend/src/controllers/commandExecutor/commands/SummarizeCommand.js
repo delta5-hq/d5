@@ -266,7 +266,7 @@ export class SummarizeCommand {
     const {lang = Lang.en, sizeLabel = SUMMARIZE_SIZE_DEFAULT, structured = false} = params ?? {}
 
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
-    const llmType = determineLLMType(command, settings)
+    const llmType = determineLLMType(settings)
     const {llm, chunkSize} = getLLM({settings, type: llmType})
 
     const maxChunks = this.verifyMaxChunks(command) ? this.calculateMaxChunksFromSize(sizeLabel) : Infinity

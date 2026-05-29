@@ -19,6 +19,7 @@ import {VALIDATE_QUERY} from './validate'
 import {COMPLETION_QUERY} from './completion'
 import {MEMORIZE_QUERY} from './memorize'
 import {EXT_QUERY} from './ext'
+import {MCP_FUSION_QUERY} from './mcpFusion'
 
 export const queryCommands = [
   YANDEX_QUERY,
@@ -42,6 +43,7 @@ export const queryCommands = [
   VALIDATE_QUERY,
   COMPLETION_QUERY,
   MEMORIZE_QUERY,
+  MCP_FUSION_QUERY,
 ]
 
 const createCommandRegex = (commandPrefix, withOrder = false) => {

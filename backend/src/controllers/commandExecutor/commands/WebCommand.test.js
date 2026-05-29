@@ -90,55 +90,29 @@ describe('WebCommand', () => {
       mockStore.importer.createTable = jest.fn()
       mockStore.importer.createJoinNode = jest.fn()
     })
-    it('should use yandex credentials', async () => {
-      getIntegrationSettings.mockImplementation(sourceGetIntegrationSettings)
-      jest.spyOn(Integration, 'findOne').mockReturnValue({
-        lean: jest.fn().mockReturnValue(settings),
-      })
-      jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockReturnValue({output_text: 'response'})
+    it.each([['/web prompt'], ['/web prompt --lang=ru']])(
+      'selects provider by credential priority for "%s"',
+      async commandStr => {
+        getIntegrationSettings.mockImplementation(sourceGetIntegrationSettings)
+        jest.spyOn(Integration, 'findOne').mockReturnValue({
+          lean: jest.fn().mockReturnValue(settings),
+        })
+        jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockReturnValue({output_text: 'response'})
 
-      getLLM.mockImplementationOnce(() => {
-        return {llm: {}, chunkSize: 2000}
-      })
+        getLLM.mockImplementationOnce(() => {
+          return {llm: {}, chunkSize: 2000}
+        })
 
-      const node = {
-        id: 'node',
-        command: '/web prompt --lang=ru',
-      }
+        const node = {id: 'node', command: commandStr}
+        const workflowNodes = {[command.id]: command}
 
-      const workflowNodes = {
-        [command.id]: command,
-      }
+        await command.run(node, 'prompt', workflowNodes, {})
 
-      await command.run(node, 'prompt', workflowNodes, {})
-
-      expect(getLLM).toHaveBeenCalledWith(
-        expect.objectContaining({settings: expect.objectContaining(settings), type: Model.YandexGPT}),
-      )
-    })
-
-    it('should use openai credentials', async () => {
-      getIntegrationSettings.mockImplementation(sourceGetIntegrationSettings)
-      jest.spyOn(Integration, 'findOne').mockReturnValue({
-        lean: jest.fn().mockReturnValue(settings),
-      })
-      jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockReturnValue({output_text: 'response'})
-
-      getLLM.mockImplementationOnce(() => {
-        return {llm: {}, chunkSize: 2000}
-      })
-
-      const node = {
-        id: 'node',
-        command: '/web prompt',
-      }
-
-      await command.run(node, 'prompt')
-
-      expect(getLLM).toHaveBeenCalledWith(
-        expect.objectContaining({settings: expect.objectContaining(settings), type: Model.OpenAI}),
-      )
-    })
+        expect(getLLM).toHaveBeenCalledWith(
+          expect.objectContaining({settings: expect.objectContaining(settings), type: Model.OpenAI}),
+        )
+      },
+    )
 
     it('should use substituteReferencesAndHashrefsChildrenAndSelf when title contains a reference', async () => {
       jest.spyOn(refRegExp, 'test').mockReturnValue(true)

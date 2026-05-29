@@ -854,10 +854,10 @@ describe('ExecutorController', () => {
 
         // Security: malicious alias was NOT invoked (the central protection invariant).
         expect(MCPCommand.prototype.run).not.toHaveBeenCalled()
-        // Behavior: top-level /refine errors per P0.1 (legacy removed; new /refine :n=N
-        // is post-processor-only, not top-level).
-        expect(response.status).toBeGreaterThanOrEqual(500)
-        expect(response.text || JSON.stringify(response.body)).toMatch(/refine/i)
+        // Behavior: top-level /refine errors per P0.1 — returns 200 with error node in body
+        // (UnknownQueryTypeError is surfaced through nodesChanged, not HTTP status).
+        expect(response.status).toBe(200)
+        expect(JSON.stringify(response.body)).toMatch(/refine/i)
       })
     })
 

@@ -360,7 +360,7 @@ describe('runCommand round-trip integration', () => {
     it('executes three different transport types in single workflow tree', async () => {
       const doc = new IntegrationDocBuilder(testUserId)
         .addMcpStdio({
-          alias: '/mcp',
+          alias: '/echo-mcp',
           command: 'node',
           args: [transportStubs.getMcpStdioPath()],
           toolName: 'echo',
@@ -386,7 +386,7 @@ describe('runCommand round-trip integration', () => {
       const aliases = await runner.loadAliases()
 
       const cells = [
-        runner.createCell({id: 'node1', command: '/mcp regression1'}),
+        runner.createCell({id: 'node1', command: '/echo-mcp regression1'}),
         runner.createCell({id: 'node2', command: '/http regression2'}),
         runner.createCell({id: 'node3', command: '/acp regression3'}),
       ]

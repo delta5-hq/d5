@@ -43,6 +43,12 @@ jest.mock('../models/Integration', () => {
     INTEGRATION_ENCRYPTION_CONFIG: {fields: ['openai']},
   }
 })
+jest.mock('../repositories/IntegrationSessionRepository', () => ({
+  __esModule: true,
+  default: {
+    findAllSessionsForUser: jest.fn().mockResolvedValue([]),
+  },
+}))
 jest.mock('../models/LLMVector')
 jest.mock('../models/utils/fieldEncryption', () => ({
   encryptFields: jest.fn(data => data),
@@ -76,7 +82,7 @@ describe('IntegrationController', () => {
       await IntegrationController.getAll(ctx)
 
       expect(IntegrationFacade.findMergedDecrypted).toHaveBeenCalledWith('user-1', null)
-      expect(ctx.body).toEqual({openai: {key: 'k'}})
+      expect(ctx.body).toEqual({openai: {key: 'k'}, rpc: [], mcp: [], secretsMeta: {}})
     })
 
     it('calls facade with normalized null when workflowId is empty string', async () => {
@@ -112,7 +118,7 @@ describe('IntegrationController', () => {
 
       await IntegrationController.getAll(ctx)
 
-      expect(ctx.body).toEqual(merged)
+      expect(ctx.body).toEqual({...merged, rpc: [], mcp: [], secretsMeta: {}})
     })
 
     it('handles workflow-specific integration retrieval', async () => {
@@ -123,7 +129,7 @@ describe('IntegrationController', () => {
       await IntegrationController.getAll(ctx)
 
       expect(IntegrationFacade.findMergedDecrypted).toHaveBeenCalledWith('user-1', 'wf-123')
-      expect(ctx.body).toEqual(workflowData)
+      expect(ctx.body).toEqual({...workflowData, rpc: [], mcp: [], secretsMeta: {}})
     })
 
     it('handles integration with MCP and RPC fields', async () => {
@@ -137,8 +143,23 @@ describe('IntegrationController', () => {
 
       await IntegrationController.getAll(ctx)
 
-      expect(ctx.body.mcp).toEqual([{alias: '/coder1'}])
-      expect(ctx.body.rpc).toEqual([{alias: '/vm1'}])
+      expect(ctx.body.mcp).toEqual([{alias: '/coder1', lastSessionId: null}])
+      expect(ctx.body.rpc).toEqual([{alias: '/vm1', lastSessionId: null}])
+    })
+
+    it('attaches lastSessionId from session store to matching alias', async () => {
+      const IntegrationSessionRepository = require('../repositories/IntegrationSessionRepository').default
+      IntegrationSessionRepository.findAllSessionsForUser.mockResolvedValue([
+        {alias: '/vm1', protocol: 'rpc', lastSessionId: 'sess-abc'},
+      ])
+      const integration = {mcp: [{alias: '/coder1'}], rpc: [{alias: '/vm1'}]}
+      IntegrationFacade.findMergedDecrypted.mockResolvedValue(integration)
+      const ctx = createCtx()
+
+      await IntegrationController.getAll(ctx)
+
+      expect(ctx.body.rpc).toEqual([{alias: '/vm1', lastSessionId: 'sess-abc'}])
+      expect(ctx.body.mcp).toEqual([{alias: '/coder1', lastSessionId: null}])
     })
   })
 

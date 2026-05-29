@@ -54,6 +54,7 @@ type MCPIntegrationConfig struct {
 	Command        string                 `json:"command,omitempty" bson:"command,omitempty"`
 	Args           []string               `json:"args,omitempty" bson:"args,omitempty"`
 	Env            map[string]string      `json:"env,omitempty" bson:"env,omitempty"`
+	LastSessionId  *string                `json:"lastSessionId"`
 }
 
 type RPCIntegrationConfig struct {
@@ -80,6 +81,7 @@ type RPCIntegrationConfig struct {
 	Env             map[string]string `json:"env,omitempty" bson:"env,omitempty"`
 	AutoApprove     string            `json:"autoApprove,omitempty" bson:"autoApprove,omitempty"`
 	AllowedTools    []string          `json:"allowedTools,omitempty" bson:"allowedTools,omitempty"`
+	LastSessionId   *string           `json:"lastSessionId"`
 }
 
 type Integration struct {

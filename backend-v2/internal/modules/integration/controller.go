@@ -13,12 +13,13 @@ import (
 var log = logger.New("INTEGRATION")
 
 type Controller struct {
-	service *Service
-	db      *qmgo.Database
+	service     *Service
+	db          *qmgo.Database
+	sessionRepo *SessionRepository
 }
 
 func NewController(service *Service, db *qmgo.Database) *Controller {
-	return &Controller{service: service, db: db}
+	return &Controller{service: service, db: db, sessionRepo: NewSessionRepository(db)}
 }
 
 func (ctrl *Controller) Authorization(c *fiber.Ctx) error {
@@ -60,6 +61,28 @@ func (ctrl *Controller) GetAll(c *fiber.Ctx) error {
 	if err != nil {
 		log.Error("GetAll: prepare secure response failed: %v", err)
 		return response.InternalError(c, err.Error())
+	}
+
+	sessions, err := ctrl.sessionRepo.FindAllForUser(c.Context(), scope.UserID)
+	if err != nil {
+		log.Error("GetAll: fetch sessions failed: %v", err)
+	} else {
+		sessionMap := make(map[string]string)
+		for _, s := range sessions {
+			sessionMap[s.Alias+":"+s.Protocol] = s.LastSessionId
+		}
+		for i := range secureResponse.Integration.RPC {
+			item := &secureResponse.Integration.RPC[i]
+			if sid, ok := sessionMap[item.Alias+":rpc"]; ok {
+				item.LastSessionId = &sid
+			}
+		}
+		for i := range secureResponse.Integration.MCP {
+			item := &secureResponse.Integration.MCP[i]
+			if sid, ok := sessionMap[item.Alias+":mcp"]; ok {
+				item.LastSessionId = &sid
+			}
+		}
 	}
 
 	return c.JSON(secureResponse)

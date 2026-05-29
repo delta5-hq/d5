@@ -390,6 +390,78 @@ describe('MemorizeCommand', () => {
 
       expect(mockProcessChunks).toHaveBeenCalledWith(parent, false, expect.objectContaining({split: '.'}))
     })
+
+    describe('confirmation node on successful storage', () => {
+      const makeSuccessfulRun = async ({chunks, command: cmd = '/memorize'} = {}) => {
+        const node = {id: 'mem-node', command: cmd, parent: 'parent-node'}
+        const parent = {id: 'parent-node', title: 'Source content'}
+        mockStore._nodes = {'mem-node': node, 'parent-node': parent}
+        jest.spyOn(command, 'processChunks').mockResolvedValueOnce(chunks)
+        jest.spyOn(command, 'saveEmbeddings').mockResolvedValueOnce(undefined)
+        await command.run(node)
+      }
+
+      it('emits a confirmation node attached to the memorize node after successful storage', async () => {
+        await makeSuccessfulRun({chunks: [{content: 'a', hrefs: []}]})
+        expect(createNodesSpy).toHaveBeenCalledWith(expect.stringMatching(/^Memorized/), 'mem-node')
+      })
+
+      it('reports singular "chunk" when exactly one chunk was stored', async () => {
+        await makeSuccessfulRun({chunks: [{content: 'a', hrefs: []}]})
+        expect(createNodesSpy).toHaveBeenCalledWith(expect.stringContaining('1 chunk'), 'mem-node')
+        expect(createNodesSpy).not.toHaveBeenCalledWith(expect.stringContaining('1 chunks'), 'mem-node')
+      })
+
+      it('reports plural "chunks" when more than one chunk was stored', async () => {
+        await makeSuccessfulRun({
+          chunks: [
+            {content: 'a', hrefs: []},
+            {content: 'b', hrefs: []},
+          ],
+        })
+        expect(createNodesSpy).toHaveBeenCalledWith(expect.stringContaining('2 chunks'), 'mem-node')
+      })
+
+      it('includes the named context in parentheses when an explicit context is specified', async () => {
+        await makeSuccessfulRun({chunks: [{content: 'a', hrefs: []}], command: '/memorize --context=docs'})
+        expect(createNodesSpy).toHaveBeenCalledWith(expect.stringContaining('(context: docs)'), 'mem-node')
+      })
+
+      it('omits the context label when using the implicit default context', async () => {
+        await makeSuccessfulRun({chunks: [{content: 'a', hrefs: []}]})
+        const [message] = createNodesSpy.mock.calls[0]
+        expect(message).not.toContain('(context:')
+      })
+
+      it('omits the context label when using an explicitly named default context', async () => {
+        await makeSuccessfulRun({chunks: [{content: 'a', hrefs: []}], command: '/memorize --context=default'})
+        const [message] = createNodesSpy.mock.calls[0]
+        expect(message).not.toContain('(context:')
+      })
+
+      it('does not emit a confirmation node when saveEmbeddings throws', async () => {
+        const node = {id: 'mem-node', command: '/memorize', parent: 'parent-node'}
+        const parent = {id: 'parent-node', title: 'Source content'}
+        mockStore._nodes = {'mem-node': node, 'parent-node': parent}
+        jest.spyOn(command, 'processChunks').mockResolvedValueOnce([{content: 'a', hrefs: []}])
+        jest.spyOn(command, 'saveEmbeddings').mockRejectedValueOnce(new Error('storage failed'))
+
+        await command.run(node)
+
+        const allMessages = createNodesSpy.mock.calls.map(([msg]) => msg)
+        expect(allMessages.every(msg => msg.startsWith('Error:'))).toBe(true)
+      })
+
+      it('does not emit a confirmation node when the parent node is missing', async () => {
+        const node = {id: 'mem-node', command: '/memorize', parent: 'no-such-parent'}
+        mockStore._nodes = {'mem-node': node}
+
+        await command.run(node)
+
+        const allMessages = createNodesSpy.mock.calls.map(([msg]) => msg)
+        expect(allMessages.every(msg => msg.startsWith('Error:'))).toBe(true)
+      })
+    })
   })
 
   describe('processChunks', () => {
@@ -865,35 +937,23 @@ describe('MemorizeCommand', () => {
       expect(mockSaveEmbeddings).toHaveBeenCalledWith(expect.anything(), [], true)
     })
 
-    it('uses default LLM when title has no :lang param and command undefined', async () => {
-      const command = new MemorizeCommand('user-id', null, mockStore)
-      const child = {id: 'child', title: '/memorize', parent: 'parent', children: []}
-      const parent = {id: 'parent', title: 'Parent', children: [child.id]}
+    it.each([['/memorize'], ['/memorize :lang=ru']])(
+      'invokes determineLLMType with integration settings for title "%s"',
+      async title => {
+        const command = new MemorizeCommand('user-id', null, mockStore)
+        const child = {id: 'child', title, parent: 'parent', children: []}
+        const parent = {id: 'parent', title: 'Parent', children: [child.id]}
 
-      mockStore._nodes = {child, parent}
+        mockStore._nodes = {child, parent}
 
-      jest.spyOn(command, 'processChunks').mockResolvedValueOnce([])
-      jest.spyOn(command, 'saveEmbeddings').mockResolvedValueOnce(undefined)
+        jest.spyOn(command, 'processChunks').mockResolvedValueOnce([])
+        jest.spyOn(command, 'saveEmbeddings').mockResolvedValueOnce(undefined)
 
-      await command.run(child)
+        await command.run(child)
 
-      expect(determineLLMType).toHaveBeenCalledWith('/memorize', expect.anything())
-    })
-
-    it('respects :lang param from title when command undefined', async () => {
-      const command = new MemorizeCommand('user-id', null, mockStore)
-      const child = {id: 'child', title: '/memorize :lang=ru', parent: 'parent', children: []}
-      const parent = {id: 'parent', title: 'Parent', children: [child.id]}
-
-      mockStore._nodes = {child, parent}
-
-      jest.spyOn(command, 'processChunks').mockResolvedValueOnce([])
-      jest.spyOn(command, 'saveEmbeddings').mockResolvedValueOnce(undefined)
-
-      await command.run(child)
-
-      expect(determineLLMType).toHaveBeenCalledWith('/memorize :lang=ru', expect.anything())
-    })
+        expect(determineLLMType).toHaveBeenCalledWith(expect.objectContaining({openai: {apiKey: 'test-key'}}))
+      },
+    )
 
     it('handles empty command and empty title gracefully', async () => {
       const command = new MemorizeCommand('user-id', null, mockStore)
@@ -907,7 +967,7 @@ describe('MemorizeCommand', () => {
 
       await command.run(child)
 
-      expect(determineLLMType).toHaveBeenCalledWith('', expect.anything())
+      expect(determineLLMType).toHaveBeenCalledWith(expect.objectContaining({openai: {apiKey: 'test-key'}}))
     })
 
     it('prefers command over title when both are populated', async () => {
@@ -928,7 +988,7 @@ describe('MemorizeCommand', () => {
 
       await command.run(child)
 
-      expect(determineLLMType).toHaveBeenCalledWith('/memorize :ctx=from-command', expect.anything())
+      expect(determineLLMType).toHaveBeenCalledWith(expect.objectContaining({openai: {apiKey: 'test-key'}}))
     })
 
     it('handles null node gracefully', async () => {

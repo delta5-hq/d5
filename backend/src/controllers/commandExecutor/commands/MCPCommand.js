@@ -3,7 +3,7 @@ import {callTool, withClient} from './mcp/MCPClientManager'
 import {MCPToolAdapter} from './mcp/MCPToolAdapter'
 import {determineLLMType, getIntegrationSettings, getLLM} from './utils/langchain/getLLM'
 import {assertToolCallingCapability, createMCPAgentExecutor} from './utils/langchain/getAgentExecutor'
-import {isInternalMcpServer, buildInternalServerEnv} from './mcp/internalServerEnv'
+import {isInternalMcpServer, buildInternalServerEnv, resolveInternalServerScript} from './mcp/internalServerEnv'
 import {runWithErrorNode} from './shared/runWithErrorNode'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
@@ -39,15 +39,16 @@ export class MCPCommand {
     }
   }
 
-  transportConfig(extraEnv) {
+  transportConfig(extraEnv, normalizedArgs) {
     const {serverUrl, transport, headers, command, args, env} = this.aliasConfig
     const mergedEnv = extraEnv ? {...env, ...extraEnv} : env
-    return {serverUrl, transport, headers, command, args, env: mergedEnv}
+    const resolvedArgs = normalizedArgs ?? args
+    return {serverUrl, transport, headers, command, args: resolvedArgs, env: mergedEnv}
   }
 
-  async runAgentMode(prompt, signal, extraEnv) {
+  async runAgentMode(prompt, signal, extraEnv, normalizedArgs) {
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
-    const llmType = determineLLMType(undefined, settings)
+    const llmType = determineLLMType(settings)
     const {llm} = getLLM({settings, type: llmType})
 
     if (!llm) {
@@ -58,7 +59,7 @@ export class MCPCommand {
 
     const {timeoutMs} = this.aliasConfig
 
-    return withClient(this.transportConfig(extraEnv), async client => {
+    return withClient(this.transportConfig(extraEnv, normalizedArgs), async client => {
       if (signal) {
         signal.addEventListener('abort', () => client.close().catch(() => {}))
       }
@@ -72,9 +73,9 @@ export class MCPCommand {
     })
   }
 
-  async runDirectMode(prompt, signal, extraEnv) {
+  async runDirectMode(prompt, signal, extraEnv, normalizedArgs) {
     return callTool({
-      ...this.transportConfig(extraEnv),
+      ...this.transportConfig(extraEnv, normalizedArgs),
       toolName: this.aliasConfig.toolName,
       toolArguments: this.buildToolArguments(prompt),
       timeoutMs: this.aliasConfig.timeoutMs,
@@ -92,18 +93,22 @@ export class MCPCommand {
       const internal = isInternalMcpServer(command, args)
 
       let extraEnv
+      let normalizedArgs
       if (internal) {
         const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
         extraEnv = buildInternalServerEnv(this.userId, this.workflowId, settings)
+        if (args?.[0]) {
+          normalizedArgs = [resolveInternalServerScript(args[0]), ...args.slice(1)]
+        }
       }
 
       if (this.aliasConfig.toolName === MCP_TOOL_NAME_AUTO) {
-        const text = await this.runAgentMode(fullPrompt, signal, extraEnv)
+        const text = await this.runAgentMode(fullPrompt, signal, extraEnv, normalizedArgs)
         this.store.importer.createNodes(text || '(empty MCP response)', node.id)
         return
       }
 
-      const result = await this.runDirectMode(fullPrompt, signal, extraEnv)
+      const result = await this.runDirectMode(fullPrompt, signal, extraEnv, normalizedArgs)
 
       if (result.isError) {
         throw new Error(result.content || 'MCP tool returned an error')

@@ -29,10 +29,10 @@ vi.mock('./delete-confirmation-dialog', () => ({
     open ? (
       <div data-testid="delete-dialog">
         <span data-testid="delete-alias">{alias}</span>
-        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
+        <button data-testid="confirm-delete" onClick={onConfirm} type="button">
           Confirm
         </button>
-        <button type="button" data-testid="cancel-delete" onClick={onCancel}>
+        <button data-testid="cancel-delete" onClick={onCancel} type="button">
           Cancel
         </button>
       </div>
@@ -45,6 +45,7 @@ const messages: Record<string, string> = {
   'integration.mcp.add': 'Add MCP',
   'integration.rpc.add': 'Add RPC',
   'integration.inheritedNote': 'Inherited from global settings',
+  'integration.session.active': 'Session active',
   'dialog.integration.deleteAction': 'Delete',
   'dialog.integration.deleteSuccess': 'Deleted successfully',
   'integrationSettings.none': 'No integrations configured',
@@ -756,5 +757,224 @@ describe('ArrayIntegrationSection — layout contract', () => {
     )
     const aliasEl = screen.getByText('/overflow-test')
     expect(aliasEl.parentElement?.className).toMatch(/\bmin-w-0\b/)
+  })
+
+  it('all cards carry min-h-40 to enforce minimum height parity across integration tile types', () => {
+    const { container } = renderWithIntl(
+      <ArrayIntegrationSection
+        fieldName="mcp"
+        items={[
+          makeItem({ alias: '/short' }),
+          makeItem({ alias: '/with-description', description: 'A longer description text' }),
+          makeItem({ alias: '/with-type', transport: 'stdio' }),
+        ]}
+        onAdd={vi.fn()}
+        onEdit={vi.fn()}
+        refresh={vi.fn()}
+        titleId="integration.mcp.title"
+      />,
+    )
+    const cards = container.querySelectorAll('[data-alias]')
+    expect(cards.length).toBeGreaterThan(0)
+    for (const card of cards) {
+      expect(card.className).toMatch(/\bmin-h-40\b/)
+    }
+  })
+
+  it('inherited cards carry min-h-40 consistent with non-inherited cards', () => {
+    const { container } = renderWithIntl(
+      <ArrayIntegrationSection
+        fieldName="mcp"
+        inherited
+        items={[makeItem({ alias: '/inherited-item' })]}
+        onAdd={vi.fn()}
+        onEdit={vi.fn()}
+        refresh={vi.fn()}
+        titleId="integration.mcp.title"
+      />,
+    )
+    const cards = container.querySelectorAll('[data-alias]')
+    expect(cards.length).toBeGreaterThan(0)
+    for (const card of cards) {
+      expect(card.className).toMatch(/\bmin-h-40\b/)
+    }
+  })
+
+  it('alias text element has title attribute equal to alias for full-text tooltip on overflow', () => {
+    const longAlias = '/very-long-alias-that-will-definitely-overflow-the-card-width'
+    renderWithIntl(
+      <ArrayIntegrationSection
+        fieldName="mcp"
+        items={[makeItem({ alias: longAlias })]}
+        onAdd={vi.fn()}
+        onEdit={vi.fn()}
+        refresh={vi.fn()}
+        titleId="integration.mcp.title"
+      />,
+    )
+    const aliasEl = screen.getByText(longAlias)
+    expect(aliasEl).toHaveAttribute('title', longAlias)
+  })
+
+  it('title attribute on alias matches the exact alias value, not a truncated or modified form', () => {
+    const aliases = ['/a', '/short-alias', '/alias-with-special-chars_123']
+    for (const alias of aliases) {
+      const { unmount } = renderWithIntl(
+        <ArrayIntegrationSection
+          fieldName="mcp"
+          items={[makeItem({ alias })]}
+          onAdd={vi.fn()}
+          onEdit={vi.fn()}
+          refresh={vi.fn()}
+          titleId="integration.mcp.title"
+        />,
+      )
+      const aliasEl = screen.getByText(alias)
+      expect(aliasEl).toHaveAttribute('title', alias)
+      unmount()
+    }
+  })
+
+  it('alias text element uses truncate class for single-line overflow handling', () => {
+    renderWithIntl(
+      <ArrayIntegrationSection
+        fieldName="mcp"
+        items={[makeItem({ alias: '/truncate-test' })]}
+        onAdd={vi.fn()}
+        onEdit={vi.fn()}
+        refresh={vi.fn()}
+        titleId="integration.mcp.title"
+      />,
+    )
+    const aliasEl = screen.getByText('/truncate-test')
+    expect(aliasEl.className).toMatch(/\btruncate\b/)
+  })
+
+  it('integration type badge is rendered in a separate block below alias, not alongside it in a flex row', () => {
+    renderWithIntl(
+      <ArrayIntegrationSection
+        fieldName="mcp"
+        items={[makeItem({ alias: '/badge-layout', transport: 'stdio' })]}
+        onAdd={vi.fn()}
+        onEdit={vi.fn()}
+        refresh={vi.fn()}
+        titleId="integration.mcp.title"
+      />,
+    )
+    const aliasEl = screen.getByText('/badge-layout')
+    const aliasContainer = aliasEl.parentElement!
+    const allChildren = Array.from(aliasContainer.children)
+    const aliasIndex = allChildren.indexOf(aliasEl)
+    expect(aliasIndex).toBeGreaterThanOrEqual(0)
+    expect(aliasEl.querySelector('[class*="badge"], [data-slot="badge"]')).toBeNull()
+    const siblingsAfterAlias = allChildren.slice(aliasIndex + 1)
+    expect(siblingsAfterAlias.length).toBeGreaterThan(0)
+  })
+
+  it('alias element does not use break-all — truncation replaces line-wrapping for overflow', () => {
+    renderWithIntl(
+      <ArrayIntegrationSection
+        fieldName="mcp"
+        items={[makeItem({ alias: '/overflow-class-test' })]}
+        onAdd={vi.fn()}
+        onEdit={vi.fn()}
+        refresh={vi.fn()}
+        titleId="integration.mcp.title"
+      />,
+    )
+    const aliasEl = screen.getByText('/overflow-class-test')
+    expect(aliasEl.className).not.toMatch(/\bbreak-all\b/)
+  })
+})
+
+describe('ArrayIntegrationSection — session indicator', () => {
+  it('renders session indicator when lastSessionId is present', () => {
+    renderWithIntl(
+      <ArrayIntegrationSection
+        fieldName="mcp"
+        items={[makeItem({ alias: '/svc', lastSessionId: 'abc123def456' })]}
+        onAdd={vi.fn()}
+        onEdit={vi.fn()}
+        refresh={vi.fn()}
+        titleId="integration.mcp.title"
+      />,
+    )
+    expect(screen.getByText('Session active')).toBeInTheDocument()
+  })
+
+  it('renders last 8 characters of sessionId as monospace suffix', () => {
+    renderWithIntl(
+      <ArrayIntegrationSection
+        fieldName="mcp"
+        items={[makeItem({ alias: '/svc', lastSessionId: 'xxxx0000aabbccdd' })]}
+        onAdd={vi.fn()}
+        onEdit={vi.fn()}
+        refresh={vi.fn()}
+        titleId="integration.mcp.title"
+      />,
+    )
+    expect(screen.getByText('…aabbccdd')).toBeInTheDocument()
+  })
+
+  it('exposes full sessionId as title tooltip for long IDs', () => {
+    const sessionId = 'full-session-id-for-tooltip'
+    renderWithIntl(
+      <ArrayIntegrationSection
+        fieldName="mcp"
+        items={[makeItem({ alias: '/svc', lastSessionId: sessionId })]}
+        onAdd={vi.fn()}
+        onEdit={vi.fn()}
+        refresh={vi.fn()}
+        titleId="integration.mcp.title"
+      />,
+    )
+    const indicator = screen.getByText('Session active').closest('p')
+    expect(indicator).toHaveAttribute('title', sessionId)
+  })
+
+  it('does not render session indicator when lastSessionId is null', () => {
+    renderWithIntl(
+      <ArrayIntegrationSection
+        fieldName="mcp"
+        items={[makeItem({ alias: '/svc', lastSessionId: null })]}
+        onAdd={vi.fn()}
+        onEdit={vi.fn()}
+        refresh={vi.fn()}
+        titleId="integration.mcp.title"
+      />,
+    )
+    expect(screen.queryByText('Session active')).not.toBeInTheDocument()
+  })
+
+  it('does not render session indicator when lastSessionId is absent', () => {
+    renderWithIntl(
+      <ArrayIntegrationSection
+        fieldName="mcp"
+        items={[makeItem({ alias: '/svc' })]}
+        onAdd={vi.fn()}
+        onEdit={vi.fn()}
+        refresh={vi.fn()}
+        titleId="integration.mcp.title"
+      />,
+    )
+    expect(screen.queryByText('Session active')).not.toBeInTheDocument()
+  })
+
+  it('renders session indicator for each item that has a sessionId', () => {
+    renderWithIntl(
+      <ArrayIntegrationSection
+        fieldName="mcp"
+        items={[
+          makeItem({ alias: '/with-session', lastSessionId: 'sess-aaaa' }),
+          makeItem({ alias: '/no-session' }),
+          makeItem({ alias: '/also-with-session', lastSessionId: 'sess-bbbb' }),
+        ]}
+        onAdd={vi.fn()}
+        onEdit={vi.fn()}
+        refresh={vi.fn()}
+        titleId="integration.mcp.title"
+      />,
+    )
+    expect(screen.getAllByText('Session active')).toHaveLength(2)
   })
 })

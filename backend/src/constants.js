@@ -177,6 +177,13 @@ export const CustomLLMApiType = {
   OpenAI_Compatible_Chain_Of_Thought: 'OpenAI compatible Chain-of-Thought',
 }
 
+export const OPENAI_COMPATIBLE_API_TYPES = new Set([
+  CustomLLMApiType.OpenAI_Compatible,
+  CustomLLMApiType.OpenAI_Compatible_Chain_Of_Thought,
+])
+
+export const CUSTOM_LLM_DEFAULT_MODEL = OPENAI_MODELS.GPT_4o_MINI
+
 export const CUSTOM_LLM_TIMEOUT_MS = 600_000
 
 export const SCRAPE_V2_TIMEOUT_MS = 8000
