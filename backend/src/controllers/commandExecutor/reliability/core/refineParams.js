@@ -6,14 +6,21 @@ const REFINE_CELL_PATTERN = new RegExp(`^${REFINE_QUERY.replace('/', '\\/')}(?:\
 
 /**
  * @param {string} command
- * @returns {number|null} Null when :n= is absent or N < 2 (minimum fork count)
+ * @returns {number|null} Raw `:n=` integer without range clamping; null when absent or non-numeric.
  */
-export const readRefineN = command => {
+export const readRawRefineN = command => {
   if (!command) return null
   const match = command.match(N_PATTERN)
-  if (!match) return null
-  const n = parseInt(match[1], 10)
-  return n >= 2 ? n : null
+  return match ? parseInt(match[1], 10) : null
+}
+
+/**
+ * @param {string} command
+ * @returns {number|null} N when `:n=N` is present and N ≥ 2, otherwise null.
+ */
+export const readRefineN = command => {
+  const raw = readRawRefineN(command)
+  return raw !== null && raw >= 2 ? raw : null
 }
 
 /**

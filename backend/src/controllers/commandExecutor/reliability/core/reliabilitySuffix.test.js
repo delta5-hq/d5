@@ -1,10 +1,10 @@
-import {stripReliabilitySuffix, appendValidateSuffix, appendRefineSuffix} from './reliabilitySuffix'
-
-jest.mock('debug', () => {
-  const fn = jest.fn(() => fn)
-  fn.extend = jest.fn(() => fn)
-  return fn
-})
+import {
+  stripReliabilitySuffix,
+  appendValidateSuffix,
+  appendCommoditySuffix,
+  appendRefineSuffix,
+  appendInvalidSuffix,
+} from './reliabilitySuffix'
 
 // ─── Shared fixture data ──────────────────────────────────────────────────────
 // Reused across describe blocks so adding a new suffix shape requires updating one list.
@@ -28,6 +28,7 @@ const ENGINE_SUFFIX_VARIANTS = [
   ['refine: no forks eligible', 'Task [✗ 0/3]', 'Task'],
   ['refine: all jurors excluded', 'Task [⚠ no judge signal]', 'Task'],
   ['refine: fallback commit', 'Task [⚠ fallback: 0/3 passed; chose fork-1]', 'Task'],
+  ['invalid empty criterion', 'Task [✗ invalid]', 'Task'],
 ]
 
 const ALL_SUFFIX_VARIANTS = [...LEGACY_SUFFIX_VARIANTS, ...ENGINE_SUFFIX_VARIANTS]
@@ -143,12 +144,22 @@ describe('appendValidateSuffix', () => {
     })
   })
 
-  describe('strips pre-existing reliability suffix before appending', () => {
+  describe('strips pre-existing reliability suffix before appending — no stacking across all known shapes', () => {
+    it.each(ALL_SUFFIX_VARIANTS)('%s — replaced by [✓]', (_, titleWithSuffix, base) => {
+      expect(appendValidateSuffix(titleWithSuffix, {passed: true, retryCount: 0})).toBe(`${base} [✓]`)
+    })
+  })
+
+  describe('title clamping to 80-character maximum', () => {
     it.each([
-      ['engine suffix', 'My task [✓]', {passed: false, retryCount: 1}, 'My task [✗ 1 attempts]'],
-      ['legacy suffix', 'My task [✓ refined]', {passed: false, retryCount: 1}, 'My task [✗ 1 attempts]'],
-    ])('%s', (_, title, opts, expected) => {
-      expect(appendValidateSuffix(title, opts)).toBe(expected)
+      [{passed: true, retryCount: 0}, '[✓]'],
+      [{passed: true, retryCount: 2}, '[✓ retry-2]'],
+      [{passed: false, retryCount: 3}, '[✗ 3 attempts]'],
+    ])('%o — result stays within 80 chars and contains correct suffix', (opts, expectedSuffix) => {
+      const longTitle = 'A'.repeat(75)
+      const result = appendValidateSuffix(longTitle, opts)
+      expect(result.length).toBeLessThanOrEqual(80)
+      expect(result).toContain(expectedSuffix)
     })
   })
 
@@ -211,12 +222,9 @@ describe('appendRefineSuffix', () => {
     })
   })
 
-  describe('strips pre-existing reliability suffix before appending', () => {
-    it.each([
-      ['engine suffix', 'My task [✗ 0/3]', {eligible: 3, total: 3}, 'My task [✓ 3/3]'],
-      ['legacy suffix', 'My task [✓ refined]', {eligible: 3, total: 3}, 'My task [✓ 3/3]'],
-    ])('%s', (_, title, opts, expected) => {
-      expect(appendRefineSuffix(title, opts)).toBe(expected)
+  describe('strips pre-existing reliability suffix before appending — no stacking across all known shapes', () => {
+    it.each(ALL_SUFFIX_VARIANTS)('%s — replaced by [✓ 3/3]', (_, titleWithSuffix, base) => {
+      expect(appendRefineSuffix(titleWithSuffix, {eligible: 3, total: 3})).toBe(`${base} [✓ 3/3]`)
     })
   })
 
@@ -235,5 +243,77 @@ describe('appendRefineSuffix', () => {
 
   it('empty title → suffix only', () => {
     expect(appendRefineSuffix('', {eligible: 3, total: 3})).toBe('[✓ 3/3]')
+  })
+})
+
+describe('appendCommoditySuffix', () => {
+  describe('[✓ K/N] — at least one fork produced output', () => {
+    it.each([
+      [{successCount: 2, total: 2}, 'Task [✓ 2/2]'],
+      [{successCount: 5, total: 5}, 'Task [✓ 5/5]'],
+      [{successCount: 1, total: 3}, 'Task [✓ 1/3]'],
+      [{successCount: 2, total: 5}, 'Task [✓ 2/5]'],
+    ])('%o → %s', (opts, expected) => {
+      expect(appendCommoditySuffix('Task', opts)).toBe(expected)
+    })
+  })
+
+  describe('[✗ 0/N] — no fork produced output', () => {
+    it.each([
+      [{successCount: 0, total: 2}, 'Task [✗ 0/2]'],
+      [{successCount: 0, total: 5}, 'Task [✗ 0/5]'],
+    ])('%o → %s', (opts, expected) => {
+      expect(appendCommoditySuffix('Task', opts)).toBe(expected)
+    })
+  })
+
+  describe('strips pre-existing reliability suffix before appending — no stacking across all known shapes', () => {
+    it.each(ALL_SUFFIX_VARIANTS)('%s — replaced by [✓ 2/2]', (_, titleWithSuffix, base) => {
+      expect(appendCommoditySuffix(titleWithSuffix, {successCount: 2, total: 2})).toBe(`${base} [✓ 2/2]`)
+    })
+  })
+
+  describe('title clamping to 80-character maximum', () => {
+    it.each([
+      [{successCount: 2, total: 2}, '[✓ 2/2]'],
+      [{successCount: 0, total: 2}, '[✗ 0/2]'],
+    ])('%o — result stays within 80 chars and contains correct suffix', (opts, expectedSuffix) => {
+      const longTitle = 'A'.repeat(75)
+      const result = appendCommoditySuffix(longTitle, opts)
+      expect(result.length).toBeLessThanOrEqual(80)
+      expect(result).toContain(expectedSuffix)
+    })
+  })
+
+  it('empty title → suffix only', () => {
+    expect(appendCommoditySuffix('', {successCount: 2, total: 2})).toBe('[✓ 2/2]')
+  })
+})
+
+describe('appendInvalidSuffix', () => {
+  it('writes [✗ invalid] on the cell title', () => {
+    expect(appendInvalidSuffix('My validate')).toBe('My validate [✗ invalid]')
+  })
+
+  it('result is strippable by stripReliabilitySuffix', () => {
+    const titled = appendInvalidSuffix('My validate')
+    expect(stripReliabilitySuffix(titled)).toBe('My validate')
+  })
+
+  describe('strips pre-existing reliability suffix before appending — no stacking across all known shapes', () => {
+    it.each(ALL_SUFFIX_VARIANTS)('%s — replaced by [✗ invalid]', (_, titleWithSuffix, base) => {
+      expect(appendInvalidSuffix(titleWithSuffix)).toBe(`${base} [✗ invalid]`)
+    })
+  })
+
+  it('clamps result to 80-character maximum', () => {
+    const longTitle = 'A'.repeat(75)
+    const result = appendInvalidSuffix(longTitle)
+    expect(result.length).toBeLessThanOrEqual(80)
+    expect(result).toContain('[✗ invalid]')
+  })
+
+  it('empty title → suffix only', () => {
+    expect(appendInvalidSuffix('')).toBe('[✗ invalid]')
   })
 })

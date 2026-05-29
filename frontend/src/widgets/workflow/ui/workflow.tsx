@@ -24,6 +24,9 @@ import { getDescendantIds, normalizeNodeTitle, hasUsableRoot } from '@entities/w
 import { useClickOutside } from '@shared/lib/hooks'
 import { matchesAnyCommandWithOrder } from '@shared/lib/command-validation'
 import { deriveNodeTitle } from '@shared/lib/reliability-suffix'
+import { isValidRefineCell } from '@shared/lib/reliability/refine-params'
+import { projectForkCost } from '@shared/lib/reliability/fork-cost-projector'
+import { readForkLimit, exceedsForkLimit } from '@shared/lib/reliability/fork-limit-parser'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import { useAliases } from '@entities/aliases'
 import { EmptyWorkflowView } from './empty-workflow-view'
@@ -74,6 +77,13 @@ const WorkflowContent = () => {
     if (!selectedNode?.command?.trim()) return false
     return matchesAnyCommandWithOrder(selectedNode.command, aliases)
   }, [selectedNode?.command, aliases])
+
+  const selectedNodeRefineProjection = useMemo(() => {
+    if (!selectedNode || !isValidRefineCell(selectedNode.command)) return null
+    const cost = projectForkCost(selectedNode, nodes)
+    const limit = readForkLimit(selectedNode.command)
+    return { cost, limitExceeded: exceedsForkLimit(cost, limit) }
+  }, [selectedNode, nodes])
   const visibleOrderRef = useRef<readonly string[]>([])
   const treeContainerRef = useRef<HTMLDivElement>(null)
   const workspaceContainerRef = useRef<HTMLDivElement>(null)
@@ -384,6 +394,9 @@ const WorkflowContent = () => {
               onExecute={handleExecute}
               onShiftCtrlEnterInCommand={handleShiftCtrlEnterInCommand}
               onUpdateNode={handleUpdateNode}
+              refineCost={selectedNodeRefineProjection?.cost ?? null}
+              refineCostExceedsLimit={selectedNodeRefineProjection?.limitExceeded ?? false}
+              reliabilityMetadata={selectedNode.reliabilityMetadata}
             />
           ) : (
             <p className="text-muted-foreground">

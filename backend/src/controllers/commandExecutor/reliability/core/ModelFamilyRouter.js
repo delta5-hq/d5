@@ -10,6 +10,8 @@ export const STRENGTH_TIERS = {
   [Model.CustomLLM]: 3,
 }
 
+export const REASONING_CAPABLE_FAMILIES = new Set([Model.Claude, Model.OpenAI])
+
 const ALL_FAMILIES = [Model.Claude, Model.OpenAI, Model.Deepseek, Model.Qwen, Model.YandexGPT, Model.CustomLLM]
 
 const isConfigured = (family, settings) => {
@@ -43,6 +45,9 @@ export const getConfiguredFamilies = settings =>
   ALL_FAMILIES.filter(f => isConfigured(f, settings)).sort(
     (a, b) => (STRENGTH_TIERS[a] ?? 99) - (STRENGTH_TIERS[b] ?? 99),
   )
+
+export const hasReasoningCapableFamily = settings =>
+  getConfiguredFamilies(settings).some(f => REASONING_CAPABLE_FAMILIES.has(f))
 
 /**
  * Selects the best judge family different from the generator.

@@ -11,7 +11,23 @@ import StreamBridge from './streaming/StreamBridge'
 import {StreamEvent} from './streaming/StreamEvent'
 import {progressEventEmitter} from '../../services/progress-event-emitter'
 
+import {CriteriaFailedError} from './reliability/core/CriteriaFailedError'
+
 const logError = debug('delta5:app:ExecutorController')
+
+const buildExecuteResult = (store, otherData, workflowId) => {
+  const {nodes: nodesChanged, edges: edgesChanged} = store.getOutput()
+  return {
+    ...otherData,
+    nodesChanged,
+    edgesChanged,
+    workflowId,
+    cell: store.getNode(otherData.cell.id),
+    workflowNodes: store._nodes,
+    workflowFiles: store._files,
+    workflowEdges: store._edges,
+  }
+}
 
 const ExecutorController = {
   execute: async ctx => {
@@ -38,8 +54,10 @@ const ExecutorController = {
 
     ctx.req.on('close', requestCloseHandler)
 
+    let store = null
+    let storeResponseContext = null
+
     try {
-      // queryType, context, prompt, cell, userId, workflowId, workflowNodes, workflowFiles
       let {workflowNodes, workflowEdges, workflowId, workflowFiles, ...otherData} = body
 
       try {
@@ -72,10 +90,11 @@ const ExecutorController = {
         if (!workflowEdges) workflowEdges = edges
       }
 
-      const store = new Store(
+      store = new Store(
         {...body, userId, nodes: workflowNodes, edges: workflowEdges, files: workflowFiles, aliases},
         progress,
       )
+      storeResponseContext = {otherData, workflowId}
 
       if (nodeId) {
         progressEventEmitter.emitRunning(nodeId, {queryType})
@@ -83,17 +102,7 @@ const ExecutorController = {
 
       await runCommand({...otherData, store, mcpAlias, rpcAlias, signal: abortController.signal}, progress)
 
-      const {nodes: nodesChanged, edges: edgesChanged} = store.getOutput()
-      const result = {
-        ...otherData,
-        nodesChanged,
-        edgesChanged,
-        workflowId,
-        cell: store.getNode(otherData.cell.id),
-        workflowNodes: store._nodes,
-        workflowFiles: store._files,
-        workflowEdges: store._edges,
-      }
+      const result = buildExecuteResult(store, otherData, workflowId)
 
       if (streamSessionId) {
         StreamBridge.emit(streamSessionId, StreamEvent.complete(result))
@@ -106,18 +115,27 @@ const ExecutorController = {
 
       ctx.body = result
     } catch (e) {
-      console.error(e)
-
-      if (streamSessionId) {
-        StreamBridge.emit(streamSessionId, StreamEvent.error(e))
-        StreamBridge.closeSession(streamSessionId)
+      if (e instanceof CriteriaFailedError && store && storeResponseContext) {
+        const result = buildExecuteResult(store, storeResponseContext.otherData, storeResponseContext.workflowId)
+        if (streamSessionId) {
+          StreamBridge.emit(streamSessionId, StreamEvent.complete(result))
+          StreamBridge.closeSession(streamSessionId)
+        }
+        if (nodeId) {
+          progressEventEmitter.emitComplete(nodeId, {queryType})
+        }
+        ctx.body = result
+      } else {
+        console.error(e)
+        if (streamSessionId) {
+          StreamBridge.emit(streamSessionId, StreamEvent.error(e))
+          StreamBridge.closeSession(streamSessionId)
+        }
+        if (nodeId) {
+          progressEventEmitter.emitError(nodeId, e, {queryType})
+        }
+        ctx.throw(500, e.message)
       }
-
-      if (nodeId) {
-        progressEventEmitter.emitError(nodeId, e, {queryType})
-      }
-
-      ctx.throw(500, e.message)
     } finally {
       ctx.req.off('close', requestCloseHandler)
       progress.dispose()

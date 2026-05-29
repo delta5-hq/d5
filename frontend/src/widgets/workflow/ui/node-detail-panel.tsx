@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { NodeData, NodeId } from '@shared/base-types'
+import type { NodeData, NodeId, ReliabilityMetadata } from '@shared/base-types'
 import { Button } from '@shared/ui/button'
 import { Genie } from '@shared/ui/genie'
 import { getCommandRole } from '@shared/constants/command-roles'
@@ -16,6 +16,7 @@ import { isTitleDerivedFromCommand } from '@shared/lib/reliability-suffix'
 import { NodeTitleEditor } from './node-title-editor'
 import { NodePreviewSection } from './node-preview-section'
 import { CommandField } from './command-field'
+import { CriterionVerdictDrawer } from './criterion-verdict-drawer'
 
 interface NodeDetailPanelProps {
   node: NodeData
@@ -33,6 +34,9 @@ interface NodeDetailPanelProps {
   onAbort: (nodeId: NodeId) => void
   isExecuting: boolean
   executeDisabled: boolean
+  refineCost?: number | null
+  refineCostExceedsLimit?: boolean
+  reliabilityMetadata?: ReliabilityMetadata
   autoFocusTitle?: boolean
   autoFocusCommand?: boolean
 }
@@ -53,6 +57,9 @@ export const NodeDetailPanel = ({
   onAbort,
   isExecuting,
   executeDisabled,
+  refineCost,
+  refineCostExceedsLimit,
+  reliabilityMetadata,
   autoFocusTitle,
   autoFocusCommand,
 }: NodeDetailPanelProps) => {
@@ -68,6 +75,7 @@ export const NodeDetailPanel = ({
 
   const [settingsOpen, setSettingsOpen] = useState(!isPrompt)
   const [previewOpen, setPreviewOpen] = useState(isPrompt)
+  const [verdictOpen, setVerdictOpen] = useState(false)
   const previousExecutingRef = useRef(isExecuting)
 
   useEffect(() => {
@@ -190,17 +198,39 @@ export const NodeDetailPanel = ({
                   <span className="text-muted-foreground text-xs pt-2">
                     <FormattedMessage id="workflowTree.node.command" />
                   </span>
-                  <CommandField
-                    autoFocus={autoFocusCommand}
-                    className="min-h-[80px] text-xs font-mono w-full"
-                    nodeId={node.id}
-                    onChange={handleCommandChange}
-                    onCtrlEnter={siblingActionsEnabled ? handleCtrlEnterInCommand : undefined}
-                    onEnter={handleEnterInCommand}
-                    onShiftCtrlEnter={siblingActionsEnabled ? handleShiftCtrlEnterInCommand : undefined}
-                    placeholder={formatMessage({ id: 'workflowTree.node.commandPlaceholder' })}
-                    value={node.command ?? ''}
-                  />
+                  <div>
+                    <CommandField
+                      autoFocus={autoFocusCommand}
+                      className="min-h-[80px] text-xs font-mono w-full"
+                      nodeId={node.id}
+                      onChange={handleCommandChange}
+                      onCtrlEnter={siblingActionsEnabled ? handleCtrlEnterInCommand : undefined}
+                      onEnter={handleEnterInCommand}
+                      onShiftCtrlEnter={siblingActionsEnabled ? handleShiftCtrlEnterInCommand : undefined}
+                      placeholder={formatMessage({ id: 'workflowTree.node.commandPlaceholder' })}
+                      value={node.command ?? ''}
+                    />
+                    {typeof refineCost === 'number' ? (
+                      <span className="text-xs text-muted-foreground mt-1 block" data-testid="refine-cost-hint">
+                        <FormattedMessage id="workflowTree.node.refineCostHint" values={{ cost: refineCost }} />
+                      </span>
+                    ) : null}
+                    {typeof refineCost === 'number' && refineCostExceedsLimit ? (
+                      <span className="text-xs text-destructive mt-1 block" data-testid="refine-cost-over-limit">
+                        <FormattedMessage id="workflowTree.node.refineCostOverLimit" values={{ cost: refineCost }} />
+                      </span>
+                    ) : null}
+                    {reliabilityMetadata?.perCriterionVerdict?.length ? (
+                      <button
+                        className="text-xs text-primary underline underline-offset-2 mt-1 block hover:opacity-80 transition-opacity"
+                        data-testid="verdict-button"
+                        onClick={() => setVerdictOpen(true)}
+                        type="button"
+                      >
+                        <FormattedMessage id="workflowTree.node.verdictButton" />
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2 pt-2">
@@ -301,6 +331,10 @@ export const NodeDetailPanel = ({
             <NodePreviewSection nodeId={node.id} />
           </CollapsibleContent>
         </Collapsible>
+      ) : null}
+
+      {reliabilityMetadata ? (
+        <CriterionVerdictDrawer metadata={reliabilityMetadata} onOpenChange={setVerdictOpen} open={verdictOpen} />
       ) : null}
     </div>
   )

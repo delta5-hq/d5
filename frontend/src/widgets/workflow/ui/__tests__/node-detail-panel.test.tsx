@@ -389,3 +389,85 @@ describe('NodeDetailPanel — handleCommandChange title sync', () => {
     expect(onUpdateNode).toHaveBeenCalledWith('n1', { command: '/chat list fruits' })
   })
 })
+
+describe('NodeDetailPanel — refineCost hint', () => {
+  it('shows the cost hint when refineCost is a positive number', () => {
+    renderPanel(makeNode({ command: '/refine :n=2' }), false, { refineCost: 4 })
+    expect(screen.getByTestId('refine-cost-hint')).toBeInTheDocument()
+  })
+
+  it('hides the cost hint when refineCost is null', () => {
+    renderPanel(makeNode({ command: '/chat query' }), false, { refineCost: null })
+    expect(screen.queryByTestId('refine-cost-hint')).not.toBeInTheDocument()
+  })
+
+  it('hides the cost hint when refineCost prop is omitted', () => {
+    renderPanel(makeNode({ command: '/chat query' }), false)
+    expect(screen.queryByTestId('refine-cost-hint')).not.toBeInTheDocument()
+  })
+
+  it('shows the cost hint when refineCost is 0 (boundary: only null is hidden)', () => {
+    renderPanel(makeNode({ command: '/refine :n=2' }), false, { refineCost: 0 })
+    expect(screen.getByTestId('refine-cost-hint')).toBeInTheDocument()
+  })
+})
+
+describe('NodeDetailPanel — refineCost over-limit warning', () => {
+  it('shows over-limit warning when refineCostExceedsLimit is true', () => {
+    renderPanel(makeNode({ command: '/refine :n=2' }), false, { refineCost: 10, refineCostExceedsLimit: true })
+    expect(screen.getByTestId('refine-cost-over-limit')).toBeInTheDocument()
+  })
+
+  it('hides over-limit warning when refineCostExceedsLimit is false', () => {
+    renderPanel(makeNode({ command: '/refine :n=2' }), false, { refineCost: 4, refineCostExceedsLimit: false })
+    expect(screen.queryByTestId('refine-cost-over-limit')).not.toBeInTheDocument()
+  })
+
+  it('hides over-limit warning when refineCostExceedsLimit is omitted', () => {
+    renderPanel(makeNode({ command: '/refine :n=2' }), false, { refineCost: 4 })
+    expect(screen.queryByTestId('refine-cost-over-limit')).not.toBeInTheDocument()
+  })
+
+  it('shows cost hint alongside over-limit warning when both apply', () => {
+    renderPanel(makeNode({ command: '/refine :n=2' }), false, { refineCost: 10, refineCostExceedsLimit: true })
+    expect(screen.getByTestId('refine-cost-hint')).toBeInTheDocument()
+    expect(screen.getByTestId('refine-cost-over-limit')).toBeInTheDocument()
+  })
+})
+
+describe('NodeDetailPanel — verdict button', () => {
+  const makeMetadata = (overrides = {}) => ({
+    winnerForkIndex: 0,
+    perCriterionVerdict: [{ criterionId: 'c1', criterion: 'Accuracy', forkRankings: [{ forkIndex: 0, rank: 1 }] }],
+    mode: 'strict' as const,
+    selectionLayer: 'primary',
+    noSignal: false,
+    eligible: 2,
+    total: 2,
+    ...overrides,
+  })
+
+  it('shows the verdict button when reliabilityMetadata has non-empty perCriterionVerdict', () => {
+    renderPanel(makeNode({ command: '/refine :n=2' }), false, { reliabilityMetadata: makeMetadata() })
+    expect(screen.getByTestId('verdict-button')).toBeInTheDocument()
+  })
+
+  it('hides the verdict button when reliabilityMetadata is absent', () => {
+    renderPanel(makeNode({ command: '/refine :n=2' }), false)
+    expect(screen.queryByTestId('verdict-button')).not.toBeInTheDocument()
+  })
+
+  it('hides the verdict button when perCriterionVerdict is empty', () => {
+    renderPanel(makeNode({ command: '/refine :n=2' }), false, {
+      reliabilityMetadata: makeMetadata({ perCriterionVerdict: [] }),
+    })
+    expect(screen.queryByTestId('verdict-button')).not.toBeInTheDocument()
+  })
+
+  it('clicking the verdict button opens the verdict drawer', () => {
+    renderPanel(makeNode({ command: '/refine :n=2' }), false, { reliabilityMetadata: makeMetadata() })
+    expect(screen.queryByTestId('criterion-verdict-drawer')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('verdict-button'))
+    expect(screen.getByTestId('criterion-verdict-drawer')).toBeInTheDocument()
+  })
+})

@@ -17,6 +17,7 @@ import {
 } from '@shared/ui/context-menu'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
+import { extractReliabilitySuffix } from '@shared/lib/reliability-suffix'
 import type { TreeNodeProps } from '../core/types'
 import { INDENT_PER_LEVEL, ROW_HEIGHT, WIRE_PADDING, BASE_PADDING } from '../core/constants'
 import { areTreeNodePropsEqual } from '../core/tree-node-memo'
@@ -197,11 +198,13 @@ export const TreeNodeDefault = ({
     [id, onDelete],
   )
 
+  const { baseTitle, suffix } = extractReliabilitySuffix(normalizeNodeTitle(node.title) || node.id)
+
   const handleRename = useCallback(
     (newTitle: string) => {
-      onRename?.(id, newTitle)
+      onRename?.(id, suffix ? `${newTitle}${suffix}` : newTitle)
     },
-    [id, onRename],
+    [id, onRename, suffix],
   )
 
   const wireIndentX = BASE_PADDING + (depth - 1) * INDENT_PER_LEVEL
@@ -313,7 +316,7 @@ export const TreeNodeDefault = ({
           </span>
 
           <span className="relative z-10 flex-1 flex items-center gap-1 min-w-0 ml-2 pr-2">
-            <span className="flex-1 truncate">
+            <span className="flex-1 flex items-center min-w-0 gap-1">
               {onRename ? (
                 <EditableText
                   autoFocus={autoEditNodeId === id}
@@ -322,11 +325,19 @@ export const TreeNodeDefault = ({
                   placeholder={formatMessage({ id: 'workflowTree.node.untitled' })}
                   readOnlyClassName="block truncate"
                   title={formatMessage({ id: 'workflowTree.node.editHint' })}
-                  value={normalizeNodeTitle(node.title)}
+                  value={baseTitle || ''}
                 />
               ) : (
-                normalizeNodeTitle(node.title) || node.id
+                <span className="truncate min-w-0">{baseTitle || node.id}</span>
               )}
+              {suffix ? (
+                <span
+                  className="flex-shrink-0 text-xs font-mono text-muted-foreground"
+                  data-testid="reliability-suffix"
+                >
+                  {suffix}
+                </span>
+              ) : null}
             </span>
             {isDirty ? (
               <span

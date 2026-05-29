@@ -13,6 +13,7 @@ const ENGINE_SUFFIX_SHAPES = [
   '✓',
   '✗ \\d+ attempts',
   '✗ \\d+/\\d+',
+  '✗ invalid',
   '⚠ no judge signal',
   '⚠ fallback: 0/\\d+ passed; chose fork-\\d+',
 ]
@@ -36,6 +37,17 @@ export const stripReliabilitySuffix = title => {
 export const appendValidateSuffix = (title, {passed, retryCount}) => {
   const base = stripReliabilitySuffix(title)
   const suffix = passed ? (retryCount > 0 ? `[✓ retry-${retryCount}]` : '[✓]') : `[✗ ${retryCount} attempts]`
+  return clamp(base, suffix)
+}
+
+export const appendInvalidSuffix = title => {
+  const base = stripReliabilitySuffix(title)
+  return clamp(base, '[✗ invalid]')
+}
+
+export const appendCommoditySuffix = (title, {successCount, total}) => {
+  const base = stripReliabilitySuffix(title)
+  const suffix = successCount === 0 ? `[✗ 0/${total}]` : `[✓ ${successCount}/${total}]`
   return clamp(base, suffix)
 }
 

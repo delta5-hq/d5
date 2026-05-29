@@ -16,7 +16,7 @@ import {STEPS_QUERY_TYPE} from '../../constants/steps'
 import {SUMMARIZE_QUERY, SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
 import {VALIDATE_QUERY, VALIDATE_QUERY_TYPE} from '../../constants/validate'
 import {ValidateCommand} from '../../reliability/core/ValidateCommand'
-import {readValidateRetry} from '../../reliability/core/validateParams'
+import {readValidateRetry, hasValidCriterion} from '../../reliability/core/validateParams'
 import {CriteriaFailedError} from '../../reliability/core/CriteriaFailedError'
 import {resolveRefineCell} from '../../reliability/core/resolveRefineCell'
 import RefineTopology from '../../reliability/core/RefineTopology'
@@ -25,7 +25,12 @@ import {WEB_QUERY_TYPE} from '../../constants/web'
 import {YANDEX_QUERY_TYPE} from '../../constants/yandex'
 import ProgressReporter from '../../ProgressReporter'
 import {CommandFactory} from '../../reliability'
-import {stripReliabilitySuffix, appendValidateSuffix} from '../../reliability/core/reliabilitySuffix'
+import {
+  stripReliabilitySuffix,
+  appendValidateSuffix,
+  appendInvalidSuffix,
+  appendCommoditySuffix,
+} from '../../reliability/core/reliabilitySuffix'
 import {getNodeCommand} from './isCommand'
 import {ForeachCommand} from '../ForeachCommand'
 import {MemorizeCommand} from '../MemorizeCommand'
@@ -33,6 +38,9 @@ import {OutlineCommand} from '../OutlineCommand'
 import {SummarizeCommand} from '../SummarizeCommand'
 import {MCPCommand} from '../MCPCommand'
 import {RPCCommand} from '../RPCCommand'
+import StoreFork from '../../reliability/core/StoreFork'
+import {readCommodityN, stripCommodityN} from '../../reliability/core/commodityParams'
+import {passesStructuralGate} from '../../reliability/core/structuralGate'
 // eslint-disable-next-line no-unused-vars
 import Store from './Store'
 
@@ -84,6 +92,42 @@ function buildValidateRetryContext(originalContext, criterion, reason) {
   return injected + (originalContext || '')
 }
 
+/** @private */
+async function runCommodityForks(queryType, context, prompt, cell, store, progress, n) {
+  const cleanPrompt = stripCommodityN(prompt || '')
+  const forkStores = Array.from({length: n}, () => StoreFork.createFork(store))
+  await Promise.allSettled(
+    forkStores.map(forkStore =>
+      executeCommandWithProgress(
+        queryType,
+        context,
+        cleanPrompt,
+        forkStore.getNode(cell.id) || cell,
+        forkStore,
+        progress,
+      ),
+    ),
+  )
+  let successCount = 0
+  forkStores.forEach(forkStore => {
+    const forkCell = forkStore.getNode(cell.id)
+    let hadSubstantiveOutput = false
+    for (const promptId of forkCell?.prompts ?? []) {
+      const node = forkStore.getNode(promptId)
+      if (passesStructuralGate(node?.title)) {
+        store.createNode({parent: cell.id, title: node.title})
+        hadSubstantiveOutput = true
+      }
+    }
+    if (hadSubstantiveOutput) successCount++
+  })
+  const cellNode = store.getNode(cell.id)
+  if (cellNode) {
+    cellNode.title = appendCommoditySuffix(cellNode.title || '', {successCount, total: n})
+    store.saveNodeToOutput(cell.id)
+  }
+}
+
 /**
  * @param {{
  *  queryType: string,
@@ -132,7 +176,12 @@ export const runCommand = async (
     const command = new RPCCommand(store._userId, store._workflowId, store, rpcAlias, progress, sshClientPool)
     await command.run(cell, context, prompt, {signal})
   } else {
-    await executeCommandWithProgress(queryType, context, prompt, cell, store, progress)
+    const commodityN = readCommodityN(getNodeCommand(cell))
+    if (commodityN > 1) {
+      await runCommodityForks(queryType, context, prompt, cell, store, progress, commodityN)
+    } else {
+      await executeCommandWithProgress(queryType, context, prompt, cell, store, progress)
+    }
   }
 
   let runPostProccess = !preventPostProcess
@@ -146,7 +195,8 @@ export const runCommand = async (
           if (command?.includes(MEMORIZE_QUERY)) return 3
           if (command?.includes(OUTLINE_QUERY) && readSummarizeParam(command)) return 4
           if (command?.includes(REFINE_QUERY)) return 4.5
-          return 5
+          if (command?.startsWith(VALIDATE_QUERY)) return 5
+          return 6
         }
 
         return getOrder(getNodeCommand(a)) - getOrder(getNodeCommand(b))
@@ -217,6 +267,8 @@ export const runCommand = async (
               }
             }
             await resolveRefineCell(childNode, store, memoMap, signal)
+          } else if (memoMap?.get(childNode.id) === 'in-progress') {
+            await postProcessNode(childNode, ids)
           }
         } else if (query?.startsWith(VALIDATE_QUERY)) {
           const remainingValidates = sortedNodes.filter(
@@ -224,6 +276,15 @@ export const runCommand = async (
           )
           remainingValidates.forEach(v => ids.push(v.id))
           const allValidates = [childNode, ...remainingValidates]
+
+          const emptyCriterionNodes = allValidates.filter(v => !hasValidCriterion(getNodeCommand(v)))
+          if (emptyCriterionNodes.length > 0) {
+            emptyCriterionNodes.forEach(v => {
+              v.title = appendInvalidSuffix(v.title || '')
+              store.saveNodeToOutput(v.id)
+            })
+            throw new CriteriaFailedError('', 0)
+          }
 
           const maxRetry = Math.max(...allValidates.map(v => readValidateRetry(getNodeCommand(v))))
           const validateCommand = new ValidateCommand(store._userId, store._workflowId, store)
@@ -233,6 +294,7 @@ export const runCommand = async (
           let passed = false
           let lastFailCriterion = ''
           let lastFailReason = ''
+          let lastResults = allValidates.map(() => ({passed: false, criterion: '', reason: ''}))
 
           while (attempt <= maxRetry) {
             if (attempt > 0) {
@@ -244,8 +306,8 @@ export const runCommand = async (
               )
             }
 
-            const results = await Promise.all(allValidates.map(v => validateCommand.run(v, {signal})))
-            const firstFail = results.find(r => !r.passed)
+            lastResults = await Promise.all(allValidates.map(v => validateCommand.run(v, {signal})))
+            const firstFail = lastResults.find(r => !r.passed)
 
             if (!firstFail) {
               passed = true
@@ -256,18 +318,16 @@ export const runCommand = async (
             attempt++
           }
 
-          const persistValidateSuffixes = succeeded =>
-            allValidates.forEach(v => {
-              v.title = appendValidateSuffix(v.title || '', {passed: succeeded, retryCount: attempt})
-              store.saveNodeToOutput(v.id)
-            })
+          allValidates.forEach((v, i) => {
+            const cellPassed = lastResults[i]?.passed ?? false
+            const retryCount = cellPassed && !passed ? Math.max(0, attempt - 1) : attempt
+            v.title = appendValidateSuffix(v.title || '', {passed: cellPassed, retryCount})
+            store.saveNodeToOutput(v.id)
+          })
 
           if (!passed) {
-            persistValidateSuffixes(false)
             throw new CriteriaFailedError(lastFailCriterion, attempt)
           }
-
-          persistValidateSuffixes(true)
         }
 
         if (postProcessTracker) postProcessProgress.remove(postProcessTracker)

@@ -78,6 +78,7 @@ func main() {
 	adminHash, _ := hashPassword("P@ssw0rd!")
 	subscriberHash, _ := hashPassword("P@ssw0rd!")
 	customerHash, _ := hashPassword("P@ssw0rd!")
+	qaBotHash, _ := hashPassword("P@ssw0rd!")
 
 	baseUsers := []User{
 		{
@@ -119,6 +120,19 @@ func main() {
 			CreatedAt:      time.Now(),
 			UpdatedAt:      time.Now(),
 		},
+		{
+			ID:             "qa-bot",
+			UserID:         "qa-bot",
+			Name:           "qa-bot",
+			Mail:           "qa-bot@dreaktor.com",
+			Password:       qaBotHash,
+			Roles:          []string{"subscriber"},
+			Confirmed:      true,
+			LimitWorkflows: 10,
+			LimitNodes:     300,
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
+		},
 	}
 
 	if _, err := waitlistCollection.DeleteMany(ctx, bson.M{}); err != nil {
@@ -127,7 +141,7 @@ func main() {
 
 	/* Clean up test data collections for deterministic test state */
 	testDataCollections := []string{"workflows", "macros", "templates", "integrations", "llmvectors"}
-	baseUserIDs := []string{"admin", "subscriber", "customer"}
+	baseUserIDs := []string{"admin", "subscriber", "customer", "qa-bot"}
 
 	for _, collName := range testDataCollections {
 		coll := db.Collection(collName)
@@ -163,7 +177,7 @@ func main() {
 		}
 	}
 
-	fmt.Printf("E2E base users seeded: admin, subscriber, customer%s\n", portInfo)
+	fmt.Printf("E2E base users seeded: admin, subscriber, customer, qa-bot%s\n", portInfo)
 	os.Exit(0)
 }
 

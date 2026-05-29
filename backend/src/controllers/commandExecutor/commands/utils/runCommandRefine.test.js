@@ -1,5 +1,4 @@
 /**
- * P0.11 end-to-end wiring tests: runCommand → resolveRefineCell → suffix + applyCandidate.
  *
  * resolveRefineCell is NOT mocked — it runs naturally.
  * The test controls the result by mocking SubtreeForkRunner.runForks and ForkJudge.
@@ -64,9 +63,8 @@ beforeEach(() => {
 })
 
 // ────────────────────────────────────────────────────────────────────────────
-// P0.11(a): strict mode — winner picked and applied, title gets ✓ suffix
 // ────────────────────────────────────────────────────────────────────────────
-describe('P0.11(a): /refine :n=2 strict mode — winner selected and applied', () => {
+describe('/refine :n=2 strict mode — winner selected and applied', () => {
   it('calls StoreFork.applyCandidate with the winning forkStore', async () => {
     const winnerForkStore = makeOkForkStore(0)
     const loserForkStore = makeOkForkStore(1)
@@ -170,9 +168,8 @@ describe('P0.11(a): /refine :n=2 strict mode — winner selected and applied', (
 })
 
 // ────────────────────────────────────────────────────────────────────────────
-// P0.11(b): :fallback mode — all forks fail criteria, commits highest-ranked
 // ────────────────────────────────────────────────────────────────────────────
-describe('P0.11(b): /refine :n=3 :fallback — all forks fail criteria, commits highest-ranked', () => {
+describe('/refine :n=3 :fallback — all forks fail criteria, commits highest-ranked', () => {
   const makeFailedForkStore = () =>
     buildStore({
       parent: {id: 'parent', parent: null, command: '/chat do task', children: ['refine']},
@@ -264,5 +261,135 @@ describe('P0.11(b): /refine :n=3 :fallback — all forks fail criteria, commits 
 
     expect(MockStoreFork.applyCandidate).not.toHaveBeenCalled()
     expect(createErrorSpy).toHaveBeenCalled()
+  })
+})
+
+describe('/refine with absent or below-minimum :n= — parse-time refusal visible on cell', () => {
+  it.each([['/refine :n=1'], ['/refine :n=0'], ['/refine']])(
+    'appends [\u2717 invalid] to refine cell title and launches no forks for command "%s"',
+    async command => {
+      const store = buildStore({
+        parent: {id: 'parent', parent: null, command: '/chat do task', children: ['refine']},
+        refine: {id: 'refine', parent: 'parent', command, children: []},
+      })
+
+      const spy = chatSpy()
+      await runCommand({queryType: 'chat', cell: store.getNode('parent'), store})
+      spy.mockRestore()
+
+      expect(store.getNode('refine').title).toMatch(/\[\u2717 invalid\]/)
+      expect(mockRunForks).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([
+    ['/refine :n=1', 1],
+    ['/refine :n=0', 0],
+  ])('error message names the actual below-minimum :n= value for command "%s"', async (command, rawN) => {
+    const store = buildStore({
+      parent: {id: 'parent', parent: null, command: '/chat do task', children: ['refine']},
+      refine: {id: 'refine', parent: 'parent', command, children: []},
+    })
+    const createErrorSpy = jest.spyOn(store.importer, 'createErrorNode')
+
+    const spy = chatSpy()
+    await runCommand({queryType: 'chat', cell: store.getNode('parent'), store})
+    spy.mockRestore()
+
+    expect(createErrorSpy).toHaveBeenCalledWith(expect.stringContaining(`/refine :n=${rawN} is a no-op`), 'refine')
+  })
+
+  it('error message prompts for :n=N syntax when :n= is absent entirely', async () => {
+    const store = buildStore({
+      parent: {id: 'parent', parent: null, command: '/chat do task', children: ['refine']},
+      refine: {id: 'refine', parent: 'parent', command: '/refine', children: []},
+    })
+    const createErrorSpy = jest.spyOn(store.importer, 'createErrorNode')
+
+    const spy = chatSpy()
+    await runCommand({queryType: 'chat', cell: store.getNode('parent'), store})
+    spy.mockRestore()
+
+    expect(createErrorSpy).toHaveBeenCalledWith(expect.stringContaining('/refine requires :n=N'), 'refine')
+  })
+})
+
+describe('in-progress /refine — descendant /validate executes inside fork', () => {
+  it('validate child of /refine runs when memoMap marks refine as in-progress', async () => {
+    const {ValidateCommand} = require('../../reliability/core/ValidateCommand')
+    const store = buildStore({
+      parent: {id: 'parent', parent: null, command: '/chat do task', children: ['refine']},
+      refine: {id: 'refine', parent: 'parent', command: '/refine :n=2', children: ['v']},
+      v: {id: 'v', parent: 'refine', command: '/validate must include numbers', children: []},
+    })
+
+    const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run').mockResolvedValue({
+      passed: true,
+      criterion: 'must include numbers',
+      reason: '',
+    })
+    const spy = chatSpy()
+    const memoMap = new Map([['refine', 'in-progress']])
+
+    await runCommand({queryType: 'chat', cell: store.getNode('parent'), store, memoMap})
+
+    expect(validateSpy).toHaveBeenCalled()
+    spy.mockRestore()
+    validateSpy.mockRestore()
+  })
+
+  it('CriteriaFailedError propagates when descendant /validate fails all retries in fork context', async () => {
+    const {ValidateCommand} = require('../../reliability/core/ValidateCommand')
+    const {CriteriaFailedError} = require('../../reliability/core/CriteriaFailedError')
+    const store = buildStore({
+      parent: {id: 'parent', parent: null, command: '/chat do task', children: ['refine']},
+      refine: {id: 'refine', parent: 'parent', command: '/refine :n=2', children: ['v']},
+      v: {id: 'v', parent: 'refine', command: '/validate must include numbers :retry=0', children: []},
+    })
+
+    const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run').mockResolvedValue({
+      passed: false,
+      criterion: 'must include numbers',
+      reason: 'no numbers found',
+    })
+    const spy = chatSpy()
+    const memoMap = new Map([['refine', 'in-progress']])
+
+    let thrown
+    try {
+      await runCommand({queryType: 'chat', cell: store.getNode('parent'), store, memoMap})
+    } catch (e) {
+      thrown = e
+    } finally {
+      spy.mockRestore()
+      validateSpy.mockRestore()
+    }
+
+    expect(thrown).toBeInstanceOf(CriteriaFailedError)
+    expect(thrown.criterion).toBe('must include numbers')
+  })
+
+  it('/refine with memoMap value other than in-progress is still skipped', async () => {
+    const {ValidateCommand} = require('../../reliability/core/ValidateCommand')
+    const store = buildStore({
+      parent: {id: 'parent', parent: null, command: '/chat do task', children: ['refine']},
+      refine: {id: 'refine', parent: 'parent', command: '/refine :n=2', children: ['v']},
+      v: {id: 'v', parent: 'refine', command: '/validate must include numbers', children: []},
+    })
+
+    const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run').mockResolvedValue({
+      passed: true,
+      criterion: 'criterion',
+      reason: '',
+    })
+    const spy = chatSpy()
+    // null = resolved (all-fail), not 'in-progress'
+    const memoMap = new Map([['refine', null]])
+
+    await runCommand({queryType: 'chat', cell: store.getNode('parent'), store, memoMap})
+
+    expect(validateSpy).not.toHaveBeenCalled()
+    spy.mockRestore()
+    validateSpy.mockRestore()
   })
 })

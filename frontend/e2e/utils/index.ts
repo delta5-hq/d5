@@ -155,6 +155,15 @@ async function subscriberLogin(page: Page) {
   await login(page, user, pass)
 }
 
+async function qaBotLogin(page: Page) {
+  // qa-bot identity for live-browser QA probes (mission anchor: "never write into admin's record").
+  // Seeded by backend-v2/cmd/seed-users with role=subscriber, LimitWorkflows=10. Falls back to
+  // 'qa-bot' / 'P@ssw0rd!' (the seeder defaults) when the env vars are unset.
+  const user = e2eEnv.E2E_QA_BOT_USER || 'qa-bot'
+  const pass = e2eEnv.E2E_QA_BOT_PASS || 'P@ssw0rd!'
+  await login(page, user, pass)
+}
+
 async function createWorkflow(page: Page): Promise<string> {
   await page.goto('/workflows')
   await page.waitForLoadState('networkidle')
@@ -192,4 +201,4 @@ async function closeMobileSidebar(page: Page) {
   }
 }
 
-export { approveUser, rejectUser, login, logout, signup, openLoginDialogFromSignup, adminLogin, subscriberLogin, setupUnauthenticatedPage, createWorkflow, clearAuthState, closeMobileSidebar }
+export { approveUser, rejectUser, login, logout, signup, openLoginDialogFromSignup, adminLogin, subscriberLogin, qaBotLogin, setupUnauthenticatedPage, createWorkflow, clearAuthState, closeMobileSidebar }

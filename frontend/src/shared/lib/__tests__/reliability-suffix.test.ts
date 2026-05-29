@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { stripReliabilitySuffix, isTitleDerivedFromCommand, deriveNodeTitle } from '../reliability-suffix'
+import {
+  stripReliabilitySuffix,
+  isTitleDerivedFromCommand,
+  deriveNodeTitle,
+  extractReliabilitySuffix,
+} from '../reliability-suffix'
 
 const LEGACY_SUFFIX_VARIANTS = [
   ['bestOfN success', '/chat list [✓ 2/2 best of 2]', '/chat list'],
@@ -20,6 +25,7 @@ const ENGINE_SUFFIX_VARIANTS = [
   ['refine none eligible', '/chat list [✗ 0/3]', '/chat list'],
   ['refine no judge signal', '/chat list [⚠ no judge signal]', '/chat list'],
   ['refine fallback with winner', '/chat list [⚠ fallback: 0/3 passed; chose fork-1]', '/chat list'],
+  ['invalid empty criterion', '/chat list [✗ invalid]', '/chat list'],
 ] as const satisfies ReadonlyArray<[string, string, string]>
 
 const ALL_SUFFIX_VARIANTS = [...LEGACY_SUFFIX_VARIANTS, ...ENGINE_SUFFIX_VARIANTS]
@@ -170,5 +176,45 @@ describe('deriveNodeTitle', () => {
     it('command is absent', () => {
       expect(deriveNodeTitle({ title: 'My analysis', command: undefined }, '/chat new')).toBe('My analysis')
     })
+  })
+})
+
+describe('extractReliabilitySuffix', () => {
+  it.each(ENGINE_SUFFIX_VARIANTS)('extracts engine suffix: %s', (_label, titleWithSuffix, base) => {
+    const { baseTitle, suffix } = extractReliabilitySuffix(titleWithSuffix)
+    expect(baseTitle).toBe(base)
+    expect(suffix).not.toBeNull()
+  })
+
+  it('returns null suffix when title has no engine suffix', () => {
+    const { baseTitle, suffix } = extractReliabilitySuffix('Analyze competitors')
+    expect(baseTitle).toBe('Analyze competitors')
+    expect(suffix).toBeNull()
+  })
+
+  it('extracts long fallback suffix correctly', () => {
+    const { baseTitle, suffix } = extractReliabilitySuffix(
+      'Analyze competitors [⚠ fallback: 0/3 passed; chose fork-1]',
+    )
+    expect(baseTitle).toBe('Analyze competitors')
+    expect(suffix).toBe('[⚠ fallback: 0/3 passed; chose fork-1]')
+  })
+
+  it('preserves user-authored brackets — not mistaken for engine suffix', () => {
+    const { baseTitle, suffix } = extractReliabilitySuffix('Report [✓ approved by manager]')
+    expect(baseTitle).toBe('Report [✓ approved by manager]')
+    expect(suffix).toBeNull()
+  })
+
+  it('returns empty baseTitle and null suffix for empty string input', () => {
+    const { baseTitle, suffix } = extractReliabilitySuffix('')
+    expect(baseTitle).toBe('')
+    expect(suffix).toBeNull()
+  })
+
+  it('returns empty baseTitle when title is only an engine suffix token', () => {
+    const { baseTitle, suffix } = extractReliabilitySuffix('[✓]')
+    expect(baseTitle).toBe('')
+    expect(suffix).not.toBeNull()
   })
 })

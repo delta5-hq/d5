@@ -46,12 +46,8 @@ beforeEach(() => {
 })
 
 describe('resolveRefineCell — input guard: :n= absent or invalid', () => {
-  it.each([
-    ['/refine', 'missing :n='],
-    ['/refine :n=1', ':n=1 below minimum of 2'],
-    ['/refine :n=0', ':n=0 below minimum of 2'],
-  ])('writes error node and skips runForks for "%s" (%s)', async command => {
-    const store = makeStore(command)
+  it('writes "requires :n=N" error and skips runForks when :n= is absent', async () => {
+    const store = makeStore('/refine')
     const node = store.getNode('r1')
 
     await resolveRefineCell(node, store, new Map())
@@ -60,23 +56,39 @@ describe('resolveRefineCell — input guard: :n= absent or invalid', () => {
     expect(mockRunForks).not.toHaveBeenCalled()
   })
 
-  it('leaves title clean (no reliability suffix) when :n= is absent — failure communicated via error child node', async () => {
+  it.each([
+    ['/refine :n=1', 1],
+    ['/refine :n=0', 0],
+  ])('writes "is a no-op" error and skips runForks for %s', async (command, rawN) => {
+    const store = makeStore(command)
+    const node = store.getNode('r1')
+
+    await resolveRefineCell(node, store, new Map())
+
+    expect(store.importer.createErrorNode).toHaveBeenCalledWith(
+      expect.stringContaining(`/refine :n=${rawN} is a no-op`),
+      'r1',
+    )
+    expect(mockRunForks).not.toHaveBeenCalled()
+  })
+
+  it('marks title with [✗ invalid] suffix when :n= is absent — failure visible on cell and via error child node', async () => {
     const store = makeStore('/refine')
     const node = store.getNode('r1')
 
     await resolveRefineCell(node, store, new Map())
 
-    expect(node.title).toBe('My Cell')
+    expect(node.title).toBe('My Cell [✗ invalid]')
   })
 
-  it('strips any pre-existing reliability suffix from title when :n= is absent', async () => {
+  it('replaces any pre-existing reliability suffix with [✗ invalid] when :n= is absent', async () => {
     const store = makeStore('/refine')
     const node = store.getNode('r1')
     node.title = 'My Cell [✓ 2/3]'
 
     await resolveRefineCell(node, store, new Map())
 
-    expect(node.title).toBe('My Cell')
+    expect(node.title).toBe('My Cell [✗ invalid]')
   })
 
   it('saves node to output when :n= is absent', async () => {
@@ -106,23 +118,23 @@ describe('resolveRefineCell — input guard: fork cost exceeds :limit=', () => {
     expect(mockRunForks).not.toHaveBeenCalled()
   })
 
-  it('leaves title clean (no reliability suffix) when cost exceeds :limit= — failure communicated via error child node', async () => {
+  it('marks title with [✗ invalid] suffix when cost exceeds :limit= — failure visible on cell and via error child node', async () => {
     const store = makeStore('/refine :n=3 :limit=0')
     const node = store.getNode('r1')
 
     await resolveRefineCell(node, store, new Map())
 
-    expect(node.title).toBe('My Cell')
+    expect(node.title).toBe('My Cell [✗ invalid]')
   })
 
-  it('strips any pre-existing reliability suffix from title when cost exceeds :limit=', async () => {
+  it('replaces any pre-existing reliability suffix with [✗ invalid] when cost exceeds :limit=', async () => {
     const store = makeStore('/refine :n=3 :limit=0')
     const node = store.getNode('r1')
     node.title = 'My Cell [✓ retry-1]'
 
     await resolveRefineCell(node, store, new Map())
 
-    expect(node.title).toBe('My Cell')
+    expect(node.title).toBe('My Cell [✗ invalid]')
   })
 })
 
@@ -518,6 +530,95 @@ describe('resolveRefineCell — fallback selection layer', () => {
       eligible: 0,
       total: 2,
     })
+  })
+})
+
+describe('resolveRefineCell — validate sibling titles transferred from winner fork', () => {
+  it('transfers winner fork validate title to main store', async () => {
+    const validateNode = {
+      id: 'v1',
+      parent: 'p1',
+      command: '/validate criterion',
+      title: '/validate criterion',
+      children: [],
+    }
+    const store = new Store({
+      userId: 'user1',
+      nodes: {
+        p1: {id: 'p1', children: ['r1', 'v1']},
+        r1: {id: 'r1', parent: 'p1', title: 'My Cell', command: '/refine :n=2', children: []},
+        v1: validateNode,
+      },
+    })
+    jest.spyOn(store, 'saveNodeToOutput').mockImplementation(() => {})
+    jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
+
+    const winnerForkStore = new Store({
+      userId: 'user1',
+      nodes: {
+        p1: {id: 'p1', children: ['r1', 'v1']},
+        r1: {id: 'r1', parent: 'p1', title: 'My Cell', children: []},
+        v1: {id: 'v1', parent: 'p1', command: '/validate criterion', title: '/validate criterion [✓]', children: []},
+      },
+    })
+
+    mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'ok', forkStore: winnerForkStore}])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'primary', mode: 'strict', noSignal: false}),
+    }))
+    MockOwnershipResolver.mockReturnValue(new Map([['r1', [store.getNode('v1')]]]))
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    expect(store._nodes.v1.title).toBe('/validate criterion [✓]')
+    expect(store.saveNodeToOutput).toHaveBeenCalledWith('v1')
+  })
+
+  it('does not overwrite validate title when node is absent from winner fork', async () => {
+    const store = new Store({
+      userId: 'user1',
+      nodes: {
+        p1: {id: 'p1', children: ['r1', 'v1']},
+        r1: {id: 'r1', parent: 'p1', title: 'My Cell', command: '/refine :n=2', children: []},
+        v1: {id: 'v1', parent: 'p1', command: '/validate criterion', title: 'original title', children: []},
+      },
+    })
+    jest.spyOn(store, 'saveNodeToOutput').mockImplementation(() => {})
+    jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
+
+    const winnerForkStore = new Store({
+      userId: 'user1',
+      nodes: {
+        p1: {id: 'p1', children: ['r1']},
+        r1: {id: 'r1', parent: 'p1', title: 'My Cell', children: []},
+      },
+    })
+
+    mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'ok', forkStore: winnerForkStore}])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'primary', mode: 'strict', noSignal: false}),
+    }))
+    MockOwnershipResolver.mockReturnValue(new Map([['r1', [store.getNode('v1')]]]))
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    expect(store._nodes.v1.title).toBe('original title')
+    expect(store.saveNodeToOutput).not.toHaveBeenCalledWith('v1')
+  })
+
+  it('does not transfer validate titles when there are no owned validates', async () => {
+    const winner = okForkStore()
+    mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'ok', forkStore: winner}])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'primary', mode: 'strict', noSignal: false}),
+    }))
+    MockOwnershipResolver.mockReturnValue(new Map([['r1', []]]))
+
+    const store = makeStore('/refine :n=2')
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    const nonRefineCallArgs = store.saveNodeToOutput.mock.calls.filter(([id]) => id !== 'r1')
+    expect(nonRefineCallArgs).toHaveLength(0)
   })
 })
 

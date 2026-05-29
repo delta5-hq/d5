@@ -7,7 +7,7 @@ const LEGACY_SUFFIX_RE =
 // Deliberately tight — only exact known shapes are stripped so user-authored
 // brackets containing ✓/✗/⚠ (e.g. "[✓ approved by manager]") are preserved.
 const ENGINE_SUFFIX_RE =
-  /\s*\[(?:✓(?:\s+(?:retry-\d+|\d+\/\d+))?|✗\s+(?:\d+\/\d+|\d+\s+attempts)|⚠\s+(?:no\s+judge\s+signal|fallback:\s+0\/\d+\s+passed;\s+chose\s+fork-\d+))\]\s*$/
+  /\s*\[(?:✓(?:\s+(?:retry-\d+|\d+\/\d+))?|✗\s+(?:\d+\/\d+|\d+\s+attempts|invalid)|⚠\s+(?:no\s+judge\s+signal|fallback:\s+0\/\d+\s+passed;\s+chose\s+fork-\d+))\]\s*$/
 
 export const stripReliabilitySuffix = (title: string): string =>
   title.replace(LEGACY_SUFFIX_RE, '').replace(ENGINE_SUFFIX_RE, '')
@@ -19,4 +19,11 @@ export const deriveNodeTitle = (node: { title?: string; command?: string }, next
   const title = node.title ?? ''
   if (!title || isTitleDerivedFromCommand(title, node.command ?? '')) return nextCommand
   return stripReliabilitySuffix(title)
+}
+
+export const extractReliabilitySuffix = (title: string): { baseTitle: string; suffix: string | null } => {
+  const baseTitle = stripReliabilitySuffix(title)
+  if (baseTitle === title) return { baseTitle: title, suffix: null }
+  const suffix = title.slice(baseTitle.length).trim()
+  return { baseTitle: baseTitle.trimEnd(), suffix: suffix || null }
 }

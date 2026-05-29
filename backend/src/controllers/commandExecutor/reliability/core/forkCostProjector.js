@@ -1,5 +1,6 @@
 import {getNodeCommand} from '../../commands/utils/isCommand'
 import {isValidRefineCell, readRefineN} from './refineParams'
+import {readCommodityN} from './commodityParams'
 
 const isProperAncestor = (ancestorId, nodeId, store) => {
   let current = store.getNode(nodeId)
@@ -28,7 +29,7 @@ const collectAllNestedRefines = (node, store, excludeId) => {
 
 const countImmediateScope = (node, store, excludeId) => {
   if (!node) return 0
-  let count = 1
+  let count = readCommodityN(getNodeCommand(node))
   for (const childId of node.children ?? []) {
     if (childId === excludeId) continue
     const child = store.getNode(childId)

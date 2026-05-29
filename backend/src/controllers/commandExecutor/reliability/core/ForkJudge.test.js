@@ -299,3 +299,150 @@ describe('ForkJudge.selectWinner — juror quorum exclusion and noSignal', () =>
     expect(result.noSignal).toBeFalsy()
   })
 })
+
+describe('judgeQualityWarnings', () => {
+  it('no warnings when multiple families configured including a reasoning-capable one', async () => {
+    getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k'}, claude: {apiKey: 'k'}})
+    mockLLMRanking('2,1')
+    const forks = [makeFork(0), makeFork(1)]
+    const result = await makeJudge().selectWinner({
+      forks,
+      validateNodes: [makeValidate('v1', 'quality', 1)],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    expect(result.judgeQualityWarnings).toEqual([])
+  })
+
+  it('noReasoningMode warning when only tier-3 families (no Claude or OpenAI) configured', async () => {
+    getIntegrationSettings.mockResolvedValue({yandex: {apiKey: 'k'}, custom_llm: {apiRootUrl: 'http://x'}})
+    mockLLMRanking('2,1')
+    const forks = [makeFork(0), makeFork(1)]
+    const result = await makeJudge().selectWinner({
+      forks,
+      validateNodes: [makeValidate('v1', 'quality', 1)],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    const conditions = result.judgeQualityWarnings.map(w => w.condition)
+    expect(conditions).toContain('noReasoningMode')
+    const warn = result.judgeQualityWarnings.find(w => w.condition === 'noReasoningMode')
+    expect(warn.severity).toBe('medium')
+  })
+
+  it('no noReasoningMode warning when OpenAI is configured', async () => {
+    getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k'}})
+    mockLLMRanking('2,1')
+    const forks = [makeFork(0), makeFork(1)]
+    const result = await makeJudge().selectWinner({
+      forks,
+      validateNodes: [makeValidate('v1', 'quality', 1)],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    const conditions = result.judgeQualityWarnings.map(w => w.condition)
+    expect(conditions).not.toContain('noReasoningMode')
+  })
+
+  it('no noReasoningMode warning when Claude is configured', async () => {
+    getIntegrationSettings.mockResolvedValue({claude: {apiKey: 'k'}})
+    mockLLMRanking('2,1')
+    const forks = [makeFork(0), makeFork(1)]
+    const result = await makeJudge().selectWinner({
+      forks,
+      validateNodes: [makeValidate('v1', 'quality', 1)],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    const conditions = result.judgeQualityWarnings.map(w => w.condition)
+    expect(conditions).not.toContain('noReasoningMode')
+  })
+
+  it('singleProvider warning when only one family is configured', async () => {
+    getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k'}})
+    mockLLMRanking('2,1')
+    const forks = [makeFork(0), makeFork(1)]
+    const result = await makeJudge().selectWinner({
+      forks,
+      validateNodes: [makeValidate('v1', 'quality', 1)],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    const conditions = result.judgeQualityWarnings.map(w => w.condition)
+    expect(conditions).toContain('singleProvider')
+    const warn = result.judgeQualityWarnings.find(w => w.condition === 'singleProvider')
+    expect(warn.severity).toBe('high')
+  })
+
+  it('lowestTierOnly warning when only tier-3 families configured (also triggers noReasoningMode)', async () => {
+    getIntegrationSettings.mockResolvedValue({yandex: {apiKey: 'k'}, custom_llm: {apiRootUrl: 'http://x'}})
+    mockLLMRanking('2,1')
+    const forks = [makeFork(0), makeFork(1)]
+    const result = await makeJudge().selectWinner({
+      forks,
+      validateNodes: [makeValidate('v1', 'quality', 1)],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    const conditions = result.judgeQualityWarnings.map(w => w.condition)
+    expect(conditions).toContain('lowestTierOnly')
+    expect(conditions).toContain('noReasoningMode')
+    const warn = result.judgeQualityWarnings.find(w => w.condition === 'lowestTierOnly')
+    expect(warn.severity).toBe('medium')
+  })
+
+  it('juryDuplicates warning when jury size exceeds distinct configured families', async () => {
+    // Only 1 family → juror pool of 2 forces a duplicate
+    getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k'}})
+    mockLLMRanking('2,1')
+    const forks = [makeFork(0), makeFork(1)]
+    const result = await makeJudge().selectWinner({
+      forks,
+      // jurorCount=2, but only 1 family → duplicate
+      validateNodes: [makeValidate('v1', 'quality', 2)],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    const conditions = result.judgeQualityWarnings.map(w => w.condition)
+    expect(conditions).toContain('juryDuplicates')
+    const warn = result.judgeQualityWarnings.find(w => w.condition === 'juryDuplicates')
+    expect(warn.severity).toBe('low')
+  })
+
+  it('fallbackWithWeakJudge warning when fallback mode and single provider', async () => {
+    getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k'}})
+    mockLLMRanking('2,1')
+    const primaryForks = []
+    const fallbackForks = [makeFork(0, 'criteria-failed'), makeFork(1, 'criteria-failed')]
+    const result = await makeJudge().selectWinner({
+      forks: [...primaryForks, ...fallbackForks],
+      validateNodes: [makeValidate('v1', 'quality', 1)],
+      parentNodeId: 'parent',
+      fallback: true,
+    })
+    const conditions = result.judgeQualityWarnings.map(w => w.condition)
+    expect(conditions).toContain('fallbackWithWeakJudge')
+    const warn = result.judgeQualityWarnings.find(w => w.condition === 'fallbackWithWeakJudge')
+    expect(warn.severity).toBe('high')
+  })
+
+  it('early return (no candidates) yields empty judgeQualityWarnings', async () => {
+    const result = await makeJudge().selectWinner({
+      forks: [makeFork(0, 'runtime-failed')],
+      validateNodes: [],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    expect(result.judgeQualityWarnings).toEqual([])
+  })
+
+  it('early return (single candidate) yields empty judgeQualityWarnings', async () => {
+    const result = await makeJudge().selectWinner({
+      forks: [makeFork(0)],
+      validateNodes: [],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    expect(result.judgeQualityWarnings).toEqual([])
+  })
+})

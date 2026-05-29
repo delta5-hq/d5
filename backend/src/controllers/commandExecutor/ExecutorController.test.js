@@ -1052,4 +1052,92 @@ describe('ExecutorController', () => {
       })
     })
   })
+
+  describe('CriteriaFailedError catch branch — HTTP 200 with nodesChanged', () => {
+    const apiEndpoint = '/execute'
+
+    const buildValidateWorkflow = () => {
+      const root = {
+        id: 'root',
+        x: 0,
+        y: 0,
+        width: 1024,
+        height: 768,
+        parent: null,
+        command: '/chat do task',
+        title: '/chat do task',
+        children: ['v0'],
+      }
+      const validateNode = {
+        id: 'v0',
+        x: 0,
+        y: 0,
+        width: 280,
+        height: 50,
+        parent: 'root',
+        command: '/validate criterion :retry=0',
+        title: '/validate criterion :retry=0',
+        children: [],
+      }
+      return {
+        workflowId: 'test-wf',
+        queryType: 'chat',
+        cell: root,
+        workflowNodes: {root, v0: validateNode},
+        workflowFiles: {},
+      }
+    }
+
+    it('returns HTTP 200 (not 500) when validate exhausts retry budget', async () => {
+      const {ChatCommand} = require('./commands/ChatCommand')
+      const {ValidateCommand} = require('./reliability/core/ValidateCommand')
+      const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+      const validateSpy = jest
+        .spyOn(ValidateCommand.prototype, 'run')
+        .mockResolvedValue({passed: false, criterion: 'criterion', reason: 'fail'})
+
+      const response = await customerRequest.post(apiEndpoint).send(buildValidateWorkflow())
+
+      chatSpy.mockRestore()
+      validateSpy.mockRestore()
+
+      expect(response.status).toBe(200)
+    })
+
+    it('returns nodesChanged containing the validate node with failure suffix', async () => {
+      const {ChatCommand} = require('./commands/ChatCommand')
+      const {ValidateCommand} = require('./reliability/core/ValidateCommand')
+      const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+      const validateSpy = jest
+        .spyOn(ValidateCommand.prototype, 'run')
+        .mockResolvedValue({passed: false, criterion: 'criterion', reason: 'fail'})
+
+      const {body} = await customerRequest.post(apiEndpoint).send(buildValidateWorkflow())
+
+      chatSpy.mockRestore()
+      validateSpy.mockRestore()
+
+      const validateChanged = body.nodesChanged?.find(n => n.id === 'v0')
+      expect(validateChanged).toBeDefined()
+      expect(validateChanged.title).toMatch(/\[✗ 1 attempts\]/)
+    })
+
+    it('emits emitComplete (not emitError) on CriteriaFailedError', async () => {
+      const {progressEventEmitter} = require('../../services/progress-event-emitter')
+      const {ChatCommand} = require('./commands/ChatCommand')
+      const {ValidateCommand} = require('./reliability/core/ValidateCommand')
+      const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+      const validateSpy = jest
+        .spyOn(ValidateCommand.prototype, 'run')
+        .mockResolvedValue({passed: false, criterion: 'criterion', reason: 'fail'})
+
+      await customerRequest.post(apiEndpoint).send(buildValidateWorkflow())
+
+      chatSpy.mockRestore()
+      validateSpy.mockRestore()
+
+      expect(progressEventEmitter.emitComplete).toHaveBeenCalled()
+      expect(progressEventEmitter.emitError).not.toHaveBeenCalled()
+    })
+  })
 })

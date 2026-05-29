@@ -31,6 +31,7 @@ export type NodeContent = {
   command?: string
   collapsed?: boolean
   parent?: NodeId
+  reliabilityMetadata?: ReliabilityMetadata
   /** Container config for grouping children */
   container?: {
     type: string
@@ -47,6 +48,33 @@ export type NodeData = NodeContent & {
 }
 
 export type NodeDatas = Record<NodeId, NodeData>
+
+export type ForkRanking = {
+  forkIndex: number
+  rank: number
+}
+
+export type JudgeQualityWarning = {
+  condition: 'singleProvider' | 'lowestTierOnly' | 'juryDuplicates' | 'fallbackWithWeakJudge' | 'noReasoningMode'
+  severity: 'high' | 'medium' | 'low'
+}
+
+export type CriterionVerdict = {
+  criterionId: string
+  criterion: string
+  forkRankings: ForkRanking[]
+}
+
+export type ReliabilityMetadata = {
+  winnerForkIndex: number
+  perCriterionVerdict: CriterionVerdict[]
+  mode: 'strict' | 'fallback'
+  selectionLayer: 'primary' | 'fallback'
+  noSignal: boolean
+  eligible: number
+  total: number
+  judgeQualityWarnings?: JudgeQualityWarning[]
+}
 
 export type EdgeContent = {
   id?: EdgeId

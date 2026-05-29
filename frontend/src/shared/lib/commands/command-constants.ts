@@ -19,6 +19,7 @@ export const DOWNLOAD_QUERY = '/download'
 export const DEEPSEEK_QUERY = '/deepseek'
 export const CUSTOM_LLM_CHAT_QUERY = '/custom'
 export const REFINE_QUERY = '/refine'
+export const VALIDATE_QUERY = '/validate'
 export const COMPLETION_QUERY = '/chat'
 export const MEMORIZE_QUERY = '/memorize'
 

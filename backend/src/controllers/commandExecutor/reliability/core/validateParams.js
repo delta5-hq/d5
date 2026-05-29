@@ -34,3 +34,5 @@ export const readValidateCriterion = command => {
   }
   return text.trim()
 }
+
+export const hasValidCriterion = command => readValidateCriterion(command).length > 0

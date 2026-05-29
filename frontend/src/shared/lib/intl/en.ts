@@ -415,6 +415,36 @@ export default {
       editHint: 'Double-click to edit',
       preview: 'Preview',
       previewError: 'Preview failed',
+      refineCostHint: '⚡ ~{cost} LLM {cost, plural, one {call} other {calls}}',
+      refineCostOverLimit: '⛔ Exceeds :limit= — will be refused ({cost} calls)',
+      verdictButton: 'View verdict',
+    },
+
+    verdictDrawer: {
+      title: 'Per-criterion verdict',
+      winnerLabel: '(winner)',
+      criterionLabel: 'Criterion',
+      rankingsLabel: 'Fork rankings',
+      forkLabel: 'Fork {index}',
+      rankLabel: '#{rank}',
+      modeStrict: 'strict',
+      modeFallback: 'fallback',
+      modeLabel: 'Mode: {mode}',
+      eligibleLabel: '{eligible} of {total} forks passed',
+      noSignalWarning: 'No juror rankings collected — winner selected by position',
+      judgeQualityWarningsTitle: 'Judge quality warnings',
+      judgeQualityWarning_singleProvider:
+        'Single provider configured — cross-family judging impossible; judge inherits generator bias',
+      judgeQualityWarning_lowestTierOnly: 'Only lowest-tier models configured — reliability bound is loose',
+      judgeQualityWarning_juryDuplicates:
+        'Jury size exceeds distinct families — some jurors are same-family duplicates',
+      judgeQualityWarning_fallbackWithWeakJudge:
+        'Fallback mode with weak judge — degraded output accepted with reduced confidence',
+      judgeQualityWarning_noReasoningMode:
+        'No reasoning-capable model configured — judge operates without extended analysis',
+      judgeQualitySeverityHigh: 'high',
+      judgeQualitySeverityMedium: 'medium',
+      judgeQualitySeverityLow: 'low',
     },
 
     status: {

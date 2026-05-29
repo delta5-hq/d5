@@ -1,4 +1,65 @@
-import {readRefineN, readFallbackFlag, isValidRefineCell} from './refineParams'
+import {readRawRefineN, readRefineN, readFallbackFlag, isValidRefineCell} from './refineParams'
+
+describe('readRawRefineN', () => {
+  describe('falsy input → null', () => {
+    it.each([null, undefined, ''])('returns null for %p', input => {
+      expect(readRawRefineN(input)).toBeNull()
+    })
+  })
+
+  describe(':n= absent or non-numeric → null', () => {
+    it('returns null when :n= is absent', () => {
+      expect(readRawRefineN('/refine')).toBeNull()
+    })
+
+    it('returns null when :n= has no digit (trailing equals)', () => {
+      expect(readRawRefineN('/refine :n=')).toBeNull()
+    })
+
+    it('returns null for alphabetic content (:n=abc)', () => {
+      expect(readRawRefineN('/refine :n=abc')).toBeNull()
+    })
+  })
+
+  describe('returns raw integer without range clamping', () => {
+    it.each([
+      ['/refine :n=0', 0],
+      ['/refine :n=1', 1],
+      ['/refine :n=2', 2],
+      ['/refine :n=5', 5],
+      ['/refine :n=100', 100],
+    ])('parses "%s" → %i (no clamping applied)', (command, expected) => {
+      expect(readRawRefineN(command)).toBe(expected)
+    })
+  })
+
+  describe('contract: readRawRefineN vs readRefineN differ only below the minimum', () => {
+    it('readRefineN returns null for :n=1 while readRawRefineN returns 1', () => {
+      expect(readRawRefineN('/refine :n=1')).toBe(1)
+      expect(readRefineN('/refine :n=1')).toBeNull()
+    })
+
+    it('readRefineN returns null for :n=0 while readRawRefineN returns 0', () => {
+      expect(readRawRefineN('/refine :n=0')).toBe(0)
+      expect(readRefineN('/refine :n=0')).toBeNull()
+    })
+
+    it('both functions return the same value for N >= 2', () => {
+      const command = '/refine :n=3'
+      expect(readRawRefineN(command)).toBe(readRefineN(command))
+    })
+  })
+
+  describe(':n= extracted regardless of surrounding parameters', () => {
+    it('extracts N when :n= is followed by other params', () => {
+      expect(readRawRefineN('/refine :n=3 :fallback')).toBe(3)
+    })
+
+    it('returns first :n= match when multiple appear', () => {
+      expect(readRawRefineN('/refine :n=2 :n=5')).toBe(2)
+    })
+  })
+})
 
 describe('readRefineN', () => {
   describe('falsy input → null', () => {

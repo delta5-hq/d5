@@ -428,3 +428,61 @@ describe('ValidateCommand.run', () => {
     })
   })
 })
+
+describe('auto-grandparent traversal for descendant topology', () => {
+  it('when validate parent is /refine, extracts content from /refine grandparent', async () => {
+    const store = buildStore({
+      grandparent: {id: 'grandparent', command: '/chat do task', children: ['refine']},
+      refine: {id: 'refine', parent: 'grandparent', command: '/refine :n=2', children: ['v']},
+      v: {id: 'v', parent: 'refine', command: '/validate must include numbers', children: []},
+    })
+    setupLLM(['YES'])
+    let capturedNode
+    NodeTextExtractor.mockImplementation(() => ({
+      extractFullContent: jest.fn().mockImplementation(node => {
+        capturedNode = node
+        return Promise.resolve('content with 42 numbers')
+      }),
+    }))
+
+    const cmd = new ValidateCommand('user1', null, store)
+    const result = await cmd.run(store.getNode('v'))
+
+    expect(capturedNode).toBe(store.getNode('grandparent'))
+    expect(result.passed).toBe(true)
+  })
+
+  it('passes silently when /refine has no grandparent (orphaned /refine)', async () => {
+    const store = buildStore({
+      refine: {id: 'refine', command: '/refine :n=2', children: ['v']},
+      v: {id: 'v', parent: 'refine', command: '/validate must include numbers', children: []},
+    })
+    setupLLM(['NO: missing'])
+    setupExtractor('')
+
+    const cmd = new ValidateCommand('user1', null, store)
+    const result = await cmd.run(store.getNode('v'))
+    // parentNode fallback stays as /refine itself; /refine has no output content → pass silently
+    expect(result.passed).toBe(true)
+  })
+
+  it('normal topology (validate parent is /chat, not /refine) is unaffected', async () => {
+    const store = buildStore({
+      chat: {id: 'chat', command: '/chat do task', children: ['v']},
+      v: {id: 'v', parent: 'chat', command: '/validate must include numbers', children: []},
+    })
+    setupLLM(['YES'])
+    let capturedNode
+    NodeTextExtractor.mockImplementation(() => ({
+      extractFullContent: jest.fn().mockImplementation(node => {
+        capturedNode = node
+        return Promise.resolve('content with 42 numbers')
+      }),
+    }))
+
+    const cmd = new ValidateCommand('user1', null, store)
+    await cmd.run(store.getNode('v'))
+
+    expect(capturedNode).toBe(store.getNode('chat'))
+  })
+})

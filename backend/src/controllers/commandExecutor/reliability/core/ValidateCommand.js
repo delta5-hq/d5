@@ -4,6 +4,7 @@ import {getIntegrationSettings, determineLLMType, getLLM} from '../../commands/u
 import {NodeTextExtractor} from '../../commands/utils/NodeTextExtractor'
 import {getNodeCommand} from '../../commands/utils/isCommand'
 import {isValidateCell, readValidateCriterion, readValidateN} from './validateParams'
+import {isValidRefineCell} from './refineParams'
 
 const log = debug('delta5:validate')
 
@@ -36,8 +37,12 @@ export class ValidateCommand {
     const criterion = readValidateCriterion(command)
     const n = readValidateN(command)
 
-    const parentNode = this.store.getNode(validateNode.parent)
+    let parentNode = this.store.getNode(validateNode.parent)
     if (!parentNode) return {passed: true, criterion, reason: ''}
+    // /refine has no output content of its own — walk up to find the content-producing ancestor.
+    if (isValidRefineCell(getNodeCommand(parentNode))) {
+      parentNode = this.store.getNode(parentNode.parent) || parentNode
+    }
 
     const extractor = new NodeTextExtractor(Infinity, skipValidateFn, this.store)
     const content = await extractor.extractFullContent(parentNode)

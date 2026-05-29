@@ -4,7 +4,13 @@ import {getIntegrationSettings, getLLM} from '../../commands/utils/langchain/get
 import {NodeTextExtractor} from '../../commands/utils/NodeTextExtractor'
 import {getNodeCommand} from '../../commands/utils/isCommand'
 import {isValidateCell, readValidateCriterion, readValidateN} from './validateParams'
-import {selfJudgingGuard, selectJurors} from './ModelFamilyRouter'
+import {
+  selfJudgingGuard,
+  selectJurors,
+  getConfiguredFamilies,
+  STRENGTH_TIERS,
+  hasReasoningCapableFamily,
+} from './ModelFamilyRouter'
 import {parseRankingResponse} from './rankingParser'
 
 const log = debug('delta5:forkjudge')
@@ -49,6 +55,7 @@ export class ForkJudge {
    *   mode: 'strict'|'fallback',
    *   selectionLayer: 'primary'|'fallback'|'none',
    *   noSignal: boolean,
+   *   judgeQualityWarnings: {condition: string, severity: 'high'|'medium'|'low'}[],
    * }>}
    */
   async selectWinner({forks, validateNodes, parentNodeId, fallback = false, signal = null}) {
@@ -70,6 +77,7 @@ export class ForkJudge {
         perCriterionVerdict: [],
         mode: fallback ? 'fallback' : 'strict',
         selectionLayer: 'none',
+        judgeQualityWarnings: [],
       }
     }
 
@@ -79,6 +87,7 @@ export class ForkJudge {
         perCriterionVerdict: [],
         mode: fallback ? 'fallback' : 'strict',
         selectionLayer,
+        judgeQualityWarnings: [],
       }
     }
 
@@ -89,9 +98,20 @@ export class ForkJudge {
       settings = {}
     }
 
+    const configuredFamilies = getConfiguredFamilies(settings)
+    const judgeQualityWarnings = []
+    const singleProvider = configuredFamilies.length === 1
+    const lowestTierOnly =
+      configuredFamilies.length > 0 && configuredFamilies.every(f => (STRENGTH_TIERS[f] ?? 99) >= 3)
+    const noReasoningMode = !hasReasoningCapableFamily(settings)
+    if (singleProvider) judgeQualityWarnings.push({condition: 'singleProvider', severity: 'high'})
+    if (lowestTierOnly) judgeQualityWarnings.push({condition: 'lowestTierOnly', severity: 'medium'})
+    if (noReasoningMode) judgeQualityWarnings.push({condition: 'noReasoningMode', severity: 'medium'})
+
     const perCriterionVerdict = []
     const bordaScores = new Array(candidateForks.length).fill(0)
     let totalRankingsCollected = 0
+    let hadJuryDuplicates = false
 
     const contents = await Promise.all(candidateForks.map(f => extractForkContent(parentNodeId, f.forkStore)))
 
@@ -112,6 +132,7 @@ export class ForkJudge {
 
     for (const {id, criterion, jurorCount} of criteria) {
       const jurors = selectJurors(jurorCount, '__none__', settings)
+      if (jurors.some(j => j.duplicate)) hadJuryDuplicates = true
       const allRankings = []
 
       for (const juror of jurors) {
@@ -157,11 +178,14 @@ export class ForkJudge {
 
     const noSignal = totalRankingsCollected === 0
 
-    // When noSignal, all scores are zero — fork 0 wins deterministically;
-    // the caller is responsible for surfacing the noSignal flag to the user.
     let winnerIdx = 0
     for (let i = 1; i < bordaScores.length; i++) {
       if (bordaScores[i] < bordaScores[winnerIdx]) winnerIdx = i
+    }
+
+    if (hadJuryDuplicates) judgeQualityWarnings.push({condition: 'juryDuplicates', severity: 'low'})
+    if (selectionLayer === 'fallback' && (singleProvider || lowestTierOnly)) {
+      judgeQualityWarnings.push({condition: 'fallbackWithWeakJudge', severity: 'high'})
     }
 
     return {
@@ -170,6 +194,7 @@ export class ForkJudge {
       mode: fallback ? 'fallback' : 'strict',
       selectionLayer,
       noSignal,
+      judgeQualityWarnings,
     }
   }
 }

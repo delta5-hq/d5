@@ -1,22 +1,24 @@
 import { test, expect } from '@playwright/test'
-import { adminLogin, createWorkflow } from './utils'
+import { qaBotLogin, createWorkflow } from './utils'
 import { WorkflowTreePage, NodeDetailPanelPage } from './page-objects'
 import { TIMEOUTS } from './config/test-timeouts'
 
 const LLM_TIMEOUT = 120_000
 const SUFFIX_RE = /\[(?:✓|✗)[^\]]+\]/
-const VALIDATE_SUFFIX_RE = /\[(?:✓|✗)[^\]]*\]/
+const COMMODITY_SUFFIX_RE = (n: number) => new RegExp(`\\[(?:✓|✗) \\d+\\/${n}\\]`)
+const VALIDATE_VERDICT_RE = /\[(?:✓(?:\s+retry-\d+)?|✗\s+\d+\s+attempts)\]/
+const VALIDATE_FAIL_RE = /\[✗\s+\d+\s+attempts\]/
 
-async function setupLLMWorkflow(page: Parameters<typeof adminLogin>[0]) {
+async function setupLLMWorkflow(page: Parameters<typeof qaBotLogin>[0]) {
   await page.goto('/workflows')
-  await adminLogin(page)
+  await qaBotLogin(page)
   await createWorkflow(page)
   await page.waitForLoadState('networkidle')
   await page.getByTestId('create-first-node').click()
   await page.locator('[data-node-id]').first().waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
 }
 
-async function selectRootAndOpenDetail(page: Parameters<typeof adminLogin>[0]) {
+async function selectRootAndOpenDetail(page: Parameters<typeof qaBotLogin>[0]) {
   const tree = new WorkflowTreePage(page)
   const detail = new NodeDetailPanelPage(page)
   const rootId = await tree.rootNodeId()
@@ -26,7 +28,7 @@ async function selectRootAndOpenDetail(page: Parameters<typeof adminLogin>[0]) {
 }
 
 async function executeAndWaitForCompletion(
-  page: Parameters<typeof adminLogin>[0],
+  page: Parameters<typeof qaBotLogin>[0],
   detail: NodeDetailPanelPage,
 ) {
   await detail.execute()
@@ -34,7 +36,7 @@ async function executeAndWaitForCompletion(
   await page.getByTestId('abort-node-button').waitFor({ state: 'hidden', timeout: LLM_TIMEOUT })
 }
 
-async function nodeTitle(page: Parameters<typeof adminLogin>[0], nodeId: string): Promise<string> {
+async function nodeTitle(page: Parameters<typeof qaBotLogin>[0], nodeId: string): Promise<string> {
   const text = await page.locator(`[data-node-id="${nodeId}"]`).textContent()
   return text?.trim() ?? ''
 }
@@ -46,39 +48,42 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     await setupLLMWorkflow(page)
   })
 
-  // Spec contract (TODO.md surface table): `:n=N` on plain LLM cells | Kept as commodity ("do this and triple-check").
-  // The commodity row promises N attempts; the spec attaches no suffix grammar to plain `:n=N`
-  // (only `/refine` and `/validate` rows promise suffixes). Tests verify N attempts via child count.
-  test('bestOf :n=2 — commodity runs N attempts on plain LLM cell', async ({ page }) => {
+  test('bestOf :n=2 — commodity writes [(?:✓|✗) K/2] suffix on plain LLM cell', async ({ page }) => {
     const tree = new WorkflowTreePage(page)
-    const { detail } = await selectRootAndOpenDetail(page)
+    const { detail, rootId } = await selectRootAndOpenDetail(page)
     await detail.fillCommand('/chat :n=2 List 3 colors')
 
     await executeAndWaitForCompletion(page, detail)
 
     await expect(tree.nodes.first()).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
+    const rootTitle = await nodeTitle(page, rootId)
+    expect(rootTitle).toMatch(COMMODITY_SUFFIX_RE(2))
     expect(await tree.nodes.count()).toBeGreaterThanOrEqual(2)
   })
 
-  test('bestOf :n=3 — commodity runs N attempts on plain LLM cell', async ({ page }) => {
+  test('bestOf :n=3 — commodity writes [(?:✓|✗) K/3] suffix on plain LLM cell', async ({ page }) => {
     const tree = new WorkflowTreePage(page)
-    const { detail } = await selectRootAndOpenDetail(page)
+    const { detail, rootId } = await selectRootAndOpenDetail(page)
     await detail.fillCommand('/chat :n=3 List 3 fruits')
 
     await executeAndWaitForCompletion(page, detail)
 
     await expect(tree.nodes.first()).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
+    const rootTitle = await nodeTitle(page, rootId)
+    expect(rootTitle).toMatch(COMMODITY_SUFFIX_RE(3))
     expect(await tree.nodes.count()).toBeGreaterThanOrEqual(2)
   })
 
-  test('bestOf :n=5 — commodity runs N attempts on plain LLM cell', async ({ page }) => {
+  test('bestOf :n=5 — commodity writes [(?:✓|✗) K/5] suffix on plain LLM cell', async ({ page }) => {
     const tree = new WorkflowTreePage(page)
-    const { detail } = await selectRootAndOpenDetail(page)
+    const { detail, rootId } = await selectRootAndOpenDetail(page)
     await detail.fillCommand('/chat :n=5 List 3 animals')
 
     await executeAndWaitForCompletion(page, detail)
 
     await expect(tree.nodes.first()).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
+    const rootTitle = await nodeTitle(page, rootId)
+    expect(rootTitle).toMatch(COMMODITY_SUFFIX_RE(5))
     expect(await tree.nodes.count()).toBeGreaterThanOrEqual(2)
   })
 
@@ -142,8 +147,6 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     expect(refineTitle).toMatch(/\[(?:✓|✗) \d+\/3/)
   })
 
-  // Spec contract (TODO.md `/validate` row + runCommand.js:261): `/validate` writes its suffix
-  // to the validate cell's own title, not the parent. Test asserts the validate-cell suffix.
   test('validate — Job 1 writes suffix on the validate cell after parent post-processing', async ({ page }) => {
     const tree = new WorkflowTreePage(page)
     const { detail, rootId } = await selectRootAndOpenDetail(page)
@@ -161,7 +164,7 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     await detail.waitForComponent()
     await executeAndWaitForCompletion(page, detail)
 
-    expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_SUFFIX_RE)
+    expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_VERDICT_RE)
   })
 
   test('executing visual state — abort button visible while running', async ({ page }) => {
@@ -174,16 +177,16 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     await expect(page.getByTestId('abort-node-button')).not.toBeVisible()
   })
 
-  // Spec contract (TODO.md commodity row): N attempts persist; spec attaches no suffix
-  // to plain `:n=N`. Test verifies the attempts (child outputs) survive a page reload.
-  test('reload persistence — commodity child outputs survive page reload', async ({ page }) => {
+  test('reload persistence — commodity suffix and child outputs survive page reload', async ({ page }) => {
     const tree = new WorkflowTreePage(page)
-    const { detail } = await selectRootAndOpenDetail(page)
+    const { detail, rootId } = await selectRootAndOpenDetail(page)
     await detail.fillCommand('/chat :n=2 List 3 colors')
     await executeAndWaitForCompletion(page, detail)
 
     const countBeforeReload = await tree.nodes.count()
     expect(countBeforeReload).toBeGreaterThanOrEqual(2)
+    const titleBefore = await nodeTitle(page, rootId)
+    expect(titleBefore).toMatch(COMMODITY_SUFFIX_RE(2))
 
     await page.reload()
     await page.waitForLoadState('networkidle')
@@ -191,10 +194,10 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     const reloadedTree = new WorkflowTreePage(page)
     await expect(reloadedTree.nodes.first()).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
     expect(await reloadedTree.nodes.count()).toBe(countBeforeReload)
+    const titleAfter = await nodeTitle(page, rootId)
+    expect(titleAfter).toMatch(COMMODITY_SUFFIX_RE(2))
   })
 
-  // Spec contract (TODO.md `/validate` row): on Job 1 exhaustion the validate cell shows
-  // `[✗ N attempts]`. Suffix lives on the validate cell, not the parent.
   test('validate Job 1 exhaustion — failure suffix on the validate cell', async ({ page }) => {
     const { detail, rootId } = await selectRootAndOpenDetail(page)
     await detail.fillCommand('/chat :n=2 List 3 colors')
@@ -212,6 +215,6 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     await detail.waitForComponent()
     await executeAndWaitForCompletion(page, detail)
 
-    expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_SUFFIX_RE)
+    expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_FAIL_RE)
   })
 })

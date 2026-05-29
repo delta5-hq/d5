@@ -44,6 +44,10 @@ contribot.state.json
 transcripts/
 *.pid
 
+# Agent/IDE tooling state
+.claude/
+frontend/.interface-design/
+
 # Test artifacts (if running from root)
 test-results/
 playwright-report/

@@ -263,4 +263,130 @@ describe('projectForkCost', () => {
       expect(projectForkCost(store.getNode('main'), store)).toBe(5)
     })
   })
+
+  describe('commodity :n=N on plain LLM cell: counted N times in scope', () => {
+    it('/chat :n=N parent: scope counts N instead of 1', () => {
+      /*
+       * parent (/chat :n=5)   ← counts as 5 (commodity)
+       *   └── /refine :n=3    ← excluded
+       *
+       * scope = 5, cost = 3 × 5 = 15
+       */
+      const store = buildStore({
+        parent: {id: 'parent', command: '/chat :n=5', children: ['refine']},
+        refine: {id: 'refine', parent: 'parent', command: '/refine :n=3', children: []},
+      })
+      expect(projectForkCost(store.getNode('refine'), store)).toBe(15)
+    })
+
+    it('/chat :n=N sibling: counted alongside plain siblings by its commodity value', () => {
+      /*
+       * parent (/steps)           ← 1
+       *   ├── chatA (/chat :n=2)  ← 2  (commodity)
+       *   └── /refine :n=3        ← excluded
+       *
+       * scope = 3, cost = 3 × 3 = 9
+       */
+      const store = buildStore({
+        parent: {id: 'parent', command: '/steps', children: ['chatA', 'refine']},
+        chatA: {id: 'chatA', parent: 'parent', command: '/chat :n=2', children: []},
+        refine: {id: 'refine', parent: 'parent', command: '/refine :n=3', children: []},
+      })
+      expect(projectForkCost(store.getNode('refine'), store)).toBe(9)
+    })
+
+    it(':n=1 below the minimum threshold returns 1, same as no :n= param', () => {
+      /*
+       * parent (/chat :n=1)  ← readCommodityN returns 1 (n < 2 guard)
+       *   └── /refine :n=3   ← excluded
+       *
+       * scope = 1, cost = 3 × 1 = 3
+       */
+      const store = buildStore({
+        parent: {id: 'parent', command: '/chat :n=1', children: ['refine']},
+        refine: {id: 'refine', parent: 'parent', command: '/refine :n=3', children: []},
+      })
+      expect(projectForkCost(store.getNode('refine'), store)).toBe(3)
+    })
+
+    it(':n=N exceeding COMMODITY_N_MAX=10 is capped at 10', () => {
+      /*
+       * parent (/chat :n=99)  ← capped to 10
+       *   └── /refine :n=2   ← excluded
+       *
+       * scope = 10, cost = 2 × 10 = 20
+       */
+      const store = buildStore({
+        parent: {id: 'parent', command: '/chat :n=99', children: ['refine']},
+        refine: {id: 'refine', parent: 'parent', command: '/refine :n=2', children: []},
+      })
+      expect(projectForkCost(store.getNode('refine'), store)).toBe(20)
+    })
+
+    it('/validate :n=N is immune — jury count does not affect execution cost', () => {
+      /*
+       * parent (/chat)           ← 1
+       *   ├── /validate :n=5 C  ← 1 (validate filtered; :n= is jury count, not runs)
+       *   └── /refine :n=3      ← excluded
+       *
+       * scope = 2, cost = 3 × 2 = 6
+       */
+      const store = buildStore({
+        parent: {id: 'parent', command: '/chat', children: ['v', 'refine']},
+        v: {id: 'v', parent: 'parent', command: '/validate :n=5 must include numbers', children: []},
+        refine: {id: 'refine', parent: 'parent', command: '/refine :n=3', children: []},
+      })
+      expect(projectForkCost(store.getNode('refine'), store)).toBe(6)
+    })
+
+    it('multiple commodity siblings: each sibling :n=N contributes independently to scope', () => {
+      /*
+       * parent (/steps)          ← 1
+       *   ├── chatA (/chat :n=3) ← 3
+       *   ├── chatB (/chat :n=4) ← 4
+       *   └── /refine :n=2       ← excluded
+       *
+       * scope = 1 + 3 + 4 = 8, cost = 2 × 8 = 16
+       */
+      const store = buildStore({
+        parent: {id: 'parent', command: '/steps', children: ['chatA', 'chatB', 'refine']},
+        chatA: {id: 'chatA', parent: 'parent', command: '/chat :n=3', children: []},
+        chatB: {id: 'chatB', parent: 'parent', command: '/chat :n=4', children: []},
+        refine: {id: 'refine', parent: 'parent', command: '/refine :n=2', children: []},
+      })
+      expect(projectForkCost(store.getNode('refine'), store)).toBe(16)
+    })
+
+    it('commodity grandchild: recursive scope walk accumulates :n=N from nested plain LLM cells', () => {
+      /*
+       * outerParent (/steps)           ← outer scope: 1
+       *   ├── innerParent (/chat :n=2) ← outer scope: 2 (commodity); inner scope: 2
+       *   │     └── innerR (/refine :n=3) ← boundary; inner cost = 3 × 2 = 6
+       *   └── outerR (/refine :n=2)    ← excluded
+       *
+       * outer scope = 1 + 2 = 3, outer cost = 2 × 3 + 6 = 12
+       */
+      const store = buildStore({
+        outerParent: {id: 'outerParent', command: '/steps', children: ['innerParent', 'outerR']},
+        innerParent: {id: 'innerParent', parent: 'outerParent', command: '/chat :n=2', children: ['innerR']},
+        innerR: {id: 'innerR', parent: 'innerParent', command: '/refine :n=3', children: []},
+        outerR: {id: 'outerR', parent: 'outerParent', command: '/refine :n=2', children: []},
+      })
+      expect(projectForkCost(store.getNode('outerR'), store)).toBe(12)
+    })
+
+    it(':limit= on /refine does not affect cost — only :n= determines the fork multiplier', () => {
+      /*
+       * parent (/chat :n=10)          ← counts as 10
+       *   └── /refine :n=3 :limit=xs  ← :limit= ignored by projector
+       *
+       * scope = 10, cost = 3 × 10 = 30
+       */
+      const store = buildStore({
+        parent: {id: 'parent', command: '/chat :n=10', children: ['refine']},
+        refine: {id: 'refine', parent: 'parent', command: '/refine :n=3 :limit=xs', children: []},
+      })
+      expect(projectForkCost(store.getNode('refine'), store)).toBe(30)
+    })
+  })
 })
