@@ -241,6 +241,7 @@ test.describe('Dual sidebar mobile behavior', () => {
 
       const menuToggle = page.getByRole('button', { name: 'Toggle menu' })
       await menuToggle.click()
+      await secondarySidebar.waitForMobileVisible()
 
       const mobileVisible = await secondarySidebar.isMobileSidebarVisible()
       expect(mobileVisible).toBe(true)
@@ -255,6 +256,7 @@ test.describe('Dual sidebar mobile behavior', () => {
       const secondarySidebar = new SecondarySidebarPage(page)
 
       await primaryNav.clickHome()
+      await page.waitForLoadState('networkidle')
 
       await expect(secondarySidebar.root).toBeVisible()
 

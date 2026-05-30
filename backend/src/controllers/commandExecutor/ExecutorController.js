@@ -125,6 +125,16 @@ const ExecutorController = {
           progressEventEmitter.emitComplete(nodeId, {queryType})
         }
         ctx.body = result
+      } else if (e instanceof CriteriaFailedError) {
+        console.error(e)
+        if (streamSessionId) {
+          StreamBridge.emit(streamSessionId, StreamEvent.error(e))
+          StreamBridge.closeSession(streamSessionId)
+        }
+        if (nodeId) {
+          progressEventEmitter.emitError(nodeId, e, {queryType})
+        }
+        ctx.throw(422, e.message || 'All criteria failed')
       } else {
         console.error(e)
         if (streamSessionId) {

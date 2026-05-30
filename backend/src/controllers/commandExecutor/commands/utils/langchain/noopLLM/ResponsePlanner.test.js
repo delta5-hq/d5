@@ -1,4 +1,4 @@
-import {planResponse} from './ResponsePlanner'
+import {planResponse, MOCK_VERIFIER_FAIL_KEYWORD} from './ResponsePlanner'
 
 const generatorContent = corpus => `gen:${corpus.slice(0, 20)}`
 
@@ -32,12 +32,33 @@ describe('ResponsePlanner', () => {
   })
 
   describe('verifier prompt classification', () => {
-    it('returns YES when system prompt is the verifier prompt', () => {
+    it('returns YES when criterion does not contain the REJECT keyword', () => {
       const messages = [
         {content: 'You are a strict quality verifier. Reply ONLY with YES or NO: <reason>.'},
         {content: 'Criterion: must mention water\nContent: the ocean is wet'},
       ]
-      expect(planResponse(messages, generatorContent)).toMatch(/^YES/)
+      expect(planResponse(messages, generatorContent)).toBe('YES')
+    })
+
+    it('returns NO when criterion contains the REJECT keyword', () => {
+      const messages = [
+        {content: 'You are a strict quality verifier. Reply ONLY with YES or NO: <reason>.'},
+        {content: `Criterion: ${MOCK_VERIFIER_FAIL_KEYWORD} — deliberately unsatisfiable\nContent: anything`},
+      ]
+      expect(planResponse(messages, generatorContent)).toMatch(/^NO/)
+    })
+
+    it('REJECT keyword match is case-insensitive', () => {
+      const messages = [
+        {content: 'You are a strict quality verifier. Reply ONLY with YES or NO: <reason>.'},
+        {content: 'Criterion: reject this output always\nContent: anything'},
+      ]
+      expect(planResponse(messages, generatorContent)).toMatch(/^NO/)
+    })
+
+    it('returns YES when verifier prompt has no Criterion field', () => {
+      const messages = [{content: 'strict quality verifier — Reply ONLY with YES or NO'}]
+      expect(planResponse(messages, generatorContent)).toBe('YES')
     })
   })
 
@@ -88,12 +109,12 @@ describe('ResponsePlanner', () => {
         {content: 'strict quality verifier — Reply ONLY with YES or NO'},
         {content: 'List 3 colors that satisfy the criterion'},
       ]
-      expect(planResponse(messages, generatorContent)).toMatch(/^YES/)
+      expect(planResponse(messages, generatorContent)).toMatch(/^(YES|NO)/)
     })
 
     it('is case-insensitive on marker detection', () => {
       const messages = [{content: 'STRICT QUALITY VERIFIER reply with yes or no'}, {content: 'anything'}]
-      expect(planResponse(messages, generatorContent)).toMatch(/^YES/)
+      expect(planResponse(messages, generatorContent)).toMatch(/^(YES|NO)/)
     })
   })
 

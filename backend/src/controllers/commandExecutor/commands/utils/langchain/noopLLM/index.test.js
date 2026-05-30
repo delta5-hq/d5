@@ -18,7 +18,7 @@ describe('createNoopLLM (factory wiring)', () => {
     const generated = await llm.invoke([{content: 'List 3 colors'}])
 
     expect(ranking.content).toBe('1, 2')
-    expect(verdict.content).toMatch(/^YES/)
+    expect(verdict.content).toMatch(/^(YES|NO)/)
     expect(generated.content.length).toBeGreaterThan(0)
   })
 

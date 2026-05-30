@@ -12,16 +12,15 @@ import {
   hasReasoningCapableFamily,
 } from './ModelFamilyRouter'
 import {parseRankingResponse} from './rankingParser'
+import {computePerForkContentBudget, isDegradedInput} from './judgeContentBudget'
 
 const log = debug('delta5:forkjudge')
-
-const MAX_CONTENT_CHARS = 2000
 
 const RANK_SYSTEM_PROMPT =
   'You are a strict quality judge. Given N candidate outputs, rank them from best (1) to worst (N) on how well they satisfy the criterion. Respond ONLY with a comma-separated list of candidate numbers in rank order, best first. Example for 3 candidates: "2,1,3".'
 
-const buildRankMessage = (criterion, contents) => {
-  const candidates = contents.map((c, i) => `=== Candidate ${i + 1} ===\n${c.slice(0, MAX_CONTENT_CHARS)}`).join('\n\n')
+const buildRankMessage = (criterion, contents, perForkBudget) => {
+  const candidates = contents.map((c, i) => `=== Candidate ${i + 1} ===\n${c.slice(0, perForkBudget)}`).join('\n\n')
   return `Criterion: ${criterion}\n\n${candidates}\n\nRank from best (1) to worst (${contents.length}), comma-separated:`
 }
 
@@ -55,6 +54,7 @@ export class ForkJudge {
    *   mode: 'strict'|'fallback',
    *   selectionLayer: 'primary'|'fallback'|'none',
    *   noSignal: boolean,
+   *   tiebreakUsed: boolean,
    *   judgeQualityWarnings: {condition: string, severity: 'high'|'medium'|'low'}[],
    * }>}
    */
@@ -108,6 +108,11 @@ export class ForkJudge {
     if (lowestTierOnly) judgeQualityWarnings.push({condition: 'lowestTierOnly', severity: 'medium'})
     if (noReasoningMode) judgeQualityWarnings.push({condition: 'noReasoningMode', severity: 'medium'})
 
+    const perForkBudget = computePerForkContentBudget(candidateForks.length, configuredFamilies)
+    if (isDegradedInput(perForkBudget)) {
+      judgeQualityWarnings.push({condition: 'degradedInput', severity: 'high'})
+    }
+
     const perCriterionVerdict = []
     const bordaScores = new Array(candidateForks.length).fill(0)
     let totalRankingsCollected = 0
@@ -141,7 +146,7 @@ export class ForkJudge {
         try {
           const messages = [
             new SystemMessage(RANK_SYSTEM_PROMPT),
-            new HumanMessage(buildRankMessage(criterion, contents)),
+            new HumanMessage(buildRankMessage(criterion, contents, perForkBudget)),
           ]
           const resp = await llm.invoke(messages, signal ? {signal} : undefined)
           const ranking = parseRankingResponse(resp, candidateForks.length)
@@ -183,6 +188,9 @@ export class ForkJudge {
       if (bordaScores[i] < bordaScores[winnerIdx]) winnerIdx = i
     }
 
+    const winnerScore = bordaScores[winnerIdx]
+    const tiebreakUsed = bordaScores.some((s, i) => i !== winnerIdx && s === winnerScore)
+
     if (hadJuryDuplicates) judgeQualityWarnings.push({condition: 'juryDuplicates', severity: 'low'})
     if (selectionLayer === 'fallback' && (singleProvider || lowestTierOnly)) {
       judgeQualityWarnings.push({condition: 'fallbackWithWeakJudge', severity: 'high'})
@@ -194,6 +202,7 @@ export class ForkJudge {
       mode: fallback ? 'fallback' : 'strict',
       selectionLayer,
       noSignal,
+      tiebreakUsed,
       judgeQualityWarnings,
     }
   }

@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createStore } from '@shared/lib/store'
 import type { WorkflowStoreState } from '../workflow-store-types'
 import { INITIAL_WORKFLOW_STATE } from '../workflow-store-types'
-import { bindExecuteAction } from '../workflow-store-execution'
+import { bindExecuteAction, type ExecuteActionOptions } from '../workflow-store-execution'
 import type { DebouncedPersister } from '../workflow-store-persistence'
 
 vi.mock('@entities/workflow/lib', () => ({
@@ -35,8 +35,10 @@ function makePersister(): DebouncedPersister {
   return { schedule: vi.fn(), flush: vi.fn().mockResolvedValue(true), cancel: vi.fn(), destroy: vi.fn() }
 }
 
+const ZERO_DELAY: ExecuteActionOptions = { minExecutingVisibleMs: 0 }
+
 function makeExecute(store: ReturnType<typeof makeStore>, persister: DebouncedPersister) {
-  return bindExecuteAction(store, persister).executeCommand
+  return bindExecuteAction(store, persister, ZERO_DELAY).executeCommand
 }
 
 function mockIdentityExecution(nodes: WorkflowStoreState['nodes']) {
@@ -827,7 +829,7 @@ describe('bindExecuteAction', () => {
           )
 
         const store = makeStore({ nodes: N2, root: 'n1' })
-        const { executeCommand } = bindExecuteAction(store, makePersister())
+        const { executeCommand } = bindExecuteAction(store, makePersister(), ZERO_DELAY)
 
         const first = executeCommand(stubNode, 'query')
         const second = executeCommand(stubNodeB, 'query')
@@ -860,7 +862,7 @@ describe('bindExecuteAction', () => {
         )
 
         const store = makeStore({ nodes: N1, root: 'n1' })
-        const { executeCommand, abortExecution } = bindExecuteAction(store, makePersister())
+        const { executeCommand, abortExecution } = bindExecuteAction(store, makePersister(), ZERO_DELAY)
 
         const pending = executeCommand(stubNode, 'query')
         abortExecution('n1')
@@ -893,7 +895,7 @@ describe('bindExecuteAction', () => {
           )
 
         const store = makeStore({ nodes: N2, root: 'n1' })
-        const { executeCommand, abortExecution } = bindExecuteAction(store, makePersister())
+        const { executeCommand, abortExecution } = bindExecuteAction(store, makePersister(), ZERO_DELAY)
 
         const first = executeCommand(stubNode, 'query')
         const second = executeCommand(stubNodeB, 'query')
@@ -926,7 +928,7 @@ describe('bindExecuteAction', () => {
         )
 
         const store = makeStore({ nodes: N1, root: 'n1' })
-        const { executeCommand, abortExecution } = bindExecuteAction(store, makePersister())
+        const { executeCommand, abortExecution } = bindExecuteAction(store, makePersister(), ZERO_DELAY)
 
         const pending = executeCommand(stubNode, 'query')
         abortExecution('n1')
@@ -946,7 +948,7 @@ describe('bindExecuteAction', () => {
         )
 
         const store = makeStore({ nodes: N1, root: 'n1' })
-        const { executeCommand, abortExecution } = bindExecuteAction(store, makePersister())
+        const { executeCommand, abortExecution } = bindExecuteAction(store, makePersister(), ZERO_DELAY)
 
         const first = executeCommand(stubNode, 'query')
         abortExecution('n1')
@@ -959,18 +961,224 @@ describe('bindExecuteAction', () => {
       })
 
       it('is safe to call abortExecution for a node that has never executed', () => {
-        const { abortExecution } = bindExecuteAction(makeStore({ nodes: N1, root: 'n1' }), makePersister())
+        const { abortExecution } = bindExecuteAction(makeStore({ nodes: N1, root: 'n1' }), makePersister(), ZERO_DELAY)
         expect(() => abortExecution('unknown-node')).not.toThrow()
       })
 
       it('is safe to call abortExecution for a node after its execution completed normally', async () => {
         mockIdentityExecution(N1)
         const store = makeStore({ nodes: N1, root: 'n1' })
-        const { executeCommand, abortExecution } = bindExecuteAction(store, makePersister())
+        const { executeCommand, abortExecution } = bindExecuteAction(store, makePersister(), ZERO_DELAY)
 
         await executeCommand(stubNode, 'query')
 
         expect(() => abortExecution('n1')).not.toThrow()
+      })
+    })
+  })
+
+  describe('executing indicator minimum visible duration', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    describe('hold on successful completion', () => {
+      it('indicator persists until the min window elapses after the API responds', async () => {
+        vi.useFakeTimers()
+
+        let resolveApi!: (value: { nodesChanged: Record<string, never> }) => void
+        vi.mocked(executeWorkflowCommand).mockImplementationOnce(
+          () =>
+            new Promise(resolve => {
+              resolveApi = resolve
+            }),
+        )
+        vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+          nodes: N1,
+          edges: {},
+          root: 'n1',
+          share: { access: [] },
+        })
+
+        const store = makeStore({ nodes: N1, root: 'n1' })
+        const pending = bindExecuteAction(store, makePersister(), { minExecutingVisibleMs: 300 }).executeCommand(
+          stubNode,
+          'query',
+        )
+
+        resolveApi({ nodesChanged: {} })
+        await vi.advanceTimersByTimeAsync(150)
+        expect(store.getState().executingNodeIds.has('n1')).toBe(true)
+
+        await vi.advanceTimersByTimeAsync(200)
+        expect(store.getState().executingNodeIds.has('n1')).toBe(false)
+
+        await pending
+      })
+
+      it('indicator clears without extra delay when the API call itself outlasts the min window', async () => {
+        vi.useFakeTimers()
+
+        let resolveApi!: (value: { nodesChanged: Record<string, never> }) => void
+        vi.mocked(executeWorkflowCommand).mockImplementationOnce(
+          () =>
+            new Promise(resolve => {
+              resolveApi = resolve
+            }),
+        )
+        vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+          nodes: N1,
+          edges: {},
+          root: 'n1',
+          share: { access: [] },
+        })
+
+        const store = makeStore({ nodes: N1, root: 'n1' })
+        const pending = bindExecuteAction(store, makePersister(), { minExecutingVisibleMs: 300 }).executeCommand(
+          stubNode,
+          'query',
+        )
+
+        await vi.advanceTimersByTimeAsync(500)
+        resolveApi({ nodesChanged: {} })
+
+        // The min window (300ms) already elapsed inside the API call; no additional hold needed.
+        // Indicator should clear on the next microtask flush, not after another 300ms.
+        await vi.advanceTimersByTimeAsync(0)
+        expect(store.getState().executingNodeIds.has('n1')).toBe(false)
+
+        await pending
+      })
+
+      it('result data is committed to the store before the min window elapses', async () => {
+        vi.useFakeTimers()
+
+        let resolveApi!: (value: { nodesChanged: Record<string, never> }) => void
+        vi.mocked(executeWorkflowCommand).mockImplementationOnce(
+          () =>
+            new Promise(resolve => {
+              resolveApi = resolve
+            }),
+        )
+        const updatedNodes = { n1: { id: 'n1', title: 'Updated result' } } as WorkflowStoreState['nodes']
+        vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+          nodes: updatedNodes,
+          edges: {},
+          root: 'n1',
+          share: { access: [] },
+        })
+
+        const store = makeStore({ nodes: N1, root: 'n1' })
+        const pending = bindExecuteAction(store, makePersister(), { minExecutingVisibleMs: 300 }).executeCommand(
+          stubNode,
+          'query',
+        )
+
+        resolveApi({ nodesChanged: {} })
+        await vi.advanceTimersByTimeAsync(50)
+
+        // Node data is already visible while the indicator is still up
+        expect(store.getState().nodes['n1']?.title).toBe('Updated result')
+        expect(store.getState().executingNodeIds.has('n1')).toBe(true)
+
+        await vi.advanceTimersByTimeAsync(300)
+        expect(store.getState().executingNodeIds.has('n1')).toBe(false)
+
+        await pending
+      })
+
+      it('indicator clears immediately when minExecutingVisibleMs is zero', async () => {
+        mockIdentityExecution(N1)
+
+        const store = makeStore({ nodes: N1, root: 'n1' })
+        await bindExecuteAction(store, makePersister(), { minExecutingVisibleMs: 0 }).executeCommand(stubNode, 'query')
+
+        expect(store.getState().executingNodeIds.has('n1')).toBe(false)
+      })
+    })
+
+    describe('hold on non-abort failure', () => {
+      it.each([
+        ['Error', new Error('network failure')],
+        ['TypeError', new TypeError('unexpected condition')],
+        ['non-AbortError DOMException', new DOMException('not allowed', 'NotAllowedError')],
+      ])('indicator persists for the min window after a %s', async (_label, error) => {
+        vi.useFakeTimers()
+
+        vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(error)
+
+        const store = makeStore({ nodes: N1, root: 'n1' })
+        const pending = bindExecuteAction(store, makePersister(), { minExecutingVisibleMs: 300 }).executeCommand(
+          stubNode,
+          'query',
+        )
+
+        await vi.advanceTimersByTimeAsync(150)
+        expect(store.getState().executingNodeIds.has('n1')).toBe(true)
+
+        await vi.advanceTimersByTimeAsync(200)
+        expect(store.getState().executingNodeIds.has('n1')).toBe(false)
+
+        await pending
+      })
+    })
+
+    describe('abort bypasses hold', () => {
+      it('user-initiated abort clears the indicator immediately without holding the min window', async () => {
+        vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(new DOMException('aborted', 'AbortError'))
+
+        const store = makeStore({ nodes: N1, root: 'n1' })
+        const { executeCommand, abortExecution } = bindExecuteAction(store, makePersister(), {
+          minExecutingVisibleMs: 60_000,
+        })
+
+        const pending = executeCommand(stubNode, 'query')
+        abortExecution('n1')
+        await pending
+
+        expect(store.getState().executingNodeIds.has('n1')).toBe(false)
+      })
+
+      it('aborting one concurrent execution does not skip the hold window of the other', async () => {
+        vi.useFakeTimers()
+
+        let resolveN2!: (value: { nodesChanged: Record<string, never> }) => void
+        vi.mocked(executeWorkflowCommand)
+          .mockImplementationOnce(() => Promise.reject(new DOMException('aborted', 'AbortError')))
+          .mockImplementationOnce(
+            () =>
+              new Promise(resolve => {
+                resolveN2 = resolve
+              }),
+          )
+
+        const store = makeStore({ nodes: N2, root: 'n1' })
+        const { executeCommand } = bindExecuteAction(store, makePersister(), { minExecutingVisibleMs: 300 })
+
+        const p1 = executeCommand(stubNode, 'query')
+        const p2 = executeCommand(stubNodeB, 'query')
+
+        // p1 aborts immediately with no hold; settles without timer advancement
+        await p1
+
+        expect(store.getState().executingNodeIds.has('n1')).toBe(false)
+        expect(store.getState().executingNodeIds.has('n2')).toBe(true)
+
+        vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+          nodes: N2,
+          edges: {},
+          root: 'n1',
+          share: { access: [] },
+        })
+        resolveN2({ nodesChanged: {} })
+
+        await vi.advanceTimersByTimeAsync(150)
+        expect(store.getState().executingNodeIds.has('n2')).toBe(true)
+
+        await vi.advanceTimersByTimeAsync(200)
+        expect(store.getState().executingNodeIds.has('n2')).toBe(false)
+
+        await p2
       })
     })
   })

@@ -9,9 +9,23 @@ const COMMODITY_SUFFIX_RE = (n: number) => new RegExp(`\\[(?:✓|✗) \\d+\\/${n
 const VALIDATE_VERDICT_RE = /\[(?:✓(?:\s+retry-\d+)?|✗\s+\d+\s+attempts)\]/
 const VALIDATE_FAIL_RE = /\[✗\s+\d+\s+attempts\]/
 
+async function purgeQaBotWorkflows(page: Parameters<typeof qaBotLogin>[0]) {
+  /* qa-bot has LimitWorkflows=10 (seeded by backend-v2/cmd/seed-users); without
+     this purge, 10× test.beforeEach × 2 browsers saturates the cap and the next
+     POST /workflow returns 402 silently — page never navigates, waitForURL
+     times out at 15s. Grounded via test-results page snapshot showing 10
+     accumulated qa-bot workflow cards at failure point. */
+  const resp = await page.request.get('/api/v2/workflow?public=false&limit=100')
+  if (!resp.ok()) return
+  const body = await resp.json().catch(() => ({ data: [] as Array<{ workflowId: string }> }))
+  const ids: string[] = (body.data ?? []).map((w: { workflowId: string }) => w.workflowId).filter(Boolean)
+  await Promise.all(ids.map(id => page.request.delete(`/api/v2/workflow/${id}`).catch(() => {})))
+}
+
 async function setupLLMWorkflow(page: Parameters<typeof qaBotLogin>[0]) {
   await page.goto('/workflows')
   await qaBotLogin(page)
+  await purgeQaBotWorkflows(page)
   await createWorkflow(page)
   await page.waitForLoadState('networkidle')
   await page.getByTestId('create-first-node').click()
@@ -209,7 +223,7 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     await tree.selectNode(validateId)
     const validateDetail = new NodeDetailPanelPage(page)
     await validateDetail.waitForComponent()
-    await validateDetail.fillCommand('/validate The output must be a valid JSON object with key "data" and value 999')
+    await validateDetail.fillCommand('/validate REJECT — The output must be a valid JSON object with key "data" and value 999')
 
     await tree.selectNode(rootId)
     await detail.waitForComponent()

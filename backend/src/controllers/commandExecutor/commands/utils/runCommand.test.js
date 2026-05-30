@@ -5,6 +5,8 @@ import {runCommand} from './runCommand'
 import Store from './Store'
 import ProgressReporter from '../../ProgressReporter'
 import {ForeachCommand} from '../ForeachCommand'
+import {VALIDATE_QUERY_TYPE} from '../../constants/validate'
+import {REFINE_QUERY_TYPE} from '../../constants/refine'
 
 jest.useFakeTimers()
 jest.mock('../../ProgressReporter', () => {
@@ -410,5 +412,119 @@ describe('runCommand — commodity :n=N with real ChatCommand + NoopLLM (MOCK_EX
 
     const children = Object.values(store._nodes).filter(nd => nd.parent === root.id && nd.id !== root.id)
     expect(children.length).toBeGreaterThanOrEqual(2)
+  })
+})
+
+describe('runCommand — modifier commands used as root', () => {
+  it.each([
+    {queryType: VALIDATE_QUERY_TYPE, command: '/validate criterion'},
+    {queryType: REFINE_QUERY_TYPE, command: '/refine :n=2'},
+  ])('writes [✗ invalid] suffix and error node without dispatching ($queryType)', async ({queryType, command}) => {
+    const root = {id: 'root', parent: 'root', command, children: []}
+    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+    const createErrorSpy = jest.spyOn(store.importer, 'createErrorNode')
+
+    await runCommand({queryType, cell: root, store})
+
+    chatSpy.mockRestore()
+    expect(chatSpy).not.toHaveBeenCalled()
+    expect(createErrorSpy).toHaveBeenCalledTimes(1)
+    expect(createErrorSpy.mock.calls[0][0]).toMatch(new RegExp(`/${queryType} requires a parent cell`))
+    const outputCell = store.getOutput().nodes.find(n => n.id === root.id)
+    expect(outputCell?.title).toMatch(/\[✗ invalid\]/)
+  })
+})
+
+describe('runCommand — preventCommodityForks option', () => {
+  it('preventCommodityForks=true forces a single execution regardless of :n=N in the command', async () => {
+    const root = {id: 'root', parent: 'root', command: '/chat :n=3 prompt', children: []}
+    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+    let callCount = 0
+    const spy = jest.spyOn(ChatCommand.prototype, 'run').mockImplementation(async function () {
+      callCount++
+    })
+    await runCommand({queryType: 'chat', cell: root, store, preventCommodityForks: true})
+    spy.mockRestore()
+    expect(callCount).toBe(1)
+  })
+
+  it('does not write a commodity suffix when preventCommodityForks=true even though :n=N is present in the command', async () => {
+    const root = {id: 'root', parent: 'root', command: '/chat :n=2 prompt', children: []}
+    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+    const spy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+    await runCommand({queryType: 'chat', cell: root, store, preventCommodityForks: true})
+    spy.mockRestore()
+    expect(root.title ?? '').not.toMatch(/\[/)
+  })
+
+  it('runs once (no fork) when preventCommodityForks=true and no :n=N is present', async () => {
+    const root = {id: 'root', parent: 'root', command: '/chat prompt', children: []}
+    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+    let callCount = 0
+    const spy = jest.spyOn(ChatCommand.prototype, 'run').mockImplementation(async function () {
+      callCount++
+    })
+    await runCommand({queryType: 'chat', cell: root, store, preventCommodityForks: true})
+    spy.mockRestore()
+    expect(callCount).toBe(1)
+  })
+})
+
+describe('runCommand — preventPostProcess option', () => {
+  it('preventPostProcess=true prevents child command execution after the main LLM call', async () => {
+    const root = {id: 'root', parent: 'root', command: '/chat prompt', children: ['fe']}
+    const fe = {id: 'fe', parent: 'root', command: '/foreach /chat @@', children: []}
+    const store = new Store({userId: 'userId', nodes: {[root.id]: root, [fe.id]: fe}})
+
+    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+    const foreachRunSpy = jest.spyOn(ForeachCommand.prototype, 'run').mockResolvedValue({})
+
+    await runCommand({queryType: 'chat', cell: root, store, preventPostProcess: true})
+
+    expect(chatSpy).toHaveBeenCalledTimes(1)
+    expect(foreachRunSpy).not.toHaveBeenCalled()
+
+    chatSpy.mockRestore()
+    foreachRunSpy.mockRestore()
+  })
+
+  it('preventPostProcess=false (default) allows child command execution after the main LLM call', async () => {
+    const root = {id: 'root', parent: 'root', command: '/chat prompt', children: ['fe']}
+    const fe = {id: 'fe', parent: 'root', command: '/foreach /chat @@', children: []}
+    const store = new Store({userId: 'userId', nodes: {[root.id]: root, [fe.id]: fe}})
+
+    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+    const foreachRunSpy = jest.spyOn(ForeachCommand.prototype, 'run').mockResolvedValue({})
+
+    await runCommand({queryType: 'chat', cell: root, store})
+
+    expect(chatSpy).toHaveBeenCalledTimes(1)
+    expect(foreachRunSpy).toHaveBeenCalledTimes(1)
+
+    chatSpy.mockRestore()
+    foreachRunSpy.mockRestore()
+  })
+})
+
+describe('runCommand — signal (AbortController) abort gating', () => {
+  it('already-aborted signal prevents child post-processing while the main LLM call still executes', async () => {
+    const root = {id: 'root', parent: 'root', command: '/chat prompt', children: ['fe']}
+    const fe = {id: 'fe', parent: 'root', command: '/foreach /chat @@', children: []}
+    const store = new Store({userId: 'userId', nodes: {[root.id]: root, [fe.id]: fe}})
+
+    const controller = new AbortController()
+    controller.abort()
+
+    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+    const foreachRunSpy = jest.spyOn(ForeachCommand.prototype, 'run').mockResolvedValue({})
+
+    await runCommand({queryType: 'chat', cell: root, store, signal: controller.signal})
+
+    expect(chatSpy).toHaveBeenCalledTimes(1)
+    expect(foreachRunSpy).not.toHaveBeenCalled()
+
+    chatSpy.mockRestore()
+    foreachRunSpy.mockRestore()
   })
 })

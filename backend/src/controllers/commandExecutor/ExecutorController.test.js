@@ -12,6 +12,7 @@ jest.mock('../../shared/utils/generateId')
 jest.mock('./commands/aliases/loadUserAliases')
 jest.mock('./commands/MCPCommand')
 jest.mock('./commands/RPCCommand')
+jest.mock('./commands/utils/getWorkflowData')
 jest.mock('../../services/progress-event-emitter', () => ({
   progressEventEmitter: {
     emitStart: jest.fn(),
@@ -28,8 +29,8 @@ describe('ExecutorController', () => {
   getIntegrationSettings.mockResolvedValue({
     openai: {apiKey: 'apiKey', model: 'model'},
   })
-  getLLM.mockResolvedValue({
-    llm: {},
+  getLLM.mockReturnValue({
+    llm: {invoke: (...args) => modelCallSpy(...args)},
   })
   loadUserAliases.mockResolvedValue({
     mcp: [],
@@ -829,12 +830,7 @@ describe('ExecutorController', () => {
         expect(MCPCommand.prototype.run).not.toHaveBeenCalled()
       })
 
-      // /refine has its own protection test (below) because legacy /refine was
-      // removed in P0.1: /refine top-level execution now errors via
-      // "Unknown queryType: refine" (CommandFactory.createRunner default branch).
-      // The security property — alias cannot hijack the dispatch — is still
-      // verified, but via a different response shape (5xx error, not success body).
-      it('should protect /refine from alias override even though top-level /refine is no longer runnable (P0.1)', async () => {
+      it('should protect /refine from alias override even though top-level /refine is a modifier-root error', async () => {
         loadUserAliases.mockResolvedValueOnce({
           mcp: [{alias: '/refine', name: 'Malicious Override'}],
           rpc: [],
@@ -852,10 +848,13 @@ describe('ExecutorController', () => {
 
         // Security: malicious alias was NOT invoked (the central protection invariant).
         expect(MCPCommand.prototype.run).not.toHaveBeenCalled()
-        // Behavior: top-level /refine errors per P0.1 (legacy removed; new /refine :n=N
-        // is post-processor-only, not top-level).
-        expect(response.status).toBeGreaterThanOrEqual(500)
-        expect(response.text || JSON.stringify(response.body)).toMatch(/refine/i)
+        // Behavior: top-level /refine now returns 200 with a visible [✗ invalid] error
+        // node instead of a 500 — the alias-protection invariant is the security claim
+        // being tested here; the response shape is an observable consequence of P0.488.
+        expect(response.status).toBe(200)
+        const body2 = response.body
+        const changedTitles = (body2?.nodesChanged ?? []).map(n => n.title ?? '')
+        expect(changedTitles.some(t => t.includes('[✗ invalid]'))).toBe(true)
       })
     })
 
@@ -1138,6 +1137,48 @@ describe('ExecutorController', () => {
 
       expect(progressEventEmitter.emitComplete).toHaveBeenCalled()
       expect(progressEventEmitter.emitError).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('CriteriaFailedError catch branch — HTTP 422 when store not yet initialized', () => {
+    const workflowOnlyId = {
+      workflowId: 'wf-no-nodes',
+      queryType: 'chat',
+      cell: {id: 'root', command: '/chat do task', parent: null, children: [], title: '/chat do task'},
+      workflowFiles: {},
+    }
+
+    it('returns HTTP 422 when CriteriaFailedError is thrown before store initialization', async () => {
+      const {getWorkflowData} = require('./commands/utils/getWorkflowData')
+      const {CriteriaFailedError} = require('./reliability/core/CriteriaFailedError')
+      getWorkflowData.mockRejectedValueOnce(new CriteriaFailedError('criterion', 0))
+
+      const response = await customerRequest.post(apiEndpoint).send(workflowOnlyId)
+
+      expect(response.status).toBe(422)
+    })
+
+    it('emits emitError (not emitComplete) when CriteriaFailedError is thrown before store initialization', async () => {
+      const {progressEventEmitter} = require('../../services/progress-event-emitter')
+      const {getWorkflowData} = require('./commands/utils/getWorkflowData')
+      const {CriteriaFailedError} = require('./reliability/core/CriteriaFailedError')
+      getWorkflowData.mockRejectedValueOnce(new CriteriaFailedError('criterion', 0))
+
+      await customerRequest.post(apiEndpoint).send(workflowOnlyId)
+
+      expect(progressEventEmitter.emitError).toHaveBeenCalled()
+      expect(progressEventEmitter.emitComplete).not.toHaveBeenCalled()
+    })
+
+    it('includes the criterion message in the 422 response body', async () => {
+      const {getWorkflowData} = require('./commands/utils/getWorkflowData')
+      const {CriteriaFailedError} = require('./reliability/core/CriteriaFailedError')
+      getWorkflowData.mockRejectedValueOnce(new CriteriaFailedError('output must mention price', 0))
+
+      const response = await customerRequest.post(apiEndpoint).send(workflowOnlyId)
+
+      expect(response.status).toBe(422)
+      expect(response.text).toContain('output must mention price')
     })
   })
 })

@@ -36,6 +36,20 @@ const rankingResponse = candidateCount => {
   return order.join(', ')
 }
 
+export const MOCK_VERIFIER_FAIL_KEYWORD = 'REJECT'
+
+const extractVerifierCriterion = corpus => {
+  const match = corpus.match(/Criterion:\s*(.+?)(?:\n|$)/i)
+  return match?.[1]?.trim() ?? ''
+}
+
+const verifierVerdict = corpus => {
+  const criterion = extractVerifierCriterion(corpus)
+  return criterion.toUpperCase().includes(MOCK_VERIFIER_FAIL_KEYWORD)
+    ? `NO: mock rejection — criterion contains ${MOCK_VERIFIER_FAIL_KEYWORD}`
+    : 'YES'
+}
+
 export const planResponse = (messages, synthesizeGeneratorContent) => {
   const corpus = concatMessages(messages)
   const kind = detectKind(corpus)
@@ -44,7 +58,7 @@ export const planResponse = (messages, synthesizeGeneratorContent) => {
     case 'judge':
       return rankingResponse(extractCandidateCount(corpus))
     case 'verifier':
-      return 'YES: mock verifier accepts the content'
+      return verifierVerdict(corpus)
     case 'generator':
     default:
       return synthesizeGeneratorContent(corpus)

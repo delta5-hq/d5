@@ -445,4 +445,138 @@ describe('judgeQualityWarnings', () => {
     })
     expect(result.judgeQualityWarnings).toEqual([])
   })
+
+  it('degradedInput warning when configured families produce a per-fork budget below threshold', async () => {
+    // YandexGPT has the smallest context window (~8k tokens). With 50 forks the per-fork
+    // budget falls below DEGRADED_INPUT_THRESHOLD_CHARS.
+    getIntegrationSettings.mockResolvedValue({yandex: {apiKey: 'k'}})
+    mockLLMRanking('2,1')
+    const forks = Array.from({length: 50}, (_, i) => makeFork(i))
+    const result = await makeJudge().selectWinner({
+      forks,
+      validateNodes: [makeValidate('v1', 'quality', 1)],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    const conditions = result.judgeQualityWarnings.map(w => w.condition)
+    expect(conditions).toContain('degradedInput')
+    const warn = result.judgeQualityWarnings.find(w => w.condition === 'degradedInput')
+    expect(warn.severity).toBe('high')
+  })
+
+  it('no degradedInput warning for large-context family with few forks', async () => {
+    getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k'}})
+    mockLLMRanking('2,1')
+    const forks = [makeFork(0), makeFork(1)]
+    const result = await makeJudge().selectWinner({
+      forks,
+      validateNodes: [makeValidate('v1', 'quality', 1)],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    const conditions = result.judgeQualityWarnings.map(w => w.condition)
+    expect(conditions).not.toContain('degradedInput')
+  })
+})
+
+// ─── Tiebreak detection ───────────────────────────────────────────────────────
+
+describe('ForkJudge.selectWinner — tiebreakUsed', () => {
+  it('tiebreakUsed:false when 2-fork jury produces a clear unambiguous winner', async () => {
+    // ranking '1,2': fork-0 scores 0, fork-1 scores 1 → fork-0 wins uniquely
+    mockLLMRanking('1,2')
+    const forks = [makeFork(0), makeFork(1)]
+    const result = await makeJudge().selectWinner({
+      forks,
+      validateNodes: [makeValidate('v1', 'criterion')],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    expect(result.tiebreakUsed).toBe(false)
+  })
+
+  it('tiebreakUsed:false when 3-fork jury produces a clear unambiguous winner', async () => {
+    // ranking '1,2,3': fork-0=0, fork-1=1, fork-2=2 → fork-0 wins uniquely
+    mockLLMRanking('1,2,3')
+    const forks = [makeFork(0), makeFork(1), makeFork(2)]
+    const result = await makeJudge().selectWinner({
+      forks,
+      validateNodes: [makeValidate('v1', 'criterion')],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    expect(result.tiebreakUsed).toBe(false)
+    expect(result.winnerForkIndex).toBe(0)
+  })
+
+  it('tiebreakUsed:true when all jurors are excluded (noSignal — all Borda scores zero)', async () => {
+    mockLLMError('timeout')
+    const forks = [makeFork(0), makeFork(1)]
+    const result = await makeJudge().selectWinner({
+      forks,
+      validateNodes: [makeValidate('v1', 'criterion')],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    expect(result.noSignal).toBe(true)
+    expect(result.tiebreakUsed).toBe(true)
+  })
+
+  it('tiebreakUsed:true when two forks share the winning Borda score', async () => {
+    // juror 1: '1,2' → fork-0=0, fork-1=1
+    // juror 2: '2,1' → fork-0=1, fork-1=0
+    // totals: fork-0=1, fork-1=1 — complete tie; fork-0 wins by position
+    getLLM
+      .mockReturnValueOnce({llm: {invoke: jest.fn().mockResolvedValue({content: '1,2'})}})
+      .mockReturnValueOnce({llm: {invoke: jest.fn().mockResolvedValue({content: '2,1'})}})
+    getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k'}, claude: {apiKey: 'c'}})
+    const forks = [makeFork(0), makeFork(1)]
+    const result = await makeJudge().selectWinner({
+      forks,
+      validateNodes: [makeValidate('v1', 'criterion', 2)],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    expect(result.tiebreakUsed).toBe(true)
+    expect(result.winnerForkIndex).toBe(0)
+  })
+
+  it('tiebreakUsed:true for 3-fork partial tie where winner ties with one fork but not the third', async () => {
+    // juror 1: '1,2,3' → fork-0=0, fork-1=1, fork-2=2
+    // juror 2: '2,1,3' → fork-0=1, fork-1=0, fork-2=2
+    // totals: fork-0=1, fork-1=1, fork-2=4 — fork-0 and fork-1 tie at 1; fork-0 wins by position
+    getLLM
+      .mockReturnValueOnce({llm: {invoke: jest.fn().mockResolvedValue({content: '1,2,3'})}})
+      .mockReturnValueOnce({llm: {invoke: jest.fn().mockResolvedValue({content: '2,1,3'})}})
+    getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k'}, claude: {apiKey: 'c'}})
+    const forks = [makeFork(0), makeFork(1), makeFork(2)]
+    const result = await makeJudge().selectWinner({
+      forks,
+      validateNodes: [makeValidate('v1', 'criterion', 2)],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    expect(result.tiebreakUsed).toBe(true)
+    expect(result.winnerForkIndex).toBe(0)
+  })
+
+  it('single-candidate early return has no tiebreakUsed field', async () => {
+    const result = await makeJudge().selectWinner({
+      forks: [makeFork(0)],
+      validateNodes: [],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    expect(result.tiebreakUsed).toBeUndefined()
+  })
+
+  it('no-candidates early return has no tiebreakUsed field', async () => {
+    const result = await makeJudge().selectWinner({
+      forks: [makeFork(0, 'runtime-failed', {reason: 'err', forkStore: null})],
+      validateNodes: [],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    expect(result.tiebreakUsed).toBeUndefined()
+  })
 })

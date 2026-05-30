@@ -14,7 +14,8 @@ import {REFINE_QUERY} from '../../constants/refine'
 import {SCHOLAR_QUERY_TYPE} from '../../constants/scholar'
 import {STEPS_QUERY_TYPE} from '../../constants/steps'
 import {SUMMARIZE_QUERY, SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
-import {VALIDATE_QUERY, VALIDATE_QUERY_TYPE} from '../../constants/validate'
+import {VALIDATE_QUERY} from '../../constants/validate'
+import {modifierQueryTypes} from '../../constants'
 import {ValidateCommand} from '../../reliability/core/ValidateCommand'
 import {readValidateRetry, hasValidCriterion} from '../../reliability/core/validateParams'
 import {CriteriaFailedError} from '../../reliability/core/CriteriaFailedError'
@@ -144,6 +145,17 @@ async function runCommodityForks(queryType, context, prompt, cell, store, progre
  * }} params
  * @param {ProgressReporter} progress
  */
+function writeModifierRootError(cell, store, queryType) {
+  const cellNode = store.getNode(cell.id)
+  if (!cellNode) return
+  cellNode.title = appendInvalidSuffix(stripReliabilitySuffix(cellNode.title || ''))
+  store.importer.createErrorNode(
+    `/${queryType} requires a parent cell — it cannot be used as a standalone command`,
+    cell.id,
+  )
+  store.saveNodeToOutput(cell.id)
+}
+
 export const runCommand = async (
   {
     queryType,
@@ -152,6 +164,7 @@ export const runCommand = async (
     cell,
     store,
     preventPostProcess = false,
+    preventCommodityForks = false,
     mcpAlias,
     rpcAlias,
     sshClientPool = null,
@@ -160,7 +173,8 @@ export const runCommand = async (
   },
   progress,
 ) => {
-  if (queryType === VALIDATE_QUERY_TYPE) {
+  if (modifierQueryTypes.includes(queryType)) {
+    writeModifierRootError(cell, store, queryType)
     return
   }
 
@@ -176,7 +190,7 @@ export const runCommand = async (
     const command = new RPCCommand(store._userId, store._workflowId, store, rpcAlias, progress, sshClientPool)
     await command.run(cell, context, prompt, {signal})
   } else {
-    const commodityN = readCommodityN(getNodeCommand(cell))
+    const commodityN = preventCommodityForks ? 1 : readCommodityN(getNodeCommand(cell))
     if (commodityN > 1) {
       await runCommodityForks(queryType, context, prompt, cell, store, progress, commodityN)
     } else {

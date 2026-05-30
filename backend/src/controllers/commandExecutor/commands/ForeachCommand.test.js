@@ -980,6 +980,80 @@ describe('ForeachCommand', () => {
       })
     })
 
+    it('should preserve reference annotations intact while substituting @@ with the iteration leaf title', async () => {
+      const child1 = {id: 'c1', title: 'Dog'}
+      const child2 = {id: 'c2', title: 'Cat'}
+      const foreachNode = {
+        id: 'fe',
+        command: `/foreach /chatgpt ${REF_PREFIX}_SomeContext @@ describe this`,
+        parent: 'p',
+      }
+      const parentNode = {id: 'p', parent: 'root', title: 'Animals', children: [child1.id, child2.id, foreachNode.id]}
+
+      mockStore._nodes = {
+        [child1.id]: child1,
+        [child2.id]: child2,
+        [foreachNode.id]: foreachNode,
+        [parentNode.id]: parentNode,
+      }
+
+      await command.run(foreachNode)
+
+      expect(runCommand.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          cell: expect.objectContaining({
+            id: 'c1',
+            command: `/chatgpt ${REF_PREFIX}_SomeContext Dog describe this`,
+          }),
+        }),
+      )
+      expect(runCommand.mock.calls[1][0]).toEqual(
+        expect.objectContaining({
+          cell: expect.objectContaining({
+            id: 'c2',
+            command: `/chatgpt ${REF_PREFIX}_SomeContext Cat describe this`,
+          }),
+        }),
+      )
+    })
+
+    it('should substitute @@ with leaf title regardless of position relative to reference annotations', async () => {
+      const child1 = {id: 'c1', title: 'Dog'}
+      const child2 = {id: 'c2', title: 'Cat'}
+      const foreachNode = {
+        id: 'fe',
+        command: `/foreach /chatgpt @@ ${REF_PREFIX}_SomeContext describe this`,
+        parent: 'p',
+      }
+      const parentNode = {id: 'p', parent: 'root', title: 'Animals', children: [child1.id, child2.id, foreachNode.id]}
+
+      mockStore._nodes = {
+        [child1.id]: child1,
+        [child2.id]: child2,
+        [foreachNode.id]: foreachNode,
+        [parentNode.id]: parentNode,
+      }
+
+      await command.run(foreachNode)
+
+      expect(runCommand.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          cell: expect.objectContaining({
+            id: 'c1',
+            command: `/chatgpt Dog ${REF_PREFIX}_SomeContext describe this`,
+          }),
+        }),
+      )
+      expect(runCommand.mock.calls[1][0]).toEqual(
+        expect.objectContaining({
+          cell: expect.objectContaining({
+            id: 'c2',
+            command: `/chatgpt Cat ${REF_PREFIX}_SomeContext describe this`,
+          }),
+        }),
+      )
+    })
+
     it('should execute prompts sequentially', async () => {
       const child1 = {id: 'c1', title: 'Child1'}
       const child3 = {id: 'c3', command: '/foreach /chatgpt "@@" --parallel=no', parent: 'p'}
@@ -2583,7 +2657,7 @@ describe('ForeachCommand', () => {
       await command.run(foreachNode)
 
       expect(findLeafsSpy).toHaveBeenCalledWith(parentNode, expect.anything(), true)
-      expect(executePromptsSpy).toHaveBeenCalledWith(leafs, expect.anything(), undefined)
+      expect(executePromptsSpy).toHaveBeenCalledWith(leafs, expect.anything(), undefined, [])
     })
 
     it('should execute deeply nested foreach with complex steps structure', async () => {

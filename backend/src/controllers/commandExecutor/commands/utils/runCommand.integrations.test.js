@@ -1006,23 +1006,18 @@ describe('DownloadCommand run test', () => {
   })
 })
 
-describe('/refine top-level run (P0.1: legacy removed)', () => {
+describe('/refine top-level run (P0.488: modifier-root error)', () => {
   /*
-   * Legacy iterative /refine was removed in P0.1. The class no longer exists
-   * and `/refine` is no longer dispatched via createRunner — it only fires
-   * as a post-processor where it now emits a parse-time error suffix.
-   *
-   * Top-level `/refine` (queryType=REFINE_QUERY_TYPE) therefore reaches
-   * CommandFactory.createRunner's default branch and throws.
-   *
-   * Post-processor parse-time-error behavior is covered by
-   * runCommand.postprocess.test.js > "legacy /refine — parse-time error (P0.1)".
+   * Top-level /refine (queryType=REFINE_QUERY_TYPE) is intercepted by
+   * the modifierQueryTypes guard in runCommand before reaching CommandFactory.
+   * It resolves (no throw) and writes a [✗ invalid] suffix + error child node,
+   * giving the user a visible attribution instead of an opaque 500.
    */
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
-  it('rejects /refine as a top-level runnable command (use as post-processor only)', async () => {
+  it('writes [✗ invalid] suffix and error node without throwing', async () => {
     const refineNode = {
       id: 'refineNode',
       title: '/refine make it more concise',
@@ -1033,13 +1028,12 @@ describe('/refine top-level run (P0.1: legacy removed)', () => {
     const rootNode = {id: 'rootNode', title: 'Workflow', children: [refineNode.id]}
     const mockStore = new Store({userId, workflowId, nodes: {refineNode, rootNode}})
 
-    await expect(
-      runCommand({
-        cell: refineNode,
-        queryType: REFINE_QUERY_TYPE,
-        store: mockStore,
-      }),
-    ).rejects.toThrow(/Unknown queryType: refine/)
+    await runCommand({cell: refineNode, queryType: REFINE_QUERY_TYPE, store: mockStore})
+
+    const outputNodes = mockStore.getOutput().nodes
+    const cellOut = outputNodes.find(n => n.id === 'refineNode')
+    expect(cellOut?.title).toMatch(/\[✗ invalid\]/)
+    expect(outputNodes.some(n => n.title?.match(/requires a parent cell/i))).toBe(true)
   })
 })
 

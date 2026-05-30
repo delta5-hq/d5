@@ -16,6 +16,8 @@ import {
 import {STEPS_QUERY} from '../constants/steps'
 import {SUMMARIZE_QUERY} from '../constants/summarize'
 import {CHAT_PARAM_PARENTS} from '../constants/chat'
+import {VALIDATE_QUERY} from '../constants/validate'
+import {getNodeCommand} from './utils/isCommand'
 import {runCommand} from './utils/runCommand'
 import {StepsCommand} from './StepsCommand'
 import {createDeepClone} from './utils/createDeepClone'
@@ -177,21 +179,30 @@ export class ForeachCommand {
     return leafs
   }
 
-  async executePrompts(nodes, isParallel = true, signal) {
+  async executePrompts(nodes, isParallel = true, signal, validateTemplateIds = []) {
     const sshClientPool = new SSHClientPool()
 
     try {
       if (isParallel) {
-        await this._executePromptsParallel(nodes, sshClientPool, signal)
+        await this._executePromptsParallel(nodes, sshClientPool, signal, validateTemplateIds)
       } else {
-        await this._executePromptsSequential(nodes, sshClientPool, signal)
+        await this._executePromptsSequential(nodes, sshClientPool, signal, validateTemplateIds)
       }
     } finally {
       sshClientPool.disposeAll()
     }
   }
 
-  async _executePromptsParallel(nodes, sshClientPool, signal) {
+  _cloneValidateTemplatesUnder(leafNodeId, validateTemplateIds) {
+    validateTemplateIds.forEach(templateId => {
+      const template = this.store.getNode(templateId)
+      if (template) {
+        createDeepClone(template, leafNodeId, this.store._nodes).forEach(n => this.store.createNode(n))
+      }
+    })
+  }
+
+  async _executePromptsParallel(nodes, sshClientPool, signal, validateTemplateIds = []) {
     const parallelProgress = new ProgressReporter({title: 'parallel'}, this.progress)
 
     await Promise.allSettled(
@@ -202,11 +213,12 @@ export class ForeachCommand {
 
           if (queryType) {
             this.store.editNode({...node, command: promptString})
+            this._cloneValidateTemplatesUnder(node.id, validateTemplateIds)
 
             await runCommand(
               {
                 queryType,
-                cell: {...node, command: promptString},
+                cell: this.store.getNode(node.id),
                 store: this.store,
                 mcpAlias,
                 rpcAlias,
@@ -228,7 +240,7 @@ export class ForeachCommand {
     parallelProgress.dispose()
   }
 
-  async _executePromptsSequential(nodes, sshClientPool, signal) {
+  async _executePromptsSequential(nodes, sshClientPool, signal, validateTemplateIds = []) {
     const sequentialProgress = new ProgressReporter({title: 'sequential'}, this.progress)
 
     for (let i = 0; i < nodes.length; i += 1) {
@@ -243,6 +255,8 @@ export class ForeachCommand {
         this.store.editNode({...node, command: promptString})
 
         if (queryType) {
+          this._cloneValidateTemplatesUnder(node.id, validateTemplateIds)
+
           await runCommand(
             {
               queryType,
@@ -275,11 +289,15 @@ export class ForeachCommand {
     const parentNode = this.store.getNode(node.parent)
     const isRoot = !parentNode?.parent
 
+    const validateTemplateIds = (node.children || []).filter(id =>
+      getNodeCommand(this.store.getNode(id))?.startsWith(VALIDATE_QUERY),
+    )
+
     try {
       if (parentNode && !isRoot) {
         leafs.push(...this.findLeafs(parentNode, mainCommand, params.useFile))
 
-        await this.executePrompts(leafs, params.parallel, signal)
+        await this.executePrompts(leafs, params.parallel, signal, validateTemplateIds)
       }
     } catch (e) {
       this.logError(e)

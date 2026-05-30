@@ -123,21 +123,70 @@ describe('CompletionCommand', () => {
     expect(runCommand).not.toHaveBeenCalled()
   })
 
-  it('should call runCommand with preventPostProcess set to true', async () => {
-    getIntegrationSettings.mockResolvedValue({
-      model: Model.OpenAI,
-      openai: true,
+  describe('runCommand options', () => {
+    it('always passes preventPostProcess: true, delegating output handling to the caller', async () => {
+      getIntegrationSettings.mockResolvedValue({model: Model.OpenAI, openai: true})
+
+      const command = new CompletionCommand(userId, workflowId)
+      await command.run(mockCell)
+
+      expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({preventPostProcess: true}))
     })
 
-    const command = new CompletionCommand(userId, workflowId)
-    await command.run(mockCell, mockNodes, mockFiles)
+    it('always passes preventCommodityForks: true regardless of cell command', async () => {
+      getIntegrationSettings.mockResolvedValue({model: Model.OpenAI, openai: true})
 
-    const callArgs = runCommand.mock.calls[0][0]
-    expect(callArgs).toEqual(
-      expect.objectContaining({
-        preventPostProcess: true,
-      }),
-      undefined,
-    )
+      const command = new CompletionCommand(userId, workflowId)
+      await command.run(mockCell)
+
+      expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({preventCommodityForks: true}))
+    })
+
+    it('passes signal: undefined when no signal option is provided', async () => {
+      getIntegrationSettings.mockResolvedValue({model: Model.OpenAI, openai: true})
+
+      const command = new CompletionCommand(userId, workflowId)
+      await command.run(mockCell)
+
+      expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({signal: undefined}))
+    })
+
+    it('forwards options.signal to runCommand for abort propagation', async () => {
+      getIntegrationSettings.mockResolvedValue({model: Model.OpenAI, openai: true})
+      const signal = new AbortController().signal
+
+      const command = new CompletionCommand(userId, workflowId)
+      await command.run(mockCell, {signal})
+
+      expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({signal}))
+    })
+  })
+
+  describe('MOCK_EXTERNAL_SERVICES fallback', () => {
+    beforeEach(() => {
+      process.env.MOCK_EXTERNAL_SERVICES = 'true'
+    })
+
+    afterEach(() => {
+      delete process.env.MOCK_EXTERNAL_SERVICES
+    })
+
+    it('falls back to CHAT_QUERY_TYPE when no provider is configured under mock', async () => {
+      getIntegrationSettings.mockResolvedValue({model: USER_DEFAULT_MODEL})
+
+      const command = new CompletionCommand(userId, workflowId)
+      await command.run(mockCell, mockNodes, mockFiles)
+
+      expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({queryType: CHAT_QUERY_TYPE}))
+    })
+
+    it('does not override a provider-resolved queryType with the mock fallback', async () => {
+      getIntegrationSettings.mockResolvedValue({model: Model.Claude, claude: true})
+
+      const command = new CompletionCommand(userId, workflowId)
+      await command.run(mockCell, mockNodes, mockFiles)
+
+      expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({queryType: CLAUDE_QUERY_TYPE}))
+    })
   })
 })

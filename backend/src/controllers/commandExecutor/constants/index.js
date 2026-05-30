@@ -190,6 +190,8 @@ export const allowedCommands = [
   COMPLETION_QUERY_TYPE,
 ]
 
+export const modifierQueryTypes = [REFINE_QUERY_TYPE, VALIDATE_QUERY_TYPE]
+
 export const LANG_PARAM = '--lang'
 export const LANG_PARAM_REGEX = `${LANG_PARAM}=([a-zA-Z]+)`
 export const LANG_DEFAULT_VALUE = Lang.en

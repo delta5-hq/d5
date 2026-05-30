@@ -60,5 +60,32 @@ describe('passesStructuralGate', () => {
     it('fails text of exactly MIN_SUBSTANTIVE_CHARS - 1', () => {
       expect(passesStructuralGate('a'.repeat(MIN_SUBSTANTIVE_CHARS - 1))).toBe(false)
     })
+
+    it('passes "I cannot" when the following verb is not in the refusal pattern', () => {
+      expect(
+        passesStructuralGate('I cannot determine the exact cause without more data — here are three hypotheses.'),
+      ).toBe(true)
+    })
+
+    it('passes "I cannot" when it does not appear at the start of the text', () => {
+      expect(passesStructuralGate('The main reason I cannot confirm this is the limited dataset available.')).toBe(true)
+    })
+  })
+
+  describe('forkIndex parameter — observability-only, does not alter verdict', () => {
+    const substantive = 'a'.repeat(MIN_SUBSTANTIVE_CHARS)
+
+    it.each([0, 99, null])('substantive text passes when forkIndex is %s', forkIndex => {
+      expect(passesStructuralGate(substantive, forkIndex)).toBe(true)
+    })
+
+    it('empty string fails with any forkIndex', () => {
+      expect(passesStructuralGate('', 0)).toBe(false)
+      expect(passesStructuralGate('', 99)).toBe(false)
+    })
+
+    it('refusal text fails when forkIndex is provided', () => {
+      expect(passesStructuralGate("I'm sorry, I cannot help.", 0)).toBe(false)
+    })
   })
 })

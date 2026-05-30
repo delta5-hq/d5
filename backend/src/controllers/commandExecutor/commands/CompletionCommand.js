@@ -67,6 +67,10 @@ export class CompletionCommand {
       queryType = CUSTOM_LLM_CHAT_QUERY_TYPE
     }
 
+    if (!queryType && process.env.MOCK_EXTERNAL_SERVICES === 'true') {
+      queryType = CHAT_QUERY_TYPE
+    }
+
     if (queryType) {
       return runCommand(
         {
@@ -74,6 +78,7 @@ export class CompletionCommand {
           cell,
           store: this.store,
           preventPostProcess: true,
+          preventCommodityForks: true,
           signal,
         },
         this.progress,
