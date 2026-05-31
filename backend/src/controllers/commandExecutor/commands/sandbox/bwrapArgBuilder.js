@@ -1,7 +1,8 @@
-export const buildBwrapArgs = (command, args, {systemDirArgs, bindPaths}) => [
+export const buildBwrapArgs = (command, args, {systemDirArgs, bindPaths, allowNetwork = false}) => [
   '--unshare-pid',
   '--unshare-uts',
   '--unshare-ipc',
+  ...(allowNetwork ? [] : ['--unshare-net']),
   '--proc',
   '/proc',
   '--dev',

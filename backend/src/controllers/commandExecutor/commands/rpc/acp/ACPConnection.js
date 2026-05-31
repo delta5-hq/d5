@@ -23,7 +23,7 @@ export class ACPConnection {
   async initialize(client) {
     this.client = client
 
-    const sandboxed = sandboxSpawn(this.command, this.args, this.env)
+    const sandboxed = sandboxSpawn(this.command, this.args, this.env, {allowNetwork: true})
     this.process = spawn(sandboxed.command, sandboxed.args, {
       env: {...safeSystemEnv(), ...this.env},
       stdio: ['pipe', 'pipe', 'pipe'],

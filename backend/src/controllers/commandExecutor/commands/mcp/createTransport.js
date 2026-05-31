@@ -16,7 +16,7 @@ export const createTransport = ({serverUrl, transport, headers, command, args, e
     }
 
     case MCP_TRANSPORT.STDIO: {
-      const sandboxed = sandboxSpawn(command, args, env)
+      const sandboxed = sandboxSpawn(command, args, env, {allowNetwork: true})
       return new StdioClientTransport(sandboxed)
     }
 

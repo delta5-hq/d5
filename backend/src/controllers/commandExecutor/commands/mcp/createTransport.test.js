@@ -98,7 +98,7 @@ describe('createTransport', () => {
         env: {API_KEY: 'secret'},
       })
 
-      expect(sandboxSpawn).toHaveBeenCalledWith('npx', ['-y', '@scope/pkg'], {API_KEY: 'secret'})
+      expect(sandboxSpawn).toHaveBeenCalledWith('npx', ['-y', '@scope/pkg'], {API_KEY: 'secret'}, {allowNetwork: true})
     })
   })
 

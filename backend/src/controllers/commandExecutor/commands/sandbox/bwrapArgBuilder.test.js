@@ -106,4 +106,32 @@ describe('buildBwrapArgs', () => {
       expect(args.slice(sep + 1)).toEqual(['node'])
     })
   })
+
+  describe('network isolation', () => {
+    it.each([
+      ['omitted (defaults to isolated)', undefined],
+      ['explicitly false', false],
+    ])('includes --unshare-net when allowNetwork is %s', (_label, allowNetwork) => {
+      const args = buildBwrapArgs('node', [], {systemDirArgs: [], bindPaths: [], allowNetwork})
+      expect(args).toContain('--unshare-net')
+    })
+
+    it('omits --unshare-net when allowNetwork is true', () => {
+      const args = buildBwrapArgs('node', [], {systemDirArgs: [], bindPaths: [], allowNetwork: true})
+      expect(args).not.toContain('--unshare-net')
+    })
+
+    it('places --unshare-net before the -- separator', () => {
+      const args = buildBwrapArgs('node', [], {systemDirArgs: [], bindPaths: []})
+      expect(args.indexOf('--unshare-net')).toBeLessThan(separatorIndex(args))
+    })
+
+    it.each([['--unshare-pid'], ['--unshare-uts'], ['--unshare-ipc']])(
+      'non-network namespace flag %s is unaffected by allowNetwork: true',
+      flag => {
+        const args = buildBwrapArgs('node', [], {systemDirArgs: [], bindPaths: [], allowNetwork: true})
+        expect(args).toContain(flag)
+      },
+    )
+  })
 })

@@ -133,29 +133,57 @@ describe('ProcessSandbox', () => {
       })
     })
 
-    it('returns original command unchanged', () => {
-      const {sandboxSpawn} = require('./ProcessSandbox')
-      expect(sandboxSpawn('node', ['server.js']).command).toBe('node')
+    it('throws SandboxUnavailableError', () => {
+      const {sandboxSpawn, SandboxUnavailableError} = require('./ProcessSandbox')
+      expect(() => sandboxSpawn('node', ['server.js'])).toThrow(SandboxUnavailableError)
     })
 
-    it('returns original args unchanged', () => {
-      const {sandboxSpawn} = require('./ProcessSandbox')
-      expect(sandboxSpawn('node', ['server.js']).args).toEqual(['server.js'])
+    it.each([
+      ['undefined', undefined],
+      ['empty array', []],
+      ['populated array', ['/srv/app/server.js']],
+    ])('throws SandboxUnavailableError regardless of args (%s)', (_label, args) => {
+      const {sandboxSpawn, SandboxUnavailableError} = require('./ProcessSandbox')
+      expect(() => sandboxSpawn('node', args)).toThrow(SandboxUnavailableError)
     })
 
-    it('defaults undefined args to empty array', () => {
-      const {sandboxSpawn} = require('./ProcessSandbox')
-      expect(sandboxSpawn('node', undefined).args).toEqual([])
+    it('returns false from isSandboxActive', () => {
+      const {isSandboxActive} = require('./ProcessSandbox')
+      expect(isSandboxActive()).toBe(false)
     })
   })
 
-  describe('isSandboxActive — bwrap unavailable', () => {
-    it('returns false', () => {
-      execFileSync.mockImplementation(() => {
-        throw new Error('not found')
-      })
-      const {isSandboxActive} = require('./ProcessSandbox')
-      expect(isSandboxActive()).toBe(false)
+  describe('SandboxUnavailableError', () => {
+    it('is a subclass of Error', () => {
+      const {SandboxUnavailableError} = require('./ProcessSandbox')
+      expect(new SandboxUnavailableError()).toBeInstanceOf(Error)
+    })
+
+    it('has name SandboxUnavailableError', () => {
+      const {SandboxUnavailableError} = require('./ProcessSandbox')
+      expect(new SandboxUnavailableError().name).toBe('SandboxUnavailableError')
+    })
+
+    it('carries a descriptive message referencing the missing binary', () => {
+      const {SandboxUnavailableError} = require('./ProcessSandbox')
+      expect(new SandboxUnavailableError().message).toMatch(/bwrap/)
+    })
+  })
+
+  describe('sandboxSpawn — network isolation option', () => {
+    it.each([
+      ['no options argument', []],
+      ['empty options object', [{}]],
+      ['allowNetwork: undefined', [{allowNetwork: undefined}]],
+      ['allowNetwork: false', [{allowNetwork: false}]],
+    ])('includes --unshare-net in sandboxed args when %s', (_label, optArgs) => {
+      const {sandboxSpawn} = require('./ProcessSandbox')
+      expect(sandboxSpawn('npx', [], {}, ...optArgs).args).toContain('--unshare-net')
+    })
+
+    it('omits --unshare-net from sandboxed args when allowNetwork is true', () => {
+      const {sandboxSpawn} = require('./ProcessSandbox')
+      expect(sandboxSpawn('npx', [], {}, {allowNetwork: true}).args).not.toContain('--unshare-net')
     })
   })
 })
