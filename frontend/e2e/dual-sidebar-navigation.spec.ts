@@ -286,8 +286,7 @@ test.describe('Dual sidebar system', () => {
       await primaryNav.clickSettings()
       await secondarySidebar.waitForTransition()
 
-      const storedSection = await page.evaluate(() => localStorage.getItem('active_section'))
-      expect(storedSection).toBe('settings')
+      await page.waitForFunction(() => localStorage.getItem('active_section') === 'settings')
 
       await page.reload()
       await waitForAuthenticatedApp(page)

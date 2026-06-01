@@ -6,19 +6,17 @@ describe('Integration Router', () => {
   beforeEach(async () => {
     await testOrchestrator.prepareTestEnvironment()
     
-    /* Setup test data - wait for upsert to complete */
-    const setupResults = await Promise.all([
-      subscriberRequest.put('/integration/openai/update').send({apiKey: 'test-key'}),
-      administratorRequest.put('/integration/openai/update').send({apiKey: 'admin-test-key'}),
-      customerRequest.put('/integration/openai/update').send({apiKey: 'customer-test-key'})
-    ])
-    
-    /* Verify all setups succeeded */
-    setupResults.forEach((res, idx) => {
+    const setupPairs = [
+      [subscriberRequest, 'test-key'],
+      [administratorRequest, 'admin-test-key'],
+      [customerRequest, 'customer-test-key'],
+    ]
+    for (const [request, apiKey] of setupPairs) {
+      const res = await request.put('/integration/openai/update').send({ apiKey })
       if (res.status !== 200) {
-        throw new Error(`Integration setup failed for user ${idx}: ${res.status}`)
+        throw new Error(`Integration setup failed: ${res.status}`)
       }
-    })
+    }
   })
 
   afterAll(async () => {

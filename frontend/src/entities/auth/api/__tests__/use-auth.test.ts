@@ -41,7 +41,9 @@ const stubUser: User = {
   updatedAt: '2024-01-01T00:00:00Z',
 }
 
-describe('useAuth — isBootstrapped gate', () => {
+const stubCredentials = { usernameOrEmail: 'test@example.com', password: 'Password1!' }
+
+describe('useAuth', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -50,116 +52,118 @@ describe('useAuth — isBootstrapped gate', () => {
     vi.restoreAllMocks()
   })
 
-  describe('when isBootstrapped is false', () => {
-    it('does not issue a request to /users/current', () => {
-      renderHook(() => useAuth(false), { wrapper: createWrapper() })
+  describe('isBootstrapped gate', () => {
+    describe('when isBootstrapped is false', () => {
+      it('does not issue a request to /users/current', () => {
+        renderHook(() => useAuth(false), { wrapper: createWrapper() })
 
-      expect(mockApiFetch).not.toHaveBeenCalled()
-    })
-
-    it('reports isLoading as true', () => {
-      const { result } = renderHook(() => useAuth(false), { wrapper: createWrapper() })
-
-      expect(result.current.isLoading).toBe(true)
-    })
-
-    it('reports isLoggedIn as false', () => {
-      const { result } = renderHook(() => useAuth(false), { wrapper: createWrapper() })
-
-      expect(result.current.isLoggedIn).toBe(false)
-    })
-
-    it('reports user as undefined', () => {
-      const { result } = renderHook(() => useAuth(false), { wrapper: createWrapper() })
-
-      expect(result.current.user).toBeUndefined()
-    })
-  })
-
-  describe('when isBootstrapped is true', () => {
-    it('issues a request to /users/current', async () => {
-      mockApiFetch.mockResolvedValue(stubUser)
-
-      renderHook(() => useAuth(true), { wrapper: createWrapper() })
-
-      await waitFor(() => expect(mockApiFetch).toHaveBeenCalledWith('/users/current', expect.any(Object)))
-    })
-
-    it('populates user from the response', async () => {
-      mockApiFetch.mockResolvedValue(stubUser)
-
-      const { result } = renderHook(() => useAuth(true), { wrapper: createWrapper() })
-
-      await waitFor(() => expect(result.current.user).toEqual(stubUser))
-    })
-
-    it('reports isLoggedIn as true when the server returns a user', async () => {
-      mockApiFetch.mockResolvedValue(stubUser)
-
-      const { result } = renderHook(() => useAuth(true), { wrapper: createWrapper() })
-
-      await waitFor(() => expect(result.current.isLoggedIn).toBe(true))
-    })
-
-    it('reports isLoading as false once the request settles', async () => {
-      mockApiFetch.mockResolvedValue(stubUser)
-
-      const { result } = renderHook(() => useAuth(true), { wrapper: createWrapper() })
-
-      await waitFor(() => expect(result.current.isLoading).toBe(false))
-    })
-
-    it('reports isLoggedIn as false and user as undefined when the server returns no user', async () => {
-      mockApiFetch.mockRejectedValue(new Error('Unauthorized'))
-
-      const { result } = renderHook(() => useAuth(true), { wrapper: createWrapper() })
-
-      await waitFor(() => expect(result.current.isLoading).toBe(false))
-      expect(result.current.isLoggedIn).toBe(false)
-      expect(result.current.user).toBeUndefined()
-    })
-  })
-
-  describe('isBootstrapped transition from false to true', () => {
-    it('does not request /users/current while false, then requests it after transitioning to true', async () => {
-      mockApiFetch.mockResolvedValue(stubUser)
-
-      const { result, rerender } = renderHook(({ bootstrapped }: { bootstrapped: boolean }) => useAuth(bootstrapped), {
-        wrapper: createWrapper(),
-        initialProps: { bootstrapped: false },
+        expect(mockApiFetch).not.toHaveBeenCalled()
       })
 
-      expect(mockApiFetch).not.toHaveBeenCalled()
-      expect(result.current.isLoading).toBe(true)
+      it('reports isLoading as true', () => {
+        const { result } = renderHook(() => useAuth(false), { wrapper: createWrapper() })
 
-      rerender({ bootstrapped: true })
+        expect(result.current.isLoading).toBe(true)
+      })
 
-      await waitFor(() => expect(result.current.isLoggedIn).toBe(true))
-      expect(mockApiFetch).toHaveBeenCalledTimes(1)
+      it('reports isLoggedIn as false', () => {
+        const { result } = renderHook(() => useAuth(false), { wrapper: createWrapper() })
+
+        expect(result.current.isLoggedIn).toBe(false)
+      })
+
+      it('reports user as undefined', () => {
+        const { result } = renderHook(() => useAuth(false), { wrapper: createWrapper() })
+
+        expect(result.current.user).toBeUndefined()
+      })
     })
 
-    it('isLoading transitions from true (pre-bootstrap) to false (post-fetch) without intermediate false', async () => {
-      mockApiFetch.mockResolvedValue(stubUser)
+    describe('when isBootstrapped is true', () => {
+      it('issues a request to /users/current', async () => {
+        mockApiFetch.mockResolvedValue(stubUser)
 
-      const observed: boolean[] = []
-      const { result, rerender } = renderHook(
-        ({ bootstrapped }: { bootstrapped: boolean }) => {
-          const auth = useAuth(bootstrapped)
-          observed.push(auth.isLoading)
-          return auth
-        },
-        { wrapper: createWrapper(), initialProps: { bootstrapped: false } },
-      )
+        renderHook(() => useAuth(true), { wrapper: createWrapper() })
 
-      expect(result.current.isLoading).toBe(true)
+        await waitFor(() => expect(mockApiFetch).toHaveBeenCalledWith('/users/current', expect.any(Object)))
+      })
 
-      rerender({ bootstrapped: true })
+      it('populates user from the response', async () => {
+        mockApiFetch.mockResolvedValue(stubUser)
 
-      await waitFor(() => expect(result.current.isLoading).toBe(false))
+        const { result } = renderHook(() => useAuth(true), { wrapper: createWrapper() })
 
-      const falseBeforeTrue = observed.indexOf(false)
-      const firstTrue = observed.indexOf(true)
-      expect(firstTrue).toBeLessThan(falseBeforeTrue === -1 ? Infinity : falseBeforeTrue)
+        await waitFor(() => expect(result.current.user).toEqual(stubUser))
+      })
+
+      it('reports isLoggedIn as true when the server returns a user', async () => {
+        mockApiFetch.mockResolvedValue(stubUser)
+
+        const { result } = renderHook(() => useAuth(true), { wrapper: createWrapper() })
+
+        await waitFor(() => expect(result.current.isLoggedIn).toBe(true))
+      })
+
+      it('reports isLoading as false once the request settles', async () => {
+        mockApiFetch.mockResolvedValue(stubUser)
+
+        const { result } = renderHook(() => useAuth(true), { wrapper: createWrapper() })
+
+        await waitFor(() => expect(result.current.isLoading).toBe(false))
+      })
+
+      it('reports isLoggedIn as false and user as undefined when the server returns no user', async () => {
+        mockApiFetch.mockRejectedValue(new Error('Unauthorized'))
+
+        const { result } = renderHook(() => useAuth(true), { wrapper: createWrapper() })
+
+        await waitFor(() => expect(result.current.isLoading).toBe(false))
+        expect(result.current.isLoggedIn).toBe(false)
+        expect(result.current.user).toBeUndefined()
+      })
+    })
+
+    describe('bootstrap transition from false to true', () => {
+      it('does not request /users/current while false, then requests it after transitioning to true', async () => {
+        mockApiFetch.mockResolvedValue(stubUser)
+
+        const { result, rerender } = renderHook(
+          ({ bootstrapped }: { bootstrapped: boolean }) => useAuth(bootstrapped),
+          { wrapper: createWrapper(), initialProps: { bootstrapped: false } },
+        )
+
+        expect(mockApiFetch).not.toHaveBeenCalled()
+        expect(result.current.isLoading).toBe(true)
+
+        rerender({ bootstrapped: true })
+
+        await waitFor(() => expect(result.current.isLoggedIn).toBe(true))
+        expect(mockApiFetch).toHaveBeenCalledTimes(1)
+      })
+
+      it('isLoading transitions from true (pre-bootstrap) to false (post-fetch) without an intermediate false', async () => {
+        mockApiFetch.mockResolvedValue(stubUser)
+
+        const observed: boolean[] = []
+        const { result, rerender } = renderHook(
+          ({ bootstrapped }: { bootstrapped: boolean }) => {
+            const auth = useAuth(bootstrapped)
+            observed.push(auth.isLoading)
+            return auth
+          },
+          { wrapper: createWrapper(), initialProps: { bootstrapped: false } },
+        )
+
+        expect(result.current.isLoading).toBe(true)
+
+        rerender({ bootstrapped: true })
+
+        await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+        const falseBeforeTrue = observed.indexOf(false)
+        const firstTrue = observed.indexOf(true)
+        expect(firstTrue).toBeLessThan(falseBeforeTrue === -1 ? Infinity : falseBeforeTrue)
+      })
     })
   })
 
@@ -185,6 +189,133 @@ describe('useAuth — isBootstrapped gate', () => {
       const { result } = renderHook(() => useAuth(false), { wrapper: createWrapper() })
 
       expect(result.current.isAdmin).toBeFalsy()
+    })
+  })
+
+  describe('isLoading composition', () => {
+    it('is true while login mutation is pending', async () => {
+      let resolveLogin!: () => void
+      const loginInflight = new Promise<undefined>(resolve => {
+        resolveLogin = () => resolve(undefined)
+      })
+
+      mockApiFetch.mockRejectedValueOnce(new Error('Unauthorized')).mockReturnValueOnce(loginInflight)
+
+      const { result } = renderHook(() => useAuth(true), { wrapper: createWrapper() })
+      await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+      result.current.login(stubCredentials)
+
+      await waitFor(() => expect(result.current.isLoading).toBe(true))
+
+      resolveLogin()
+    })
+
+    it('is true while signup mutation is pending', async () => {
+      let resolveSignup!: () => void
+      const signupInflight = new Promise<undefined>(resolve => {
+        resolveSignup = () => resolve(undefined)
+      })
+
+      mockApiFetch.mockRejectedValueOnce(new Error('Unauthorized')).mockReturnValueOnce(signupInflight)
+
+      const { result } = renderHook(() => useAuth(true), { wrapper: createWrapper() })
+      await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+      result.current.signup({ name: 'test', mail: stubCredentials.usernameOrEmail, password: stubCredentials.password })
+
+      await waitFor(() => expect(result.current.isLoading).toBe(true))
+
+      resolveSignup()
+    })
+  })
+
+  describe('login flow', () => {
+    it('issues login → refresh → session-refetch in sequence', async () => {
+      mockApiFetch
+        .mockRejectedValueOnce(new Error('Unauthorized'))
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(stubUser)
+
+      const { result } = renderHook(() => useAuth(true), { wrapper: createWrapper() })
+      await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+      await result.current.login(stubCredentials)
+
+      const loginSequenceUrls = mockApiFetch.mock.calls.slice(1).map(([url]: [string, unknown]) => url)
+      expect(loginSequenceUrls).toEqual(['/auth/login', '/auth/refresh', '/users/current'])
+    })
+
+    it('populates user and sets isLoggedIn after a successful login', async () => {
+      mockApiFetch
+        .mockRejectedValueOnce(new Error('Unauthorized'))
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(stubUser)
+
+      const { result } = renderHook(() => useAuth(true), { wrapper: createWrapper() })
+      await waitFor(() => expect(result.current.isLoading).toBe(false))
+      expect(result.current.isLoggedIn).toBe(false)
+
+      await result.current.login(stubCredentials)
+
+      await waitFor(() => expect(result.current.isLoggedIn).toBe(true))
+      expect(result.current.user).toEqual(stubUser)
+    })
+  })
+
+  describe('logout flow', () => {
+    it('sets isLoggedIn to false after logout succeeds', async () => {
+      mockApiFetch
+        .mockResolvedValueOnce(stubUser)
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValue(new Error('Unauthorized'))
+
+      const { result } = renderHook(() => useAuth(true), { wrapper: createWrapper() })
+      await waitFor(() => expect(result.current.isLoggedIn).toBe(true))
+
+      await result.current.logout()
+
+      await waitFor(() => expect(result.current.isLoggedIn).toBe(false))
+    })
+
+    it('clears the cached user after logout', async () => {
+      mockApiFetch
+        .mockResolvedValueOnce(stubUser)
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValue(new Error('Unauthorized'))
+
+      const { result } = renderHook(() => useAuth(true), { wrapper: createWrapper() })
+      await waitFor(() => expect(result.current.user).toEqual(stubUser))
+
+      await result.current.logout()
+
+      await waitFor(() => expect(result.current.user).toBeUndefined())
+    })
+
+    it('isLoading is true while logout is in flight and false once complete', async () => {
+      let resolveLogout!: () => void
+      const logoutInflight = new Promise<undefined>(resolve => {
+        resolveLogout = () => resolve(undefined)
+      })
+
+      mockApiFetch
+        .mockResolvedValueOnce(stubUser)
+        .mockReturnValueOnce(logoutInflight)
+        .mockRejectedValue(new Error('Unauthorized'))
+
+      const { result } = renderHook(() => useAuth(true), { wrapper: createWrapper() })
+      await waitFor(() => expect(result.current.isLoggedIn).toBe(true))
+
+      const logoutCall = result.current.logout()
+
+      await waitFor(() => expect(result.current.isLoading).toBe(true))
+
+      resolveLogout()
+      await logoutCall
+
+      await waitFor(() => expect(result.current.isLoading).toBe(false))
     })
   })
 })
