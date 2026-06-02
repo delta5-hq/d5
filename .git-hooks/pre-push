@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/bin/bash
+set -o pipefail
 # Pre-push hook - comprehensive checks before pushing to remote.
 #
 # `git push` is a deliberate human action, so MANUAL_RUN=1 is set to unlock the

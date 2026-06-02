@@ -226,6 +226,26 @@ generate_docker_name() {
     fi
 }
 
+assert_e2e_disk_free() {
+  local required_gb="${1:-${E2E_DISK_MIN_GB:-10}}"
+  local avail_kb avail_gb
+  avail_kb=$(df --output=avail / | tail -1 | tr -d ' ')
+  avail_gb=$((avail_kb / 1024 / 1024))
+  if [ "$avail_gb" -lt "$required_gb" ]; then
+    log_error "INSUFFICIENT_DISK_SPACE: free=${avail_gb}G required=${required_gb}G; run \`scripts/ci-helpers.sh reclaim_e2e_artefacts\`"
+    return 1
+  fi
+  log_success "Disk pre-flight: ${avail_gb}G available (required: ${required_gb}G)"
+}
+
+reclaim_e2e_artefacts() {
+  log_info "Reclaiming E2E artefacts..."
+  rm -rf frontend/test-results frontend/playwright-report
+  rm -rf backend-v2/e2e/.jest-cache
+  rm -rf /tmp/playwright-artifacts-* /tmp/playwright-* 2>/dev/null || true
+  log_success "E2E artefacts reclaimed"
+}
+
 if [ -n "$1" ]; then
   "$@"
 fi

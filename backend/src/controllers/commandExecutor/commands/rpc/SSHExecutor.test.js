@@ -235,32 +235,6 @@ describe('SSHExecutor', () => {
       })
     })
 
-    it('closes stream on timeout without ending shared client', async () => {
-      let execCallback
-      sharedClient.exec.mockImplementation((cmd, callback) => {
-        execCallback = callback
-      })
-
-      const promise = executor.execute({
-        host: 'localhost',
-        username: 'user',
-        privateKey: 'key',
-        command: 'slow command',
-        timeoutMs: 100,
-        client: sharedClient,
-      })
-
-      await new Promise(resolve => setTimeout(resolve, 50))
-      execCallback(null, mockStream)
-
-      mockStream.on.mockImplementation(() => mockStream)
-      mockStream.stderr.on.mockImplementation(() => {})
-
-      await expect(promise).rejects.toThrow('SSH command timeout after 100ms')
-      expect(mockStream.close).toHaveBeenCalled()
-      expect(sharedClient.end).toBeUndefined()
-    })
-
     it('handles exec error on shared client', async () => {
       sharedClient.exec.mockImplementation((cmd, callback) => {
         callback(new Error('Exec failed'))
@@ -389,14 +363,14 @@ describe('SSHExecutor', () => {
   })
 
   describe('timeout behavior', () => {
-    it('shared client mode does not terminate connection on timeout', async () => {
-      const sharedClient = {
-        exec: jest.fn(),
-        end: jest.fn(),
-      }
+    afterEach(() => {
+      jest.useRealTimers()
+    })
 
+    it('shared client: closes stream and rejects when timeout fires after exec callback', async () => {
+      jest.useFakeTimers()
+      const sharedClient = {exec: jest.fn(), end: jest.fn()}
       mockStream.close = jest.fn()
-
       let execCallback
       sharedClient.exec.mockImplementation((cmd, callback) => {
         execCallback = callback
@@ -411,15 +385,154 @@ describe('SSHExecutor', () => {
         client: sharedClient,
       })
 
-      await new Promise(resolve => setTimeout(resolve, 50))
       execCallback(null, mockStream)
-
       mockStream.on.mockImplementation(() => mockStream)
       mockStream.stderr.on.mockImplementation(() => {})
+      jest.advanceTimersByTime(100)
 
       await expect(promise).rejects.toThrow('SSH command timeout after 100ms')
       expect(mockStream.close).toHaveBeenCalled()
       expect(sharedClient.end).not.toHaveBeenCalled()
+    })
+
+    it('shared client: late exec callback after timeout does not call close on discarded stream', async () => {
+      jest.useFakeTimers()
+      const sharedClient = {exec: jest.fn(), end: jest.fn()}
+      mockStream.close = jest.fn()
+      let execCallback
+      sharedClient.exec.mockImplementation((cmd, callback) => {
+        execCallback = callback
+      })
+
+      const promise = executor.execute({
+        host: 'localhost',
+        username: 'user',
+        privateKey: 'key',
+        command: 'slow',
+        timeoutMs: 100,
+        client: sharedClient,
+      })
+
+      jest.advanceTimersByTime(100)
+      await expect(promise).rejects.toThrow('SSH command timeout after 100ms')
+
+      execCallback(null, mockStream)
+      mockStream.on.mockImplementation(() => mockStream)
+      mockStream.stderr.on.mockImplementation(() => {})
+      expect(mockStream.close).not.toHaveBeenCalled()
+    })
+
+    it('shared client: rejects without closing stream when timeout fires before exec callback', async () => {
+      jest.useFakeTimers()
+      const sharedClient = {exec: jest.fn(), end: jest.fn()}
+      mockStream.close = jest.fn()
+      sharedClient.exec.mockImplementation(() => {})
+
+      const promise = executor.execute({
+        host: 'localhost',
+        username: 'user',
+        privateKey: 'key',
+        command: 'slow command',
+        timeoutMs: 100,
+        client: sharedClient,
+      })
+
+      jest.advanceTimersByTime(100)
+
+      await expect(promise).rejects.toThrow('SSH command timeout after 100ms')
+      expect(mockStream.close).not.toHaveBeenCalled()
+    })
+
+    it('own client: calls client.end() and rejects on timeout', async () => {
+      jest.useFakeTimers()
+      mockClient.on.mockImplementation(() => mockClient)
+
+      const promise = executor.execute({
+        host: 'localhost',
+        username: 'user',
+        privateKey: 'key',
+        command: 'test',
+        timeoutMs: 100,
+      })
+
+      jest.advanceTimersByTime(100)
+
+      await expect(promise).rejects.toThrow('SSH command timeout after 100ms')
+      expect(mockClient.end).toHaveBeenCalled()
+    })
+
+    it('own client: connection error arriving after timeout is suppressed', async () => {
+      jest.useFakeTimers()
+      let errorHandler
+      mockClient.on.mockImplementation((event, callback) => {
+        if (event === 'error') errorHandler = callback
+        return mockClient
+      })
+
+      const promise = executor.execute({
+        host: 'localhost',
+        username: 'user',
+        privateKey: 'key',
+        command: 'test',
+        timeoutMs: 100,
+      })
+
+      jest.advanceTimersByTime(100)
+      await expect(promise).rejects.toThrow('SSH command timeout after 100ms')
+
+      expect(() => errorHandler(new Error('Connection reset'))).not.toThrow()
+    })
+
+    it('rejection message includes the configured timeout duration', async () => {
+      jest.useFakeTimers()
+      const sharedClient = {exec: jest.fn()}
+      sharedClient.exec.mockImplementation(() => {})
+
+      const promise = executor.execute({
+        host: 'localhost',
+        username: 'user',
+        privateKey: 'key',
+        command: 'cmd',
+        timeoutMs: 250,
+        client: sharedClient,
+      })
+
+      jest.advanceTimersByTime(250)
+
+      await expect(promise).rejects.toThrow('SSH command timeout after 250ms')
+    })
+
+    it('shared client: stream close before deadline cancels the timeout — no pending timer remains', async () => {
+      jest.useFakeTimers()
+      const sharedClient = {exec: jest.fn()}
+      let execCallback
+      let closeCallback
+
+      sharedClient.exec.mockImplementation((cmd, cb) => {
+        execCallback = cb
+      })
+
+      mockStream.on.mockImplementation((event, cb) => {
+        if (event === 'close') closeCallback = cb
+        return mockStream
+      })
+      mockStream.stderr.on.mockImplementation(() => {})
+
+      const promise = executor.execute({
+        host: 'localhost',
+        username: 'user',
+        privateKey: 'key',
+        command: 'fast',
+        timeoutMs: 100,
+        client: sharedClient,
+      })
+
+      execCallback(null, mockStream)
+      closeCallback(0, null)
+
+      const result = await promise
+      expect(result.exitCode).toBe(0)
+      expect(jest.getTimerCount()).toBe(0)
     })
   })
 })

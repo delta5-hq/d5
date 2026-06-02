@@ -296,19 +296,28 @@ describe('MCPCommand', () => {
         await expect(cmd.run(node, undefined, '/coder1 test')).resolves.toBeUndefined()
       })
 
-      it('creates error node when callTool rejects', async () => {
-        MCPClientManager.callTool.mockRejectedValue(new Error('connection refused'))
-        const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
-
-        await cmd.run(node, undefined, '/coder1 test')
-        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: connection refused', 'node')
-      })
-
       it('does not throw to caller when callTool rejects', async () => {
         MCPClientManager.callTool.mockRejectedValue(new Error('connection refused'))
         const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
 
         await expect(cmd.run(node, undefined, '/coder1 test')).resolves.toBeUndefined()
+      })
+
+      it.each([
+        ['Error', new Error('connection refused')],
+        ['TypeError', new TypeError('type mismatch')],
+        ['RangeError', new RangeError('out of bounds')],
+        [
+          'named Error subclass',
+          Object.assign(new Error('subprocess sandbox unavailable'), {name: 'SandboxUnavailableError'}),
+        ],
+      ])('surfaces .message of %s thrown by callTool as the error node content', async (_label, err) => {
+        MCPClientManager.callTool.mockRejectedValue(err)
+        const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
+
+        await cmd.run(node, undefined, '/coder1 test')
+
+        expect(mockStore.importer.createNodes).toHaveBeenCalledWith(`Error: ${err.message}`, node.id)
       })
     })
   })

@@ -54,10 +54,35 @@ describe('createTransport', () => {
     it('throws on an unparseable serverUrl', () => {
       expect(() => createTransport({serverUrl: 'not a url', transport: MCP_TRANSPORT.STREAMABLE_HTTP})).toThrow()
     })
+
+    it('does not invoke sandboxSpawn', () => {
+      createTransport({serverUrl: 'http://localhost:3100/mcp', transport: MCP_TRANSPORT.STREAMABLE_HTTP})
+
+      expect(sandboxSpawn).not.toHaveBeenCalled()
+    })
+
+    it('does not construct stdio or sse transports', () => {
+      createTransport({serverUrl: 'http://localhost:3100/mcp', transport: MCP_TRANSPORT.STREAMABLE_HTTP})
+
+      expect(StdioClientTransport).not.toHaveBeenCalled()
+      expect(SSEClientTransport).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['https URL', 'https://secure.example.com/mcp', 'https://secure.example.com/mcp'],
+      ['URL with port', 'http://localhost:8080/mcp', 'http://localhost:8080/mcp'],
+      ['URL with path segments', 'http://api.example.com/v1/mcp/http', 'http://api.example.com/v1/mcp/http'],
+      ['URL with query params', 'http://localhost:3100/mcp?token=abc', 'http://localhost:3100/mcp?token=abc'],
+    ])('constructs URL correctly for %s', (_label, serverUrl, expectedHref) => {
+      createTransport({serverUrl, transport: MCP_TRANSPORT.STREAMABLE_HTTP})
+
+      const urlArg = StreamableHTTPClientTransport.mock.calls[0][0]
+      expect(urlArg.href).toBe(expectedHref)
+    })
   })
 
   describe('stdio transport', () => {
-    it('passes command, args and env directly to StdioClientTransport', () => {
+    it('forwards sandboxed spawn result to StdioClientTransport', () => {
       createTransport({
         transport: MCP_TRANSPORT.STDIO,
         command: 'npx',
@@ -140,6 +165,12 @@ describe('createTransport', () => {
       expect(StreamableHTTPClientTransport).not.toHaveBeenCalled()
     })
 
+    it('does not invoke sandboxSpawn', () => {
+      createTransport({serverUrl: 'http://localhost:3100/sse', transport: MCP_TRANSPORT.SSE})
+
+      expect(sandboxSpawn).not.toHaveBeenCalled()
+    })
+
     it.each([
       ['https URL', 'https://secure.example.com/sse', 'https://secure.example.com/sse'],
       ['URL with port', 'http://localhost:8080/events', 'http://localhost:8080/events'],
@@ -151,6 +182,29 @@ describe('createTransport', () => {
       const urlArg = SSEClientTransport.mock.calls[0][0]
       expect(urlArg.href).toBe(expectedHref)
     })
+  })
+
+  describe('sandbox error propagation', () => {
+    it.each([
+      ['Error', new Error('sandbox spawn failed')],
+      [
+        'SandboxUnavailableError',
+        Object.assign(new Error('bwrap is not available'), {name: 'SandboxUnavailableError'}),
+      ],
+      ['TypeError', new TypeError('invalid spawn argument')],
+    ])(
+      'propagates %s from sandboxSpawn without wrapping and without constructing transport',
+      (_label, sandboxError) => {
+        sandboxSpawn.mockImplementationOnce(() => {
+          throw sandboxError
+        })
+
+        expect(() => createTransport({transport: MCP_TRANSPORT.STDIO, command: 'node', args: ['server.js']})).toThrow(
+          sandboxError,
+        )
+        expect(StdioClientTransport).not.toHaveBeenCalled()
+      },
+    )
   })
 
   describe('unknown transport', () => {

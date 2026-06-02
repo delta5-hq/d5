@@ -21,7 +21,7 @@ test.describe('Dual sidebar system', () => {
     test('primary sidebar triggers secondary sidebar visibility', async ({ page }) => {
       const primaryNav = new PrimaryNavigationPage(page)
       const secondarySidebar = new SecondarySidebarPage(page)
-      
+
       await page.evaluate(() => localStorage.removeItem('secondary_sidebar_state'))
       await page.reload()
       await waitForAuthenticatedApp(page)
@@ -37,7 +37,7 @@ test.describe('Dual sidebar system', () => {
     test('primary sidebar click updates secondary sidebar content', async ({ page }) => {
       const primaryNav = new PrimaryNavigationPage(page)
       const secondarySidebar = new SecondarySidebarPage(page)
-      
+
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
 
@@ -53,9 +53,17 @@ test.describe('Dual sidebar system', () => {
     test('secondary sidebar width is independent of primary sidebar', async ({ page }) => {
       const primaryNav = new PrimaryNavigationPage(page)
       const secondarySidebar = new SecondarySidebarPage(page)
-      
+
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
+      await page.waitForFunction(
+        (selector: string) => {
+          const el = document.querySelector(selector)
+          return el !== null && el.getBoundingClientRect().width > 0
+        },
+        '[data-testid="primary-sidebar"]',
+        { timeout: TEST_TIMEOUTS.NAVIGATION },
+      )
 
       const primaryBox = await primaryNav.root.boundingBox()
       const secondaryBox = await secondarySidebar.root.boundingBox()
@@ -67,13 +75,13 @@ test.describe('Dual sidebar system', () => {
     test('rapid primary nav clicks maintain final section state', async ({ page }) => {
       const primaryNav = new PrimaryNavigationPage(page)
       const secondarySidebar = new SecondarySidebarPage(page)
-      
+
       const sections = ['home', 'settings', 'home', 'admin', 'home']
-      
+
       for (const section of sections) {
         await primaryNav.clickSection(section)
       }
-      
+
       await page.waitForTimeout(TEST_TIMEOUTS.SIDEBAR_ANIMATION)
 
       await expect(secondarySidebar.myWorkflowsLink).toBeVisible()
@@ -97,7 +105,7 @@ test.describe('Dual sidebar system', () => {
       test(`${section} section renders ${type} with ${expectedElement}`, async ({ page }) => {
         const primaryNav = new PrimaryNavigationPage(page)
         const secondarySidebar = new SecondarySidebarPage(page)
-        
+
         await primaryNav.clickSection(section)
         await secondarySidebar.waitForTransition()
 
@@ -125,10 +133,10 @@ test.describe('Dual sidebar system', () => {
       test(`${section} section ${authRequired ? 'requires' : 'allows'} authentication`, async ({ page }) => {
         const primaryNav = new PrimaryNavigationPage(page)
         const secondarySidebar = new SecondarySidebarPage(page)
-        
+
         await page.setViewportSize(VIEWPORT.DESKTOP)
         await page.goto('/')
-        
+
         if (!authRequired) {
           await page.waitForLoadState('domcontentloaded')
         } else {
@@ -161,7 +169,7 @@ test.describe('Dual sidebar system', () => {
     test('home section hides My and Recent groups when unauthenticated', async ({ page }) => {
       const primaryNav = new PrimaryNavigationPage(page)
       const secondarySidebar = new SecondarySidebarPage(page)
-      
+
       await page.setViewportSize(VIEWPORT.DESKTOP)
       await page.goto('/')
       await page.waitForLoadState('domcontentloaded')
@@ -182,7 +190,7 @@ test.describe('Dual sidebar system', () => {
     test('home section shows all groups when authenticated', async ({ page }) => {
       const primaryNav = new PrimaryNavigationPage(page)
       const secondarySidebar = new SecondarySidebarPage(page)
-      
+
       await page.setViewportSize(VIEWPORT.DESKTOP)
       await page.goto('/')
       await adminLogin(page)
@@ -215,7 +223,7 @@ test.describe('Dual sidebar system', () => {
       test(`${section} section renders ${hasAction ? 'action button' : 'navigation links'}`, async ({ page }) => {
         const primaryNav = new PrimaryNavigationPage(page)
         const secondarySidebar = new SecondarySidebarPage(page)
-        
+
         await primaryNav.clickSection(section)
         await secondarySidebar.waitForTransition()
 
@@ -263,7 +271,7 @@ test.describe('Dual sidebar system', () => {
 
       const primaryNav = new PrimaryNavigationPage(page)
       const secondarySidebar = new SecondarySidebarPage(page)
-      
+
       await expect(secondarySidebar.root).toHaveCount(0)
 
       await primaryNav.clickHome()
@@ -282,7 +290,7 @@ test.describe('Dual sidebar system', () => {
     test('active section persists across reloads', async ({ page }) => {
       const primaryNav = new PrimaryNavigationPage(page)
       const secondarySidebar = new SecondarySidebarPage(page)
-      
+
       await primaryNav.clickSettings()
       await secondarySidebar.waitForTransition()
 
@@ -305,7 +313,7 @@ test.describe('Dual sidebar system', () => {
 
       const primaryNav = new PrimaryNavigationPage(page)
       const secondarySidebar = new SecondarySidebarPage(page)
-      
+
       await expect(primaryNav.homeItem).toBeVisible()
 
       await primaryNav.clickHome()
@@ -364,17 +372,17 @@ test.describe('Dual sidebar system', () => {
     test('browser back button preserves sidebar state', async ({ page }) => {
       const primaryNav = new PrimaryNavigationPage(page)
       const secondarySidebar = new SecondarySidebarPage(page)
-      
+
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
 
       await expect(secondarySidebar.root).toBeVisible()
-      
+
       await secondarySidebar.clickMyWorkflows()
       await page.waitForURL('/workflows', { timeout: TEST_TIMEOUTS.NAVIGATION })
 
       await page.goBack()
-      
+
       await page.waitForTimeout(TEST_TIMEOUTS.NETWORK_IDLE / 60)
       const currentUrl = page.url()
       expect(currentUrl).toContain('/')
@@ -393,7 +401,7 @@ test.describe('Dual sidebar system', () => {
 
     test('create workflow button triggers navigation to new workflow', async ({ page }) => {
       const createActions = new CreateWorkflowActionsPage(page)
-      
+
       const workflowId = await createActions.createNewWorkflow()
 
       await page.waitForURL(/\/workflow\/[a-zA-Z0-9-]+/, { timeout: TEST_TIMEOUTS.NAVIGATION })
@@ -402,12 +410,12 @@ test.describe('Dual sidebar system', () => {
 
     test('create workflow button disables during creation', async ({ page }) => {
       const createActions = new CreateWorkflowActionsPage(page)
-      
+
       await createActions.openCreatePopover()
       await expect(createActions.createWorkflowButton).toBeVisible()
-      
+
       const workflowCreationPromise = createActions.createWorkflowButton.click()
-      
+
       await page.waitForURL(/\/workflow\/[a-zA-Z0-9-]+/, { timeout: TEST_TIMEOUTS.NAVIGATION })
       await workflowCreationPromise.catch(() => {})
     })
@@ -424,12 +432,12 @@ test.describe('Dual sidebar system', () => {
     test('navigating to deep nested route maintains parent section state', async ({ page }) => {
       const primaryNav = new PrimaryNavigationPage(page)
       const secondarySidebar = new SecondarySidebarPage(page)
-      
+
       await primaryNav.clickAdmin()
       await secondarySidebar.waitForTransition()
-      
+
       await expect(secondarySidebar.root).toBeVisible()
-      
+
       await page.goto('/admin/users')
       await waitForAuthenticatedApp(page)
 
@@ -442,9 +450,12 @@ test.describe('Dual sidebar system', () => {
 
         const sidebarVisible = await secondarySidebar.root.isVisible().catch(() => false)
         if (sidebarVisible) {
-          const hasAdminLabel = await secondarySidebar.groupLabel('Admin').isVisible().catch(() => false)
+          const hasAdminLabel = await secondarySidebar
+            .groupLabel('Admin')
+            .isVisible()
+            .catch(() => false)
           const hasWaitlistLink = await secondarySidebar.waitlistLink.isVisible().catch(() => false)
-          
+
           expect(hasAdminLabel || hasWaitlistLink).toBeTruthy()
         } else {
           expect(sidebarVisible).toBe(false)
@@ -455,7 +466,7 @@ test.describe('Dual sidebar system', () => {
     test('secondary sidebar content updates immediately on section change', async ({ page }) => {
       const primaryNav = new PrimaryNavigationPage(page)
       const secondarySidebar = new SecondarySidebarPage(page)
-      
+
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
 

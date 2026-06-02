@@ -1015,4 +1015,79 @@ describe('RPCCommand', () => {
       )
     })
   })
+
+  describe('run — acp-local protocol', () => {
+    const acpAliasConfig = {
+      alias: '/agent1',
+      protocol: 'acp-local',
+      command: 'npx',
+      args: ['-y', '@scope/agent'],
+      env: {},
+      outputFormat: 'text',
+    }
+
+    const node = {id: 'acp-node', command: '/agent1 do work'}
+
+    it('creates output node from ACP executor result', async () => {
+      const command = new RPCCommand(userId, workflowId, mockStore, acpAliasConfig)
+      jest.spyOn(command, 'executeACP').mockResolvedValue({output: 'agent output', sessionId: null, exitCode: 0})
+
+      await command.run(node, null, '/agent1 do work')
+
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('agent output', node.id)
+    })
+
+    it('creates fallback node when ACP output is empty', async () => {
+      const command = new RPCCommand(userId, workflowId, mockStore, acpAliasConfig)
+      jest.spyOn(command, 'executeACP').mockResolvedValue({output: '', sessionId: null, exitCode: 0})
+
+      await command.run(node, null, '/agent1 do work')
+
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('(empty RPC response)', node.id)
+    })
+
+    it('does not throw to caller when executeACP throws', async () => {
+      const command = new RPCCommand(userId, workflowId, mockStore, acpAliasConfig)
+      jest.spyOn(command, 'executeACP').mockRejectedValue(new Error('spawn failed'))
+
+      await expect(command.run(node, null, '/agent1 do work')).resolves.toBeUndefined()
+    })
+
+    it.each([
+      ['Error', new Error('spawn failed')],
+      ['TypeError', new TypeError('type mismatch in spawn args')],
+      ['RangeError', new RangeError('timeout out of range')],
+      ['named Error subclass', Object.assign(new Error('bwrap is not available'), {name: 'SandboxUnavailableError'})],
+    ])('surfaces .message of %s thrown by executeACP as the error node content', async (_label, err) => {
+      const command = new RPCCommand(userId, workflowId, mockStore, acpAliasConfig)
+      jest.spyOn(command, 'executeACP').mockRejectedValue(err)
+
+      await command.run(node, null, '/agent1 do work')
+
+      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(`Error: ${err.message}`, node.id)
+    })
+
+    it('persists session ID returned by executeACP', async () => {
+      const command = new RPCCommand(userId, workflowId, mockStore, acpAliasConfig)
+      jest.spyOn(command, 'executeACP').mockResolvedValue({output: 'done', sessionId: 'acp-session-1', exitCode: 0})
+
+      await command.run(node, null, '/agent1 do work')
+
+      expect(IntegrationSessionRepository.upsertSessionId).toHaveBeenCalledWith(
+        userId,
+        acpAliasConfig.alias,
+        'rpc',
+        'acp-session-1',
+      )
+    })
+
+    it('does not attempt to persist session when executeACP returns null sessionId', async () => {
+      const command = new RPCCommand(userId, workflowId, mockStore, acpAliasConfig)
+      jest.spyOn(command, 'executeACP').mockResolvedValue({output: 'done', sessionId: null, exitCode: 0})
+
+      await command.run(node, null, '/agent1 do work')
+
+      expect(IntegrationSessionRepository.upsertSessionId).not.toHaveBeenCalled()
+    })
+  })
 })

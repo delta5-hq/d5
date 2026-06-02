@@ -1,4 +1,4 @@
-.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e start-backend-e2e start-backend-v2-e2e start-frontend-e2e stop stop-dev stop-e2e ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend build-backend build-backend-v2 build-frontend test-backend test-backend-v2 test-frontend e2e-backend-v2 e2e-frontend e2e-frontend-throttled e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks test-hook clean-e2e clean-all fix-permissions cleanup-old-data
+.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e start-backend-e2e start-backend-v2-e2e start-frontend-e2e stop stop-dev stop-e2e ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend build-backend build-backend-v2 build-frontend test-backend test-backend-v2 test-frontend e2e-backend-v2 e2e-frontend e2e-frontend-throttled e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks test-hook clean-e2e clean-all fix-permissions cleanup-old-data e2e-disk-preflight
 
 # Configuration
 DOCKER_NETWORK := d5-dev-network
@@ -330,7 +330,10 @@ start-frontend-e2e:
 		exit 1; \
 	fi
 
-e2e-backend-v2: start-mongodb-e2e e2e-db-init start-backend-e2e start-backend-v2-e2e
+e2e-disk-preflight:
+	@bash scripts/ci-helpers.sh assert_e2e_disk_free $(E2E_DISK_MIN_GB)
+
+e2e-backend-v2: e2e-disk-preflight start-mongodb-e2e e2e-db-init start-backend-e2e start-backend-v2-e2e
 	@echo "→ Running backend-v2 E2E tests..."
 	@TEST_EXIT=0; cd backend-v2/e2e && npm ci --silent --no-audit --no-fund < /dev/null && \
 		E2E_SERVER_URL=http://localhost:$(E2E_BACKEND_V2_PORT) E2E_API_BASE_PATH=$(API_ROOT) E2E_MONGO_URI=$(MONGO_E2E_URI) CI=true npm test < /dev/null || TEST_EXIT=$$?; \
@@ -355,6 +358,7 @@ e2e-frontend:
 		echo ""; \
 		exit 1; \
 	fi
+	@bash scripts/ci-helpers.sh assert_e2e_disk_free $(E2E_DISK_MIN_GB)
 	@$(MAKE) start-mongodb-e2e e2e-db-init start-backend-e2e start-backend-v2-e2e start-frontend-e2e
 	@echo "→ Running frontend E2E tests..."
 	@TEST_EXIT=0; cd frontend && \
@@ -366,7 +370,7 @@ e2e-frontend:
 		cd .. && $(MAKE) stop-e2e > /dev/null 2>&1 || true; \
 		exit $$TEST_EXIT
 
-e2e-frontend-throttled: start-mongodb-e2e e2e-db-init start-backend-e2e start-backend-v2-e2e start-frontend-e2e
+e2e-frontend-throttled: e2e-disk-preflight start-mongodb-e2e e2e-db-init start-backend-e2e start-backend-v2-e2e start-frontend-e2e
 	@echo "→ Running frontend E2E tests (throttled)..."
 	@TEST_EXIT=0; cd frontend && \
 		E2E_BASE_URL=http://localhost:$(E2E_FRONTEND_PORT) \
