@@ -25,6 +25,7 @@ const ENGINE_SUFFIX_VARIANTS = [
   ['refine none eligible', '/chat list [✗ 0/3]', '/chat list'],
   ['refine no judge signal', '/chat list [⚠ no judge signal]', '/chat list'],
   ['refine fallback with winner', '/chat list [⚠ fallback: 0/3 passed; chose fork-1]', '/chat list'],
+  ['refine fallback with multi-digit fork index', '/chat list [⚠ fallback: 0/12 passed; chose fork-11]', '/chat list'],
   ['invalid empty criterion', '/chat list [✗ invalid]', '/chat list'],
 ] as const satisfies ReadonlyArray<[string, string, string]>
 
@@ -183,7 +184,13 @@ describe('extractReliabilitySuffix', () => {
   it.each(ENGINE_SUFFIX_VARIANTS)('extracts engine suffix: %s', (_label, titleWithSuffix, base) => {
     const { baseTitle, suffix } = extractReliabilitySuffix(titleWithSuffix)
     expect(baseTitle).toBe(base)
-    expect(suffix).not.toBeNull()
+    expect(suffix).toBe(titleWithSuffix.slice(base.length).trim())
+  })
+
+  it.each(LEGACY_SUFFIX_VARIANTS)('extracts legacy suffix: %s', (_label, titleWithSuffix, base) => {
+    const { baseTitle, suffix } = extractReliabilitySuffix(titleWithSuffix)
+    expect(baseTitle).toBe(base)
+    expect(suffix).toBe(titleWithSuffix.slice(base.length).trim())
   })
 
   it('returns null suffix when title has no engine suffix', () => {
@@ -216,5 +223,11 @@ describe('extractReliabilitySuffix', () => {
     const { baseTitle, suffix } = extractReliabilitySuffix('[✓]')
     expect(baseTitle).toBe('')
     expect(suffix).not.toBeNull()
+  })
+
+  it('returns empty baseTitle when title is only a legacy suffix', () => {
+    const { baseTitle, suffix } = extractReliabilitySuffix('[✓ refined]')
+    expect(baseTitle).toBe('')
+    expect(suffix).toBe('[✓ refined]')
   })
 })

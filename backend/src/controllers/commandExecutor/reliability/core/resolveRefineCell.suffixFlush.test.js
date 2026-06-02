@@ -289,6 +289,50 @@ describe('resolveRefineCell — strict all-fail', () => {
   })
 })
 
+describe('resolveRefineCell — winner path: validate flush sources from winner fork, not criteria-failed fork', () => {
+  it('mixed ok+criteria-failed run: owned validate title comes from winner fork store', async () => {
+    const store = makeOuterStore()
+    const winnerForkStore = makeForkStoreWithValidateTitle('/validate must include revenue figures [✓]')
+    const loserForkStore = makeForkStoreWithValidateTitle('/validate must include revenue figures [✗ 3 attempts]')
+
+    mockRunForks.mockResolvedValue([
+      {forkIndex: 0, status: 'ok', forkStore: winnerForkStore},
+      {forkIndex: 1, status: 'criteria-failed', forkStore: loserForkStore},
+    ])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: 0, selectionLayer: 'primary'}),
+    }))
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    const outputNodes = store.getOutput().nodes
+    const validate = outputNodes.find(n => n.id === 'v1')
+    expect(validate).toBeDefined()
+    expect(validate.title).toBe('/validate must include revenue figures [✓]')
+  })
+
+  it('winner is highest-index fork: flush reads from that fork, not earlier criteria-failed fork', async () => {
+    const store = makeOuterStore()
+    const criteriaForkStore = makeForkStoreWithValidateTitle('/validate must include revenue figures [✗ 2 attempts]')
+    const winnerForkStore = makeForkStoreWithValidateTitle('/validate must include revenue figures [✓]')
+
+    mockRunForks.mockResolvedValue([
+      {forkIndex: 0, status: 'criteria-failed', forkStore: criteriaForkStore},
+      {forkIndex: 1, status: 'ok', forkStore: winnerForkStore},
+    ])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: 1, selectionLayer: 'primary'}),
+    }))
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    const outputNodes = store.getOutput().nodes
+    const validate = outputNodes.find(n => n.id === 'v1')
+    expect(validate).toBeDefined()
+    expect(validate.title).toBe('/validate must include revenue figures [✓]')
+  })
+})
+
 describe('sibling validate topology — flush on strict all-fail', () => {
   const makeSiblingStore = () =>
     buildStore({

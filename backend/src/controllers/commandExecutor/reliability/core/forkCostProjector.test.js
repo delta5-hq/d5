@@ -1,4 +1,5 @@
 import {projectForkCost} from './forkCostProjector'
+import {exceedsForkLimit, readForkLimit} from './forkLimitParser'
 import Store from '../../commands/utils/Store'
 
 jest.mock('debug', () => {
@@ -387,6 +388,101 @@ describe('projectForkCost', () => {
         refine: {id: 'refine', parent: 'parent', command: '/refine :n=3 :limit=xs', children: []},
       })
       expect(projectForkCost(store.getNode('refine'), store)).toBe(30)
+    })
+  })
+  // ── P0.30: commodity :n=N on direct /refine children (per-fork child scope) ──────────
+
+  describe('commodity :n=N on direct child of /refine: child scope replaces parent scope', () => {
+    it('/refine :n=3 with /chat :n=5 child → cost = 3 × 5 = 15', () => {
+      /*
+       * parent (/chat)               ← immediate scope (fallback): 1
+       *   └── /refine :n=3           ← fork multiplier: 3
+       *         └── innerChat (/chat :n=5) ← refine-child scope: 5 (commodity)
+       *
+       * refineChildScope = 5 > 0 → perForkScope = 5
+       * cost = 3 × 5 = 15
+       */
+      const store = buildStore({
+        parent: {id: 'parent', command: '/chat', children: ['refine']},
+        refine: {id: 'refine', parent: 'parent', command: '/refine :n=3', children: ['innerChat']},
+        innerChat: {id: 'innerChat', parent: 'refine', command: '/chat :n=5', children: []},
+      })
+      expect(projectForkCost(store.getNode('refine'), store)).toBe(15)
+    })
+
+    it('/refine :n=3 :limit=xs with /chat :n=10 child → projected 30 exceeds limit 20', () => {
+      /*
+       * parent (/chat)                  ← immediate scope (fallback): 1
+       *   └── /refine :n=3 :limit=xs   ← fork multiplier: 3; limit: xs = 20
+       *         └── innerChat (/chat :n=10) ← refine-child scope: 10
+       *
+       * projected = 3 × 10 = 30 > 20 → resolveRefineCell will refuse
+       */
+      const store = buildStore({
+        parent: {id: 'parent', command: '/chat', children: ['refine']},
+        refine: {id: 'refine', parent: 'parent', command: '/refine :n=3 :limit=xs', children: ['innerChat']},
+        innerChat: {id: 'innerChat', parent: 'refine', command: '/chat :n=10', children: []},
+      })
+      const cost = projectForkCost(store.getNode('refine'), store)
+      expect(cost).toBe(30)
+      const limit = readForkLimit(store.getNode('refine').command)
+      expect(exceedsForkLimit(cost, limit)).toBe(true)
+    })
+
+    it('/validate child of /refine excluded from per-fork child scope', () => {
+      /*
+       * parent (/chat)                  ← immediate scope (fallback): 1
+       *   └── /refine :n=3             ← fork multiplier: 3
+       *         ├── innerChat (/chat :n=2) ← counted in refine-child scope: 2
+       *         └── /validate C         ← excluded from refine-child scope (post-processor)
+       *
+       * refineChildScope = 2 (validate excluded), perForkScope = 2
+       * cost = 3 × 2 = 6
+       */
+      const store = buildStore({
+        parent: {id: 'parent', command: '/chat', children: ['refine']},
+        refine: {
+          id: 'refine',
+          parent: 'parent',
+          command: '/refine :n=3',
+          children: ['innerChat', 'validate'],
+        },
+        innerChat: {id: 'innerChat', parent: 'refine', command: '/chat :n=2', children: []},
+        validate: {
+          id: 'validate',
+          parent: 'refine',
+          command: '/validate must mention revenue',
+          children: [],
+        },
+      })
+      expect(projectForkCost(store.getNode('refine'), store)).toBe(6)
+    })
+
+    it('no non-post-processor children → falls back to parent immediate scope', () => {
+      /*
+       * parent (/chat :n=4)            ← immediate scope (fallback): 4
+       *   └── /refine :n=2            ← fork multiplier: 2
+       *         └── /validate C        ← excluded; refineChildScope = 0
+       *
+       * refineChildScope = 0 → perForkScope = parent immediate scope = 4
+       * cost = 2 × 4 = 8
+       */
+      const store = buildStore({
+        parent: {id: 'parent', command: '/chat :n=4', children: ['refine']},
+        refine: {
+          id: 'refine',
+          parent: 'parent',
+          command: '/refine :n=2',
+          children: ['validate'],
+        },
+        validate: {
+          id: 'validate',
+          parent: 'refine',
+          command: '/validate must mention revenue',
+          children: [],
+        },
+      })
+      expect(projectForkCost(store.getNode('refine'), store)).toBe(8)
     })
   })
 })

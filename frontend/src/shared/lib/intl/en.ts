@@ -432,6 +432,7 @@ export default {
       modeLabel: 'Mode: {mode}',
       eligibleLabel: '{eligible} of {total} forks passed',
       noSignalWarning: 'No juror rankings collected — winner selected by position',
+      tiebreakWarning: 'Winner selected by tiebreak — cross-family ranking was not decisive',
       judgeQualityWarningsTitle: 'Judge quality warnings',
       judgeQualityWarning_singleProvider:
         'Single provider configured — cross-family judging impossible; judge inherits generator bias',

@@ -34,7 +34,8 @@ interface CriterionVerdictDrawerProps {
 }
 
 export const CriterionVerdictDrawer = ({ open, onOpenChange, metadata }: CriterionVerdictDrawerProps) => {
-  const { perCriterionVerdict, mode, eligible, total, noSignal, winnerForkIndex, judgeQualityWarnings } = metadata
+  const { perCriterionVerdict, mode, eligible, total, noSignal, tiebreakUsed, winnerForkIndex, judgeQualityWarnings } =
+    metadata
 
   return (
     <GlassSheet onOpenChange={onOpenChange} open={open}>
@@ -61,6 +62,11 @@ export const CriterionVerdictDrawer = ({ open, onOpenChange, metadata }: Criteri
             {noSignal ? (
               <div className="text-accent">
                 <FormattedMessage id="workflowTree.verdictDrawer.noSignalWarning" />
+              </div>
+            ) : null}
+            {tiebreakUsed && !noSignal ? (
+              <div className="text-accent">
+                <FormattedMessage id="workflowTree.verdictDrawer.tiebreakWarning" />
               </div>
             ) : null}
           </div>

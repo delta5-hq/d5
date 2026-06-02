@@ -95,7 +95,7 @@ export async function resolveRefineCell(refineNode, store, memoMap, signal = nul
       refineNode.id,
     )
     store.saveNodeToOutput(refineNode.id)
-    // Flush validate titles so the user can attribute which criterion caused the failure.
+    // so the user can attribute which criterion caused the failure
     const diagnosticFork = forkResults.find(f => f.status === 'criteria-failed' && f.forkStore)
     if (diagnosticFork) {
       flushValidateTitles(allValidates, diagnosticFork.forkStore, store)
@@ -117,7 +117,7 @@ export async function resolveRefineCell(refineNode, store, memoMap, signal = nul
       total: n,
       fallback: verdict.selectionLayer === 'fallback',
       winnerForkIndex: verdict.winnerForkIndex,
-      noSignal: verdict.noSignal ?? false,
+      noSignal: !fallback && (verdict.noSignal ?? false),
     })
     winnerNode.reliabilityMetadata = {
       winnerForkIndex: verdict.winnerForkIndex,
@@ -125,6 +125,7 @@ export async function resolveRefineCell(refineNode, store, memoMap, signal = nul
       mode: verdict.mode,
       selectionLayer: verdict.selectionLayer,
       noSignal: verdict.noSignal ?? false,
+      tiebreakUsed: verdict.tiebreakUsed ?? false,
       eligible: okCount,
       total: n,
       judgeQualityWarnings: verdict.judgeQualityWarnings ?? [],

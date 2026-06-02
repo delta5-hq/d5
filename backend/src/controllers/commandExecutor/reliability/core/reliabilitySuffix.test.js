@@ -28,6 +28,7 @@ const ENGINE_SUFFIX_VARIANTS = [
   ['refine: no forks eligible', 'Task [✗ 0/3]', 'Task'],
   ['refine: all jurors excluded', 'Task [⚠ no judge signal]', 'Task'],
   ['refine: fallback commit', 'Task [⚠ fallback: 0/3 passed; chose fork-1]', 'Task'],
+  ['refine: fallback commit with multi-digit fork index', 'Task [⚠ fallback: 0/12 passed; chose fork-11]', 'Task'],
   ['invalid empty criterion', 'Task [✗ invalid]', 'Task'],
 ]
 
@@ -155,70 +156,118 @@ describe('appendValidateSuffix', () => {
       [{passed: true, retryCount: 0}, '[✓]'],
       [{passed: true, retryCount: 2}, '[✓ retry-2]'],
       [{passed: false, retryCount: 3}, '[✗ 3 attempts]'],
-    ])('%o — result stays within 80 chars and contains correct suffix', (opts, expectedSuffix) => {
-      const longTitle = 'A'.repeat(75)
+    ])('%o — result is clamped to exactly 80 chars with suffix at end', (opts, expectedSuffix) => {
+      const longTitle = 'A'.repeat(79)
       const result = appendValidateSuffix(longTitle, opts)
-      expect(result.length).toBeLessThanOrEqual(80)
-      expect(result).toContain(expectedSuffix)
+      expect(result.length).toBe(80)
+      expect(result.slice(-expectedSuffix.length)).toBe(expectedSuffix)
     })
   })
 
   it('empty title → suffix only', () => {
     expect(appendValidateSuffix('', {passed: true, retryCount: 0})).toBe('[✓]')
   })
+
+  describe('every output shape is strippable to its base title — round-trip invariant', () => {
+    it.each([[{passed: true, retryCount: 0}], [{passed: true, retryCount: 2}], [{passed: false, retryCount: 3}]])(
+      '%o → stripped back to base title',
+      opts => {
+        expect(stripReliabilitySuffix(appendValidateSuffix('Base', opts))).toBe('Base')
+      },
+    )
+  })
 })
 
 // ─── appendRefineSuffix ───────────────────────────────────────────────────────
 
 describe('appendRefineSuffix', () => {
-  describe('[✓ K/N] — one or more forks eligible', () => {
-    it.each([
-      [{eligible: 3, total: 3}, '[✓ 3/3]'],
-      [{eligible: 2, total: 3}, '[✓ 2/3]'],
-      [{eligible: 1, total: 3}, '[✓ 1/3]'],
-      [{eligible: 1, total: 2}, '[✓ 1/2]'],
-    ])('%o → %s', (opts, expected) => {
-      expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
+  describe('[✗ 0/N] — all forks disqualified, no winner committed', () => {
+    describe('strict mode', () => {
+      it.each([
+        [{eligible: 0, total: 2}, '[✗ 0/2]'],
+        [{eligible: 0, total: 3}, '[✗ 0/3]'],
+        [{eligible: 0, total: 5}, '[✗ 0/5]'],
+        [{eligible: 0, total: 1}, '[✗ 0/1]'],
+      ])('%o → %s', (opts, expected) => {
+        expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
+      })
+    })
+
+    describe(':fallback flag present but winnerForkIndex is null — no winner was found', () => {
+      it.each([
+        [{eligible: 0, total: 2, fallback: true, winnerForkIndex: null}, '[✗ 0/2]'],
+        [{eligible: 0, total: 3, fallback: true, winnerForkIndex: null}, '[✗ 0/3]'],
+        [{eligible: 0, total: 5, fallback: true, winnerForkIndex: null}, '[✗ 0/5]'],
+        [{eligible: 0, total: 2, fallback: true, winnerForkIndex: null, noSignal: true}, '[✗ 0/2]'],
+      ])('%o → %s', (opts, expected) => {
+        expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
+      })
     })
   })
 
-  describe('[✗ 0/N] — strict-mode: no eligible forks', () => {
-    it.each([
-      [{eligible: 0, total: 2}, '[✗ 0/2]'],
-      [{eligible: 0, total: 3}, '[✗ 0/3]'],
-      [{eligible: 0, total: 5}, '[✗ 0/5]'],
-    ])('%o → %s', (opts, expected) => {
-      expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
-    })
-  })
-
-  describe('[✗ 0/N] — fallback flag set but winnerForkIndex is null', () => {
-    it('falls through to strict-failure suffix when no winner found despite :fallback', () => {
-      expect(appendRefineSuffix('Task', {eligible: 0, total: 3, fallback: true, winnerForkIndex: null})).toBe(
-        'Task [✗ 0/3]',
-      )
-    })
-  })
-
-  describe('[⚠ fallback: 0/N passed; chose fork-K] — opt-in degraded commit', () => {
+  describe('[⚠ fallback: 0/N passed; chose fork-K] — degraded winner committed from criteria-failed pool', () => {
     it.each([
       [{eligible: 0, total: 3, fallback: true, winnerForkIndex: 1}, '[⚠ fallback: 0/3 passed; chose fork-1]'],
       [{eligible: 0, total: 2, fallback: true, winnerForkIndex: 0}, '[⚠ fallback: 0/2 passed; chose fork-0]'],
       [{eligible: 0, total: 5, fallback: true, winnerForkIndex: 3}, '[⚠ fallback: 0/5 passed; chose fork-3]'],
+      [{eligible: 0, total: 12, fallback: true, winnerForkIndex: 11}, '[⚠ fallback: 0/12 passed; chose fork-11]'],
+      [
+        {eligible: 0, total: 3, fallback: true, winnerForkIndex: 1, noSignal: true},
+        '[⚠ fallback: 0/3 passed; chose fork-1]',
+      ],
+      [
+        {eligible: 0, total: 2, fallback: true, winnerForkIndex: 0, noSignal: true},
+        '[⚠ fallback: 0/2 passed; chose fork-0]',
+      ],
     ])('%o → %s', (opts, expected) => {
       expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
     })
   })
 
-  describe('[⚠ no judge signal] — all jurors excluded from quorum', () => {
-    it('noSignal:true → [⚠ no judge signal]', () => {
-      expect(appendRefineSuffix('Task', {eligible: 2, total: 2, noSignal: true})).toBe('Task [⚠ no judge signal]')
+  describe('[⚠ no judge signal] — judge quorum exhausted in strict mode', () => {
+    describe('eligible > 0: forks passed but judge returned no parseable rankings', () => {
+      it.each([
+        [{eligible: 2, total: 2, noSignal: true}, '[⚠ no judge signal]'],
+        [{eligible: 1, total: 2, noSignal: true}, '[⚠ no judge signal]'],
+        [{eligible: 3, total: 5, noSignal: true}, '[⚠ no judge signal]'],
+      ])('%o → %s', (opts, expected) => {
+        expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
+      })
     })
 
-    it('noSignal:true takes priority over fallback, eligible, and total', () => {
-      expect(
-        appendRefineSuffix('Task', {eligible: 0, total: 3, fallback: true, winnerForkIndex: 1, noSignal: true}),
-      ).toBe('Task [⚠ no judge signal]')
+    describe('eligible === 0: strict all-fail with empty judge quorum', () => {
+      it.each([
+        [{eligible: 0, total: 2, fallback: false, winnerForkIndex: null, noSignal: true}, '[⚠ no judge signal]'],
+        [{eligible: 0, total: 3, fallback: false, winnerForkIndex: null, noSignal: true}, '[⚠ no judge signal]'],
+      ])('%o → %s', (opts, expected) => {
+        expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
+      })
+    })
+  })
+
+  describe('[✓ K/N] — one or more eligible forks, winner selected', () => {
+    describe('standard path (strict mode, judge produced rankings)', () => {
+      it.each([
+        [{eligible: 3, total: 3}, '[✓ 3/3]'],
+        [{eligible: 2, total: 3}, '[✓ 2/3]'],
+        [{eligible: 1, total: 3}, '[✓ 1/3]'],
+        [{eligible: 1, total: 2}, '[✓ 1/2]'],
+        [{eligible: 1, total: 1}, '[✓ 1/1]'],
+        [{eligible: 2, total: 2, noSignal: false}, '[✓ 2/2]'],
+      ])('%o → %s', (opts, expected) => {
+        expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
+      })
+    })
+
+    describe('fallback mode — success fraction shown regardless of noSignal', () => {
+      it.each([
+        [{eligible: 1, total: 2, fallback: true}, '[✓ 1/2]'],
+        [{eligible: 1, total: 2, fallback: true, noSignal: true}, '[✓ 1/2]'],
+        [{eligible: 2, total: 3, fallback: true, noSignal: true}, '[✓ 2/3]'],
+        [{eligible: 2, total: 2, fallback: true, noSignal: true}, '[✓ 2/2]'],
+      ])('%o → %s', (opts, expected) => {
+        expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
+      })
     })
   })
 
@@ -233,16 +282,29 @@ describe('appendRefineSuffix', () => {
       [{eligible: 3, total: 3}, '[✓ 3/3]'],
       [{eligible: 0, total: 3}, '[✗ 0/3]'],
       [{eligible: 0, total: 3, noSignal: true}, '[⚠ no judge signal]'],
-    ])('%o — result stays within 80 chars and contains correct suffix', (opts, expectedSuffix) => {
-      const longTitle = 'A'.repeat(75)
+      [{eligible: 0, total: 3, fallback: true, winnerForkIndex: 1}, '[⚠ fallback: 0/3 passed; chose fork-1]'],
+    ])('%o — result is clamped to exactly 80 chars with suffix at end', (opts, expectedSuffix) => {
+      const longTitle = 'A'.repeat(79)
       const result = appendRefineSuffix(longTitle, opts)
-      expect(result.length).toBeLessThanOrEqual(80)
-      expect(result).toContain(expectedSuffix)
+      expect(result.length).toBe(80)
+      expect(result.slice(-expectedSuffix.length)).toBe(expectedSuffix)
     })
   })
 
   it('empty title → suffix only', () => {
     expect(appendRefineSuffix('', {eligible: 3, total: 3})).toBe('[✓ 3/3]')
+  })
+
+  describe('every output shape is strippable to its base title — round-trip invariant', () => {
+    it.each([
+      [{eligible: 3, total: 3}],
+      [{eligible: 2, total: 3}],
+      [{eligible: 0, total: 3}],
+      [{eligible: 0, total: 3, noSignal: true}],
+      [{eligible: 0, total: 3, fallback: true, winnerForkIndex: 1}],
+    ])('%o → stripped back to base title', opts => {
+      expect(stripReliabilitySuffix(appendRefineSuffix('Base', opts))).toBe('Base')
+    })
   })
 })
 
@@ -277,16 +339,25 @@ describe('appendCommoditySuffix', () => {
     it.each([
       [{successCount: 2, total: 2}, '[✓ 2/2]'],
       [{successCount: 0, total: 2}, '[✗ 0/2]'],
-    ])('%o — result stays within 80 chars and contains correct suffix', (opts, expectedSuffix) => {
-      const longTitle = 'A'.repeat(75)
+    ])('%o — result is clamped to exactly 80 chars with suffix at end', (opts, expectedSuffix) => {
+      const longTitle = 'A'.repeat(79)
       const result = appendCommoditySuffix(longTitle, opts)
-      expect(result.length).toBeLessThanOrEqual(80)
-      expect(result).toContain(expectedSuffix)
+      expect(result.length).toBe(80)
+      expect(result.slice(-expectedSuffix.length)).toBe(expectedSuffix)
     })
   })
 
   it('empty title → suffix only', () => {
     expect(appendCommoditySuffix('', {successCount: 2, total: 2})).toBe('[✓ 2/2]')
+  })
+
+  describe('every output shape is strippable to its base title — round-trip invariant', () => {
+    it.each([[{successCount: 2, total: 2}], [{successCount: 0, total: 2}]])(
+      '%o → stripped back to base title',
+      opts => {
+        expect(stripReliabilitySuffix(appendCommoditySuffix('Base', opts))).toBe('Base')
+      },
+    )
   })
 })
 
@@ -306,11 +377,11 @@ describe('appendInvalidSuffix', () => {
     })
   })
 
-  it('clamps result to 80-character maximum', () => {
-    const longTitle = 'A'.repeat(75)
+  it('clamps over-budget title to exactly 80 chars with suffix at end', () => {
+    const longTitle = 'A'.repeat(79)
     const result = appendInvalidSuffix(longTitle)
-    expect(result.length).toBeLessThanOrEqual(80)
-    expect(result).toContain('[✗ invalid]')
+    expect(result.length).toBe(80)
+    expect(result.slice(-'[✗ invalid]'.length)).toBe('[✗ invalid]')
   })
 
   it('empty title → suffix only', () => {

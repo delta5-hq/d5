@@ -3,7 +3,9 @@ package config
 import (
 	"fmt"
 	"log"
+	"net/url"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -39,6 +41,11 @@ func init() {
 
 	if envMongoURI := os.Getenv("MONGO_URI"); envMongoURI != "" {
 		MongoURI = envMongoURI
+		if os.Getenv("MONGO_DATABASE") == "" {
+			if db := databaseFromURI(envMongoURI); db != "" {
+				MongoDatabase = db
+			}
+		}
 	} else {
 		auth := ""
 		if MongoPassword != "" {
@@ -55,6 +62,14 @@ func init() {
 	log.Printf("MONGO_HOST=%s", MongoHost)
 	log.Printf("MONGO_PORT=%s", MongoPort)
 	log.Printf("MONGO_URI=%s", MongoURI)
+}
+
+func databaseFromURI(rawURI string) string {
+	parsed, err := url.Parse(rawURI)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(parsed.Path, "/"))
 }
 
 func getEnv(key, fallback string) string {

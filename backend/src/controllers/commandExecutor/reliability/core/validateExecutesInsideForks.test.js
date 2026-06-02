@@ -200,6 +200,13 @@ describe('/validate executes inside each fork', () => {
       expect(validateSpy).toHaveBeenCalledTimes(2)
     })
 
+    it('sibling N=3, :retry=0 → exactly 3 calls — linear not constant', async () => {
+      setupFailJudge()
+      const store = buildSiblingStore({validateCommand: NO_RETRY_VALIDATE, n: 3})
+      await resolveRefineCell(store.getNode('refine'), store, new Map())
+      expect(validateSpy).toHaveBeenCalledTimes(3)
+    })
+
     it('two criteria descendant N=2 → exactly 4 calls (N × criteria count)', async () => {
       setupPassJudge()
       const store = buildDescendantMultiCriterionStore()
@@ -274,6 +281,86 @@ describe('/validate executes inside each fork', () => {
       await resolveRefineCell(siblingStore.getNode('refine'), siblingStore, new Map())
       expect(descendantStore.getOutput().nodes.find(n => n.id === 'validate')?.title).toMatch(/\[✗\s+\d+\s+attempts\]/)
       expect(siblingStore.getOutput().nodes.find(n => n.id === 'validate')?.title).toMatch(/\[✗\s+\d+\s+attempts\]/)
+    })
+  })
+
+  // ── (4) grandchild /validate topology (P0.39 fix) ────────────────────────────
+  // /validate is a grandchild of /refine: child of a /chat that is itself a
+  // child of /refine. The inner /chat must execute inside each fork so the
+  // /validate has content to check. Before the P0.39 fix, the inner /chat was
+  // never executed (postProcessNode silently skipped non-post-processor children
+  // of /refine), producing bare subtrees and false-passing judges.
+
+  describe('/validate as grandchild of /refine (inner /chat executes inside forks)', () => {
+    const buildGrandchildStore = ({validateCommand = DEFAULT_VALIDATE, n = 2} = {}) =>
+      new Store({
+        userId: 'test',
+        nodes: {
+          root: {id: 'root', children: ['parent']},
+          parent: {
+            id: 'parent',
+            parent: 'root',
+            command: '/chat Start refine',
+            children: ['refine'],
+          },
+          refine: {
+            id: 'refine',
+            parent: 'parent',
+            command: `/refine :n=${n}`,
+            children: ['innerChat'],
+          },
+          innerChat: {
+            id: 'innerChat',
+            parent: 'refine',
+            command: '/chat Reply with: HELLO',
+            children: ['validate'],
+          },
+          validate: {
+            id: 'validate',
+            parent: 'innerChat',
+            command: validateCommand,
+            title: validateCommand,
+            children: [],
+          },
+        },
+      })
+
+    it('ValidateCommand.run called N times (once per fork) — not zero', async () => {
+      setupFailJudge()
+      const store = buildGrandchildStore({validateCommand: NO_RETRY_VALIDATE})
+      await resolveRefineCell(store.getNode('refine'), store, new Map())
+      expect(validateSpy).toHaveBeenCalledTimes(2)
+    })
+
+    it('N=3 scales linearly — 3 calls not 0', async () => {
+      setupFailJudge()
+      const store = buildGrandchildStore({validateCommand: NO_RETRY_VALIDATE, n: 3})
+      await resolveRefineCell(store.getNode('refine'), store, new Map())
+      expect(validateSpy).toHaveBeenCalledTimes(3)
+    })
+
+    it('ChatCommand.run called for innerChat in each fork', async () => {
+      setupFailJudge()
+      const store = buildGrandchildStore({validateCommand: NO_RETRY_VALIDATE})
+      await resolveRefineCell(store.getNode('refine'), store, new Map())
+      // chatSpy captures BOTH parent /chat and inner /chat runs; inner chat must fire
+      const callNodeIds = chatSpy.mock.calls.map(args => args[0]?.id)
+      expect(callNodeIds).toContain('innerChat')
+    })
+
+    it('outer store validate title shows [✗ N attempts] after all-fail (strict)', async () => {
+      setupFailJudge()
+      const store = buildGrandchildStore({validateCommand: NO_RETRY_VALIDATE})
+      await resolveRefineCell(store.getNode('refine'), store, new Map())
+      expect(store.getOutput().nodes.find(n => n.id === 'validate')?.title).toMatch(/\[✗\s+\d+\s+attempts\]/)
+    })
+
+    it('outer store validate title shows [✓] after all-pass (strict, winner selected)', async () => {
+      setupPassJudge()
+      const store = buildGrandchildStore()
+      await resolveRefineCell(store.getNode('refine'), store, new Map())
+      const validateOut = store.getOutput().nodes.find(n => n.id === 'validate')
+      expect(validateOut?.title).toMatch(/\[✓/)
     })
   })
 })

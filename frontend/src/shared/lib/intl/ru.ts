@@ -432,6 +432,7 @@ export default {
       modeLabel: 'Режим: {mode}',
       eligibleLabel: '{eligible} из {total} форков прошли',
       noSignalWarning: 'Рейтинги жюри не собраны — победитель выбран по позиции',
+      tiebreakWarning: 'Победитель выбран по правилу тай-брейка — кросс-семейный рейтинг не был решающим',
       judgeQualityWarningsTitle: 'Предупреждения о качестве судьи',
       judgeQualityWarning_singleProvider:
         'Настроен один провайдер — кросс-семейная оценка невозможна; судья наследует смещение генератора',

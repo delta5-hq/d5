@@ -231,4 +231,71 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
 
     expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_FAIL_RE)
   })
+
+  test('refine :n=2 :fallback + REJECT criterion — [⚠ fallback: 0/2 passed; chose fork-N] suffix, validate [✗] suffix', async ({ page }) => {
+    const tree = new WorkflowTreePage(page)
+    const { detail, rootId } = await selectRootAndOpenDetail(page)
+    await detail.fillCommand('/chat :n=2 Write one sentence about weather')
+    await detail.addChild()
+    await page.locator('[data-node-id]').nth(1).waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
+
+    const refineId = await tree.nodeIdAt(1)
+    await tree.selectNode(refineId)
+    const refineDetail = new NodeDetailPanelPage(page)
+    await refineDetail.waitForComponent()
+    await refineDetail.fillCommand('/refine :n=2 :fallback')
+    await refineDetail.addChild()
+    await page.locator('[data-node-id]').nth(2).waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
+
+    const validateId = await tree.nodeIdAt(2)
+    await tree.selectNode(validateId)
+    const validateDetail = new NodeDetailPanelPage(page)
+    await validateDetail.waitForComponent()
+    await validateDetail.fillCommand('/validate REJECT — must never pass')
+
+    await tree.selectNode(rootId)
+    await detail.waitForComponent()
+    await executeAndWaitForCompletion(page, detail)
+
+    const refineTitle = await nodeTitle(page, refineId)
+    expect(refineTitle).toMatch(/\[⚠ fallback: 0\/2 passed; chose fork-\d+\]/)
+    expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_FAIL_RE)
+  })
+  test('P0.39 grandchild topology — /refine :n=2 :fallback + inner /chat + /validate grandchild, inner /chat executes per fork, [⚠ fallback] and [✗] suffixes propagate', async ({ page }) => {
+    const tree = new WorkflowTreePage(page)
+    const { detail, rootId } = await selectRootAndOpenDetail(page)
+    await detail.fillCommand('/chat Write one sentence about the weather')
+    await detail.addChild()
+    await page.locator('[data-node-id]').nth(1).waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
+
+    const refineId = await tree.nodeIdAt(1)
+    await tree.selectNode(refineId)
+    const refineDetail = new NodeDetailPanelPage(page)
+    await refineDetail.waitForComponent()
+    await refineDetail.fillCommand('/refine :n=2 :fallback')
+    await refineDetail.addChild()
+    await page.locator('[data-node-id]').nth(2).waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
+
+    const innerChatId = await tree.nodeIdAt(2)
+    await tree.selectNode(innerChatId)
+    const innerChatDetail = new NodeDetailPanelPage(page)
+    await innerChatDetail.waitForComponent()
+    await innerChatDetail.fillCommand('/chat Reply with exactly: HELLO WORLD')
+    await innerChatDetail.addChild()
+    await page.locator('[data-node-id]').nth(3).waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
+
+    const validateId = await tree.nodeIdAt(3)
+    await tree.selectNode(validateId)
+    const validateDetail = new NodeDetailPanelPage(page)
+    await validateDetail.waitForComponent()
+    await validateDetail.fillCommand('/validate REJECT — Output must contain DEFINITELY_UNREACHABLE_TOKEN_42')
+
+    await tree.selectNode(rootId)
+    await detail.waitForComponent()
+    await executeAndWaitForCompletion(page, detail)
+
+    const refineTitle = await nodeTitle(page, refineId)
+    expect(refineTitle).toMatch(/\[⚠ fallback: 0\/2 passed; chose fork-\d+\]/)
+    expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_FAIL_RE)
+  })
 })

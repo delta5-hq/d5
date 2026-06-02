@@ -245,16 +245,13 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
     return {callCount, childCount: children.length}
   }
 
-  it(':n=2 runs ChatCommand exactly 2 times and produces exactly 2 children', async () => {
-    const {callCount, childCount} = await runWithCount('/chat :n=2 List 3 colors')
-    expect(callCount).toBe(2)
-    expect(childCount).toBe(2)
-  })
-
-  it(':n=3 runs ChatCommand exactly 3 times and produces exactly 3 children', async () => {
-    const {callCount, childCount} = await runWithCount('/chat :n=3 List 3 colors')
-    expect(callCount).toBe(3)
-    expect(childCount).toBe(3)
+  it.each([
+    [2, '/chat :n=2 List 3 colors'],
+    [3, '/chat :n=3 List 3 colors'],
+  ])(':n=%i runs ChatCommand exactly %i times and produces exactly %i children', async (n, command) => {
+    const {callCount, childCount} = await runWithCount(command)
+    expect(callCount).toBe(n)
+    expect(childCount).toBe(n)
   })
 
   it(':n=1 (explicit minimum) runs once', async () => {
@@ -373,7 +370,6 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
 
 describe('runCommand — commodity :n=N on legacy node (command in title, not command field)', () => {
   it(':n=2 triggers commodity forks when command is stored in title field', async () => {
-    // Legacy nodes may use title instead of command; getNodeCommand falls back to title
     const root = {id: 'root', parent: 'root', title: '/chat :n=2 List 3 colors', children: []}
     const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
     let callCount = 0
@@ -404,14 +400,18 @@ describe('runCommand — commodity :n=N with real ChatCommand + NoopLLM (MOCK_EX
     process.env.MOCK_EXTERNAL_SERVICES = ORIG_ENV
   })
 
-  it('creates N children in main store via real importer.createNodes path', async () => {
-    const root = {id: 'root', parent: 'root', command: '/chat :n=2 List 3 colors', children: []}
+  it.each([
+    [2, '/chat :n=2 List 3 colors'],
+    [3, '/chat :n=3 Describe the sky'],
+  ])('produces exactly %i children and a [✓ %i/%i] suffix via real importer (NoopLLM)', async (n, command) => {
+    const root = {id: 'root', parent: null, command, children: []}
     const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
 
     await runCommand({queryType: 'chat', cell: root, store})
 
-    const children = Object.values(store._nodes).filter(nd => nd.parent === root.id && nd.id !== root.id)
-    expect(children.length).toBeGreaterThanOrEqual(2)
+    const children = Object.values(store._nodes).filter(nd => nd.parent === root.id)
+    expect(children).toHaveLength(n)
+    expect(store._nodes.root.title).toMatch(new RegExp(`\\[✓ ${n}/${n}\\]`))
   })
 })
 

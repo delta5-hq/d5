@@ -1,5 +1,11 @@
 import {passesStructuralGate, MIN_SUBSTANTIVE_CHARS} from './structuralGate'
 
+jest.mock('debug', () => {
+  const fn = jest.fn(() => fn)
+  fn.extend = jest.fn(() => fn)
+  return fn
+})
+
 describe('passesStructuralGate', () => {
   describe('empty output → fails', () => {
     it.each([null, undefined, '', '   ', '\n\t'])('rejects %p', input => {
@@ -70,22 +76,80 @@ describe('passesStructuralGate', () => {
     it('passes "I cannot" when it does not appear at the start of the text', () => {
       expect(passesStructuralGate('The main reason I cannot confirm this is the limited dataset available.')).toBe(true)
     })
+
+    it('rejects leading-whitespace refusal — trim() is applied before pattern matching', () => {
+      expect(passesStructuralGate("\nI'm sorry, I cannot help with that.")).toBe(false)
+      expect(passesStructuralGate('   As an AI, I cannot generate harmful content.')).toBe(false)
+    })
   })
 
   describe('forkIndex parameter — observability-only, does not alter verdict', () => {
     const substantive = 'a'.repeat(MIN_SUBSTANTIVE_CHARS)
 
-    it.each([0, 99, null])('substantive text passes when forkIndex is %s', forkIndex => {
+    it.each([0, 1, 99, null, undefined])('substantive text passes regardless of forkIndex=%s', forkIndex => {
       expect(passesStructuralGate(substantive, forkIndex)).toBe(true)
     })
 
-    it('empty string fails with any forkIndex', () => {
-      expect(passesStructuralGate('', 0)).toBe(false)
-      expect(passesStructuralGate('', 99)).toBe(false)
+    it.each([0, 99, null])('empty string fails regardless of forkIndex=%s', forkIndex => {
+      expect(passesStructuralGate('', forkIndex)).toBe(false)
+    })
+  })
+
+  describe('structured debug log on every rejection', () => {
+    let log
+
+    beforeEach(() => {
+      log = jest.requireMock('debug')
+      log.mockClear()
     })
 
-    it('refusal text fails when forkIndex is provided', () => {
-      expect(passesStructuralGate("I'm sorry, I cannot help.", 0)).toBe(false)
+    const rejectionCalls = () => log.mock.calls.filter(([fmt]) => fmt === '%s rejected: %s')
+
+    it('logs empty output rejection with fork-? label when forkIndex omitted', () => {
+      passesStructuralGate('')
+      const calls = rejectionCalls()
+      expect(calls).toHaveLength(1)
+      expect(calls[0]).toEqual(['%s rejected: %s', 'fork-?', 'empty output'])
+    })
+
+    it('logs refusal-pattern rejection with reason including matched prefix', () => {
+      passesStructuralGate("I'm sorry, I cannot help with that.")
+      const calls = rejectionCalls()
+      expect(calls).toHaveLength(1)
+      expect(calls[0][1]).toBe('fork-?')
+      expect(calls[0][2]).toMatch(/refusal pattern matched/)
+    })
+
+    it('logs truncated-output rejection with char count in reason', () => {
+      const input = 'Too short.'
+      passesStructuralGate(input)
+      const calls = rejectionCalls()
+      expect(calls).toHaveLength(1)
+      expect(calls[0][2]).toContain(String(input.trim().length))
+      expect(calls[0][2]).toMatch(/output too short/)
+    })
+
+    it.each([0, 3, 99])('uses fork-%i label when forkIndex is %i', forkIndex => {
+      passesStructuralGate('', forkIndex)
+      const calls = rejectionCalls()
+      expect(calls[0][1]).toBe(`fork-${forkIndex}`)
+    })
+
+    it.each([null, undefined])('uses fork-? label when forkIndex is %s', forkIndex => {
+      passesStructuralGate('', forkIndex)
+      const calls = rejectionCalls()
+      expect(calls[0][1]).toBe('fork-?')
+    })
+
+    it('produces exactly one log entry per rejected call', () => {
+      passesStructuralGate('')
+      passesStructuralGate('')
+      expect(rejectionCalls()).toHaveLength(2)
+    })
+
+    it('produces no rejection log entry when output passes the gate', () => {
+      passesStructuralGate('a'.repeat(MIN_SUBSTANTIVE_CHARS))
+      expect(rejectionCalls()).toHaveLength(0)
     })
   })
 })

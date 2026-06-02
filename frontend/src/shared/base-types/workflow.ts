@@ -71,6 +71,7 @@ export type ReliabilityMetadata = {
   mode: 'strict' | 'fallback'
   selectionLayer: 'primary' | 'fallback'
   noSignal: boolean
+  tiebreakUsed?: boolean
   eligible: number
   total: number
   judgeQualityWarnings?: JudgeQualityWarning[]

@@ -51,22 +51,18 @@ export const appendCommoditySuffix = (title, {successCount, total}) => {
   return clamp(base, suffix)
 }
 
+// noSignal warns only in strict mode: fallback mode explicitly opts into degraded
+// selection, so the eligible-fraction suffix is the correct signal when forks passed.
+const selectRefineSuffix = ({eligible, total, fallback, winnerForkIndex, noSignal}) => {
+  if (eligible === 0 && fallback && winnerForkIndex !== null)
+    return `[⚠ fallback: 0/${total} passed; chose fork-${winnerForkIndex}]`
+  if (noSignal && !fallback) return '[⚠ no judge signal]'
+  if (eligible === 0) return `[✗ 0/${total}]`
+  if (eligible < total) return `[✓ ${eligible}/${total}]`
+  return `[✓ ${total}/${total}]`
+}
+
 export const appendRefineSuffix = (
   title,
   {eligible, total, fallback = false, winnerForkIndex = null, noSignal = false},
-) => {
-  const base = stripReliabilitySuffix(title)
-  let suffix
-  if (noSignal) {
-    suffix = '[⚠ no judge signal]'
-  } else if (eligible === 0 && fallback && winnerForkIndex !== null) {
-    suffix = `[⚠ fallback: 0/${total} passed; chose fork-${winnerForkIndex}]`
-  } else if (eligible === 0) {
-    suffix = `[✗ 0/${total}]`
-  } else if (eligible < total) {
-    suffix = `[✓ ${eligible}/${total}]`
-  } else {
-    suffix = `[✓ ${total}/${total}]`
-  }
-  return clamp(base, suffix)
-}
+) => clamp(stripReliabilitySuffix(title), selectRefineSuffix({eligible, total, fallback, winnerForkIndex, noSignal}))

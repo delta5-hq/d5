@@ -68,6 +68,22 @@ describe('CriterionVerdictDrawer — metadata summary', () => {
     renderDrawer(makeMetadata({ noSignal: false }))
     expect(screen.queryByText(/No juror rankings collected/i)).not.toBeInTheDocument()
   })
+
+  it('shows tiebreak warning when tiebreakUsed is true and noSignal is false', () => {
+    renderDrawer(makeMetadata({ tiebreakUsed: true, noSignal: false }))
+    expect(screen.getByText(/tiebreak/i)).toBeInTheDocument()
+  })
+
+  it('hides tiebreak warning when tiebreakUsed is false', () => {
+    renderDrawer(makeMetadata({ tiebreakUsed: false }))
+    expect(screen.queryByText(/tiebreak/i)).not.toBeInTheDocument()
+  })
+
+  it('hides tiebreak warning when noSignal is already true (noSignal takes precedence)', () => {
+    renderDrawer(makeMetadata({ tiebreakUsed: true, noSignal: true }))
+    expect(screen.getByText(/No juror rankings collected/i)).toBeInTheDocument()
+    expect(screen.queryByText(/tiebreak/i)).not.toBeInTheDocument()
+  })
 })
 
 describe('CriterionVerdictDrawer — criterion list', () => {

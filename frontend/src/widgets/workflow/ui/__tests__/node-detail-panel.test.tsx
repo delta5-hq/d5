@@ -435,6 +435,28 @@ describe('NodeDetailPanel — refineCost over-limit warning', () => {
   })
 })
 
+describe('NodeDetailPanel — execute button gate', () => {
+  it('is disabled when refineCostExceedsLimit is true', () => {
+    renderPanel(makeNode({ command: '/refine :n=2' }), false, { refineCost: 30, refineCostExceedsLimit: true })
+    expect(screen.getByTestId('execute-node-button')).toBeDisabled()
+  })
+
+  it('is not disabled by cost alone when refineCostExceedsLimit is false', () => {
+    renderPanel(makeNode({ command: '/refine :n=2' }), false, { refineCost: 10, refineCostExceedsLimit: false })
+    expect(screen.getByTestId('execute-node-button')).not.toBeDisabled()
+  })
+
+  it('is not disabled when refineCostExceedsLimit is omitted', () => {
+    renderPanel(makeNode({ command: '/refine :n=2' }), false, { refineCost: 10 })
+    expect(screen.getByTestId('execute-node-button')).not.toBeDisabled()
+  })
+
+  it('is disabled when executeDisabled is true regardless of refineCostExceedsLimit', () => {
+    renderPanel(makeNode({ command: '/chat test' }), false, { executeDisabled: true, refineCostExceedsLimit: false })
+    expect(screen.getByTestId('execute-node-button')).toBeDisabled()
+  })
+})
+
 describe('NodeDetailPanel — verdict button', () => {
   const makeMetadata = (overrides = {}) => ({
     winnerForkIndex: 0,
@@ -469,5 +491,63 @@ describe('NodeDetailPanel — verdict button', () => {
     expect(screen.queryByTestId('criterion-verdict-drawer')).not.toBeInTheDocument()
     fireEvent.click(screen.getByTestId('verdict-button'))
     expect(screen.getByTestId('criterion-verdict-drawer')).toBeInTheDocument()
+  })
+})
+
+describe('NodeDetailPanel — title editor strips reliability suffix', () => {
+  // exhaustive suffix-shape coverage for all variant types lives in reliability-suffix.test.ts
+  const SUFFIX_SHAPES = [
+    ['validate pass first attempt', 'Work item [✓]', 'Work item', '[✓]'],
+    ['validate pass after retry', 'Work item [✓ retry-2]', 'Work item', '[✓ retry-2]'],
+    ['refine all forks eligible', 'Work item [✓ 2/2]', 'Work item', '[✓ 2/2]'],
+    ['refine partial forks eligible', 'Work item [✓ 2/3]', 'Work item', '[✓ 2/3]'],
+    ['refine no forks eligible', 'Work item [✗ 0/3]', 'Work item', '[✗ 0/3]'],
+    ['validate all retries exhausted', 'Work item [✗ 3 attempts]', 'Work item', '[✗ 3 attempts]'],
+    ['no judge signal', 'Work item [⚠ no judge signal]', 'Work item', '[⚠ no judge signal]'],
+    [
+      'fallback winner committed',
+      'Work item [⚠ fallback: 0/2 passed; chose fork-0]',
+      'Work item',
+      '[⚠ fallback: 0/2 passed; chose fork-0]',
+    ],
+  ] as const
+
+  describe('editor displays base title — reliability suffix hidden from view', () => {
+    it.each(SUFFIX_SHAPES)('%s', (_label, titleWithSuffix, baseTitle) => {
+      renderPanel(makeNode({ title: titleWithSuffix }), false)
+      expect(screen.getByText(baseTitle)).toBeInTheDocument()
+      expect(screen.queryByText(titleWithSuffix)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('rename re-attaches original suffix — no stacking, no suffix loss', () => {
+    it.each(SUFFIX_SHAPES)('%s', (_label, titleWithSuffix, baseTitle, suffix) => {
+      const onUpdateNode = vi.fn()
+      renderPanel(makeNode({ title: titleWithSuffix }), false, { onUpdateNode })
+
+      fireEvent.doubleClick(screen.getByText(baseTitle))
+      const input = screen.getByDisplayValue(baseTitle)
+      fireEvent.change(input, { target: { value: 'Renamed' } })
+      fireEvent.blur(input)
+
+      expect(onUpdateNode).toHaveBeenCalledWith('n1', { title: `Renamed ${suffix}` })
+    })
+  })
+
+  it('editor displays full title when node has no reliability suffix', () => {
+    renderPanel(makeNode({ title: 'Analyze competitors' }), false)
+    expect(screen.getByText('Analyze competitors')).toBeInTheDocument()
+  })
+
+  it('rename writes plain title when node title had no reliability suffix', () => {
+    const onUpdateNode = vi.fn()
+    renderPanel(makeNode({ title: 'Analyze competitors' }), false, { onUpdateNode })
+
+    fireEvent.doubleClick(screen.getByText('Analyze competitors'))
+    const input = screen.getByDisplayValue('Analyze competitors')
+    fireEvent.change(input, { target: { value: 'Compare rivals' } })
+    fireEvent.blur(input)
+
+    expect(onUpdateNode).toHaveBeenCalledWith('n1', { title: 'Compare rivals' })
   })
 })

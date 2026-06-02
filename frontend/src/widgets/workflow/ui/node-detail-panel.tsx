@@ -12,7 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@shared/ui/
 import { Eye, FileText, Folder, Play, Loader2, Square, Copy, Trash2, Plus, ChevronRight, ArrowLeft } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
-import { isTitleDerivedFromCommand } from '@shared/lib/reliability-suffix'
+import { extractReliabilitySuffix, isTitleDerivedFromCommand } from '@shared/lib/reliability-suffix'
 import { NodeTitleEditor } from './node-title-editor'
 import { NodePreviewSection } from './node-preview-section'
 import { CommandField } from './command-field'
@@ -70,8 +70,10 @@ export const NodeDetailPanel = ({
   const mutationDisabled = isExecuting
   const { formatMessage } = useIntl()
   const showPreview = isPrompt || Boolean(node.command) || Boolean(node.title)
-  const canExecute = canExecuteNode(node.command, executeDisabled, aliases)
+  const canExecute = canExecuteNode(node.command, executeDisabled || refineCostExceedsLimit === true, aliases)
   const siblingActionsEnabled = !isRoot && canExecute
+
+  const { baseTitle: nodeTitleBase, suffix: nodeTitleSuffix } = extractReliabilitySuffix(normalizeNodeTitle(node.title))
 
   const [settingsOpen, setSettingsOpen] = useState(!isPrompt)
   const [previewOpen, setPreviewOpen] = useState(isPrompt)
@@ -94,9 +96,9 @@ export const NodeDetailPanel = ({
 
   const handleTitleChange = useCallback(
     (title: string) => {
-      onUpdateNode(node.id, { title })
+      onUpdateNode(node.id, { title: nodeTitleSuffix ? `${title} ${nodeTitleSuffix}` : title })
     },
-    [node.id, onUpdateNode],
+    [node.id, nodeTitleSuffix, onUpdateNode],
   )
 
   const handleCommandChange = useCallback(
@@ -190,7 +192,7 @@ export const NodeDetailPanel = ({
                     autoFocus={autoFocusTitle}
                     className="flex-1 font-medium"
                     onChange={handleTitleChange}
-                    value={normalizeNodeTitle(node.title)}
+                    value={nodeTitleBase}
                   />
                 </div>
 

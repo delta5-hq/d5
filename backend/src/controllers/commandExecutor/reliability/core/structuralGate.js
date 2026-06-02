@@ -19,17 +19,22 @@ const isRefusalOutput = text => REFUSAL_PATTERNS.some(re => re.test(text.trimSta
 
 const isTruncatedOutput = text => text.trim().length < MIN_SUBSTANTIVE_CHARS
 
+const emitRejection = (reason, forkIndex) => {
+  const label = forkIndex !== null ? `fork-${forkIndex}` : 'fork-?'
+  log('%s rejected: %s', label, reason)
+}
+
 export const passesStructuralGate = (text, forkIndex = null) => {
   if (isEmptyOutput(text)) {
-    log('fork%s rejected: empty output', forkIndex ?? '?')
+    emitRejection('empty output', forkIndex)
     return false
   }
   if (isRefusalOutput(text)) {
-    log('fork%s rejected: refusal pattern matched on: %s', forkIndex ?? '?', text?.slice(0, 80))
+    emitRejection(`refusal pattern matched — ${text?.trimStart().slice(0, 80)}`, forkIndex)
     return false
   }
   if (isTruncatedOutput(text)) {
-    log('fork%s rejected: output too short (%d chars)', forkIndex ?? '?', text?.trim().length)
+    emitRejection(`output too short (${text?.trim().length} chars)`, forkIndex)
     return false
   }
   return true

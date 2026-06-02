@@ -33,6 +33,7 @@ import {
   appendCommoditySuffix,
 } from '../../reliability/core/reliabilitySuffix'
 import {getNodeCommand} from './isCommand'
+import {resolveCommand} from './queryTypeResolver'
 import {ForeachCommand} from '../ForeachCommand'
 import {MemorizeCommand} from '../MemorizeCommand'
 import {OutlineCommand} from '../OutlineCommand'
@@ -145,6 +146,17 @@ async function runCommodityForks(queryType, context, prompt, cell, store, progre
  * }} params
  * @param {ProgressReporter} progress
  */
+/** @private */
+function hasRefineDescendant(node, store) {
+  for (const childId of node.children ?? []) {
+    const child = store.getNode(childId)
+    if (!child) continue
+    if (getNodeCommand(child)?.startsWith(REFINE_QUERY)) return true
+    if (hasRefineDescendant(child, store)) return true
+  }
+  return false
+}
+
 function writeModifierRootError(cell, store, queryType) {
   const cellNode = store.getNode(cell.id)
   if (!cellNode) return
@@ -282,6 +294,48 @@ export const runCommand = async (
             }
             await resolveRefineCell(childNode, store, memoMap, signal)
           } else if (memoMap?.get(childNode.id) === 'in-progress') {
+            // childNode is a /refine orchestrated by the outer resolveRefineCell.
+            // Execute non-post-processor children of /refine via runCommand so they
+            // produce output that /validate and post-processors can then verify.
+            for (const refineChildId of childNode.children ?? []) {
+              const refineChild = store.getNode(refineChildId)
+              if (!refineChild || ids.includes(refineChildId)) continue
+              const rcQuery = getNodeCommand(refineChild)
+              if (
+                !rcQuery ||
+                rcQuery.startsWith(FOREACH_QUERY) ||
+                rcQuery.startsWith(SUMMARIZE_QUERY) ||
+                rcQuery.startsWith(MEMORIZE_QUERY) ||
+                rcQuery.startsWith(REFINE_QUERY) ||
+                rcQuery.startsWith(VALIDATE_QUERY) ||
+                (rcQuery.startsWith(OUTLINE_QUERY) && readSummarizeParam(rcQuery))
+              ) {
+                continue
+              }
+              // Skip children whose subtree contains /refine: memoization pre-resolution
+              // already ran them; re-running would double-execute per outer fork.
+              if (hasRefineDescendant(refineChild, store)) continue
+              const {
+                queryType: rcQueryType,
+                mcpAlias: rcMcpAlias,
+                rpcAlias: rcRpcAlias,
+              } = resolveCommand(rcQuery, store._aliases)
+              if (rcQueryType) {
+                ids.push(refineChildId)
+                await runCommand(
+                  {
+                    queryType: rcQueryType,
+                    cell: refineChild,
+                    store,
+                    mcpAlias: rcMcpAlias,
+                    rpcAlias: rcRpcAlias,
+                    signal,
+                    memoMap,
+                  },
+                  progress,
+                )
+              }
+            }
             await postProcessNode(childNode, ids)
           }
         } else if (query?.startsWith(VALIDATE_QUERY)) {

@@ -1,4 +1,5 @@
 import type { NodeData, NodeDatas, NodeId } from '@shared/base-types'
+import { VALIDATE_QUERY } from '@shared/lib/commands/command-constants'
 import { isValidRefineCell, readRefineN } from './refine-params'
 import { readCommodityN } from './commodity-params'
 
@@ -57,6 +58,17 @@ const directlyOwnedNestedRefines = (refineNode: NodeData, nodes: NodeDatas): Nod
   })
 }
 
+const countRefineChildrenScope = (refineNode: NodeData, nodes: NodeDatas): number => {
+  let cost = 0
+  for (const childId of refineNode.children ?? []) {
+    const child = nodes[childId]
+    if (!child) continue
+    if (!child.command || isValidRefineCell(child.command) || child.command.startsWith(VALIDATE_QUERY)) continue
+    cost += countImmediateScope(child, nodes, '')
+  }
+  return cost
+}
+
 export const projectForkCost = (refineNode: NodeData | undefined | null, nodes: NodeDatas): number => {
   if (!refineNode) return 0
   const n = readRefineN(refineNode.command)
@@ -66,8 +78,10 @@ export const projectForkCost = (refineNode: NodeData | undefined | null, nodes: 
   if (!parent) return 0
 
   const immediateScope = countImmediateScope(parent, nodes, refineNode.id)
+  const refineChildScope = countRefineChildrenScope(refineNode, nodes)
+  const perForkScope = refineChildScope > 0 ? refineChildScope : immediateScope
   const ownedNested = directlyOwnedNestedRefines(refineNode, nodes)
   const nestedCost = ownedNested.reduce((sum, nr) => sum + projectForkCost(nr, nodes), 0)
 
-  return n * immediateScope + nestedCost
+  return n * perForkScope + nestedCost
 }

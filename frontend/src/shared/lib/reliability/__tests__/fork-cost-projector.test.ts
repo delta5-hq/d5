@@ -192,15 +192,17 @@ describe('projectForkCost — recursive scope (siblings with subtrees)', () => {
     expect(projectForkCost(n.r, n)).toBe(6)
   })
 
-  it('nested /refine inside sibling is a scope boundary: children beyond it excluded', () => {
+  it('nested /refine inside sibling is a scope boundary: children beyond it excluded from outer scope', () => {
     /*
      * parent              ← outer scope: 1
      *   ├── mid (/chat)   ← outer scope: 2  (inner /refine is boundary; mid itself counts)
      *   │     └── innerR (/refine :n=2)  ← boundary; inner cost separate
-     *   │           ├── c1   ← NOT counted in outer scope
-     *   │           └── c2   ← NOT counted in outer scope
+     *   │           ├── c1   ← NOT counted in outer scope; counted in innerR per-fork scope
+     *   │           └── c2   ← NOT counted in outer scope; counted in innerR per-fork scope
      *   └── outerR (/refine :n=3)  ← excluded
-     * outer scope = 2, outer cost = 3 × 2 + inner(2×1) = 8
+     * outer scope = 2, outer cost = 3 × 2 = 6
+     * innerR refine-child scope = c1(1) + c2(1) = 2, inner cost = 2 × 2 = 4 (P0.30)
+     * total = 6 + 4 = 10
      */
     const n = nodes({
       parent: { id: 'parent', children: ['mid', 'outerR'] },
@@ -210,7 +212,7 @@ describe('projectForkCost — recursive scope (siblings with subtrees)', () => {
       c2: { id: 'c2', parent: 'innerR', command: '/chat b', children: [] },
       outerR: { id: 'outerR', parent: 'parent', command: '/refine :n=3', children: [] },
     })
-    expect(projectForkCost(n.outerR, n)).toBe(8)
+    expect(projectForkCost(n.outerR, n)).toBe(10)
   })
 })
 
@@ -375,5 +377,54 @@ describe('projectForkCost — commodity :n=N on plain LLM cells', () => {
       r: { id: 'r', parent: 'parent', command: '/refine :n=3 :limit=xs', children: [] },
     })
     expect(projectForkCost(n.r, n)).toBe(30)
+  })
+})
+
+describe('projectForkCost — commodity :n=N as direct child of /refine (P0.30 child scope)', () => {
+  it('/refine :n=3 with /chat :n=5 child → cost = 3 × 5 = 15', () => {
+    /*
+     * parent (/chat)               ← immediate scope (fallback): 1
+     *   └── /refine :n=3           ← fork multiplier: 3
+     *         └── innerChat (/chat :n=5) ← refine-child scope: 5
+     * refineChildScope = 5 > 0 → perForkScope = 5; cost = 3 × 5 = 15
+     */
+    const n = nodes({
+      parent: { id: 'parent', command: '/chat', children: ['r'] },
+      r: { id: 'r', parent: 'parent', command: '/refine :n=3', children: ['innerChat'] },
+      innerChat: { id: 'innerChat', parent: 'r', command: '/chat :n=5', children: [] },
+    })
+    expect(projectForkCost(n.r, n)).toBe(15)
+  })
+
+  it('/validate child of /refine excluded from per-fork child scope', () => {
+    /*
+     * parent (/chat)                  ← immediate scope (fallback): 1
+     *   └── /refine :n=3             ← fork multiplier: 3
+     *         ├── innerChat (/chat :n=2) ← counted in refine-child scope: 2
+     *         └── /validate C         ← excluded (post-processor)
+     * refineChildScope = 2; cost = 3 × 2 = 6
+     */
+    const n = nodes({
+      parent: { id: 'parent', command: '/chat', children: ['r'] },
+      r: { id: 'r', parent: 'parent', command: '/refine :n=3', children: ['innerChat', 'v'] },
+      innerChat: { id: 'innerChat', parent: 'r', command: '/chat :n=2', children: [] },
+      v: { id: 'v', parent: 'r', command: '/validate must mention revenue', children: [] },
+    })
+    expect(projectForkCost(n.r, n)).toBe(6)
+  })
+
+  it('no non-post-processor children → falls back to parent immediate scope', () => {
+    /*
+     * parent (/chat :n=4)            ← immediate scope (fallback): 4
+     *   └── /refine :n=2            ← fork multiplier: 2
+     *         └── /validate C        ← excluded; refineChildScope = 0
+     * refineChildScope = 0 → perForkScope = 4; cost = 2 × 4 = 8
+     */
+    const n = nodes({
+      parent: { id: 'parent', command: '/chat :n=4', children: ['r'] },
+      r: { id: 'r', parent: 'parent', command: '/refine :n=2', children: ['v'] },
+      v: { id: 'v', parent: 'r', command: '/validate must mention revenue', children: [] },
+    })
+    expect(projectForkCost(n.r, n)).toBe(8)
   })
 })
