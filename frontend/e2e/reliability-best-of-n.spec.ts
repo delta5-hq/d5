@@ -14,12 +14,22 @@ async function purgeQaBotWorkflows(page: Parameters<typeof qaBotLogin>[0]) {
      this purge, 10× test.beforeEach × 2 browsers saturates the cap and the next
      POST /workflow returns 402 silently — page never navigates, waitForURL
      times out at 15s. Grounded via test-results page snapshot showing 10
-     accumulated qa-bot workflow cards at failure point. */
-  const resp = await page.request.get('/api/v2/workflow?public=false&limit=100')
-  if (!resp.ok()) return
-  const body = await resp.json().catch(() => ({ data: [] as Array<{ workflowId: string }> }))
-  const ids: string[] = (body.data ?? []).map((w: { workflowId: string }) => w.workflowId).filter(Boolean)
-  await Promise.all(ids.map(id => page.request.delete(`/api/v2/workflow/${id}`).catch(() => {})))
+     accumulated qa-bot workflow cards at failure point.
+     Retry loop: parallel workers share the same qa-bot user, so the other
+     browser can re-fill the quota between our GET and DELETE; loop until the
+     listing comes back empty (or we exhaust attempts). */
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const resp = await page.request.get('/api/v2/workflow?public=false&limit=100')
+    if (!resp.ok()) {
+      await page.waitForTimeout(500)
+      continue
+    }
+    const body = await resp.json().catch(() => ({ data: [] as Array<{ workflowId: string }> }))
+    const ids: string[] = (body.data ?? []).map((w: { workflowId: string }) => w.workflowId).filter(Boolean)
+    if (ids.length === 0) return
+    await Promise.all(ids.map(id => page.request.delete(`/api/v2/workflow/${id}`).catch(() => {})))
+    await page.waitForTimeout(200)
+  }
 }
 
 async function setupLLMWorkflow(page: Parameters<typeof qaBotLogin>[0]) {

@@ -101,7 +101,7 @@ export async function resolveRefineCell(refineNode, store, memoMap, signal = nul
       refineNode.id,
     )
     store.saveNodeToOutput(refineNode.id)
-    // so the user can attribute which criterion caused the failure
+    // Strict mode commits no subtree state; only per-criterion verdict markers propagated so the user can attribute the failure to a specific /validate.
     const diagnosticFork = forkResults.find(f => f.status === 'criteria-failed' && f.forkStore)
     if (diagnosticFork) {
       flushValidateTitles(allValidates, diagnosticFork.forkStore, store)

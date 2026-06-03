@@ -1,4 +1,4 @@
-export const COMMAND_TO_QUERYTYPE_MAP: Record<string, string> = {
+export const COMMAND_TO_QUERYTYPE_MAP = {
   '/instruct': 'chat',
   '/reason': 'chat',
   '/chatgpt': 'chat',
@@ -7,6 +7,7 @@ export const COMMAND_TO_QUERYTYPE_MAP: Record<string, string> = {
   '/web': 'web',
   '/scholar': 'scholar',
   '/refine': 'refine',
+  '/validate': 'validate',
   '/foreach': 'foreach',
   '/steps': 'steps',
   '/outline': 'outline',
@@ -22,7 +23,9 @@ export const COMMAND_TO_QUERYTYPE_MAP: Record<string, string> = {
   '/ext': 'ext',
   '/yandexgpt': 'yandex',
   '/download': 'download',
-}
+} satisfies Record<string, string>
+
+export type CommandQuery = keyof typeof COMMAND_TO_QUERYTYPE_MAP
 
 export const COMMAND_DESCRIPTIONS: Record<string, string> = {
   '/instruct': 'Send instruction to LLM with system prompt',
@@ -33,6 +36,7 @@ export const COMMAND_DESCRIPTIONS: Record<string, string> = {
   '/web': 'Search web with Perplexity',
   '/scholar': 'Search academic papers',
   '/refine': 'Iteratively refine text with LLM',
+  '/validate': 'Verify output satisfies stated criteria',
   '/foreach': 'Loop over items with command template',
   '/steps': 'Execute multiple commands sequentially',
   '/outline': 'Generate hierarchical outline',
@@ -57,7 +61,7 @@ export interface DynamicAlias {
 }
 
 export function getFullCommandMap(dynamicAliases?: DynamicAlias[]): Record<string, string> {
-  const fullMap = { ...COMMAND_TO_QUERYTYPE_MAP }
+  const fullMap: Record<string, string> = { ...COMMAND_TO_QUERYTYPE_MAP }
 
   if (dynamicAliases) {
     dynamicAliases.forEach(({ alias, queryType }) => {

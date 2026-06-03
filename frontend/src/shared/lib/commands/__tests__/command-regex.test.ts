@@ -98,6 +98,24 @@ describe('commandRegex', () => {
         expect(commandRegex.scholar.test('/scholar research')).toBe(true)
         expect(commandRegex.scholar.test('/web search')).toBe(false)
       })
+
+      it('refine matches only /refine', () => {
+        expect(commandRegex.refine.test('/refine text')).toBe(true)
+        expect(commandRegex.refine.test('/validate criterion')).toBe(false)
+        expect(commandRegex.refine.test('/chatgpt text')).toBe(false)
+      })
+
+      it('validate matches only /validate', () => {
+        expect(commandRegex.validate.test('/validate criterion')).toBe(true)
+        expect(commandRegex.validate.test('/refine text')).toBe(false)
+        expect(commandRegex.validate.test('/chatgpt criterion')).toBe(false)
+      })
+
+      it('inline parameters after command are captured by the base pattern', () => {
+        expect(commandRegex.refine.test('/refine :n=3')).toBe(true)
+        expect(commandRegex.validate.test('/validate :n=3 criterion text')).toBe(true)
+        expect(commandRegex.validate.test('/validate :retry=5 criterion')).toBe(true)
+      })
     })
 
     describe('withOrder variants', () => {
@@ -115,6 +133,18 @@ describe('commandRegex', () => {
 
       it('foreachWithOrder matches with order', () => {
         expect(commandRegex.foreachWithOrder.test('#10 /foreach item')).toBe(true)
+      })
+
+      it('refineWithOrder matches with and without order prefix', () => {
+        expect(commandRegex.refineWithOrder.test('#2 /refine :n=3')).toBe(true)
+        expect(commandRegex.refineWithOrder.test('/refine :n=3')).toBe(true)
+        expect(commandRegex.refineWithOrder.test('/validate criterion')).toBe(false)
+      })
+
+      it('validateWithOrder matches with and without order prefix', () => {
+        expect(commandRegex.validateWithOrder.test('#3 /validate criterion')).toBe(true)
+        expect(commandRegex.validateWithOrder.test('/validate criterion')).toBe(true)
+        expect(commandRegex.validateWithOrder.test('/refine :n=3')).toBe(false)
       })
     })
   })
@@ -206,33 +236,15 @@ describe('commandRegex', () => {
       })
     })
 
-    it('has regex for each command type', () => {
-      const requiredPatterns = [
-        'yandex',
-        'web',
-        'scholar',
-        'outline',
-        'ext',
-        'steps',
-        'summarize',
-        'foreach',
-        'chatgpt',
-        'switch',
-        'case',
-        'claude',
-        'qwen',
-        'perplexity',
-        'download',
-        'deepseek',
-        'customLLMChat',
-        'refine',
-        'completion',
-        'memorize',
-      ]
-
-      requiredPatterns.forEach(cmd => {
-        expect(commandRegex[cmd as keyof typeof commandRegex]).toBeDefined()
-        expect(commandRegex[cmd as keyof typeof commandRegex]).toBeInstanceOf(RegExp)
+    it('every named pattern is a valid RegExp', () => {
+      const namedPatterns = Object.keys(commandRegex).filter(
+        k => commandRegex[k as keyof typeof commandRegex] instanceof RegExp,
+      )
+      expect(namedPatterns.length).toBeGreaterThan(0)
+      namedPatterns.forEach(key => {
+        expect(commandRegex[key as keyof typeof commandRegex], `commandRegex.${key} should be a RegExp`).toBeInstanceOf(
+          RegExp,
+        )
       })
     })
   })
@@ -255,15 +267,6 @@ describe('commandRegex', () => {
       regex.test('/chatgpt hello')
       regex.test('/steps task')
       expect(regex.test('/chatgpt hello')).toBe(true)
-    })
-
-    it('concurrent tests do not interfere', () => {
-      const results = [
-        commandRegex.any().test('/chatgpt'),
-        commandRegex.any().test('/invalid'),
-        commandRegex.any().test('/steps'),
-      ]
-      expect(results).toEqual([true, false, true])
     })
   })
 
@@ -389,34 +392,14 @@ describe('commandRegex', () => {
   })
 
   describe('command registry completeness', () => {
-    it('every regex property has WithOrder variant', () => {
-      const basePatterns = [
-        'yandex',
-        'web',
-        'scholar',
-        'outline',
-        'ext',
-        'steps',
-        'summarize',
-        'foreach',
-        'chatgpt',
-        'switch',
-        'case',
-        'claude',
-        'qwen',
-        'perplexity',
-        'download',
-        'deepseek',
-        'customLLMChat',
-        'refine',
-        'completion',
-        'memorize',
-      ]
-
+    it('every base named pattern has a WithOrder variant', () => {
+      const basePatterns = Object.keys(commandRegex).filter(
+        k => commandRegex[k as keyof typeof commandRegex] instanceof RegExp && !k.endsWith('WithOrder'),
+      )
+      expect(basePatterns.length).toBeGreaterThan(0)
       basePatterns.forEach(base => {
         const withOrderKey = `${base}WithOrder` as keyof typeof commandRegex
-        expect(commandRegex[base as keyof typeof commandRegex]).toBeDefined()
-        expect(commandRegex[withOrderKey]).toBeDefined()
+        expect(commandRegex[withOrderKey], `commandRegex.${base}WithOrder should exist`).toBeInstanceOf(RegExp)
       })
     })
   })

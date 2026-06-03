@@ -1,3 +1,7 @@
+import { COMMAND_TO_QUERYTYPE_MAP } from '../command-querytype-mapper'
+
+export type { CommandQuery } from '../command-querytype-mapper'
+
 export const STEP_PREFIX = '#'
 export const STEP_PREFIX_REGEX = `${STEP_PREFIX}(-?\\d+)`
 
@@ -23,27 +27,4 @@ export const VALIDATE_QUERY = '/validate'
 export const COMPLETION_QUERY = '/chat'
 export const MEMORIZE_QUERY = '/memorize'
 
-export const SUPPORTED_COMMANDS = [
-  YANDEX_QUERY,
-  WEB_QUERY,
-  SCHOLAR_QUERY,
-  OUTLINE_QUERY,
-  EXT_QUERY,
-  STEPS_QUERY,
-  SUMMARIZE_QUERY,
-  FOREACH_QUERY,
-  CHAT_QUERY,
-  SWITCH_QUERY,
-  CASE_QUERY,
-  CLAUDE_QUERY,
-  QWEN_QUERY,
-  PERPLEXITY_QUERY,
-  DOWNLOAD_QUERY,
-  DEEPSEEK_QUERY,
-  CUSTOM_LLM_CHAT_QUERY,
-  REFINE_QUERY,
-  COMPLETION_QUERY,
-  MEMORIZE_QUERY,
-] as const
-
-export type CommandQuery = (typeof SUPPORTED_COMMANDS)[number]
+export const SUPPORTED_COMMANDS = Object.keys(COMMAND_TO_QUERYTYPE_MAP) as (keyof typeof COMMAND_TO_QUERYTYPE_MAP)[]

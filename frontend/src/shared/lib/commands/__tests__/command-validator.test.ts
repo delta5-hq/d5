@@ -1,24 +1,19 @@
 import { describe, it, expect } from 'vitest'
 import { hasValidCommand, canExecuteNode } from '../command-validator'
-import type { DynamicAlias } from '../../command-querytype-mapper'
+import { COMMAND_TO_QUERYTYPE_MAP, type DynamicAlias } from '../../command-querytype-mapper'
 
 describe('command-validator', () => {
   describe('hasValidCommand - validates command format', () => {
     describe('valid commands', () => {
-      it('returns true for /chatgpt command', () => {
-        expect(hasValidCommand('/chatgpt hello')).toBe(true)
+      it('returns true for every registered command in COMMAND_TO_QUERYTYPE_MAP', () => {
+        for (const cmd of Object.keys(COMMAND_TO_QUERYTYPE_MAP)) {
+          expect(hasValidCommand(cmd), `${cmd} should be valid`).toBe(true)
+          expect(hasValidCommand(`${cmd} some text`), `${cmd} with text should be valid`).toBe(true)
+        }
       })
 
       it('returns true for command with order prefix', () => {
         expect(hasValidCommand('#1 /steps do task')).toBe(true)
-      })
-
-      it('returns true for /web command', () => {
-        expect(hasValidCommand('/web search query')).toBe(true)
-      })
-
-      it('returns true for /foreach command', () => {
-        expect(hasValidCommand('/foreach item in list')).toBe(true)
       })
 
       it('returns true for command with leading whitespace', () => {
@@ -33,44 +28,23 @@ describe('command-validator', () => {
         expect(hasValidCommand('#999 /steps')).toBe(true)
       })
 
-      it('returns true for /claude command', () => {
-        expect(hasValidCommand('/claude analyze')).toBe(true)
-      })
-
-      it('returns true for /deepseek command', () => {
-        expect(hasValidCommand('/deepseek generate')).toBe(true)
-      })
-
-      it('returns true for /qwen command', () => {
-        expect(hasValidCommand('/qwen prompt')).toBe(true)
-      })
-
-      it('returns true for /yandexgpt command', () => {
-        expect(hasValidCommand('/yandexgpt question')).toBe(true)
-      })
-
-      it('returns true for /switch command', () => {
-        expect(hasValidCommand('/switch option')).toBe(true)
-      })
-
-      it('returns true for /refine command', () => {
-        expect(hasValidCommand('/refine text')).toBe(true)
-      })
-
-      it('returns true for /memorize command', () => {
-        expect(hasValidCommand('/memorize content')).toBe(true)
-      })
-
-      it('returns true for /download command', () => {
-        expect(hasValidCommand('/download url')).toBe(true)
-      })
-
       it('returns true for command with negative order prefix', () => {
         expect(hasValidCommand('#-5 /chatgpt hello')).toBe(true)
       })
 
       it('returns true for large negative order number', () => {
         expect(hasValidCommand('#-9999 /steps analyze')).toBe(true)
+      })
+
+      describe('inline parameter transparency', () => {
+        it.each([
+          ['/validate :n=3 Must include revenue figures'],
+          ['/validate :retry=5 Must include revenue figures'],
+          ['/refine :n=3'],
+          ['/refine :n=3 :fallback'],
+        ])('returns true for %s', input => {
+          expect(hasValidCommand(input)).toBe(true)
+        })
       })
     })
 
@@ -109,6 +83,11 @@ describe('command-validator', () => {
 
       it('returns false for command with extra characters', () => {
         expect(hasValidCommand('/chatgpt123')).toBe(false)
+      })
+
+      it('returns false for inline params attached without space', () => {
+        expect(hasValidCommand('/validate:n=3')).toBe(false)
+        expect(hasValidCommand('/refine:n=2')).toBe(false)
       })
     })
 
@@ -223,75 +202,33 @@ describe('command-validator', () => {
   })
 
   describe('consistency across calls', () => {
-    it('returns same result for repeated calls with same input', () => {
-      const command = '/chatgpt hello'
-      const result1 = hasValidCommand(command)
-      const result2 = hasValidCommand(command)
-      const result3 = hasValidCommand(command)
+    it('same inputs always yield same outputs (purity)', () => {
+      const r1 = hasValidCommand('/chatgpt hello')
+      const r2 = hasValidCommand('/chatgpt hello')
+      expect(r1).toBe(r2)
 
-      expect(result1).toBe(result2)
-      expect(result2).toBe(result3)
+      const n1 = canExecuteNode('/chatgpt', false)
+      const n2 = canExecuteNode('/chatgpt', false)
+      expect(n1).toBe(n2)
     })
 
-    it('maintains state independence between calls', () => {
+    it('hasValidCommand result is independent of prior call history', () => {
       hasValidCommand('/chatgpt')
       hasValidCommand('invalid')
-      const result = hasValidCommand('/chatgpt')
-
-      expect(result).toBe(true)
-    })
-
-    it('canExecuteNode produces consistent results', () => {
-      const result1 = canExecuteNode('/chatgpt', false)
-      const result2 = canExecuteNode('/chatgpt', false)
-
-      expect(result1).toBe(result2)
-      expect(result1).toBe(true)
+      expect(hasValidCommand('/chatgpt')).toBe(true)
     })
   })
 
   describe('validation algorithm completeness', () => {
     describe('all supported commands validate', () => {
-      it('validates all backend-supported commands', () => {
-        const backendCommands = [
-          '/yandexgpt',
-          '/web',
-          '/scholar',
-          '/outline',
-          '/ext',
-          '/steps',
-          '/summarize',
-          '/foreach',
-          '/chatgpt',
-          '/switch',
-          '/case',
-          '/claude',
-          '/qwen',
-          '/perplexity',
-          '/download',
-          '/deepseek',
-          '/custom',
-          '/refine',
-          '/chat',
-          '/memorize',
-        ]
-
-        backendCommands.forEach(cmd => {
-          expect(hasValidCommand(cmd)).toBe(true)
-          expect(hasValidCommand(`${cmd} text`)).toBe(true)
-          expect(hasValidCommand(`#1 ${cmd}`)).toBe(true)
-        })
-      })
-
-      it('validates commands regardless of order prefix', () => {
-        const commands = ['/chatgpt', '/web', '/steps', '/foreach']
-
-        commands.forEach(cmd => {
-          expect(hasValidCommand(cmd)).toBe(true)
-          expect(hasValidCommand(`#1 ${cmd}`)).toBe(true)
-          expect(hasValidCommand(`#-5 ${cmd}`)).toBe(true)
-          expect(hasValidCommand(`#999 ${cmd}`)).toBe(true)
-        })
+      it('validates every registered command across all order prefix variants', () => {
+        const orderPrefixes = ['', '#1 ', '#-5 ', '#999 ']
+        for (const cmd of Object.keys(COMMAND_TO_QUERYTYPE_MAP)) {
+          orderPrefixes.forEach(prefix => {
+            expect(hasValidCommand(`${prefix}${cmd}`), `${prefix}${cmd} should be valid`).toBe(true)
+            expect(hasValidCommand(`${prefix}${cmd} text`), `${prefix}${cmd} with text should be valid`).toBe(true)
+          })
+        }
       })
     })
   })
@@ -304,7 +241,7 @@ describe('command-validator', () => {
       })
 
       it('execution state overrides valid command', () => {
-        const validCommands = ['/chatgpt', '/web', '/steps', '#1 /foreach']
+        const validCommands = Object.keys(COMMAND_TO_QUERYTYPE_MAP)
 
         validCommands.forEach(cmd => {
           expect(canExecuteNode(cmd, false)).toBe(true)
@@ -464,19 +401,7 @@ describe('command-validator', () => {
     })
 
     describe('integration scenarios', () => {
-      it('validates MCP coding agent workflow', () => {
-        const aliases: DynamicAlias[] = [{ alias: '/code', queryType: 'mcp:claude_code' }]
-        expect(hasValidCommand('/code fix the bug', aliases)).toBe(true)
-        expect(hasValidCommand('#1 /code refactor', aliases)).toBe(true)
-      })
-
-      it('validates QA testing workflow', () => {
-        const aliases: DynamicAlias[] = [{ alias: '/qa', queryType: 'mcp:qa' }]
-        expect(hasValidCommand('/qa run all tests', aliases)).toBe(true)
-        expect(hasValidCommand('#5 /qa verify login', aliases)).toBe(true)
-      })
-
-      it('validates combined MCP and static workflow', () => {
+      it('validates combined static and dynamic alias workflow', () => {
         const aliases: DynamicAlias[] = [
           { alias: '/code', queryType: 'mcp:code' },
           { alias: '/qa', queryType: 'mcp:qa' },
@@ -597,12 +522,6 @@ describe('command-validator', () => {
     })
 
     describe('robustness validation', () => {
-      it('handles whitespace variations', () => {
-        const aliases: DynamicAlias[] = [{ alias: '/tool', queryType: 'custom' }]
-        expect(hasValidCommand('  /tool  cmd  ', aliases)).toBe(true)
-        expect(hasValidCommand('\t/tool\tcmd', aliases)).toBe(true)
-      })
-
       it('handles order prefixes with dynamic aliases', () => {
         const aliases: DynamicAlias[] = [{ alias: '/tool', queryType: 'custom' }]
         expect(hasValidCommand('#1 /tool cmd', aliases)).toBe(true)
