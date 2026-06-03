@@ -1,4 +1,4 @@
-.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e stop ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend build-backend build-backend-v2 build-frontend test-backend test-backend-v2 test-frontend e2e-backend e2e-frontend e2e-frontend-throttled e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks clean-e2e clean-all fix-permissions cleanup-old-data
+.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e stop ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend build-backend build-backend-v2 build-frontend test-backend test-backend-v2 test-frontend e2e-backend e2e-frontend _e2e-frontend-run e2e-frontend-throttled e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks clean-e2e clean-all fix-permissions cleanup-old-data
 
 # Configuration
 DOCKER_NETWORK := d5-dev-network
@@ -288,6 +288,10 @@ e2e-backend: start-mongodb-e2e e2e-db-init
 		exit $$TEST_EXIT
 
 e2e-frontend: start-mongodb-e2e e2e-db-init build-backend
+	@flock --nonblock /tmp/e2e-frontend.lock $(MAKE) --no-print-directory _e2e-frontend-run || \
+		{ echo "✗ e2e-frontend: already running or tests failed (lock: /tmp/e2e-frontend.lock)"; exit 1; }
+
+_e2e-frontend-run:
 	@echo "→ Building backend-v2..."
 	@cd backend-v2 && $(MAKE) build > /dev/null 2>&1
 	@echo "→ Starting Node.js backend for E2E (port $(E2E_NODEJS_BACKEND_PORT), MOCK_EXTERNAL_SERVICES=true)..."

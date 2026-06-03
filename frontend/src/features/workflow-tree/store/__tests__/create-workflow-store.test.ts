@@ -430,4 +430,104 @@ describe('createWorkflowStore', () => {
       expect(store.getState().anchorId).toBe('some-node')
     })
   })
+
+  describe('expandNode and addChild composition — parent visibility invariant', () => {
+    it('addChild alone does not add the parent to expandedIds', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      store.setState({
+        nodes: { root: { id: 'root', title: 'Root', children: [], collapsed: true } },
+      })
+
+      actions.addChild('root', { title: '' })
+
+      expect(store.getState().expandedIds.has('root')).toBe(false)
+    })
+
+    it('expandNode then addChild puts parent in expandedIds and registers a new child', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      store.setState({
+        nodes: { root: { id: 'root', title: 'Root', children: [], collapsed: true } },
+      })
+
+      actions.expandNode('root')
+      const childId = actions.addChild('root', { title: 'Child' })
+
+      const state = store.getState()
+      expect(state.expandedIds.has('root')).toBe(true)
+      expect(childId).not.toBeNull()
+      expect(state.nodes[childId!]).toBeDefined()
+      expect(state.nodes[childId!].parent).toBe('root')
+    })
+
+    it('expandNode is idempotent: calling again before addChild keeps parent expanded', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      store.setState({
+        nodes: { root: { id: 'root', title: 'Root', children: [], collapsed: true } },
+      })
+
+      actions.expandNode('root')
+      actions.expandNode('root')
+      const childId = actions.addChild('root', { title: 'Child' })
+
+      const state = store.getState()
+      expect(state.expandedIds.has('root')).toBe(true)
+      expect(childId).not.toBeNull()
+    })
+
+    it('addChild on a pre-expanded parent leaves parent in expandedIds', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      store.setState({
+        nodes: { root: { id: 'root', title: 'Root', children: [], collapsed: false } },
+        expandedIds: new Set(['root']),
+      })
+
+      const childId = actions.addChild('root', { title: 'Child' })
+
+      const state = store.getState()
+      expect(state.expandedIds.has('root')).toBe(true)
+      expect(childId).not.toBeNull()
+    })
+
+    it('multiple addChild calls on expanded parent all create children registered under parent', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      store.setState({
+        nodes: { root: { id: 'root', title: 'Root', children: [], collapsed: true } },
+      })
+      actions.expandNode('root')
+
+      const id1 = actions.addChild('root', { title: 'First' })
+      const id2 = actions.addChild('root', { title: 'Second' })
+      const id3 = actions.addChild('root', { title: 'Third' })
+
+      const state = store.getState()
+      expect([id1, id2, id3].every(id => id !== null)).toBe(true)
+      expect([id1, id2, id3].every(id => state.nodes[id!]?.parent === 'root')).toBe(true)
+      expect(state.expandedIds.has('root')).toBe(true)
+    })
+
+    it('addChild on nonexistent parent returns null without modifying expandedIds', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      store.setState({
+        nodes: { root: { id: 'root', title: 'Root', children: [] } },
+        expandedIds: new Set(['root']),
+      })
+
+      const result = actions.addChild('ghost-parent', { title: 'Child' })
+
+      expect(result).toBeNull()
+      expect(store.getState().expandedIds.has('root')).toBe(true)
+      expect(store.getState().expandedIds.size).toBe(1)
+    })
+
+    it('expandNode on a leaf node marks it expanded even before it has children', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      store.setState({
+        nodes: { root: { id: 'root', title: 'Root', children: [], collapsed: true } },
+      })
+
+      actions.expandNode('root')
+
+      expect(store.getState().expandedIds.has('root')).toBe(true)
+    })
+  })
 })

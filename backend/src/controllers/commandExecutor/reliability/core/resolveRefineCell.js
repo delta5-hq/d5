@@ -89,7 +89,13 @@ export async function resolveRefineCell(refineNode, store, memoMap, signal = nul
   const baseTitle = stripReliabilitySuffix(refineNode.title || '')
 
   if (!verdict || verdict.winnerForkIndex === null) {
-    refineNode.title = appendRefineSuffix(baseTitle, {eligible: okCount, total: n, fallback, winnerForkIndex: null})
+    refineNode.title = appendRefineSuffix(baseTitle, {
+      eligible: okCount,
+      total: n,
+      fallback,
+      winnerForkIndex: null,
+      noSignal: verdict?.noSignal ?? false,
+    })
     store.importer.createErrorNode(
       `/refine :n=${n} — all ${n} fork(s) failed; use :fallback to accept best degraded result`,
       refineNode.id,

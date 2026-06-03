@@ -183,6 +183,18 @@ export class ForkJudge {
 
     const noSignal = totalRankingsCollected === 0
 
+    if (noSignal && !fallback) {
+      return {
+        winnerForkIndex: null,
+        perCriterionVerdict,
+        mode: 'strict',
+        selectionLayer: 'none',
+        noSignal: true,
+        tiebreakUsed: false,
+        judgeQualityWarnings,
+      }
+    }
+
     let winnerIdx = 0
     for (let i = 1; i < bordaScores.length; i++) {
       if (bordaScores[i] < bordaScores[winnerIdx]) winnerIdx = i

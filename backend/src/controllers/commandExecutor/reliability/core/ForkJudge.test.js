@@ -235,7 +235,7 @@ describe('ForkJudge.selectWinner — generic criterion when no validates provide
 // ─── Juror quorum — exclusion and noSignal ────────────────────────────────────
 
 describe('ForkJudge.selectWinner — juror quorum exclusion and noSignal', () => {
-  describe('all jurors excluded → noSignal:true, fork-0 wins deterministically', () => {
+  describe('all jurors excluded, strict mode → noSignal:true, null winner, no tiebreak', () => {
     it.each([
       ['unparseable ranking response', () => mockLLMRanking('I cannot determine a ranking.')],
       ['LLM invoke error', () => mockLLMError('network error')],
@@ -249,11 +249,35 @@ describe('ForkJudge.selectWinner — juror quorum exclusion and noSignal', () =>
         fallback: false,
       })
       expect(result.noSignal).toBe(true)
-      expect(result.winnerForkIndex).toBe(0)
+      expect(result.winnerForkIndex).toBeNull()
+      expect(result.tiebreakUsed).toBe(false)
+      expect(result.mode).toBe('strict')
+      expect(result.selectionLayer).toBe('none')
+      expect(Array.isArray(result.judgeQualityWarnings)).toBe(true)
     })
   })
 
-  it('all jurors excluded across MULTIPLE criteria → noSignal:true', async () => {
+  describe('all jurors excluded, fallback mode → noSignal:true, fork-0 wins, tiebreak fires', () => {
+    it.each([
+      ['unparseable ranking response', () => mockLLMRanking('I cannot determine a ranking.')],
+      ['LLM invoke error', () => mockLLMError('network error')],
+    ])('%s', async (_, setup) => {
+      setup()
+      const forks = [makeFork(0), makeFork(1)]
+      const result = await makeJudge().selectWinner({
+        forks,
+        validateNodes: [makeValidate('v1', 'criterion')],
+        parentNodeId: 'parent',
+        fallback: true,
+      })
+      expect(result.noSignal).toBe(true)
+      expect(result.winnerForkIndex).toBe(0)
+      expect(result.tiebreakUsed).toBe(true)
+      expect(result.mode).toBe('fallback')
+    })
+  })
+
+  it('all jurors excluded across multiple criteria, strict mode → noSignal:true, winnerForkIndex:null', async () => {
     mockLLMError('timeout')
     const forks = [makeFork(0), makeFork(1)]
     const result = await makeJudge().selectWinner({
@@ -263,6 +287,20 @@ describe('ForkJudge.selectWinner — juror quorum exclusion and noSignal', () =>
       fallback: false,
     })
     expect(result.noSignal).toBe(true)
+    expect(result.winnerForkIndex).toBeNull()
+  })
+
+  it('all jurors excluded, strict mode, no validate nodes (generic criterion) → noSignal:true, winnerForkIndex:null', async () => {
+    mockLLMError('network error')
+    const forks = [makeFork(0), makeFork(1)]
+    const result = await makeJudge().selectWinner({
+      forks,
+      validateNodes: [],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    expect(result.noSignal).toBe(true)
+    expect(result.winnerForkIndex).toBeNull()
   })
 
   it('at least one parseable juror → noSignal is absent (falsy)', async () => {
@@ -509,17 +547,31 @@ describe('ForkJudge.selectWinner — tiebreakUsed', () => {
     expect(result.winnerForkIndex).toBe(0)
   })
 
-  it('tiebreakUsed:true when all jurors are excluded (noSignal — all Borda scores zero)', async () => {
+  it('tiebreakUsed:true when all jurors are excluded in fallback mode (all Borda scores zero)', async () => {
     mockLLMError('timeout')
     const forks = [makeFork(0), makeFork(1)]
     const result = await makeJudge().selectWinner({
       forks,
       validateNodes: [makeValidate('v1', 'criterion')],
       parentNodeId: 'parent',
-      fallback: false,
+      fallback: true,
     })
     expect(result.noSignal).toBe(true)
     expect(result.tiebreakUsed).toBe(true)
+  })
+
+  it('tiebreakUsed:true for 3-fork fallback with no usable juror rankings (all Borda scores zero)', async () => {
+    mockLLMError('timeout')
+    const forks = [makeFork(0), makeFork(1), makeFork(2)]
+    const result = await makeJudge().selectWinner({
+      forks,
+      validateNodes: [makeValidate('v1', 'criterion')],
+      parentNodeId: 'parent',
+      fallback: true,
+    })
+    expect(result.noSignal).toBe(true)
+    expect(result.tiebreakUsed).toBe(true)
+    expect(result.winnerForkIndex).toBe(0)
   })
 
   it('tiebreakUsed:true when two forks share the winning Borda score', async () => {

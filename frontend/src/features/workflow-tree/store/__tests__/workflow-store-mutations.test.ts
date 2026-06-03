@@ -96,6 +96,60 @@ describe('bindMutationActions', () => {
     expect(store.getState().isDirty).toBe(true)
   })
 
+  describe('addChild — expansion independence', () => {
+    it('schedules persistence after creating child', () => {
+      const store = makeStore({ nodes: { p1: { id: 'p1', children: [] } } as WorkflowStoreState['nodes'] })
+      const persister = makePersister()
+      const { addChild } = bindMutationActions(store, persister, mockFormatMessage)
+
+      addChild('p1', { title: 'Child' })
+
+      expect(persister.schedule).toHaveBeenCalledOnce()
+    })
+
+    it('does not modify expandedIds when adding a child', () => {
+      const store = makeStore({
+        nodes: { p1: { id: 'p1', children: [] } } as WorkflowStoreState['nodes'],
+        expandedIds: new Set<string>(),
+      })
+      const persister = makePersister()
+      const { addChild } = bindMutationActions(store, persister, mockFormatMessage)
+
+      addChild('p1', { title: 'Child' })
+
+      expect(store.getState().expandedIds.size).toBe(0)
+    })
+
+    it('does not remove existing expandedIds entries when adding a child to a different node', () => {
+      const store = makeStore({
+        nodes: { p1: { id: 'p1', children: [] } } as WorkflowStoreState['nodes'],
+        expandedIds: new Set<string>(['other-node']),
+      })
+      const persister = makePersister()
+      const { addChild } = bindMutationActions(store, persister, mockFormatMessage)
+
+      addChild('p1', { title: 'Child' })
+
+      expect(store.getState().expandedIds.has('other-node')).toBe(true)
+    })
+
+    it('returns null and shows error toast when addChildNode throws', async () => {
+      const { addChildNode } = await import('@entities/workflow/lib')
+      vi.mocked(addChildNode).mockImplementationOnce(() => {
+        throw new MockNodeMutationError('Parent not found', 'PARENT_NOT_FOUND')
+      })
+      const store = makeStore({ nodes: {} })
+      const persister = makePersister()
+      const { addChild } = bindMutationActions(store, persister, mockFormatMessage)
+
+      const result = addChild('missing', { title: 'Child' })
+
+      expect(result).toBeNull()
+      expect(store.getState().isDirty).toBe(false)
+      expect(persister.schedule).not.toHaveBeenCalled()
+    })
+  })
+
   describe('addSibling', () => {
     it('adds sibling by creating child under parent', () => {
       const store = makeStore({

@@ -156,6 +156,7 @@ const WorkflowContent = () => {
 
   const handleAddChild = useCallback(
     (parentId: string) => {
+      actions.expandNode(parentId)
       const newId = actions.addChild(parentId, { title: '' })
       if (newId) {
         actions.select(newId)

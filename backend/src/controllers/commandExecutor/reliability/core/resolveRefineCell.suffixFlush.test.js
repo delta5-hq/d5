@@ -150,6 +150,70 @@ describe('resolveRefineCell — strict all-fail', () => {
       expect(refine).toBeDefined()
       expect(refine.title).toMatch(/\[✗ 0\/2\]/)
     })
+    it('judge noSignal + all forks ok → refine carries [⚠ no judge signal], validate not flushed (no diagnostic source)', async () => {
+      const store = makeOuterStore()
+      const forkStore = makeForkStoreWithValidateTitle('/validate must include revenue figures [✓]')
+
+      mockRunForks.mockResolvedValue([
+        {forkIndex: 0, status: 'ok', forkStore},
+        {forkIndex: 1, status: 'ok', forkStore},
+      ])
+      MockForkJudge.mockImplementation(() => ({
+        selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: null, noSignal: true}),
+      }))
+
+      await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+      const outputNodes = store.getOutput().nodes
+      const refine = outputNodes.find(n => n.id === 'r1')
+      expect(refine).toBeDefined()
+      expect(refine.title).toMatch(/\[⚠ no judge signal\]/)
+      expect(outputNodes.find(n => n.id === 'v1')).toBeUndefined()
+    })
+
+    it('judge noSignal + criteria-failed fork present → refine carries [⚠ no judge signal], validate IS flushed from diagnostic fork', async () => {
+      const store = makeOuterStore()
+      const diagnosticForkStore = makeForkStoreWithValidateTitle(
+        '/validate must include revenue figures [✗ 2 attempts]',
+      )
+
+      mockRunForks.mockResolvedValue([
+        {forkIndex: 0, status: 'criteria-failed', forkStore: diagnosticForkStore},
+        {forkIndex: 1, status: 'criteria-failed', forkStore: diagnosticForkStore},
+      ])
+      MockForkJudge.mockImplementation(() => ({
+        selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: null, noSignal: true}),
+      }))
+
+      await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+      const outputNodes = store.getOutput().nodes
+      const refine = outputNodes.find(n => n.id === 'r1')
+      expect(refine.title).toMatch(/\[⚠ no judge signal\]/)
+      const validate = outputNodes.find(n => n.id === 'v1')
+      expect(validate).toBeDefined()
+      expect(validate.title).toBe('/validate must include revenue figures [✗ 2 attempts]')
+    })
+
+    it('judge returns winnerForkIndex:null with noSignal:false → refine carries [✗ 0/N], not [⚠ no judge signal]', async () => {
+      const store = makeOuterStore()
+      const forkStore = makeForkStoreWithValidateTitle('/validate must include revenue figures [✗ 3 attempts]')
+
+      mockRunForks.mockResolvedValue([
+        {forkIndex: 0, status: 'criteria-failed', forkStore},
+        {forkIndex: 1, status: 'criteria-failed', forkStore},
+      ])
+      MockForkJudge.mockImplementation(() => ({
+        selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: null, noSignal: false}),
+      }))
+
+      await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+      const outputNodes = store.getOutput().nodes
+      const refine = outputNodes.find(n => n.id === 'r1')
+      expect(refine.title).toMatch(/\[✗ 0\/2\]/)
+      expect(refine.title).not.toMatch(/no judge signal/)
+    })
   })
 
   describe('validate reliabilityMetadata sync to outer store', () => {
