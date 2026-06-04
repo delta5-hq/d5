@@ -3,6 +3,7 @@ export const SYSTEM_DIRS = Object.freeze([
   '/lib',
   '/lib64',
   '/lib32',
+  '/opt',
   '/etc/ssl',
   '/etc/resolv.conf',
   '/etc/nsswitch.conf',
