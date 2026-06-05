@@ -268,6 +268,8 @@ jobs:
       NODEJS_BACKEND_PORT: 3004
     steps:
       - uses: actions/checkout@v4
+      - name: Allow unprivileged user namespaces for bubblewrap
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
       - name: Install bubblewrap sandbox runtime
         run: sudo apt-get update -qq && sudo apt-get install -y bubblewrap
       - uses: actions/setup-node@v4
@@ -275,6 +277,22 @@ jobs:
           node-version: 22
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
+      - name: Verify bubblewrap can launch sandboxed Node.js
+        run: |
+          bwrap_args=(
+            --unshare-pid
+            --unshare-uts
+            --unshare-ipc
+            --proc /proc
+            --dev /dev
+            --tmpfs /tmp
+          )
+          for sandbox_path in /usr /lib /lib64 /lib32 /opt /etc/ssl /etc/resolv.conf /etc/nsswitch.conf; do
+            if [ -e "$sandbox_path" ]; then
+              bwrap_args+=(--ro-bind "$sandbox_path" "$sandbox_path")
+            fi
+          done
+          /usr/bin/bwrap "${bwrap_args[@]}" -- node -e "process.exit(0)"
       - run: cd backend && npm ci
       - run: cd backend && npm run build
       - uses: actions/download-artifact@v4
