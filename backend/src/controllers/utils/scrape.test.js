@@ -230,6 +230,24 @@ describe('fetchAsString', () => {
     expect(htmlUtils.stripTags).toHaveBeenCalledWith('<html><body>Some HTML</body></html>')
     expect(result).toBe('Some HTML')
   })
+
+  it('should preserve plain text content without HTML stripping', async () => {
+    const mockResponse = {
+      headers: {
+        get: jest.fn().mockReturnValue('text/plain'),
+      },
+      text: jest.fn().mockResolvedValue('Plain text content'),
+    }
+
+    proxyUtils.fetchWithProxySupport.mockResolvedValue(mockResponse)
+
+    const result = await fetchAsString('https://example.com/page.txt')
+
+    expect(proxyUtils.fetchWithProxySupport).toHaveBeenCalledWith('https://example.com/page.txt')
+    expect(mockResponse.text).toHaveBeenCalled()
+    expect(htmlUtils.stripTags).not.toHaveBeenCalled()
+    expect(result).toBe('Plain text content')
+  })
 })
 
 describe('scrape', () => {
@@ -482,6 +500,53 @@ describe('processContentString', () => {
       content: '',
     })
   })
+
+  it('should preserve raw text for non-HTML content types', async () => {
+    const mockResponse = {
+      text: jest.fn().mockResolvedValue('Plain text content'),
+    }
+
+    const result = await processContentString(mockResponse, 'test.txt', 'text/plain')
+
+    expect(mockResponse.text).toHaveBeenCalled()
+    expect(htmlUtils.stripTags).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      filename: 'test.txt',
+      content: 'Plain text content',
+    })
+  })
+
+  it.each([
+    ['text/html; charset=utf-8', 'MIME params do not suppress HTML stripping'],
+    ['application/xhtml+xml', 'XHTML is treated as HTML'],
+    ['application/xhtml+xml; charset=utf-8', 'XHTML with MIME params is treated as HTML'],
+  ])('should strip tags for %s — %s', async contentType => {
+    const mockResponse = {
+      text: jest.fn().mockResolvedValue('<p>content</p>'),
+    }
+
+    htmlUtils.stripTags.mockReturnValue('content')
+
+    const result = await processContentString(mockResponse, 'page.html', contentType)
+
+    expect(htmlUtils.stripTags).toHaveBeenCalled()
+    expect(result.content).toBe('content')
+  })
+
+  it.each([
+    ['text/css', 'stylesheet'],
+    ['application/json', '{"key":"value"}'],
+    ['text/javascript', 'function f(){}'],
+  ])('should preserve raw content for non-HTML type %s', async (contentType, rawContent) => {
+    const mockResponse = {
+      text: jest.fn().mockResolvedValue(rawContent),
+    }
+
+    const result = await processContentString(mockResponse, 'asset', contentType)
+
+    expect(htmlUtils.stripTags).not.toHaveBeenCalled()
+    expect(result.content).toBe(rawContent)
+  })
 })
 
 describe('processUrl', () => {
@@ -546,6 +611,34 @@ describe('processUrl', () => {
     })
   })
 
+  it('should process TXT URLs without stripping their content', async () => {
+    const url = 'https://example.com/page.txt'
+    const options = {}
+
+    const mockResponse = {
+      headers: {
+        get: jest.fn().mockImplementation(header => {
+          if (header === 'content-type') return 'text/plain'
+          return null
+        }),
+      },
+      text: jest.fn().mockResolvedValue('Plain text content'),
+    }
+
+    proxyUtils.fetchWithProxySupport.mockResolvedValue(mockResponse)
+
+    const result = await processUrl(url, options)
+
+    expect(proxyUtils.fetchWithProxySupport).toHaveBeenCalledWith(url)
+    expect(mockResponse.headers.get).toHaveBeenCalledWith('content-type')
+    expect(mockResponse.text).toHaveBeenCalled()
+    expect(htmlUtils.stripTags).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      filename: 'page.txt',
+      content: 'Plain text content',
+    })
+  })
+
   it('should handle fetch errors gracefully', async () => {
     const url = 'https://example.com/broken-link'
 
@@ -573,6 +666,45 @@ describe('processUrl', () => {
     const result = await processUrl(url, {})
 
     expect(result).toBeNull()
+  })
+
+  it.each([
+    ['application/xhtml+xml', 'XHTML document'],
+    ['text/html; charset=utf-8', 'HTML with charset MIME param'],
+  ])('should strip tags for content-type %s — %s', async contentType => {
+    const url = 'https://example.com/page'
+    const mockResponse = {
+      headers: {
+        get: jest.fn().mockImplementation(header => (header === 'content-type' ? contentType : null)),
+      },
+      text: jest.fn().mockResolvedValue('<p>body</p>'),
+    }
+
+    proxyUtils.fetchWithProxySupport.mockResolvedValue(mockResponse)
+    htmlUtils.stripTags.mockReturnValue('body')
+
+    const result = await processUrl(url, {})
+
+    expect(htmlUtils.stripTags).toHaveBeenCalled()
+    expect(result?.content).toBe('body')
+  })
+
+  it('should preserve raw text when content-type header is absent (empty string)', async () => {
+    const url = 'https://example.com/data'
+    const rawBody = 'raw data without content-type'
+    const mockResponse = {
+      headers: {
+        get: jest.fn().mockReturnValue(null),
+      },
+      text: jest.fn().mockResolvedValue(rawBody),
+    }
+
+    proxyUtils.fetchWithProxySupport.mockResolvedValue(mockResponse)
+
+    const result = await processUrl(url, {})
+
+    expect(htmlUtils.stripTags).not.toHaveBeenCalled()
+    expect(result?.content).toBe(rawBody)
   })
 })
 

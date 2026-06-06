@@ -101,7 +101,7 @@ export async function resolveRefineCell(refineNode, store, memoMap, signal = nul
       refineNode.id,
     )
     store.saveNodeToOutput(refineNode.id)
-    // Strict mode commits no subtree state; only per-criterion verdict markers propagated so the user can attribute the failure to a specific /validate.
+    // Per-criterion verdict markers are propagated so the user can attribute the failure to a specific /validate.
     const diagnosticFork = forkResults.find(f => f.status === 'criteria-failed' && f.forkStore)
     if (diagnosticFork) {
       flushValidateTitles(allValidates, diagnosticFork.forkStore, store)
@@ -134,6 +134,7 @@ export async function resolveRefineCell(refineNode, store, memoMap, signal = nul
       tiebreakUsed: verdict.tiebreakUsed ?? false,
       eligible: okCount,
       total: n,
+      judgeInput: verdict.judgeInput,
       judgeQualityWarnings: verdict.judgeQualityWarnings ?? [],
     }
     store.saveNodeToOutput(refineNode.id)

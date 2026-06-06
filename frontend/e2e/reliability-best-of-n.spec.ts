@@ -5,7 +5,7 @@ import { TIMEOUTS } from './config/test-timeouts'
 
 const LLM_TIMEOUT = 120_000
 const SUFFIX_RE = /\[(?:✓|✗)[^\]]+\]/
-const COMMODITY_SUFFIX_RE = (n: number) => new RegExp(`\\[(?:✓|✗) \\d+\\/${n}\\]`)
+const COMMODITY_SUFFIX_RE = (n: number) => new RegExp(`\\[✓ \\d+\\/${n}\\]`)
 const VALIDATE_VERDICT_RE = /\[(?:✓(?:\s+retry-\d+)?|✗\s+\d+\s+attempts)\]/
 const VALIDATE_FAIL_RE = /\[✗\s+\d+\s+attempts\]/
 
@@ -18,7 +18,7 @@ async function purgeQaBotWorkflows(page: Parameters<typeof qaBotLogin>[0]) {
      Retry loop: parallel workers share the same qa-bot user, so the other
      browser can re-fill the quota between our GET and DELETE; loop until the
      listing comes back empty (or we exhaust attempts). */
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < 10; attempt++) {
     const resp = await page.request.get('/api/v2/workflow?public=false&limit=100')
     if (!resp.ok()) {
       await page.waitForTimeout(500)
@@ -28,15 +28,23 @@ async function purgeQaBotWorkflows(page: Parameters<typeof qaBotLogin>[0]) {
     const ids: string[] = (body.data ?? []).map((w: { workflowId: string }) => w.workflowId).filter(Boolean)
     if (ids.length === 0) return
     await Promise.all(ids.map(id => page.request.delete(`/api/v2/workflow/${id}`).catch(() => {})))
-    await page.waitForTimeout(200)
+    await page.waitForTimeout(400)
   }
 }
 
 async function setupLLMWorkflow(page: Parameters<typeof qaBotLogin>[0]) {
   await page.goto('/workflows')
   await qaBotLogin(page)
-  await purgeQaBotWorkflows(page)
-  await createWorkflow(page)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await purgeQaBotWorkflows(page)
+    try {
+      await createWorkflow(page)
+      break
+    } catch (err) {
+      if (attempt === 2) throw err
+      await page.waitForTimeout(1000 * (attempt + 1))
+    }
+  }
   await page.waitForLoadState('networkidle')
   await page.getByTestId('create-first-node').click()
   await page.locator('[data-node-id]').first().waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
@@ -72,7 +80,7 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     await setupLLMWorkflow(page)
   })
 
-  test('bestOf :n=2 — commodity writes [(?:✓|✗) K/2] suffix on plain LLM cell', async ({ page }) => {
+  test('bestOf :n=2 — commodity writes [✓ K/2] suffix on plain LLM cell', async ({ page }) => {
     const tree = new WorkflowTreePage(page)
     const { detail, rootId } = await selectRootAndOpenDetail(page)
     await detail.fillCommand('/chat :n=2 List 3 colors')
@@ -85,7 +93,7 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     expect(await tree.nodes.count()).toBeGreaterThanOrEqual(2)
   })
 
-  test('bestOf :n=3 — commodity writes [(?:✓|✗) K/3] suffix on plain LLM cell', async ({ page }) => {
+  test('bestOf :n=3 — commodity writes [✓ K/3] suffix on plain LLM cell', async ({ page }) => {
     const tree = new WorkflowTreePage(page)
     const { detail, rootId } = await selectRootAndOpenDetail(page)
     await detail.fillCommand('/chat :n=3 List 3 fruits')
@@ -98,7 +106,7 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     expect(await tree.nodes.count()).toBeGreaterThanOrEqual(2)
   })
 
-  test('bestOf :n=5 — commodity writes [(?:✓|✗) K/5] suffix on plain LLM cell', async ({ page }) => {
+  test('bestOf :n=5 — commodity writes [✓ K/5] suffix on plain LLM cell', async ({ page }) => {
     const tree = new WorkflowTreePage(page)
     const { detail, rootId } = await selectRootAndOpenDetail(page)
     await detail.fillCommand('/chat :n=5 List 3 animals')

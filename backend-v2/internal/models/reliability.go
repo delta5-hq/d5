@@ -1,0 +1,80 @@
+package models
+
+// RefineMode distinguishes best-of-N strict execution from lenient fallback execution.
+type RefineMode string
+
+const (
+	RefineModeStrict   RefineMode = "strict"
+	RefineModeBackFall RefineMode = "fallback"
+)
+
+// SelectionLayer records whether the winner came from the eligible primary pool or the fallback pool.
+type SelectionLayer string
+
+const (
+	SelectionLayerPrimary  SelectionLayer = "primary"
+	SelectionLayerFallback SelectionLayer = "fallback"
+)
+
+// JudgeSeverity classifies the impact of a judge quality warning on selection reliability.
+type JudgeSeverity string
+
+const (
+	JudgeSeverityHigh   JudgeSeverity = "high"
+	JudgeSeverityMedium JudgeSeverity = "medium"
+	JudgeSeverityLow    JudgeSeverity = "low"
+)
+
+// JudgeWarningCondition identifies which structural condition degraded the judge's reliability.
+type JudgeWarningCondition string
+
+const (
+	JudgeWarnSingleProvider    JudgeWarningCondition = "singleProvider"
+	JudgeWarnLowestTierOnly    JudgeWarningCondition = "lowestTierOnly"
+	JudgeWarnJuryDuplicates    JudgeWarningCondition = "juryDuplicates"
+	JudgeWarnFallbackWeakJudge JudgeWarningCondition = "fallbackWithWeakJudge"
+	JudgeWarnNoReasoningMode   JudgeWarningCondition = "noReasoningMode"
+)
+
+// ForkRanking records one fork's ordinal rank as assigned by one criterion's jury.
+type ForkRanking struct {
+	ForkIndex int `json:"forkIndex" bson:"forkIndex"`
+	Rank      int `json:"rank" bson:"rank"`
+}
+
+// CriterionVerdict holds the jury's per-criterion fork rankings for a single /validate criterion.
+type CriterionVerdict struct {
+	CriterionID  string        `json:"criterionId" bson:"criterionId"`
+	Criterion    string        `json:"criterion" bson:"criterion"`
+	ForkRankings []ForkRanking `json:"forkRankings" bson:"forkRankings"`
+}
+
+// JudgeQualityWarning flags a condition that raises the judge's effective false-acceptance rate β.
+type JudgeQualityWarning struct {
+	Condition JudgeWarningCondition `json:"condition" bson:"condition"`
+	Severity  JudgeSeverity         `json:"severity" bson:"severity"`
+}
+
+// JudgeInputMetadata records what the judge actually received, enabling reproducible verdict-drawer diagnostics.
+type JudgeInputMetadata struct {
+	CandidateCount        int      `json:"candidateCount" bson:"candidateCount"`
+	PerForkBudgetChars    int      `json:"perForkBudgetChars" bson:"perForkBudgetChars"`
+	DegradedInput         bool     `json:"degradedInput" bson:"degradedInput"`
+	ResolvedJudgeFamilies []string `json:"resolvedJudgeFamilies" bson:"resolvedJudgeFamilies"`
+}
+
+// ReliabilityMetadata persists the judge's complete verdict for a /refine cell across page reloads.
+// Written by the Node.js execution engine after fork selection; consumed by the frontend verdict drawer.
+// Attached to a Node as a pointer so nodes that have never run /refine carry no overhead.
+type ReliabilityMetadata struct {
+	WinnerForkIndex      int                   `json:"winnerForkIndex" bson:"winnerForkIndex"`
+	PerCriterionVerdict  []CriterionVerdict    `json:"perCriterionVerdict" bson:"perCriterionVerdict"`
+	Mode                 RefineMode            `json:"mode" bson:"mode"`
+	SelectionLayer       SelectionLayer        `json:"selectionLayer" bson:"selectionLayer"`
+	NoSignal             bool                  `json:"noSignal" bson:"noSignal"`
+	TiebreakUsed         *bool                 `json:"tiebreakUsed,omitempty" bson:"tiebreakUsed,omitempty"`
+	Eligible             int                   `json:"eligible" bson:"eligible"`
+	Total                int                   `json:"total" bson:"total"`
+	JudgeInput           *JudgeInputMetadata   `json:"judgeInput,omitempty" bson:"judgeInput,omitempty"`
+	JudgeQualityWarnings []JudgeQualityWarning `json:"judgeQualityWarnings,omitempty" bson:"judgeQualityWarnings,omitempty"`
+}

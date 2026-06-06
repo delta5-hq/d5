@@ -247,7 +247,7 @@ describe('resolveRefineCell — strict all-fail', () => {
   })
 
   describe('diagnostic source selection', () => {
-    it('all runtime-failed forks: no validate flush when no criteria-failed source available', async () => {
+    it('all runtime-failed forks: no validate flush and refine carries [✗ 0/N] failure suffix', async () => {
       const store = makeOuterStore()
 
       mockRunForks.mockResolvedValue([
@@ -257,7 +257,9 @@ describe('resolveRefineCell — strict all-fail', () => {
 
       await resolveRefineCell(store.getNode('r1'), store, new Map())
 
-      expect(store.getOutput().nodes.find(n => n.id === 'v1')).toBeUndefined()
+      const outputNodes = store.getOutput().nodes
+      expect(outputNodes.find(n => n.id === 'v1')).toBeUndefined()
+      expect(outputNodes.find(n => n.id === 'r1')?.title).toMatch(/\[✗ 0\/2\]/)
     })
 
     it('mixed runtime-and-criteria failures: criteria-failed fork provides the diagnostic source', async () => {
@@ -394,6 +396,182 @@ describe('resolveRefineCell — winner path: validate flush sources from winner 
     const validate = outputNodes.find(n => n.id === 'v1')
     expect(validate).toBeDefined()
     expect(validate.title).toBe('/validate must include revenue figures [✓]')
+  })
+
+  it('fallback winner from criteria-failed pool: validate title flushed from fallback winner fork store', async () => {
+    const store = makeOuterStore()
+    const fallbackWinnerStore = makeForkStoreWithValidateTitle('/validate must include revenue figures [✗ 2 attempts]')
+    const otherForkStore = makeForkStoreWithValidateTitle('/validate must include revenue figures [✗ 3 attempts]')
+
+    mockRunForks.mockResolvedValue([
+      {forkIndex: 0, status: 'criteria-failed', forkStore: fallbackWinnerStore},
+      {forkIndex: 1, status: 'criteria-failed', forkStore: otherForkStore},
+    ])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: jest.fn().mockResolvedValue({
+        winnerForkIndex: 0,
+        selectionLayer: 'fallback',
+        mode: 'fallback',
+        noSignal: false,
+        tiebreakUsed: false,
+        perCriterionVerdict: [],
+        judgeQualityWarnings: [],
+      }),
+    }))
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    const outputNodes = store.getOutput().nodes
+    const validate = outputNodes.find(n => n.id === 'v1')
+    expect(validate?.title).toBe('/validate must include revenue figures [✗ 2 attempts]')
+    expect(outputNodes.find(n => n.id === 'r1')?.title).toMatch(/\[⚠ fallback/)
+  })
+})
+
+describe('resolveRefineCell — winner path: reliabilityMetadata and memoMap contract', () => {
+  it('reliabilityMetadata on refine node includes judgeInput from verdict after winner selection', async () => {
+    const store = makeOuterStore()
+    const winnerForkStore = makeForkStoreWithValidateTitle('/validate must include revenue figures [\u2713]')
+    const judgeInputFixture = {
+      candidateCount: 2,
+      perForkBudgetChars: 8000,
+      degradedInput: false,
+      resolvedJudgeFamilies: ['OpenAI'],
+    }
+
+    mockRunForks.mockResolvedValue([
+      {forkIndex: 0, status: 'ok', forkStore: winnerForkStore},
+      {forkIndex: 1, status: 'ok', forkStore: winnerForkStore},
+    ])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: jest.fn().mockResolvedValue({
+        winnerForkIndex: 0,
+        perCriterionVerdict: [],
+        mode: 'strict',
+        selectionLayer: 'primary',
+        noSignal: false,
+        tiebreakUsed: false,
+        judgeInput: judgeInputFixture,
+        judgeQualityWarnings: [],
+      }),
+    }))
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    const refineNode = store.getOutput().nodes.find(n => n.id === 'r1')
+    expect(refineNode?.reliabilityMetadata).toMatchObject({
+      winnerForkIndex: 0,
+      mode: 'strict',
+      selectionLayer: 'primary',
+      eligible: 2,
+      total: 2,
+      judgeInput: judgeInputFixture,
+    })
+  })
+
+  it('reliabilityMetadata.judgeInput is undefined when judge was not invoked (single candidate)', async () => {
+    const store = buildStore({
+      r1: {id: 'r1', command: '/refine :n=2', children: []},
+    })
+
+    mockRunForks.mockResolvedValue([
+      {forkIndex: 0, status: 'ok', forkStore: buildStore({r1: {id: 'r1', command: '/refine :n=2', children: []}})},
+      {forkIndex: 1, status: 'runtime-failed', forkStore: null},
+    ])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: jest.fn().mockResolvedValue({
+        winnerForkIndex: 0,
+        perCriterionVerdict: [],
+        mode: 'strict',
+        selectionLayer: 'primary',
+        noSignal: false,
+        tiebreakUsed: false,
+        judgeInput: undefined,
+        judgeQualityWarnings: [],
+      }),
+    }))
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    const refineNode = store.getOutput().nodes.find(n => n.id === 'r1')
+    expect(refineNode?.reliabilityMetadata?.judgeInput).toBeUndefined()
+  })
+
+  it('memoMap carries the winner forkStore after successful resolution', async () => {
+    const store = makeOuterStore()
+    const winnerForkStore = makeForkStoreWithValidateTitle('/validate must include revenue figures [\u2713]')
+
+    mockRunForks.mockResolvedValue([
+      {forkIndex: 0, status: 'ok', forkStore: winnerForkStore},
+      {forkIndex: 1, status: 'ok', forkStore: winnerForkStore},
+    ])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: jest.fn().mockResolvedValue({
+        winnerForkIndex: 0,
+        perCriterionVerdict: [],
+        mode: 'strict',
+        selectionLayer: 'primary',
+        noSignal: false,
+        tiebreakUsed: false,
+        judgeQualityWarnings: [],
+      }),
+    }))
+
+    const memoMap = new Map()
+    await resolveRefineCell(store.getNode('r1'), store, memoMap)
+
+    expect(memoMap.get('r1')).toBe(winnerForkStore)
+  })
+
+  it('noSignal flag is suppressed in refine suffix when the command carries :fallback — fallback mode implies a winner was chosen regardless of judge ranking', async () => {
+    const fallbackStore = buildStore({
+      r1: {id: 'r1', title: 'Analyze competitors', command: '/refine :n=2 :fallback', children: ['v1']},
+      v1: {
+        id: 'v1',
+        parent: 'r1',
+        command: '/validate must include revenue figures',
+        title: '/validate must include revenue figures',
+        children: [],
+      },
+    })
+    const winnerForkStore = makeForkStoreWithValidateTitle('/validate must include revenue figures [✗ 1 attempts]')
+
+    mockRunForks.mockResolvedValue([
+      {forkIndex: 0, status: 'criteria-failed', forkStore: winnerForkStore},
+      {forkIndex: 1, status: 'criteria-failed', forkStore: winnerForkStore},
+    ])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: jest.fn().mockResolvedValue({
+        winnerForkIndex: 0,
+        selectionLayer: 'fallback',
+        mode: 'fallback',
+        noSignal: true,
+        tiebreakUsed: false,
+        perCriterionVerdict: [],
+        judgeQualityWarnings: [],
+      }),
+    }))
+
+    await resolveRefineCell(fallbackStore.getNode('r1'), fallbackStore, new Map())
+
+    const refine = fallbackStore.getOutput().nodes.find(n => n.id === 'r1')
+    expect(refine?.title).not.toMatch(/no judge signal/)
+    expect(refine?.title).toMatch(/fallback/)
+  })
+
+  it('memoMap carries null after strict all-fail', async () => {
+    const store = makeOuterStore()
+    const forkStore = makeForkStoreWithValidateTitle('/validate must include revenue figures [\u2717 3 attempts]')
+
+    mockRunForks.mockResolvedValue([
+      {forkIndex: 0, status: 'criteria-failed', forkStore},
+      {forkIndex: 1, status: 'criteria-failed', forkStore},
+    ])
+
+    const memoMap = new Map()
+    await resolveRefineCell(store.getNode('r1'), store, memoMap)
+
+    expect(memoMap.get('r1')).toBeNull()
   })
 })
 

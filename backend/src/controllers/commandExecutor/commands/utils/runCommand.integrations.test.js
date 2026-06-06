@@ -997,7 +997,11 @@ describe('DownloadCommand run test', () => {
 
     const output = mockStore.getOutput()
 
-    expect(output.nodes).toEqual([])
+    expect(output.nodes).toHaveLength(1)
+    expect(output.nodes[0]).toMatchObject({
+      parent: 'downloadNode',
+      title: 'Download failed to persist test.txt',
+    })
     expect(scrapeSpy).toHaveBeenCalledWith(['https://example.com'], expect.any(Object))
     expect(uploadSpy).toHaveBeenCalled()
 

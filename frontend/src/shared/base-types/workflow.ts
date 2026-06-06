@@ -74,7 +74,15 @@ export type ReliabilityMetadata = {
   tiebreakUsed?: boolean
   eligible: number
   total: number
+  judgeInput?: JudgeInputMetadata
   judgeQualityWarnings?: JudgeQualityWarning[]
+}
+
+export type JudgeInputMetadata = {
+  candidateCount: number
+  perForkBudgetChars: number
+  degradedInput: boolean
+  resolvedJudgeFamilies: string[]
 }
 
 export type EdgeContent = {

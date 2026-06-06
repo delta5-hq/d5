@@ -1,5 +1,6 @@
 import {
   computePerForkContentBudget,
+  computePerForkContentBudgetFromResolvedModels,
   isDegradedInput,
   MAX_PER_FORK_CHARS,
   DEGRADED_INPUT_THRESHOLD_CHARS,
@@ -144,5 +145,99 @@ describe('isDegradedInput', () => {
 
   it('returns true for the floor budget produced at very high fork count (always degraded)', () => {
     expect(isDegradedInput(computePerForkContentBudget(100_000, [Model.YandexGPT]))).toBe(true)
+  })
+})
+
+describe('computePerForkContentBudgetFromResolvedModels', () => {
+  it('budget is determined by the smallest positive chunkSize among resolved models', () => {
+    const smallChunkSize = 8_000
+    const largeChunkSize = 200_000
+    const budgetWithMix = computePerForkContentBudgetFromResolvedModels(2, [
+      {chunkSize: largeChunkSize},
+      {chunkSize: smallChunkSize},
+    ])
+    const budgetWithSmallOnly = computePerForkContentBudgetFromResolvedModels(2, [{chunkSize: smallChunkSize}])
+    expect(budgetWithMix).toBe(budgetWithSmallOnly)
+  })
+
+  it('large resolved context window allows large N without family-level under-allocation', () => {
+    const resolvedBudget = computePerForkContentBudgetFromResolvedModels(50, [{chunkSize: 200_000}])
+    const familyFallbackBudget = computePerForkContentBudget(50, [Model.YandexGPT])
+
+    expect(resolvedBudget).toBeGreaterThan(DEGRADED_INPUT_THRESHOLD_CHARS)
+    expect(resolvedBudget).toBeGreaterThan(familyFallbackBudget)
+  })
+
+  it('small resolved context window produces degraded budget even for a nominally large-context family', () => {
+    const budget = computePerForkContentBudgetFromResolvedModels(10, [{chunkSize: 2_000}])
+
+    expect(isDegradedInput(budget)).toBe(true)
+  })
+
+  it('falls back safely when no resolved model has a positive finite chunkSize', () => {
+    const budget = computePerForkContentBudgetFromResolvedModels(2, [
+      {chunkSize: 0},
+      {chunkSize: -1},
+      {chunkSize: Number.NaN},
+      {},
+    ])
+
+    expect(budget).toBe(computePerForkContentBudget(2, []))
+  })
+
+  it('Infinity chunkSize is filtered as non-finite and falls back to the conservative default', () => {
+    const budget = computePerForkContentBudgetFromResolvedModels(2, [{chunkSize: Infinity}])
+
+    expect(budget).toBe(computePerForkContentBudget(2, []))
+  })
+
+  it('null and undefined resolvedModels are treated as empty and fall back to the conservative default', () => {
+    expect(computePerForkContentBudgetFromResolvedModels(2, null)).toBe(computePerForkContentBudget(2, []))
+    expect(computePerForkContentBudgetFromResolvedModels(2, undefined)).toBe(computePerForkContentBudget(2, []))
+  })
+
+  it('Infinity chunkSize mixed with valid chunkSizes — only valid sizes contribute to the minimum', () => {
+    const budget = computePerForkContentBudgetFromResolvedModels(2, [{chunkSize: Infinity}, {chunkSize: 8_000}])
+
+    expect(budget).toBe(computePerForkContentBudgetFromResolvedModels(2, [{chunkSize: 8_000}]))
+  })
+
+  describe('degenerate nForks inputs mirror the family-based function', () => {
+    it('nForks=0 returns MAX_PER_FORK_CHARS regardless of resolved model chunkSize', () => {
+      expect(computePerForkContentBudgetFromResolvedModels(0, [{chunkSize: 8_000}])).toBe(MAX_PER_FORK_CHARS)
+    })
+
+    it('nForks=1 allocates the full capped budget for any positive chunkSize', () => {
+      expect(computePerForkContentBudgetFromResolvedModels(1, [{chunkSize: 200_000}])).toBe(MAX_PER_FORK_CHARS)
+      expect(computePerForkContentBudgetFromResolvedModels(1, [{chunkSize: 8_000}])).toBe(MAX_PER_FORK_CHARS)
+    })
+
+    it('nForks<0 treated as nForks=0: returns MAX_PER_FORK_CHARS', () => {
+      expect(computePerForkContentBudgetFromResolvedModels(-1, [{chunkSize: 8_000}])).toBe(MAX_PER_FORK_CHARS)
+    })
+  })
+
+  describe('degenerate model list inputs', () => {
+    it('empty resolvedModels array falls back to the conservative default — identical to null', () => {
+      expect(computePerForkContentBudgetFromResolvedModels(2, [])).toBe(computePerForkContentBudget(2, []))
+    })
+  })
+
+  describe('budget decreases monotonically as nForks grows for a given chunkSize', () => {
+    it('budget is non-increasing across a range of fork counts for a fixed chunkSize', () => {
+      const forkCounts = [2, 5, 20, 100]
+      const budgets = forkCounts.map(n => computePerForkContentBudgetFromResolvedModels(n, [{chunkSize: 32_000}]))
+      for (let i = 1; i < budgets.length; i++) {
+        expect(budgets[i]).toBeLessThanOrEqual(budgets[i - 1])
+      }
+    })
+
+    it('very small chunkSize produces monotonically decreasing budget', () => {
+      const forkCounts = [2, 5, 20]
+      const budgets = forkCounts.map(n => computePerForkContentBudgetFromResolvedModels(n, [{chunkSize: 4_000}]))
+      for (let i = 1; i < budgets.length; i++) {
+        expect(budgets[i]).toBeLessThanOrEqual(budgets[i - 1])
+      }
+    })
   })
 })

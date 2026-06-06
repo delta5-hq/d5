@@ -62,6 +62,96 @@ describe('Workflow Router - Administrator Tests', () => {
       const data = JSON.parse(response.res.text)
       expect(data.message).toBe('workflow updated successfully')
     })
+
+    it('reliabilityMetadata persists through PUT→GET round-trip', async () => {
+      const reliabilityMetadata = {
+        winnerForkIndex: 1,
+        perCriterionVerdict: [
+          {
+            criterionId: 'v1',
+            criterion: 'must mention revenue',
+            forkRankings: [
+              {forkIndex: 0, rank: 2},
+              {forkIndex: 1, rank: 1},
+            ],
+          },
+        ],
+        mode: 'strict',
+        selectionLayer: 'primary',
+        noSignal: false,
+        tiebreakUsed: true,
+        eligible: 2,
+        total: 2,
+        judgeInput: {
+          candidateCount: 2,
+          perForkBudgetChars: 4000,
+          degradedInput: false,
+          resolvedJudgeFamilies: ['openai', 'claude'],
+        },
+        judgeQualityWarnings: [{condition: 'juryDuplicates', severity: 'medium'}],
+      }
+
+      const nodesWithMetadata = {
+        ...workflowData.nodes,
+        rootId: {...workflowData.nodes.rootId, reliabilityMetadata},
+      }
+
+      const putResponse = await administratorRequest
+        .put(`/workflow/${workflowId}`)
+        .send({...workflowData, nodes: nodesWithMetadata})
+
+      expect(putResponse.status).toBe(200)
+
+      const getResponse = await administratorRequest.get(`/workflow/${workflowId}`)
+      expect(getResponse.status).toBe(200)
+
+      const workflow = JSON.parse(getResponse.res.text)
+      const savedMetadata = workflow.nodes.rootId.reliabilityMetadata
+
+      expect(savedMetadata).toBeDefined()
+      expect(savedMetadata.winnerForkIndex).toBe(1)
+      expect(savedMetadata.mode).toBe('strict')
+      expect(savedMetadata.selectionLayer).toBe('primary')
+      expect(savedMetadata.noSignal).toBe(false)
+      expect(savedMetadata.tiebreakUsed).toBe(true)
+      expect(savedMetadata.eligible).toBe(2)
+      expect(savedMetadata.total).toBe(2)
+      expect(savedMetadata.perCriterionVerdict).toHaveLength(1)
+      expect(savedMetadata.perCriterionVerdict[0].criterionId).toBe('v1')
+      expect(savedMetadata.perCriterionVerdict[0].forkRankings).toHaveLength(2)
+      expect(savedMetadata.perCriterionVerdict[0].forkRankings[1]).toEqual({forkIndex: 1, rank: 1})
+      expect(savedMetadata.judgeInput.candidateCount).toBe(2)
+      expect(savedMetadata.judgeInput.degradedInput).toBe(false)
+      expect(savedMetadata.judgeInput.resolvedJudgeFamilies).toEqual(['openai', 'claude'])
+      expect(savedMetadata.judgeQualityWarnings).toHaveLength(1)
+      expect(savedMetadata.judgeQualityWarnings[0].condition).toBe('juryDuplicates')
+    })
+
+    it('nodes without reliabilityMetadata are unaffected by PUT that adds it to sibling', async () => {
+      const reliabilityMetadata = {
+        winnerForkIndex: 0,
+        perCriterionVerdict: [],
+        mode: 'fallback',
+        selectionLayer: 'fallback',
+        noSignal: false,
+        eligible: 0,
+        total: 2,
+      }
+
+      const nodesWithMetadata = {
+        ...workflowData.nodes,
+        rootId: {...workflowData.nodes.rootId, reliabilityMetadata},
+      }
+
+      await administratorRequest
+        .put(`/workflow/${workflowId}`)
+        .send({...workflowData, nodes: nodesWithMetadata})
+
+      const getResponse = await administratorRequest.get(`/workflow/${workflowId}`)
+      const workflow = JSON.parse(getResponse.res.text)
+
+      expect(workflow.nodes.childId.reliabilityMetadata).toBeUndefined()
+    })
   })
 
   describe('PATCH /workflow/:workflowId', () => {

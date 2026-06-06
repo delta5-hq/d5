@@ -1,7 +1,6 @@
 import {scrapeFiles} from '../../utils/scrape'
 import {DownloadCommand} from './DownloadCommand'
 
-// Mock the reference patterns module
 jest.mock('./references/utils/referencePatterns', () => ({
   referencePatterns: {
     withAssignmentPrefix: jest.fn(() => ({
@@ -10,7 +9,6 @@ jest.mock('./references/utils/referencePatterns', () => ({
   },
 }))
 
-// Mock the constants module before importing from it
 jest.mock('../constants/steps', () => ({
   clearStepsPrefix: jest.fn(str => `cleared ${str}`),
 }))
@@ -22,15 +20,16 @@ jest.mock('../constants', () => {
   }
 })
 
-// Import constants after mocking
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import {clearStepsPrefix} from '../constants/steps'
 import {referencePatterns} from './references/utils/referencePatterns'
 import Store from './utils/Store'
+import WorkflowFile from '../../../models/WorkflowFile'
+import {generateNodeId} from '../../../shared/utils/generateId'
 
 jest.mock('../../utils/scrape')
 jest.mock('../../../shared/utils/generateId', () => ({
-  generateNodeId: jest.fn(() => 'mocked-node-id'),
+  generateNodeId: jest.fn(),
 }))
 jest.mock('../../../models/WorkflowFile', () => ({
   write: jest.fn(() => Promise.resolve({_id: 'mocked-file-id'})),
@@ -40,15 +39,21 @@ jest.mock('./references/substitution')
 describe('DownloadCommand', () => {
   const userId = 'userId'
   const workflowId = 'workflowId'
-  const mockStore = new Store({
-    userId,
-    workflowId,
-    nodes: {},
-  })
-  const command = new DownloadCommand(userId, workflowId, mockStore)
+  let mockStore
+  let command
+  let nextNodeId
 
   beforeEach(() => {
     jest.clearAllMocks()
+    nextNodeId = 0
+    generateNodeId.mockImplementation(() => `mocked-node-id-${++nextNodeId}`)
+    WorkflowFile.write.mockResolvedValue({_id: 'mocked-file-id'})
+    mockStore = new Store({
+      userId,
+      workflowId,
+      nodes: {},
+    })
+    command = new DownloadCommand(userId, workflowId, mockStore)
     substituteReferencesAndHashrefsChildrenAndSelf.mockReturnValue('substituted prompt with https://example.com')
   })
 
@@ -98,25 +103,113 @@ describe('DownloadCommand', () => {
   })
 
   describe('insertFileToWorkflow', () => {
-    it('should return empty array if no URLs are found', async () => {
+    const parentNode = () => {
+      const parent = {id: 'parent', children: []}
+      mockStore._nodes = {parent}
+      return parent
+    }
+
+    const visibleFailureTitles = parent =>
+      (parent.prompts ?? []).map(id => mockStore._nodes[id]?.title).filter(title => title?.startsWith('Download '))
+
+    it('returns an empty outcome and does not scrape when no URLs are found', async () => {
       const result = await command.insertFileToWorkflow({}, '', {})
-      expect(result).toEqual([])
+      expect(result).toEqual({urls: [], createdNodes: [], duplicatedNodes: [], failures: []})
+      expect(scrapeFiles).not.toHaveBeenCalled()
     })
 
-    it('should insert new files and create nodes for existing files', async () => {
+    it('creates visible file nodes for every newly downloaded file', async () => {
       scrapeFiles.mockResolvedValue([{filename: 'test.txt', content: 'file content'}])
 
-      mockStore._nodes = {}
-      await command.insertFileToWorkflow({id: 'parent'}, 'https://test.com')
+      const parent = parentNode()
+      const result = await command.insertFileToWorkflow(parent, 'https://test.com')
 
-      const createdNode = mockStore._nodes['mocked-node-id']
+      const createdNode = mockStore._nodes['mocked-node-id-1']
 
       expect(createdNode).toEqual({
-        id: 'mocked-node-id',
+        id: 'mocked-node-id-1',
         file: 'mocked-file-id',
         title: 'test.txt',
         parent: 'parent',
       })
+      expect(result).toEqual({
+        urls: ['https://test.com'],
+        createdNodes: [createdNode],
+        duplicatedNodes: [],
+        failures: [],
+      })
+      expect(visibleFailureTitles(parent)).toEqual([])
+    })
+
+    it('links duplicate downloaded content to the parent without creating a failure node', async () => {
+      mockStore._files = {'existing-file-id': 'file content'}
+      scrapeFiles.mockResolvedValue([{filename: 'duplicate.txt', content: 'file content'}])
+
+      const parent = parentNode()
+      const result = await command.insertFileToWorkflow(parent, 'https://test.com')
+
+      expect(mockStore._nodes['mocked-node-id-1']).toEqual({
+        id: 'mocked-node-id-1',
+        file: 'existing-file-id',
+        title: 'duplicate.txt',
+        parent: 'parent',
+      })
+      expect(result.createdNodes).toEqual([])
+      expect(result.duplicatedNodes).toEqual([mockStore._nodes['mocked-node-id-1']])
+      expect(result.failures).toEqual([])
+      expect(visibleFailureTitles(parent)).toEqual([])
+    })
+
+    it.each([
+      {
+        name: 'scrape returns no files',
+        arrange: () => scrapeFiles.mockResolvedValue([]),
+        expectedTitle: 'Download produced no files for https://test.com',
+      },
+      {
+        name: 'scrape throws',
+        arrange: () => scrapeFiles.mockRejectedValue(new Error('network unavailable')),
+        expectedTitle: 'Download failed for https://test.com: network unavailable',
+      },
+      {
+        name: 'all uploads fail',
+        arrange: () => {
+          scrapeFiles.mockResolvedValue([{filename: 'failed.txt', content: 'file content'}])
+          WorkflowFile.write.mockRejectedValue(new Error('gridfs unavailable'))
+        },
+        expectedTitle: 'Download failed to persist failed.txt',
+      },
+    ])('creates a visible failure node when $name', async ({arrange, expectedTitle}) => {
+      arrange()
+
+      const parent = parentNode()
+      const result = await command.insertFileToWorkflow(parent, 'https://test.com')
+
+      expect(visibleFailureTitles(parent)).toEqual([expectedTitle])
+      expect(result.urls).toEqual(['https://test.com'])
+    })
+
+    it('surfaces upload failures even when another file from the same scrape succeeds', async () => {
+      scrapeFiles.mockResolvedValue([
+        {filename: 'ok.txt', content: 'ok content'},
+        {filename: 'failed.txt', content: 'failed content'},
+      ])
+      WorkflowFile.write
+        .mockResolvedValueOnce({_id: 'ok-file-id'})
+        .mockRejectedValueOnce(new Error('gridfs unavailable'))
+
+      const parent = parentNode()
+      const result = await command.insertFileToWorkflow(parent, 'https://test.com')
+
+      expect(result.createdNodes).toEqual([
+        expect.objectContaining({
+          file: 'ok-file-id',
+          title: 'ok.txt',
+          parent: 'parent',
+        }),
+      ])
+      expect(result.failures).toEqual([{file: 'failed.txt', error: expect.any(Error)}])
+      expect(visibleFailureTitles(parent)).toEqual(['Download failed to persist failed.txt'])
     })
   })
 
@@ -135,7 +228,6 @@ describe('DownloadCommand', () => {
       const refNode = {id: 'ref', title: '@url https://example.com'}
       const node = {id: 'node', command: '/download @@url'}
 
-      // Override the mock specifically for this test
       substituteReferencesAndHashrefsChildrenAndSelf.mockReturnValueOnce('https://example.com')
 
       downloadAndInsertSpy.mockResolvedValue([])
@@ -150,7 +242,6 @@ describe('DownloadCommand', () => {
         {},
       )
 
-      // Check specifically that the second argument (URL) is what we expect
       expect(downloadAndInsertSpy.mock.calls[0][1]).toBe('https://example.com')
     })
 
@@ -186,7 +277,6 @@ describe('DownloadCommand', () => {
 
       expect(substituteReferencesAndHashrefsChildrenAndSelf).toHaveBeenCalled()
       expect(clearStepsPrefix).not.toHaveBeenCalled()
-      // Check specifically that the second argument (prompt) is what we expect
       expect(downloadAndInsertSpy.mock.calls[0][1]).toBe('substituted prompt with https://example.com')
     })
 
@@ -209,7 +299,6 @@ describe('DownloadCommand', () => {
 
       expect(substituteReferencesAndHashrefsChildrenAndSelf).not.toHaveBeenCalled()
       expect(clearStepsPrefix).toHaveBeenCalledWith(originalPrompt)
-      // Check specifically that the second argument (cleared prompt) is what we expect
       expect(downloadAndInsertSpy.mock.calls[0][1]).toBe('cleared https://example.com')
     })
   })

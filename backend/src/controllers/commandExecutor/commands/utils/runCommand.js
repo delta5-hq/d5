@@ -294,7 +294,6 @@ export const runCommand = async (
             }
             await resolveRefineCell(childNode, store, memoMap, signal)
           } else if (memoMap?.get(childNode.id) === 'in-progress') {
-            // childNode is a /refine orchestrated by the outer resolveRefineCell.
             // Execute non-post-processor children of /refine via runCommand so they
             // produce output that /validate and post-processors can then verify.
             for (const refineChildId of childNode.children ?? []) {

@@ -434,6 +434,12 @@ describe('resolveRefineCell — winner selected', () => {
 
   it('writes reliabilityMetadata to the winner node with full verdict shape', async () => {
     const perCriterionVerdict = [{criterionId: 'v1', criterion: 'must include numbers', forkRankings: []}]
+    const judgeInput = {
+      candidateCount: 2,
+      perForkBudgetChars: 1000,
+      degradedInput: true,
+      resolvedJudgeFamilies: ['OpenAI'],
+    }
     MockForkJudge.mockImplementation(() => ({
       selectWinner: makeSelectWinner({
         winnerForkIndex: 0,
@@ -441,6 +447,7 @@ describe('resolveRefineCell — winner selected', () => {
         mode: 'strict',
         perCriterionVerdict,
         noSignal: false,
+        judgeInput,
       }),
     }))
 
@@ -456,6 +463,7 @@ describe('resolveRefineCell — winner selected', () => {
       noSignal: false,
       eligible: 2,
       total: 2,
+      judgeInput,
     })
   })
 
@@ -463,6 +471,7 @@ describe('resolveRefineCell — winner selected', () => {
     ['perCriterionVerdict', 'perCriterionVerdict', []],
     ['noSignal', 'noSignal', false],
     ['tiebreakUsed', 'tiebreakUsed', false],
+    ['judgeInput', 'judgeInput', undefined],
     ['judgeQualityWarnings', 'judgeQualityWarnings', []],
   ])('%s absent from verdict defaults to safe value in metadata', async (_, field, expected) => {
     MockForkJudge.mockImplementation(() => ({
