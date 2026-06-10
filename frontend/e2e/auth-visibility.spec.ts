@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { waitForAuthenticatedState } from './helpers/wait-for-auth'
+import { waitForAuthenticatedState } from './helpers'
 import { adminLogin, closeMobileSidebar } from './utils'
 import { CreateWorkflowActionsPage, UserMenuPage } from './page-objects'
 import { VIEWPORT, TEST_TIMEOUTS } from './constants/test-timeouts'
@@ -70,7 +70,7 @@ test.describe('Auth-dependent UI visibility', () => {
       await page.goto('/workflows')
       await waitForAuthenticatedState(page)
       const createActions = new CreateWorkflowActionsPage(page)
-      await expect(createActions.createNavItem).toBeVisible()
+      await expect(createActions.createNavItem).toBeVisible({ timeout: TEST_TIMEOUTS.NAVIGATION })
     })
 
     test('desktop shows user controls, no login button', async ({ page }) => {
@@ -88,11 +88,12 @@ test.describe('Auth-dependent UI visibility', () => {
       await page.setViewportSize({ width: 375, height: 667 })
       await page.goto('/workflows')
       await closeMobileSidebar(page)
+      await waitForAuthenticatedState(page)
 
       await expect(page.locator('[data-type="login"]')).toHaveCount(0)
 
       const createActions = new CreateWorkflowActionsPage(page)
-      await expect(createActions.createNavItem).toBeVisible()
+      await expect(createActions.createNavItem).toBeVisible({ timeout: TEST_TIMEOUTS.NAVIGATION })
     })
 
     test('mobile sidebar shows user controls when authenticated', async ({ page }) => {

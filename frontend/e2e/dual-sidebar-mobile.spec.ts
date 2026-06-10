@@ -9,7 +9,7 @@ import {
   EXTENDED_VIEWPORTS,
   type ViewportSpec,
 } from './helpers/viewport-testing'
-import { waitForAuthenticatedState } from './helpers/wait-for-auth'
+import { waitForAuthenticatedState } from './helpers'
 import type { Page } from '@playwright/test'
 
 async function closeMobileSidebarIfNeeded(page: Page) {
@@ -201,6 +201,7 @@ test.describe('Dual sidebar mobile behavior', () => {
         await page.setViewportSize({ width: viewport.width, height: viewport.height })
         await page.reload()
         await page.waitForLoadState('networkidle')
+        await waitForAuthenticatedState(page)
 
         await closeMobileSidebarIfNeeded(page)
 
@@ -346,6 +347,8 @@ test.describe('Dual sidebar mobile behavior', () => {
       await adminLogin(page)
       await page.goto('/')
       await page.waitForLoadState('networkidle')
+      await waitForAuthenticatedState(page)
+      await closeMobileSidebar(page)
     })
 
     test('secondary sidebar state persists across mobile page navigation', async ({ page }) => {

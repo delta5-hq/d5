@@ -14,4 +14,5 @@ export {
 export { executeCommandAndAwaitOutput } from './execute-command-flow'
 export type { CommandExecutionResult } from './execute-command-flow'
 export { saveLLMProviderSettings, clearLLMProviderSettings } from './llm-integration-api'
-export { waitForAuthenticatedState, waitForUnauthenticatedState } from './wait-for-auth'
+export { waitForAuthenticatedState, waitForUnauthenticatedState, waitForRegisterPageReady } from './wait-for-auth'
+export { waitForElementWidth } from './wait-for-layout'

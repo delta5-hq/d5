@@ -1,8 +1,8 @@
 import { expect, Page } from '@playwright/test'
-import { waitForAuthenticatedState, waitForUnauthenticatedState } from '../helpers/wait-for-auth'
+import { waitForAuthenticatedState, waitForUnauthenticatedState, waitForRegisterPageReady } from '../helpers'
 import { e2eEnv } from './e2e-env-vars'
 import { CreateWorkflowActionsPage, UserMenuPage } from '../page-objects'
-import { TEST_TIMEOUTS } from '../constants/test-timeouts'
+import { TIMEOUTS } from '../config/test-timeouts'
 
 async function setupUnauthenticatedPage(page: Page) {
   await page.route('**/api/v2/auth/refresh', route =>
@@ -36,16 +36,15 @@ async function signup(page: Page, username: string, mail: string, password: stri
 
 async function openLoginDialogFromSignup(page: Page) {
   await page.goto('/register')
-
-  const loginButton = page.locator('span[data-type="login"]')
+  const loginButton = await waitForRegisterPageReady(page)
   await loginButton.click()
 }
 
 async function login(page: Page, usernameOrEmail: string, password: string, valid = true, fromSignUp = false) {
   if (!fromSignUp) {
     await page.goto('/register')
-    await page.waitForLoadState('networkidle')
-    await page.locator('span[data-type="login"]').click()
+    const loginButton = await waitForRegisterPageReady(page)
+    await loginButton.click()
   } else {
     await openLoginDialogFromSignup(page)
   }
@@ -69,7 +68,7 @@ async function login(page: Page, usernameOrEmail: string, password: string, vali
       throw new Error(`Auth failed: ${authResp.status()} ${await authResp.text()}`)
     }
 
-    await page.waitForLoadState('networkidle', { timeout: TEST_TIMEOUTS.AUTH_REFRESH_RESPONSE })
+    await page.waitForLoadState('networkidle', { timeout: TIMEOUTS.AUTH_REFRESH_RESPONSE })
     await waitForAuthenticatedState(page)
   }
 }
@@ -144,6 +143,7 @@ async function logout(page: Page) {
     userMenu.logout(),
   ])
   await waitForUnauthenticatedState(page)
+  await page.context().clearCookies()
 }
 
 async function adminLogin(page: Page) {

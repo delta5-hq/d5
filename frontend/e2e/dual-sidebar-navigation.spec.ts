@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { adminLogin } from './utils'
 import { PrimaryNavigationPage, SecondarySidebarPage, CreateWorkflowActionsPage } from './page-objects'
 import { TEST_TIMEOUTS, VIEWPORT } from './constants/test-timeouts'
+import { waitForElementWidth } from './helpers'
 
 const PRIMARY_SIDEBAR = '[data-testid="primary-sidebar"]'
 
@@ -56,14 +57,8 @@ test.describe('Dual sidebar system', () => {
 
       await primaryNav.clickHome()
       await secondarySidebar.waitForTransition()
-      await page.waitForFunction(
-        (selector: string) => {
-          const el = document.querySelector(selector)
-          return el !== null && el.getBoundingClientRect().width > 0
-        },
-        '[data-testid="primary-sidebar"]',
-        { timeout: TEST_TIMEOUTS.NAVIGATION },
-      )
+      await waitForElementWidth(page, '[data-testid="primary-sidebar"]')
+      await waitForElementWidth(page, '[data-testid="secondary-sidebar"]')
 
       const primaryBox = await primaryNav.root.boundingBox()
       const secondaryBox = await secondarySidebar.root.boundingBox()
