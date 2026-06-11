@@ -65,6 +65,14 @@ export type CriterionVerdict = {
   forkRankings: ForkRanking[]
 }
 
+export type DiscardedFork = {
+  forkIndex: number
+  status: 'ok' | 'criteria-failed' | 'runtime-failed'
+  failedAt?: string
+  reason?: string
+  attempts?: number
+}
+
 export type ReliabilityMetadata = {
   winnerForkIndex: number
   perCriterionVerdict: CriterionVerdict[]
@@ -76,6 +84,7 @@ export type ReliabilityMetadata = {
   total: number
   judgeInput?: JudgeInputMetadata
   judgeQualityWarnings?: JudgeQualityWarning[]
+  discardedForks?: DiscardedFork[]
 }
 
 export type JudgeInputMetadata = {

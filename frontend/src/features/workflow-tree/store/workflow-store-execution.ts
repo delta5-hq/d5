@@ -7,9 +7,43 @@ import type { WorkflowStoreState } from './workflow-store-types'
 import type { DebouncedPersister } from './workflow-store-persistence'
 import { retainExistingIds } from './workflow-store-set-utils'
 import { notifyExecutionStarted, notifyExecutionCompleted, notifyExecutionAborted } from './execution-genie-bridge'
+import { ForkStreamClient } from '../api/streaming/fork-stream-client'
+import type { ForkEvent } from '../api/streaming/fork-event-types'
+import { applyForkEventToMap } from './fork-preview-state'
+import { isValidRefineCell } from '@shared/lib/reliability/refine-params'
 
 // Keeps the executing indicator visible long enough to be perceivable under sub-frame substrates (NoopLLM, cache hits).
 const MIN_EXECUTING_VISIBLE_MS = 400
+
+function hasRefineDescendant(nodeId: NodeId, nodes: Record<NodeId, NodeData>): boolean {
+  const node = nodes[nodeId]
+  if (!node) return false
+  for (const childId of node.children ?? []) {
+    const child = nodes[childId]
+    if (!child) continue
+    if (isValidRefineCell(child.command)) return true
+    if (hasRefineDescendant(childId, nodes)) return true
+  }
+  return false
+}
+
+function applyForkEvent(store: Store<WorkflowStoreState>, event: ForkEvent): void {
+  store.setState(prev => ({
+    ...prev,
+    forkPreviews: applyForkEventToMap(prev.forkPreviews, event),
+  }))
+}
+
+function clearForkPreviews(store: Store<WorkflowStoreState>, ids: Set<NodeId>): void {
+  if (ids.size === 0) return
+  store.setState(prev => {
+    const next = new Map(prev.forkPreviews)
+    for (const id of ids) {
+      next.delete(id)
+    }
+    return { ...prev, forkPreviews: next }
+  })
+}
 
 export interface ExecuteActionOptions {
   minExecutingVisibleMs?: number
@@ -65,14 +99,36 @@ export function bindExecuteAction(
     try {
       const { workflowId, nodes, edges } = store.getState()
 
-      const response = await executeWorkflowCommand({
-        queryType,
-        cell: node,
-        workflowNodes: nodes,
-        workflowEdges: edges,
-        workflowId,
-        signal: controller.signal,
-      })
+      const useStreaming = isValidRefineCell(node.command) || hasRefineDescendant(node.id, nodes)
+      const sessionId = useStreaming ? crypto.randomUUID() : undefined
+      let streamClient: ForkStreamClient | null = null
+      const seenRefineIds = new Set<NodeId>()
+
+      if (useStreaming && sessionId) {
+        streamClient = new ForkStreamClient(sessionId, {
+          onForkEvent: event => {
+            seenRefineIds.add(event.refineNodeId)
+            applyForkEvent(store, event)
+          },
+        })
+        streamClient.connect()
+      }
+
+      let response
+      try {
+        response = await executeWorkflowCommand({
+          queryType,
+          cell: node,
+          workflowNodes: nodes,
+          workflowEdges: edges,
+          workflowId,
+          signal: controller.signal,
+          ...(sessionId ? { streamSessionId: sessionId } : {}),
+        })
+      } finally {
+        streamClient?.disconnect()
+        clearForkPreviews(store, seenRefineIds)
+      }
 
       const current = store.getState()
       const currentData: WorkflowContentData = {

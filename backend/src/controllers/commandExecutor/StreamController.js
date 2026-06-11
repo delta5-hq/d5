@@ -1,5 +1,12 @@
 import StreamBridge from './streaming/StreamBridge'
 
+const parseLastEventId = headers => {
+  const raw = headers['last-event-id']
+  if (!raw) return null
+  const n = parseInt(raw, 10)
+  return Number.isFinite(n) ? n : null
+}
+
 const StreamController = {
   stream: async ctx => {
     const {sessionId} = ctx.query
@@ -8,7 +15,7 @@ const StreamController = {
       ctx.throw(400, 'sessionId is required')
     }
 
-    const session = StreamBridge.createSession(sessionId)
+    const lastEventId = parseLastEventId(ctx.headers)
 
     ctx.request.socket.setTimeout(0)
     ctx.req.socket.setNoDelay(true)
@@ -22,7 +29,7 @@ const StreamController = {
     })
 
     ctx.status = 200
-    ctx.body = session.getReadableStream()
+    ctx.body = StreamBridge.attachReader(sessionId, lastEventId)
 
     ctx.req.on('close', () => {
       StreamBridge.closeSession(sessionId)

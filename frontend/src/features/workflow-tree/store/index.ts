@@ -18,4 +18,5 @@ export {
   useWorkflowId,
   useIsPromptNode,
   useIsNodeDirty,
+  useNodeForkPreview,
 } from './workflow-selectors'

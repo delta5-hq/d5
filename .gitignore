@@ -46,7 +46,7 @@ transcripts/
 
 # Agent/IDE tooling state
 .claude/
-frontend/.interface-design/
+.interface-design/
 
 # Test artifacts (if running from root)
 test-results/

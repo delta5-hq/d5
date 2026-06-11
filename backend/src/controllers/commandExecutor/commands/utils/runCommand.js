@@ -20,6 +20,7 @@ import {ValidateCommand} from '../../reliability/core/ValidateCommand'
 import {readValidateRetry, hasValidCriterion} from '../../reliability/core/validateParams'
 import {CriteriaFailedError} from '../../reliability/core/CriteriaFailedError'
 import {resolveRefineCell} from '../../reliability/core/resolveRefineCell'
+import {createForkProgressEmitter} from '../../reliability/core/ForkProgressEmitter'
 import RefineTopology from '../../reliability/core/RefineTopology'
 import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {WEB_QUERY_TYPE} from '../../constants/web'
@@ -292,7 +293,8 @@ export const runCommand = async (
                 }
               }
             }
-            await resolveRefineCell(childNode, store, memoMap, signal)
+            const emitter = createForkProgressEmitter(progress)
+            await resolveRefineCell(childNode, store, memoMap, signal, emitter)
           } else if (memoMap?.get(childNode.id) === 'in-progress') {
             // Execute non-post-processor children of /refine via runCommand so they
             // produce output that /validate and post-processors can then verify.

@@ -20,7 +20,11 @@ const MockForkJudge = ForkJudge
 const MockOwnershipResolver = OwnershipResolver
 
 const buildStore = (nodeMap, opts = {}) =>
-  new Store({userId: opts.userId || 'user1', workflowId: opts.workflowId, nodes: nodeMap})
+  new Store({
+    userId: opts.userId || 'user1',
+    workflowId: opts.workflowId,
+    nodes: nodeMap,
+  })
 
 const makeStore = (command = '/refine :n=3', opts = {}) => {
   const store = buildStore(
@@ -42,7 +46,9 @@ beforeEach(() => {
   jest.clearAllMocks()
   MockOwnershipResolver.mockReturnValue(new Map([['r1', []]]))
   mockRunForks.mockResolvedValue([])
-  MockForkJudge.mockImplementation(() => ({selectWinner: makeSelectWinner(null)}))
+  MockForkJudge.mockImplementation(() => ({
+    selectWinner: makeSelectWinner(null),
+  }))
 })
 
 describe('resolveRefineCell — input guard: :n= absent or invalid', () => {
@@ -169,7 +175,10 @@ describe('resolveRefineCell — memoMap lifecycle', () => {
     const winner = okForkStore()
     mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'ok', forkStore: winner}])
     MockForkJudge.mockImplementation(() => ({
-      selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'primary'}),
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: 0,
+        selectionLayer: 'primary',
+      }),
     }))
 
     const store = makeStore()
@@ -183,7 +192,10 @@ describe('resolveRefineCell — memoMap lifecycle', () => {
   it('sets memoMap to null when verdict carries winnerForkIndex: null', async () => {
     mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'criteria-failed', forkStore: okForkStore()}])
     MockForkJudge.mockImplementation(() => ({
-      selectWinner: makeSelectWinner({winnerForkIndex: null, selectionLayer: 'none'}),
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: null,
+        selectionLayer: 'none',
+      }),
     }))
 
     const store = makeStore()
@@ -209,7 +221,13 @@ describe('resolveRefineCell — runForks invocation parameters', () => {
 
     await resolveRefineCell(node, store, memoMap)
 
-    expect(capturedArgs).toMatchObject({n: 5, refineNode: node, store, memoMap, signal: null})
+    expect(capturedArgs).toMatchObject({
+      n: 5,
+      refineNode: node,
+      store,
+      memoMap,
+      signal: null,
+    })
   })
 
   it('passes AbortSignal through to runForks', async () => {
@@ -230,7 +248,10 @@ describe('resolveRefineCell — runForks invocation parameters', () => {
 
 describe('resolveRefineCell — ForkJudge instantiation and selectWinner parameters', () => {
   it('constructs ForkJudge with store._userId and store._workflowId', async () => {
-    const store = makeStore('/refine :n=2', {userId: 'alice', workflowId: 'wf99'})
+    const store = makeStore('/refine :n=2', {
+      userId: 'alice',
+      workflowId: 'wf99',
+    })
     const node = store.getNode('r1')
     const winner = okForkStore()
     mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'ok', forkStore: winner}])
@@ -238,7 +259,12 @@ describe('resolveRefineCell — ForkJudge instantiation and selectWinner paramet
     let constructorArgs
     MockForkJudge.mockImplementation((...args) => {
       constructorArgs = args
-      return {selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'primary'})}
+      return {
+        selectWinner: makeSelectWinner({
+          winnerForkIndex: 0,
+          selectionLayer: 'primary',
+        }),
+      }
     })
 
     await resolveRefineCell(node, store, new Map())
@@ -286,7 +312,11 @@ describe('resolveRefineCell — ForkJudge instantiation and selectWinner paramet
   })
 
   it('passes ownedValidates from OwnershipResolver to selectWinner', async () => {
-    const validateNode = {id: 'v1', command: '/validate must include numbers', children: []}
+    const validateNode = {
+      id: 'v1',
+      command: '/validate must include numbers',
+      children: [],
+    }
     MockOwnershipResolver.mockReturnValue(new Map([['r1', [validateNode]]]))
 
     const winner = okForkStore()
@@ -329,11 +359,17 @@ describe('resolveRefineCell — ForkJudge instantiation and selectWinner paramet
 
 describe('resolveRefineCell — all forks fail (strict mode)', () => {
   const allFailForks = n =>
-    Array.from({length: n}, (_, i) => ({forkIndex: i, status: 'runtime-failed', forkStore: null}))
+    Array.from({length: n}, (_, i) => ({
+      forkIndex: i,
+      status: 'runtime-failed',
+      forkStore: null,
+    }))
 
   beforeEach(() => {
     mockRunForks.mockResolvedValue(allFailForks(3))
-    MockForkJudge.mockImplementation(() => ({selectWinner: makeSelectWinner(null)}))
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner(null),
+    }))
   })
 
   it('writes error node to the refine cell', async () => {
@@ -362,7 +398,10 @@ describe('resolveRefineCell — all forks fail (strict mode)', () => {
 
   it('verdict {winnerForkIndex: null} triggers the same error path as a null verdict', async () => {
     MockForkJudge.mockImplementation(() => ({
-      selectWinner: makeSelectWinner({winnerForkIndex: null, selectionLayer: 'none'}),
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: null,
+        selectionLayer: 'none',
+      }),
     }))
     const store = makeStore()
     const memoMap = new Map()
@@ -393,7 +432,10 @@ describe('resolveRefineCell — winner selected', () => {
       {forkIndex: 1, status: 'ok', forkStore: okForkStore()},
     ])
     MockForkJudge.mockImplementation(() => ({
-      selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'primary'}),
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: 0,
+        selectionLayer: 'primary',
+      }),
     }))
   })
 
@@ -433,7 +475,13 @@ describe('resolveRefineCell — winner selected', () => {
   })
 
   it('writes reliabilityMetadata to the winner node with full verdict shape', async () => {
-    const perCriterionVerdict = [{criterionId: 'v1', criterion: 'must include numbers', forkRankings: []}]
+    const perCriterionVerdict = [
+      {
+        criterionId: 'v1',
+        criterion: 'must include numbers',
+        forkRankings: [],
+      },
+    ]
     const judgeInput = {
       candidateCount: 2,
       perForkBudgetChars: 1000,
@@ -475,7 +523,11 @@ describe('resolveRefineCell — winner selected', () => {
     ['judgeQualityWarnings', 'judgeQualityWarnings', []],
   ])('%s absent from verdict defaults to safe value in metadata', async (_, field, expected) => {
     MockForkJudge.mockImplementation(() => ({
-      selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'primary', mode: 'strict'}),
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: 0,
+        selectionLayer: 'primary',
+        mode: 'strict',
+      }),
     }))
 
     const store = makeStore('/refine :n=2')
@@ -507,7 +559,11 @@ describe('resolveRefineCell — winner selected', () => {
       {forkIndex: 2, status: 'criteria-failed', forkStore: okForkStore()},
     ])
     MockForkJudge.mockImplementation(() => ({
-      selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'primary', mode: 'strict'}),
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: 0,
+        selectionLayer: 'primary',
+        mode: 'strict',
+      }),
     }))
 
     const store = makeStore('/refine :n=3')
@@ -525,7 +581,11 @@ describe('resolveRefineCell — fallback selection layer', () => {
     fallbackStore = okForkStore()
     mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'criteria-failed', forkStore: fallbackStore}])
     MockForkJudge.mockImplementation(() => ({
-      selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'fallback', mode: 'fallback'}),
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: 0,
+        selectionLayer: 'fallback',
+        mode: 'fallback',
+      }),
     }))
   })
 
@@ -565,7 +625,13 @@ describe('resolveRefineCell — validate sibling titles transferred from winner 
       userId: 'user1',
       nodes: {
         p1: {id: 'p1', children: ['r1', 'v1']},
-        r1: {id: 'r1', parent: 'p1', title: 'My Cell', command: '/refine :n=2', children: []},
+        r1: {
+          id: 'r1',
+          parent: 'p1',
+          title: 'My Cell',
+          command: '/refine :n=2',
+          children: [],
+        },
         v1: validateNode,
       },
     })
@@ -577,13 +643,24 @@ describe('resolveRefineCell — validate sibling titles transferred from winner 
       nodes: {
         p1: {id: 'p1', children: ['r1', 'v1']},
         r1: {id: 'r1', parent: 'p1', title: 'My Cell', children: []},
-        v1: {id: 'v1', parent: 'p1', command: '/validate criterion', title: '/validate criterion [✓]', children: []},
+        v1: {
+          id: 'v1',
+          parent: 'p1',
+          command: '/validate criterion',
+          title: '/validate criterion [✓]',
+          children: [],
+        },
       },
     })
 
     mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'ok', forkStore: winnerForkStore}])
     MockForkJudge.mockImplementation(() => ({
-      selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'primary', mode: 'strict', noSignal: false}),
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: 0,
+        selectionLayer: 'primary',
+        mode: 'strict',
+        noSignal: false,
+      }),
     }))
     MockOwnershipResolver.mockReturnValue(new Map([['r1', [store.getNode('v1')]]]))
 
@@ -598,8 +675,20 @@ describe('resolveRefineCell — validate sibling titles transferred from winner 
       userId: 'user1',
       nodes: {
         p1: {id: 'p1', children: ['r1', 'v1']},
-        r1: {id: 'r1', parent: 'p1', title: 'My Cell', command: '/refine :n=2', children: []},
-        v1: {id: 'v1', parent: 'p1', command: '/validate criterion', title: 'original title', children: []},
+        r1: {
+          id: 'r1',
+          parent: 'p1',
+          title: 'My Cell',
+          command: '/refine :n=2',
+          children: [],
+        },
+        v1: {
+          id: 'v1',
+          parent: 'p1',
+          command: '/validate criterion',
+          title: 'original title',
+          children: [],
+        },
       },
     })
     jest.spyOn(store, 'saveNodeToOutput').mockImplementation(() => {})
@@ -615,7 +704,12 @@ describe('resolveRefineCell — validate sibling titles transferred from winner 
 
     mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'ok', forkStore: winnerForkStore}])
     MockForkJudge.mockImplementation(() => ({
-      selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'primary', mode: 'strict', noSignal: false}),
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: 0,
+        selectionLayer: 'primary',
+        mode: 'strict',
+        noSignal: false,
+      }),
     }))
     MockOwnershipResolver.mockReturnValue(new Map([['r1', [store.getNode('v1')]]]))
 
@@ -629,7 +723,12 @@ describe('resolveRefineCell — validate sibling titles transferred from winner 
     const winner = okForkStore()
     mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'ok', forkStore: winner}])
     MockForkJudge.mockImplementation(() => ({
-      selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'primary', mode: 'strict', noSignal: false}),
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: 0,
+        selectionLayer: 'primary',
+        mode: 'strict',
+        noSignal: false,
+      }),
     }))
     MockOwnershipResolver.mockReturnValue(new Map([['r1', []]]))
 
@@ -648,9 +747,16 @@ describe('resolveRefineCell — noSignal routing: strict mode emits warning, fal
       {forkIndex: 0, status: 'ok', forkStore: winner},
       {forkIndex: 1, status: 'ok', forkStore: okForkStore()},
     ]
-    const verdict = {winnerForkIndex: 0, selectionLayer: 'primary', mode: 'strict', noSignal: true}
+    const verdict = {
+      winnerForkIndex: 0,
+      selectionLayer: 'primary',
+      mode: 'strict',
+      noSignal: true,
+    }
     mockRunForks.mockResolvedValue(forks)
-    MockForkJudge.mockImplementation(() => ({selectWinner: makeSelectWinner(verdict)}))
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner(verdict),
+    }))
     const store = makeStore('/refine :n=2')
 
     await resolveRefineCell(store.getNode('r1'), store, new Map())
@@ -672,23 +778,41 @@ describe('resolveRefineCell — noSignal routing: strict mode emits warning, fal
       {forkIndex: 0, status: 'ok', forkStore: winner},
       {forkIndex: 1, status: 'ok', forkStore: okForkStore()},
     ]
-    const verdict = {winnerForkIndex: 0, selectionLayer: 'primary', mode: 'strict', noSignal: false}
+    const verdict = {
+      winnerForkIndex: 0,
+      selectionLayer: 'primary',
+      mode: 'strict',
+      noSignal: false,
+    }
     mockRunForks.mockResolvedValue(forks)
-    MockForkJudge.mockImplementation(() => ({selectWinner: makeSelectWinner(verdict)}))
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner(verdict),
+    }))
     const store = makeStore('/refine :n=2')
 
     await resolveRefineCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.r1.title).toBe('My Cell [✓ 2/2]')
-    expect(store._nodes.r1.reliabilityMetadata).toMatchObject({noSignal: false, eligible: 2, total: 2})
+    expect(store._nodes.r1.reliabilityMetadata).toMatchObject({
+      noSignal: false,
+      eligible: 2,
+      total: 2,
+    })
   })
 
   it('fallback layer — criteria-failed forks, jurors excluded → fallback suffix with deterministic tiebreak winner', async () => {
     const fallbackForkStore = okForkStore()
     const forks = [{forkIndex: 0, status: 'criteria-failed', forkStore: fallbackForkStore}]
-    const verdict = {winnerForkIndex: 0, selectionLayer: 'fallback', mode: 'fallback', noSignal: true}
+    const verdict = {
+      winnerForkIndex: 0,
+      selectionLayer: 'fallback',
+      mode: 'fallback',
+      noSignal: true,
+    }
     mockRunForks.mockResolvedValue(forks)
-    MockForkJudge.mockImplementation(() => ({selectWinner: makeSelectWinner(verdict)}))
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner(verdict),
+    }))
     const store = makeStore('/refine :n=2 :fallback')
 
     await resolveRefineCell(store.getNode('r1'), store, new Map())
@@ -710,9 +834,16 @@ describe('resolveRefineCell — noSignal routing: strict mode emits warning, fal
       {forkIndex: 0, status: 'ok', forkStore: winner},
       {forkIndex: 1, status: 'criteria-failed', forkStore: okForkStore()},
     ]
-    const verdict = {winnerForkIndex: 0, selectionLayer: 'primary', mode: 'strict', noSignal: true}
+    const verdict = {
+      winnerForkIndex: 0,
+      selectionLayer: 'primary',
+      mode: 'strict',
+      noSignal: true,
+    }
     mockRunForks.mockResolvedValue(forks)
-    MockForkJudge.mockImplementation(() => ({selectWinner: makeSelectWinner(verdict)}))
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner(verdict),
+    }))
     const store = makeStore('/refine :n=2')
 
     await resolveRefineCell(store.getNode('r1'), store, new Map())
@@ -734,9 +865,16 @@ describe('resolveRefineCell — noSignal routing: strict mode emits warning, fal
       {forkIndex: 0, status: 'ok', forkStore: winner},
       {forkIndex: 1, status: 'ok', forkStore: okForkStore()},
     ]
-    const verdict = {winnerForkIndex: 0, selectionLayer: 'primary', mode: 'strict', noSignal: true}
+    const verdict = {
+      winnerForkIndex: 0,
+      selectionLayer: 'primary',
+      mode: 'strict',
+      noSignal: true,
+    }
     mockRunForks.mockResolvedValue(forks)
-    MockForkJudge.mockImplementation(() => ({selectWinner: makeSelectWinner(verdict)}))
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner(verdict),
+    }))
     const store = makeStore('/refine :n=2 :fallback')
 
     await resolveRefineCell(store.getNode('r1'), store, new Map())
@@ -749,6 +887,379 @@ describe('resolveRefineCell — noSignal routing: strict mode emits warning, fal
       winnerForkIndex: 0,
       eligible: 2,
       total: 2,
+    })
+  })
+})
+
+describe('resolveRefineCell — ForkProgressEmitter integration', () => {
+  const makeEmitter = () => ({
+    forksStarted: jest.fn(),
+    forkSettled: jest.fn(),
+    refineComplete: jest.fn(),
+  })
+
+  const twoOkForks = () => [
+    {forkStore: okForkStore(), forkIndex: 0, status: 'ok'},
+    {forkStore: okForkStore(), forkIndex: 1, status: 'ok'},
+  ]
+
+  beforeEach(() => {
+    MockOwnershipResolver.mockReturnValue(new Map([['r1', []]]))
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: 0,
+        perCriterionVerdict: [],
+        mode: 'strict',
+        selectionLayer: 'primary',
+        noSignal: false,
+        tiebreakUsed: false,
+        judgeInput: {},
+        judgeQualityWarnings: [],
+      }),
+    }))
+  })
+
+  it('calls emitter.forksStarted with refineNodeId and n before forks run', async () => {
+    mockRunForks.mockResolvedValue(twoOkForks())
+    const store = makeStore('/refine :n=2')
+    const emitter = makeEmitter()
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map(), null, emitter)
+
+    expect(emitter.forksStarted).toHaveBeenCalledWith('r1', 2)
+  })
+
+  it('calls emitter.refineComplete with winner index on success', async () => {
+    mockRunForks.mockResolvedValue(twoOkForks())
+    const store = makeStore('/refine :n=2')
+    const emitter = makeEmitter()
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map(), null, emitter)
+
+    expect(emitter.refineComplete).toHaveBeenCalledWith('r1', 0, 2)
+  })
+
+  it('calls emitter.refineComplete with null winner when all forks fail in strict mode', async () => {
+    mockRunForks.mockResolvedValue([
+      {
+        forkStore: null,
+        forkIndex: 0,
+        status: 'runtime-failed',
+        reason: 'err',
+      },
+    ])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: null,
+        perCriterionVerdict: [],
+        mode: 'strict',
+        selectionLayer: 'none',
+        noSignal: false,
+        tiebreakUsed: false,
+      }),
+    }))
+    mockRunForks.mockResolvedValue([
+      {
+        forkStore: null,
+        forkIndex: 0,
+        status: 'runtime-failed',
+        reason: 'err1',
+      },
+      {
+        forkStore: null,
+        forkIndex: 1,
+        status: 'runtime-failed',
+        reason: 'err2',
+      },
+    ])
+    const store2 = makeStore('/refine :n=2')
+    const emitter = makeEmitter()
+
+    await resolveRefineCell(store2.getNode('r1'), store2, new Map(), null, emitter)
+
+    expect(emitter.refineComplete).toHaveBeenCalledWith('r1', null, 2)
+  })
+
+  it('does not call emitter on guard-rejected cells', async () => {
+    const store = makeStore('/refine')
+    const emitter = makeEmitter()
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map(), null, emitter)
+
+    expect(emitter.forksStarted).not.toHaveBeenCalled()
+    expect(emitter.refineComplete).not.toHaveBeenCalled()
+  })
+
+  it('wires onForkSettled to emitter.forkSettled — called once per settled fork', async () => {
+    const forks = twoOkForks()
+    mockRunForks.mockImplementation(async ({onForkSettled}) => {
+      onForkSettled?.(forks[0])
+      onForkSettled?.(forks[1])
+      return forks
+    })
+    const store = makeStore('/refine :n=2')
+    const emitter = makeEmitter()
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map(), null, emitter)
+
+    expect(emitter.forkSettled).toHaveBeenCalledTimes(2)
+    expect(emitter.forkSettled).toHaveBeenCalledWith('r1', forks[0])
+    expect(emitter.forkSettled).toHaveBeenCalledWith('r1', forks[1])
+  })
+
+  it('does not call emitter when fork cost exceeds :limit= guard', async () => {
+    const store = makeStore('/refine :n=3 :limit=0')
+    const emitter = makeEmitter()
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map(), null, emitter)
+
+    expect(emitter.forksStarted).not.toHaveBeenCalled()
+    expect(emitter.refineComplete).not.toHaveBeenCalled()
+  })
+})
+
+describe('resolveRefineCell — discardedForks in reliabilityMetadata', () => {
+  beforeEach(() => {
+    MockOwnershipResolver.mockReturnValue(new Map([['r1', []]]))
+  })
+
+  it('includes non-winner forks in discardedForks', async () => {
+    const winnerStore = okForkStore()
+    const loserStore = buildStore({
+      r1: {id: 'r1', title: 'Loser', children: []},
+    })
+    mockRunForks.mockResolvedValue([
+      {forkStore: winnerStore, forkIndex: 0, status: 'ok'},
+      {forkStore: loserStore, forkIndex: 1, status: 'ok'},
+    ])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: 0,
+        perCriterionVerdict: [],
+        mode: 'strict',
+        selectionLayer: 'primary',
+        noSignal: false,
+        tiebreakUsed: false,
+        judgeInput: {},
+        judgeQualityWarnings: [],
+      }),
+    }))
+    const store = makeStore('/refine :n=2')
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    const node = store.getNode('r1')
+    expect(node.reliabilityMetadata.discardedForks).toEqual([{forkIndex: 1, status: 'ok'}])
+  })
+
+  it('records status and failedAt for criteria-failed discarded forks', async () => {
+    const winnerStore = okForkStore()
+    const failedStore = buildStore({
+      r1: {id: 'r1', title: 'Failed', children: []},
+    })
+    mockRunForks.mockResolvedValue([
+      {forkStore: winnerStore, forkIndex: 0, status: 'ok'},
+      {
+        forkStore: failedStore,
+        forkIndex: 1,
+        status: 'criteria-failed',
+        failedAt: 'must include numbers',
+        attempts: 3,
+      },
+    ])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: 0,
+        perCriterionVerdict: [],
+        mode: 'strict',
+        selectionLayer: 'primary',
+        noSignal: false,
+        tiebreakUsed: false,
+        judgeInput: {},
+        judgeQualityWarnings: [],
+      }),
+    }))
+    const store = makeStore('/refine :n=2')
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    const discarded = store.getNode('r1').reliabilityMetadata.discardedForks
+    expect(discarded[0]).toMatchObject({
+      forkIndex: 1,
+      status: 'criteria-failed',
+      failedAt: 'must include numbers',
+      attempts: 3,
+    })
+  })
+
+  it('discardedForks is empty when only one fork ran and it won', async () => {
+    const winnerStore = okForkStore()
+    mockRunForks.mockResolvedValue([{forkStore: winnerStore, forkIndex: 0, status: 'ok'}])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: 0,
+        perCriterionVerdict: [],
+        mode: 'strict',
+        selectionLayer: 'primary',
+        noSignal: false,
+        tiebreakUsed: false,
+        judgeInput: {},
+        judgeQualityWarnings: [],
+      }),
+    }))
+    const store = makeStore('/refine :n=2')
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    expect(store.getNode('r1').reliabilityMetadata.discardedForks).toEqual([])
+  })
+
+  it('runtime-failed discarded fork carries reason and does not include failedAt', async () => {
+    const winnerStore = okForkStore()
+    mockRunForks.mockResolvedValue([
+      {forkStore: winnerStore, forkIndex: 0, status: 'ok'},
+      {
+        forkStore: null,
+        forkIndex: 1,
+        status: 'runtime-failed',
+        reason: 'LLM provider error',
+      },
+    ])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: 0,
+        perCriterionVerdict: [],
+        mode: 'strict',
+        selectionLayer: 'primary',
+        noSignal: false,
+        tiebreakUsed: false,
+        judgeInput: {},
+        judgeQualityWarnings: [],
+      }),
+    }))
+    const store = makeStore('/refine :n=2')
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    const discarded = store.getNode('r1').reliabilityMetadata.discardedForks
+    expect(discarded[0]).toMatchObject({
+      forkIndex: 1,
+      status: 'runtime-failed',
+      reason: 'LLM provider error',
+    })
+    expect(discarded[0]).not.toHaveProperty('failedAt')
+  })
+
+  it('winner forkIndex is never present in discardedForks', async () => {
+    const winnerStore = okForkStore()
+    const loser1 = buildStore({r1: {id: 'r1', title: 'L1', children: []}})
+    const loser2 = buildStore({r1: {id: 'r1', title: 'L2', children: []}})
+    mockRunForks.mockResolvedValue([
+      {forkStore: winnerStore, forkIndex: 1, status: 'ok'},
+      {forkStore: loser1, forkIndex: 0, status: 'ok'},
+      {forkStore: loser2, forkIndex: 2, status: 'ok'},
+    ])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: 1,
+        perCriterionVerdict: [],
+        mode: 'strict',
+        selectionLayer: 'primary',
+        noSignal: false,
+        tiebreakUsed: false,
+        judgeInput: {},
+        judgeQualityWarnings: [],
+      }),
+    }))
+    const store = makeStore('/refine :n=3')
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    const discarded = store.getNode('r1').reliabilityMetadata.discardedForks
+    expect(discarded.map(f => f.forkIndex)).not.toContain(1)
+    expect(discarded).toHaveLength(2)
+  })
+
+  describe('resolveRefineCell — null-guard: winner fork has no store', () => {
+    it('creates error node and returns early when judge returns index pointing to runtime-failed fork', async () => {
+      const store = makeStore('/refine :n=2')
+      const memoMap = new Map()
+      mockRunForks.mockResolvedValue([
+        {
+          forkIndex: 0,
+          status: 'runtime-failed',
+          forkStore: null,
+          reason: 'LLM error',
+          leafOutputs: [],
+        },
+        {
+          forkIndex: 1,
+          status: 'runtime-failed',
+          forkStore: null,
+          reason: 'LLM error',
+          leafOutputs: [],
+        },
+      ])
+      MockForkJudge.mockImplementation(() => ({
+        selectWinner: makeSelectWinner({
+          winnerForkIndex: 0,
+          perCriterionVerdict: [],
+          mode: 'strict',
+          selectionLayer: 'primary',
+          noSignal: false,
+          tiebreakUsed: false,
+          judgeInput: {
+            candidateCount: 0,
+            perForkBudgetChars: 0,
+            degradedInput: false,
+            resolvedJudgeFamilies: [],
+          },
+          judgeQualityWarnings: [],
+        }),
+      }))
+
+      await resolveRefineCell(store.getNode('r1'), store, memoMap)
+
+      expect(require('./StoreFork').applyCandidate).not.toHaveBeenCalled()
+      expect(store.importer.createErrorNode).toHaveBeenCalledWith(expect.stringContaining('internal error'), 'r1')
+      expect(memoMap.get('r1')).toBeNull()
+    })
+
+    it('proceeds normally when winner fork has a valid forkStore', async () => {
+      const store = makeStore('/refine :n=2')
+      const memoMap = new Map()
+      const winnerStore = okForkStore()
+      mockRunForks.mockResolvedValue([
+        {forkStore: winnerStore, forkIndex: 0, status: 'ok', leafOutputs: []},
+        {
+          forkStore: okForkStore(),
+          forkIndex: 1,
+          status: 'ok',
+          leafOutputs: [],
+        },
+      ])
+      MockForkJudge.mockImplementation(() => ({
+        selectWinner: makeSelectWinner({
+          winnerForkIndex: 0,
+          perCriterionVerdict: [],
+          mode: 'strict',
+          selectionLayer: 'primary',
+          noSignal: false,
+          tiebreakUsed: false,
+          judgeInput: {
+            candidateCount: 2,
+            perForkBudgetChars: 1000,
+            degradedInput: false,
+            resolvedJudgeFamilies: ['OpenAI'],
+          },
+          judgeQualityWarnings: [],
+        }),
+      }))
+
+      await resolveRefineCell(store.getNode('r1'), store, memoMap)
+
+      expect(require('./StoreFork').applyCandidate).toHaveBeenCalledWith(store, winnerStore, 'r1')
+      expect(memoMap.get('r1')).toBe(winnerStore)
     })
   })
 })

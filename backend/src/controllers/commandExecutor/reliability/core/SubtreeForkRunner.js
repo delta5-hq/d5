@@ -4,25 +4,26 @@ import {runCommand} from '../../commands/utils/runCommand'
 import NullProgress from './NullProgress'
 import StoreFork from './StoreFork'
 import {CriteriaFailedError} from './CriteriaFailedError'
+import {extractForkLeafOutputs} from './ForkLeafExtractor'
 
 /**
  * @typedef {import('../../commands/utils/Store').NodeData} NodeData
  * @typedef {import('../../commands/utils/Store').default} Store
+ * @typedef {import('./ForkLeafExtractor').LeafOutput} LeafOutput
  */
 
 /**
  * @typedef {Object} ForkResult
- * @property {Store|null} forkStore - Fork store; null for runtime-failed forks
- * @property {number} forkIndex    - Zero-based index (stable across all N results)
+ * @property {Store|null} forkStore  - Fork store; null for runtime-failed forks
+ * @property {number} forkIndex     - Zero-based index (stable across all N results)
  * @property {'ok'|'runtime-failed'|'criteria-failed'} status
- * @property {string} [reason]     - runtime-failed only: error message
- * @property {string} [failedAt]   - criteria-failed only: criterion that exhausted retries
- * @property {number} [attempts]   - criteria-failed only: retry count attempted
+ * @property {string} [reason]      - runtime-failed only: error message
+ * @property {string} [failedAt]    - criteria-failed only: criterion that exhausted retries
+ * @property {number} [attempts]    - criteria-failed only: retry count attempted
+ * @property {LeafOutput[]} leafOutputs - Content preview from the fork's prompt nodes; [] when none available
  */
 
 /**
- * Run N parallel forks of the parent command for a `/refine :n=N` cell.
- *
  * Sets `refineNode.id` in `memoMap` as `'in-progress'` BEFORE the forks run.
  * Each fork receives a fork-local memoMap copy so nested /refine cells are
  * processed independently per fork (preventing cross-fork memoization races),
@@ -31,16 +32,21 @@ import {CriteriaFailedError} from './CriteriaFailedError'
  *
  * Returns ALL N fork results including failures — the caller decides eligibility.
  *
+ * `onForkSettled` is called as each fork resolves, in order of completion (not
+ * launch order). The callback receives the ForkResult immediately so callers can
+ * emit progressive updates without waiting for all N forks to complete.
+ *
  * @param {{
  *   refineNode: NodeData,
  *   store: Store,
  *   n: number,
  *   memoMap: Map<string, *>,
  *   signal?: AbortSignal|null,
+ *   onForkSettled?: ((result: ForkResult) => void)|null,
  * }} params
  * @returns {Promise<ForkResult[]>} Exactly N results; never throws.
  */
-export const runForks = async ({refineNode, store, n, memoMap, signal = null}) => {
+export const runForks = async ({refineNode, store, n, memoMap, signal = null, onForkSettled = null}) => {
   const parentNode = store.getNode(refineNode.parent)
   if (!parentNode) {
     throw new Error(`[SubtreeForkRunner] refineNode '${refineNode.id}' has no parent in store`)
@@ -52,46 +58,55 @@ export const runForks = async ({refineNode, store, n, memoMap, signal = null}) =
   const {queryType, mcpAlias, rpcAlias} = resolveCommand(command, store._aliases)
 
   const forkStores = Array.from({length: n}, () => StoreFork.createFork(store))
+  const results = new Array(n)
 
-  const settled = await Promise.allSettled(
+  await Promise.allSettled(
     forkStores.map(async (forkStore, forkIndex) => {
-      // Each fork gets its own memoMap copy so nested /refine cells resolve
-      // independently in each fork (not shared across concurrent siblings).
-      // refineNode.id is already 'in-progress' in the copy, preventing recursion.
       const forkMemoMap = new Map(memoMap)
-      await runCommand(
-        {
-          queryType,
-          cell: forkStore.getNode(parentNode.id) || parentNode,
-          store: forkStore,
-          mcpAlias,
-          rpcAlias,
-          signal,
-          memoMap: forkMemoMap,
-        },
-        new NullProgress(),
-      )
-      return {forkStore, forkIndex, status: 'ok'}
+      let result
+      try {
+        await runCommand(
+          {
+            queryType,
+            cell: forkStore.getNode(parentNode.id) || parentNode,
+            store: forkStore,
+            mcpAlias,
+            rpcAlias,
+            signal,
+            memoMap: forkMemoMap,
+          },
+          new NullProgress(),
+        )
+        result = {
+          forkStore,
+          forkIndex,
+          status: 'ok',
+          leafOutputs: extractForkLeafOutputs(forkStore, parentNode.id),
+        }
+      } catch (err) {
+        if (err instanceof CriteriaFailedError) {
+          result = {
+            forkStore,
+            forkIndex,
+            status: 'criteria-failed',
+            failedAt: err.criterion,
+            attempts: err.attempts,
+            leafOutputs: extractForkLeafOutputs(forkStore, parentNode.id),
+          }
+        } else {
+          result = {
+            forkStore: null,
+            forkIndex,
+            status: 'runtime-failed',
+            reason: err?.message || String(err),
+            leafOutputs: [],
+          }
+        }
+      }
+      results[forkIndex] = result
+      onForkSettled?.(result)
     }),
   )
 
-  return settled.map((r, i) => {
-    if (r.status === 'fulfilled') return r.value
-    const err = r.reason
-    if (err instanceof CriteriaFailedError) {
-      return {
-        forkStore: forkStores[i],
-        forkIndex: i,
-        status: 'criteria-failed',
-        failedAt: err.criterion,
-        attempts: err.attempts,
-      }
-    }
-    return {
-      forkStore: null,
-      forkIndex: i,
-      status: 'runtime-failed',
-      reason: err?.message || String(err),
-    }
-  })
+  return results
 }

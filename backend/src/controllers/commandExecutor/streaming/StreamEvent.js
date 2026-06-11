@@ -31,8 +31,9 @@ class StreamEvent {
     return new StreamEvent(EVENT_TYPE.COMPLETE, result)
   }
 
-  toSSE() {
-    return `data: ${JSON.stringify({
+  toSSE(eventId = null) {
+    const idLine = eventId != null ? `id: ${eventId}\n` : ''
+    return `${idLine}data: ${JSON.stringify({
       type: this.type,
       data: this.data,
       timestamp: this.timestamp,

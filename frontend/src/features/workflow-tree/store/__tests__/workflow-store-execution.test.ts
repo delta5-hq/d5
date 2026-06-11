@@ -19,9 +19,22 @@ vi.mock('../execution-genie-bridge', () => ({
   notifyExecutionAborted: vi.fn(),
 }))
 
+vi.mock('../../api/streaming/fork-stream-client', () => ({
+  ForkStreamClient: vi.fn().mockImplementation(function () {
+    return { connect: vi.fn(), disconnect: vi.fn() }
+  }),
+}))
+
+vi.mock('@shared/lib/reliability/refine-params', () => ({
+  isValidRefineCell: vi.fn().mockReturnValue(false),
+}))
+
 import { mergeWorkflowChanges } from '@entities/workflow/lib'
 import { executeWorkflowCommand } from '../../api/execute-workflow-command'
 import { notifyExecutionStarted, notifyExecutionCompleted, notifyExecutionAborted } from '../execution-genie-bridge'
+import { ForkStreamClient } from '../../api/streaming/fork-stream-client'
+import { isValidRefineCell } from '@shared/lib/reliability/refine-params'
+import type { ForkEvent } from '../../api/streaming/fork-event-types'
 
 function makeStore(overrides: Partial<WorkflowStoreState> = {}) {
   return createStore<WorkflowStoreState>({
@@ -1180,6 +1193,202 @@ describe('bindExecuteAction', () => {
 
         await p2
       })
+    })
+  })
+
+  describe('fork preview clearing', () => {
+    function activateStreaming(): void {
+      vi.mocked(isValidRefineCell).mockReturnValue(true)
+      vi.mocked(ForkStreamClient).mockImplementation(function () {
+        return { connect: vi.fn(), disconnect: vi.fn() } as unknown as InstanceType<typeof ForkStreamClient>
+      })
+    }
+
+    function getStreamCallbacks(invocationIndex = 0): { onForkEvent: (event: ForkEvent) => void } {
+      return vi.mocked(ForkStreamClient).mock.calls[invocationIndex][1] as {
+        onForkEvent: (event: ForkEvent) => void
+      }
+    }
+
+    it('clears only the refineNodeIds emitted by this execution, preserving sibling execution previews', async () => {
+      activateStreaming()
+      mockIdentityExecution(N1)
+
+      const siblingEntry = { total: 2, forks: [], winnerForkIndex: null }
+      const store = makeStore({ nodes: N1, root: 'n1', forkPreviews: new Map([['rSibling', siblingEntry]]) })
+      const done = makeExecute(store, makePersister())(stubNode, 'query')
+
+      getStreamCallbacks().onForkEvent({ type: 'fork_started', refineNodeId: 'rOwn', forkIndex: 0, total: 2 })
+
+      await done
+
+      expect(store.getState().forkPreviews.has('rSibling')).toBe(true)
+      expect(store.getState().forkPreviews.has('rOwn')).toBe(false)
+    })
+
+    it('non-streaming execution leaves forkPreviews entirely untouched', async () => {
+      vi.mocked(isValidRefineCell).mockReturnValue(false)
+      mockIdentityExecution(N1)
+
+      const entry = { total: 1, forks: [], winnerForkIndex: null }
+      const store = makeStore({ nodes: N1, root: 'n1', forkPreviews: new Map([['rOther', entry]]) })
+      await makeExecute(store, makePersister())(stubNode, 'query')
+
+      expect(store.getState().forkPreviews.has('rOther')).toBe(true)
+    })
+
+    it('clears all refineNodeIds emitted across multiple refine descendants in one execution', async () => {
+      activateStreaming()
+      mockIdentityExecution(N1)
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const done = makeExecute(store, makePersister())(stubNode, 'query')
+
+      const cb = getStreamCallbacks()
+      cb.onForkEvent({ type: 'fork_started', refineNodeId: 'r1', forkIndex: 0, total: 2 })
+      cb.onForkEvent({ type: 'fork_started', refineNodeId: 'r2', forkIndex: 0, total: 3 })
+      cb.onForkEvent({ type: 'fork_started', refineNodeId: 'r3', forkIndex: 0, total: 2 })
+
+      await done
+
+      expect(store.getState().forkPreviews.has('r1')).toBe(false)
+      expect(store.getState().forkPreviews.has('r2')).toBe(false)
+      expect(store.getState().forkPreviews.has('r3')).toBe(false)
+    })
+
+    it('streaming execution with zero fork events emitted clears nothing', async () => {
+      activateStreaming()
+      mockIdentityExecution(N1)
+
+      const entry = { total: 1, forks: [], winnerForkIndex: null }
+      const store = makeStore({ nodes: N1, root: 'n1', forkPreviews: new Map([['rOther', entry]]) })
+      await makeExecute(store, makePersister())(stubNode, 'query')
+
+      expect(store.getState().forkPreviews.has('rOther')).toBe(true)
+    })
+
+    it('does not construct ForkStreamClient when the executing node has no refine command or descendants', async () => {
+      vi.mocked(isValidRefineCell).mockReturnValue(false)
+      mockIdentityExecution(N1)
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      await makeExecute(store, makePersister())(stubNode, 'query')
+
+      expect(vi.mocked(ForkStreamClient)).not.toHaveBeenCalled()
+    })
+
+    it('omits streamSessionId from executeWorkflowCommand when execution is non-streaming', async () => {
+      vi.mocked(isValidRefineCell).mockReturnValue(false)
+      mockIdentityExecution(N1)
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      await makeExecute(store, makePersister())(stubNode, 'query')
+
+      expect(vi.mocked(executeWorkflowCommand).mock.calls[0][0].streamSessionId).toBeUndefined()
+    })
+
+    it('passes streamSessionId to executeWorkflowCommand when streaming is active', async () => {
+      activateStreaming()
+      mockIdentityExecution(N1)
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      await makeExecute(store, makePersister())(stubNode, 'query')
+
+      const { streamSessionId } = vi.mocked(executeWorkflowCommand).mock.calls[0][0]
+      expect(typeof streamSessionId).toBe('string')
+      expect(streamSessionId).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
+    })
+
+    it('applies fork events to forkPreviews immediately while execution is still in flight', async () => {
+      activateStreaming()
+
+      let resolveCmd!: (v: { nodesChanged: Record<string, never> }) => void
+      const pendingCmd = new Promise<{ nodesChanged: Record<string, never> }>(r => {
+        resolveCmd = r
+      })
+      vi.mocked(executeWorkflowCommand).mockImplementationOnce(() => pendingCmd)
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({ nodes: N1, edges: {}, root: 'n1', share: { access: [] } })
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const done = makeExecute(store, makePersister())(stubNode, 'query')
+
+      expect(store.getState().forkPreviews.has('rLive')).toBe(false)
+      getStreamCallbacks().onForkEvent({ type: 'fork_started', refineNodeId: 'rLive', forkIndex: 0, total: 2 })
+      expect(store.getState().forkPreviews.has('rLive')).toBe(true)
+
+      resolveCmd({ nodesChanged: {} })
+      await done
+    })
+
+    it('deduplicates the same refineNodeId received from multiple fork events into a single deletion', async () => {
+      activateStreaming()
+      mockIdentityExecution(N1)
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const done = makeExecute(store, makePersister())(stubNode, 'query')
+
+      const cb = getStreamCallbacks()
+      cb.onForkEvent({ type: 'fork_started', refineNodeId: 'rSame', forkIndex: 0, total: 2 })
+      cb.onForkEvent({ type: 'fork_settled', refineNodeId: 'rSame', forkIndex: 0, status: 'ok' })
+      cb.onForkEvent({ type: 'fork_started', refineNodeId: 'rSame', forkIndex: 1, total: 2 })
+
+      await done
+
+      expect(store.getState().forkPreviews.has('rSame')).toBe(false)
+    })
+
+    it('clears previews even when executeWorkflowCommand rejects with a non-abort error', async () => {
+      activateStreaming()
+
+      let rejectCmd!: (err: Error) => void
+      const pendingCmd = new Promise<{ nodesChanged: Record<string, never> }>((_, r) => {
+        rejectCmd = r
+      })
+      vi.mocked(executeWorkflowCommand).mockImplementationOnce(() => pendingCmd)
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const done = makeExecute(store, makePersister())(stubNode, 'query')
+
+      getStreamCallbacks().onForkEvent({ type: 'fork_started', refineNodeId: 'rFailed', forkIndex: 0, total: 1 })
+
+      rejectCmd(new Error('server error'))
+      const result = await done
+
+      expect(result).toBe(false)
+      expect(store.getState().forkPreviews.has('rFailed')).toBe(false)
+    })
+
+    it('two concurrent streaming executions each clear only their own refineNodeIds', async () => {
+      activateStreaming()
+
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({ nodes: N2, edges: {}, root: 'n1', share: { access: [] } })
+
+      let resolveB!: (v: { nodesChanged: Record<string, never> }) => void
+      const pendingB = new Promise<{ nodesChanged: Record<string, never> }>(r => {
+        resolveB = r
+      })
+      vi.mocked(executeWorkflowCommand).mockImplementationOnce(() => pendingB)
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({ nodes: N2, edges: {}, root: 'n1', share: { access: [] } })
+
+      const store = makeStore({ nodes: N2, root: 'n1' })
+      const execute = makeExecute(store, makePersister())
+      const doneA = execute(stubNode, 'query')
+      const doneB = execute(stubNodeB, 'query')
+
+      getStreamCallbacks(0).onForkEvent({ type: 'fork_started', refineNodeId: 'rA', forkIndex: 0, total: 1 })
+      getStreamCallbacks(1).onForkEvent({ type: 'fork_started', refineNodeId: 'rB', forkIndex: 0, total: 1 })
+
+      expect(store.getState().forkPreviews.has('rA')).toBe(true)
+      expect(store.getState().forkPreviews.has('rB')).toBe(true)
+
+      await doneA
+      expect(store.getState().forkPreviews.has('rA')).toBe(false)
+      expect(store.getState().forkPreviews.has('rB')).toBe(true)
+
+      resolveB({ nodesChanged: {} })
+      await doneB
+      expect(store.getState().forkPreviews.has('rB')).toBe(false)
     })
   })
 })

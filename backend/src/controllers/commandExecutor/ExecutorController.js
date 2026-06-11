@@ -100,6 +100,10 @@ const ExecutorController = {
         progressEventEmitter.emitRunning(nodeId, {queryType})
       }
 
+      if (streamSessionId) {
+        StreamBridge.getOrCreateSession(streamSessionId)
+      }
+
       await runCommand({...otherData, store, mcpAlias, rpcAlias, signal: abortController.signal}, progress)
 
       const result = buildExecuteResult(store, otherData, workflowId)

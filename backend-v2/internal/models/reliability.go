@@ -36,6 +36,28 @@ const (
 	JudgeWarnNoReasoningMode   JudgeWarningCondition = "noReasoningMode"
 )
 
+// ForkStatus identifies how a fork exited during best-of-N selection.
+// Mirrors the three outcomes the Node.js engine can write to a ForkResult.
+type ForkStatus string
+
+const (
+	ForkStatusOK             ForkStatus = "ok"
+	ForkStatusCriteriaFailed ForkStatus = "criteria-failed"
+	ForkStatusRuntimeFailed  ForkStatus = "runtime-failed"
+)
+
+// DiscardedFork captures the outcome of one non-winning fork for verdict-drawer display.
+// ForkIndex and Status have no omitempty because fork 0 is a valid loser and status is always
+// present. FailedAt, Reason, and Attempts are role-specific and omitempty. Attempts is *int so
+// an explicit zero survives serialisation distinct from an absent field.
+type DiscardedFork struct {
+	ForkIndex int        `json:"forkIndex" bson:"forkIndex"`
+	Status    ForkStatus `json:"status" bson:"status"`
+	FailedAt  string     `json:"failedAt,omitempty" bson:"failedAt,omitempty"`
+	Reason    string     `json:"reason,omitempty" bson:"reason,omitempty"`
+	Attempts  *int       `json:"attempts,omitempty" bson:"attempts,omitempty"`
+}
+
 // ForkRanking records one fork's ordinal rank as assigned by one criterion's jury.
 type ForkRanking struct {
 	ForkIndex int `json:"forkIndex" bson:"forkIndex"`
@@ -49,7 +71,7 @@ type CriterionVerdict struct {
 	ForkRankings []ForkRanking `json:"forkRankings" bson:"forkRankings"`
 }
 
-// JudgeQualityWarning flags a condition that raises the judge's effective false-acceptance rate β.
+// JudgeQualityWarning flags a condition that raises the judge's effective false-acceptance rate beta.
 type JudgeQualityWarning struct {
 	Condition JudgeWarningCondition `json:"condition" bson:"condition"`
 	Severity  JudgeSeverity         `json:"severity" bson:"severity"`
@@ -77,4 +99,5 @@ type ReliabilityMetadata struct {
 	Total                int                   `json:"total" bson:"total"`
 	JudgeInput           *JudgeInputMetadata   `json:"judgeInput,omitempty" bson:"judgeInput,omitempty"`
 	JudgeQualityWarnings []JudgeQualityWarning `json:"judgeQualityWarnings,omitempty" bson:"judgeQualityWarnings,omitempty"`
+	DiscardedForks       []DiscardedFork       `json:"discardedForks,omitempty" bson:"discardedForks,omitempty"`
 }

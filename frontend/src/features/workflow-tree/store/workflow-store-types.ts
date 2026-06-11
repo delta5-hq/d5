@@ -1,4 +1,5 @@
 import type { NodeData, NodeId, EdgeData, EdgeId, Share } from '@shared/base-types'
+import type { ForkPreviewState } from './fork-preview-state'
 
 export interface WorkflowStoreState {
   workflowId: string
@@ -17,6 +18,7 @@ export interface WorkflowStoreState {
   isSaving: boolean
   dirtyNodeIds: Set<NodeId>
   executingNodeIds: Set<NodeId>
+  forkPreviews: Map<NodeId, ForkPreviewState>
 }
 
 export interface WorkflowStoreActions {
@@ -65,4 +67,5 @@ export const INITIAL_WORKFLOW_STATE: Omit<WorkflowStoreState, 'workflowId'> = {
   isSaving: false,
   dirtyNodeIds: new Set<NodeId>(),
   executingNodeIds: new Set<NodeId>(),
+  forkPreviews: new Map<NodeId, ForkPreviewState>(),
 }

@@ -8,6 +8,7 @@ import {readForkLimit, exceedsForkLimit, forkLimitRefusalMessage} from './forkLi
 import {appendRefineSuffix, appendInvalidSuffix, stripReliabilitySuffix} from './reliabilitySuffix'
 import {getNodeCommand} from '../../commands/utils/isCommand'
 import {isValidateCell} from './validateParams'
+import {NullForkProgressEmitter} from './ForkProgressEmitter'
 
 /**
  * @typedef {import('../../commands/utils/Store').NodeData} NodeData
@@ -45,7 +46,13 @@ function flushValidateTitles(validates, sourceForkStore, outerStore) {
  * @param {Map<string,*>} memoMap
  * @param {AbortSignal|null} [signal]
  */
-export async function resolveRefineCell(refineNode, store, memoMap, signal = null) {
+export async function resolveRefineCell(
+  refineNode,
+  store,
+  memoMap,
+  signal = null,
+  emitter = new NullForkProgressEmitter(),
+) {
   const query = getNodeCommand(refineNode)
   const n = readRefineN(query)
 
@@ -64,6 +71,8 @@ export async function resolveRefineCell(refineNode, store, memoMap, signal = nul
   const fallback = readFallbackFlag(query)
   memoMap.set(refineNode.id, 'in-progress')
 
+  emitter.forksStarted(refineNode.id, n)
+
   const ownerMap = OwnershipResolver(refineNode, store)
   const ownedValidates = ownerMap.get(refineNode.id) ?? []
 
@@ -74,7 +83,14 @@ export async function resolveRefineCell(refineNode, store, memoMap, signal = nul
     .filter(n => n && isValidateCell(getNodeCommand(n)))
   const allValidates = [...ownedValidates, ...siblingValidates]
 
-  const forkResults = await runForks({refineNode, store, n, memoMap, signal})
+  const forkResults = await runForks({
+    refineNode,
+    store,
+    n,
+    memoMap,
+    signal,
+    onForkSettled: result => emitter.forkSettled(refineNode.id, result),
+  })
 
   const judge = new ForkJudge(store._userId, store._workflowId, store)
   const verdict = await judge.selectWinner({
@@ -106,11 +122,29 @@ export async function resolveRefineCell(refineNode, store, memoMap, signal = nul
     if (diagnosticFork) {
       flushValidateTitles(allValidates, diagnosticFork.forkStore, store)
     }
+    emitter.refineComplete(refineNode.id, null, n)
     memoMap.set(refineNode.id, null)
     return
   }
 
   const winnerFork = forkResults.find(f => f.forkIndex === verdict.winnerForkIndex)
+  if (!winnerFork?.forkStore) {
+    // Defensive guard: judge returned an index pointing to a runtime-failed fork (forkStore is null).
+    // ForkJudge.selectWinner never does this — it only selects from ok/criteria-failed forks that
+    // carry a valid forkStore. This path protects against broken judge mocks or future regressions.
+    refineNode.title = appendRefineSuffix(baseTitle, {
+      eligible: okCount,
+      total: n,
+      fallback,
+      winnerForkIndex: null,
+      noSignal: false,
+    })
+    store.importer.createErrorNode(`/refine :n=${n} — winner fork has no store (internal error)`, refineNode.id)
+    store.saveNodeToOutput(refineNode.id)
+    emitter.refineComplete(refineNode.id, null, n)
+    memoMap.set(refineNode.id, null)
+    return
+  }
   StoreFork.applyCandidate(store, winnerFork.forkStore, refineNode.id)
 
   // Sibling validates are outside the refine subtree — applyCandidate does not transfer their titles.
@@ -136,9 +170,19 @@ export async function resolveRefineCell(refineNode, store, memoMap, signal = nul
       total: n,
       judgeInput: verdict.judgeInput,
       judgeQualityWarnings: verdict.judgeQualityWarnings ?? [],
+      discardedForks: forkResults
+        .filter(f => f.forkIndex !== verdict.winnerForkIndex)
+        .map(f => ({
+          forkIndex: f.forkIndex,
+          status: f.status,
+          ...(f.failedAt !== undefined ? {failedAt: f.failedAt} : {}),
+          ...(f.reason !== undefined ? {reason: f.reason} : {}),
+          ...(f.attempts !== undefined ? {attempts: f.attempts} : {}),
+        })),
     }
     store.saveNodeToOutput(refineNode.id)
   }
 
+  emitter.refineComplete(refineNode.id, verdict.winnerForkIndex, n)
   memoMap.set(refineNode.id, winnerFork.forkStore)
 }

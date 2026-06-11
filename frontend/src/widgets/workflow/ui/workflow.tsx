@@ -15,6 +15,8 @@ import {
   useIsPromptNode,
   useTreeKeyboardNavigation,
   useWorkflowExecutingNodeIds,
+  useNodeForkPreview,
+  useWorkflowId,
 } from '@features/workflow-tree'
 import { Card, CardContent, CardHeader, CardTitle } from '@shared/ui/card'
 import { Loader2, RefreshCw } from 'lucide-react'
@@ -27,6 +29,8 @@ import { deriveNodeTitle } from '@shared/lib/reliability-suffix'
 import { isValidRefineCell } from '@shared/lib/reliability/refine-params'
 import { projectForkCost } from '@shared/lib/reliability/fork-cost-projector'
 import { readForkLimit, exceedsForkLimit } from '@shared/lib/reliability/fork-limit-parser'
+import { computePreExecuteWarnings } from '@shared/lib/reliability/judge-quality-warnings'
+import { useIntegrationSettings } from '@shared/composables'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import { useAliases } from '@entities/aliases'
 import { EmptyWorkflowView } from './empty-workflow-view'
@@ -58,6 +62,7 @@ const WorkflowContent = () => {
   const selectedNode = useWorkflowNode(selectedId)
   const isSelectedNodeExecuting = useIsNodeExecuting(selectedId)
   const isSelectedNodePrompt = useIsPromptNode(selectedId)
+  const selectedNodeForkPreview = useNodeForkPreview(selectedId)
   const executingNodeIds = useWorkflowExecutingNodeIds()
   const [autoEditNodeId, setAutoEditNodeId] = useState<string | undefined>()
   const [autoFocusCommandNodeId, setAutoFocusCommandNodeId] = useState<string | undefined>()
@@ -84,6 +89,14 @@ const WorkflowContent = () => {
     const limit = readForkLimit(selectedNode.command)
     return { cost, limitExceeded: exceedsForkLimit(cost, limit) }
   }, [selectedNode, nodes])
+
+  const workflowId = useWorkflowId()
+  const integrationSettings = useIntegrationSettings(workflowId)
+  const selectedNodePreExecuteWarnings = useMemo(
+    () => computePreExecuteWarnings(selectedNode?.command, selectedNode?.id ?? '', nodes, integrationSettings),
+    [selectedNode?.command, selectedNode?.id, nodes, integrationSettings],
+  )
+
   const visibleOrderRef = useRef<readonly string[]>([])
   const treeContainerRef = useRef<HTMLDivElement>(null)
   const workspaceContainerRef = useRef<HTMLDivElement>(null)
@@ -380,6 +393,7 @@ const WorkflowContent = () => {
               autoFocusCommand={autoFocusCommandNodeId === selectedId}
               autoFocusTitle={autoEditNodeId === selectedId}
               executeDisabled={isSelectedNodeExecuting || !hasValidCommand}
+              forkPreview={selectedNodeForkPreview}
               isExecuting={isSelectedNodeExecuting}
               isPrompt={isSelectedNodePrompt}
               key={selectedNode.id}
@@ -395,6 +409,7 @@ const WorkflowContent = () => {
               onExecute={handleExecute}
               onShiftCtrlEnterInCommand={handleShiftCtrlEnterInCommand}
               onUpdateNode={handleUpdateNode}
+              preExecuteWarnings={selectedNodePreExecuteWarnings}
               refineCost={selectedNodeRefineProjection?.cost ?? null}
               refineCostExceedsLimit={selectedNodeRefineProjection?.limitExceeded ?? false}
               reliabilityMetadata={selectedNode.reliabilityMetadata}

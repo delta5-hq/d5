@@ -447,6 +447,19 @@ export default {
       judgeQualitySeverityLow: 'низкий',
     },
 
+    discardedForks: {
+      title: 'Запуски форков',
+      forkLabel: 'Форк {index}',
+      totalLabel: '{total} форков',
+      statusPending: 'выполняется…',
+      status_ok: 'прошёл',
+      'status_criteria-failed': 'критерий не выполнен',
+      'status_runtime-failed': 'ошибка',
+      failedAt: 'критерий: {criterion}',
+      attempts: '{count} попыток',
+      discardedForksButton: 'Показать форки',
+    },
+
     status: {
       saving: 'Сохранение...',
       unsaved: 'Несохранённые изменения',

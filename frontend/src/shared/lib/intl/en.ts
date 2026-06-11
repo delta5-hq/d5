@@ -448,6 +448,19 @@ export default {
       judgeQualitySeverityLow: 'low',
     },
 
+    discardedForks: {
+      title: 'Fork runs',
+      forkLabel: 'Fork {index}',
+      totalLabel: '{total} forks',
+      statusPending: 'running…',
+      status_ok: 'passed',
+      'status_criteria-failed': 'criteria failed',
+      'status_runtime-failed': 'error',
+      failedAt: 'criterion: {criterion}',
+      attempts: '{count} attempts',
+      discardedForksButton: 'Show forks',
+    },
+
     status: {
       saving: 'Saving...',
       unsaved: 'Unsaved changes',

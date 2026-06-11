@@ -23,6 +23,7 @@ export {
   useWorkflowIsDirty,
   useWorkflowStatus,
   useIsNodeExecuting,
+  useNodeForkPreview,
   useWorkflowExecutingNodeIds,
   useWorkflowId,
   useIsPromptNode,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { NodeData, NodeId, ReliabilityMetadata } from '@shared/base-types'
+import type { NodeData, NodeId, ReliabilityMetadata, JudgeQualityWarning } from '@shared/base-types'
 import { Button } from '@shared/ui/button'
 import { Genie } from '@shared/ui/genie'
 import { getCommandRole } from '@shared/constants/command-roles'
@@ -17,6 +17,8 @@ import { NodeTitleEditor } from './node-title-editor'
 import { NodePreviewSection } from './node-preview-section'
 import { CommandField } from './command-field'
 import { CriterionVerdictDrawer } from './criterion-verdict-drawer'
+import { DiscardedForksDrawer } from './discarded-forks-drawer'
+import type { ForkPreviewState } from '@features/workflow-tree/store/fork-preview-state'
 
 interface NodeDetailPanelProps {
   node: NodeData
@@ -37,6 +39,8 @@ interface NodeDetailPanelProps {
   refineCost?: number | null
   refineCostExceedsLimit?: boolean
   reliabilityMetadata?: ReliabilityMetadata
+  forkPreview?: ForkPreviewState
+  preExecuteWarnings?: JudgeQualityWarning[]
   autoFocusTitle?: boolean
   autoFocusCommand?: boolean
 }
@@ -60,6 +64,8 @@ export const NodeDetailPanel = ({
   refineCost,
   refineCostExceedsLimit,
   reliabilityMetadata,
+  forkPreview,
+  preExecuteWarnings,
   autoFocusTitle,
   autoFocusCommand,
 }: NodeDetailPanelProps) => {
@@ -78,6 +84,7 @@ export const NodeDetailPanel = ({
   const [settingsOpen, setSettingsOpen] = useState(!isPrompt)
   const [previewOpen, setPreviewOpen] = useState(isPrompt)
   const [verdictOpen, setVerdictOpen] = useState(false)
+  const [forksOpen, setForksOpen] = useState(false)
   const previousExecutingRef = useRef(isExecuting)
 
   useEffect(() => {
@@ -222,6 +229,21 @@ export const NodeDetailPanel = ({
                         <FormattedMessage id="workflowTree.node.refineCostOverLimit" values={{ cost: refineCost }} />
                       </span>
                     ) : null}
+                    {preExecuteWarnings && preExecuteWarnings.length > 0 ? (
+                      <div className="mt-1 space-y-0.5" data-testid="pre-execute-warnings">
+                        {preExecuteWarnings.map(w => (
+                          <span
+                            className={
+                              w.severity === 'high' ? 'text-xs text-destructive block' : 'text-xs text-accent block'
+                            }
+                            data-testid={`pre-execute-warning-${w.condition}`}
+                            key={w.condition}
+                          >
+                            <FormattedMessage id={`workflowTree.verdictDrawer.judgeQualityWarning_${w.condition}`} />
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                     {reliabilityMetadata?.perCriterionVerdict?.length ? (
                       <button
                         className="text-xs text-primary underline underline-offset-2 mt-1 block hover:opacity-80 transition-opacity"
@@ -230,6 +252,16 @@ export const NodeDetailPanel = ({
                         type="button"
                       >
                         <FormattedMessage id="workflowTree.node.verdictButton" />
+                      </button>
+                    ) : null}
+                    {forkPreview || reliabilityMetadata?.discardedForks?.length ? (
+                      <button
+                        className="text-xs text-primary underline underline-offset-2 mt-1 block hover:opacity-80 transition-opacity"
+                        data-testid="forks-button"
+                        onClick={() => setForksOpen(true)}
+                        type="button"
+                      >
+                        <FormattedMessage id="workflowTree.discardedForks.discardedForksButton" />
                       </button>
                     ) : null}
                   </div>
@@ -337,6 +369,15 @@ export const NodeDetailPanel = ({
 
       {reliabilityMetadata ? (
         <CriterionVerdictDrawer metadata={reliabilityMetadata} onOpenChange={setVerdictOpen} open={verdictOpen} />
+      ) : null}
+      {forkPreview || reliabilityMetadata?.discardedForks?.length ? (
+        <DiscardedForksDrawer
+          discardedForks={reliabilityMetadata?.discardedForks}
+          forkPreview={forkPreview}
+          nodeId={node.id}
+          onOpenChange={setForksOpen}
+          open={forksOpen}
+        />
       ) : null}
     </div>
   )
