@@ -32,7 +32,7 @@ describe('ResponsePlanner', () => {
   })
 
   describe('verifier prompt classification', () => {
-    it('returns YES when criterion does not contain the REJECT keyword', () => {
+    it('returns YES when criterion does not contain the MOCK_VALIDATE_FAIL sentinel', () => {
       const messages = [
         {content: 'You are a strict quality verifier. Reply ONLY with YES or NO: <reason>.'},
         {content: 'Criterion: must mention water\nContent: the ocean is wet'},
@@ -40,7 +40,7 @@ describe('ResponsePlanner', () => {
       expect(planResponse(messages, generatorContent)).toBe('YES')
     })
 
-    it('returns NO when criterion contains the REJECT keyword', () => {
+    it('returns NO when criterion contains the MOCK_VALIDATE_FAIL sentinel', () => {
       const messages = [
         {content: 'You are a strict quality verifier. Reply ONLY with YES or NO: <reason>.'},
         {content: `Criterion: ${MOCK_VERIFIER_FAIL_KEYWORD} — deliberately unsatisfiable\nContent: anything`},
@@ -48,12 +48,20 @@ describe('ResponsePlanner', () => {
       expect(planResponse(messages, generatorContent)).toMatch(/^NO/)
     })
 
-    it('REJECT keyword match is case-insensitive', () => {
+    it('MOCK_VALIDATE_FAIL sentinel match is case-insensitive', () => {
       const messages = [
         {content: 'You are a strict quality verifier. Reply ONLY with YES or NO: <reason>.'},
-        {content: 'Criterion: reject this output always\nContent: anything'},
+        {content: 'Criterion: mock_validate_fail this output always\nContent: anything'},
       ]
       expect(planResponse(messages, generatorContent)).toMatch(/^NO/)
+    })
+
+    it('MOCK_VALIDATE_FAIL sentinel controls only the criterion line, not candidate content', () => {
+      const messages = [
+        {content: 'You are a strict quality verifier. Reply ONLY with YES or NO: <reason>.'},
+        {content: `Criterion: must mention status\nContent: the model wrote ${MOCK_VERIFIER_FAIL_KEYWORD}`},
+      ]
+      expect(planResponse(messages, generatorContent)).toBe('YES')
     })
 
     it('returns YES when verifier prompt has no Criterion field', () => {

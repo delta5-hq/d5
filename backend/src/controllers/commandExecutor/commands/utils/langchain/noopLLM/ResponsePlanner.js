@@ -36,7 +36,7 @@ const rankingResponse = candidateCount => {
   return order.join(', ')
 }
 
-export const MOCK_VERIFIER_FAIL_KEYWORD = 'REJECT'
+export const MOCK_VERIFIER_FAIL_KEYWORD = 'MOCK_VALIDATE_FAIL'
 
 const extractVerifierCriterion = corpus => {
   const match = corpus.match(/Criterion:\s*(.+?)(?:\n|$)/i)

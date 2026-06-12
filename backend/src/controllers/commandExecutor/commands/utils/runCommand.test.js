@@ -248,7 +248,7 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
   it.each([
     [2, '/chat :n=2 List 3 colors'],
     [3, '/chat :n=3 List 3 colors'],
-  ])(':n=%i runs ChatCommand exactly %i times and produces exactly %i children', async (n, command) => {
+  ])(':n=%i runs ChatCommand exactly N times and produces exactly N children', async (n, command) => {
     const {callCount, childCount} = await runWithCount(command)
     expect(callCount).toBe(n)
     expect(childCount).toBe(n)
@@ -403,9 +403,10 @@ describe('runCommand — commodity :n=N with real ChatCommand + NoopLLM (MOCK_EX
   it.each([
     [2, '/chat :n=2 List 3 colors'],
     [3, '/chat :n=3 Describe the sky'],
-  ])('produces exactly %i children and a [✓ %i/%i] suffix via real importer (NoopLLM)', async (n, command) => {
+  ])('produces exactly %i children and matching success suffix via real importer (NoopLLM)', async (n, command) => {
     const root = {id: 'root', parent: null, command, children: []}
     const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+    store._integrationSettingsCache = {}
 
     await runCommand({queryType: 'chat', cell: root, store})
 

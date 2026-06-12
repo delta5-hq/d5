@@ -241,7 +241,7 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     await tree.selectNode(validateId)
     const validateDetail = new NodeDetailPanelPage(page)
     await validateDetail.waitForComponent()
-    await validateDetail.fillCommand('/validate REJECT — The output must be a valid JSON object with key "data" and value 999')
+    await validateDetail.fillCommand('/validate MOCK_VALIDATE_FAIL — The output must be a valid JSON object with key "data" and value 999')
 
     await tree.selectNode(rootId)
     await detail.waitForComponent()
@@ -269,7 +269,7 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     await tree.selectNode(validateId)
     const validateDetail = new NodeDetailPanelPage(page)
     await validateDetail.waitForComponent()
-    await validateDetail.fillCommand('/validate REJECT — must never pass')
+    await validateDetail.fillCommand('/validate MOCK_VALIDATE_FAIL — must never pass')
 
     await tree.selectNode(rootId)
     await detail.waitForComponent()
@@ -306,7 +306,7 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     await tree.selectNode(validateId)
     const validateDetail = new NodeDetailPanelPage(page)
     await validateDetail.waitForComponent()
-    await validateDetail.fillCommand('/validate REJECT — Output must contain DEFINITELY_UNREACHABLE_TOKEN_42')
+    await validateDetail.fillCommand('/validate MOCK_VALIDATE_FAIL — Output must contain DEFINITELY_UNREACHABLE_TOKEN_42')
 
     await tree.selectNode(rootId)
     await detail.waitForComponent()

@@ -1,3 +1,4 @@
+import debug from 'debug'
 import {CHAT_QUERY_TYPE} from '../../constants/chat'
 import {CLAUDE_QUERY_TYPE} from '../../constants/claude'
 import {COMPLETION_QUERY_TYPE} from '../../constants/completion'
@@ -46,6 +47,8 @@ import {readCommodityN, stripCommodityN} from '../../reliability/core/commodityP
 import {passesStructuralGate} from '../../reliability/core/structuralGate'
 // eslint-disable-next-line no-unused-vars
 import Store from './Store'
+
+const logError = debug('delta5:app:runCommand:error')
 
 /** @private */
 function getCommandName(queryType) {
@@ -403,7 +406,7 @@ export const runCommand = async (
         postProcessProgress.dispose()
       } catch (e) {
         if (e instanceof CriteriaFailedError) throw e
-        console.error('Error during query post-processing', {query, error: e})
+        logError('post-processing failed: %o', {query, error: e})
         continue
       }
 

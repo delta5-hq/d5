@@ -297,6 +297,8 @@ _e2e-frontend-run:
 	@echo "→ Starting Node.js backend for E2E (port $(E2E_NODEJS_BACKEND_PORT), MOCK_EXTERNAL_SERVICES=true)..."
 	@lsof -ti:$(E2E_NODEJS_BACKEND_PORT) 2>/dev/null | xargs -r kill -9 2>/dev/null || true
 	@cd backend && mkdir -p logs && ( \
+		NODE_ENV=e2e \
+		D5_ALLOW_MOCK_EXTERNAL_SERVICES=true \
 		MOCK_EXTERNAL_SERVICES=true \
 		PORT=$(E2E_NODEJS_BACKEND_PORT) \
 		MONGO_URI='$(MONGO_E2E_URI)' \

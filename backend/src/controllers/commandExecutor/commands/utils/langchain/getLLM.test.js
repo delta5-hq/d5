@@ -1,22 +1,8 @@
 import {EmbStorageType} from '../../../../../shared/config/constants'
 import {determineLLMType, getEmbeddings, getIntegrationSettings, getLLM, Model} from './getLLM'
 import IntegrationFacade from '../../../../../repositories/IntegrationFacade'
-
-const withEnv = async (vars, fn) => {
-  const originals = Object.fromEntries(Object.keys(vars).map(k => [k, process.env[k]]))
-  Object.entries(vars).forEach(([k, v]) => {
-    if (v === undefined) delete process.env[k]
-    else process.env[k] = v
-  })
-  try {
-    return await fn()
-  } finally {
-    Object.entries(originals).forEach(([k, v]) => {
-      if (v === undefined) delete process.env[k]
-      else process.env[k] = v
-    })
-  }
-}
+import {MOCK_EXTERNAL_SERVICES_ALLOW_ENV} from './MockExternalServices'
+import {withEnvAsync as withEnv} from '../../../../../test/env'
 
 const ALL_PROVIDER_ENV_VARS = {
   OPENAI_API_KEY: undefined,
@@ -335,6 +321,49 @@ describe('getIntegrationSettings', () => {
     await expect(withEnv(ALL_PROVIDER_ENV_VARS, () => getIntegrationSettings('user-1'))).rejects.toThrow(
       'No LLM credentials configured',
     )
+  })
+
+  it('returns synthetic settings without DB lookup under MOCK_EXTERNAL_SERVICES=true', async () => {
+    const store = {}
+
+    const result = await withEnv({...ALL_PROVIDER_ENV_VARS, MOCK_EXTERNAL_SERVICES: 'true'}, () =>
+      getIntegrationSettings('user-1', 'workflow-1', store),
+    )
+
+    expect(IntegrationFacade.findMergedDecryptedWithMetadata).not.toHaveBeenCalled()
+    expect(result).toMatchObject({userId: 'user-1', workflowId: 'workflow-1'})
+    expect(store._integrationSettingsCache).toBe(result)
+  })
+
+  it('mock settings path still applies environment credential fallback without DB lookup', async () => {
+    const store = {}
+
+    const result = await withEnv(
+      {
+        ...ALL_PROVIDER_ENV_VARS,
+        MOCK_EXTERNAL_SERVICES: 'true',
+        OPENAI_API_KEY: 'sk-openai-env',
+        CLAUDE_API_KEY: 'sk-claude-env',
+      },
+      () => getIntegrationSettings('user-1', 'workflow-1', store),
+    )
+
+    expect(IntegrationFacade.findMergedDecryptedWithMetadata).not.toHaveBeenCalled()
+    expect(result.openai.apiKey).toBe('sk-openai-env')
+    expect(result.claude.apiKey).toBe('sk-claude-env')
+    expect(store._integrationSettingsCache).toBe(result)
+  })
+
+  it('returns cached settings before mock synthesis or repository lookup', async () => {
+    const cached = {userId: 'cached-user', workflowId: 'cached-workflow', model: Model.Claude}
+    const store = {_integrationSettingsCache: cached}
+
+    const result = await withEnv({MOCK_EXTERNAL_SERVICES: 'true'}, () =>
+      getIntegrationSettings('user-1', 'workflow-1', store),
+    )
+
+    expect(result).toBe(cached)
+    expect(IntegrationFacade.findMergedDecryptedWithMetadata).not.toHaveBeenCalled()
   })
 
   it('returns merged settings when workflowId is null', async () => {
@@ -770,4 +799,25 @@ describe('getLLM MOCK_EXTERNAL_SERVICES gate', () => {
       expect(() => getLLM({type: Model.YandexGPT, settings: {}})).not.toThrow()
     })
   })
+
+  it.each(['development', 'qa', 'e2e', 'production', undefined])(
+    'refuses mock LLM usage in non-allowlisted runtime NODE_ENV=%s before returning NoopLLM',
+    async nodeEnv => {
+      await withEnv({MOCK_EXTERNAL_SERVICES: 'true', NODE_ENV: nodeEnv}, () => {
+        expect(() => getLLM({type: Model.OpenAI, settings: {}})).toThrow(/MOCK_EXTERNAL_SERVICES=true/)
+      })
+    },
+  )
+
+  it.each(['development', 'qa', 'e2e'])(
+    'explicit allow env permits mock LLM usage in runtime NODE_ENV=%s',
+    async nodeEnv => {
+      await withEnv(
+        {MOCK_EXTERNAL_SERVICES: 'true', NODE_ENV: nodeEnv, [MOCK_EXTERNAL_SERVICES_ALLOW_ENV]: 'true'},
+        () => {
+          expect(() => getLLM({type: Model.OpenAI, settings: {}})).not.toThrow()
+        },
+      )
+    },
+  )
 })

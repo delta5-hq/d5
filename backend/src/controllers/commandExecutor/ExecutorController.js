@@ -130,7 +130,7 @@ const ExecutorController = {
         }
         ctx.body = result
       } else if (e instanceof CriteriaFailedError) {
-        console.error(e)
+        logError('criteria failed before response context initialized: %o', e)
         if (streamSessionId) {
           StreamBridge.emit(streamSessionId, StreamEvent.error(e))
           StreamBridge.closeSession(streamSessionId)
@@ -140,7 +140,7 @@ const ExecutorController = {
         }
         ctx.throw(422, e.message || 'All criteria failed')
       } else {
-        console.error(e)
+        logError('execute failed: %o', e)
         if (streamSessionId) {
           StreamBridge.emit(streamSessionId, StreamEvent.error(e))
           StreamBridge.closeSession(streamSessionId)

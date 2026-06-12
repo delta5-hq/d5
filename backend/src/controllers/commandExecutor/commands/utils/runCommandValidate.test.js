@@ -2,6 +2,7 @@ import {runCommand} from './runCommand'
 import {CriteriaFailedError} from '../../reliability/core/CriteriaFailedError'
 import {ValidateCommand} from '../../reliability/core/ValidateCommand'
 import Store from './Store'
+import {MOCK_VERIFIER_FAIL_KEYWORD} from './langchain/noopLLM/ResponsePlanner'
 
 jest.mock('debug', () => {
   const fn = jest.fn(() => fn)
@@ -374,6 +375,52 @@ describe('runCommand \u2014 /validate: each sibling cell receives its own indivi
 
     expect(store.getNode('v0').title).toMatch(/\[\u2717 1 attempts\]/)
     expect(store.getNode('v1').title).toMatch(/\[\u2713\]/)
+  })
+})
+
+describe('runCommand \u2014 /validate with NoopLLM verifier contract', () => {
+  const originalMockExternalServices = process.env.MOCK_EXTERNAL_SERVICES
+  const mockValidatedWorkflow = criterion => {
+    const root = {id: 'root', parent: null, command: '/chat produce a short substantive answer', children: ['validate']}
+    const validate = {id: 'validate', parent: 'root', command: `/validate ${criterion} :retry=0`, children: []}
+    const store = buildStore({root, validate})
+    store._integrationSettingsCache = {}
+    return {root, validate, store}
+  }
+
+  beforeAll(() => {
+    process.env.MOCK_EXTERNAL_SERVICES = 'true'
+  })
+
+  afterAll(() => {
+    if (originalMockExternalServices === undefined) delete process.env.MOCK_EXTERNAL_SERVICES
+    else process.env.MOCK_EXTERNAL_SERVICES = originalMockExternalServices
+  })
+
+  it.each([
+    ['satisfied criterion', 'answer is substantive', false, /\[✓\]/],
+    ['rejected criterion', `${MOCK_VERIFIER_FAIL_KEYWORD} force verifier failure`, true, /\[✗ 1 attempts\]/],
+  ])('maps %s to its visible suffix without changing substrate state', async (_label, criterion, rejects, suffix) => {
+    const {root, validate, store} = mockValidatedWorkflow(criterion)
+    const execution = runCommand({queryType: 'chat', cell: root, store})
+
+    if (rejects) await expect(execution).rejects.toBeInstanceOf(CriteriaFailedError)
+    else await expect(execution).resolves.toBeUndefined()
+
+    expect(store.getNode(validate.id).title).toMatch(suffix)
+  })
+
+  it('pass and fail verdicts are both reachable in one process without changing mock configuration', async () => {
+    const pass = mockValidatedWorkflow('answer is substantive')
+    const fail = mockValidatedWorkflow(`${MOCK_VERIFIER_FAIL_KEYWORD} force verifier failure`)
+
+    await expect(runCommand({queryType: 'chat', cell: pass.root, store: pass.store})).resolves.toBeUndefined()
+    await expect(runCommand({queryType: 'chat', cell: fail.root, store: fail.store})).rejects.toBeInstanceOf(
+      CriteriaFailedError,
+    )
+
+    expect(pass.store.getNode(pass.validate.id).title).toMatch(/\[✓\]/)
+    expect(fail.store.getNode(fail.validate.id).title).toMatch(/\[✗ 1 attempts\]/)
   })
 })
 

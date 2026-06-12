@@ -29,6 +29,7 @@ import {
 import {ChatClaude} from './Anthropic'
 import {CustomLLMChat, CustomEmbeddings} from './CustomLLMChat'
 import {createNoopLLM} from './noopLLM'
+import {canUseMockExternalServices} from './MockExternalServices'
 
 export const Model = {
   YandexGPT: 'YandexGPT',
@@ -88,6 +89,14 @@ export const getIntegrationSettings = async (userId, workflowId = null, store = 
     return store._integrationSettingsCache
   }
 
+  if (canUseMockExternalServices()) {
+    const {settings} = resolveSettings({merged: null, workflowDoc: null, userId, workflowId})
+    if (store) {
+      store._integrationSettingsCache = settings
+    }
+    return settings
+  }
+
   const fetched = await IntegrationFacade.findMergedDecryptedWithMetadata(userId, workflowId)
   const {settings, workflowDoc} = resolveSettings({...fetched, userId, workflowId})
 
@@ -106,7 +115,7 @@ export const getIntegrationSettings = async (userId, workflowId = null, store = 
 }
 
 export const getLLM = ({type, settings, log, thinkingBudgetTokens = null}) => {
-  if (process.env.MOCK_EXTERNAL_SERVICES === 'true') {
+  if (canUseMockExternalServices()) {
     return createNoopLLM()
   }
   switch (type) {

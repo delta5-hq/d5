@@ -9,7 +9,9 @@ export interface WorkflowNodeSetupResult {
 }
 
 export async function setupWorkflowWithNode(page: Page): Promise<WorkflowNodeSetupResult> {
-  await page.getByTestId('create-first-node').click()
+  const createButton = page.getByTestId('create-first-node')
+  await createButton.waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
+  await createButton.click()
 
   const tree = new WorkflowTreePage(page)
   await tree.firstNode.waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
