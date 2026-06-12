@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { waitForElementWidth } from './wait-for-layout'
+import { waitForElementWidth, waitForLocatorLayoutBox } from './wait-for-layout'
 import { htmlPage, serveHtml } from './serve-html'
 
 const SELECTOR = '[data-testid="target"]'
@@ -185,5 +185,94 @@ test.describe('waitForElementWidth', () => {
       await page.goto('/')
       await expect(waitForElementWidth(page, '[data-testid="custom-element"]', 2000)).resolves.toBeUndefined()
     })
+  })
+})
+
+test.describe('waitForLocatorLayoutBox', () => {
+  const immediateCases = [
+    {
+      name: 'positive-layout-box single element resolves',
+      html: WIDE,
+      locatorIndex: 0,
+      resolves: true,
+    },
+    {
+      name: 'zero-width single element rejects',
+      html: ZERO_WIDTH,
+      locatorIndex: 0,
+      resolves: false,
+    },
+    {
+      name: 'zero-height single element rejects',
+      html: ZERO_HEIGHT,
+      locatorIndex: 0,
+      resolves: false,
+    },
+    {
+      name: 'absent element rejects',
+      html: ABSENT,
+      locatorIndex: 0,
+      resolves: false,
+    },
+    {
+      name: 'later positive-width duplicate resolves when selected exactly',
+      html: TWO_TARGETS_FIRST_ZERO,
+      locatorIndex: 1,
+      resolves: true,
+    },
+    {
+      name: 'earlier zero-width duplicate rejects when selected exactly',
+      html: TWO_TARGETS_FIRST_ZERO,
+      locatorIndex: 0,
+      resolves: false,
+    },
+  ]
+
+  for (const { name, html, locatorIndex, resolves } of immediateCases) {
+    test(name, async ({ page }) => {
+      await page.route('**/*', serveHtml(html))
+      await page.goto('/')
+
+      const result = expect(waitForLocatorLayoutBox(page.locator(SELECTOR).nth(locatorIndex), resolves ? 2000 : 400))
+      if (resolves) {
+        await result.resolves.toBeUndefined()
+      } else {
+        await result.rejects.toThrow()
+      }
+    })
+  }
+
+  test('resolves when the selected locator gains a layout box after initial render', async ({ page }) => {
+    await page.route('**/*', serveHtml(ZERO_WIDTH))
+    await page.goto('/')
+
+    await page.evaluate(sel => {
+      setTimeout(() => {
+        const el = document.querySelector(sel) as HTMLElement | null
+        if (el) {
+          el.style.width = '200px'
+          el.style.height = '50px'
+        }
+      }, 80)
+    }, SELECTOR)
+
+    await expect(waitForLocatorLayoutBox(page.locator(SELECTOR), 2000)).resolves.toBeUndefined()
+  })
+
+  test('resolves when a zero-layout match is replaced by a visible matching element', async ({ page }) => {
+    await page.route('**/*', serveHtml(ZERO_WIDTH))
+    await page.goto('/')
+
+    await page.evaluate(sel => {
+      setTimeout(() => {
+        const current = document.querySelector(sel)
+        const replacement = document.createElement('div')
+        replacement.setAttribute('data-testid', 'target')
+        replacement.style.cssText = 'width:200px;height:50px'
+        current?.replaceWith(replacement)
+      }, 80)
+    }, SELECTOR)
+
+    await expect(waitForLocatorLayoutBox(page.locator(SELECTOR), 2000)).resolves.toBeUndefined()
   })
 })

@@ -23,7 +23,8 @@ func (ctrl *Controller) AddArrayItem(c *fiber.Ctx) error {
 
 	if err := ctrl.service.AddArrayItem(c.Context(), scope, fieldName, item); err != nil {
 		if strings.Contains(err.Error(), "already exists in field") ||
-			strings.Contains(err.Error(), "alias is required") {
+			strings.Contains(err.Error(), "alias is required") ||
+			isArrayItemValidationError(err) {
 			return response.BadRequest(c, err.Error())
 		}
 		return response.InternalError(c, err.Error())
@@ -53,6 +54,9 @@ func (ctrl *Controller) UpdateArrayItem(c *fiber.Ctx) error {
 	if err := ctrl.service.UpdateArrayItem(c.Context(), scope, fieldName, alias, updates); err != nil {
 		if strings.Contains(err.Error(), "not found in field") {
 			return response.NotFound(c, err.Error())
+		}
+		if isArrayItemValidationError(err) {
+			return response.BadRequest(c, err.Error())
 		}
 		return response.InternalError(c, err.Error())
 	}

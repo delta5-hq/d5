@@ -14,6 +14,10 @@ func (s *Service) AddArrayItem(ctx context.Context, scope ScopeIdentifier, field
 		return fmt.Errorf("alias is required")
 	}
 
+	if err := validateArrayItemShape(fieldName, item); err != nil {
+		return err
+	}
+
 	if err := s.validateArrayItemDoesNotExist(ctx, scope, fieldName, alias); err != nil {
 		return err
 	}
@@ -79,6 +83,10 @@ func (s *Service) encryptArrayItem(scope ScopeIdentifier, arrayName string, item
 }
 
 func (s *Service) UpdateArrayItem(ctx context.Context, scope ScopeIdentifier, fieldName, alias string, updates map[string]interface{}) error {
+	if err := validateArrayItemShape(fieldName, updates); err != nil {
+		return err
+	}
+
 	if err := s.validateArrayItemExists(ctx, scope, fieldName, alias); err != nil {
 		return err
 	}

@@ -75,23 +75,30 @@ describe('IntegrationController', () => {
   })
 
   describe('getAll', () => {
-    it('calls facade with normalized null when workflowId is missing', async () => {
-      IntegrationFacade.findMergedDecrypted.mockResolvedValue({openai: {key: 'k'}})
-      const ctx = createCtx()
+    it.each([
+      ['missing workflowId', {}],
+      ['empty workflowId', {workflowId: ''}],
+    ])('serves %s as bare user scope', async (_label, query) => {
+      IntegrationFacade.findMergedDecrypted.mockResolvedValue({
+        userId: 'user-1',
+        workflowId: null,
+        openai: {key: 'k'},
+        mcp: [],
+        rpc: [],
+      })
+      const ctx = createCtx({query})
 
       await IntegrationController.getAll(ctx)
 
       expect(IntegrationFacade.findMergedDecrypted).toHaveBeenCalledWith('user-1', null)
-      expect(ctx.body).toEqual({openai: {key: 'k'}, rpc: [], mcp: [], secretsMeta: {}})
-    })
-
-    it('calls facade with normalized null when workflowId is empty string', async () => {
-      IntegrationFacade.findMergedDecrypted.mockResolvedValue({openai: {key: 'k'}})
-      const ctx = createCtx({query: {workflowId: ''}})
-
-      await IntegrationController.getAll(ctx)
-
-      expect(IntegrationFacade.findMergedDecrypted).toHaveBeenCalledWith('user-1', null)
+      expect(ctx.body).toEqual({
+        userId: 'user-1',
+        workflowId: null,
+        openai: {key: 'k'},
+        mcp: [],
+        rpc: [],
+        secretsMeta: {},
+      })
     })
 
     it('calls facade with workflowId when provided', async () => {

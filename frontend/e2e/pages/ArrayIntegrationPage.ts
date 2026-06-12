@@ -1,4 +1,5 @@
 import { type Page, type Locator, expect } from '@playwright/test'
+import { waitForLocatorLayoutBox } from '../helpers/wait-for-layout'
 import { selectRadixOption } from '../helpers/radix-select-helper'
 
 const TIMEOUTS = {
@@ -14,10 +15,6 @@ const SELECTORS = {
   dialogContent: (dialogName: string) => `[data-dialog-name="${dialogName}"]`,
   submitButton: 'button[type="submit"]',
   cancelButton: 'button:has-text("Cancel")',
-} as const
-
-const API_ENDPOINTS = {
-  getIntegration: '/api/v2/integration',
 } as const
 
 export interface MCPIntegrationData {
@@ -68,17 +65,38 @@ export class ArrayIntegrationPage {
   async goto() {
     await this.page.goto('/settings')
     await this.page.waitForLoadState('networkidle')
-    // At mobile viewports the settings page shows Profile/Integrations tabs with Profile
-    // selected by default. Click the Integrations tab so the integration section is visible.
-    const integrationsTab = this.page.locator('[role="tab"]:has-text("Integrations")')
-    if (await integrationsTab.count() > 0) {
+    await this.activateIntegrationsTab()
+  }
+
+  private async activateIntegrationsTab(): Promise<void> {
+    const integrationsTab = this.page.locator('[role="tab"]:has-text("Integrations")').first()
+
+    if ((await integrationsTab.count()) === 0) {
+      return
+    }
+
+    if (!(await integrationsTab.isVisible())) {
+      return
+    }
+
+    if ((await integrationsTab.getAttribute('data-state')) !== 'active') {
       await integrationsTab.click()
     }
+
+    await expect(integrationsTab).toHaveAttribute('data-state', 'active', { timeout: TIMEOUTS.dialogAppear })
   }
 
   async openAddDialog(fieldName: 'mcp' | 'rpc'): Promise<void> {
-    const addButton = this.page.locator(SELECTORS.addButton(fieldName))
+    await this.activateIntegrationsTab()
+
+    const addButtonSelector = SELECTORS.addButton(fieldName)
+    const addButton = this.page.locator(addButtonSelector).first()
+
     await addButton.waitFor({ state: 'visible', timeout: TIMEOUTS.dialogAppear })
+    await expect(addButton).toBeEnabled({ timeout: TIMEOUTS.dialogAppear })
+    await waitForLocatorLayoutBox(addButton, TIMEOUTS.dialogAppear)
+    await addButton.scrollIntoViewIfNeeded()
+    await addButton.click({ trial: true })
     await addButton.click()
 
     await this.page.waitForSelector(SELECTORS.dialogContent(fieldName), {
@@ -160,7 +178,7 @@ export class ArrayIntegrationPage {
     }
   }
 
-  async submitDialog(fieldName: 'mcp' | 'rpc', isEdit = false): Promise<void> {
+  async submitDialog(fieldName: 'mcp' | 'rpc'): Promise<void> {
     const submitButton = this.page.locator(SELECTORS.submitButton)
     const dialog = this.page.locator(SELECTORS.dialogContent(fieldName))
 
@@ -178,7 +196,7 @@ export class ArrayIntegrationPage {
   async addMCPIntegration(data: MCPIntegrationData): Promise<Locator> {
     await this.openAddDialog('mcp')
     await this.fillMCPForm(data)
-    await this.submitDialog('mcp', false)
+    await this.submitDialog('mcp')
 
     const card = this.page.locator(SELECTORS.integrationCard(data.alias)).first()
     await expect(card).toBeVisible({ timeout: TIMEOUTS.cardAppear })
@@ -188,7 +206,7 @@ export class ArrayIntegrationPage {
   async addRPCIntegration(data: RPCIntegrationData): Promise<Locator> {
     await this.openAddDialog('rpc')
     await this.fillRPCForm(data)
-    await this.submitDialog('rpc', false)
+    await this.submitDialog('rpc')
 
     const card = this.page.locator(SELECTORS.integrationCard(data.alias)).first()
     await expect(card).toBeVisible({ timeout: TIMEOUTS.cardAppear })
@@ -222,7 +240,7 @@ export class ArrayIntegrationPage {
       await timeoutField.fill(String(updates.timeoutMs))
     }
 
-    await this.submitDialog('mcp', true)
+    await this.submitDialog('mcp')
   }
 
   async editRPCIntegration(alias: string, updates: Partial<RPCIntegrationData>): Promise<void> {
@@ -245,7 +263,7 @@ export class ArrayIntegrationPage {
       await headersField.fill(updates.headers)
     }
 
-    await this.submitDialog('rpc', true)
+    await this.submitDialog('rpc')
   }
 
   async deleteIntegration(alias: string, fieldName: 'mcp' | 'rpc'): Promise<void> {
@@ -282,11 +300,7 @@ export class ArrayIntegrationPage {
     await expect(card).toContainText(description)
   }
 
-  private async selectOption(
-    currentTextPattern: RegExp,
-    optionText: string,
-    scope?: Locator,
-  ): Promise<void> {
+  private async selectOption(currentTextPattern: RegExp, optionText: string, scope?: Locator): Promise<void> {
     await selectRadixOption(this.page, {
       triggerTextPattern: currentTextPattern,
       optionText,

@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 import { TIMEOUTS } from '../config/test-timeouts'
 
 export async function waitForElementWidth(page: Page, selector: string, timeout: number = TIMEOUTS.NAVIGATION): Promise<void> {
@@ -10,4 +10,18 @@ export async function waitForElementWidth(page: Page, selector: string, timeout:
     selector,
     { timeout },
   )
+}
+
+export async function waitForLocatorLayoutBox(locator: Locator, timeout: number = TIMEOUTS.NAVIGATION): Promise<void> {
+  await locator.waitFor({ state: 'visible', timeout })
+
+  await expect
+    .poll(
+      async () => {
+        const box = await locator.boundingBox({ timeout: 250 }).catch(() => null)
+        return box !== null && box.width > 0 && box.height > 0
+      },
+      { timeout },
+    )
+    .toBe(true)
 }
