@@ -73,11 +73,13 @@ export class ArrayIntegrationPage {
     const integrationsTab = this.page.locator('[role="tab"]:has-text("Integrations")')
     if (await integrationsTab.count() > 0) {
       await integrationsTab.click()
+      await this.page.waitForLoadState('networkidle')
     }
   }
 
   async openAddDialog(fieldName: 'mcp' | 'rpc'): Promise<void> {
     const addButton = this.page.locator(SELECTORS.addButton(fieldName))
+    await addButton.scrollIntoViewIfNeeded()
     await addButton.waitFor({ state: 'visible', timeout: TIMEOUTS.dialogAppear })
     await addButton.click()
 
