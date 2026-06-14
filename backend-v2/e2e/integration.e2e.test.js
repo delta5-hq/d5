@@ -1,5 +1,5 @@
-import {describe, beforeEach, afterAll, it, expect} from '@jest/globals'
-import {testOrchestrator} from './shared/test-data-factory'
+import {describe, beforeEach, afterEach, afterAll, it, expect} from '@jest/globals'
+import {testOrchestrator, testDataFactory} from './shared/test-data-factory'
 import {subscriberRequest, administratorRequest, customerRequest} from './shared/requests'
 
 describe('Integration Router', () => {
@@ -165,9 +165,6 @@ describe('Integration Router', () => {
     })
 
     it('creates new llmvectors document for deepseek when none exists', async () => {
-      /* prepareTestEnvironment already cleaned MongoDB - guaranteed clean slate */
-      
-      /* First deepseek integration update - triggers insert path in ensureServiceStoreExists */
       const res = await subscriberRequest.put('/integration/deepseek/update').send({
         apiKey: 'sk-deepseek-test-key',
         model: 'deepseek-chat'
@@ -179,10 +176,7 @@ describe('Integration Router', () => {
     })
 
     it('updates existing llmvectors document when adding new service', async () => {
-      /* Setup: Create openai integration first */
       await subscriberRequest.put('/integration/openai/update').send({apiKey: 'openai-key'})
-
-      /* Add deepseek to existing record - triggers update path */
       const res = await subscriberRequest.put('/integration/deepseek/update').send({
         apiKey: 'sk-deepseek-key',
         model: 'deepseek-chat'
@@ -196,7 +190,6 @@ describe('Integration Router', () => {
     })
 
     it('handles multiple services without store isolation violations', async () => {
-      /* Test store.{service} isolation: deepseek, openai, claude */
       await subscriberRequest.put('/integration/deepseek/update').send({apiKey: 'deepseek-key'})
       await subscriberRequest.put('/integration/openai/update').send({apiKey: 'openai-key'})
       await subscriberRequest.put('/integration/claude/update').send({apiKey: 'claude-key'})
@@ -209,15 +202,12 @@ describe('Integration Router', () => {
     })
 
     it('preserves existing service stores when adding new service', async () => {
-      /* Create openai with vectors */
       await subscriberRequest.put('/integration/openai/update').send({apiKey: 'openai-key'})
       const firstRes = await subscriberRequest.get('/integration')
       expect(firstRes.status).toBe(200)
       expect(firstRes.body).toBeDefined()
       expect(typeof firstRes.body).toBe('object')
       expect(firstRes.body).toHaveProperty('openai')
-      
-      /* Add deepseek - should NOT delete openai store */
       await subscriberRequest.put('/integration/deepseek/update').send({apiKey: 'deepseek-key'})
       
       const res = await subscriberRequest.get('/integration')
@@ -301,5 +291,253 @@ describe('Integration Router - Customer Tests', () => {
       expect(typeof res.body.model).toBe('string')
       expect(res.body.model).toBe('gpt-3.5-turbo')
     })
+  })
+})
+
+describe('Array Item Validation — args field contract for mcp and rpc', () => {
+  const INVALID_ARGS_CASES = [
+    {label: 'string scalar',                  args: 'server.js'},
+    {label: 'integer scalar',                 args: 42},
+    {label: 'plain object',                   args: {0: 'server.js'}},
+    {label: 'null',                           args: null},
+    {label: 'array with non-string element',  args: ['server.js', 2]},
+  ]
+
+  const VALID_ARGS_CASES = [
+    {label: 'args field omitted',         payload: {}},
+    {label: 'empty array',                payload: {args: []}},
+    {label: 'single string element',      payload: {args: ['server.js']}},
+    {label: 'multiple string elements',   payload: {args: ['server.js', '--flag', '--p=8']}},
+  ]
+
+  const FIELDS = ['mcp', 'rpc']
+
+  beforeEach(async () => {
+    await testOrchestrator.prepareTestEnvironment()
+  })
+
+  afterAll(async () => {
+    await testOrchestrator.cleanupTestEnvironment()
+  })
+
+  FIELDS.forEach(field => {
+    describe(`/${field}/items`, () => {
+      INVALID_ARGS_CASES.forEach(({label, args}) => {
+        it(`rejects ${label} with HTTP 400 and an error message in the response body`, async () => {
+          const res = await subscriberRequest.post(`/integration/${field}/items`).send({
+            alias: '/args-rejection-probe',
+            transport: 'stdio',
+            command: 'node',
+            args,
+          })
+
+          expect(res.status).toBe(400)
+          expect(res.body).toHaveProperty('message')
+        })
+      })
+
+      VALID_ARGS_CASES.forEach(({label, payload}, index) => {
+        it(`accepts ${label} with HTTP 201`, async () => {
+          const alias = `/acceptance-probe-${field}-${index}`
+          const res = await subscriberRequest.post(`/integration/${field}/items`).send({
+            alias,
+            transport: 'stdio',
+            command: 'node',
+            ...payload,
+          })
+
+          expect(res.status).toBe(201)
+        })
+      })
+    })
+  })
+
+  it('rejected item leaves no trace in GET /integration — write is atomic', async () => {
+    const probe = '/atomicity-probe'
+
+    const addRes = await subscriberRequest.post('/integration/mcp/items').send({
+      alias: probe,
+      transport: 'stdio',
+      command: 'node',
+      args: INVALID_ARGS_CASES[0].args,
+    })
+    expect(addRes.status).toBe(400)
+
+    const getRes = await subscriberRequest.get('/integration')
+    expect(getRes.status).toBe(200)
+    expect((getRes.body.mcp ?? []).map(item => item.alias)).not.toContain(probe)
+  })
+
+  it('sequence of invalid submissions does not corrupt GET /integration', async () => {
+    const probes = INVALID_ARGS_CASES.map(({args}, i) => ({alias: `/corruption-probe-${i}`, args}))
+
+    for (const {alias, args} of probes) {
+      const res = await subscriberRequest.post('/integration/mcp/items').send({
+        alias,
+        transport: 'stdio',
+        command: 'node',
+        args,
+      })
+      expect(res.status).toBe(400)
+    }
+
+    const getRes = await subscriberRequest.get('/integration')
+    expect(getRes.status).toBe(200)
+    const savedAliases = (getRes.body.mcp ?? []).map(item => item.alias)
+    for (const {alias} of probes) {
+      expect(savedAliases).not.toContain(alias)
+    }
+  })
+
+  it('PUT update also validates args and returns 400 with error message for invalid args', async () => {
+    const alias = '/update-args-probe'
+
+    await subscriberRequest.post('/integration/mcp/items').send({
+      alias,
+      transport: 'stdio',
+      command: 'node',
+    })
+
+    const updateRes = await subscriberRequest
+      .put(`/integration/mcp/items/${encodeURIComponent(alias)}`)
+      .send({args: INVALID_ARGS_CASES[0].args})
+
+    expect(updateRes.status).toBe(400)
+    expect(updateRes.body).toHaveProperty('message')
+  })
+})
+
+describe('Array Item Scope Isolation — workflowId segregation', () => {
+  let workflowId
+
+  beforeAll(async () => {
+    await testOrchestrator.prepareTestEnvironment()
+    const wf = await testDataFactory.createWorkflow({title: 'Scope Isolation Workflow', userId: 'subscriber'})
+    workflowId = wf.workflowId
+  })
+
+  beforeEach(async () => {
+    await testOrchestrator.prepareTestEnvironment()
+  })
+
+  afterAll(async () => {
+    await testOrchestrator.cleanupTestEnvironment()
+  })
+
+  it('item added to workflow scope is absent from user-level GET', async () => {
+    const res = await subscriberRequest
+      .post(`/integration/mcp/items?workflowId=${workflowId}`)
+      .send({alias: '/wf-only', transport: 'stdio', command: 'node', toolName: 't'})
+    expect(res.status).toBe(201)
+
+    const userRes = await subscriberRequest.get('/integration')
+    expect(userRes.status).toBe(200)
+    expect((userRes.body.mcp ?? []).map(m => m.alias)).not.toContain('/wf-only')
+  })
+
+  it('workflow-scoped GET includes user-level items via fallback when no workflow doc exists', async () => {
+    const res = await subscriberRequest
+      .post('/integration/mcp/items')
+      .send({alias: '/user-only', transport: 'stdio', command: 'node', toolName: 't'})
+    expect(res.status).toBe(201)
+
+    const wfRes = await subscriberRequest.get(`/integration?workflowId=${workflowId}`)
+    expect(wfRes.status).toBe(200)
+    expect((wfRes.body.mcp ?? []).map(m => m.alias)).toContain('/user-only')
+  })
+
+  it('workflow-scoped GET returns item added at that workflow scope', async () => {
+    await subscriberRequest
+      .post(`/integration/mcp/items?workflowId=${workflowId}`)
+      .send({alias: '/wf-item', transport: 'stdio', command: 'node', toolName: 't'})
+
+    const res = await subscriberRequest.get(`/integration?workflowId=${workflowId}`)
+    expect(res.status).toBe(200)
+    expect((res.body.mcp ?? []).map(m => m.alias)).toContain('/wf-item')
+  })
+
+  it('two different workflow scopes do not share array items', async () => {
+    const wf2 = await testDataFactory.createWorkflow({title: 'Second Isolation Workflow', userId: 'subscriber'})
+
+    await subscriberRequest
+      .post(`/integration/mcp/items?workflowId=${workflowId}`)
+      .send({alias: '/wf1-item', transport: 'stdio', command: 'node', toolName: 't'})
+
+    await subscriberRequest
+      .post(`/integration/mcp/items?workflowId=${wf2.workflowId}`)
+      .send({alias: '/wf2-item', transport: 'stdio', command: 'node', toolName: 't'})
+
+    const res1 = await subscriberRequest.get(`/integration?workflowId=${workflowId}`)
+    const res2 = await subscriberRequest.get(`/integration?workflowId=${wf2.workflowId}`)
+
+    expect((res1.body.mcp ?? []).map(m => m.alias)).toContain('/wf1-item')
+    expect((res1.body.mcp ?? []).map(m => m.alias)).not.toContain('/wf2-item')
+    expect((res2.body.mcp ?? []).map(m => m.alias)).toContain('/wf2-item')
+    expect((res2.body.mcp ?? []).map(m => m.alias)).not.toContain('/wf1-item')
+  })
+
+  it('DELETE of workflow-scoped item is idempotent for non-existent alias', async () => {
+    const res = await subscriberRequest
+      .delete(`/integration/mcp/items/${encodeURIComponent('/ghost')}?workflowId=${workflowId}`)
+    expect(res.status).toBe(204)
+  })
+
+  it('DELETE of user-scope item is idempotent for non-existent alias', async () => {
+    const res = await subscriberRequest
+      .delete(`/integration/mcp/items/${encodeURIComponent('/ghost')}`)
+    expect(res.status).toBe(204)
+  })
+
+  it('DELETE of workflow-scoped item does not affect same alias at user scope', async () => {
+    await subscriberRequest
+      .post('/integration/mcp/items')
+      .send({alias: '/shared-alias', transport: 'stdio', command: 'node', toolName: 'user'})
+    await subscriberRequest
+      .post(`/integration/mcp/items?workflowId=${workflowId}`)
+      .send({alias: '/shared-alias', transport: 'stdio', command: 'node', toolName: 'wf'})
+
+    await subscriberRequest
+      .delete(`/integration/mcp/items/${encodeURIComponent('/shared-alias')}?workflowId=${workflowId}`)
+
+    const userRes = await subscriberRequest.get('/integration')
+    expect((userRes.body.mcp ?? []).find(m => m.alias === '/shared-alias')?.toolName).toBe('user')
+  })
+
+  it('after last workflow-scoped item deleted, GET with workflowId falls back to user-level', async () => {
+    await subscriberRequest
+      .post('/integration/mcp/items')
+      .send({alias: '/fallback-anchor', transport: 'stdio', command: 'node', toolName: 'user'})
+    await subscriberRequest
+      .post(`/integration/mcp/items?workflowId=${workflowId}`)
+      .send({alias: '/wf-only-item', transport: 'stdio', command: 'node', toolName: 'wf'})
+
+    await subscriberRequest
+      .delete(`/integration/mcp/items/${encodeURIComponent('/wf-only-item')}?workflowId=${workflowId}`)
+
+    const res = await subscriberRequest.get(`/integration?workflowId=${workflowId}`)
+    expect((res.body.mcp ?? []).map(m => m.alias)).toContain('/fallback-anchor')
+    expect((res.body.mcp ?? []).map(m => m.alias)).not.toContain('/wf-only-item')
+  })
+
+  it('empty workflowId query param is treated as user scope', async () => {
+    const res = await subscriberRequest
+      .post('/integration/mcp/items?workflowId=')
+      .send({alias: '/empty-wf-id', transport: 'stdio', command: 'node', toolName: 't'})
+    expect(res.status).toBe(201)
+
+    const userRes = await subscriberRequest.get('/integration')
+    expect((userRes.body.mcp ?? []).map(m => m.alias)).toContain('/empty-wf-id')
+  })
+
+  it('RPC items obey scope isolation identically to MCP items', async () => {
+    await subscriberRequest
+      .post(`/integration/rpc/items?workflowId=${workflowId}`)
+      .send({alias: '/wf-rpc', protocol: 'http', url: 'https://wf.example.com'})
+
+    const userRes = await subscriberRequest.get('/integration')
+    expect((userRes.body.rpc ?? []).map(r => r.alias)).not.toContain('/wf-rpc')
+
+    const wfRes = await subscriberRequest.get(`/integration?workflowId=${workflowId}`)
+    expect((wfRes.body.rpc ?? []).map(r => r.alias)).toContain('/wf-rpc')
   })
 })

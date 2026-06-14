@@ -18,6 +18,11 @@ const subscriberCredentials = (): AuthCredentials => ({
   password: e2eEnv.E2E_SUBSCRIBER_PASS || 'P@ssw0rd!',
 })
 
+export const customerCredentials = (): AuthCredentials => ({
+  usernameOrEmail: 'customer',
+  password: 'P@ssw0rd!',
+})
+
 export const credentialsForWorker = (parallelIndex: number): AuthCredentials =>
   parallelIndex === 0 ? adminCredentials() : subscriberCredentials()
 
@@ -30,10 +35,7 @@ function workerScopedAuthTest(filePrefix: string, resolveCredentials: (parallelI
         fs.mkdirSync(dir, { recursive: true })
 
         const credentials = resolveCredentials(workerInfo.parallelIndex)
-        const fileName = path.join(
-          dir,
-          `${filePrefix}.${workerInfo.project.name}.${workerInfo.parallelIndex}.json`,
-        )
+        const fileName = path.join(dir, `${filePrefix}.${workerInfo.project.name}.${workerInfo.parallelIndex}.json`)
 
         await establishWorkerSession(
           browser,
@@ -56,4 +58,8 @@ export function createParallelUserTest(filePrefix: string) {
 
 export function createAdminTest(filePrefix: string) {
   return workerScopedAuthTest(filePrefix, () => adminCredentials())
+}
+
+export function createCustomerTest(filePrefix: string) {
+  return workerScopedAuthTest(filePrefix, () => customerCredentials())
 }

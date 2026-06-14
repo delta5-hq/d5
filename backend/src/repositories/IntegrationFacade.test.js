@@ -187,7 +187,11 @@ describe('IntegrationFacade', () => {
       IntegrationRepository.findByWorkflow = jest.fn()
     })
 
-    it('returns global doc only when workflowId is null', async () => {
+    it.each([
+      ['null', null],
+      ['undefined', undefined],
+      ['empty string', ''],
+    ])('uses findBothDocs for %s workflowId without direct repo calls', async (_label, workflowId) => {
       const globalDoc = {userId: 'user-1', workflowId: null, openai: {apiKey: 'encrypted'}}
       const decrypted = {userId: 'user-1', workflowId: null, openai: {apiKey: 'sk-key'}}
 
@@ -195,25 +199,12 @@ describe('IntegrationFacade', () => {
       decryptFields.mockReturnValue(decrypted)
       IntegrationMerger.merge.mockReturnValue(decrypted)
 
-      const result = await IntegrationFacade.findMergedDecrypted('user-1', null)
+      const result = await IntegrationFacade.findMergedDecrypted('user-1', workflowId)
 
       expect(result).toEqual(decrypted)
       expect(IntegrationRepository.findBothDocs).toHaveBeenCalledWith('user-1', null)
       expect(IntegrationRepository.findByUser).not.toHaveBeenCalled()
       expect(IntegrationRepository.findByWorkflow).not.toHaveBeenCalled()
-    })
-
-    it('returns global doc only when workflowId is undefined', async () => {
-      const globalDoc = {userId: 'user-1', workflowId: null, openai: {apiKey: 'encrypted'}}
-      const decrypted = {userId: 'user-1', workflowId: null, openai: {apiKey: 'sk-key'}}
-
-      IntegrationRepository.findBothDocs.mockResolvedValue({appWide: globalDoc, workflow: null})
-      decryptFields.mockReturnValue(decrypted)
-      IntegrationMerger.merge.mockReturnValue(decrypted)
-
-      const result = await IntegrationFacade.findMergedDecrypted('user-1')
-
-      expect(result).toEqual(decrypted)
     })
 
     it('fetches and decrypts both docs with correct AAD when workflowId is set', async () => {
@@ -234,6 +225,7 @@ describe('IntegrationFacade', () => {
 
       const result = await IntegrationFacade.findMergedDecrypted('user-1', 'wf-1')
 
+      expect(IntegrationRepository.findBothDocs).not.toHaveBeenCalled()
       expect(IntegrationRepository.findByUser).toHaveBeenCalledWith('user-1')
       expect(IntegrationRepository.findByWorkflow).toHaveBeenCalledWith('user-1', 'wf-1')
       expect(decryptFields).toHaveBeenCalledWith(globalDoc, expect.any(Object), {
@@ -376,7 +368,11 @@ describe('IntegrationFacade', () => {
       IntegrationRepository.findByWorkflow = jest.fn()
     })
 
-    it('returns merged and null workflowDoc when workflowId is null', async () => {
+    it.each([
+      ['null', null],
+      ['undefined', undefined],
+      ['empty string', ''],
+    ])('returns {merged, workflowDoc:null} for %s workflowId without direct repo calls', async (_label, workflowId) => {
       const globalDoc = {userId: 'user-1', workflowId: null, openai: {apiKey: 'encrypted'}}
       const decrypted = {userId: 'user-1', workflowId: null, openai: {apiKey: 'sk-key'}}
 
@@ -384,9 +380,10 @@ describe('IntegrationFacade', () => {
       decryptFields.mockReturnValue(decrypted)
       IntegrationMerger.merge.mockReturnValue(decrypted)
 
-      const result = await IntegrationFacade.findMergedDecryptedWithMetadata('user-1', null)
+      const result = await IntegrationFacade.findMergedDecryptedWithMetadata('user-1', workflowId)
 
       expect(result).toEqual({merged: decrypted, workflowDoc: null})
+      expect(IntegrationRepository.findBothDocs).toHaveBeenCalledWith('user-1', null)
       expect(IntegrationRepository.findByUser).not.toHaveBeenCalled()
       expect(IntegrationRepository.findByWorkflow).not.toHaveBeenCalled()
     })
@@ -407,6 +404,7 @@ describe('IntegrationFacade', () => {
 
       const result = await IntegrationFacade.findMergedDecryptedWithMetadata('user-1', 'wf-1')
 
+      expect(IntegrationRepository.findBothDocs).not.toHaveBeenCalled()
       expect(result.merged.openai).toEqual({apiKey: 'g-key'})
       expect(result.merged.claude).toEqual({apiKey: 'w-key'})
       expect(result.workflowDoc).toEqual(decryptedWorkflow)
@@ -423,6 +421,7 @@ describe('IntegrationFacade', () => {
 
       const result = await IntegrationFacade.findMergedDecryptedWithMetadata('user-1', 'wf-1')
 
+      expect(IntegrationRepository.findBothDocs).not.toHaveBeenCalled()
       expect(result.merged).toEqual(decryptedGlobal)
       expect(result.workflowDoc).toBeNull()
     })

@@ -2,13 +2,8 @@ import {INITIAL_OPENAI_MODEL_NAME, OPENAI_API_KEY, OPENAI_MODELS} from '../../co
 import Integration from '../../models/Integration'
 
 export const createOpenaiIntegration = async userId => {
-  let model = INITIAL_OPENAI_MODEL_NAME
-  if (!OPENAI_API_KEY) {
-    model = OPENAI_MODELS.GPT_4_1_MINI
-  }
-
-  const openai = {model}
-  const update = {$set: {userId, openai}}
-  const options = {upsert: true}
-  await Integration.updateOne({userId}, update, options)
+  const model = OPENAI_API_KEY ? INITIAL_OPENAI_MODEL_NAME : OPENAI_MODELS.GPT_4_1_MINI
+  const filter = {userId, workflowId: null}
+  const update = {$set: {userId, workflowId: null, openai: {model}}}
+  await Integration.updateOne(filter, update, {upsert: true})
 }

@@ -1,6 +1,8 @@
 import { test, expect, type Browser } from '@playwright/test'
 
 import { establishWorkerSession, exponentialDelay, MAX_AUTH_RETRIES, AUTH_RETRY_BASE_DELAY_MS, AUTH_MAX_DELAY_MS } from './worker-session'
+import { credentialsForWorker, customerCredentials } from './parallel-user-test'
+import { e2eEnv } from '../utils/e2e-env-vars'
 
 const CREDENTIALS = { usernameOrEmail: 'worker@test.com', password: 'secret' }
 const SESSION_PATH = '/tmp/pw-unit-test-session.json'
@@ -418,4 +420,60 @@ test.describe('mixed-phase failure sequences', () => {
     expect(records[1].closeCalled).toBe(true)
   })
 })
+test.describe('credential factories', () => {
+  test.describe('credentialsForWorker — index-to-role mapping', () => {
+    test('resolves admin credentials for parallelIndex 0', () => {
+      const { usernameOrEmail } = credentialsForWorker(0)
+      expect(usernameOrEmail).toBe(e2eEnv.E2E_ADMIN_USER)
+    })
 
+    test('resolves a non-admin account for every non-zero parallelIndex', () => {
+      for (const index of [1, 2, 3]) {
+        const { usernameOrEmail } = credentialsForWorker(index)
+        expect(usernameOrEmail).not.toBe(e2eEnv.E2E_ADMIN_USER)
+        expect(usernameOrEmail.length).toBeGreaterThan(0)
+      }
+    })
+
+    test('returns an AuthCredentials-shaped object at every index', () => {
+      for (const index of [0, 1]) {
+        const { usernameOrEmail, password } = credentialsForWorker(index)
+        expect(typeof usernameOrEmail).toBe('string')
+        expect(typeof password).toBe('string')
+      }
+    })
+
+    test('index 0 and index 1 resolve to different accounts', () => {
+      expect(credentialsForWorker(0).usernameOrEmail).not.toBe(
+        credentialsForWorker(1).usernameOrEmail,
+      )
+    })
+  })
+
+  test.describe('customerCredentials — constant-resolver invariant', () => {
+    test('always resolves to the customer account', () => {
+      expect(customerCredentials().usernameOrEmail).toBe('customer')
+    })
+
+    test('is distinct from admin credentials (index 0)', () => {
+      expect(customerCredentials().usernameOrEmail).not.toBe(credentialsForWorker(0).usernameOrEmail)
+    })
+
+    test('is distinct from subscriber credentials (index 1)', () => {
+      expect(customerCredentials().usernameOrEmail).not.toBe(credentialsForWorker(1).usernameOrEmail)
+    })
+
+    test('returns an AuthCredentials-shaped object', () => {
+      const { usernameOrEmail, password } = customerCredentials()
+      expect(typeof usernameOrEmail).toBe('string')
+      expect(typeof password).toBe('string')
+    })
+
+    test('returns a new object per invocation with equal values — not a shared singleton', () => {
+      const first = customerCredentials()
+      const second = customerCredentials()
+      expect(first).not.toBe(second)
+      expect(first).toEqual(second)
+    })
+  })
+})

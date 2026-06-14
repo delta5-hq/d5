@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
 
-import { createParallelUserTest } from './parallel-user-test'
+import { createParallelUserTest, createCustomerTest } from './parallel-user-test'
 
 const test = createParallelUserTest('parallel-user-fixture-spec')
 
@@ -66,4 +66,45 @@ test.describe('createParallelUserTest', () => {
       expect(response.ok()).toBe(true)
     }
   })
+})
+
+const customerTest = createCustomerTest('customer-fixture-spec')
+
+const CUSTOMER_ROLE = 'customer'
+
+customerTest.describe('createCustomerTest', () => {
+  customerTest('session is pre-established — protected API returns 200 without explicit login', async ({ page }) => {
+    const response = await page.request.get('/api/v2/integration')
+    expect(response.ok()).toBe(true)
+  })
+
+  customerTest('all workers authenticate as the customer role, never as administrator', async ({ page }) => {
+    const response = await page.request.get('/api/v2/users/current')
+    expect(response.ok()).toBe(true)
+
+    const user: { id: string; roles: string[] } = await response.json()
+    expect(user.roles).toContain(CUSTOMER_ROLE)
+    expect(user.roles).not.toContain('administrator')
+  })
+
+  customerTest(
+    "integration data is scoped to the customer user — writes are not visible to admin or subscriber sessions",
+    async ({ page }) => {
+      const alias = '/pw-customer-isolation-probe'
+
+      await page.request.delete(`/api/v2/integration/mcp/items/${encodeURIComponent(alias)}`)
+
+      const writeResponse = await page.request.post('/api/v2/integration/mcp/items', {
+        data: { alias, transport: 'stdio', toolName: 'echo', command: 'node' },
+      })
+      expect(writeResponse.status()).toBe(201)
+
+      const readResponse = await page.request.get('/api/v2/integration')
+      const integration: { mcp: { alias: string }[] } = await readResponse.json()
+      const aliases = (integration.mcp ?? []).map(item => item.alias)
+      expect(aliases).toContain(alias)
+
+      await page.request.delete(`/api/v2/integration/mcp/items/${encodeURIComponent(alias)}`)
+    },
+  )
 })

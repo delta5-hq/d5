@@ -1,5 +1,6 @@
 import { type Page, type Locator, expect } from '@playwright/test'
 import { waitForLocatorLayoutBox } from '../helpers/wait-for-layout'
+import { waitForIntegrationCategoryReady } from '../helpers/wait-for-integration-category'
 import { selectRadixOption } from '../helpers/radix-select-helper'
 
 const TIMEOUTS = {
@@ -75,27 +76,31 @@ export class ArrayIntegrationPage {
       return
     }
 
-    if (!(await integrationsTab.isVisible())) {
-      return
-    }
+    await integrationsTab.scrollIntoViewIfNeeded()
+    await integrationsTab.waitFor({ state: 'visible', timeout: TIMEOUTS.dialogAppear })
 
     if ((await integrationsTab.getAttribute('data-state')) !== 'active') {
       await integrationsTab.click()
     }
 
     await expect(integrationsTab).toHaveAttribute('data-state', 'active', { timeout: TIMEOUTS.dialogAppear })
+
+    await this.page
+      .locator('[data-type="add-integration"]')
+      .waitFor({ state: 'visible', timeout: TIMEOUTS.dialogAppear })
+
+    await waitForIntegrationCategoryReady(this.page, TIMEOUTS.apiResponse)
   }
 
   async openAddDialog(fieldName: 'mcp' | 'rpc'): Promise<void> {
     await this.activateIntegrationsTab()
 
-    const addButtonSelector = SELECTORS.addButton(fieldName)
-    const addButton = this.page.locator(addButtonSelector).first()
+    const addButton = this.page.locator(SELECTORS.addButton(fieldName)).first()
 
     await addButton.waitFor({ state: 'visible', timeout: TIMEOUTS.dialogAppear })
     await expect(addButton).toBeEnabled({ timeout: TIMEOUTS.dialogAppear })
-    await waitForLocatorLayoutBox(addButton, TIMEOUTS.dialogAppear)
     await addButton.scrollIntoViewIfNeeded()
+    await waitForLocatorLayoutBox(addButton, TIMEOUTS.dialogAppear)
     await addButton.click({ trial: true })
     await addButton.click()
 
