@@ -10,6 +10,7 @@ import {clearReferences} from './references/utils/referenceUtils'
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
+import {throwIfAborted, throwIfAbortError} from './utils/executionSignal'
 import {createContextForChat} from './utils/createContextForChat'
 
 const log = debug('delta5:app:Command:Chat')
@@ -26,18 +27,19 @@ export class ChatCommand {
     this.logError = this.log.extend('ERROR*', '::')
   }
 
-  async replyChatOpenAIAPI(messages) {
+  async replyChatOpenAIAPI(messages, options = {}) {
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     const {llm} = getLLM({type: Model.OpenAI, settings, log: this.log})
 
     const result = await llm.invoke(
       messages.map(m => (m.role === 'system' ? new SystemMessage(m.content) : new HumanMessage(m.content))),
+      options,
     )
 
     return result.content
   }
 
-  async run(node, context, originalPrompt) {
+  async run(node, context, originalPrompt, options = {}) {
     try {
       let prompt = originalPrompt
       const title = node?.command || node?.title
@@ -64,20 +66,25 @@ export class ChatCommand {
           },
         ]
 
-        const text = await this.replyChatOpenAIAPI(messages)
+        const text = await this.replyChatOpenAIAPI(messages, options)
 
+        throwIfAborted(options.signal)
         this.store.importer.createTable(text, node.id)
       } else {
-        const text = await this.replyChatOpenAIAPI([{role: 'user', content: prompt}])
+        const text = await this.replyChatOpenAIAPI([{role: 'user', content: prompt}], options)
 
         if (readJoinParam(title)) {
+          throwIfAborted(options.signal)
           this.store.importer.createJoinNode(text, node.id)
         } else {
+          throwIfAborted(options.signal)
           this.store.importer.createNodes(text, node.id)
         }
       }
     } catch (e) {
+      throwIfAbortError(e)
       this.logError(e)
+      throwIfAborted(options.signal)
       this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }
   }

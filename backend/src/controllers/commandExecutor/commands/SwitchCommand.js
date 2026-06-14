@@ -12,6 +12,7 @@ import {isAnyCommand} from './utils/commandRecognition'
 import {composeAllDynamicAliases} from './utils/aliasComposition'
 import {resolveCommand} from './utils/queryTypeResolver'
 import {determineLLMType, getIntegrationSettings, getLLM} from './utils/langchain/getLLM'
+import {throwIfAborted, signalOptions} from './utils/executionSignal'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 const log = debug('delta5:app:Command:Switch')
@@ -58,10 +59,10 @@ export class SwitchCommand {
     return options
   }
 
-  async executeSwitch(userPrompt, sysPrompt, llm) {
+  async executeSwitch(userPrompt, sysPrompt, llm, signal) {
     try {
       const messages = [new SystemMessage(sysPrompt), new HumanMessage(userPrompt)]
-      const result = await llm.invoke(messages)
+      const result = await llm.invoke(messages, signalOptions(signal))
 
       return result.content
     } catch (error) {
@@ -70,7 +71,8 @@ export class SwitchCommand {
     }
   }
 
-  async processPromptAndExecuteCase(node, prompt) {
+  async processPromptAndExecuteCase(node, prompt, signal) {
+    throwIfAborted(signal)
     const options = this.getCaseOptions(node)
     const formattedOptions = Object.keys(options)
       .map(str => `'${str}'`)
@@ -82,7 +84,7 @@ export class SwitchCommand {
 
     const {llm} = getLLM({type: llmType, settings})
 
-    const caseValue = await this.executeSwitch(prompt, sysPrompt, llm)
+    const caseValue = await this.executeSwitch(prompt, sysPrompt, llm, signal)
     if (!caseValue) {
       return []
     }
@@ -96,6 +98,7 @@ export class SwitchCommand {
       const allDynamicAliases = composeAllDynamicAliases(this.store._aliases)
 
       for (let i = 0; i < caseNodeChildren.length; i += 1) {
+        throwIfAborted(signal)
         const executeNode = caseNodeChildren[i]
         const command = executeNode.command || executeNode.title
 
@@ -109,6 +112,7 @@ export class SwitchCommand {
               store: this.store,
               mcpAlias,
               rpcAlias,
+              signal,
             },
             this.progress,
           )
@@ -117,7 +121,7 @@ export class SwitchCommand {
     }
   }
 
-  async run(node, originalPrompt) {
+  async run(node, originalPrompt, options = {}) {
     let prompt = originalPrompt
     const title = node?.command || node?.title
 
@@ -129,7 +133,7 @@ export class SwitchCommand {
       )
     }
 
-    await this.processPromptAndExecuteCase(node, prompt)
+    await this.processPromptAndExecuteCase(node, prompt, options.signal)
   }
 
   getOptionsKeyFromExecutionResult(str) {

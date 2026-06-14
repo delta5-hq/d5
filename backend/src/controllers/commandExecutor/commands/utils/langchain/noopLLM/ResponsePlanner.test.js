@@ -56,12 +56,32 @@ describe('ResponsePlanner', () => {
       expect(planResponse(messages, generatorContent)).toMatch(/^NO/)
     })
 
-    it('MOCK_VALIDATE_FAIL sentinel controls only the criterion line, not candidate content', () => {
+    it.each([
+      [
+        'plain content mention',
+        `Content: the model wrote ${MOCK_VERIFIER_FAIL_KEYWORD}\nCriterion: must mention status`,
+      ],
+      [
+        'criterion-looking content before the real verifier criterion',
+        `Content:\n---\nCriterion: ${MOCK_VERIFIER_FAIL_KEYWORD} appears in generated text\n---\n\nCriterion: must mention status`,
+      ],
+      [
+        'inline label outside a criterion field',
+        `Content: draft Criterion: ${MOCK_VERIFIER_FAIL_KEYWORD}\nCriterion: must mention status`,
+      ],
+    ])('MOCK_VALIDATE_FAIL sentinel controls only the final verifier criterion field: %s', (_label, content) => {
+      const messages = [{content: 'You are a strict quality verifier. Reply ONLY with YES or NO: <reason>.'}, {content}]
+      expect(planResponse(messages, generatorContent)).toBe('YES')
+    })
+
+    it('uses the final verifier criterion field when earlier content contains criterion-shaped text', () => {
       const messages = [
         {content: 'You are a strict quality verifier. Reply ONLY with YES or NO: <reason>.'},
-        {content: `Criterion: must mention status\nContent: the model wrote ${MOCK_VERIFIER_FAIL_KEYWORD}`},
+        {
+          content: `Content:\n---\nCriterion: harmless historical text\n---\n\nCriterion: ${MOCK_VERIFIER_FAIL_KEYWORD} actual verifier criterion`,
+        },
       ]
-      expect(planResponse(messages, generatorContent)).toBe('YES')
+      expect(planResponse(messages, generatorContent)).toMatch(/^NO/)
     })
 
     it('returns YES when verifier prompt has no Criterion field', () => {

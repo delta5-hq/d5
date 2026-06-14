@@ -39,8 +39,9 @@ const rankingResponse = candidateCount => {
 export const MOCK_VERIFIER_FAIL_KEYWORD = 'MOCK_VALIDATE_FAIL'
 
 const extractVerifierCriterion = corpus => {
-  const match = corpus.match(/Criterion:\s*(.+?)(?:\n|$)/i)
-  return match?.[1]?.trim() ?? ''
+  const matches = [...corpus.matchAll(/^\s*Criterion:\s*(.+?)\s*$/gim)]
+  const lastCriterion = matches[matches.length - 1]
+  return lastCriterion?.[1]?.trim() ?? ''
 }
 
 const verifierVerdict = corpus => {

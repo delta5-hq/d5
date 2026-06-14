@@ -96,7 +96,7 @@ class CommandFactory {
    * @param {string} prompt - Prompt string
    * @returns {Function} (store, progress) => Promise<void>
    */
-  static createRunner(queryType, cell, context, prompt) {
+  static createRunner(queryType, cell, context, prompt, options = {}) {
     return async (store, progress) => {
       const command = this.createCommand(queryType, store, progress)
       const resolvedCell = store.getNode(cell.id) || cell
@@ -109,7 +109,7 @@ class CommandFactory {
         case DEEPSEEK_QUERY_TYPE:
         case CUSTOM_LLM_CHAT_QUERY_TYPE:
         case YANDEX_QUERY_TYPE:
-          return command.run(resolvedCell, context, prompt)
+          return command.run(resolvedCell, context, prompt, options)
 
         case OUTLINE_QUERY_TYPE:
         case SUMMARIZE_QUERY_TYPE:
@@ -118,13 +118,13 @@ class CommandFactory {
         case DOWNLOAD_QUERY_TYPE:
         case EXT_QUERY_TYPE:
         case SWITCH_QUERY_TYPE:
-          return command.run(resolvedCell, prompt)
+          return command.run(resolvedCell, prompt, options)
 
         case COMPLETION_QUERY_TYPE:
         case MEMORIZE_QUERY_TYPE:
         case FOREACH_QUERY_TYPE:
         case STEPS_QUERY_TYPE:
-          return command.run(resolvedCell)
+          return command.run(resolvedCell, options)
 
         default:
           throw new Error(`Unknown queryType: ${queryType}`)

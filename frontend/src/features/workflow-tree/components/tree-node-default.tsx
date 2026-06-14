@@ -17,7 +17,7 @@ import {
 } from '@shared/ui/context-menu'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
-import { extractReliabilitySuffix } from '@shared/lib/reliability-suffix'
+import { attachReliabilitySuffix, extractReliabilitySuffix } from '@shared/lib/reliability-suffix'
 import type { TreeNodeProps } from '../core/types'
 import { INDENT_PER_LEVEL, ROW_HEIGHT, WIRE_PADDING, BASE_PADDING } from '../core/constants'
 import { areTreeNodePropsEqual } from '../core/tree-node-memo'
@@ -202,7 +202,7 @@ export const TreeNodeDefault = ({
 
   const handleRename = useCallback(
     (newTitle: string) => {
-      onRename?.(id, suffix ? `${newTitle}${suffix}` : newTitle)
+      onRename?.(id, attachReliabilitySuffix(newTitle, suffix))
     },
     [id, onRename, suffix],
   )

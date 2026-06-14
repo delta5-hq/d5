@@ -115,6 +115,16 @@ describe('ChatCommand', () => {
       expect(getLLM).toHaveBeenCalledWith(expect.objectContaining({settings}))
     })
 
+    it('forwards abort signal to the LLM invocation', async () => {
+      const signal = new AbortController().signal
+      getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k', model: 'm'}})
+      callSpy.mockResolvedValue({content: 'ok'})
+
+      await command.replyChatOpenAIAPI([{role: 'user', content: 'hello'}], {signal})
+
+      expect(callSpy.mock.calls[0][1]?.signal).toBe(signal)
+    })
+
     it('maps any non-system role (assistant, unknown) to HumanMessage', async () => {
       getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k'}})
       callSpy.mockResolvedValue({content: 'ok'})

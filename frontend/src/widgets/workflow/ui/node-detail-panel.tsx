@@ -12,7 +12,11 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@shared/ui/
 import { Eye, FileText, Folder, Play, Loader2, Square, Copy, Trash2, Plus, ChevronRight, ArrowLeft } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
-import { extractReliabilitySuffix, isTitleDerivedFromCommand } from '@shared/lib/reliability-suffix'
+import {
+  attachReliabilitySuffix,
+  extractReliabilitySuffix,
+  isTitleDerivedFromCommand,
+} from '@shared/lib/reliability-suffix'
 import { NodeTitleEditor } from './node-title-editor'
 import { NodePreviewSection } from './node-preview-section'
 import { CommandField } from './command-field'
@@ -103,7 +107,7 @@ export const NodeDetailPanel = ({
 
   const handleTitleChange = useCallback(
     (title: string) => {
-      onUpdateNode(node.id, { title: nodeTitleSuffix ? `${title} ${nodeTitleSuffix}` : title })
+      onUpdateNode(node.id, { title: attachReliabilitySuffix(title, nodeTitleSuffix) })
     },
     [node.id, nodeTitleSuffix, onUpdateNode],
   )

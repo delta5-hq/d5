@@ -3,6 +3,7 @@ import {clearCommandsWithParams} from '../constants'
 import {clearStepsPrefix} from '../constants/steps'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import {getIntegrationSettings} from './utils/langchain/getLLM'
+import {resolveCustomLLMSettings} from './utils/langchain/customLLMSettings'
 import {HumanMessage, SystemMessage} from '@langchain/core/messages'
 import {referencePatterns} from './references/utils/referencePatterns'
 import {clearReferences} from './references/utils/referenceUtils'
@@ -10,6 +11,7 @@ import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstant
 import {CustomLLMChat} from './utils/langchain/CustomLLMChat'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
+import {throwIfAborted, throwIfAbortError} from './utils/executionSignal'
 import {createContextForChat} from './utils/createContextForChat'
 
 const log = debug('delta5:app:Command:CustomLLM')
@@ -35,26 +37,27 @@ export class CustomLLMChatCommand {
     this.logError = this.log.extend('ERROR*', '::')
   }
 
-  async replyChat(messages) {
+  async replyChat(messages, options = {}) {
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
-    const {custom_llm} = settings
+    const customLLMSettings = resolveCustomLLMSettings(settings)
 
     const llm = new CustomLLMChat({
-      apiRootUrl: custom_llm.apiRootUrl,
-      apiType: custom_llm.apiType,
-      apiKey: custom_llm.apiKey,
+      apiRootUrl: customLLMSettings.apiRootUrl,
+      apiType: customLLMSettings.apiType,
+      apiKey: customLLMSettings.apiKey,
     })
 
     const result = await llm.invoke(
       messages.map(m => {
         return m.role === 'system' ? new SystemMessage(m.content) : new HumanMessage(m.content)
       }),
+      options,
     )
 
     return result.content
   }
 
-  async run(node, context, originalPrompt) {
+  async run(node, context, originalPrompt, options = {}) {
     try {
       let prompt = originalPrompt
       const title = node?.command || node?.title
@@ -69,11 +72,14 @@ export class CustomLLMChatCommand {
 
       prompt = context ? context + prompt : createContextForChat(node, {store: this.store}) + prompt
 
-      const text = await this.replyChat([{role: 'user', content: prompt}])
+      const text = await this.replyChat([{role: 'user', content: prompt}], options)
 
+      throwIfAborted(options.signal)
       this.store.importer.createNodes(text, node.id)
     } catch (e) {
+      throwIfAbortError(e)
       this.logError(e)
+      throwIfAborted(options.signal)
       this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }
   }

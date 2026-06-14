@@ -9,12 +9,7 @@ import {
   getYandexModelSettings,
   modelNotSupportTemperature,
 } from './getModelSettings'
-import {
-  DEEPSEEK_DEFAULT_MODEL,
-  CustomLLMApiType,
-  QWEN_DEFAULT_MODEL,
-  YANDEX_DEFAULT_MODEL,
-} from '../../../../../constants'
+import {DEEPSEEK_DEFAULT_MODEL, QWEN_DEFAULT_MODEL, YANDEX_DEFAULT_MODEL} from '../../../../../constants'
 import {OpenAIEmbeddings} from '@langchain/openai'
 import {readLangParam} from '../../../constants'
 import {Lang} from '../../../constants/localizedPrompts'
@@ -30,6 +25,7 @@ import {ChatClaude} from './Anthropic'
 import {CustomLLMChat, CustomEmbeddings} from './CustomLLMChat'
 import {createNoopLLM} from './noopLLM'
 import {canUseMockExternalServices} from './MockExternalServices'
+import {resolveCustomLLMSettings} from './customLLMSettings'
 
 export const Model = {
   YandexGPT: 'YandexGPT',
@@ -199,15 +195,12 @@ export const getLLM = ({type, settings, log, thinkingBudgetTokens = null}) => {
       return {llm, chunkSize}
     }
     case Model.CustomLLM: {
-      const {
-        apiRootUrl = '',
-        apiType = CustomLLMApiType.OpenAI_Compatible,
-        maxTokens = 30000,
-      } = settings?.custom_llm || {}
+      const {apiRootUrl, apiType, apiKey, maxTokens = 30000} = resolveCustomLLMSettings(settings)
 
       const llm = new CustomLLMChat({
         apiType,
         apiRootUrl,
+        apiKey,
       })
 
       return {llm, chunkSize: maxTokens}

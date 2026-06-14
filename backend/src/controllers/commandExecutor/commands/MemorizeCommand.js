@@ -9,6 +9,7 @@ import {NodeTextExtractor} from './utils/NodeTextExtractor'
 import {getNodeCommand} from './utils/isCommand'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
+import {throwIfAbortError} from './utils/executionSignal'
 
 const log = debug('app:Command:Memorize')
 
@@ -175,6 +176,7 @@ export class MemorizeCommand {
       const chunks = await this.processChunks(startNode, rechunk, {split})
       await this.saveEmbeddings(vectorStore, chunks, keep)
     } catch (e) {
+      throwIfAbortError(e)
       this.logError(e)
     }
   }

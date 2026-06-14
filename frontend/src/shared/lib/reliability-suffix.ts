@@ -27,3 +27,10 @@ export const extractReliabilitySuffix = (title: string): { baseTitle: string; su
   const suffix = title.slice(baseTitle.length).trim()
   return { baseTitle: baseTitle.trimEnd(), suffix: suffix || null }
 }
+
+export const attachReliabilitySuffix = (title: string, suffix: string | null): string => {
+  const baseTitle = title.trimEnd()
+  if (!suffix) return baseTitle
+  if (!baseTitle) return suffix
+  return `${baseTitle} ${suffix}`
+}

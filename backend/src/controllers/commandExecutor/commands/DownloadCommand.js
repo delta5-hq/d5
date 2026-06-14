@@ -9,6 +9,7 @@ import {Readable} from 'stream'
 import {referencePatterns} from './references/utils/referencePatterns'
 import {clearReferences} from './references/utils/referenceUtils'
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
+import {throwIfAbortError, throwIfAborted} from './utils/executionSignal'
 
 const log = debug('app:Command:Download')
 const logError = log.extend('ERROR*', '::')
@@ -89,6 +90,7 @@ export class DownloadCommand {
       this.store.createFile(fileId, content)
       return {fileNode, fileId}
     } catch (e) {
+      throwIfAbortError(e)
       logError('Error when trying to create file', e)
       return {error: e}
     }
@@ -150,6 +152,7 @@ export class DownloadCommand {
   }
 
   async insertFileToWorkflow(node, input, params) {
+    throwIfAborted(params?.signal)
     const urls = this.extractUniqueUrls(input)
 
     if (!urls.length) {
@@ -159,6 +162,7 @@ export class DownloadCommand {
     let parsed
     try {
       parsed = await this.scrape(urls, params)
+      throwIfAborted(params?.signal)
     } catch (error) {
       this.writeFailure(node, `Download failed for ${summarizeUrls(urls)}: ${error?.message || error}`)
       return {urls, createdNodes: [], duplicatedNodes: [], failures: [error]}
@@ -194,6 +198,7 @@ export class DownloadCommand {
     const failedFiles = []
 
     if (newFilesData.length) {
+      throwIfAborted(params?.signal)
       const results = await Promise.all(newFilesData.map(data => this.saveFile(node, data)))
       results.forEach((result, index) => {
         if (result?.fileNode) {
@@ -227,7 +232,7 @@ export class DownloadCommand {
     this.store.importer.createErrorNode(message, node.id)
   }
 
-  async run(node, originalPrompt) {
+  async run(node, originalPrompt, options = {}) {
     let prompt = originalPrompt
     const command = node?.command || node?.title
 
@@ -239,9 +244,12 @@ export class DownloadCommand {
       )
     }
 
+    throwIfAborted(options.signal)
+
     const params = {
       max_size: readMaxSizeParam(command),
       max_pages: readMaxPagesParam(command),
+      signal: options.signal,
     }
 
     await this.insertFileToWorkflow(node, prompt, params)

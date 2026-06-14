@@ -509,23 +509,92 @@ describe('runCommand — preventPostProcess option', () => {
 })
 
 describe('runCommand — signal (AbortController) abort gating', () => {
-  it('already-aborted signal prevents child post-processing while the main LLM call still executes', async () => {
+  const makeChatWithForeachStore = () => {
     const root = {id: 'root', parent: 'root', command: '/chat prompt', children: ['fe']}
     const fe = {id: 'fe', parent: 'root', command: '/foreach /chat @@', children: []}
     const store = new Store({userId: 'userId', nodes: {[root.id]: root, [fe.id]: fe}})
 
-    const controller = new AbortController()
-    controller.abort()
+    return {root, store}
+  }
 
-    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
-    const foreachRunSpy = jest.spyOn(ForeachCommand.prototype, 'run').mockResolvedValue({})
+  const makeCommodityStore = n => {
+    const root = {id: 'root', parent: null, command: `/chat :n=${n} prompt`, children: []}
+    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
 
-    await runCommand({queryType: 'chat', cell: root, store, signal: controller.signal})
+    return {root, store}
+  }
 
-    expect(chatSpy).toHaveBeenCalledTimes(1)
-    expect(foreachRunSpy).not.toHaveBeenCalled()
-
-    chatSpy.mockRestore()
-    foreachRunSpy.mockRestore()
+  afterEach(() => {
+    jest.restoreAllMocks()
   })
+
+  it.each([
+    {
+      name: 'before command dispatch',
+      prepare: () => {
+        const {root, store} = makeChatWithForeachStore()
+        const controller = new AbortController()
+        controller.abort()
+        return {controller, root, store, expectedChatCalls: 0, expectedForeachCalls: 0}
+      },
+    },
+    {
+      name: 'inside post-processing',
+      prepare: () => {
+        const {root, store} = makeChatWithForeachStore()
+        const controller = new AbortController()
+        return {controller, root, store, expectedChatCalls: 1, expectedForeachCalls: 1, abortInsideForeach: true}
+      },
+    },
+  ])('propagates AbortError and stops execution when cancellation occurs $name', async ({prepare}) => {
+    const {controller, root, store, expectedChatCalls, expectedForeachCalls, abortInsideForeach} = prepare()
+    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+    const foreachRunSpy = jest.spyOn(ForeachCommand.prototype, 'run').mockImplementation(async () => {
+      if (!abortInsideForeach) return {}
+      controller.abort()
+      const error = new Error('Operation cancelled')
+      error.name = 'AbortError'
+      throw error
+    })
+
+    await expect(runCommand({queryType: 'chat', cell: root, store, signal: controller.signal})).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+
+    expect(chatSpy).toHaveBeenCalledTimes(expectedChatCalls)
+    expect(foreachRunSpy).toHaveBeenCalledTimes(expectedForeachCalls)
+  })
+
+  it.each([2, 3])('passes signal into every commodity fork execution for :n=%i', async n => {
+    const {root, store} = makeCommodityStore(n)
+    const signal = new AbortController().signal
+    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+
+    await runCommand({queryType: 'chat', cell: root, store, signal})
+
+    expect(chatSpy).toHaveBeenCalledTimes(n)
+    expect(chatSpy.mock.calls.map(call => call[3])).toEqual(Array.from({length: n}, () => ({signal})))
+  })
+
+  it.each([2, 3])(
+    'throws AbortError and does not commit commodity fork output when :n=%i is canceled before merge',
+    async n => {
+      const {root, store} = makeCommodityStore(n)
+      const controller = new AbortController()
+      const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockImplementation(async function runFork(node) {
+        this.store.importer.createNodes(`fork-output-${node.id}`, node.id)
+        controller.abort()
+      })
+
+      await expect(runCommand({queryType: 'chat', cell: root, store, signal: controller.signal})).rejects.toMatchObject(
+        {
+          name: 'AbortError',
+        },
+      )
+
+      expect(chatSpy).toHaveBeenCalledTimes(n)
+      expect(store.getNode('root').prompts ?? []).toEqual([])
+      expect(store.getNode('root').command).toBe(`/chat :n=${n} prompt`)
+    },
+  )
 })

@@ -24,6 +24,7 @@ import {createDeepClone} from './utils/createDeepClone'
 import {SSHClientPool} from './rpc/SSHClientPool'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
+import {throwIfAbortError} from './utils/executionSignal'
 // eslint-disable-next-line no-unused-vars
 import ProgressReporter from '../ProgressReporter'
 
@@ -300,6 +301,7 @@ export class ForeachCommand {
         await this.executePrompts(leafs, params.parallel, signal, validateTemplateIds)
       }
     } catch (e) {
+      throwIfAbortError(e)
       this.logError(e)
     }
 

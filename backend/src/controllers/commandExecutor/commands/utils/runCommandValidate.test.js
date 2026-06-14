@@ -112,6 +112,24 @@ describe('runCommand \u2014 /validate: CriteriaFailedError propagates when retri
 })
 
 describe('runCommand \u2014 /validate: [\u2713] suffix on successful validation', () => {
+  it('passes the same abort signal to the initial run and each validation retry run', async () => {
+    const store = treeWithValidates('/validate criterion :retry=1')
+    const signal = new AbortController().signal
+    const validateSpy = jest
+      .spyOn(ValidateCommand.prototype, 'run')
+      .mockResolvedValueOnce({passed: false, criterion: 'criterion', reason: 'missing detail'})
+      .mockResolvedValueOnce({passed: true, criterion: 'criterion', reason: ''})
+    const spy = chatSpy()
+
+    await runCommand({queryType: 'chat', cell: store.getNode('root'), store, signal})
+
+    expect(spy).toHaveBeenCalledTimes(2)
+    expect(spy.mock.calls.map(call => call[3])).toEqual([{signal}, {signal}])
+
+    spy.mockRestore()
+    validateSpy.mockRestore()
+  })
+
   it('single validate node receives [\u2713] on first-attempt pass', async () => {
     const store = treeWithValidates('/validate criterion :retry=0')
     const validateSpy = alwaysPass()

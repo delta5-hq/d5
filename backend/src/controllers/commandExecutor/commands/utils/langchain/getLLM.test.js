@@ -685,11 +685,44 @@ describe('getLLM error handling for missing API keys', () => {
     })
   })
 
-  describe('CustomLLM excluded from apiKey requirement', () => {
-    it('does not throw when apiRootUrl present (no apiKey required)', () => {
+  describe('CustomLLM endpoint validation', () => {
+    it('does not require apiKey when apiRootUrl is present', () => {
       expect(() =>
         getLLM({type: Model.CustomLLM, settings: {custom_llm: {apiRootUrl: 'https://api.custom.com'}}}),
       ).not.toThrow()
+    })
+
+    it.each([undefined, {}, {custom_llm: {}}, {custom_llm: {apiRootUrl: '   '}}])(
+      'throws descriptive CustomLLM configuration error for settings %p',
+      settings => {
+        expect(() => getLLM({type: Model.CustomLLM, settings})).toThrow('Custom LLM API root URL not configured')
+      },
+    )
+
+    it.each(['localhost:8000', 'ftp://api.custom.com', '://broken'])(
+      'throws descriptive CustomLLM URL error for %s',
+      apiRootUrl => {
+        expect(() => getLLM({type: Model.CustomLLM, settings: {custom_llm: {apiRootUrl}}})).toThrow(
+          /Custom LLM API root URL/,
+        )
+      },
+    )
+
+    it('normalizes CustomLLM root URL and forwards optional apiKey', () => {
+      const {llm, chunkSize} = getLLM({
+        type: Model.CustomLLM,
+        settings: {
+          custom_llm: {
+            apiRootUrl: ' https://api.custom.com/v1/ ',
+            apiKey: ' token ',
+            maxTokens: 1234,
+          },
+        },
+      })
+
+      expect(llm.apiRootUrl).toBe('https://api.custom.com/v1')
+      expect(llm.apiKey).toBe('token')
+      expect(chunkSize).toBe(1234)
     })
   })
 })

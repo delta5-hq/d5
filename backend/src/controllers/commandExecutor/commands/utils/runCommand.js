@@ -45,6 +45,7 @@ import {RPCCommand} from '../RPCCommand'
 import StoreFork from '../../reliability/core/StoreFork'
 import {readCommodityN, stripCommodityN} from '../../reliability/core/commodityParams'
 import {passesStructuralGate} from '../../reliability/core/structuralGate'
+import {throwIfAborted, signalOptions, isAbortError} from './executionSignal'
 // eslint-disable-next-line no-unused-vars
 import Store from './Store'
 
@@ -76,14 +77,16 @@ function getCommandName(queryType) {
 }
 
 /** @private */
-async function executeCommandWithProgress(queryType, context, prompt, cell, store, progress) {
+async function executeCommandWithProgress(queryType, context, prompt, cell, store, progress, options = {}) {
+  throwIfAborted(options.signal)
   const runCommandProgress = new ProgressReporter({title: 'runCommand'}, progress)
   const commandName = getCommandName(queryType)
   const runCommandTracker = commandName ? await runCommandProgress.add(`${commandName}.run`) : null
 
   try {
-    const commandRunner = CommandFactory.createRunner(queryType, cell, context, prompt)
+    const commandRunner = CommandFactory.createRunner(queryType, cell, context, prompt, options)
     await commandRunner(store, runCommandProgress)
+    throwIfAborted(options.signal)
   } finally {
     if (runCommandTracker) runCommandProgress.remove(runCommandTracker)
     runCommandProgress.dispose()
@@ -91,6 +94,10 @@ async function executeCommandWithProgress(queryType, context, prompt, cell, stor
 }
 
 /** @private */
+function buildExecutionOptions(signal) {
+  return signalOptions(signal) ?? {}
+}
+
 function buildValidateRetryContext(originalContext, criterion, reason) {
   const injected = reason
     ? `[Validation retry] Ensure your response satisfies: "${criterion}". Previous attempt failed because: ${reason}. `
@@ -99,7 +106,8 @@ function buildValidateRetryContext(originalContext, criterion, reason) {
 }
 
 /** @private */
-async function runCommodityForks(queryType, context, prompt, cell, store, progress, n) {
+async function runCommodityForks(queryType, context, prompt, cell, store, progress, n, options = {}) {
+  throwIfAborted(options.signal)
   const cleanPrompt = stripCommodityN(prompt || '')
   const forkStores = Array.from({length: n}, () => StoreFork.createFork(store))
   await Promise.allSettled(
@@ -111,9 +119,12 @@ async function runCommodityForks(queryType, context, prompt, cell, store, progre
         forkStore.getNode(cell.id) || cell,
         forkStore,
         progress,
+        options,
       ),
     ),
   )
+  throwIfAborted(options.signal)
+
   let successCount = 0
   forkStores.forEach(forkStore => {
     const forkCell = forkStore.getNode(cell.id)
@@ -208,9 +219,18 @@ export const runCommand = async (
   } else {
     const commodityN = preventCommodityForks ? 1 : readCommodityN(getNodeCommand(cell))
     if (commodityN > 1) {
-      await runCommodityForks(queryType, context, prompt, cell, store, progress, commodityN)
+      await runCommodityForks(
+        queryType,
+        context,
+        prompt,
+        cell,
+        store,
+        progress,
+        commodityN,
+        buildExecutionOptions(signal),
+      )
     } else {
-      await executeCommandWithProgress(queryType, context, prompt, cell, store, progress)
+      await executeCommandWithProgress(queryType, context, prompt, cell, store, progress, buildExecutionOptions(signal))
     }
   }
 
@@ -238,7 +258,7 @@ export const runCommand = async (
 
     for (const childNode of sortedNodes) {
       if (signal?.aborted) {
-        break
+        throwIfAborted(signal)
       }
 
       if (ids.includes(childNode.id)) {
@@ -371,13 +391,22 @@ export const runCommand = async (
           while (attempt <= maxRetry) {
             if (attempt > 0) {
               const retryContext = buildValidateRetryContext(context, lastFailCriterion, lastFailReason)
-              await executeCommandWithProgress(queryType, retryContext, prompt, cell, store, progress)
+              await executeCommandWithProgress(
+                queryType,
+                retryContext,
+                prompt,
+                cell,
+                store,
+                progress,
+                buildExecutionOptions(signal),
+              )
               await postProcessNode(
                 store.getNode(cell.id),
                 allValidates.map(v => v.id),
               )
             }
 
+            throwIfAborted(signal)
             lastResults = await Promise.all(allValidates.map(v => validateCommand.run(v, {signal})))
             const firstFail = lastResults.find(r => !r.passed)
 
@@ -405,6 +434,7 @@ export const runCommand = async (
         if (postProcessTracker) postProcessProgress.remove(postProcessTracker)
         postProcessProgress.dispose()
       } catch (e) {
+        if (isAbortError(e)) throw e
         if (e instanceof CriteriaFailedError) throw e
         logError('post-processing failed: %o', {query, error: e})
         continue

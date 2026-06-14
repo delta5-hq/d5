@@ -18,6 +18,7 @@ import {translate} from './utils/translate'
 import {referencePatterns} from './references/utils/referencePatterns'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import {clearStepsPrefix} from '../constants/steps'
+import {throwIfAbortError, throwIfAborted, signalOptions} from './utils/executionSignal'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 
@@ -51,6 +52,7 @@ export class ExtCommand {
   }
 
   async createResponseExt(node, userInput, params) {
+    throwIfAborted(params?.signal)
     const lang = params?.lang
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     const llmType = determineLLMType(node?.command, settings)
@@ -82,7 +84,9 @@ export class ExtCommand {
 
     const executor = createSimpleAgentExecutor(llm, tools, lang)
 
-    let result = (await executor.invoke({input: userInput})).output
+    let result = (await executor.invoke({input: userInput}, signalOptions(params?.signal))).output
+
+    throwIfAborted(params?.signal)
 
     if (lang && result) {
       result = await this.translate(result, llm, lang)
@@ -111,7 +115,7 @@ export class ExtCommand {
     }
   }
 
-  async run(node, originalPrompt) {
+  async run(node, originalPrompt, options = {}) {
     try {
       let prompt = originalPrompt
       const command = node?.command || node?.title
@@ -124,12 +128,15 @@ export class ExtCommand {
         )
       }
 
-      const params = this.getParams(command)
+      const params = {...this.getParams(command), signal: options.signal}
       const text = await this.createResponseExt(node, prompt, params)
 
+      throwIfAborted(options.signal)
       this.store.importer.createNodes(text, node.id)
     } catch (e) {
+      throwIfAbortError(e)
       this.logError(e)
+      throwIfAborted(options.signal)
       this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }
   }

@@ -4,6 +4,7 @@ import {
   isTitleDerivedFromCommand,
   deriveNodeTitle,
   extractReliabilitySuffix,
+  attachReliabilitySuffix,
 } from '../reliability-suffix'
 
 const LEGACY_SUFFIX_VARIANTS = [
@@ -229,5 +230,30 @@ describe('extractReliabilitySuffix', () => {
     const { baseTitle, suffix } = extractReliabilitySuffix('[✓ refined]')
     expect(baseTitle).toBe('')
     expect(suffix).toBe('[✓ refined]')
+  })
+})
+
+describe('attachReliabilitySuffix', () => {
+  it('preserves exactly one separator between user title and engine suffix', () => {
+    expect(attachReliabilitySuffix('Renamed', '[✓ 2/2]')).toBe('Renamed [✓ 2/2]')
+    expect(attachReliabilitySuffix('Renamed   ', '[✓ 2/2]')).toBe('Renamed [✓ 2/2]')
+  })
+
+  it('does not add suffix text when no engine suffix exists', () => {
+    expect(attachReliabilitySuffix('Renamed', null)).toBe('Renamed')
+  })
+
+  it.each(ALL_SUFFIX_VARIANTS)('round-trips extracted suffix through attach: %s', (_label, titleWithSuffix, base) => {
+    const { baseTitle, suffix } = extractReliabilitySuffix(titleWithSuffix)
+    expect(attachReliabilitySuffix(baseTitle, suffix)).toBe(`${base} ${suffix}`)
+  })
+
+  it('preserves user-authored bracket text when no engine suffix exists', () => {
+    expect(attachReliabilitySuffix('Report [Q1]', null)).toBe('Report [Q1]')
+  })
+
+  it('keeps suffix-only titles valid when the user clears the base title', () => {
+    expect(attachReliabilitySuffix('', '[✗ 3 attempts]')).toBe('[✗ 3 attempts]')
+    expect(attachReliabilitySuffix('   ', '[✗ 3 attempts]')).toBe('[✗ 3 attempts]')
   })
 })

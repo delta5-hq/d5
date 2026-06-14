@@ -5,6 +5,7 @@ import {resolveCommand} from './utils/queryTypeResolver'
 import {SSHClientPool} from './rpc/SSHClientPool'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
+import {throwIfAbortError} from './utils/executionSignal'
 // eslint-disable-next-line no-unused-vars
 import ProgressReporter from '../ProgressReporter'
 
@@ -111,6 +112,7 @@ export class StepsCommand {
 
       await this.executePrompts(nodesWithoutOrder, sshClientPool, signal)
     } catch (e) {
+      throwIfAbortError(e)
       this.logError(e)
     } finally {
       sshClientPool.disposeAll()

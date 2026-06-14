@@ -11,6 +11,7 @@ import {clearReferences} from './references/utils/referenceUtils' // Direct impo
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
+import {throwIfAborted, throwIfAbortError} from './utils/executionSignal'
 import {createContextForChat} from './utils/createContextForChat'
 
 const log = debug('delta5:app:Command:Qwen')
@@ -36,7 +37,7 @@ export class QwenCommand {
     this.logError = this.log.extend('ERROR*', '::')
   }
 
-  async replyQwen(messages) {
+  async replyQwen(messages, options = {}) {
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     const {apiKey, model = QWEN_DEFAULT_MODEL} = settings?.qwen || {}
 
@@ -51,16 +52,19 @@ export class QwenCommand {
       baseURL: QWEN_API_URL,
     })
 
-    const response = await client.chat.completions.create({
-      messages,
-      model,
-      top_p: 0.7,
-    })
+    const response = await client.chat.completions.create(
+      {
+        messages,
+        model,
+        top_p: 0.7,
+      },
+      options,
+    )
 
     return response.choices[0].message.content
   }
 
-  async run(node, context, originalPrompt) {
+  async run(node, context, originalPrompt, options = {}) {
     try {
       let prompt = originalPrompt
       const title = node?.command || node?.title
@@ -80,11 +84,14 @@ export class QwenCommand {
         role: 'user',
       }
       const messages = [userMessage]
-      const text = (await this.replyQwen(messages, this.userId))?.replaceAll('**', '')
+      const text = (await this.replyQwen(messages, options))?.replaceAll('**', '')
 
+      throwIfAborted(options.signal)
       this.store.importer.createNodes(text, node.id)
     } catch (e) {
+      throwIfAbortError(e)
       this.logError(e)
+      throwIfAborted(options.signal)
       this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }
   }
