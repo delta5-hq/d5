@@ -436,12 +436,16 @@ describe('Array Item Scope Isolation — workflowId segregation', () => {
   })
 
   it('workflow-scoped GET includes user-level items via fallback when no workflow doc exists', async () => {
+    // Dedicated workflow so the "no workflow doc exists" precondition holds
+    // regardless of items other tests created against the shared workflowId.
+    const freshWf = await testDataFactory.createWorkflow({title: 'Fallback NoDoc Workflow', userId: 'subscriber'})
+
     const res = await subscriberRequest
       .post('/integration/mcp/items')
       .send({alias: '/user-only', transport: 'stdio', command: 'node', toolName: 't'})
     expect(res.status).toBe(201)
 
-    const wfRes = await subscriberRequest.get(`/integration?workflowId=${workflowId}`)
+    const wfRes = await subscriberRequest.get(`/integration?workflowId=${freshWf.workflowId}`)
     expect(wfRes.status).toBe(200)
     expect((wfRes.body.mcp ?? []).map(m => m.alias)).toContain('/user-only')
   })
@@ -504,17 +508,22 @@ describe('Array Item Scope Isolation — workflowId segregation', () => {
   })
 
   it('after last workflow-scoped item deleted, GET with workflowId falls back to user-level', async () => {
+    // Dedicated workflow whose only item is the one we delete, so the doc is
+    // emptied (and removed) and the read falls back to user scope — independent
+    // of items other tests left on the shared workflowId.
+    const freshWf = await testDataFactory.createWorkflow({title: 'Fallback AfterDelete Workflow', userId: 'subscriber'})
+
     await subscriberRequest
       .post('/integration/mcp/items')
       .send({alias: '/fallback-anchor', transport: 'stdio', command: 'node', toolName: 'user'})
     await subscriberRequest
-      .post(`/integration/mcp/items?workflowId=${workflowId}`)
+      .post(`/integration/mcp/items?workflowId=${freshWf.workflowId}`)
       .send({alias: '/wf-only-item', transport: 'stdio', command: 'node', toolName: 'wf'})
 
     await subscriberRequest
-      .delete(`/integration/mcp/items/${encodeURIComponent('/wf-only-item')}?workflowId=${workflowId}`)
+      .delete(`/integration/mcp/items/${encodeURIComponent('/wf-only-item')}?workflowId=${freshWf.workflowId}`)
 
-    const res = await subscriberRequest.get(`/integration?workflowId=${workflowId}`)
+    const res = await subscriberRequest.get(`/integration?workflowId=${freshWf.workflowId}`)
     expect((res.body.mcp ?? []).map(m => m.alias)).toContain('/fallback-anchor')
     expect((res.body.mcp ?? []).map(m => m.alias)).not.toContain('/wf-only-item')
   })
