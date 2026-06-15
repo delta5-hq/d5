@@ -64,9 +64,18 @@ describe('runCommand', () => {
   })
 
   it('should run foreach only with prompts', async () => {
-    const root = {id: 'root', parent: 'root', command: '/chatgpt prompt', children: ['c', 'for']}
+    const root = {
+      id: 'root',
+      parent: 'root',
+      command: '/chatgpt prompt',
+      children: ['c', 'for'],
+    }
     const child = {id: 'c', parent: root.id, title: 'child'}
-    const foreach = {id: 'for', parent: root.id, command: '/foreach /chatgpt @@'}
+    const foreach = {
+      id: 'for',
+      parent: root.id,
+      command: '/foreach /chatgpt @@',
+    }
 
     const mockStore = new Store({
       userId: 'userId',
@@ -110,7 +119,12 @@ describe('runCommand', () => {
   })
 
   it('should create a ProgressReporter and track execution with add/remove/dispose', async () => {
-    const root = {id: 'root', parent: 'root', command: '/chatgpt prompt', children: ['c']}
+    const root = {
+      id: 'root',
+      parent: 'root',
+      command: '/chatgpt prompt',
+      children: ['c'],
+    }
     const child = {id: 'c', parent: root.id, title: 'child'}
 
     const workflowNodes = {
@@ -148,7 +162,12 @@ describe('runCommand', () => {
   })
 
   it('should create a ProgressReporter when it not provided in params', async () => {
-    const root = {id: 'root', parent: 'root', command: '/chatgpt prompt', children: ['c']}
+    const root = {
+      id: 'root',
+      parent: 'root',
+      command: '/chatgpt prompt',
+      children: ['c'],
+    }
     const child = {id: 'c', parent: root.id, title: 'runCommand'}
 
     const workflowNodes = {
@@ -175,9 +194,18 @@ describe('runCommand', () => {
   })
 
   it('should call postProcess progress tracking when postProcessNode is triggered', async () => {
-    const root = {id: 'root', parent: 'root', command: '/chatgpt prompt', children: ['c', 'for']}
+    const root = {
+      id: 'root',
+      parent: 'root',
+      command: '/chatgpt prompt',
+      children: ['c', 'for'],
+    }
     const child = {id: 'c', parent: root.id, title: 'child'}
-    const foreach = {id: 'for', parent: root.id, command: '/foreach /chatgpt @@'}
+    const foreach = {
+      id: 'for',
+      parent: root.id,
+      command: '/foreach /chatgpt @@',
+    }
 
     const workflowNodes = {
       [root.id]: root,
@@ -227,7 +255,12 @@ describe('runCommand', () => {
 const SUBSTANTIVE_OUTPUT = 'Substantive analysis output that passes the structural gate check.'
 
 describe('runCommand — commodity :n=N on plain LLM cells', () => {
-  const makeRoot = command => ({id: 'root', parent: 'root', command, children: []})
+  const makeRoot = command => ({
+    id: 'root',
+    parent: 'root',
+    command,
+    children: [],
+  })
 
   const runWithCount = async command => {
     const root = makeRoot(command)
@@ -237,7 +270,13 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
       .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
       .mockImplementation(async function () {
         callCount++
-        this.store.createNode({parent: root.id, title: `${SUBSTANTIVE_OUTPUT} Fork ${callCount}.`}, true)
+        this.store.createNode(
+          {
+            parent: root.id,
+            title: `${SUBSTANTIVE_OUTPUT} Fork ${callCount}.`,
+          },
+          true,
+        )
       })
     await runCommand({queryType: 'chat', cell: root, store})
     spy.mockRestore()
@@ -290,7 +329,13 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
       .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
       .mockImplementation(async function () {
         callCount++
-        this.store.createNode({parent: root.id, title: `${SUBSTANTIVE_OUTPUT} Fork ${callCount}.`}, true)
+        this.store.createNode(
+          {
+            parent: root.id,
+            title: `${SUBSTANTIVE_OUTPUT} Fork ${callCount}.`,
+          },
+          true,
+        )
       })
     await runCommand({queryType: 'chat', cell: root, store})
     spy.mockRestore()
@@ -306,7 +351,13 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
       .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
       .mockImplementation(async function () {
         callCount++
-        this.store.createNode({parent: root.id, title: `${SUBSTANTIVE_OUTPUT} Fork ${callCount}.`}, true)
+        this.store.createNode(
+          {
+            parent: root.id,
+            title: `${SUBSTANTIVE_OUTPUT} Fork ${callCount}.`,
+          },
+          true,
+        )
       })
     await runCommand({queryType: 'chat', cell: root, store})
     spy.mockRestore()
@@ -370,14 +421,25 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
 
 describe('runCommand — commodity :n=N on legacy node (command in title, not command field)', () => {
   it(':n=2 triggers commodity forks when command is stored in title field', async () => {
-    const root = {id: 'root', parent: 'root', title: '/chat :n=2 List 3 colors', children: []}
+    const root = {
+      id: 'root',
+      parent: 'root',
+      title: '/chat :n=2 List 3 colors',
+      children: [],
+    }
     const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
     let callCount = 0
     const spy = jest
       .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
       .mockImplementation(async function () {
         callCount++
-        this.store.createNode({parent: root.id, title: `${SUBSTANTIVE_OUTPUT} Fork ${callCount}.`}, true)
+        this.store.createNode(
+          {
+            parent: root.id,
+            title: `${SUBSTANTIVE_OUTPUT} Fork ${callCount}.`,
+          },
+          true,
+        )
       })
     await runCommand({queryType: 'chat', cell: root, store})
     spy.mockRestore()
@@ -416,6 +478,39 @@ describe('runCommand — commodity :n=N with real ChatCommand + NoopLLM (MOCK_EX
   })
 })
 
+describe('runCommand — commodity :n=N is stripped from task text before being sent to the LLM', () => {
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  it.each([
+    ['/chat :n=2 Reply with one word: hello', 'Reply with one word: hello'],
+    ['/chat :n=3 Analyze this topic', 'Analyze this topic'],
+    ['/chat :n=2', ''],
+    ['/chat Text before :n=2 text after', 'Text before text after'],
+    ['/chat Task text :n=3', 'Task text'],
+    ['/chat :n=1 runs once anyway', 'runs once anyway'],
+  ])('"%s" — LLM receives task text without :n=N', async (command, expectedTaskText) => {
+    const root = {id: 'root', parent: null, command, children: []}
+    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+    const capturedMessages = []
+    jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI').mockImplementation(async function (messages) {
+      capturedMessages.push(...messages)
+      return 'output'
+    })
+
+    await runCommand({queryType: 'chat', cell: root, store})
+
+    expect(capturedMessages.length).toBeGreaterThan(0)
+    capturedMessages.forEach(msg => {
+      expect(msg.content).not.toMatch(/:n=\d+/)
+      if (expectedTaskText) {
+        expect(msg.content).toContain(expectedTaskText)
+      }
+    })
+  })
+})
+
 describe('runCommand — modifier commands used as root', () => {
   it.each([
     {queryType: VALIDATE_QUERY_TYPE, command: '/validate criterion'},
@@ -439,49 +534,170 @@ describe('runCommand — modifier commands used as root', () => {
 
 describe('runCommand — preventCommodityForks option', () => {
   it('preventCommodityForks=true forces a single execution regardless of :n=N in the command', async () => {
-    const root = {id: 'root', parent: 'root', command: '/chat :n=3 prompt', children: []}
+    const root = {
+      id: 'root',
+      parent: 'root',
+      command: '/chat :n=3 prompt',
+      children: [],
+    }
     const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
     let callCount = 0
     const spy = jest.spyOn(ChatCommand.prototype, 'run').mockImplementation(async function () {
       callCount++
     })
-    await runCommand({queryType: 'chat', cell: root, store, preventCommodityForks: true})
+    await runCommand({
+      queryType: 'chat',
+      cell: root,
+      store,
+      preventCommodityForks: true,
+    })
     spy.mockRestore()
     expect(callCount).toBe(1)
   })
 
   it('does not write a commodity suffix when preventCommodityForks=true even though :n=N is present in the command', async () => {
-    const root = {id: 'root', parent: 'root', command: '/chat :n=2 prompt', children: []}
+    const root = {
+      id: 'root',
+      parent: 'root',
+      command: '/chat :n=2 prompt',
+      children: [],
+    }
     const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
     const spy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
-    await runCommand({queryType: 'chat', cell: root, store, preventCommodityForks: true})
+    await runCommand({
+      queryType: 'chat',
+      cell: root,
+      store,
+      preventCommodityForks: true,
+    })
     spy.mockRestore()
     expect(root.title ?? '').not.toMatch(/\[/)
   })
 
   it('runs once (no fork) when preventCommodityForks=true and no :n=N is present', async () => {
-    const root = {id: 'root', parent: 'root', command: '/chat prompt', children: []}
+    const root = {
+      id: 'root',
+      parent: 'root',
+      command: '/chat prompt',
+      children: [],
+    }
     const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
     let callCount = 0
     const spy = jest.spyOn(ChatCommand.prototype, 'run').mockImplementation(async function () {
       callCount++
     })
-    await runCommand({queryType: 'chat', cell: root, store, preventCommodityForks: true})
+    await runCommand({
+      queryType: 'chat',
+      cell: root,
+      store,
+      preventCommodityForks: true,
+    })
     spy.mockRestore()
     expect(callCount).toBe(1)
   })
 })
 
+describe('runCommand — store.withinForkExecution suppresses commodity forking inside forked subtrees', () => {
+  it.each([2, 3, 5])(
+    'executes exactly once regardless of :n=%i — routing re-entry and /refine subtree both use this guard',
+    async n => {
+      const root = {
+        id: 'root',
+        parent: 'root',
+        command: `/chat :n=${n} prompt`,
+        children: [],
+      }
+      const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+      store.withinForkExecution = true
+      let callCount = 0
+      const spy = jest.spyOn(ChatCommand.prototype, 'run').mockImplementation(async function () {
+        callCount++
+      })
+      await runCommand({queryType: 'chat', cell: root, store})
+      spy.mockRestore()
+      expect(callCount).toBe(1)
+    },
+  )
+
+  it('writes no commodity suffix when store.withinForkExecution is true', async () => {
+    const root = {
+      id: 'root',
+      parent: 'root',
+      command: '/chat :n=3 prompt',
+      children: [],
+    }
+    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+    store.withinForkExecution = true
+    const spy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+    await runCommand({queryType: 'chat', cell: root, store})
+    spy.mockRestore()
+    expect(root.title ?? '').not.toMatch(/\[/)
+  })
+
+  it('runs once when store.withinForkExecution is true and no :n= is present', async () => {
+    const root = {
+      id: 'root',
+      parent: 'root',
+      command: '/chat prompt',
+      children: [],
+    }
+    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+    store.withinForkExecution = true
+    let callCount = 0
+    const spy = jest.spyOn(ChatCommand.prototype, 'run').mockImplementation(async function () {
+      callCount++
+    })
+    await runCommand({queryType: 'chat', cell: root, store})
+    spy.mockRestore()
+    expect(callCount).toBe(1)
+  })
+
+  it('forks normally when store.withinForkExecution is false (default Store value)', async () => {
+    const root = {
+      id: 'root',
+      parent: 'root',
+      command: '/chat :n=2 prompt',
+      children: [],
+    }
+    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+    let callCount = 0
+    const spy = jest.spyOn(ChatCommand.prototype, 'run').mockImplementation(async function () {
+      callCount++
+    })
+    await runCommand({queryType: 'chat', cell: root, store})
+    spy.mockRestore()
+    expect(callCount).toBe(2)
+  })
+})
+
 describe('runCommand — preventPostProcess option', () => {
   it('preventPostProcess=true prevents child command execution after the main LLM call', async () => {
-    const root = {id: 'root', parent: 'root', command: '/chat prompt', children: ['fe']}
-    const fe = {id: 'fe', parent: 'root', command: '/foreach /chat @@', children: []}
-    const store = new Store({userId: 'userId', nodes: {[root.id]: root, [fe.id]: fe}})
+    const root = {
+      id: 'root',
+      parent: 'root',
+      command: '/chat prompt',
+      children: ['fe'],
+    }
+    const fe = {
+      id: 'fe',
+      parent: 'root',
+      command: '/foreach /chat @@',
+      children: [],
+    }
+    const store = new Store({
+      userId: 'userId',
+      nodes: {[root.id]: root, [fe.id]: fe},
+    })
 
     const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
     const foreachRunSpy = jest.spyOn(ForeachCommand.prototype, 'run').mockResolvedValue({})
 
-    await runCommand({queryType: 'chat', cell: root, store, preventPostProcess: true})
+    await runCommand({
+      queryType: 'chat',
+      cell: root,
+      store,
+      preventPostProcess: true,
+    })
 
     expect(chatSpy).toHaveBeenCalledTimes(1)
     expect(foreachRunSpy).not.toHaveBeenCalled()
@@ -491,9 +707,22 @@ describe('runCommand — preventPostProcess option', () => {
   })
 
   it('preventPostProcess=false (default) allows child command execution after the main LLM call', async () => {
-    const root = {id: 'root', parent: 'root', command: '/chat prompt', children: ['fe']}
-    const fe = {id: 'fe', parent: 'root', command: '/foreach /chat @@', children: []}
-    const store = new Store({userId: 'userId', nodes: {[root.id]: root, [fe.id]: fe}})
+    const root = {
+      id: 'root',
+      parent: 'root',
+      command: '/chat prompt',
+      children: ['fe'],
+    }
+    const fe = {
+      id: 'fe',
+      parent: 'root',
+      command: '/foreach /chat @@',
+      children: [],
+    }
+    const store = new Store({
+      userId: 'userId',
+      nodes: {[root.id]: root, [fe.id]: fe},
+    })
 
     const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
     const foreachRunSpy = jest.spyOn(ForeachCommand.prototype, 'run').mockResolvedValue({})
@@ -510,15 +739,33 @@ describe('runCommand — preventPostProcess option', () => {
 
 describe('runCommand — signal (AbortController) abort gating', () => {
   const makeChatWithForeachStore = () => {
-    const root = {id: 'root', parent: 'root', command: '/chat prompt', children: ['fe']}
-    const fe = {id: 'fe', parent: 'root', command: '/foreach /chat @@', children: []}
-    const store = new Store({userId: 'userId', nodes: {[root.id]: root, [fe.id]: fe}})
+    const root = {
+      id: 'root',
+      parent: 'root',
+      command: '/chat prompt',
+      children: ['fe'],
+    }
+    const fe = {
+      id: 'fe',
+      parent: 'root',
+      command: '/foreach /chat @@',
+      children: [],
+    }
+    const store = new Store({
+      userId: 'userId',
+      nodes: {[root.id]: root, [fe.id]: fe},
+    })
 
     return {root, store}
   }
 
   const makeCommodityStore = n => {
-    const root = {id: 'root', parent: null, command: `/chat :n=${n} prompt`, children: []}
+    const root = {
+      id: 'root',
+      parent: null,
+      command: `/chat :n=${n} prompt`,
+      children: [],
+    }
     const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
 
     return {root, store}
@@ -535,7 +782,13 @@ describe('runCommand — signal (AbortController) abort gating', () => {
         const {root, store} = makeChatWithForeachStore()
         const controller = new AbortController()
         controller.abort()
-        return {controller, root, store, expectedChatCalls: 0, expectedForeachCalls: 0}
+        return {
+          controller,
+          root,
+          store,
+          expectedChatCalls: 0,
+          expectedForeachCalls: 0,
+        }
       },
     },
     {
@@ -543,7 +796,14 @@ describe('runCommand — signal (AbortController) abort gating', () => {
       prepare: () => {
         const {root, store} = makeChatWithForeachStore()
         const controller = new AbortController()
-        return {controller, root, store, expectedChatCalls: 1, expectedForeachCalls: 1, abortInsideForeach: true}
+        return {
+          controller,
+          root,
+          store,
+          expectedChatCalls: 1,
+          expectedForeachCalls: 1,
+          abortInsideForeach: true,
+        }
       },
     },
   ])('propagates AbortError and stops execution when cancellation occurs $name', async ({prepare}) => {
@@ -557,7 +817,14 @@ describe('runCommand — signal (AbortController) abort gating', () => {
       throw error
     })
 
-    await expect(runCommand({queryType: 'chat', cell: root, store, signal: controller.signal})).rejects.toMatchObject({
+    await expect(
+      runCommand({
+        queryType: 'chat',
+        cell: root,
+        store,
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({
       name: 'AbortError',
     })
 
@@ -586,11 +853,16 @@ describe('runCommand — signal (AbortController) abort gating', () => {
         controller.abort()
       })
 
-      await expect(runCommand({queryType: 'chat', cell: root, store, signal: controller.signal})).rejects.toMatchObject(
-        {
-          name: 'AbortError',
-        },
-      )
+      await expect(
+        runCommand({
+          queryType: 'chat',
+          cell: root,
+          store,
+          signal: controller.signal,
+        }),
+      ).rejects.toMatchObject({
+        name: 'AbortError',
+      })
 
       expect(chatSpy).toHaveBeenCalledTimes(n)
       expect(store.getNode('root').prompts ?? []).toEqual([])

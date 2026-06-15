@@ -25,6 +25,7 @@ class StoreFork {
       files: this.deepClone(sourceStore._files),
     })
 
+    forked.withinForkExecution = true
     return forked
   }
 

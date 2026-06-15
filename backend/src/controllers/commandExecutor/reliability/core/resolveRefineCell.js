@@ -9,6 +9,7 @@ import {appendRefineSuffix, appendInvalidSuffix, stripReliabilitySuffix} from '.
 import {getNodeCommand} from '../../commands/utils/isCommand'
 import {isValidateCell} from './validateParams'
 import {NullForkProgressEmitter} from './ForkProgressEmitter'
+import {buildReliabilityMetadata} from './reliabilityMetadataFields'
 
 /**
  * @typedef {import('../../commands/utils/Store').NodeData} NodeData
@@ -158,28 +159,9 @@ export async function resolveRefineCell(
       fallback: verdict.selectionLayer === 'fallback',
       winnerForkIndex: verdict.winnerForkIndex,
       noSignal: !fallback && (verdict.noSignal ?? false),
+      degradedInput: verdict.judgeInput?.degradedInput ?? false,
     })
-    winnerNode.reliabilityMetadata = {
-      winnerForkIndex: verdict.winnerForkIndex,
-      perCriterionVerdict: verdict.perCriterionVerdict ?? [],
-      mode: verdict.mode,
-      selectionLayer: verdict.selectionLayer,
-      noSignal: verdict.noSignal ?? false,
-      tiebreakUsed: verdict.tiebreakUsed ?? false,
-      eligible: okCount,
-      total: n,
-      judgeInput: verdict.judgeInput,
-      judgeQualityWarnings: verdict.judgeQualityWarnings ?? [],
-      discardedForks: forkResults
-        .filter(f => f.forkIndex !== verdict.winnerForkIndex)
-        .map(f => ({
-          forkIndex: f.forkIndex,
-          status: f.status,
-          ...(f.failedAt !== undefined ? {failedAt: f.failedAt} : {}),
-          ...(f.reason !== undefined ? {reason: f.reason} : {}),
-          ...(f.attempts !== undefined ? {attempts: f.attempts} : {}),
-        })),
-    }
+    winnerNode.reliabilityMetadata = buildReliabilityMetadata(verdict, forkResults, okCount, n)
     store.saveNodeToOutput(refineNode.id)
   }
 

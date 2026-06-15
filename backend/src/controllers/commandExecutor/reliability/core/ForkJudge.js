@@ -2,6 +2,7 @@ import debug from 'debug'
 import {SystemMessage, HumanMessage} from '@langchain/core/messages'
 import {getIntegrationSettings, getLLM} from '../../commands/utils/langchain/getLLM'
 import {NodeTextExtractor} from '../../commands/utils/NodeTextExtractor'
+import {throwIfAbortError} from '../../commands/utils/executionSignal'
 import {getNodeCommand} from '../../commands/utils/isCommand'
 import {isValidateCell, readValidateCriterion, readValidateN} from './validateParams'
 import {
@@ -12,7 +13,13 @@ import {
   hasReasoningCapableFamily,
 } from './ModelFamilyRouter'
 import {parseRankingResponse} from './rankingParser'
-import {computePerForkContentBudgetFromResolvedModels, isDegradedInput} from './judgeContentBudget'
+import {computePerForkContentBudgetFromResolvedModels} from './judgeContentBudget'
+import {
+  buildJudgeInputMetadata,
+  buildJudgeQualityWarning,
+  buildPerCriterionVerdictEntry,
+  buildForkRankingEntry,
+} from './reliabilityMetadataFields'
 
 const log = debug('delta5:forkjudge')
 
@@ -38,13 +45,6 @@ const resolveJurorModels = (criteria, settings, log) =>
     })
     return {...criterion, jurors: resolvedJurors}
   })
-
-const buildJudgeInputDiagnostics = (candidateCount, perForkBudget, resolvedModels) => ({
-  candidateCount,
-  perForkBudgetChars: perForkBudget,
-  degradedInput: isDegradedInput(perForkBudget),
-  resolvedJudgeFamilies: Array.from(new Set(resolvedModels.map(model => model.judgeFamily).filter(Boolean))),
-})
 
 const extractForkContent = async (parentNodeId, forkStore) => {
   const parentNode = forkStore.getNode(parentNodeId)
@@ -77,13 +77,8 @@ export class ForkJudge {
    *   selectionLayer: 'primary'|'fallback'|'none',
    *   noSignal: boolean,
    *   tiebreakUsed: boolean,
-   *   judgeInput: {
-   *     candidateCount: number,
-   *     perForkBudgetChars: number,
-   *     degradedInput: boolean,
-   *     resolvedJudgeFamilies: string[],
-   *   },
-   *   judgeQualityWarnings: {condition: string, severity: 'high'|'medium'|'low'}[],
+   *   judgeInput: ReturnType<import('./reliabilityMetadataFields').buildJudgeInputMetadata>,
+   *   judgeQualityWarnings: ReturnType<import('./reliabilityMetadataFields').buildJudgeQualityWarning>[],
    * }>}
    */
   async selectWinner({forks, validateNodes, parentNodeId, fallback = false, signal = null}) {
@@ -132,9 +127,27 @@ export class ForkJudge {
     const lowestTierOnly =
       configuredFamilies.length > 0 && configuredFamilies.every(f => (STRENGTH_TIERS[f] ?? 99) >= 3)
     const noReasoningMode = !hasReasoningCapableFamily(settings)
-    if (singleProvider) judgeQualityWarnings.push({condition: 'singleProvider', severity: 'high'})
-    if (lowestTierOnly) judgeQualityWarnings.push({condition: 'lowestTierOnly', severity: 'medium'})
-    if (noReasoningMode) judgeQualityWarnings.push({condition: 'noReasoningMode', severity: 'medium'})
+    if (singleProvider)
+      judgeQualityWarnings.push(
+        buildJudgeQualityWarning({
+          condition: 'singleProvider',
+          severity: 'high',
+        }),
+      )
+    if (lowestTierOnly)
+      judgeQualityWarnings.push(
+        buildJudgeQualityWarning({
+          condition: 'lowestTierOnly',
+          severity: 'medium',
+        }),
+      )
+    if (noReasoningMode)
+      judgeQualityWarnings.push(
+        buildJudgeQualityWarning({
+          condition: 'noReasoningMode',
+          severity: 'medium',
+        }),
+      )
 
     const criteria =
       validateNodes.length > 0
@@ -154,9 +167,18 @@ export class ForkJudge {
     const criteriaWithJurors = resolveJurorModels(criteria, settings, this.log)
     const resolvedModels = criteriaWithJurors.flatMap(c => c.jurors).filter(j => !j.error)
     const perForkBudget = computePerForkContentBudgetFromResolvedModels(candidateForks.length, resolvedModels)
-    const judgeInput = buildJudgeInputDiagnostics(candidateForks.length, perForkBudget, resolvedModels)
+    const judgeInput = buildJudgeInputMetadata({
+      candidateCount: candidateForks.length,
+      perForkBudget,
+      resolvedModels,
+    })
     if (judgeInput.degradedInput) {
-      judgeQualityWarnings.push({condition: 'degradedInput', severity: 'high'})
+      judgeQualityWarnings.push(
+        buildJudgeQualityWarning({
+          condition: 'degradedInput',
+          severity: 'high',
+        }),
+      )
     }
 
     const perCriterionVerdict = []
@@ -185,6 +207,7 @@ export class ForkJudge {
           if (ranking !== null) allRankings.push(ranking)
           else this.log('juror excluded — unparseable response')
         } catch (err) {
+          throwIfAbortError(err)
           this.log('juror excluded — invoke error: %o', err)
         }
       }
@@ -202,15 +225,19 @@ export class ForkJudge {
         bordaScores[i] += score
       })
 
-      perCriterionVerdict.push({
-        criterionId: id,
-        criterion,
-        forkRankings:
-          allRankings[0]?.map((ci, rank) => ({
-            forkIndex: candidateForks[ci]?.forkIndex,
-            rank: rank + 1,
-          })) ?? [],
-      })
+      perCriterionVerdict.push(
+        buildPerCriterionVerdictEntry({
+          criterionId: id,
+          criterion,
+          forkRankings:
+            allRankings[0]?.map((ci, rank) =>
+              buildForkRankingEntry({
+                forkIndex: candidateForks[ci]?.forkIndex,
+                rank: rank + 1,
+              }),
+            ) ?? [],
+        }),
+      )
     }
 
     const noSignal = totalRankingsCollected === 0
@@ -251,9 +278,20 @@ export class ForkJudge {
       })
     }
 
-    if (hadJuryDuplicates) judgeQualityWarnings.push({condition: 'juryDuplicates', severity: 'low'})
+    if (hadJuryDuplicates)
+      judgeQualityWarnings.push(
+        buildJudgeQualityWarning({
+          condition: 'juryDuplicates',
+          severity: 'low',
+        }),
+      )
     if (selectionLayer === 'fallback' && (singleProvider || lowestTierOnly)) {
-      judgeQualityWarnings.push({condition: 'fallbackWithWeakJudge', severity: 'high'})
+      judgeQualityWarnings.push(
+        buildJudgeQualityWarning({
+          condition: 'fallbackWithWeakJudge',
+          severity: 'high',
+        }),
+      )
     }
 
     return {

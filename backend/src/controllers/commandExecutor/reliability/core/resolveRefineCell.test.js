@@ -800,6 +800,39 @@ describe('resolveRefineCell — noSignal routing: strict mode emits warning, fal
     })
   })
 
+  it('primary layer — degradedInput:true (judge serialised truncated content) → ⚠ trailer on eligible-fraction suffix, metadata records degradedInput', async () => {
+    const winner = okForkStore()
+    const forks = [
+      {forkIndex: 0, status: 'ok', forkStore: winner},
+      {forkIndex: 1, status: 'ok', forkStore: okForkStore()},
+    ]
+    mockRunForks.mockResolvedValue(forks)
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: 0,
+        selectionLayer: 'primary',
+        mode: 'strict',
+        noSignal: false,
+        judgeInput: {
+          candidateCount: 2,
+          perForkBudgetChars: 100,
+          degradedInput: true,
+          resolvedJudgeFamilies: ['OpenAI'],
+        },
+      }),
+    }))
+    const store = makeStore('/refine :n=2')
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    expect(store._nodes.r1.title).toBe('My Cell [✓ 2/2 ⚠]')
+    expect(store._nodes.r1.reliabilityMetadata).toMatchObject({
+      eligible: 2,
+      total: 2,
+      judgeInput: {degradedInput: true},
+    })
+  })
+
   it('fallback layer — criteria-failed forks, jurors excluded → fallback suffix with deterministic tiebreak winner', async () => {
     const fallbackForkStore = okForkStore()
     const forks = [{forkIndex: 0, status: 'criteria-failed', forkStore: fallbackForkStore}]

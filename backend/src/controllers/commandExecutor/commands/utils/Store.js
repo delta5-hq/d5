@@ -58,6 +58,9 @@ class Store {
   /** @type {{mcp: Array, rpc: Array}} User-defined command aliases */
   _aliases = {mcp: [], rpc: []}
 
+  /** @type {boolean} */
+  withinForkExecution = false
+
   /** @type {Object|null} Cached integration settings (per-request, not per-node) */
   _integrationSettingsCache = null
 

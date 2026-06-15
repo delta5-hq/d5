@@ -7,8 +7,10 @@ const LEGACY_SUFFIX_PATTERN =
   /\s*\[[✓✗⚠]\s+(\d+\/\d+\s+(best\s+of\s+\d+(\s+·\s+[\d.]+)?|first-survivor[^\]]*|passed)|refined|refine\s+failed)\]\s*$/i
 
 // Longest/most-specific entries first to minimise backtracking on ✓-prefixed alternates.
+// '✓ K/N ⚠' must precede '✓ K/N' so the degraded-input variant is matched first.
 const ENGINE_SUFFIX_SHAPES = [
   '✓ retry-\\d+',
+  '✓ \\d+/\\d+ ⚠',
   '✓ \\d+/\\d+',
   '✓',
   '✗ \\d+ attempts',
@@ -53,16 +55,21 @@ export const appendCommoditySuffix = (title, {successCount, total}) => {
 
 // noSignal warns only in strict mode: fallback mode explicitly opts into degraded
 // selection, so the eligible-fraction suffix is the correct signal when forks passed.
-const selectRefineSuffix = ({eligible, total, fallback, winnerForkIndex, noSignal}) => {
+// ⚠ is appended as a trailer rather than replacing ✓/✗ so pass/fail outcome and
+// judge-quality signal remain independently readable.
+const selectRefineSuffix = ({eligible, total, fallback, winnerForkIndex, noSignal, degradedInput}) => {
   if (eligible === 0 && fallback && winnerForkIndex !== null)
     return `[⚠ fallback: 0/${total} passed; chose fork-${winnerForkIndex}]`
   if (noSignal && !fallback) return '[⚠ no judge signal]'
   if (eligible === 0) return `[✗ 0/${total}]`
-  if (eligible < total) return `[✓ ${eligible}/${total}]`
-  return `[✓ ${total}/${total}]`
+  return `[✓ ${eligible}/${total}${degradedInput ? ' ⚠' : ''}]`
 }
 
 export const appendRefineSuffix = (
   title,
-  {eligible, total, fallback = false, winnerForkIndex = null, noSignal = false},
-) => clamp(stripReliabilitySuffix(title), selectRefineSuffix({eligible, total, fallback, winnerForkIndex, noSignal}))
+  {eligible, total, fallback = false, winnerForkIndex = null, noSignal = false, degradedInput = false},
+) =>
+  clamp(
+    stripReliabilitySuffix(title),
+    selectRefineSuffix({eligible, total, fallback, winnerForkIndex, noSignal, degradedInput}),
+  )

@@ -125,6 +125,31 @@ describe('StoreFork', () => {
       expect(fork._nodes).toEqual(original._nodes)
     })
 
+    describe('withinForkExecution — commodity re-fork suppression contract', () => {
+      it('Store defaults withinForkExecution to false before any fork operation', () => {
+        expect(new Store({userId: 'user1'}).withinForkExecution).toBe(false)
+      })
+
+      it('createFork marks the fork store as withinForkExecution', () => {
+        const original = new Store({userId: 'user1'})
+        const fork = StoreFork.createFork(original)
+        expect(fork.withinForkExecution).toBe(true)
+      })
+
+      it('createFork does not mutate the source store — withinForkExecution stays false on original', () => {
+        const original = new Store({userId: 'user1'})
+        StoreFork.createFork(original)
+        expect(original.withinForkExecution).toBe(false)
+      })
+
+      it('fork of a fork also has withinForkExecution true (nested fork depth)', () => {
+        const original = new Store({userId: 'user1'})
+        const fork = StoreFork.createFork(original)
+        const deepFork = StoreFork.createFork(fork)
+        expect(deepFork.withinForkExecution).toBe(true)
+      })
+    })
+
     describe('memory guard', () => {
       let warnSpy
 

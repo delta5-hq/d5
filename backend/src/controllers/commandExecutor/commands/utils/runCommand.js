@@ -140,7 +140,10 @@ async function runCommodityForks(queryType, context, prompt, cell, store, progre
   })
   const cellNode = store.getNode(cell.id)
   if (cellNode) {
-    cellNode.title = appendCommoditySuffix(cellNode.title || '', {successCount, total: n})
+    cellNode.title = appendCommoditySuffix(cellNode.title || '', {
+      successCount,
+      total: n,
+    })
     store.saveNodeToOutput(cell.id)
   }
 }
@@ -217,7 +220,7 @@ export const runCommand = async (
     const command = new RPCCommand(store._userId, store._workflowId, store, rpcAlias, progress, sshClientPool)
     await command.run(cell, context, prompt, {signal})
   } else {
-    const commodityN = preventCommodityForks ? 1 : readCommodityN(getNodeCommand(cell))
+    const commodityN = preventCommodityForks || store.withinForkExecution ? 1 : readCommodityN(getNodeCommand(cell))
     if (commodityN > 1) {
       await runCommodityForks(
         queryType,
@@ -386,7 +389,11 @@ export const runCommand = async (
           let passed = false
           let lastFailCriterion = ''
           let lastFailReason = ''
-          let lastResults = allValidates.map(() => ({passed: false, criterion: '', reason: ''}))
+          let lastResults = allValidates.map(() => ({
+            passed: false,
+            criterion: '',
+            reason: '',
+          }))
 
           while (attempt <= maxRetry) {
             if (attempt > 0) {
@@ -422,7 +429,10 @@ export const runCommand = async (
           allValidates.forEach((v, i) => {
             const cellPassed = lastResults[i]?.passed ?? false
             const retryCount = cellPassed && !passed ? Math.max(0, attempt - 1) : attempt
-            v.title = appendValidateSuffix(v.title || '', {passed: cellPassed, retryCount})
+            v.title = appendValidateSuffix(v.title || '', {
+              passed: cellPassed,
+              retryCount,
+            })
             store.saveNodeToOutput(v.id)
           })
 

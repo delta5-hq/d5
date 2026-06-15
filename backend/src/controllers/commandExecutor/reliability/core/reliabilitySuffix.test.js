@@ -30,6 +30,8 @@ const ENGINE_SUFFIX_VARIANTS = [
   ['refine: fallback commit', 'Task [⚠ fallback: 0/3 passed; chose fork-1]', 'Task'],
   ['refine: fallback commit with multi-digit fork index', 'Task [⚠ fallback: 0/12 passed; chose fork-11]', 'Task'],
   ['invalid empty criterion', 'Task [✗ invalid]', 'Task'],
+  ['refine: all forks eligible, degraded judge input', 'Task [✓ 3/3 ⚠]', 'Task'],
+  ['refine: some forks eligible, degraded judge input', 'Task [✓ 2/3 ⚠]', 'Task'],
 ]
 
 const ALL_SUFFIX_VARIANTS = [...LEGACY_SUFFIX_VARIANTS, ...ENGINE_SUFFIX_VARIANTS]
@@ -109,6 +111,7 @@ describe('stripReliabilitySuffix', () => {
           'Task [⚠ fallback: 1/3 passed; chose fork-0]',
           'Task [⚠ fallback: 1/3 passed; chose fork-0]',
         ],
+        ['✓ K/N ⚠ with extra text after ⚠', 'Task [✓ 3/3 ⚠ extra]', 'Task [✓ 3/3 ⚠ extra]'],
       ])('[%s]', (_, input, expected) => {
         expect(stripReliabilitySuffix(input)).toBe(expected)
       })
@@ -188,6 +191,7 @@ describe('appendRefineSuffix', () => {
         [{eligible: 0, total: 3}, '[✗ 0/3]'],
         [{eligible: 0, total: 5}, '[✗ 0/5]'],
         [{eligible: 0, total: 1}, '[✗ 0/1]'],
+        [{eligible: 0, total: 2, degradedInput: true}, '[✗ 0/2]'],
       ])('%o → %s', (opts, expected) => {
         expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
       })
@@ -254,6 +258,7 @@ describe('appendRefineSuffix', () => {
         [{eligible: 1, total: 2}, '[✓ 1/2]'],
         [{eligible: 1, total: 1}, '[✓ 1/1]'],
         [{eligible: 2, total: 2, noSignal: false}, '[✓ 2/2]'],
+        [{eligible: 2, total: 2, degradedInput: false}, '[✓ 2/2]'],
       ])('%o → %s', (opts, expected) => {
         expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
       })
@@ -271,6 +276,29 @@ describe('appendRefineSuffix', () => {
     })
   })
 
+  describe('[✓ K/N ⚠] — judge ran on truncated per-fork content (degraded input)', () => {
+    it.each([
+      [{eligible: 3, total: 3, degradedInput: true}, '[✓ 3/3 ⚠]'],
+      [{eligible: 2, total: 3, degradedInput: true}, '[✓ 2/3 ⚠]'],
+      [{eligible: 1, total: 2, degradedInput: true}, '[✓ 1/2 ⚠]'],
+      [{eligible: 2, total: 2, degradedInput: true}, '[✓ 2/2 ⚠]'],
+    ])('%o → %s', (opts, expected) => {
+      expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
+    })
+
+    it('noSignal:true takes precedence — ⚠ trailer not appended when judge produced no rankings', () => {
+      expect(appendRefineSuffix('Task', {eligible: 2, total: 2, noSignal: true, degradedInput: true})).toBe(
+        'Task [⚠ no judge signal]',
+      )
+    })
+
+    it('fallback winner suffix takes precedence over degradedInput ⚠ trailer', () => {
+      expect(
+        appendRefineSuffix('Task', {eligible: 0, total: 3, fallback: true, winnerForkIndex: 1, degradedInput: true}),
+      ).toBe('Task [⚠ fallback: 0/3 passed; chose fork-1]')
+    })
+  })
+
   describe('strips pre-existing reliability suffix before appending — no stacking across all known shapes', () => {
     it.each(ALL_SUFFIX_VARIANTS)('%s — replaced by [✓ 3/3]', (_, titleWithSuffix, base) => {
       expect(appendRefineSuffix(titleWithSuffix, {eligible: 3, total: 3})).toBe(`${base} [✓ 3/3]`)
@@ -283,6 +311,7 @@ describe('appendRefineSuffix', () => {
       [{eligible: 0, total: 3}, '[✗ 0/3]'],
       [{eligible: 0, total: 3, noSignal: true}, '[⚠ no judge signal]'],
       [{eligible: 0, total: 3, fallback: true, winnerForkIndex: 1}, '[⚠ fallback: 0/3 passed; chose fork-1]'],
+      [{eligible: 3, total: 3, degradedInput: true}, '[✓ 3/3 ⚠]'],
     ])('%o — result is clamped to exactly 80 chars with suffix at end', (opts, expectedSuffix) => {
       const longTitle = 'A'.repeat(79)
       const result = appendRefineSuffix(longTitle, opts)
@@ -302,6 +331,8 @@ describe('appendRefineSuffix', () => {
       [{eligible: 0, total: 3}],
       [{eligible: 0, total: 3, noSignal: true}],
       [{eligible: 0, total: 3, fallback: true, winnerForkIndex: 1}],
+      [{eligible: 3, total: 3, degradedInput: true}],
+      [{eligible: 2, total: 3, degradedInput: true}],
     ])('%o → stripped back to base title', opts => {
       expect(stripReliabilitySuffix(appendRefineSuffix('Base', opts))).toBe('Base')
     })

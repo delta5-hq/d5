@@ -1,0 +1,37 @@
+{
+  "winnerForkIndex": 0,
+  "perCriterionVerdict": [
+    {
+      "criterionId": "v1",
+      "criterion": "must include revenue numbers",
+      "forkRankings": [
+        {"forkIndex": 0, "rank": 1},
+        {"forkIndex": 1, "rank": 2}
+      ]
+    }
+  ],
+  "mode": "strict",
+  "selectionLayer": "primary",
+  "noSignal": false,
+  "eligible": 1,
+  "total": 2,
+  "tiebreakUsed": true,
+  "judgeInput": {
+    "candidateCount": 2,
+    "perForkBudgetChars": 5000,
+    "degradedInput": false,
+    "resolvedJudgeFamilies": ["openai"]
+  },
+  "judgeQualityWarnings": [
+    {"condition": "singleProvider", "severity": "high"}
+  ],
+  "discardedForks": [
+    {
+      "forkIndex": 1,
+      "status": "criteria-failed",
+      "failedAt": "must include revenue numbers",
+      "reason": "context deadline exceeded",
+      "attempts": 3
+    }
+  ]
+}

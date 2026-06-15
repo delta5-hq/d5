@@ -285,6 +285,7 @@ export const clearCommandsWithParams = str => {
         MEMORIZE_PARAM_RECHUNK_REGEX,
         MEMORIZE_PARAM_KEEP_REGEX,
         MEMORIZE_PARAM_SPLIT_REGEX,
+        '\\s*:n=\\d+',
       ].join('|'),
       'g',
     )
