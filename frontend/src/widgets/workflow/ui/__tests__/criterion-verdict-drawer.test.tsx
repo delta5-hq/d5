@@ -244,6 +244,18 @@ describe('CriterionVerdictDrawer — judge quality warnings', () => {
     expect(screen.getByText(/No reasoning-capable model configured/i)).toBeInTheDocument()
   })
 
+  it('renders allGateFiltered warning text', () => {
+    renderDrawer(
+      makeMetadata({
+        allGateFiltered: true,
+        failureCause: 'structural-gate',
+        remediationHint: 'revise-prompt',
+        judgeQualityWarnings: [{ condition: 'allGateFiltered', severity: 'high' }],
+      }),
+    )
+    expect(screen.getByText(/All candidates were structurally rejected/i)).toBeInTheDocument()
+  })
+
   it('renders multiple warnings simultaneously', () => {
     renderDrawer(
       makeMetadata({

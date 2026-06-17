@@ -38,7 +38,7 @@ export class ValidateCommand {
     const n = readValidateN(command)
 
     let parentNode = this.store.getNode(validateNode.parent)
-    if (!parentNode) return {passed: true, criterion, reason: ''}
+    if (!parentNode) return {passed: false, criterion, reason: 'parent cell is missing'}
     // /refine has no output content of its own — walk up to find the content-producing ancestor.
     if (isValidRefineCell(getNodeCommand(parentNode))) {
       parentNode = this.store.getNode(parentNode.parent) || parentNode
@@ -47,7 +47,7 @@ export class ValidateCommand {
     const extractor = new NodeTextExtractor(Infinity, skipValidateFn, this.store)
     const content = await extractor.extractFullContent(parentNode)
 
-    if (!content.trim()) return {passed: true, criterion, reason: ''}
+    if (!content.trim()) return {passed: false, criterion, reason: 'parent output is empty'}
 
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     const llmType = determineLLMType(getNodeCommand(parentNode), settings)

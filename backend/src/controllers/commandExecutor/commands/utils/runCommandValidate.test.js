@@ -396,6 +396,49 @@ describe('runCommand \u2014 /validate: each sibling cell receives its own indivi
   })
 })
 
+describe('runCommand \u2014 /validate retry preserves the best attempt', () => {
+  it('does not commit a later retry that loses a criterion already satisfied by an earlier attempt', async () => {
+    const store = treeWithValidates('/validate criterion-A :retry=1', '/validate criterion-B :retry=1')
+    const {ChatCommand} = require('../ChatCommand')
+    let chatCall = 0
+    const chatRun = jest.spyOn(ChatCommand.prototype, 'run').mockImplementation(async function () {
+      chatCall++
+      this.store.createNode(
+        {id: `prompt-${chatCall}`, parent: 'root', title: `attempt ${chatCall}`, children: []},
+        true,
+      )
+    })
+    const validateRun = jest.spyOn(ValidateCommand.prototype, 'run').mockImplementation(async validateNode => {
+      if (chatCall === 1) {
+        return validateNode.id === 'v0'
+          ? {passed: true, criterion: 'criterion-A', reason: ''}
+          : {passed: false, criterion: 'criterion-B', reason: 'missing B'}
+      }
+      return validateNode.id === 'v0'
+        ? {passed: false, criterion: 'criterion-A', reason: 'lost A'}
+        : {passed: true, criterion: 'criterion-B', reason: ''}
+    })
+
+    let thrown
+    try {
+      await runCommand({queryType: 'chat', cell: store.getNode('root'), store})
+    } catch (e) {
+      thrown = e
+    } finally {
+      chatRun.mockRestore()
+      validateRun.mockRestore()
+    }
+
+    expect(thrown).toBeInstanceOf(CriteriaFailedError)
+    expect(thrown.criterion).toBe('criterion-B')
+    expect(store.getNode('root').prompts).toEqual(['prompt-1'])
+    expect(store.getNode('prompt-1')).toBeDefined()
+    expect(store.getNode('prompt-2')).toBeUndefined()
+    expect(store.getNode('v0').title).toMatch(/\[✓ retry-1\]/)
+    expect(store.getNode('v1').title).toMatch(/\[✗ 2 attempts\]/)
+  })
+})
+
 describe('runCommand \u2014 /validate with NoopLLM verifier contract', () => {
   const originalMockExternalServices = process.env.MOCK_EXTERNAL_SERVICES
   const mockValidatedWorkflow = criterion => {

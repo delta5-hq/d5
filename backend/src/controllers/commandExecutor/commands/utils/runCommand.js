@@ -35,6 +35,7 @@ import {
   appendCommoditySuffix,
 } from '../../reliability/core/reliabilitySuffix'
 import {getNodeCommand} from './isCommand'
+import {isExecutionErrorNode} from './executionNodeStatus'
 import {resolveCommand} from './queryTypeResolver'
 import {ForeachCommand} from '../ForeachCommand'
 import {MemorizeCommand} from '../MemorizeCommand'
@@ -44,7 +45,11 @@ import {MCPCommand} from '../MCPCommand'
 import {RPCCommand} from '../RPCCommand'
 import StoreFork from '../../reliability/core/StoreFork'
 import {readCommodityN, stripCommodityN} from '../../reliability/core/commodityParams'
-import {passesStructuralGate} from '../../reliability/core/structuralGate'
+import {passesCommodityGate} from '../../reliability/core/structuralGate'
+import {
+  captureStoreExecutionSnapshot,
+  restoreStoreExecutionSnapshot,
+} from '../../reliability/core/StoreExecutionSnapshot'
 import {throwIfAborted, signalOptions, isAbortError} from './executionSignal'
 // eslint-disable-next-line no-unused-vars
 import Store from './Store'
@@ -105,6 +110,28 @@ function buildValidateRetryContext(originalContext, criterion, reason) {
   return injected + (originalContext || '')
 }
 
+function countPassingValidates(results) {
+  return results.filter(result => result?.passed).length
+}
+
+function firstFailedValidate(results) {
+  return results.find(result => !result?.passed)
+}
+
+function buildValidateAttempt(attempt, results, store, rootId) {
+  return {
+    attempt,
+    results,
+    passedCount: countPassingValidates(results),
+    snapshot: captureStoreExecutionSnapshot(store, rootId),
+  }
+}
+
+function isBetterValidateAttempt(candidate, best) {
+  if (!best) return true
+  return candidate.passedCount > best.passedCount
+}
+
 /** @private */
 async function runCommodityForks(queryType, context, prompt, cell, store, progress, n, options = {}) {
   throwIfAborted(options.signal)
@@ -131,7 +158,7 @@ async function runCommodityForks(queryType, context, prompt, cell, store, progre
     let hadSubstantiveOutput = false
     for (const promptId of forkCell?.prompts ?? []) {
       const node = forkStore.getNode(promptId)
-      if (passesStructuralGate(node?.title)) {
+      if (!isExecutionErrorNode(node) && passesCommodityGate(node?.title)) {
         store.createNode({parent: cell.id, title: node.title})
         hadSubstantiveOutput = true
       }
@@ -394,6 +421,7 @@ export const runCommand = async (
             criterion: '',
             reason: '',
           }))
+          let bestAttempt = null
 
           while (attempt <= maxRetry) {
             if (attempt > 0) {
@@ -415,10 +443,16 @@ export const runCommand = async (
 
             throwIfAborted(signal)
             lastResults = await Promise.all(allValidates.map(v => validateCommand.run(v, {signal})))
-            const firstFail = lastResults.find(r => !r.passed)
+            const currentAttempt = buildValidateAttempt(attempt, lastResults, store, cell.id)
+            if (isBetterValidateAttempt(currentAttempt, bestAttempt)) {
+              bestAttempt = currentAttempt
+            }
+
+            const firstFail = firstFailedValidate(lastResults)
 
             if (!firstFail) {
               passed = true
+              bestAttempt = currentAttempt
               break
             }
             lastFailCriterion = firstFail.criterion
@@ -426,18 +460,25 @@ export const runCommand = async (
             attempt++
           }
 
+          if (bestAttempt) {
+            restoreStoreExecutionSnapshot(store, bestAttempt.snapshot)
+            lastResults = bestAttempt.results
+          }
+
           allValidates.forEach((v, i) => {
+            const validateNode = store.getNode(v.id) ?? v
             const cellPassed = lastResults[i]?.passed ?? false
             const retryCount = cellPassed && !passed ? Math.max(0, attempt - 1) : attempt
-            v.title = appendValidateSuffix(v.title || '', {
+            validateNode.title = appendValidateSuffix(validateNode.title || '', {
               passed: cellPassed,
               retryCount,
             })
-            store.saveNodeToOutput(v.id)
+            store.saveNodeToOutput(validateNode.id)
           })
 
           if (!passed) {
-            throw new CriteriaFailedError(lastFailCriterion, attempt)
+            const bestFail = firstFailedValidate(lastResults)
+            throw new CriteriaFailedError(bestFail?.criterion ?? lastFailCriterion, attempt)
           }
         }
 

@@ -396,6 +396,14 @@ describe('resolveRefineCell — all forks fail (strict mode)', () => {
     expect(StoreFork.applyCandidate).not.toHaveBeenCalled()
   })
 
+  it('suffix shows [✗ 0/N] when all forks fail at runtime', async () => {
+    const store = makeStore('/refine :n=3')
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    expect(store._nodes.r1.title).toBe('My Cell [✗ 0/3]')
+  })
+
   it('verdict {winnerForkIndex: null} triggers the same error path as a null verdict', async () => {
     MockForkJudge.mockImplementation(() => ({
       selectWinner: makeSelectWinner({
@@ -413,13 +421,92 @@ describe('resolveRefineCell — all forks fail (strict mode)', () => {
     expect(StoreFork.applyCandidate).not.toHaveBeenCalled()
   })
 
-  it('reliabilityMetadata is not written when no winner is selected', async () => {
+  it('reliabilityMetadata is not written when no winner is selected (null verdict from judge)', async () => {
     const store = makeStore()
 
     await resolveRefineCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.r1.reliabilityMetadata).toBeUndefined()
   })
+})
+
+describe('resolveRefineCell — all forks gate-filtered (allGateFiltered)', () => {
+  const okForks = n =>
+    Array.from({length: n}, (_, i) => ({
+      forkIndex: i,
+      status: 'ok',
+      forkStore: okForkStore(),
+    }))
+
+  const gateFilteredVerdict = {
+    winnerForkIndex: null,
+    selectionLayer: 'none',
+    mode: 'strict',
+    noSignal: false,
+    tiebreakUsed: false,
+    allGateFiltered: true,
+    failureCause: 'structural-gate',
+    remediationHint: 'revise-prompt',
+    perCriterionVerdict: [],
+    judgeQualityWarnings: [{condition: 'allGateFiltered', severity: 'high'}],
+  }
+
+  beforeEach(() => {
+    mockRunForks.mockResolvedValue(okForks(3))
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner(gateFilteredVerdict),
+    }))
+  })
+
+  it.each([2, 3, 5])('suffix shows [✗ 0/%i] when all fork content fails the structural gate', async n => {
+    mockRunForks.mockResolvedValue(okForks(n))
+    const store = makeStore(`/refine :n=${n}`)
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    expect(store._nodes.r1.title).toBe(`My Cell [✗ 0/${n}]`)
+  })
+
+  it('reliabilityMetadata is written and carries the allGateFiltered quality warning', async () => {
+    const store = makeStore('/refine :n=3')
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    expect(store._nodes.r1.reliabilityMetadata).toBeDefined()
+    expect(store._nodes.r1.reliabilityMetadata.judgeQualityWarnings).toEqual([
+      {condition: 'allGateFiltered', severity: 'high'},
+    ])
+    expect(store._nodes.r1.reliabilityMetadata).toEqual(
+      expect.objectContaining({
+        failureCause: 'structural-gate',
+        remediationHint: 'revise-prompt',
+        allGateFiltered: true,
+      }),
+    )
+  })
+
+  it('error node message names empty/refusal output — does not suggest :fallback (inapplicable here)', async () => {
+    const store = makeStore('/refine :n=3')
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    const [msg] = store.importer.createErrorNode.mock.calls[0]
+    expect(msg).toContain('empty or refusal output')
+    expect(msg).not.toContain(':fallback')
+  })
+
+  it.each([2, 3, 5])(
+    'reliabilityMetadata.eligible counts ok-status forks regardless of gate filtering (n=%i)',
+    async n => {
+      mockRunForks.mockResolvedValue(okForks(n))
+      const store = makeStore(`/refine :n=${n}`)
+
+      await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+      expect(store._nodes.r1.reliabilityMetadata.eligible).toBe(n)
+      expect(store._nodes.r1.reliabilityMetadata.total).toBe(n)
+    },
+  )
 })
 
 describe('resolveRefineCell — winner selected', () => {
@@ -1294,5 +1381,51 @@ describe('resolveRefineCell — discardedForks in reliabilityMetadata', () => {
       expect(require('./StoreFork').applyCandidate).toHaveBeenCalledWith(store, winnerStore, 'r1')
       expect(memoMap.get('r1')).toBe(winnerStore)
     })
+  })
+})
+
+describe('resolveRefineCell — verdict field propagation to reliabilityMetadata', () => {
+  const makeRunWithVerdict = async verdictOverrides => {
+    const store = makeStore('/refine :n=2')
+    mockRunForks.mockResolvedValue([
+      {forkIndex: 0, status: 'ok', forkStore: okForkStore()},
+      {forkIndex: 1, status: 'ok', forkStore: okForkStore()},
+    ])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({
+        perCriterionVerdict: [],
+        mode: 'strict',
+        selectionLayer: 'primary',
+        noSignal: false,
+        tiebreakUsed: false,
+        judgeInput: {},
+        judgeQualityWarnings: [],
+        ...verdictOverrides,
+      }),
+    }))
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    return store.getNode('r1').reliabilityMetadata
+  }
+
+  it.each([0, 1])('winnerForkIndex %i from verdict is stored in reliabilityMetadata unchanged', async idx => {
+    const meta = await makeRunWithVerdict({winnerForkIndex: idx})
+    expect(meta.winnerForkIndex).toBe(idx)
+  })
+
+  it.each([true, false])('tiebreakUsed: %s is propagated to reliabilityMetadata', async tiebreakUsed => {
+    const meta = await makeRunWithVerdict({winnerForkIndex: 0, tiebreakUsed})
+    expect(meta.tiebreakUsed).toBe(tiebreakUsed)
+  })
+
+  it.each([true, false])('noSignal: %s is propagated to reliabilityMetadata', async noSignal => {
+    const meta = await makeRunWithVerdict({winnerForkIndex: 0, noSignal})
+    expect(meta.noSignal).toBe(noSignal)
+  })
+
+  it('two sequential calls with the same verdict produce the same winnerForkIndex in reliabilityMetadata', async () => {
+    const meta1 = await makeRunWithVerdict({winnerForkIndex: 0, tiebreakUsed: true})
+    const meta2 = await makeRunWithVerdict({winnerForkIndex: 0, tiebreakUsed: true})
+    expect(meta1.winnerForkIndex).toBe(0)
+    expect(meta2.winnerForkIndex).toBe(0)
   })
 })

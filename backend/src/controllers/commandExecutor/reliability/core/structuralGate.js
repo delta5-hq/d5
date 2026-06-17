@@ -24,7 +24,7 @@ const emitRejection = (reason, forkIndex) => {
   log('%s rejected: %s', label, reason)
 }
 
-export const passesStructuralGate = (text, forkIndex = null) => {
+const passesBaseGate = (text, forkIndex) => {
   if (isEmptyOutput(text)) {
     emitRejection('empty output', forkIndex)
     return false
@@ -33,9 +33,16 @@ export const passesStructuralGate = (text, forkIndex = null) => {
     emitRejection(`refusal pattern matched — ${text?.trimStart().slice(0, 80)}`, forkIndex)
     return false
   }
+  return true
+}
+
+export const passesStructuralGate = (text, forkIndex = null) => {
+  if (!passesBaseGate(text, forkIndex)) return false
   if (isTruncatedOutput(text)) {
     emitRejection(`output too short (${text?.trim().length} chars)`, forkIndex)
     return false
   }
   return true
 }
+
+export const passesCommodityGate = (text, forkIndex = null) => passesBaseGate(text, forkIndex)

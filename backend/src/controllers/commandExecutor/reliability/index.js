@@ -31,8 +31,9 @@ export {
   REASONING_CAPABLE_FAMILIES,
   hasReasoningCapableFamily,
 } from './core/ModelFamilyRouter'
-export {passesStructuralGate} from './core/structuralGate'
+export {passesStructuralGate, passesCommodityGate} from './core/structuralGate'
 export {readCommodityN, stripCommodityN, COMMODITY_N_MAX} from './core/commodityParams'
+export {FAILURE_CAUSE, REMEDIATION_HINT, classifyNoWinner} from './core/failureSemantics'
 export {
   stripReliabilitySuffix,
   appendValidateSuffix,

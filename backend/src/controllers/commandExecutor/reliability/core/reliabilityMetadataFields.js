@@ -43,6 +43,9 @@ export function buildReliabilityMetadata(verdict, forkResults, okCount, n) {
     total: n,
     judgeInput: verdict.judgeInput,
     judgeQualityWarnings: verdict.judgeQualityWarnings ?? [],
+    ...(verdict.failureCause !== undefined ? {failureCause: verdict.failureCause} : {}),
+    ...(verdict.remediationHint !== undefined ? {remediationHint: verdict.remediationHint} : {}),
+    ...(verdict.allGateFiltered !== undefined ? {allGateFiltered: verdict.allGateFiltered} : {}),
     discardedForks: forkResults.filter(f => f.forkIndex !== verdict.winnerForkIndex).map(buildDiscardedFork),
   }
 }

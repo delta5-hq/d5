@@ -79,6 +79,10 @@ export const validateNodeData = nodeData => {
     throw new Error(`Node "${id}": "command" must be a string`)
   }
 
+  if (nodeData.executionStatus && typeof nodeData.executionStatus !== 'string') {
+    throw new Error(`Node "${id}": "executionStatus" must be a string`)
+  }
+
   if (nodeData.prompts && !Array.isArray(nodeData.prompts)) {
     throw new Error(`Node "${id}": "prompts" must be an array of strings`)
   } else if (nodeData.prompts && nodeData.prompts.some(prompt => typeof prompt !== 'string')) {

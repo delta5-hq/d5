@@ -443,6 +443,8 @@ export default {
         'Fallback mode with weak judge — degraded output accepted with reduced confidence',
       judgeQualityWarning_noReasoningMode:
         'No reasoning-capable model configured — judge operates without extended analysis',
+      judgeQualityWarning_allGateFiltered:
+        'All candidates were structurally rejected — fallback cannot rescue empty or refusal output',
       judgeQualitySeverityHigh: 'high',
       judgeQualitySeverityMedium: 'medium',
       judgeQualitySeverityLow: 'low',

@@ -93,7 +93,10 @@ func TestReliabilityMetadata_Contract_FixtureIsMaximal(t *testing.T) {
 		"winnerForkIndex", "perCriterionVerdict", "mode", "selectionLayer",
 		"noSignal", "eligible", "total",
 	}
-	optionalTopLevel := []string{"tiebreakUsed", "judgeInput", "judgeQualityWarnings", "discardedForks"}
+	optionalTopLevel := []string{
+		"tiebreakUsed", "judgeInput", "judgeQualityWarnings", "discardedForks",
+		"failureCause", "remediationHint", "allGateFiltered",
+	}
 
 	for _, key := range append(requiredTopLevel, optionalTopLevel...) {
 		if _, present := raw[key]; !present {

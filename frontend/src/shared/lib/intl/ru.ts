@@ -442,6 +442,8 @@ export default {
       judgeQualityWarning_fallbackWithWeakJudge:
         'Резервный режим со слабым судьёй — ухудшенный вывод принят со сниженной достоверностью',
       judgeQualityWarning_noReasoningMode: 'Нет модели с режимом рассуждений — оценка без расширенного анализа',
+      judgeQualityWarning_allGateFiltered:
+        'Все кандидаты структурно отклонены — fallback не исправит пустой вывод или отказ',
       judgeQualitySeverityHigh: 'высокий',
       judgeQualitySeverityMedium: 'средний',
       judgeQualitySeverityLow: 'низкий',

@@ -13,6 +13,12 @@ const (
 	MediaFullWidth MediaPosition = "fullWidth"
 )
 
+type ExecutionStatus string
+
+const (
+	ExecutionStatusError ExecutionStatus = "error"
+)
+
 type Node struct {
 	ID                  string               `json:"id" bson:"id"`
 	Children            []string             `json:"children" bson:"children"`
@@ -33,6 +39,7 @@ type Node struct {
 	Command             string               `json:"command" bson:"command"`
 	Prompts             []string             `json:"prompts" bson:"prompts"`
 	ReliabilityMetadata *ReliabilityMetadata `json:"reliabilityMetadata,omitempty" bson:"reliabilityMetadata,omitempty"`
+	ExecutionStatus     ExecutionStatus      `json:"executionStatus,omitempty" bson:"executionStatus,omitempty"`
 }
 
 type Edge struct {

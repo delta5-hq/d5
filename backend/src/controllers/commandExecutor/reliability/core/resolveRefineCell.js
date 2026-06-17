@@ -106,19 +106,24 @@ export async function resolveRefineCell(
   const baseTitle = stripReliabilitySuffix(refineNode.title || '')
 
   if (!verdict || verdict.winnerForkIndex === null) {
+    const suffixEligible = verdict?.allGateFiltered ? 0 : okCount
     refineNode.title = appendRefineSuffix(baseTitle, {
-      eligible: okCount,
+      eligible: suffixEligible,
       total: n,
       fallback,
       winnerForkIndex: null,
       noSignal: verdict?.noSignal ?? false,
     })
+    if (verdict) {
+      refineNode.reliabilityMetadata = buildReliabilityMetadata(verdict, forkResults, okCount, n)
+    }
     store.importer.createErrorNode(
-      `/refine :n=${n} — all ${n} fork(s) failed; use :fallback to accept best degraded result`,
+      verdict?.allGateFiltered
+        ? `/refine :n=${n} — all ${n} fork(s) produced empty or refusal output; revise the prompt`
+        : `/refine :n=${n} — all ${n} fork(s) failed; use :fallback to accept best degraded result`,
       refineNode.id,
     )
     store.saveNodeToOutput(refineNode.id)
-    // Per-criterion verdict markers are propagated so the user can attribute the failure to a specific /validate.
     const diagnosticFork = forkResults.find(f => f.status === 'criteria-failed' && f.forkStore)
     if (diagnosticFork) {
       flushValidateTitles(allValidates, diagnosticFork.forkStore, store)
@@ -130,9 +135,6 @@ export async function resolveRefineCell(
 
   const winnerFork = forkResults.find(f => f.forkIndex === verdict.winnerForkIndex)
   if (!winnerFork?.forkStore) {
-    // Defensive guard: judge returned an index pointing to a runtime-failed fork (forkStore is null).
-    // ForkJudge.selectWinner never does this — it only selects from ok/criteria-failed forks that
-    // carry a valid forkStore. This path protects against broken judge mocks or future regressions.
     refineNode.title = appendRefineSuffix(baseTitle, {
       eligible: okCount,
       total: n,

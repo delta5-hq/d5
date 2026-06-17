@@ -45,6 +45,12 @@ const setupExtractor = content => {
   }))
 }
 
+const runValidation = async nodes => {
+  const store = buildStore(nodes)
+  const cmd = new ValidateCommand('user1', null, store)
+  return cmd.run(store.getNode('v'))
+}
+
 beforeEach(() => {
   jest.clearAllMocks()
   getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'test-key'}})
@@ -52,41 +58,46 @@ beforeEach(() => {
 })
 
 describe('ValidateCommand.run', () => {
-  describe('guard: no parent node → passes silently', () => {
-    it('returns passed when validateNode has no parent field', async () => {
-      const store = buildStore({
-        v: {id: 'v', command: '/validate must include numbers', children: []},
+  describe('target-content availability guards', () => {
+    it.each([
+      [
+        'validate node has no parent field',
+        {v: {id: 'v', command: '/validate must include numbers', children: []}},
+        'must include numbers',
+      ],
+      [
+        'parent id does not resolve',
+        {v: {id: 'v', parent: 'ghost', command: '/validate criterion', children: []}},
+        'criterion',
+      ],
+    ])('%s → failed without invoking extractor or LLM', async (_caseName, nodes, criterion) => {
+      const result = await runValidation(nodes)
+      expect(result).toEqual({
+        passed: false,
+        criterion,
+        reason: 'parent cell is missing',
       })
-      setupLLM(['YES'])
-      setupExtractor('')
-      const cmd = new ValidateCommand('user1', null, store)
-      const result = await cmd.run(store.getNode('v'))
-      expect(result.passed).toBe(true)
+      expect(NodeTextExtractor).not.toHaveBeenCalled()
+      expect(getLLM).not.toHaveBeenCalled()
     })
 
-    it('returns passed when parent id does not resolve', async () => {
-      const store = buildStore({
-        v: {id: 'v', parent: 'ghost', command: '/validate criterion', children: []},
-      })
-      setupLLM(['YES'])
-      setupExtractor('')
-      const cmd = new ValidateCommand('user1', null, store)
-      const result = await cmd.run(store.getNode('v'))
-      expect(result.passed).toBe(true)
-    })
-  })
-
-  describe('guard: empty parent content → passes silently', () => {
-    it('returns passed when extractFullContent returns empty string', async () => {
-      const store = buildStore({
+    it.each([
+      ['empty string', ''],
+      ['spaces only', '   '],
+      ['tabs and newlines only', '\n\t  \n'],
+    ])('parent content is %s → failed without invoking LLM', async (_caseName, content) => {
+      setupExtractor(content)
+      const result = await runValidation({
         parent: {id: 'parent', command: '/chat', children: ['v']},
         v: {id: 'v', parent: 'parent', command: '/validate criterion', children: []},
       })
-      setupLLM(['NO: missing'])
-      setupExtractor('   ')
-      const cmd = new ValidateCommand('user1', null, store)
-      const result = await cmd.run(store.getNode('v'))
-      expect(result.passed).toBe(true)
+      expect(result).toEqual({
+        passed: false,
+        criterion: 'criterion',
+        reason: 'parent output is empty',
+      })
+      expect(NodeTextExtractor).toHaveBeenCalledTimes(1)
+      expect(getLLM).not.toHaveBeenCalled()
     })
   })
 
@@ -452,7 +463,7 @@ describe('auto-grandparent traversal for descendant topology', () => {
     expect(result.passed).toBe(true)
   })
 
-  it('passes silently when /refine has no grandparent (orphaned /refine)', async () => {
+  it('fails when /refine has no grandparent and yields no content', async () => {
     const store = buildStore({
       refine: {id: 'refine', command: '/refine :n=2', children: ['v']},
       v: {id: 'v', parent: 'refine', command: '/validate must include numbers', children: []},
@@ -462,8 +473,11 @@ describe('auto-grandparent traversal for descendant topology', () => {
 
     const cmd = new ValidateCommand('user1', null, store)
     const result = await cmd.run(store.getNode('v'))
-    // parentNode fallback stays as /refine itself; /refine has no output content → pass silently
-    expect(result.passed).toBe(true)
+    expect(result).toEqual({
+      passed: false,
+      criterion: 'must include numbers',
+      reason: 'parent output is empty',
+    })
   })
 
   it('normal topology (validate parent is /chat, not /refine) is unaffected', async () => {

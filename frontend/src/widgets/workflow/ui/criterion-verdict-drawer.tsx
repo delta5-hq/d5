@@ -20,6 +20,7 @@ const CONDITION_I18N_KEY: Record<JudgeQualityWarning['condition'], string> = {
   juryDuplicates: 'workflowTree.verdictDrawer.judgeQualityWarning_juryDuplicates',
   fallbackWithWeakJudge: 'workflowTree.verdictDrawer.judgeQualityWarning_fallbackWithWeakJudge',
   noReasoningMode: 'workflowTree.verdictDrawer.judgeQualityWarning_noReasoningMode',
+  allGateFiltered: 'workflowTree.verdictDrawer.judgeQualityWarning_allGateFiltered',
 }
 
 const MODE_I18N_KEY: Record<ReliabilityMetadata['mode'], string> = {

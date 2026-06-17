@@ -1,5 +1,6 @@
 import {ForkJudge} from './ForkJudge'
 import Store from '../../commands/utils/Store'
+import {FAILURE_CAUSE, REMEDIATION_HINT} from './failureSemantics'
 
 jest.mock('debug', () => {
   const fn = jest.fn(() => fn)
@@ -23,7 +24,7 @@ jest.mock('../../commands/utils/langchain/getLLM', () => ({
 
 jest.mock('../../commands/utils/NodeTextExtractor', () => ({
   NodeTextExtractor: jest.fn().mockImplementation(() => ({
-    extractFullContent: jest.fn().mockResolvedValue('sample content'),
+    extractFullContent: jest.fn().mockResolvedValue('sample output that is substantive and passes the structural gate'),
   })),
 }))
 
@@ -74,7 +75,9 @@ beforeEach(() => {
   jest.clearAllMocks()
   getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'test'}})
   NodeTextExtractor.mockImplementation(() => ({
-    extractFullContent: jest.fn().mockImplementation(node => Promise.resolve(`content of ${node?.id ?? 'unknown'}`)),
+    extractFullContent: jest
+      .fn()
+      .mockImplementation(node => Promise.resolve(`output from node ${node?.id ?? 'unknown'}`)),
   }))
 })
 
@@ -112,6 +115,44 @@ describe('ForkJudge.selectWinner — no eligible forks', () => {
     })
     expect(result.noSignal).toBeFalsy()
   })
+
+  it('no-eligible-forks path sets allGateFiltered: false', async () => {
+    const result = await makeJudge().selectWinner({
+      forks: [],
+      validateNodes: [],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+    expect(result.allGateFiltered).toBe(false)
+  })
+
+  it.each([
+    ['empty fork set', [], FAILURE_CAUSE.NO_ELIGIBLE_FORKS, REMEDIATION_HINT.NONE],
+    [
+      'all runtime-failed',
+      [makeFork(0, 'runtime-failed', {reason: 'auth', forkStore: null})],
+      FAILURE_CAUSE.RUNTIME_FAILED,
+      REMEDIATION_HINT.CHECK_PROVIDER,
+    ],
+    [
+      'all criteria-failed strict',
+      [makeFork(0, 'criteria-failed', {failedAt: 'criterion', attempts: 3})],
+      FAILURE_CAUSE.CRITERIA_FAILED,
+      REMEDIATION_HINT.ADJUST_CRITERIA,
+    ],
+    [
+      'mixed ineligible fork states',
+      [
+        makeFork(0, 'criteria-failed', {failedAt: 'criterion', attempts: 3}),
+        makeFork(1, 'runtime-failed', {reason: 'auth', forkStore: null}),
+      ],
+      FAILURE_CAUSE.NO_ELIGIBLE_FORKS,
+      REMEDIATION_HINT.NONE,
+    ],
+  ])('%s failure semantics are preserved', async (_, forks, failureCause, remediationHint) => {
+    const result = await makeJudge().selectWinner({forks, validateNodes: [], parentNodeId: 'parent', fallback: false})
+    expect(result).toEqual(expect.objectContaining({failureCause, remediationHint}))
+  })
 })
 
 // ─── Single eligible fork — judge skipped ────────────────────────────────────
@@ -128,6 +169,12 @@ describe('ForkJudge.selectWinner — single eligible fork', () => {
     const forks = [makeFork(0, 'ok'), makeFork(1, 'runtime-failed', {reason: 'err'})]
     const result = await makeJudge().selectWinner({forks, validateNodes: [], parentNodeId: 'parent', fallback: false})
     expect(result.noSignal).toBeFalsy()
+  })
+
+  it('single-fork path sets allGateFiltered: false', async () => {
+    const forks = [makeFork(0, 'ok'), makeFork(1, 'runtime-failed', {reason: 'err'})]
+    const result = await makeJudge().selectWinner({forks, validateNodes: [], parentNodeId: 'parent', fallback: false})
+    expect(result.allGateFiltered).toBe(false)
   })
 })
 
@@ -788,14 +835,14 @@ describe('ForkJudge.selectWinner — tiebreakUsed', () => {
     expect(result.winnerForkIndex).toBe(0)
   })
 
-  it('single-candidate early return has no tiebreakUsed field', async () => {
+  it('single eligible fork passes gate → tiebreakUsed:false (nothing to rank)', async () => {
     const result = await makeJudge().selectWinner({
       forks: [makeFork(0)],
       validateNodes: [],
       parentNodeId: 'parent',
       fallback: false,
     })
-    expect(result.tiebreakUsed).toBeUndefined()
+    expect(result.tiebreakUsed).toBe(false)
   })
 
   it('no-candidates early return has no tiebreakUsed field', async () => {
@@ -809,123 +856,327 @@ describe('ForkJudge.selectWinner — tiebreakUsed', () => {
   })
 })
 
-// ─── Structural-gate false-negative observability ────────────────────────────
+describe('ForkJudge.selectWinner — structural gate on candidate content', () => {
+  const SUBSTANTIVE_A = 'substantive output from fork A that passes the structural gate check'
+  const SUBSTANTIVE_B = 'substantive output from fork B that passes the structural gate check'
 
-describe('structural-gate false-negative observability', () => {
-  const observabilityCalls = () =>
-    require('debug').mock.calls.filter(
-      args => typeof args[0] === 'string' && args[0].includes('structural-gate false-negative?'),
+  const GATE_REJECTION_INPUTS = [
+    ['empty string', ''],
+    ['whitespace-only string', '   '],
+    ['refusal pattern', "I'm sorry, I cannot help with that."],
+    ['truncated output below MIN_SUBSTANTIVE_CHARS', 'Too short.'],
+  ]
+
+  const mockContentSequence = (...contentItems) => {
+    let callCount = 0
+    NodeTextExtractor.mockImplementation(() => {
+      const content = contentItems[callCount++] ?? SUBSTANTIVE_A
+      return {extractFullContent: jest.fn().mockResolvedValue(content)}
+    })
+  }
+
+  describe('single gate-survivor: sole-survivor wins without judge invocation', () => {
+    it.each(GATE_REJECTION_INPUTS)(
+      'fork-0 with %s is eliminated; fork-1 wins as sole survivor',
+      async (_, rejectedContent) => {
+        mockContentSequence(rejectedContent, SUBSTANTIVE_A)
+        const result = await makeJudge().selectWinner({
+          forks: [makeFork(0), makeFork(1)],
+          validateNodes: [],
+          parentNodeId: 'parent',
+          fallback: false,
+        })
+        expect(result.winnerForkIndex).toBe(1)
+        expect(result.selectionLayer).toBe('primary')
+        expect(result.noSignal).toBe(false)
+        expect(result.tiebreakUsed).toBe(false)
+        expect(getLLM).not.toHaveBeenCalled()
+      },
     )
 
-  it('fork strictly worse than winner receives one log entry carrying its forkIndex', async () => {
-    // "2,1": fork-0 rank=1, fork-1 rank=0 → Borda fork-0=1, fork-1=0
-    // fork-1 wins (score 0); fork-0 score 1 > winnerScore 0 → logged
+    it('sole survivor when multiple earlier forks are gate-rejected', async () => {
+      mockContentSequence('', 'Too short.', SUBSTANTIVE_A)
+      const result = await makeJudge().selectWinner({
+        forks: [makeFork(0), makeFork(1), makeFork(2)],
+        validateNodes: [],
+        parentNodeId: 'parent',
+        fallback: false,
+      })
+      expect(result.winnerForkIndex).toBe(2)
+      expect(getLLM).not.toHaveBeenCalled()
+    })
+
+    it('original forkIndex is preserved for the sole survivor regardless of its position in fork array', async () => {
+      mockContentSequence(SUBSTANTIVE_A, '', '')
+      const result = await makeJudge().selectWinner({
+        forks: [makeFork(7), makeFork(8), makeFork(9)],
+        validateNodes: [],
+        parentNodeId: 'parent',
+        fallback: false,
+      })
+      expect(result.winnerForkIndex).toBe(7)
+      expect(getLLM).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('sole pool candidate: gate applied unconditionally even when pool size is 1', () => {
+    it('substantive content — sole ok fork passes gate, wins without judge, allGateFiltered:false', async () => {
+      const result = await makeJudge().selectWinner({
+        forks: [makeFork(0), makeFork(1, 'runtime-failed', {reason: 'err', forkStore: null})],
+        validateNodes: [],
+        parentNodeId: 'parent',
+        fallback: false,
+      })
+      expect(result.winnerForkIndex).toBe(0)
+      expect(result.allGateFiltered).toBe(false)
+      expect(getLLM).not.toHaveBeenCalled()
+    })
+
+    it.each(GATE_REJECTION_INPUTS)(
+      'strict mode — sole ok fork with %s is gate-rejected → null winner, allGateFiltered:true',
+      async (_, rejectedContent) => {
+        mockContentSequence(rejectedContent)
+        const result = await makeJudge().selectWinner({
+          forks: [makeFork(0), makeFork(1, 'runtime-failed', {reason: 'err', forkStore: null})],
+          validateNodes: [],
+          parentNodeId: 'parent',
+          fallback: false,
+        })
+        expect(result.winnerForkIndex).toBeNull()
+        expect(result.allGateFiltered).toBe(true)
+        expect(result.selectionLayer).toBe('none')
+        expect(getLLM).not.toHaveBeenCalled()
+      },
+    )
+
+    it.each(GATE_REJECTION_INPUTS)(
+      'fallback mode — sole criteria-failed fork with %s is gate-rejected → null winner, allGateFiltered:true',
+      async (_, rejectedContent) => {
+        mockContentSequence(rejectedContent)
+        const result = await makeJudge().selectWinner({
+          forks: [makeFork(0, 'criteria-failed'), makeFork(1, 'runtime-failed', {reason: 'err', forkStore: null})],
+          validateNodes: [],
+          parentNodeId: 'parent',
+          fallback: true,
+        })
+        expect(result.winnerForkIndex).toBeNull()
+        expect(result.allGateFiltered).toBe(true)
+        expect(result.selectionLayer).toBe('none')
+        expect(getLLM).not.toHaveBeenCalled()
+      },
+    )
+  })
+
+  describe('all candidates gate-filtered: null winner with allGateFiltered warning', () => {
+    it.each([
+      ['strict mode (ok forks pool)', [makeFork(0), makeFork(1)], false],
+      [
+        'fallback mode (criteria-failed forks pool) — gate absolute over both pools',
+        [makeFork(0, 'criteria-failed'), makeFork(1, 'criteria-failed')],
+        true,
+      ],
+    ])('%s', async (_, forks, fallback) => {
+      mockContentSequence('', '')
+      const result = await makeJudge().selectWinner({
+        forks,
+        validateNodes: [],
+        parentNodeId: 'parent',
+        fallback,
+      })
+      expect(result.winnerForkIndex).toBeNull()
+      expect(result.selectionLayer).toBe('none')
+      expect(result.noSignal).toBe(false)
+      expect(result.tiebreakUsed).toBe(false)
+      expect(result.perCriterionVerdict).toEqual([])
+      expect(warningConditions(result)).toContain('allGateFiltered')
+      const warn = result.judgeQualityWarnings.find(w => w.condition === 'allGateFiltered')
+      expect(warn.severity).toBe('high')
+      expect(result.allGateFiltered).toBe(true)
+      expect(result.failureCause).toBe(FAILURE_CAUSE.STRUCTURAL_GATE)
+      expect(result.remediationHint).toBe(REMEDIATION_HINT.REVISE_PROMPT)
+      expect(getLLM).not.toHaveBeenCalled()
+    })
+
+    it('noSignal:false on gate-filtered path distinguishes structural invalidity from juror-signal-loss', async () => {
+      mockContentSequence('', '')
+      const gateFilteredResult = await makeJudge().selectWinner({
+        forks: [makeFork(0), makeFork(1)],
+        validateNodes: [],
+        parentNodeId: 'parent',
+        fallback: false,
+      })
+
+      mockLLMError('timeout')
+      const jurorSignalLostResult = await makeJudge().selectWinner({
+        forks: [makeFork(0), makeFork(1)],
+        validateNodes: [],
+        parentNodeId: 'parent',
+        fallback: false,
+      })
+
+      expect(gateFilteredResult.noSignal).toBe(false)
+      expect(jurorSignalLostResult.noSignal).toBe(true)
+    })
+  })
+
+  describe('gate-subset: gate-passing candidates are ranked; original forkIndex values flow through', () => {
+    it('gate-passing forks are submitted to judge; winnerForkIndex is from original fork array', async () => {
+      mockContentSequence('', SUBSTANTIVE_A, SUBSTANTIVE_B)
+      mockLLMRanking('1,2')
+      const result = await makeJudge().selectWinner({
+        forks: [makeFork(0), makeFork(1), makeFork(2)],
+        validateNodes: [],
+        parentNodeId: 'parent',
+        fallback: false,
+      })
+      expect(result.winnerForkIndex).toBe(1)
+      expect(result.selectionLayer).toBe('primary')
+      expect(getLLM).toHaveBeenCalled()
+    })
+
+    it('perCriterionVerdict forkRankings carry original forkIndex values, not gate-array positions', async () => {
+      mockContentSequence('', SUBSTANTIVE_A, SUBSTANTIVE_B)
+      mockLLMRanking('2,1')
+      const result = await makeJudge().selectWinner({
+        forks: [makeFork(5), makeFork(6), makeFork(7)],
+        validateNodes: [makeValidate('v1', 'criterion')],
+        parentNodeId: 'parent',
+        fallback: false,
+      })
+      expect(result.winnerForkIndex).toBe(7)
+      const rankedIndices = result.perCriterionVerdict[0].forkRankings.map(r => r.forkIndex)
+      expect(rankedIndices).toContain(6)
+      expect(rankedIndices).toContain(7)
+      expect(rankedIndices).not.toContain(5)
+    })
+
+    it('judgeInput.candidateCount equals number of gate-passing forks, not total fork count', async () => {
+      mockContentSequence('', SUBSTANTIVE_A, SUBSTANTIVE_B)
+      mockLLMRanking('1,2')
+      const result = await makeJudge().selectWinner({
+        forks: [makeFork(0), makeFork(1), makeFork(2)],
+        validateNodes: [],
+        parentNodeId: 'parent',
+        fallback: false,
+      })
+      expect(result.judgeInput.candidateCount).toBe(2)
+    })
+
+    it('judgeQualityWarnings from provider analysis are present alongside ranking result', async () => {
+      getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k'}})
+      mockContentSequence('', SUBSTANTIVE_A, SUBSTANTIVE_B)
+      mockLLMRanking('1,2')
+      const result = await makeJudge().selectWinner({
+        forks: [makeFork(0), makeFork(1), makeFork(2)],
+        validateNodes: [],
+        parentNodeId: 'parent',
+        fallback: false,
+      })
+      expect(warningConditions(result)).toContain('singleProvider')
+      expect(warningConditions(result)).not.toContain('allGateFiltered')
+    })
+  })
+
+  it('all forks passing gate: winner determined by judge ranking, candidateCount equals total fork count', async () => {
     mockLLMRanking('2,1')
-    await makeJudge().selectWinner({
+    const result = await makeJudge().selectWinner({
       forks: [makeFork(0), makeFork(1)],
-      validateNodes: [makeValidate('v1', 'criterion')],
+      validateNodes: [],
       parentNodeId: 'parent',
       fallback: false,
     })
-
-    const calls = observabilityCalls()
-    expect(calls).toHaveLength(1)
-    expect(calls[0][1]).toBe(0)
+    expect(result.winnerForkIndex).toBe(1)
+    expect(result.judgeInput.candidateCount).toBe(2)
+    expect(result.selectionLayer).toBe('primary')
+    expect(result.noSignal).toBe(false)
+    expect(result.allGateFiltered).toBe(false)
   })
+})
 
-  it('winner fork never appears in observability log', async () => {
-    // "2,1" → fork-1 wins (Borda score 0); its forkIndex must not appear in log
-    mockLLMRanking('2,1')
-    await makeJudge().selectWinner({
-      forks: [makeFork(0), makeFork(1)],
-      validateNodes: [makeValidate('v1', 'criterion')],
-      parentNodeId: 'parent',
-      fallback: false,
-    })
+describe('ForkJudge.selectWinner — structural-gate drift observability', () => {
+  const driftCalls = () =>
+    require('debug').mock.calls.filter(
+      args => typeof args[0] === 'string' && args[0].includes('structural-gate drift signal'),
+    )
 
-    const loggedForkIndices = observabilityCalls().map(c => c[1])
-    expect(loggedForkIndices).not.toContain(1)
-  })
-
-  it('fork tied at winner Borda score does not trigger observability', async () => {
-    // juror-1: '1,2' → fork-0 score 0, fork-1 score 1
-    // juror-2: '2,1' → fork-0 score 1, fork-1 score 0
-    // totals: fork-0=1, fork-1=1 — complete tie; no fork is strictly worse than winner
-    getLLM
-      .mockReturnValueOnce({llm: {invoke: jest.fn().mockResolvedValue({content: '1,2'})}})
-      .mockReturnValueOnce({llm: {invoke: jest.fn().mockResolvedValue({content: '2,1'})}})
-    getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k'}, claude: {apiKey: 'c'}})
-    await makeJudge().selectWinner({
-      forks: [makeFork(0), makeFork(1)],
-      validateNodes: [makeValidate('v1', 'criterion', 2)],
-      parentNodeId: 'parent',
-      fallback: false,
-    })
-
-    expect(observabilityCalls()).toHaveLength(0)
-  })
-
-  it('each fork strictly worse than winner gets its own log entry', async () => {
-    // "1,3,2": fork-0 rank=0, fork-1 rank=2, fork-2 rank=1 → Borda fork-0=0, fork-1=2, fork-2=1
-    // fork-1 and fork-2 both > winnerScore 0 → both logged
-    mockLLMRanking('1,3,2')
-    await makeJudge().selectWinner({
-      forks: [makeFork(0), makeFork(1), makeFork(2)],
-      validateNodes: [makeValidate('v1', 'criterion')],
-      parentNodeId: 'parent',
-      fallback: false,
-    })
-
-    const calls = observabilityCalls()
-    expect(calls).toHaveLength(2)
-    const loggedForkIndices = calls.map(c => c[1]).sort()
-    expect(loggedForkIndices).toEqual([1, 2])
-  })
-
-  it('content preview is capped at 120 chars with newlines replaced by spaces', async () => {
-    const longContent = 'A'.repeat(80) + '\n' + 'B'.repeat(80)
+  const useCandidateContents = contents => {
+    let index = 0
     NodeTextExtractor.mockImplementation(() => ({
-      extractFullContent: jest.fn().mockResolvedValue(longContent),
+      extractFullContent: jest.fn().mockImplementation(() => Promise.resolve(contents[index++])),
     }))
-    mockLLMRanking('2,1')
-    await makeJudge().selectWinner({
-      forks: [makeFork(0), makeFork(1)],
-      validateNodes: [makeValidate('v1', 'criterion')],
-      parentNodeId: 'parent',
-      fallback: false,
-    })
-
-    const calls = observabilityCalls()
-    expect(calls).toHaveLength(1)
-    const preview = calls[0][4]
-    expect(preview.length).toBeLessThanOrEqual(120)
-    expect(preview).not.toContain('\n')
-    expect(preview).toBe(longContent.slice(0, 120).replace(/\n/g, ' '))
-  })
+  }
 
   it.each([
-    ['strict mode — early return before observability block', false],
-    ['fallback mode — all Borda scores zero so no fork is strictly worse than winner', true],
-  ])('does not log when all jurors are excluded and no ranking signal exists (%s)', async (_, fallback) => {
-    mockLLMError('invoke failed')
+    ['I am not permitted to provide that.'],
+    ['I will not comply with that request.'],
+    ['Policy prevents me from answering.'],
+  ])('records drift for refusal-shaped loser: %s', async content => {
+    useCandidateContents([content, 'usable answer with concrete details'])
+    mockLLMRanking('2,1')
+
     await makeJudge().selectWinner({
       forks: [makeFork(0), makeFork(1)],
-      validateNodes: [makeValidate('v1', 'criterion')],
-      parentNodeId: 'parent',
-      fallback,
-    })
-
-    expect(observabilityCalls()).toHaveLength(0)
-  })
-
-  it('single eligible fork does not trigger observability (no peer comparison possible)', async () => {
-    await makeJudge().selectWinner({
-      forks: [makeFork(0)],
       validateNodes: [makeValidate('v1', 'criterion')],
       parentNodeId: 'parent',
       fallback: false,
     })
 
-    expect(observabilityCalls()).toHaveLength(0)
+    const calls = driftCalls()
+    expect(calls).toHaveLength(1)
+    expect(calls[0]).toEqual([expect.stringContaining('structural-gate drift signal'), 0, 1, 0, 1])
+    expect(calls[0].join(' ')).not.toContain(content)
+  })
+
+  it.each([['ordinary lower ranked answer with enough content'], ['Market analysis with valid caveats and numbers']])(
+    'does not record drift for ordinary lower-ranked content: %s',
+    async content => {
+      useCandidateContents([content, 'stronger answer with concrete details'])
+      mockLLMRanking('2,1')
+
+      await makeJudge().selectWinner({
+        forks: [makeFork(0), makeFork(1)],
+        validateNodes: [makeValidate('v1', 'criterion')],
+        parentNodeId: 'parent',
+        fallback: false,
+      })
+
+      expect(driftCalls()).toHaveLength(0)
+    },
+  )
+
+  it('records every refusal-shaped loser and skips ordinary losers in the same ranking set', async () => {
+    useCandidateContents([
+      'I must refuse this request.',
+      'winning answer with concrete details',
+      'ordinary weaker answer with enough content',
+      'I am not permitted to answer that.',
+    ])
+    mockLLMRanking('2,3,1,4')
+
+    await makeJudge().selectWinner({
+      forks: [makeFork(0), makeFork(1), makeFork(2), makeFork(3)],
+      validateNodes: [makeValidate('v1', 'criterion')],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+
+    const loggedForkIndices = driftCalls()
+      .map(call => call[1])
+      .sort()
+    expect(loggedForkIndices).toEqual([0, 3])
+  })
+
+  it('does not record drift for a refusal-shaped winner', async () => {
+    useCandidateContents(['I must refuse this request.', 'ordinary lower-ranked answer with enough content'])
+    mockLLMRanking('1,2')
+
+    await makeJudge().selectWinner({
+      forks: [makeFork(0), makeFork(1)],
+      validateNodes: [makeValidate('v1', 'criterion')],
+      parentNodeId: 'parent',
+      fallback: false,
+    })
+
+    expect(driftCalls()).toHaveLength(0)
   })
 })

@@ -34,6 +34,26 @@ const (
 	JudgeWarnJuryDuplicates    JudgeWarningCondition = "juryDuplicates"
 	JudgeWarnFallbackWeakJudge JudgeWarningCondition = "fallbackWithWeakJudge"
 	JudgeWarnNoReasoningMode   JudgeWarningCondition = "noReasoningMode"
+	JudgeWarnAllGateFiltered   JudgeWarningCondition = "allGateFiltered"
+)
+
+type ReliabilityFailureCause string
+
+const (
+	ReliabilityFailureStructuralGate  ReliabilityFailureCause = "structural-gate"
+	ReliabilityFailureCriteriaFailed  ReliabilityFailureCause = "criteria-failed"
+	ReliabilityFailureRuntimeFailed   ReliabilityFailureCause = "runtime-failed"
+	ReliabilityFailureNoEligibleForks ReliabilityFailureCause = "no-eligible-forks"
+	ReliabilityFailureNoJudgeSignal   ReliabilityFailureCause = "no-judge-signal"
+)
+
+type ReliabilityRemediationHint string
+
+const (
+	ReliabilityRemediationRevisePrompt   ReliabilityRemediationHint = "revise-prompt"
+	ReliabilityRemediationCheckProvider  ReliabilityRemediationHint = "check-provider"
+	ReliabilityRemediationAdjustCriteria ReliabilityRemediationHint = "adjust-criteria"
+	ReliabilityRemediationNone           ReliabilityRemediationHint = "none"
 )
 
 // ForkStatus identifies how a fork exited during best-of-N selection.
@@ -89,15 +109,18 @@ type JudgeInputMetadata struct {
 // Written by the Node.js execution engine after fork selection; consumed by the frontend verdict drawer.
 // Attached to a Node as a pointer so nodes that have never run /refine carry no overhead.
 type ReliabilityMetadata struct {
-	WinnerForkIndex      int                   `json:"winnerForkIndex" bson:"winnerForkIndex"`
-	PerCriterionVerdict  []CriterionVerdict    `json:"perCriterionVerdict" bson:"perCriterionVerdict"`
-	Mode                 RefineMode            `json:"mode" bson:"mode"`
-	SelectionLayer       SelectionLayer        `json:"selectionLayer" bson:"selectionLayer"`
-	NoSignal             bool                  `json:"noSignal" bson:"noSignal"`
-	TiebreakUsed         *bool                 `json:"tiebreakUsed,omitempty" bson:"tiebreakUsed,omitempty"`
-	Eligible             int                   `json:"eligible" bson:"eligible"`
-	Total                int                   `json:"total" bson:"total"`
-	JudgeInput           *JudgeInputMetadata   `json:"judgeInput,omitempty" bson:"judgeInput,omitempty"`
-	JudgeQualityWarnings []JudgeQualityWarning `json:"judgeQualityWarnings,omitempty" bson:"judgeQualityWarnings,omitempty"`
-	DiscardedForks       []DiscardedFork       `json:"discardedForks,omitempty" bson:"discardedForks,omitempty"`
+	WinnerForkIndex      int                        `json:"winnerForkIndex" bson:"winnerForkIndex"`
+	PerCriterionVerdict  []CriterionVerdict         `json:"perCriterionVerdict" bson:"perCriterionVerdict"`
+	Mode                 RefineMode                 `json:"mode" bson:"mode"`
+	SelectionLayer       SelectionLayer             `json:"selectionLayer" bson:"selectionLayer"`
+	NoSignal             bool                       `json:"noSignal" bson:"noSignal"`
+	TiebreakUsed         *bool                      `json:"tiebreakUsed,omitempty" bson:"tiebreakUsed,omitempty"`
+	Eligible             int                        `json:"eligible" bson:"eligible"`
+	Total                int                        `json:"total" bson:"total"`
+	JudgeInput           *JudgeInputMetadata        `json:"judgeInput,omitempty" bson:"judgeInput,omitempty"`
+	JudgeQualityWarnings []JudgeQualityWarning      `json:"judgeQualityWarnings,omitempty" bson:"judgeQualityWarnings,omitempty"`
+	FailureCause         ReliabilityFailureCause    `json:"failureCause,omitempty" bson:"failureCause,omitempty"`
+	RemediationHint      ReliabilityRemediationHint `json:"remediationHint,omitempty" bson:"remediationHint,omitempty"`
+	AllGateFiltered      *bool                      `json:"allGateFiltered,omitempty" bson:"allGateFiltered,omitempty"`
+	DiscardedForks       []DiscardedFork            `json:"discardedForks,omitempty" bson:"discardedForks,omitempty"`
 }

@@ -25,6 +25,9 @@
   "judgeQualityWarnings": [
     {"condition": "singleProvider", "severity": "high"}
   ],
+  "failureCause": "structural-gate",
+  "remediationHint": "revise-prompt",
+  "allGateFiltered": true,
   "discardedForks": [
     {
       "forkIndex": 1,

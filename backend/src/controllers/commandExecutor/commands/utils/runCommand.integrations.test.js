@@ -1993,27 +1993,19 @@ describe('CompletionCommand — commodity :n=N routing contract', () => {
     jest.clearAllMocks()
   })
 
-  it.each([2, 3])(
+  it.each([2, 3, 5, 10])(
     'routes /chat :n=%i through COMPLETION_QUERY_TYPE producing exactly %i provider invocations',
     async n => {
       const node = {
         id: 'node',
         parent: 'root',
-        command: `/chat :n=${n} Reply with one word`,
+        command: `/chat :n=${n} task`,
         children: [],
       }
-      const root = {
-        id: 'root',
-        parent: null,
-        title: 'Workflow',
-        children: [node.id],
-      }
+      const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
       const store = new Store({userId, workflowId, nodes: {node, root}})
 
-      getIntegrationSettings.mockResolvedValue({
-        ...settings,
-        model: Model.OpenAI,
-      })
+      getIntegrationSettings.mockResolvedValue({...settings, model: Model.OpenAI})
 
       let llmCallCount = 0
       jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI').mockImplementation(async () => {
@@ -2027,7 +2019,7 @@ describe('CompletionCommand — commodity :n=N routing contract', () => {
     },
   )
 
-  it.each([2, 3])(':n=%i token is stripped from all LLM messages when routed via COMPLETION_QUERY_TYPE', async n => {
+  it.each([1, 2, 3])(':n=%i token is stripped from all LLM messages when routed via COMPLETION_QUERY_TYPE', async n => {
     const node = {
       id: 'node',
       parent: 'root',
@@ -2059,6 +2051,250 @@ describe('CompletionCommand — commodity :n=N routing contract', () => {
     allMessages.forEach(msg => {
       expect(msg.content).not.toMatch(/:n=\d+/)
       expect(msg.content).toContain('Reply with one word: hello')
+    })
+  })
+
+  it('routes /chat :n=1 through COMPLETION_QUERY_TYPE as a single non-forked invocation', async () => {
+    const node = {
+      id: 'node',
+      parent: 'root',
+      command: '/chat :n=1 task',
+      children: [],
+    }
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    getIntegrationSettings.mockResolvedValue({...settings, model: Model.OpenAI})
+    let llmCallCount = 0
+    jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI').mockImplementation(async () => {
+      llmCallCount++
+      return 'out'
+    })
+
+    await runCommand({cell: node, queryType: COMPLETION_QUERY_TYPE, store})
+
+    expect(llmCallCount).toBe(1)
+    expect(store.getNode(node.id).title ?? '').not.toMatch(/\[/)
+  })
+
+  it.each([
+    [Model.Claude, 'ClaudeService.sendMessages', () => ClaudeService.sendMessages],
+    [Model.YandexGPT, 'YandexService.completionWithRetry', () => YandexService.completionWithRetry],
+  ])(
+    'routes /chat :n=2 through %s family producing exactly 2 provider invocations — no double-fork',
+    async (model, _label, getSpy) => {
+      const node = {
+        id: 'node',
+        parent: 'root',
+        command: '/chat :n=2 task',
+        children: [],
+      }
+      const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+      const store = new Store({userId, workflowId, nodes: {node, root}})
+
+      getIntegrationSettings.mockResolvedValue({...settings, model})
+
+      const mockResponse =
+        model === Model.Claude
+          ? {content: [{type: 'text', text: 'ok'}]}
+          : {
+              result: {
+                alternatives: [{message: {text: 'ok'}}],
+                usage: {inputTextTokens: 0, completionTokens: 0, totalTokens: 0},
+              },
+            }
+
+      let callCount = 0
+      const spy = getSpy()
+      spy.mockImplementation(async () => {
+        callCount++
+        return mockResponse
+      })
+
+      await runCommand({cell: node, queryType: COMPLETION_QUERY_TYPE, store})
+
+      expect(callCount).toBe(2)
+    },
+  )
+
+  it('commodity suffix [✓ K/N] is written to the cell when routed via COMPLETION_QUERY_TYPE with :n=3', async () => {
+    const node = {
+      id: 'node',
+      parent: 'root',
+      command: '/chat :n=3 task',
+      children: [],
+    }
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    getIntegrationSettings.mockResolvedValue({...settings, model: Model.OpenAI})
+    const chatSpy = jest
+      .spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI')
+      .mockResolvedValue('A well-formed response output from the language model.')
+
+    await runCommand({cell: node, queryType: COMPLETION_QUERY_TYPE, store})
+
+    expect(chatSpy).toHaveBeenCalledTimes(3)
+    expect(store.getNode(node.id).title).toMatch(/\[✓/)
+  })
+})
+
+describe('commodity :n=N — direct CHAT_QUERY_TYPE path (no CompletionCommand routing)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it.each([2, 3, 5])('routes exactly %i LLM invocations with :n=%i on direct CHAT_QUERY_TYPE', async n => {
+    const node = {
+      id: 'node',
+      parent: 'root',
+      command: `/chat :n=${n} task`,
+      children: [],
+    }
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    let callCount = 0
+    jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI').mockImplementation(async () => {
+      callCount++
+      return `output ${callCount}`
+    })
+
+    await runCommand({cell: node, queryType: CHAT_QUERY_TYPE, store})
+
+    expect(callCount).toBe(n)
+  })
+
+  it(':n=N token is absent from messages sent to the LLM on direct CHAT_QUERY_TYPE', async () => {
+    const node = {
+      id: 'node',
+      parent: 'root',
+      command: '/chat :n=2 Reply with one word: hello',
+      children: [],
+    }
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    const allMessages = []
+    jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI').mockImplementation(async messages => {
+      allMessages.push(...messages)
+      return 'hello'
+    })
+
+    await runCommand({cell: node, queryType: CHAT_QUERY_TYPE, store})
+
+    expect(allMessages.length).toBeGreaterThan(0)
+    allMessages.forEach(msg => {
+      expect(msg.content).not.toMatch(/:n=\d+/)
+      expect(msg.content).toContain('Reply with one word: hello')
+    })
+  })
+
+  it('generated child node titles do not contain :n= on direct CHAT_QUERY_TYPE', async () => {
+    const node = {
+      id: 'node',
+      parent: 'root',
+      command: '/chat :n=2 Reply with one word: hello',
+      children: [],
+    }
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI').mockResolvedValue('hello')
+
+    await runCommand({cell: node, queryType: CHAT_QUERY_TYPE, store})
+
+    const childNodes = store.getOutput().nodes.filter(n => n.parent === node.id)
+    expect(childNodes.length).toBeGreaterThan(0)
+    childNodes.forEach(n => {
+      expect(n.title).not.toMatch(/:n=\d+/)
+    })
+  })
+
+  const runDirectCommodity = async outcomes => {
+    const node = {
+      id: 'node',
+      parent: 'root',
+      command: `/chat :n=${outcomes.length} task`,
+      children: [],
+    }
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    const chat = jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI')
+    outcomes.forEach(outcome => {
+      if (outcome instanceof Error) chat.mockRejectedValueOnce(outcome)
+      else chat.mockResolvedValueOnce(outcome)
+    })
+
+    await runCommand({cell: node, queryType: CHAT_QUERY_TYPE, store})
+
+    return {
+      childTitles: store
+        .getOutput()
+        .nodes.filter(n => n.parent === node.id)
+        .map(n => n.title),
+      cellTitle: store.getNode(node.id).title,
+    }
+  }
+
+  it.each([
+    {
+      name: 'all attempts produce output',
+      outcomes: ['alpha', 'beta'],
+      childTitles: ['alpha', 'beta'],
+      suffix: /\[✓ 2\/2\]$/,
+    },
+    {
+      name: 'provider/runtime error attempts are excluded while valid short output survives',
+      outcomes: [new Error('provider rejected credentials'), 'hello'],
+      childTitles: ['hello'],
+      suffix: /\[✓ 1\/2\]$/,
+    },
+    {
+      name: 'provider/runtime error and refusal attempts are both excluded',
+      outcomes: [new Error('provider rejected credentials'), "I'm sorry, I cannot help with that.", 'ok'],
+      childTitles: ['ok'],
+      suffix: /\[✓ 1\/3\]$/,
+    },
+    {
+      name: 'all attempts fail before producing acceptable output',
+      outcomes: [new Error('provider rejected credentials'), new Error('provider rejected credentials')],
+      childTitles: [],
+      suffix: /\[✗ 0\/2\]$/,
+    },
+  ])('commodity merge classifies fork outcomes: $name', async ({outcomes, childTitles, suffix}) => {
+    const result = await runDirectCommodity(outcomes)
+
+    expect(result.childTitles).toEqual(childTitles)
+    expect(result.cellTitle).toMatch(suffix)
+  })
+})
+
+describe('commodity :n=N — generated child titles contain only task text (COMPLETION_QUERY_TYPE)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('child node titles written to the store do not contain :n= after commodity run via routing', async () => {
+    const node = {
+      id: 'node',
+      parent: 'root',
+      command: '/chat :n=2 Reply with one word: hello',
+      children: [],
+    }
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    getIntegrationSettings.mockResolvedValue({...settings, model: Model.OpenAI})
+    jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI').mockResolvedValue('hello')
+
+    await runCommand({cell: node, queryType: COMPLETION_QUERY_TYPE, store})
+
+    const childNodes = store.getOutput().nodes.filter(n => n.parent === node.id)
+    expect(childNodes.length).toBeGreaterThan(0)
+    childNodes.forEach(n => {
+      expect(n.title).not.toMatch(/:n=\d+/)
     })
   })
 })

@@ -20,6 +20,9 @@ import {
   buildPerCriterionVerdictEntry,
   buildForkRankingEntry,
 } from './reliabilityMetadataFields'
+import {passesStructuralGate} from './structuralGate'
+import {recordStructuralGateDrift} from './structuralGateDrift'
+import {classifyNoWinner} from './failureSemantics'
 
 const log = debug('delta5:forkjudge')
 
@@ -52,6 +55,15 @@ const extractForkContent = async (parentNodeId, forkStore) => {
   const skipValidate = node => isValidateCell(getNodeCommand(node))
   const extractor = new NodeTextExtractor(Infinity, skipValidate, forkStore)
   return extractor.extractFullContent(parentNode)
+}
+
+const applyStructuralGate = (candidateForks, contents) => {
+  const pairs = candidateForks.map((fork, i) => ({fork, content: contents[i]}))
+  const passing = pairs.filter(({fork, content}) => passesStructuralGate(content, fork.forkIndex))
+  return {
+    activeCandidates: passing.map(p => p.fork),
+    activeContents: passing.map(p => p.content),
+  }
 }
 
 export class ForkJudge {
@@ -100,16 +112,39 @@ export class ForkJudge {
         perCriterionVerdict: [],
         mode: fallback ? 'fallback' : 'strict',
         selectionLayer: 'none',
+        allGateFiltered: false,
         judgeQualityWarnings: [],
+        ...classifyNoWinner({forkResults: forks}),
       }
     }
 
-    if (candidateForks.length === 1) {
+    const contents = await Promise.all(candidateForks.map(f => extractForkContent(parentNodeId, f.forkStore)))
+
+    const {activeCandidates, activeContents} = applyStructuralGate(candidateForks, contents)
+
+    if (activeCandidates.length === 0) {
       return {
-        winnerForkIndex: candidateForks[0].forkIndex,
+        winnerForkIndex: null,
+        perCriterionVerdict: [],
+        mode: fallback ? 'fallback' : 'strict',
+        selectionLayer: 'none',
+        noSignal: false,
+        tiebreakUsed: false,
+        allGateFiltered: true,
+        judgeQualityWarnings: [buildJudgeQualityWarning({condition: 'allGateFiltered', severity: 'high'})],
+        ...classifyNoWinner({allGateFiltered: true, forkResults: forks}),
+      }
+    }
+
+    if (activeCandidates.length === 1) {
+      return {
+        winnerForkIndex: activeCandidates[0].forkIndex,
         perCriterionVerdict: [],
         mode: fallback ? 'fallback' : 'strict',
         selectionLayer,
+        noSignal: false,
+        tiebreakUsed: false,
+        allGateFiltered: false,
         judgeQualityWarnings: [],
       }
     }
@@ -166,9 +201,10 @@ export class ForkJudge {
 
     const criteriaWithJurors = resolveJurorModels(criteria, settings, this.log)
     const resolvedModels = criteriaWithJurors.flatMap(c => c.jurors).filter(j => !j.error)
-    const perForkBudget = computePerForkContentBudgetFromResolvedModels(candidateForks.length, resolvedModels)
+
+    const perForkBudget = computePerForkContentBudgetFromResolvedModels(activeCandidates.length, resolvedModels)
     const judgeInput = buildJudgeInputMetadata({
-      candidateCount: candidateForks.length,
+      candidateCount: activeCandidates.length,
       perForkBudget,
       resolvedModels,
     })
@@ -182,11 +218,9 @@ export class ForkJudge {
     }
 
     const perCriterionVerdict = []
-    const bordaScores = new Array(candidateForks.length).fill(0)
+    const bordaScores = new Array(activeCandidates.length).fill(0)
     let totalRankingsCollected = 0
     let hadJuryDuplicates = false
-
-    const contents = await Promise.all(candidateForks.map(f => extractForkContent(parentNodeId, f.forkStore)))
 
     for (const {id, criterion, jurors} of criteriaWithJurors) {
       if (jurors.some(j => j.juror.duplicate)) hadJuryDuplicates = true
@@ -200,10 +234,10 @@ export class ForkJudge {
         try {
           const messages = [
             new SystemMessage(RANK_SYSTEM_PROMPT),
-            new HumanMessage(buildRankMessage(criterion, contents, perForkBudget)),
+            new HumanMessage(buildRankMessage(criterion, activeContents, perForkBudget)),
           ]
           const resp = await juror.llm.invoke(messages, signal ? {signal} : undefined)
-          const ranking = parseRankingResponse(resp, candidateForks.length)
+          const ranking = parseRankingResponse(resp, activeCandidates.length)
           if (ranking !== null) allRankings.push(ranking)
           else this.log('juror excluded — unparseable response')
         } catch (err) {
@@ -214,7 +248,7 @@ export class ForkJudge {
 
       totalRankingsCollected += allRankings.length
 
-      const criterionScores = new Array(candidateForks.length).fill(0)
+      const criterionScores = new Array(activeCandidates.length).fill(0)
       for (const ranking of allRankings) {
         ranking.forEach((candidateIdx, rank) => {
           criterionScores[candidateIdx] += rank
@@ -232,7 +266,7 @@ export class ForkJudge {
           forkRankings:
             allRankings[0]?.map((ci, rank) =>
               buildForkRankingEntry({
-                forkIndex: candidateForks[ci]?.forkIndex,
+                forkIndex: activeCandidates[ci]?.forkIndex,
                 rank: rank + 1,
               }),
             ) ?? [],
@@ -250,8 +284,10 @@ export class ForkJudge {
         selectionLayer: 'none',
         noSignal: true,
         tiebreakUsed: false,
+        allGateFiltered: false,
         judgeInput,
         judgeQualityWarnings,
+        ...classifyNoWinner({noSignal: true, forkResults: forks}),
       }
     }
 
@@ -263,17 +299,17 @@ export class ForkJudge {
     const winnerScore = bordaScores[winnerIdx]
     const tiebreakUsed = bordaScores.some((s, i) => i !== winnerIdx && s === winnerScore)
 
-    if (candidateForks.length > 1) {
-      candidateForks.forEach((fork, i) => {
+    if (activeCandidates.length > 1) {
+      activeCandidates.forEach((fork, i) => {
         if (i !== winnerIdx && bordaScores[i] > winnerScore) {
-          const preview = (contents[i] ?? '').slice(0, 120).replace(/\n/g, ' ')
-          log(
-            'structural-gate false-negative? fork-%d passed gate but scored worst (borda=%d/%d) — preview: %s',
-            fork.forkIndex,
-            bordaScores[i],
-            totalRankingsCollected,
-            preview,
-          )
+          recordStructuralGateDrift({
+            log,
+            forkIndex: fork.forkIndex,
+            content: activeContents[i],
+            score: bordaScores[i],
+            winnerScore,
+            rankingCount: totalRankingsCollected,
+          })
         }
       })
     }
@@ -295,12 +331,13 @@ export class ForkJudge {
     }
 
     return {
-      winnerForkIndex: candidateForks[winnerIdx].forkIndex,
+      winnerForkIndex: activeCandidates[winnerIdx].forkIndex,
       perCriterionVerdict,
       mode: fallback ? 'fallback' : 'strict',
       selectionLayer,
       noSignal,
       tiebreakUsed,
+      allGateFiltered: false,
       judgeInput,
       judgeQualityWarnings,
     }

@@ -272,14 +272,24 @@ e2e-backend: start-mongodb-e2e e2e-db-init
 		API_ROOT='$(API_ROOT)' \
 		MOCK_EXTERNAL_SERVICES=true \
 		nohup ./backend-v2 > logs/backend-e2e.log 2>&1 & echo $$! > logs/backend-e2e.pid )
-	@sleep 3
-	@if [ -f backend-v2/logs/backend-e2e.pid ] && kill -0 $$(cat backend-v2/logs/backend-e2e.pid) 2>/dev/null; then \
-		echo "✓ E2E backend started (PID $$(cat backend-v2/logs/backend-e2e.pid))"; \
-	else \
-		echo "✗ E2E backend failed to start"; \
-		tail -10 backend-v2/logs/backend-e2e.log 2>/dev/null || true; \
-		exit 1; \
-	fi
+	@for i in $$(seq 1 30); do \
+		if [ -f backend-v2/logs/backend-e2e.pid ] && kill -0 $$(cat backend-v2/logs/backend-e2e.pid) 2>/dev/null; then \
+			if curl -sf http://localhost:$(E2E_BACKEND_PORT)$(API_ROOT)/healthz > /dev/null 2>&1; then \
+				echo "✓ E2E backend started (PID $$(cat backend-v2/logs/backend-e2e.pid))"; \
+				break; \
+			fi; \
+		else \
+			echo "✗ E2E backend failed to start"; \
+			tail -10 backend-v2/logs/backend-e2e.log 2>/dev/null || true; \
+			exit 1; \
+		fi; \
+		if [ $$i -eq 30 ]; then \
+			echo "✗ E2E backend healthz did not respond within 30s"; \
+			tail -10 backend-v2/logs/backend-e2e.log 2>/dev/null || true; \
+			exit 1; \
+		fi; \
+		sleep 1; \
+	done
 	@echo "→ Running backend-v2 E2E tests..."
 	@TEST_EXIT=0; cd backend-v2/e2e && npm ci --silent && \
 		E2E_SERVER_URL=http://localhost:$(E2E_BACKEND_PORT) E2E_API_BASE_PATH=$(API_ROOT) E2E_MONGO_URI=$(MONGO_E2E_URI) npm test || TEST_EXIT=$$?; \

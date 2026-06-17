@@ -32,6 +32,7 @@ export type NodeContent = {
   collapsed?: boolean
   parent?: NodeId
   reliabilityMetadata?: ReliabilityMetadata
+  executionStatus?: 'error'
   /** Container config for grouping children */
   container?: {
     type: string
@@ -55,7 +56,13 @@ export type ForkRanking = {
 }
 
 export type JudgeQualityWarning = {
-  condition: 'singleProvider' | 'lowestTierOnly' | 'juryDuplicates' | 'fallbackWithWeakJudge' | 'noReasoningMode'
+  condition:
+    | 'singleProvider'
+    | 'lowestTierOnly'
+    | 'juryDuplicates'
+    | 'fallbackWithWeakJudge'
+    | 'noReasoningMode'
+    | 'allGateFiltered'
   severity: 'high' | 'medium' | 'low'
 }
 
@@ -82,6 +89,9 @@ export type ReliabilityMetadata = {
   tiebreakUsed?: boolean
   eligible: number
   total: number
+  failureCause?: 'structural-gate' | 'criteria-failed' | 'runtime-failed' | 'no-eligible-forks' | 'no-judge-signal'
+  remediationHint?: 'revise-prompt' | 'check-provider' | 'adjust-criteria' | 'none'
+  allGateFiltered?: boolean
   judgeInput?: JudgeInputMetadata
   judgeQualityWarnings?: JudgeQualityWarning[]
   discardedForks?: DiscardedFork[]

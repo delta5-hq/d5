@@ -64,6 +64,14 @@ describe('buildReliabilityMetadata', () => {
       const meta = buildReliabilityMetadata(minimalVerdict, [], 0, 1)
       expect(JSON.parse(JSON.stringify(meta))).not.toHaveProperty('judgeInput')
     })
+
+    it.each(['failureCause', 'remediationHint', 'allGateFiltered'])(
+      '%s is absent from JSON output when verdict does not provide it',
+      field => {
+        const meta = buildReliabilityMetadata(minimalVerdict, [], 0, 1)
+        expect(JSON.parse(JSON.stringify(meta))).not.toHaveProperty(field)
+      },
+    )
   })
 
   describe('optional fields pass through from verdict when provided', () => {
@@ -75,6 +83,11 @@ describe('buildReliabilityMetadata', () => {
       resolvedJudgeFamilies: ['openai'],
     }
     const warnings = [{condition: 'singleProvider', severity: 'high'}]
+    const failureFields = {
+      failureCause: 'structural-gate',
+      remediationHint: 'revise-prompt',
+      allGateFiltered: true,
+    }
 
     it('perCriterionVerdict array is preserved when set', () => {
       const meta = buildReliabilityMetadata({...minimalVerdict, perCriterionVerdict: criteria}, [], 0, 1)
@@ -99,6 +112,11 @@ describe('buildReliabilityMetadata', () => {
     it('judgeQualityWarnings array is preserved when set', () => {
       const meta = buildReliabilityMetadata({...minimalVerdict, judgeQualityWarnings: warnings}, [], 0, 1)
       expect(meta.judgeQualityWarnings).toBe(warnings)
+    })
+
+    it('failure semantics fields pass through when set', () => {
+      const meta = buildReliabilityMetadata({...minimalVerdict, ...failureFields}, [], 0, 1)
+      expect(meta).toEqual(expect.objectContaining(failureFields))
     })
   })
 

@@ -62,6 +62,14 @@ describe('ImportHandler', () => {
         expect(node.title).toBe(message)
       })
 
+      it('marks error nodes with a machine-readable execution status', () => {
+        const store = makeStore()
+        store.importer.createErrorNode('Provider refused credentials', 'parent')
+
+        const [node] = store.getOutput().nodes
+        expect(node.executionStatus).toBe('error')
+      })
+
       it('preserves paragraph breaks in the title rather than discarding them', () => {
         const store = makeStore()
         const message = 'Error: first part.\n\nsecond part.'

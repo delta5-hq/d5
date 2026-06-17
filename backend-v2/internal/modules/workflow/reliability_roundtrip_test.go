@@ -60,6 +60,13 @@ func extractRawFields(t *testing.T, node models.Node) map[string]json.RawMessage
 	return rmRaw
 }
 
+func TestNode_ExecutionStatus_RoundTrip(t *testing.T) {
+	restored := unmarshalNodeRoundTrip(t, models.Node{ID: "n", ExecutionStatus: models.ExecutionStatusError})
+	if restored.ExecutionStatus != models.ExecutionStatusError {
+		t.Fatalf("executionStatus did not survive JSON round-trip: got %q", restored.ExecutionStatus)
+	}
+}
+
 // TestNode_ReliabilityMetadata_Presence verifies the omitempty contract: a nil metadata pointer
 // produces no JSON key; a non-nil pointer always produces the key regardless of field values.
 func TestNode_ReliabilityMetadata_Presence(t *testing.T) {
@@ -437,6 +444,35 @@ func TestReliabilityMetadata_OptionalFields_PreservedWhenSet(t *testing.T) {
 			},
 			description: "multiple warnings with distinct conditions and severities must all survive",
 		},
+		{
+			name: "failure semantics round-trip",
+			metadata: func() models.ReliabilityMetadata {
+				m := minimalReliabilityMetadata()
+				m.FailureCause = models.ReliabilityFailureStructuralGate
+				m.RemediationHint = models.ReliabilityRemediationRevisePrompt
+				m.AllGateFiltered = boolPtr(true)
+				m.JudgeQualityWarnings = []models.JudgeQualityWarning{
+					{Condition: models.JudgeWarnAllGateFiltered, Severity: models.JudgeSeverityHigh},
+				}
+				return m
+			}(),
+			verify: func(t *testing.T, rm *models.ReliabilityMetadata) {
+				t.Helper()
+				if rm.FailureCause != models.ReliabilityFailureStructuralGate {
+					t.Errorf("FailureCause want %q, got %q", models.ReliabilityFailureStructuralGate, rm.FailureCause)
+				}
+				if rm.RemediationHint != models.ReliabilityRemediationRevisePrompt {
+					t.Errorf("RemediationHint want %q, got %q", models.ReliabilityRemediationRevisePrompt, rm.RemediationHint)
+				}
+				if rm.AllGateFiltered == nil || *rm.AllGateFiltered != true {
+					t.Fatalf("AllGateFiltered must round-trip as explicit true, got %#v", rm.AllGateFiltered)
+				}
+				if len(rm.JudgeQualityWarnings) != 1 || rm.JudgeQualityWarnings[0].Condition != models.JudgeWarnAllGateFiltered {
+					t.Fatalf("JudgeWarnAllGateFiltered must round-trip, got %#v", rm.JudgeQualityWarnings)
+				}
+			},
+			description: "failure cause, remediation hint, structural flag, and structural warning must survive round-trip",
+		},
 	}
 
 	for _, tt := range tests {
@@ -529,6 +565,7 @@ func TestReliabilityMetadata_EnumConstants_SerializeToCanonicalStrings(t *testin
 			{models.JudgeWarnJuryDuplicates, `"juryDuplicates"`},
 			{models.JudgeWarnFallbackWeakJudge, `"fallbackWithWeakJudge"`},
 			{models.JudgeWarnNoReasoningMode, `"noReasoningMode"`},
+			{models.JudgeWarnAllGateFiltered, `"allGateFiltered"`},
 		}
 		for _, tt := range tests {
 			t.Run(string(tt.value), func(t *testing.T) {
@@ -538,6 +575,53 @@ func TestReliabilityMetadata_EnumConstants_SerializeToCanonicalStrings(t *testin
 				}
 				if string(got) != tt.wantJSON {
 					t.Errorf("JudgeWarningCondition %q: want JSON %s, got %s", tt.value, tt.wantJSON, got)
+				}
+			})
+		}
+	})
+
+	t.Run("ReliabilityFailureCause", func(t *testing.T) {
+		tests := []struct {
+			value    models.ReliabilityFailureCause
+			wantJSON string
+		}{
+			{models.ReliabilityFailureStructuralGate, `"structural-gate"`},
+			{models.ReliabilityFailureCriteriaFailed, `"criteria-failed"`},
+			{models.ReliabilityFailureRuntimeFailed, `"runtime-failed"`},
+			{models.ReliabilityFailureNoEligibleForks, `"no-eligible-forks"`},
+			{models.ReliabilityFailureNoJudgeSignal, `"no-judge-signal"`},
+		}
+		for _, tt := range tests {
+			t.Run(string(tt.value), func(t *testing.T) {
+				got, err := json.Marshal(tt.value)
+				if err != nil {
+					t.Fatalf("marshal failed: %v", err)
+				}
+				if string(got) != tt.wantJSON {
+					t.Errorf("ReliabilityFailureCause %q: want JSON %s, got %s", tt.value, tt.wantJSON, got)
+				}
+			})
+		}
+	})
+
+	t.Run("ReliabilityRemediationHint", func(t *testing.T) {
+		tests := []struct {
+			value    models.ReliabilityRemediationHint
+			wantJSON string
+		}{
+			{models.ReliabilityRemediationRevisePrompt, `"revise-prompt"`},
+			{models.ReliabilityRemediationCheckProvider, `"check-provider"`},
+			{models.ReliabilityRemediationAdjustCriteria, `"adjust-criteria"`},
+			{models.ReliabilityRemediationNone, `"none"`},
+		}
+		for _, tt := range tests {
+			t.Run(string(tt.value), func(t *testing.T) {
+				got, err := json.Marshal(tt.value)
+				if err != nil {
+					t.Fatalf("marshal failed: %v", err)
+				}
+				if string(got) != tt.wantJSON {
+					t.Errorf("ReliabilityRemediationHint %q: want JSON %s, got %s", tt.value, tt.wantJSON, got)
 				}
 			})
 		}
@@ -562,6 +646,9 @@ func TestReliabilityMetadata_JSONFieldNames(t *testing.T) {
 		m.JudgeQualityWarnings = []models.JudgeQualityWarning{
 			{Condition: models.JudgeWarnSingleProvider, Severity: models.JudgeSeverityHigh},
 		}
+		m.FailureCause = models.ReliabilityFailureStructuralGate
+		m.RemediationHint = models.ReliabilityRemediationRevisePrompt
+		m.AllGateFiltered = boolPtr(true)
 		m.DiscardedForks = []models.DiscardedFork{{ForkIndex: 1, Status: models.ForkStatusOK}}
 		node := models.Node{ID: "n", ReliabilityMetadata: &m}
 		rmRaw := extractRawFields(t, node)
@@ -576,7 +663,10 @@ func TestReliabilityMetadata_JSONFieldNames(t *testing.T) {
 			}
 		}
 
-		optionalKeys := []string{"tiebreakUsed", "judgeInput", "judgeQualityWarnings", "discardedForks"}
+		optionalKeys := []string{
+			"tiebreakUsed", "judgeInput", "judgeQualityWarnings", "discardedForks",
+			"failureCause", "remediationHint", "allGateFiltered",
+		}
 		for _, key := range optionalKeys {
 			if _, present := rmRaw[key]; !present {
 				t.Errorf("optional JSON key %q must be present when the field is set", key)

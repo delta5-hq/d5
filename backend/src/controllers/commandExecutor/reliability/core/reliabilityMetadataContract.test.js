@@ -79,6 +79,9 @@ const maximalVerdict = {
     resolvedJudgeFamilies: ['openai'],
   },
   judgeQualityWarnings: [{condition: 'singleProvider', severity: 'high'}],
+  failureCause: 'structural-gate',
+  remediationHint: 'revise-prompt',
+  allGateFiltered: true,
 }
 
 const maximalLoserFork = {
@@ -122,13 +125,16 @@ describe('reliabilityMetadata field-set contract', () => {
   describe('fixture is internally consistent as a contract artifact', () => {
     it('fixture top-level key set matches the Go ReliabilityMetadata field names', () => {
       expect(Object.keys(fixture).sort()).toEqual([
+        'allGateFiltered',
         'discardedForks',
         'eligible',
+        'failureCause',
         'judgeInput',
         'judgeQualityWarnings',
         'mode',
         'noSignal',
         'perCriterionVerdict',
+        'remediationHint',
         'selectionLayer',
         'tiebreakUsed',
         'total',
