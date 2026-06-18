@@ -56,6 +56,12 @@ describe('readCommodityN', () => {
     })
   })
 
+  describe('multiple :n= tokens — first occurrence wins (non-global regex)', () => {
+    it('returns the N from the first :n= token when two appear', () => {
+      expect(readCommodityN('/chat :n=2 task :n=5 more')).toBe(2)
+    })
+  })
+
   describe('non-commodity cell prefixes always return 1 regardless of :n= value', () => {
     it.each([
       '/refine :n=3',
@@ -87,6 +93,14 @@ describe('stripCommodityN', () => {
 
   it('returns unchanged text when :n= is absent', () => {
     expect(stripCommodityN('List 3 colors')).toBe('List 3 colors')
+  })
+
+  it('returns empty string when the input contains only a :n=N token', () => {
+    expect(stripCommodityN(':n=3')).toBe('')
+  })
+
+  it('strips only the first :n=N token when multiple appear — non-global regex', () => {
+    expect(stripCommodityN('task :n=2 text :n=3 more')).toBe('task text :n=3 more')
   })
 
   it.each([null, undefined, ''])('returns empty string for %p', input => {

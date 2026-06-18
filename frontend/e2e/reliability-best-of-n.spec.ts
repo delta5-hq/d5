@@ -316,4 +316,39 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     expect(refineTitle).toMatch(/\[⚠ fallback: 0\/2 passed; chose fork-\d+\]/)
     expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_FAIL_RE)
   })
+
+  test('L367 — commodity ceiling hint visible for /chat :n=2, absent for /chat and /refine :n=2', async ({ page }) => {
+    const { detail } = await selectRootAndOpenDetail(page)
+
+    // commodity :n=2 → hint must appear
+    await detail.fillCommand('/chat :n=2 Say OK')
+    await expect(page.getByTestId('commodity-ceiling-hint')).toBeVisible()
+
+    // plain /chat (no :n=) → hint must be absent
+    await detail.fillCommand('/chat Say OK')
+    await expect(page.getByTestId('commodity-ceiling-hint')).not.toBeVisible()
+
+    // /refine :n=2 uses the judge tier, not the commodity tier → hint absent
+    await detail.fillCommand('/refine :n=2 Say OK')
+    await expect(page.getByTestId('commodity-ceiling-hint')).not.toBeVisible()
+  })
+
+  test('L372 — :n=N control parameter does not appear in generated child content', async ({ page }) => {
+    const tree = new WorkflowTreePage(page)
+    const { detail } = await selectRootAndOpenDetail(page)
+    await detail.fillCommand('/chat :n=2 Reply with one word: hello')
+
+    await executeAndWaitForCompletion(page, detail)
+
+    await expect(tree.nodes.first()).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
+    const count = await tree.nodes.count()
+    expect(count).toBeGreaterThanOrEqual(2)
+    // Every child node title must not contain the control parameter literal
+    for (let i = 1; i < count; i++) {
+      const childId = await tree.nodeIdAt(i)
+      const title = await nodeTitle(page, childId)
+      expect(title).not.toContain(':n=2')
+      expect(title).not.toContain(':n=')
+    }
+  })
 })

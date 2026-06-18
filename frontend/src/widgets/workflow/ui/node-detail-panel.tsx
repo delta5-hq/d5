@@ -23,6 +23,7 @@ import { CommandField } from './command-field'
 import { CriterionVerdictDrawer } from './criterion-verdict-drawer'
 import { DiscardedForksDrawer } from './discarded-forks-drawer'
 import type { ForkPreviewState } from '@features/workflow-tree/store/fork-preview-state'
+import { readCommodityN } from '@shared/lib/reliability/commodity-params'
 
 interface NodeDetailPanelProps {
   node: NodeData
@@ -83,6 +84,7 @@ export const NodeDetailPanel = ({
   const canExecute = canExecuteNode(node.command, executeDisabled || refineCostExceedsLimit === true, aliases)
   const siblingActionsEnabled = !isRoot && canExecute
 
+  const commodityN = readCommodityN(node.command ?? '')
   const { baseTitle: nodeTitleBase, suffix: nodeTitleSuffix } = extractReliabilitySuffix(normalizeNodeTitle(node.title))
 
   const [settingsOpen, setSettingsOpen] = useState(!isPrompt)
@@ -231,6 +233,11 @@ export const NodeDetailPanel = ({
                     {typeof refineCost === 'number' && refineCostExceedsLimit ? (
                       <span className="text-xs text-destructive mt-1 block" data-testid="refine-cost-over-limit">
                         <FormattedMessage id="workflowTree.node.refineCostOverLimit" values={{ cost: refineCost }} />
+                      </span>
+                    ) : null}
+                    {commodityN > 1 ? (
+                      <span className="text-xs text-accent mt-1 block" data-testid="commodity-ceiling-hint">
+                        <FormattedMessage id="workflowTree.node.commodityCeilingHint" />
                       </span>
                     ) : null}
                     {preExecuteWarnings && preExecuteWarnings.length > 0 ? (

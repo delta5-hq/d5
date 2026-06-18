@@ -417,6 +417,8 @@ export default {
       previewError: 'Ошибка предпросмотра',
       refineCostHint: '⚡ ~{cost} LLM {cost, plural, one {вызов} few {вызова} other {вызовов}}',
       refineCostOverLimit: '⛔ Превышен :limit= — будет отклонено ({cost} вызовов)',
+      commodityCeilingHint:
+        '⚠ Только структурная проверка: отклоняются пустые, отказные и упавшие ответы. Мягкие ошибки (правдоподобный текст через HTTP 200) неотличимы от корректного вывода на этом уровне — используйте /refine + /validate для семантической проверки.',
       verdictButton: 'Показать вердикт',
     },
 

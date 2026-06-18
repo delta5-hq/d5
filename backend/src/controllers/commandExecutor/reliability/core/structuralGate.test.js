@@ -8,7 +8,7 @@ jest.mock('debug', () => {
 
 const EMPTY_INPUTS = [null, undefined, '', '   ', '\n\t']
 
-const REFUSAL_FIXTURES = [
+const REFUSAL_FIXTURES_EN = [
   "I'm sorry, I cannot help with that.",
   'I am sorry, I cannot assist with this.',
   'I cannot help with this request.',
@@ -27,6 +27,23 @@ const REFUSAL_FIXTURES = [
   "Unfortunately, I don't have the ability to do that.",
 ]
 
+const REFUSAL_FIXTURES_RU = [
+  'Извините, я не могу помочь с этим.',
+  'Извините, но я не буду выполнять это.',
+  'Прошу прощения, но я не могу помочь.',
+  'К сожалению, я не могу выполнить это.',
+  'К сожалению, не в состоянии предоставить эту информацию.',
+  'Я не могу помочь с этим запросом.',
+  'Я не могу создать такой контент.',
+  'Я не могу написать подобный текст.',
+  'Я не буду помогать с этим.',
+  'Я боюсь, что не могу это сделать.',
+  'Как языковая модель, я не могу создавать вредоносный контент.',
+  'Как ИИ, я не могу генерировать такой материал.',
+]
+
+const REFUSAL_FIXTURES = [...REFUSAL_FIXTURES_EN, ...REFUSAL_FIXTURES_RU]
+
 const SUBSTANTIVE_FIXTURES = [
   'The top 5 competitors are Acme Corp, Beta Inc, Gamma Ltd, Delta Co, and Epsilon LLC.',
   'Market analysis: The sector grew 12% year-over-year driven by increased digital adoption.',
@@ -35,73 +52,36 @@ const SUBSTANTIVE_FIXTURES = [
   'Based on the data provided, revenue projections indicate strong growth potential.',
 ]
 
-describe('passesStructuralGate', () => {
-  describe('empty output → fails', () => {
-    it.each(EMPTY_INPUTS)('rejects %p', input => {
-      expect(passesStructuralGate(input)).toBe(false)
-    })
-  })
-
-  describe('refusal patterns → fails', () => {
-    it.each(REFUSAL_FIXTURES)('rejects refusal: "%s"', text => {
-      expect(passesStructuralGate(text)).toBe(false)
-    })
-  })
-
-  describe('output below truncation floor → fails', () => {
-    it.each(['Yes.', 'No.', 'Done.', 'OK', 'Sure.', '1. Item'])('rejects "%s"', text => {
+describe('passesStructuralGate — exclusive: truncation floor', () => {
+  describe('below floor → rejects', () => {
+    it.each(['Yes.', 'No.', 'Done.', 'OK', 'Sure.', '1. Item'])('rejects short word "%s"', text => {
       expect(passesStructuralGate(text)).toBe(false)
     })
 
-    it('fails text of exactly MIN_SUBSTANTIVE_CHARS - 1', () => {
+    it('rejects text of exactly MIN_SUBSTANTIVE_CHARS - 1 characters', () => {
       expect(passesStructuralGate('a'.repeat(MIN_SUBSTANTIVE_CHARS - 1))).toBe(false)
     })
   })
 
-  describe('output at or above truncation floor → passes', () => {
-    it('passes text of exactly MIN_SUBSTANTIVE_CHARS', () => {
+  describe('at or above floor → passes', () => {
+    it('passes text of exactly MIN_SUBSTANTIVE_CHARS characters (floor is inclusive)', () => {
       expect(passesStructuralGate('a'.repeat(MIN_SUBSTANTIVE_CHARS))).toBe(true)
     })
 
-    it.each(SUBSTANTIVE_FIXTURES)('passes "%s"', text => {
+    it.each(SUBSTANTIVE_FIXTURES)('passes substantive text: "%s"', text => {
       expect(passesStructuralGate(text)).toBe(true)
     })
   })
 
-  describe('refusal detection is position-sensitive', () => {
-    it('passes text starting with "I" whose verb is not in the refusal pattern', () => {
-      expect(
-        passesStructuralGate('I cannot determine the exact cause without more data — here are three hypotheses.'),
-      ).toBe(true)
-    })
-
-    it('passes "I cannot" when it does not appear at the start of the text', () => {
-      expect(passesStructuralGate('The main reason I cannot confirm this is the limited dataset available.')).toBe(true)
-    })
-
-    it('passes text starting with "I" that matches no refusal pattern at all', () => {
-      expect(passesStructuralGate('Implementing this feature requires three steps: first...')).toBe(true)
-    })
-
-    it('rejects leading-whitespace refusal — trimStart() applied before pattern match', () => {
-      expect(passesStructuralGate("\nI'm sorry, I cannot help with that.")).toBe(false)
-      expect(passesStructuralGate('   As an AI, I cannot generate harmful content.')).toBe(false)
+  describe('rejection check order — refusal check fires before truncation check', () => {
+    it('rejects a short refusal without reaching the truncation check', () => {
+      const shortRefusal = "I'm sorry."
+      expect(shortRefusal.trim().length).toBeLessThan(MIN_SUBSTANTIVE_CHARS)
+      expect(passesStructuralGate(shortRefusal)).toBe(false)
     })
   })
 
-  describe('forkIndex parameter — observability-only, does not alter verdict', () => {
-    const substantive = 'a'.repeat(MIN_SUBSTANTIVE_CHARS)
-
-    it.each([0, 1, 99, null, undefined])('substantive text passes regardless of forkIndex=%s', forkIndex => {
-      expect(passesStructuralGate(substantive, forkIndex)).toBe(true)
-    })
-
-    it.each([0, 99, null])('empty string fails regardless of forkIndex=%s', forkIndex => {
-      expect(passesStructuralGate('', forkIndex)).toBe(false)
-    })
-  })
-
-  describe('structured debug log on every rejection', () => {
+  describe('truncation log includes character count', () => {
     let log
 
     beforeEach(() => {
@@ -109,121 +89,92 @@ describe('passesStructuralGate', () => {
       log.mockClear()
     })
 
-    const rejectionCalls = () => log.mock.calls.filter(([fmt]) => fmt === '%s rejected: %s')
-
-    it('logs empty output rejection with fork-? label when forkIndex omitted', () => {
-      passesStructuralGate('')
-      const calls = rejectionCalls()
-      expect(calls).toHaveLength(1)
-      expect(calls[0]).toEqual(['%s rejected: %s', 'fork-?', 'empty output'])
-    })
-
-    it('logs refusal-pattern rejection with reason including matched prefix', () => {
-      passesStructuralGate("I'm sorry, I cannot help with that.")
-      const calls = rejectionCalls()
-      expect(calls).toHaveLength(1)
-      expect(calls[0][1]).toBe('fork-?')
-      expect(calls[0][2]).toMatch(/refusal pattern matched/)
-    })
-
-    it('logs truncated-output rejection with char count in reason', () => {
+    it('logs the character count and "output too short" reason', () => {
       const input = 'Too short.'
       passesStructuralGate(input)
-      const calls = rejectionCalls()
-      expect(calls).toHaveLength(1)
-      expect(calls[0][2]).toContain(String(input.trim().length))
-      expect(calls[0][2]).toMatch(/output too short/)
-    })
-
-    it.each([0, 3, 99])('uses fork-%i label when forkIndex is %i', forkIndex => {
-      passesStructuralGate('', forkIndex)
-      const calls = rejectionCalls()
-      expect(calls[0][1]).toBe(`fork-${forkIndex}`)
-    })
-
-    it.each([null, undefined])('uses fork-? label when forkIndex is %s', forkIndex => {
-      passesStructuralGate('', forkIndex)
-      const calls = rejectionCalls()
-      expect(calls[0][1]).toBe('fork-?')
-    })
-
-    it('produces exactly one log entry per rejected call', () => {
-      passesStructuralGate('')
-      passesStructuralGate('')
-      expect(rejectionCalls()).toHaveLength(2)
-    })
-
-    it('produces no rejection log entry when output passes the gate', () => {
-      passesStructuralGate('a'.repeat(MIN_SUBSTANTIVE_CHARS))
-      expect(rejectionCalls()).toHaveLength(0)
+      const rejections = log.mock.calls.filter(([fmt]) => fmt === '%s rejected: %s')
+      expect(rejections).toHaveLength(1)
+      expect(rejections[0][2]).toMatch(/output too short/)
+      expect(rejections[0][2]).toContain(String(input.trim().length))
     })
   })
 })
 
-describe('passesCommodityGate', () => {
-  describe('empty output → fails', () => {
-    it.each(EMPTY_INPUTS)('rejects %p', input => {
-      expect(passesCommodityGate(input)).toBe(false)
-    })
-  })
-
-  describe('refusal patterns → fails', () => {
-    it.each(REFUSAL_FIXTURES)('rejects refusal: "%s"', text => {
-      expect(passesCommodityGate(text)).toBe(false)
-    })
-  })
-
-  describe('truncation floor is absent — any non-empty, non-refusal output passes', () => {
+describe('passesCommodityGate — exclusive: no truncation floor', () => {
+  describe('any non-empty non-refusal output passes regardless of length', () => {
     it.each(['a', '1', 'x'])('passes single-character output "%s"', text => {
       expect(passesCommodityGate(text)).toBe(true)
     })
 
-    it('passes text of exactly MIN_SUBSTANTIVE_CHARS - 1', () => {
+    it('passes text of exactly MIN_SUBSTANTIVE_CHARS - 1 characters', () => {
       expect(passesCommodityGate('a'.repeat(MIN_SUBSTANTIVE_CHARS - 1))).toBe(true)
-    })
-
-    it('passes text of exactly MIN_SUBSTANTIVE_CHARS', () => {
-      expect(passesCommodityGate('a'.repeat(MIN_SUBSTANTIVE_CHARS))).toBe(true)
     })
 
     it.each(['hello', 'yes', 'no', '42', 'No.', 'Done.', 'Ok', 'True'])('passes short reply "%s"', text => {
       expect(passesCommodityGate(text)).toBe(true)
     })
-  })
 
-  describe('output at or above truncation floor → also passes', () => {
-    it.each(SUBSTANTIVE_FIXTURES)('passes "%s"', text => {
+    it.each(SUBSTANTIVE_FIXTURES)('passes substantive text: "%s"', text => {
       expect(passesCommodityGate(text)).toBe(true)
     })
   })
+})
 
-  describe('refusal detection is position-sensitive', () => {
-    it('passes text starting with "I" whose verb is not in the refusal pattern', () => {
-      expect(
-        passesCommodityGate('I cannot determine the exact cause without more data — here are three hypotheses.'),
-      ).toBe(true)
-    })
-
-    it('passes "I cannot" when it does not appear at the start of the text', () => {
-      expect(passesCommodityGate('The main reason I cannot confirm this is the limited dataset available.')).toBe(true)
-    })
-
-    it('passes text starting with "I" that matches no refusal pattern at all', () => {
-      expect(passesCommodityGate('Implementing this.')).toBe(true)
-    })
-
-    it('rejects leading-whitespace refusal — trimStart() applied before pattern match', () => {
-      expect(passesCommodityGate("\nI'm sorry, I cannot help with that.")).toBe(false)
-      expect(passesCommodityGate('   As an AI, I cannot generate harmful content.')).toBe(false)
+describe('shared base behavior — applies identically to both gates', () => {
+  describe('empty input rejection', () => {
+    it.each(EMPTY_INPUTS)('both gates reject %p', input => {
+      expect(passesStructuralGate(input)).toBe(false)
+      expect(passesCommodityGate(input)).toBe(false)
     })
   })
 
-  describe('forkIndex parameter — observability-only, does not alter verdict', () => {
-    it.each([0, 1, 99, null, undefined])('short reply passes regardless of forkIndex=%s', forkIndex => {
+  describe('refusal pattern rejection — EN and RU', () => {
+    it.each(REFUSAL_FIXTURES)('both gates reject refusal: "%s"', text => {
+      expect(passesStructuralGate(text)).toBe(false)
+      expect(passesCommodityGate(text)).toBe(false)
+    })
+  })
+
+  describe('refusal detection is anchored to the start of the text (after trimStart)', () => {
+    it.each([
+      'I cannot determine the exact cause — here are three hypotheses.',
+      'The main reason I cannot confirm this is the limited dataset.',
+      'Implementing this feature requires three steps.',
+    ])('EN: passes non-refusal containing a refusal keyword mid-sentence: "%s"', text => {
+      expect(passesStructuralGate(text)).toBe(true)
+      expect(passesCommodityGate(text)).toBe(true)
+    })
+
+    it.each([
+      'Я не могу определить точную причину — вот три гипотезы.',
+      'Главная причина, по которой я не могу подтвердить это, — ограниченные данные.',
+      'Реализация этой функции требует трёх шагов.',
+    ])('RU: passes non-refusal containing a refusal keyword mid-sentence: "%s"', text => {
+      expect(passesStructuralGate(text)).toBe(true)
+      expect(passesCommodityGate(text)).toBe(true)
+    })
+
+    it.each([
+      "\nI'm sorry, I cannot help with that.",
+      '   As an AI, I cannot generate harmful content.',
+      '\nИзвините, я не могу помочь с этим.',
+      '   Как языковая модель, я не могу создавать вредоносный контент.',
+    ])('both gates reject leading-whitespace refusal after trimStart: "%s"', text => {
+      expect(passesStructuralGate(text)).toBe(false)
+      expect(passesCommodityGate(text)).toBe(false)
+    })
+  })
+
+  describe('forkIndex is an observability parameter that does not alter the verdict', () => {
+    const substantive = 'a'.repeat(MIN_SUBSTANTIVE_CHARS)
+
+    it.each([0, 1, 99, null, undefined])('passing inputs pass both gates regardless of forkIndex=%s', forkIndex => {
+      expect(passesStructuralGate(substantive, forkIndex)).toBe(true)
       expect(passesCommodityGate('hello', forkIndex)).toBe(true)
     })
 
-    it.each([0, 1, 99, null, undefined])('empty string fails regardless of forkIndex=%s', forkIndex => {
+    it.each([0, 1, 99, null, undefined])('failing inputs fail both gates regardless of forkIndex=%s', forkIndex => {
+      expect(passesStructuralGate('', forkIndex)).toBe(false)
       expect(passesCommodityGate('', forkIndex)).toBe(false)
     })
   })
@@ -238,129 +189,79 @@ describe('passesCommodityGate', () => {
 
     const rejectionCalls = () => log.mock.calls.filter(([fmt]) => fmt === '%s rejected: %s')
 
-    it('logs empty output rejection with fork-? label when forkIndex omitted', () => {
-      passesCommodityGate('')
-      const calls = rejectionCalls()
-      expect(calls).toHaveLength(1)
-      expect(calls[0]).toEqual(['%s rejected: %s', 'fork-?', 'empty output'])
-    })
+    it.each([0, 3, 99])('uses fork-%i label for forkIndex=%i — identical across both gates', forkIndex => {
+      passesStructuralGate('', forkIndex)
+      const structuralLabel = rejectionCalls()[0][1]
+      log.mockClear()
 
-    it('logs refusal-pattern rejection with reason including matched prefix', () => {
-      passesCommodityGate("I'm sorry, I cannot help with that.")
-      const calls = rejectionCalls()
-      expect(calls).toHaveLength(1)
-      expect(calls[0][1]).toBe('fork-?')
-      expect(calls[0][2]).toMatch(/refusal pattern matched/)
-    })
-
-    it.each([0, 3, 99])('uses fork-%i label when forkIndex is %i', forkIndex => {
       passesCommodityGate('', forkIndex)
-      const calls = rejectionCalls()
-      expect(calls[0][1]).toBe(`fork-${forkIndex}`)
+      const commodityLabel = rejectionCalls()[0][1]
+
+      expect(structuralLabel).toBe(`fork-${forkIndex}`)
+      expect(commodityLabel).toBe(`fork-${forkIndex}`)
     })
 
-    it.each([null, undefined])('uses fork-? label when forkIndex is %s', forkIndex => {
+    it.each([null, undefined])('uses fork-? label for forkIndex=%s — identical across both gates', forkIndex => {
+      passesStructuralGate('', forkIndex)
+      const structuralLabel = rejectionCalls()[0][1]
+      log.mockClear()
+
       passesCommodityGate('', forkIndex)
-      const calls = rejectionCalls()
-      expect(calls[0][1]).toBe('fork-?')
+      const commodityLabel = rejectionCalls()[0][1]
+
+      expect(structuralLabel).toBe('fork-?')
+      expect(commodityLabel).toBe('fork-?')
     })
 
-    it('produces exactly one log entry per rejected call', () => {
-      passesCommodityGate('')
-      passesCommodityGate('')
-      expect(rejectionCalls()).toHaveLength(2)
+    it('logs empty-output rejection with the exact reason string', () => {
+      passesStructuralGate('')
+      expect(rejectionCalls()[0]).toEqual(['%s rejected: %s', 'fork-?', 'empty output'])
     })
 
-    it('produces no rejection log entry when short non-refusal output passes', () => {
+    it('logs refusal-pattern rejection with a reason that includes the matched prefix', () => {
+      passesStructuralGate("I'm sorry, I cannot help with that.")
+      expect(rejectionCalls()[0][2]).toMatch(/^refusal pattern matched/)
+    })
+
+    it('emits exactly one log entry per rejected call — no double-logging', () => {
+      passesStructuralGate('')
+      expect(rejectionCalls()).toHaveLength(1)
+      log.mockClear()
+      passesCommodityGate('')
+      expect(rejectionCalls()).toHaveLength(1)
+    })
+
+    it('emits no log entry when a call passes', () => {
+      passesStructuralGate('a'.repeat(MIN_SUBSTANTIVE_CHARS))
       passesCommodityGate('hello')
-      expect(rejectionCalls()).toHaveLength(0)
-    })
-
-    it('produces no rejection log entry when substantive output passes', () => {
-      passesCommodityGate('a'.repeat(MIN_SUBSTANTIVE_CHARS))
       expect(rejectionCalls()).toHaveLength(0)
     })
   })
 })
 
-describe('cross-gate behavioral parity: shared base checks, diverge only on truncation floor', () => {
-  describe('both gates reject empty and refusal inputs identically', () => {
-    it.each(EMPTY_INPUTS)('both reject empty input %p', input => {
-      expect(passesStructuralGate(input)).toBe(false)
-      expect(passesCommodityGate(input)).toBe(false)
-    })
-
-    it.each(REFUSAL_FIXTURES)('both reject refusal: "%s"', text => {
-      expect(passesStructuralGate(text)).toBe(false)
-      expect(passesCommodityGate(text)).toBe(false)
-    })
+describe('parity contract — truncation floor is the sole behavioral difference between the two gates', () => {
+  it('below floor: structural gate rejects, commodity gate passes', () => {
+    const belowFloor = 'a'.repeat(MIN_SUBSTANTIVE_CHARS - 1)
+    expect(passesStructuralGate(belowFloor)).toBe(false)
+    expect(passesCommodityGate(belowFloor)).toBe(true)
   })
 
-  describe('both gates pass substantive non-refusal inputs identically', () => {
-    it.each(SUBSTANTIVE_FIXTURES)('both pass "%s"', text => {
-      expect(passesStructuralGate(text)).toBe(true)
-      expect(passesCommodityGate(text)).toBe(true)
-    })
+  it('at floor: both gates pass (floor is inclusive)', () => {
+    const atFloor = 'a'.repeat(MIN_SUBSTANTIVE_CHARS)
+    expect(passesStructuralGate(atFloor)).toBe(true)
+    expect(passesCommodityGate(atFloor)).toBe(true)
   })
 
-  describe('truncation floor is the sole behavioral difference between the two gates', () => {
-    it('below floor: structural gate rejects, commodity gate passes', () => {
-      const belowFloor = 'a'.repeat(MIN_SUBSTANTIVE_CHARS - 1)
-      expect(passesStructuralGate(belowFloor)).toBe(false)
-      expect(passesCommodityGate(belowFloor)).toBe(true)
-    })
-
-    it('at floor: both gates pass (floor is inclusive)', () => {
-      const atFloor = 'a'.repeat(MIN_SUBSTANTIVE_CHARS)
-      expect(passesStructuralGate(atFloor)).toBe(true)
-      expect(passesCommodityGate(atFloor)).toBe(true)
-    })
-
-    it('above floor: both gates pass', () => {
-      const aboveFloor = 'a'.repeat(MIN_SUBSTANTIVE_CHARS + 1)
-      expect(passesStructuralGate(aboveFloor)).toBe(true)
-      expect(passesCommodityGate(aboveFloor)).toBe(true)
-    })
-
-    it('empty/refusal verdicts are unaffected by truncation check — both gates reject before reaching it', () => {
-      const shortRefusal = "I'm sorry."
-      expect(shortRefusal.trim().length).toBeLessThan(MIN_SUBSTANTIVE_CHARS)
-      expect(passesStructuralGate(shortRefusal)).toBe(false)
-      expect(passesCommodityGate(shortRefusal)).toBe(false)
-    })
+  it('above floor: both gates pass', () => {
+    const aboveFloor = 'a'.repeat(MIN_SUBSTANTIVE_CHARS + 1)
+    expect(passesStructuralGate(aboveFloor)).toBe(true)
+    expect(passesCommodityGate(aboveFloor)).toBe(true)
   })
 
-  describe('forkIndex observability is consistent across both gates', () => {
-    let log
-
-    beforeEach(() => {
-      log = jest.requireMock('debug')
-      log.mockClear()
-    })
-
-    const rejectionCalls = () => log.mock.calls.filter(([fmt]) => fmt === '%s rejected: %s')
-
-    it('both gates use identical fork label format on rejection', () => {
-      passesStructuralGate('', 3)
-      const structuralCall = rejectionCalls()[0]
-      log.mockClear()
-
-      passesCommodityGate('', 3)
-      const commodityCall = rejectionCalls()[0]
-
-      expect(structuralCall[1]).toBe(commodityCall[1])
-    })
-
-    it('both gates emit exactly one rejection log per rejected call', () => {
-      passesStructuralGate('')
-      const structuralCount = rejectionCalls().length
-      log.mockClear()
-
-      passesCommodityGate('')
-      const commodityCount = rejectionCalls().length
-
-      expect(structuralCount).toBe(1)
-      expect(commodityCount).toBe(1)
-    })
+  it('short refusal fails both gates — refusal check fires before truncation check', () => {
+    const shortRefusal = "I'm sorry."
+    expect(shortRefusal.trim().length).toBeLessThan(MIN_SUBSTANTIVE_CHARS)
+    expect(passesStructuralGate(shortRefusal)).toBe(false)
+    expect(passesCommodityGate(shortRefusal)).toBe(false)
   })
 })

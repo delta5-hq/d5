@@ -35,7 +35,7 @@ import {
   appendCommoditySuffix,
 } from '../../reliability/core/reliabilitySuffix'
 import {getNodeCommand} from './isCommand'
-import {isExecutionErrorNode} from './executionNodeStatus'
+import {isCommodityForkSuccess} from '../../reliability/core/commodityForkSuccess'
 import {resolveCommand} from './queryTypeResolver'
 import {ForeachCommand} from '../ForeachCommand'
 import {MemorizeCommand} from '../MemorizeCommand'
@@ -45,7 +45,6 @@ import {MCPCommand} from '../MCPCommand'
 import {RPCCommand} from '../RPCCommand'
 import StoreFork from '../../reliability/core/StoreFork'
 import {readCommodityN, stripCommodityN} from '../../reliability/core/commodityParams'
-import {passesCommodityGate} from '../../reliability/core/structuralGate'
 import {
   captureStoreExecutionSnapshot,
   restoreStoreExecutionSnapshot,
@@ -153,12 +152,12 @@ async function runCommodityForks(queryType, context, prompt, cell, store, progre
   throwIfAborted(options.signal)
 
   let successCount = 0
-  forkStores.forEach(forkStore => {
+  forkStores.forEach((forkStore, forkIndex) => {
     const forkCell = forkStore.getNode(cell.id)
     let hadSubstantiveOutput = false
     for (const promptId of forkCell?.prompts ?? []) {
       const node = forkStore.getNode(promptId)
-      if (!isExecutionErrorNode(node) && passesCommodityGate(node?.title)) {
+      if (isCommodityForkSuccess(node, forkIndex)) {
         store.createNode({parent: cell.id, title: node.title})
         hadSubstantiveOutput = true
       }

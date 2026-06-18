@@ -321,47 +321,19 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
     expect(callCount).toBe(1)
   })
 
-  it(':n=2 writes [✓ 2/2] suffix on root cell when both forks produce substantive output', async () => {
-    const root = makeRoot('/chat :n=2 List 3 colors')
+  it.each([2, 3])(':n=%i writes [✓ %i/%i] suffix when all forks produce substantive output', async n => {
+    const root = makeRoot(`/chat :n=${n} List 3 items`)
     const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
     let callCount = 0
     const spy = jest
       .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
       .mockImplementation(async function () {
         callCount++
-        this.store.createNode(
-          {
-            parent: root.id,
-            title: `${SUBSTANTIVE_OUTPUT} Fork ${callCount}.`,
-          },
-          true,
-        )
+        this.store.createNode({parent: root.id, title: `${SUBSTANTIVE_OUTPUT} Fork ${callCount}.`}, true)
       })
     await runCommand({queryType: 'chat', cell: root, store})
     spy.mockRestore()
-    // root is mutated in-place by runCommodityForks before removeOrphanedNodes runs
-    expect(root.title).toMatch(/\[✓ 2\/2\]/)
-  })
-
-  it(':n=3 writes [✓ 3/3] suffix on root cell when all forks produce substantive output', async () => {
-    const root = makeRoot('/chat :n=3 List 3 fruits')
-    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
-    let callCount = 0
-    const spy = jest
-      .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
-      .mockImplementation(async function () {
-        callCount++
-        this.store.createNode(
-          {
-            parent: root.id,
-            title: `${SUBSTANTIVE_OUTPUT} Fork ${callCount}.`,
-          },
-          true,
-        )
-      })
-    await runCommand({queryType: 'chat', cell: root, store})
-    spy.mockRestore()
-    expect(root.title).toMatch(/\[✓ 3\/3\]/)
+    expect(root.title).toMatch(new RegExp(`\\[✓ ${n}/${n}\\]`))
   })
 
   it(':n=2 writes [✓ 1/2] when one fork produces a refusal and one produces substantive output', async () => {
@@ -403,6 +375,44 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
     await runCommand({queryType: 'chat', cell: root, store})
     spy.mockRestore()
     expect(root.title).toMatch(/\[✗ 0\/2\]/)
+  })
+
+  it.each([
+    [2, '/chat :n=2 List 3 colors'],
+    [3, '/chat :n=3 List 3 colors'],
+  ])(':n=%i writes [✗ 0/%i] when all forks produce machine-tagged error nodes', async (n, command) => {
+    const root = makeRoot(command)
+    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+    let callCount = 0
+    const spy = jest
+      .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
+      .mockImplementation(async function () {
+        callCount++
+        this.store.importer.createErrorNode('Error: provider failure', root.id)
+      })
+    await runCommand({queryType: 'chat', cell: root, store})
+    spy.mockRestore()
+    expect(callCount).toBe(n)
+    expect(root.title).toMatch(new RegExp(`\\[✗ 0/${n}\\]`))
+  })
+
+  it(':n=2 writes [✓ 1/2] when one fork produces a machine-tagged error node and one produces substantive output', async () => {
+    const root = makeRoot('/chat :n=2 List 3 colors')
+    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+    let callCount = 0
+    const spy = jest
+      .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
+      .mockImplementation(async function () {
+        callCount++
+        if (callCount === 1) {
+          this.store.importer.createErrorNode('Error: provider failure', root.id)
+        } else {
+          this.store.createNode({parent: root.id, title: `${SUBSTANTIVE_OUTPUT} Fork ${callCount}.`}, true)
+        }
+      })
+    await runCommand({queryType: 'chat', cell: root, store})
+    spy.mockRestore()
+    expect(root.title).toMatch(/\[✓ 1\/2\]/)
   })
 
   it('no :n= token — no suffix written on root cell', async () => {
@@ -509,6 +519,29 @@ describe('runCommand — commodity :n=N is stripped from task text before being 
       }
     })
   })
+})
+
+describe('runCommand — commodity :n=N control parameter does not appear in generated child node content', () => {
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  it.each([2, 3])(
+    ':n=%i child node titles contain no :n= token — control parameter does not leak into generated content',
+    async n => {
+      const root = {id: 'root', parent: null, command: `/chat :n=${n} Reply with one word: hello`, children: []}
+      const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+      jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI').mockResolvedValue('hello')
+
+      await runCommand({queryType: 'chat', cell: root, store})
+
+      const children = Object.values(store._nodes).filter(nd => nd.parent === root.id && nd.id !== root.id)
+      expect(children.length).toBeGreaterThan(0)
+      children.forEach(child => {
+        expect(child.title).not.toMatch(/:n=\d+/)
+      })
+    },
+  )
 })
 
 describe('runCommand — modifier commands used as root', () => {

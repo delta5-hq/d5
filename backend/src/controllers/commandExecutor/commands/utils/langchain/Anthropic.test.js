@@ -1,122 +1,272 @@
 import {ChatClaude, _parseChatHistory} from './Anthropic'
-import {HumanMessage, AIMessage, SystemMessage} from '@langchain/core/messages'
-import fetch from 'node-fetch'
 
-jest.mock('node-fetch', () => jest.fn())
+jest.mock('node-fetch')
 
-describe('Claude parseChatHistory', () => {
-  it('should extract system message as top-level field and not include it in messages array', () => {
-    const history = [
-      new SystemMessage('Respond with one of these options: red or blue.'),
-      new HumanMessage('Is cat red or blue?'),
-      new AIMessage('Red.'),
-    ]
-
-    const {chatHistory, systemPrompt} = _parseChatHistory(history)
-
-    expect(systemPrompt).toBe('Respond with one of these options: red or blue.')
-
-    expect(chatHistory).toEqual([
-      {role: 'user', content: 'Is cat red or blue?'},
-      {role: 'assistant', content: 'Red.'},
-    ])
-
-    const hasSystem = chatHistory.some(msg => msg.role === 'system')
-    expect(hasSystem).toBe(false)
-  })
-})
-
-describe('ChatClaude invocationParams', () => {
-  describe('optional sampling parameters', () => {
-    it('omits top_k and top_p when neither has been configured', () => {
-      const claude = new ChatClaude({apiKey: 'test-key'})
-      const params = claude.invocationParams({})
-      expect(params).not.toHaveProperty('top_k')
-      expect(params).not.toHaveProperty('top_p')
-    })
-
-    it.each([
-      ['positive integer', 10],
-      ['zero — a valid sampling boundary', 0],
-    ])('includes top_k when configured as a %s', (_label, topK) => {
-      expect(new ChatClaude({apiKey: 'test-key', topK}).invocationParams({}).top_k).toBe(topK)
-    })
-
-    it.each([
-      ['fraction', 0.9],
-      ['zero — a valid probability boundary', 0],
-    ])('includes top_p when configured as a %s', (_label, topP) => {
-      expect(new ChatClaude({apiKey: 'test-key', topP}).invocationParams({}).top_p).toBe(topP)
-    })
-
-    it('includes both top_k and top_p when both are explicitly configured', () => {
-      const params = new ChatClaude({apiKey: 'test-key', topK: 5, topP: 0.8}).invocationParams({})
-      expect(params.top_k).toBe(5)
-      expect(params.top_p).toBe(0.8)
-    })
-  })
-
-  it('always includes model, temperature, and max_tokens regardless of optional params', () => {
-    const params = new ChatClaude({
-      apiKey: 'test-key',
-      model: 'claude-3-haiku',
-      temperature: 0.5,
-      maxTokens: 512,
-    }).invocationParams({})
-    expect(params.model).toBe('claude-3-haiku')
-    expect(params.temperature).toBe(0.5)
-    expect(params.max_tokens).toBe(512)
-  })
-})
-
-describe('ChatClaude request formatting', () => {
-  beforeEach(() => {
-    jest.clearAllMocks()
-  })
-
-  it('sends correct request body with system message at top level', async () => {
-    fetch.mockResolvedValue({
+const makeSuccessResponse = (overrides = {}) =>
+  Object.assign(
+    {
       ok: true,
-      json: jest.fn().mockResolvedValue({
-        content: [{type: 'text', text: 'Blue'}],
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({
+        content: [{type: 'text', text: 'hello'}],
+        role: 'assistant',
+        type: 'message',
+        usage: {input_tokens: 10, output_tokens: 5},
       }),
-    })
+    },
+    overrides,
+  )
 
-    const claude = new ChatClaude({
-      apiKey: 'test-key',
-      model: 'claude-3-sonnet-20240229',
-      temperature: 0.7,
-      topK: 10,
-      topP: 0.9,
-      maxTokens: 1000,
-    })
+const makeErrorResponse = (status, body) => ({
+  ok: false,
+  status,
+  statusText: String(status),
+  json: async () => body,
+})
 
-    const messages = [new SystemMessage('Be concise.'), new HumanMessage('What color is the sky?')]
+const makeInstance = (fields = {}) => new ChatClaude({apiKey: 'test-api-key', maxRetries: 0, ...fields})
 
-    await claude.invoke(messages)
+const humanMsg = content => ({content, _getType: () => 'human'})
+const aiMsg = content => ({content, _getType: () => 'ai'})
+const systemMsg = content => ({content, _getType: () => 'system'})
 
-    const body = JSON.parse(fetch.mock.calls[0][1].body)
+describe('ChatClaude._generate', () => {
+  let fetchMock
 
-    expect(body.system).toBe('Be concise.')
-    expect(body.messages).toEqual([{role: 'user', content: 'What color is the sky?'}])
-    expect(body.model).toBe('claude-3-sonnet-20240229')
-    expect(body.temperature).toBe(0.7)
-    expect(body.top_k).toBe(10)
-    expect(body.top_p).toBe(0.9)
-    expect(body.max_tokens).toBe(1000)
-
-    const systemInMessages = body.messages.some(m => m.role === 'system')
-    expect(systemInMessages).toBe(false)
+  beforeEach(() => {
+    fetchMock = require('node-fetch')
+    fetchMock.mockReset()
   })
 
-  it('omits top_k and top_p from the request body when neither has been configured', async () => {
-    fetch.mockResolvedValue({
-      ok: true,
-      json: jest.fn().mockResolvedValue({content: [{type: 'text', text: 'ok'}]}),
+  describe('response.ok guard — explicit throw on non-2xx', () => {
+    it.each([400, 401, 403, 429, 500, 503])(
+      'throws "Anthropic API error: <message>" when status is %i and body has error.message',
+      async status => {
+        fetchMock.mockResolvedValue(makeErrorResponse(status, {error: {message: `error-for-${status}`}}))
+        await expect(makeInstance()._generate([humanMsg('hi')], {})).rejects.toThrow(
+          `Anthropic API error: error-for-${status}`,
+        )
+      },
+    )
+
+    it('falls back to "HTTP <status>" when the error body has no message field', async () => {
+      fetchMock.mockResolvedValue(makeErrorResponse(403, {type: 'error', error: {type: 'permission_error'}}))
+      await expect(makeInstance()._generate([humanMsg('hi')], {})).rejects.toThrow('HTTP 403')
     })
-    await new ChatClaude({apiKey: 'test-key'}).invoke([new HumanMessage('hi')])
-    const body = JSON.parse(fetch.mock.calls[0][1].body)
-    expect(body).not.toHaveProperty('top_k')
-    expect(body).not.toHaveProperty('top_p')
+
+    it('falls back to "HTTP <status>" when the error body is not parseable JSON', async () => {
+      fetchMock.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        json: async () => {
+          throw new SyntaxError('Unexpected token')
+        },
+      })
+      await expect(makeInstance()._generate([humanMsg('hi')], {})).rejects.toThrow('HTTP 500')
+    })
+
+    it('falls back to "HTTP <status>" when the error body is null', async () => {
+      fetchMock.mockResolvedValue({
+        ok: false,
+        status: 503,
+        statusText: 'Service Unavailable',
+        json: async () => null,
+      })
+      await expect(makeInstance()._generate([humanMsg('hi')], {})).rejects.toThrow('HTTP 503')
+    })
+  })
+
+  describe('success path — 200 response handling', () => {
+    it('resolves with a single text generation from a single-block response', async () => {
+      fetchMock.mockResolvedValue(makeSuccessResponse())
+      const result = await makeInstance()._generate([humanMsg('hi')], {})
+      expect(result.generations).toHaveLength(1)
+      expect(result.generations[0].text).toBe('hello')
+    })
+
+    it('resolves with multiple generations when the response has multiple text blocks', async () => {
+      fetchMock.mockResolvedValue(
+        makeSuccessResponse({
+          json: async () => ({
+            content: [
+              {type: 'text', text: 'first'},
+              {type: 'text', text: 'second'},
+            ],
+            role: 'assistant',
+            type: 'message',
+            usage: {},
+          }),
+        }),
+      )
+      const result = await makeInstance()._generate([humanMsg('hi')], {})
+      expect(result.generations).toHaveLength(2)
+      expect(result.generations.map(g => g.text)).toEqual(['first', 'second'])
+    })
+
+    it('filters out non-text content blocks — only type:text produces a generation', async () => {
+      fetchMock.mockResolvedValue(
+        makeSuccessResponse({
+          json: async () => ({
+            content: [
+              {type: 'thinking', thinking: 'internal reasoning'},
+              {type: 'text', text: 'visible answer'},
+            ],
+            role: 'assistant',
+            type: 'message',
+            usage: {},
+          }),
+        }),
+      )
+      const result = await makeInstance()._generate([humanMsg('hi')], {})
+      expect(result.generations).toHaveLength(1)
+      expect(result.generations[0].text).toBe('visible answer')
+    })
+
+    it('returns an empty generations array when the response has no text blocks', async () => {
+      fetchMock.mockResolvedValue(
+        makeSuccessResponse({
+          json: async () => ({
+            content: [{type: 'thinking', thinking: 'only thinking'}],
+            role: 'assistant',
+            type: 'message',
+            usage: {},
+          }),
+        }),
+      )
+      const result = await makeInstance()._generate([humanMsg('hi')], {})
+      expect(result.generations).toHaveLength(0)
+    })
+  })
+
+  describe('request serialization', () => {
+    const captureRequestBody = () => JSON.parse(fetchMock.mock.calls[0][1].body)
+
+    beforeEach(() => {
+      fetchMock.mockResolvedValue(makeSuccessResponse())
+    })
+
+    it('sends human messages as role:user', async () => {
+      await makeInstance()._generate([humanMsg('question')], {})
+      expect(captureRequestBody().messages).toContainEqual({role: 'user', content: 'question'})
+    })
+
+    it('sends ai messages as role:assistant', async () => {
+      await makeInstance()._generate([humanMsg('q'), aiMsg('a'), humanMsg('follow-up')], {})
+      expect(captureRequestBody().messages).toContainEqual({role: 'assistant', content: 'a'})
+    })
+
+    it('lifts the system message into the top-level system field — not into messages array', async () => {
+      await makeInstance()._generate([systemMsg('be helpful'), humanMsg('hi')], {})
+      const body = captureRequestBody()
+      expect(body.system).toBe('be helpful')
+      expect(body.messages.every(m => m.role !== 'system')).toBe(true)
+    })
+
+    it('omits the system field when no system message is present', async () => {
+      await makeInstance()._generate([humanMsg('hi')], {})
+      expect(captureRequestBody().system).toBeUndefined()
+    })
+
+    it('adds thinking block when thinkingBudgetTokens is set', async () => {
+      await makeInstance({thinkingBudgetTokens: 1024})._generate([humanMsg('hi')], {})
+      const body = captureRequestBody()
+      expect(body.thinking).toEqual({type: 'enabled', budget_tokens: 1024})
+    })
+
+    it('omits thinking block when thinkingBudgetTokens is null', async () => {
+      await makeInstance()._generate([humanMsg('hi')], {})
+      expect(captureRequestBody().thinking).toBeUndefined()
+    })
+
+    it('overrides temperature to 1 when thinking is enabled', async () => {
+      await makeInstance({thinkingBudgetTokens: 512, temperature: 0.5})._generate([humanMsg('hi')], {})
+      expect(captureRequestBody().temperature).toBe(1)
+    })
+
+    it('sends model, temperature, and max_tokens from ChatClaude configuration', async () => {
+      await makeInstance({model: 'claude-3-haiku-20240307', temperature: 0.3, maxTokens: 512})._generate(
+        [humanMsg('hi')],
+        {},
+      )
+      const body = captureRequestBody()
+      expect(body.model).toBe('claude-3-haiku-20240307')
+      expect(body.temperature).toBe(0.3)
+      expect(body.max_tokens).toBe(512)
+    })
+
+    it('includes top_k in the request body when configured', async () => {
+      await makeInstance({topK: 10})._generate([humanMsg('hi')], {})
+      expect(captureRequestBody().top_k).toBe(10)
+    })
+
+    it('includes top_p in the request body when configured', async () => {
+      await makeInstance({topP: 0.9})._generate([humanMsg('hi')], {})
+      expect(captureRequestBody().top_p).toBe(0.9)
+    })
+
+    it('omits top_k from the request body when not configured', async () => {
+      await makeInstance()._generate([humanMsg('hi')], {})
+      expect(captureRequestBody()).not.toHaveProperty('top_k')
+    })
+
+    it('omits top_p from the request body when not configured', async () => {
+      await makeInstance()._generate([humanMsg('hi')], {})
+      expect(captureRequestBody()).not.toHaveProperty('top_p')
+    })
+  })
+})
+
+describe('_parseChatHistory', () => {
+  const humanMsg = content => ({content, _getType: () => 'human'})
+  const aiMsg = content => ({content, _getType: () => 'ai'})
+  const systemMsg = content => ({content, _getType: () => 'system'})
+
+  it('maps human messages to role:user entries', () => {
+    const {chatHistory} = _parseChatHistory([humanMsg('hello')])
+    expect(chatHistory).toEqual([{role: 'user', content: 'hello'}])
+  })
+
+  it('maps ai messages to role:assistant entries', () => {
+    const {chatHistory} = _parseChatHistory([humanMsg('q'), aiMsg('a')])
+    expect(chatHistory).toContainEqual({role: 'assistant', content: 'a'})
+  })
+
+  it('extracts a system message into systemPrompt — not into chatHistory', () => {
+    const {chatHistory, systemPrompt} = _parseChatHistory([systemMsg('be concise'), humanMsg('hi')])
+    expect(systemPrompt).toBe('be concise')
+    expect(chatHistory.every(m => m.role !== 'system')).toBe(true)
+  })
+
+  it('returns null systemPrompt when no system message is present', () => {
+    const {systemPrompt} = _parseChatHistory([humanMsg('hi')])
+    expect(systemPrompt).toBeNull()
+  })
+
+  it('uses only the first system message when multiple system messages appear', () => {
+    const {systemPrompt} = _parseChatHistory([systemMsg('first'), systemMsg('second'), humanMsg('hi')])
+    expect(systemPrompt).toBe('first')
+  })
+
+  it('preserves message order in chatHistory', () => {
+    const {chatHistory} = _parseChatHistory([humanMsg('a'), aiMsg('b'), humanMsg('c')])
+    expect(chatHistory).toEqual([
+      {role: 'user', content: 'a'},
+      {role: 'assistant', content: 'b'},
+      {role: 'user', content: 'c'},
+    ])
+  })
+
+  it('throws when a message has non-string content', () => {
+    expect(() => _parseChatHistory([{content: ['array'], _getType: () => 'human'}])).toThrow(
+      'Chat does not support non-string message content.',
+    )
+  })
+
+  it('returns empty chatHistory and null systemPrompt for an empty history', () => {
+    const {chatHistory, systemPrompt} = _parseChatHistory([])
+    expect(chatHistory).toEqual([])
+    expect(systemPrompt).toBeNull()
   })
 })

@@ -417,6 +417,8 @@ export default {
       previewError: 'Preview failed',
       refineCostHint: '⚡ ~{cost} LLM {cost, plural, one {call} other {calls}}',
       refineCostOverLimit: '⛔ Exceeds :limit= — will be refused ({cost} calls)',
+      commodityCeilingHint:
+        '⚠ Structural-only: catches empty, refusal, and thrown-error outputs. Soft errors (well-formed HTTP 200 error text) are undetectable at this tier — use /refine + /validate for semantic checking.',
       verdictButton: 'View verdict',
     },
 

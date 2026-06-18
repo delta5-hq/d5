@@ -128,6 +128,12 @@ export class ChatClaude extends BaseChatModel {
         signal: options?.signal,
       })
 
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null)
+        const errorMessage = errorBody?.error?.message ?? `HTTP ${response.status}`
+        throw new Error(`Anthropic API error: ${errorMessage}`)
+      }
+
       const data = await response.json()
       return data
     }
