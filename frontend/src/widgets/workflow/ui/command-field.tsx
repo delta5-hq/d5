@@ -136,13 +136,13 @@ export const CommandField = ({
   }, [shouldShowAutocomplete, text, allSuggestions])
 
   useEffect(() => {
-    if (filteredSuggestions.length > 0 && shouldShowAutocomplete) {
-      setAutocompleteOpen(true)
-      setSelectedIndex(0)
-    } else {
-      setAutocompleteOpen(false)
-    }
-  }, [filteredSuggestions, shouldShowAutocomplete])
+    const nextOpen = filteredSuggestions.length > 0 && shouldShowAutocomplete
+    setAutocompleteOpen(current => (current === nextOpen ? current : nextOpen))
+    setSelectedIndex(current => {
+      if (!nextOpen) return 0
+      return current >= filteredSuggestions.length ? 0 : current
+    })
+  }, [filteredSuggestions.length, shouldShowAutocomplete])
 
   const handleChange = useCallback(
     (e: ChangeEvent<HTMLTextAreaElement>) => {

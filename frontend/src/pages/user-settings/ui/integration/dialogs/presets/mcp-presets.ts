@@ -1,5 +1,5 @@
 import type { PresetDefinition } from './types'
-import { D5_BACKEND_ROOT, D5_BACKEND_PATHS } from './d5-backend-paths'
+import { D5_INTERNAL_MCP_SERVERS } from './d5-internal-server-refs'
 
 interface MCPFormFlat {
   alias: string
@@ -68,7 +68,7 @@ export const MCP_PRESETS: PresetDefinition<MCPFormFlat>[] = [
       setValue('description', 'Deep research with web and academic paper search')
       setValue('transport', 'stdio')
       setValue('command', 'node')
-      setValue('args', `${D5_BACKEND_ROOT}/${D5_BACKEND_PATHS.mcpResearchRag}`)
+      setValue('args', D5_INTERNAL_MCP_SERVERS.researchRag)
       setValue('toolName', 'auto')
       setValue('toolInputField', 'prompt')
       setValue('timeoutMs', 300000)
@@ -83,7 +83,7 @@ export const MCP_PRESETS: PresetDefinition<MCPFormFlat>[] = [
       setValue('description', 'Web page scraper with content extraction')
       setValue('transport', 'stdio')
       setValue('command', 'node')
-      setValue('args', `${D5_BACKEND_ROOT}/${D5_BACKEND_PATHS.mcpScraper}`)
+      setValue('args', D5_INTERNAL_MCP_SERVERS.scraper)
       setValue('toolName', 'scrape_web_pages')
       setValue('toolInputField', 'text')
       setValue('timeoutMs', 180000)
@@ -98,7 +98,7 @@ export const MCP_PRESETS: PresetDefinition<MCPFormFlat>[] = [
       setValue('description', 'Generate structured outlines from topics')
       setValue('transport', 'stdio')
       setValue('command', 'node')
-      setValue('args', `${D5_BACKEND_ROOT}/${D5_BACKEND_PATHS.mcpOutliner}`)
+      setValue('args', D5_INTERNAL_MCP_SERVERS.outliner)
       setValue('toolName', 'generate_outline')
       setValue('toolInputField', 'query')
       setValue('timeoutMs', 300000)

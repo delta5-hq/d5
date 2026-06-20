@@ -5,6 +5,7 @@ import {runCommand} from './runCommand'
 import Store from './Store'
 import ProgressReporter from '../../ProgressReporter'
 import {ForeachCommand} from '../ForeachCommand'
+import {ValidateCommand} from '../ValidateCommand'
 import * as unknownCommandNode from './unknownCommandNode'
 
 jest.useFakeTimers()
@@ -220,6 +221,20 @@ describe('runCommand', () => {
     expect(postProcessReporter.dispose).toHaveBeenCalled()
 
     chatSpy.mockRestore()
+  })
+
+  describe('direct validate execution', () => {
+    it('dispatches /validate through the command runner so a visible artifact can be created', async () => {
+      const cell = {id: 'validate-node', parent: 'root', command: '/validate answer is useful', children: []}
+      const parent = {id: 'root', parent: 'root', title: 'answer text', children: ['validate-node']}
+      const store = new Store({userId: 'user-id', nodes: {root: parent, 'validate-node': cell}})
+      const runSpy = jest.spyOn(ValidateCommand.prototype, 'run').mockResolvedValue({passed: true})
+
+      await runCommand({queryType: 'validate', cell, store})
+
+      expect(runSpy).toHaveBeenCalledWith(expect.objectContaining({id: 'validate-node'}))
+      runSpy.mockRestore()
+    })
   })
 
   describe('unrecognized command dispatch', () => {

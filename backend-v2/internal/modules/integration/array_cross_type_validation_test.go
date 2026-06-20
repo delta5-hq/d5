@@ -35,7 +35,7 @@ func setupCrossTypeTestDB(t *testing.T) (*qmgo.Database, func()) {
 	cleanup := func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_ = db.DropCollection(ctx, "integrations")
+		_, _ = db.Collection("integrations").RemoveAll(ctx, bson.M{})
 		client.Close(ctx)
 	}
 
@@ -48,6 +48,76 @@ func cleanupTestIntegrations(t *testing.T, db *qmgo.Database, userID string) {
 	defer cancel()
 
 	_, _ = db.Collection("integrations").RemoveAll(ctx, bson.M{"userId": userID})
+}
+
+func TestUpdateArrayItemNoPersistableFieldsIsNoop(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
+	ctx := context.Background()
+	db, cleanup := setupCrossTypeTestDB(t)
+	defer cleanup()
+
+	service, err := NewService(db)
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	scope := ScopeIdentifier{
+		UserID:     "test-user-noop-update",
+		WorkflowID: nil,
+	}
+
+	seedRPCItem := func(t *testing.T, alias string) {
+		t.Helper()
+		cleanupTestIntegrations(t, db, scope.UserID)
+
+		err := service.AddArrayItem(ctx, scope, "rpc", map[string]interface{}{
+			"alias":           alias,
+			"protocol":        "ssh",
+			"host":            "localhost",
+			"username":        "testuser",
+			"privateKey":      "key123",
+			"headers":         map[string]interface{}{"Authorization": "Bearer token"},
+			"commandTemplate": "echo {{prompt}}",
+		})
+		if err != nil {
+			t.Fatalf("Failed to add RPC item: %v", err)
+		}
+	}
+
+	tests := []struct {
+		name    string
+		alias   string
+		updates map[string]interface{}
+	}{
+		{
+			name:    "same alias update normalizes to empty patch",
+			alias:   "/same-alias-noop",
+			updates: map[string]interface{}{"alias": "/same-alias-noop"},
+		},
+		{
+			name:    "sentinel-only string secret update preserves existing secret",
+			alias:   "/sentinel-string-noop",
+			updates: map[string]interface{}{"privateKey": SecretRedactionSentinel},
+		},
+		{
+			name:    "sentinel-only map secret update preserves existing secret map",
+			alias:   "/sentinel-map-noop",
+			updates: map[string]interface{}{"headers": map[string]interface{}{SecretRedactionSentinel: SecretRedactionSentinel}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			seedRPCItem(t, tt.alias)
+
+			if err := service.UpdateArrayItem(ctx, scope, "rpc", tt.alias, tt.updates); err != nil {
+				t.Fatalf("UpdateArrayItem returned error for no-op patch: %v", err)
+			}
+		})
+	}
 }
 
 func TestCrossTypeAliasValidation(t *testing.T) {

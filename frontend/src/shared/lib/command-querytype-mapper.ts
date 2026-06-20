@@ -6,6 +6,7 @@ export const COMMAND_TO_QUERYTYPE_MAP: Record<string, string> = {
   '/web': 'web',
   '/scholar': 'scholar',
   '/refine': 'refine',
+  '/validate': 'validate',
   '/foreach': 'foreach',
   '/steps': 'steps',
   '/outline': 'outline',
@@ -43,6 +44,7 @@ export const COMMAND_DESCRIPTIONS: Record<string, string> = {
   '/memorize': 'Store text into the knowledge base as vector embeddings',
   '/download': 'Download a file from a URL',
   '/refine': 'Iteratively improve text through multiple LLM passes',
+  '/validate': 'Validate parent node content against a criterion',
   '/foreach': 'Run a command on each child node, substituting @@ with its content',
   '/steps': 'Execute a sequence of ordered child-node commands',
   '/switch': 'Route execution to child nodes based on conditional logic',
@@ -86,5 +88,5 @@ export const extractQueryTypeFromCommand = (command: string | undefined, dynamic
   const mappedQueryType = fullMap[firstWord]
   if (mappedQueryType) return mappedQueryType
 
-  return firstWord.substring(1)
+  return 'unknown'
 }

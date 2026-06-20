@@ -6,7 +6,14 @@ import {
   AliasValidationError,
   VALID_ALIAS_PATTERN,
   BUILT_IN_COMMANDS,
+  ADDITIONAL_BUILT_IN_COMMANDS,
 } from './aliasValidation'
+import {queryCommands} from '../../constants/commandRegExp'
+
+const normalizeCommand = command => command.toLowerCase()
+const buildCaseVariants = alias => Array.from(new Set([alias, alias.toUpperCase(), `/${alias.slice(1).toUpperCase()}`]))
+const queryCommandSet = new Set(queryCommands.map(normalizeCommand))
+const compatibilityOnlyCommands = ADDITIONAL_BUILT_IN_COMMANDS.filter(alias => !queryCommandSet.has(alias))
 
 describe('aliasValidation', () => {
   describe('VALID_ALIAS_PATTERN', () => {
@@ -35,11 +42,16 @@ describe('aliasValidation', () => {
       expect(BUILT_IN_COMMANDS.size).toBeGreaterThan(0)
     })
 
-    it('contains known built-in commands', () => {
-      expect(BUILT_IN_COMMANDS.has('/chatgpt')).toBe(true)
-      expect(BUILT_IN_COMMANDS.has('/web')).toBe(true)
-      expect(BUILT_IN_COMMANDS.has('/steps')).toBe(true)
-      expect(BUILT_IN_COMMANDS.has('/mcp')).toBe(true)
+    it('is the normalized union of executor commands and user-facing compatibility commands', () => {
+      const expected = new Set([...queryCommands, ...ADDITIONAL_BUILT_IN_COMMANDS].map(normalizeCommand))
+
+      expect(BUILT_IN_COMMANDS).toEqual(expected)
+    })
+
+    it('contains only normalized slash commands', () => {
+      for (const command of BUILT_IN_COMMANDS) {
+        expect(command).toMatch(/^\/[a-z][a-z0-9_-]*$/)
+      }
     })
   })
 
@@ -87,6 +99,21 @@ describe('aliasValidation', () => {
       expect(() => validateNotBuiltIn(alias)).toThrow(AliasValidationError)
       expect(() => validateNotBuiltIn(alias)).toThrow(expect.objectContaining({code: 'RESERVED_COMMAND'}))
     })
+
+    it.each(Array.from(BUILT_IN_COMMANDS).flatMap(buildCaseVariants))(
+      'rejects built-in conflicts regardless of alias casing: %s',
+      alias => {
+        expect(() => validateNotBuiltIn(alias)).toThrow(expect.objectContaining({code: 'RESERVED_COMMAND'}))
+      },
+    )
+
+    it.each(compatibilityOnlyCommands)(
+      'rejects compatibility command aliases not owned by queryCommands: %s',
+      alias => {
+        expect(queryCommandSet.has(alias)).toBe(false)
+        expect(() => validateNotBuiltIn(alias)).toThrow(expect.objectContaining({code: 'RESERVED_COMMAND'}))
+      },
+    )
 
     it('succeeds for non-conflicting aliases', () => {
       expect(() => validateNotBuiltIn('/myCustomAgent')).not.toThrow()

@@ -68,7 +68,13 @@ describe('aadMigrationDeadline', () => {
 
     it('returns false when timestamp equals current time — boundary is strict greater-than', () => {
       const now = Date.now()
-      expect(isDeadlineExceeded(now)).toBe(false)
+      const spy = jest.spyOn(Date, 'now').mockReturnValue(now)
+
+      try {
+        expect(isDeadlineExceeded(now)).toBe(false)
+      } finally {
+        spy.mockRestore()
+      }
     })
 
     it('returns true for a past timestamp', () => {

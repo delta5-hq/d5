@@ -223,6 +223,25 @@ describe('RPCCommand', () => {
       expect(result).toBe('{"result":{"data":"http response"}}')
     })
 
+    it.each([
+      [400, 'bad request', 'HTTP RPC failed with status 400: bad request'],
+      [404, 'not found', 'HTTP RPC failed with status 404: not found'],
+      [500, 'upstream failure', 'HTTP RPC failed with status 500: upstream failure'],
+      [502, '', 'HTTP RPC failed with status 502'],
+      [503, '  gateway\n\nunavailable  ', 'HTTP RPC failed with status 503: gateway unavailable'],
+      [504, 'x'.repeat(600), `HTTP RPC failed with status 504: ${'x'.repeat(500)}…`],
+      [520, '   ', 'HTTP RPC failed with status 520'],
+    ])('rejects HTTP status %s with a normalized safe error message', async (status, body, expectedMessage) => {
+      mockHTTPExecutor.execute.mockResolvedValue({
+        body,
+        status,
+        isError: true,
+      })
+      const command = new RPCCommand(userId, workflowId, mockStore, httpAliasConfig)
+
+      await expect(command.executeHTTP('test')).rejects.toThrow(expectedMessage)
+    })
+
     it('omits body when no bodyTemplate specified', async () => {
       const config = {...httpAliasConfig, bodyTemplate: undefined}
       const command = new RPCCommand(userId, workflowId, mockStore, config)
@@ -256,6 +275,24 @@ describe('RPCCommand', () => {
 
       expect(mockHTTPExecutor.execute).toHaveBeenCalled()
       expect(mockStore.importer.createNodes).toHaveBeenCalledWith('http response', 'node2')
+    })
+
+    it('creates an error node for non-2xx HTTP responses', async () => {
+      mockHTTPExecutor.execute.mockResolvedValue({
+        body: 'upstream unavailable',
+        status: 503,
+        isError: true,
+      })
+      const command = new RPCCommand(userId, workflowId, mockStore, httpAliasConfig)
+      const node = {id: 'node-http-error', command: '/webhook1 execute'}
+
+      await command.run(node, null, null)
+
+      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(
+        'Error: HTTP RPC failed with status 503: upstream unavailable',
+        'node-http-error',
+      )
+      expect(mockStore.importer.createNodes).not.toHaveBeenCalled()
     })
 
     it('parses JSON output when outputFormat is json', async () => {

@@ -1,5 +1,6 @@
 import path from 'path'
 import {MONGO_URI} from '../../../../constants'
+import {readInternalMCPServerId, resolveInternalMCPServerScript} from './internalMCPServerCatalog'
 
 export const INTERNAL_SERVERS_DIR = path.resolve(__dirname, '../../../../mcp-servers')
 
@@ -14,10 +15,20 @@ const isUnderInternalServersDir = resolvedScriptPath => resolvedScriptPath.start
 const isDockerMcpPath = scriptPath =>
   scriptPath === DOCKER_MCP_SERVERS_PREFIX || scriptPath.startsWith(DOCKER_MCP_SERVERS_PREFIX + '/')
 
+const resolveInternalServerUri = scriptPath => {
+  const serverId = readInternalMCPServerId(scriptPath)
+  if (!serverId) return null
+  return path.join(INTERNAL_SERVERS_DIR, resolveInternalMCPServerScript(serverId))
+}
+
 export const resolveInternalServerScript = scriptPath => {
+  const internalServerPath = resolveInternalServerUri(scriptPath)
+  if (internalServerPath) return internalServerPath
+
   if (isDockerMcpPath(scriptPath)) {
     return INTERNAL_SERVERS_DIR + scriptPath.slice(DOCKER_MCP_SERVERS_PREFIX.length)
   }
+
   return resolveScriptPath(scriptPath)
 }
 

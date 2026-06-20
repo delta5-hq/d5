@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -41,14 +41,39 @@ const customLLMSchema = z.object({
 
 type CustomLLMFormValues = z.infer<typeof customLLMSchema>
 
+const CUSTOM_LLM_API_TYPE_ALIASES: Record<string, CustomLLMApiType> = {
+  openai: CustomLLMApiType.OpenAI_Compatible,
+  openai_compatible: CustomLLMApiType.OpenAI_Compatible,
+  openaiCompatible: CustomLLMApiType.OpenAI_Compatible,
+  openai_compatible_chain_of_thought: CustomLLMApiType.OpenAI_Compatible_Chain_Of_Thought,
+}
+
 interface CustomLLMDialogProps extends DialogProps {
   data: CustomLLM | undefined
   refresh: () => Promise<void>
   workflowId?: string | null
 }
 
+const formatConnectionError = (error: unknown): string => {
+  if (error instanceof DOMException && error.name === 'AbortError')
+    return 'Custom LLM validation timed out after 5 seconds.'
+  if (error instanceof TypeError) return 'Custom LLM endpoint is unreachable.'
+  if (error instanceof Error && error.message.trim()) return error.message
+  return 'Custom LLM endpoint validation failed.'
+}
+
+const shouldValidateConnection = (values: CustomLLMFormValues, saved: CustomLLM | undefined): boolean =>
+  Boolean(values.apiRootUrl) && !objectsAreEqual(values, saved || {})
+
+const normalizeCustomLLMApiType = (apiType: CustomLLM['apiType'] | undefined): CustomLLMApiType => {
+  if (!apiType) return CustomLLMApiType.OpenAI_Compatible
+  if (Object.values(CustomLLMApiType).includes(apiType as CustomLLMApiType)) return apiType as CustomLLMApiType
+  return CUSTOM_LLM_API_TYPE_ALIASES[apiType] || CustomLLMApiType.OpenAI_Compatible
+}
+
 export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, onClose, refresh, workflowId }) => {
   const url = buildIntegrationUrl('/integration/custom_llm/update', workflowId)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
 
   const { mutateAsync: save } = useApiMutation<CustomLLM, HttpError, CustomLLM>({
     url,
@@ -60,7 +85,7 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
   const form = useForm<CustomLLMFormValues>({
     resolver: zodResolver(customLLMSchema),
     defaultValues: {
-      apiType: (data?.apiType as CustomLLMApiType) || CustomLLMApiType.OpenAI_Compatible,
+      apiType: normalizeCustomLLMApiType(data?.apiType),
       apiKey: data?.apiKey || '',
       model: data?.model || '',
       apiRootUrl: data?.apiRootUrl || '',
@@ -78,30 +103,32 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
   } = form
 
   const onSubmit = async (values: CustomLLMFormValues) => {
-    try {
-      const urlChanged = values.apiRootUrl !== data?.apiRootUrl
-      const apiKeyChanged = values.apiKey !== data?.apiKey
+    setConnectionError(null)
 
-      if (urlChanged || apiKeyChanged) {
+    try {
+      if (shouldValidateConnection(values, data)) {
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 5000)
 
-        const response = await fetch(CUSTOM_LLM_CHAT_COMPLETIONS_PATH, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(values.apiKey && { Authorization: `Bearer ${values.apiKey}` }),
-          },
-          body: JSON.stringify({
-            url: values.apiRootUrl,
-            model: values.model || 'gpt-4o-mini',
-            messages: [{ role: 'user', content: 'Hello!' }],
-            max_tokens: 10,
-          }),
-          signal: controller.signal,
-        })
-
-        clearTimeout(timeoutId)
+        let response: Response
+        try {
+          response = await fetch(CUSTOM_LLM_CHAT_COMPLETIONS_PATH, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(values.apiKey && { Authorization: `Bearer ${values.apiKey}` }),
+            },
+            body: JSON.stringify({
+              url: values.apiRootUrl,
+              model: values.model || 'gpt-4o-mini',
+              messages: [{ role: 'user', content: 'Hello!' }],
+              max_tokens: 10,
+            }),
+            signal: controller.signal,
+          })
+        } finally {
+          clearTimeout(timeoutId)
+        }
 
         if (!response.ok) {
           const errorText = await response.text().catch(() => response.statusText)
@@ -116,6 +143,7 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
       await refresh()
       onClose?.()
     } catch (e: unknown) {
+      setConnectionError(formatConnectionError(e))
       toastIntegrationError(e)
     }
   }
@@ -135,7 +163,6 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
         <GlassDialogDescription>
           <FormattedMessage id="customLLMHint" />
         </GlassDialogDescription>
-        {/* API Type */}
         <div className="flex flex-col gap-2">
           <Label htmlFor="apiType">
             <FormattedMessage id="apiType" />
@@ -158,7 +185,6 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
           </Select>
         </div>
 
-        {/* API Key */}
         <div className="flex flex-col gap-2">
           <Label htmlFor="apiKey">
             <FormattedMessage id="dialog.integration.apiKey" />
@@ -172,7 +198,6 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
           />
         </div>
 
-        {/* Model */}
         <div className="flex flex-col gap-2">
           <Label htmlFor="model">
             <FormattedMessage id="dialog.integration.model" />
@@ -187,7 +212,6 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
           />
         </div>
 
-        {/* API Root URL */}
         <div className="flex flex-col gap-2">
           <Label htmlFor="apiRootUrl">
             <FormattedMessage id="apiRootUrl" />
@@ -201,7 +225,22 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
           />
         </div>
 
-        {/* maxTokens */}
+        {connectionError ? (
+          <div
+            aria-live="polite"
+            className="rounded-lg border border-destructive/30 border-l-4 border-l-destructive bg-destructive/5 px-4 py-3 text-sm"
+            role="alert"
+          >
+            <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-destructive">
+              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-destructive ring-4 ring-destructive/10" />
+              <FormattedMessage id="dialog.integration.serverError" />
+            </p>
+            <p className="max-h-24 overflow-auto break-words rounded-md border border-border/70 bg-background/80 px-3 py-2 font-mono text-sm leading-5 text-foreground">
+              {connectionError}
+            </p>
+          </div>
+        ) : null}
+
         <div className="flex flex-col gap-2">
           <Label htmlFor="maxTokens">
             <FormattedMessage id="maxTokens" />
@@ -216,7 +255,6 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
           />
         </div>
 
-        {/* embeddingsChunkSize */}
         <div className="flex flex-col gap-2">
           <Label htmlFor="embeddingsChunkSize">
             <FormattedMessage id="embeddingsChunkSize" />

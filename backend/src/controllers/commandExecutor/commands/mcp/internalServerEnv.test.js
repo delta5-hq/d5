@@ -12,6 +12,12 @@ jest.mock('../../../../constants', () => ({
 
 const internalPath = (...segments) => path.join(INTERNAL_SERVERS_DIR, ...segments)
 
+const logicalInternalServerCases = [
+  ['research-rag', 'd5-internal://mcp-server/research-rag', path.join(INTERNAL_SERVERS_DIR, 'research-rag/server.js')],
+  ['scraper', 'd5-internal://mcp-server/scraper', path.join(INTERNAL_SERVERS_DIR, 'scraper/server.js')],
+  ['outliner', 'd5-internal://mcp-server/outliner', path.join(INTERNAL_SERVERS_DIR, 'outliner/server.js')],
+]
+
 describe('isInternalMcpServer', () => {
   describe('command gate', () => {
     it('accepts node command', () => {
@@ -60,6 +66,14 @@ describe('isInternalMcpServer', () => {
       expect(isInternalMcpServer('node', ['/app/mcp-servers/scraper/server.js'])).toBe(true)
     })
 
+    it.each(logicalInternalServerCases)('accepts logical internal server URI for %s', (_name, uri) => {
+      expect(isInternalMcpServer('node', [uri])).toBe(true)
+    })
+
+    it('rejects logical internal server URI for non-node command', () => {
+      expect(isInternalMcpServer('npx', ['d5-internal://mcp-server/scraper'])).toBe(false)
+    })
+
     it('rejects /app/mcp-servers itself (no trailing slash means not a file)', () => {
       expect(isInternalMcpServer('node', ['/app/mcp-servers'])).toBe(false)
     })
@@ -90,6 +104,14 @@ describe('isInternalMcpServer', () => {
 })
 
 describe('resolveInternalServerScript', () => {
+  it.each(logicalInternalServerCases)('maps logical %s server URI to INTERNAL_SERVERS_DIR', (_name, uri, expected) => {
+    expect(resolveInternalServerScript(uri)).toBe(expected)
+  })
+
+  it('rejects unknown logical internal server URI', () => {
+    expect(() => resolveInternalServerScript('d5-internal://mcp-server/unknown')).toThrow('Unknown internal MCP server')
+  })
+
   it('maps /app/mcp-servers/... to INTERNAL_SERVERS_DIR/...', () => {
     const result = resolveInternalServerScript('/app/mcp-servers/research-rag/server.js')
     expect(result).toBe(path.join(INTERNAL_SERVERS_DIR, 'research-rag/server.js'))

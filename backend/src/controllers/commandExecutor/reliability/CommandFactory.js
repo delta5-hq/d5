@@ -10,9 +10,11 @@ import {MemorizeCommand} from '../commands/MemorizeCommand'
 import {OutlineCommand} from '../commands/OutlineCommand'
 import {PerplexityCommand} from '../commands/PerplexityCommand'
 import {QwenCommand} from '../commands/QwenCommand'
+import {RefineCommand} from '../commands/RefineCommand'
 import {ScholarCommand} from '../commands/ScholarCommand'
 import {StepsCommand} from '../commands/StepsCommand'
 import {SummarizeCommand} from '../commands/SummarizeCommand'
+import {ValidateCommand} from '../commands/ValidateCommand'
 import {SwitchCommand} from '../commands/SwitchCommand'
 import {WebCommand} from '../commands/WebCommand'
 import {YandexCommand} from '../commands/YandexCommand'
@@ -30,9 +32,11 @@ import {MEMORIZE_QUERY_TYPE} from '../constants/memorize'
 import {OUTLINE_QUERY_TYPE} from '../constants/outline'
 import {PERPLEXITY_QUERY_TYPE} from '../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../constants/qwen'
+import {REFINE_QUERY_TYPE} from '../constants/refine'
 import {SCHOLAR_QUERY_TYPE} from '../constants/scholar'
 import {STEPS_QUERY_TYPE} from '../constants/steps'
 import {SUMMARIZE_QUERY_TYPE} from '../constants/summarize'
+import {VALIDATE_QUERY_TYPE} from '../constants/validate'
 import {SWITCH_QUERY_TYPE} from '../constants/switch'
 import {WEB_QUERY_TYPE} from '../constants/web'
 import {YANDEX_QUERY_TYPE} from '../constants/yandex'
@@ -82,6 +86,10 @@ class CommandFactory {
         return new CompletionCommand(userId, workflowId, store, progress)
       case MEMORIZE_QUERY_TYPE:
         return new MemorizeCommand(userId, workflowId, store, progress)
+      case REFINE_QUERY_TYPE:
+        return new RefineCommand(userId, workflowId, store)
+      case VALIDATE_QUERY_TYPE:
+        return new ValidateCommand(userId, workflowId, store)
       default:
         return null
     }
@@ -125,6 +133,10 @@ class CommandFactory {
         case MEMORIZE_QUERY_TYPE:
         case FOREACH_QUERY_TYPE:
         case STEPS_QUERY_TYPE:
+          return command.run(resolvedCell)
+
+        case REFINE_QUERY_TYPE:
+        case VALIDATE_QUERY_TYPE:
           return command.run(resolvedCell)
 
         default:

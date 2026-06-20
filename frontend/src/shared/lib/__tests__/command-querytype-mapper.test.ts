@@ -40,6 +40,10 @@ describe('extractQueryTypeFromCommand - Command Mapping', () => {
       expect(extractQueryTypeFromCommand('/refine Improve text')).toBe('refine')
     })
 
+    it('maps /validate to validate', () => {
+      expect(extractQueryTypeFromCommand('/validate Check answer')).toBe('validate')
+    })
+
     it('maps /foreach to foreach', () => {
       expect(extractQueryTypeFromCommand('/foreach Process items')).toBe('foreach')
     })
@@ -96,12 +100,12 @@ describe('extractQueryTypeFromCommand - Command Mapping', () => {
   })
 
   describe('fallback behavior', () => {
-    it('strips slash from unknown commands', () => {
+    it('maps unknown slash commands to explicit unknown query type', () => {
       expect(extractQueryTypeFromCommand('/unknown Do something')).toBe('unknown')
     })
 
-    it('strips slash from unregistered command', () => {
-      expect(extractQueryTypeFromCommand('/newfeature Test')).toBe('newfeature')
+    it('does not derive executable query types from unregistered slash commands', () => {
+      expect(extractQueryTypeFromCommand('/newfeature Test')).toBe('unknown')
     })
 
     it('handles commands without slash prefix — defaults to chat', () => {
@@ -131,7 +135,7 @@ describe('extractQueryTypeFromCommand - Command Mapping', () => {
     })
 
     it('handles command with only whitespace after slash', () => {
-      expect(extractQueryTypeFromCommand('/   ')).toBe('')
+      expect(extractQueryTypeFromCommand('/   ')).toBe('unknown')
     })
 
     it('trims leading whitespace', () => {
@@ -159,32 +163,32 @@ describe('extractQueryTypeFromCommand - Command Mapping', () => {
     })
 
     it('handles double slash as unknown command', () => {
-      expect(extractQueryTypeFromCommand('//web')).toBe('/web')
+      expect(extractQueryTypeFromCommand('//web')).toBe('unknown')
     })
 
     it('returns chat for input without leading slash even if it contains a slash mid-word', () => {
       expect(extractQueryTypeFromCommand('web/search query')).toBe('chat')
     })
 
-    it('preserves case for unknown commands', () => {
-      expect(extractQueryTypeFromCommand('/UnknownCommand')).toBe('UnknownCommand')
+    it('does not preserve unknown command text as an executable query type', () => {
+      expect(extractQueryTypeFromCommand('/UnknownCommand')).toBe('unknown')
     })
 
     it('handles very long command names', () => {
       const longCommand = '/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-      expect(extractQueryTypeFromCommand(longCommand)).toBe('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+      expect(extractQueryTypeFromCommand(longCommand)).toBe('unknown')
     })
 
     it('handles special characters in unknown commands', () => {
-      expect(extractQueryTypeFromCommand('/@#$%')).toBe('@#$%')
+      expect(extractQueryTypeFromCommand('/@#$%')).toBe('unknown')
     })
 
     it('handles unicode characters', () => {
-      expect(extractQueryTypeFromCommand('/查询 search')).toBe('查询')
+      expect(extractQueryTypeFromCommand('/查询 search')).toBe('unknown')
     })
 
     it('handles emoji in command', () => {
-      expect(extractQueryTypeFromCommand('/🔍 search')).toBe('🔍')
+      expect(extractQueryTypeFromCommand('/🔍 search')).toBe('unknown')
     })
   })
 
@@ -469,7 +473,7 @@ describe('extractQueryTypeFromCommand - With Dynamic Aliases', () => {
       expect(extractQueryTypeFromCommand('  /test  query  ', aliases)).toBe('test_type')
     })
 
-    it('falls back to slash-stripping for unknown dynamic alias', () => {
+    it('maps unknown dynamic alias to explicit unknown query type', () => {
       const aliases: DynamicAlias[] = [{ alias: '/known', queryType: 'known_type' }]
       expect(extractQueryTypeFromCommand('/unknown query', aliases)).toBe('unknown')
     })

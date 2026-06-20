@@ -1,4 +1,5 @@
 import {USER_DEFAULT_MODEL} from '../../../../../shared/config/constants'
+import {CLAUDE_DEFAULT_MODEL} from '../../../../../constants'
 import {resolveSettings} from './IntegrationSettingsResolver'
 
 const withEnv = (vars, fn) => {
@@ -127,6 +128,25 @@ describe('resolveSettings', () => {
         )
         expect(settings[provider]).toBeUndefined()
       })
+
+      it.each([
+        ['compiled fallback', {}, CLAUDE_DEFAULT_MODEL],
+        ['environment override', {CLAUDE_DEFAULT_MODEL: 'claude-env-default'}, 'claude-env-default'],
+      ])('fills Claude model from %s when DB credentials exist and model is absent', (_label, env, expectedModel) => {
+        const merged = {userId: 'u1', model: 'auto', claude: {apiKey: 'sk-db-claude'}}
+        const {settings} = withEnv(env, () =>
+          resolveSettings({merged, workflowDoc: null, userId: 'u1', workflowId: null}),
+        )
+
+        expect(settings.claude.model).toBe(expectedModel)
+      })
+
+      it('preserves an explicit Claude model when Claude credentials exist', () => {
+        const merged = {userId: 'u1', model: 'auto', claude: {apiKey: 'sk-db-claude', model: 'claude-explicit'}}
+        const {settings} = resolveSettings({merged, workflowDoc: null, userId: 'u1', workflowId: null})
+
+        expect(settings.claude.model).toBe('claude-explicit')
+      })
     })
 
     describe('DB-supplied credentials take precedence over env', () => {
@@ -231,6 +251,19 @@ describe('resolveSettings', () => {
         )
         expect(settings.openai.apiKey).toBe('sk-openai')
         expect(settings.claude.apiKey).toBe('sk-claude')
+      })
+
+      it.each([
+        ['compiled fallback', {CLAUDE_API_KEY: 'sk-env-claude'}, CLAUDE_DEFAULT_MODEL],
+        [
+          'environment override',
+          {CLAUDE_API_KEY: 'sk-env-claude', CLAUDE_DEFAULT_MODEL: 'claude-env-default'},
+          'claude-env-default',
+        ],
+      ])('fills Claude model from %s when credentials come from env', (_label, env, expectedModel) => {
+        const {settings} = withEnv(env, () => resolveSettings(nullDbArgs))
+
+        expect(settings.claude.model).toBe(expectedModel)
       })
 
       it('does not create sub-objects for providers whose env vars are absent', () => {

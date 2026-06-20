@@ -13,13 +13,19 @@ import (
 var log = logger.New("INTEGRATION")
 
 type Controller struct {
-	service     *Service
-	db          *qmgo.Database
-	sessionRepo *SessionRepository
+	service            *Service
+	db                 *qmgo.Database
+	sessionRepo        *SessionRepository
+	customLLMValidator *CustomLLMValidator
 }
 
-func NewController(service *Service, db *qmgo.Database) *Controller {
-	return &Controller{service: service, db: db, sessionRepo: NewSessionRepository(db)}
+func NewController(service *Service, db *qmgo.Database, validator *CustomLLMValidator) *Controller {
+	return &Controller{
+		service:            service,
+		db:                 db,
+		sessionRepo:        NewSessionRepository(db),
+		customLLMValidator: validator,
+	}
 }
 
 func (ctrl *Controller) Authorization(c *fiber.Ctx) error {
@@ -115,6 +121,10 @@ func (ctrl *Controller) UpdateService(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Something is wrong with the provided data")
 	}
 
+	if err := ctrl.validateServiceConfig(c, service, serviceConfig); err != nil {
+		return err
+	}
+
 	if _, err := ctrl.service.CreateLLMVector(c.Context(), ctrl.db, scope.UserID, service); err != nil {
 		return response.InternalError(c, err.Error())
 	}
@@ -137,6 +147,18 @@ func (ctrl *Controller) UpdateService(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(secureResponse)
+}
+
+func (ctrl *Controller) validateServiceConfig(c *fiber.Ctx, service string, serviceConfig map[string]interface{}) error {
+	if service != "custom_llm" {
+		return nil
+	}
+
+	if err := ctrl.customLLMValidator.Validate(c.Context(), serviceConfig); err != nil {
+		return response.BadRequest(c, err.Error())
+	}
+
+	return nil
 }
 
 func (ctrl *Controller) Delete(c *fiber.Ctx) error {

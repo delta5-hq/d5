@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import React from 'react'
 import { CommandField } from '../command-field'
 import { AliasProvider } from '@entities/aliases'
+import { getSupportedCommands } from '@shared/lib/command-querytype-mapper'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 type ComboCase = readonly [
@@ -510,6 +511,20 @@ describe('CommandField', () => {
       fireEvent.blur(ta)
       expect(onChange).toHaveBeenCalledWith('abc')
       expect(onChange).toHaveBeenCalledTimes(1)
+    })
+
+    it('preserves every character while typing a multi-word slash command', () => {
+      const { onChange, textarea } = renderField({ value: '' })
+      const ta = textarea()
+      const command = '/download https://example.com/file.bin hello World'
+
+      for (let i = 1; i <= command.length; i++) {
+        fireEvent.change(ta, { target: { value: command.slice(0, i) } })
+      }
+
+      expect(ta).toHaveValue(command)
+      fireEvent.blur(ta)
+      expect(onChange).toHaveBeenCalledWith(command)
     })
 
     it('preserves slash-command syntax verbatim', () => {
@@ -1061,7 +1076,7 @@ describe('CommandField', () => {
         expect(document.querySelector('[data-command="/outline"]')?.getAttribute('data-badge')).toBe('builtin')
       })
 
-      it('no aliases configured — suggestion list contains only builtins with no duplicates', () => {
+      it('no aliases configured — suggestion list contains every builtin once and no integration badges', () => {
         const { textarea } = renderField({ value: '' })
         fireEvent.change(textarea(), { target: { value: '/' } })
 
@@ -1070,7 +1085,8 @@ describe('CommandField', () => {
         const uniqueCommands = new Set(commands)
 
         expect(commands.length).toBe(uniqueCommands.size)
-        expect(document.querySelectorAll('[data-badge="builtin"]').length).toBeGreaterThan(20)
+        expect(uniqueCommands).toEqual(new Set(getSupportedCommands()))
+        expect(Array.from(allItems).every(el => el.getAttribute('data-badge') === 'builtin')).toBe(true)
         expect(document.querySelectorAll('[data-badge="mcp"]').length).toBe(0)
         expect(document.querySelectorAll('[data-badge="rpc"]').length).toBe(0)
       })

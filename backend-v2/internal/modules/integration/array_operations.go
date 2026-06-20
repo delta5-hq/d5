@@ -83,7 +83,11 @@ func (s *Service) encryptArrayItem(scope ScopeIdentifier, arrayName string, item
 }
 
 func (s *Service) UpdateArrayItem(ctx context.Context, scope ScopeIdentifier, fieldName, alias string, updates map[string]interface{}) error {
-	if err := validateArrayItemShape(fieldName, updates); err != nil {
+	if err := normalizeArrayItemUpdateAlias(alias, updates); err != nil {
+		return err
+	}
+
+	if err := validateArrayItemUpdateShape(fieldName, updates); err != nil {
 		return err
 	}
 
@@ -116,9 +120,28 @@ func (s *Service) UpdateArrayItem(ctx context.Context, scope ScopeIdentifier, fi
 		setFields[fieldName+".$."+key] = encryptedValue
 	}
 
+	if len(setFields) == 0 {
+		return nil
+	}
+
 	update := bson.M{"$set": setFields}
 
 	return s.collection.UpdateOne(ctx, filter, update)
+}
+
+func normalizeArrayItemUpdateAlias(pathAlias string, updates map[string]interface{}) error {
+	value, exists := updates["alias"]
+	if !exists {
+		return nil
+	}
+
+	bodyAlias, ok := value.(string)
+	if !ok || bodyAlias != pathAlias {
+		return arrayItemValidationError{message: "alias cannot be changed after creation"}
+	}
+
+	delete(updates, "alias")
+	return nil
 }
 
 func (s *Service) DeleteArrayItem(ctx context.Context, scope ScopeIdentifier, fieldName, alias string) error {

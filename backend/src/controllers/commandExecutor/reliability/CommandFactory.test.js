@@ -9,8 +9,10 @@ import {FOREACH_QUERY_TYPE} from '../constants/foreach'
 import {OUTLINE_QUERY_TYPE} from '../constants/outline'
 import {PERPLEXITY_QUERY_TYPE} from '../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../constants/qwen'
+import {REFINE_QUERY_TYPE} from '../constants/refine'
 import {STEPS_QUERY_TYPE} from '../constants/steps'
 import {SUMMARIZE_QUERY_TYPE} from '../constants/summarize'
+import {VALIDATE_QUERY_TYPE} from '../constants/validate'
 import {SWITCH_QUERY_TYPE} from '../constants/switch'
 import {YANDEX_QUERY_TYPE} from '../constants/yandex'
 
@@ -149,6 +151,8 @@ describe('CommandFactory', () => {
         [STEPS_QUERY_TYPE, 'steps'],
         [FOREACH_QUERY_TYPE, 'foreach'],
         [SWITCH_QUERY_TYPE, 'switch'],
+        [REFINE_QUERY_TYPE, 'refine'],
+        [VALIDATE_QUERY_TYPE, 'validate'],
       ])('creates runner for %s (%s) command', queryType => {
         const runner = CommandFactory.createRunner(queryType, mockCell, mockContext, mockPrompt)
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { UseFormSetValue } from 'react-hook-form'
 import { RPC_PRESETS } from './rpc-presets'
-import { D5_BACKEND_ROOT, D5_BACKEND_PATHS } from './d5-backend-paths'
+import { D5_BACKEND_PATHS, D5_REMOTE_BACKEND_ROOT } from './d5-internal-server-refs'
 
 interface RPCFormFlat {
   alias: string
@@ -169,7 +169,7 @@ describe('RPC_PRESETS', () => {
         ['protocol', 'ssh'],
         [
           'commandTemplate',
-          `cd ${D5_BACKEND_ROOT} && node ${D5_BACKEND_PATHS.mcpCli} ${D5_BACKEND_PATHS.mcpOutliner} generate_outline --query="{{prompt}}"`,
+          `cd "${D5_REMOTE_BACKEND_ROOT}" && node ${D5_BACKEND_PATHS.mcpCli} ${D5_BACKEND_PATHS.mcpOutliner} generate_outline --query="{{prompt}}"`,
         ],
         ['outputFormat', 'text'],
       ])
@@ -180,7 +180,7 @@ describe('RPC_PRESETS', () => {
         ['protocol', 'ssh'],
         [
           'commandTemplate',
-          `cd ${D5_BACKEND_ROOT} && node ${D5_BACKEND_PATHS.mcpCli} ${D5_BACKEND_PATHS.mcpScraper} scrape_web_pages --urls="{{prompt}}"`,
+          `cd "${D5_REMOTE_BACKEND_ROOT}" && node ${D5_BACKEND_PATHS.mcpCli} ${D5_BACKEND_PATHS.mcpScraper} scrape_web_pages --urls="{{prompt}}"`,
         ],
         ['outputFormat', 'text'],
       ])
@@ -266,6 +266,22 @@ describe('RPC_PRESETS', () => {
         .forEach(({ setValue }) => {
           expect(getField(setValue, 'commandTemplate')).toContain('{{prompt}}')
         })
+    })
+
+    it('D5 CLI SSH presets defer backend root resolution to the SSH target environment', () => {
+      const d5CliTemplates = fillAll()
+        .map(({ setValue }) => getField(setValue, 'commandTemplate'))
+        .filter(
+          (template): template is string => typeof template === 'string' && template.includes(D5_BACKEND_PATHS.mcpCli),
+        )
+
+      expect(d5CliTemplates.length).toBeGreaterThan(0)
+      d5CliTemplates.forEach(template => {
+        expect(template).toContain(D5_REMOTE_BACKEND_ROOT)
+        expect(template).not.toContain('/app')
+        expect(template).not.toContain('backend/build')
+        expect(template).not.toContain('../backend')
+      })
     })
   })
 

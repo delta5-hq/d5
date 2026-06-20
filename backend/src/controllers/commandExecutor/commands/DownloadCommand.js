@@ -14,7 +14,12 @@ import {runWithErrorNode} from './shared/runWithErrorNode'
 import Store from './utils/Store'
 
 const log = debug('app:Command:Download')
-const logError = log.extend('ERROR*', '::')
+
+const formatDownloadConfirmation = files => {
+  const names = files.map(file => file.title).filter(Boolean)
+  if (!names.length) return 'Downloaded content is already attached to this node'
+  return `Downloaded content already attached: ${names.join(', ')}`
+}
 
 /**
  * Class representing a Download Command.
@@ -87,19 +92,15 @@ export class DownloadCommand {
       content: buffer,
     }
 
-    try {
-      const result = await this.upload(file)
+    const result = await this.upload(file)
 
-      const fileId = result._id.toString()
-      this.store.createNode({
-        file: fileId,
-        title: filename,
-        parent: node.id,
-      })
-      this.store.createFile(fileId, content)
-    } catch (e) {
-      logError('Error when trying to create file', e)
-    }
+    const fileId = result._id.toString()
+    this.store.createNode({
+      file: fileId,
+      title: filename,
+      parent: node.id,
+    })
+    this.store.createFile(fileId, content)
 
     return undefined
   }
@@ -167,10 +168,14 @@ export class DownloadCommand {
     const urls = this.extractUniqueUrls(input)
 
     if (!urls.length) {
-      return []
+      throw new Error('No valid URL found for /download')
     }
 
     const parsed = await this.scrape(urls, params)
+
+    if (!Array.isArray(parsed) || !parsed.length) {
+      throw new Error(`No downloadable content returned for ${urls.join(', ')}`)
+    }
 
     const filesMap = this.getNodeFiles(node)
     const nodeFiles = Object.keys(filesMap)
@@ -200,8 +205,20 @@ export class DownloadCommand {
     })
 
     if (newFilesData.length) {
-      await Promise.allSettled(newFilesData.map(data => this.saveFile(node, data)))
+      const results = await Promise.allSettled(newFilesData.map(data => this.saveFile(node, data)))
+      const failed = results.find(result => result.status === 'rejected')
+      if (failed) {
+        throw failed.reason
+      }
+      return
     }
+
+    if (duplicatedFiles.length) {
+      this.store.importer.createNodes(formatDownloadConfirmation(duplicatedFiles), node.id)
+      return
+    }
+
+    throw new Error(`Downloaded content already exists on this node for ${urls.join(', ')}`)
   }
 
   async run(node, originalPrompt) {

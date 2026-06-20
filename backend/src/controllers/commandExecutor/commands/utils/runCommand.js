@@ -14,7 +14,7 @@ import {REFINE_QUERY} from '../../constants/refine'
 import {SCHOLAR_QUERY_TYPE} from '../../constants/scholar'
 import {STEPS_QUERY_TYPE} from '../../constants/steps'
 import {SUMMARIZE_QUERY, SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
-import {VALIDATE_QUERY, VALIDATE_QUERY_TYPE} from '../../constants/validate'
+import {VALIDATE_QUERY} from '../../constants/validate'
 import {ValidateCommand} from '../../reliability/core/ValidateCommand'
 import {readValidateRetry} from '../../reliability/core/validateParams'
 import {CriteriaFailedError} from '../../reliability/core/CriteriaFailedError'
@@ -127,10 +127,6 @@ export const runCommand = async (
   },
   progress,
 ) => {
-  if (queryType === VALIDATE_QUERY_TYPE) {
-    return
-  }
-
   const cellNode = store.getNode(cell.id)
   if (cellNode) {
     cellNode.title = stripReliabilitySuffix(cellNode.title || '')

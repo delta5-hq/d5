@@ -164,6 +164,18 @@ describe('Integration Router', () => {
       expect(res.body.secretsMeta.openai.apiKey).toBe(true)
     })
 
+    it('updates Custom LLM configuration in mock mode without reaching external endpoints', async () => {
+      const res = await subscriberRequest.put('/integration/custom_llm/update').send({
+        apiRootUrl: 'http://127.0.0.1:1',
+        apiType: 'OpenAI compatible',
+      })
+
+      expect(res.status).toBe(200)
+      expect(res.body).toHaveProperty('custom_llm')
+      expect(res.body.custom_llm.apiRootUrl).toBe('http://127.0.0.1:1')
+      expect(res.body.custom_llm.apiType).toBe('OpenAI compatible')
+    })
+
     it('creates new llmvectors document for deepseek when none exists', async () => {
       const res = await subscriberRequest.put('/integration/deepseek/update').send({
         apiKey: 'sk-deepseek-test-key',
@@ -328,6 +340,7 @@ describe('Array Item Validation — args field contract for mcp and rpc', () => 
             alias: '/args-rejection-probe',
             transport: 'stdio',
             command: 'node',
+            ...(field === 'rpc' ? {protocol: 'http'} : {}),
             args,
           })
 
@@ -343,6 +356,7 @@ describe('Array Item Validation — args field contract for mcp and rpc', () => 
             alias,
             transport: 'stdio',
             command: 'node',
+            ...(field === 'rpc' ? {protocol: 'http'} : {}),
             ...payload,
           })
 
@@ -404,6 +418,39 @@ describe('Array Item Validation — args field contract for mcp and rpc', () => 
 
     expect(updateRes.status).toBe(400)
     expect(updateRes.body).toHaveProperty('message')
+  })
+
+  it('PUT update accepts partial MCP and RPC patches without create-only fields', async () => {
+    const cases = [
+      {
+        field: 'mcp',
+        alias: '/partial-mcp',
+        create: {transport: 'stdio', command: 'node', toolName: 'echo'},
+        patch: {description: 'updated mcp description'},
+      },
+      {
+        field: 'rpc',
+        alias: '/partial-rpc',
+        create: {protocol: 'http', url: 'https://example.com/execute', method: 'POST'},
+        patch: {description: 'updated rpc description'},
+      },
+    ]
+
+    for (const {field, alias, create, patch} of cases) {
+      const createRes = await subscriberRequest
+        .post(`/integration/${field}/items`)
+        .send({alias, ...create})
+      expect(createRes.status).toBe(201)
+
+      const updateRes = await subscriberRequest
+        .put(`/integration/${field}/items/${encodeURIComponent(alias)}`)
+        .send(patch)
+      expect(updateRes.status).toBe(200)
+
+      const getRes = await subscriberRequest.get('/integration')
+      expect(getRes.status).toBe(200)
+      expect((getRes.body[field] ?? []).find(item => item.alias === alias)).toMatchObject(patch)
+    }
   })
 })
 

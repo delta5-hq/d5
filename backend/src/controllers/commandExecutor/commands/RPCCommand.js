@@ -12,6 +12,29 @@ import IntegrationSessionRepository from '../../../repositories/IntegrationSessi
 
 const log = debug('delta5:app:Command:RPC')
 
+const MAX_HTTP_ERROR_BODY_LENGTH = 500
+
+const normalizeHTTPErrorBody = body => {
+  if (!body) return ''
+
+  const text = String(body).replace(/\s+/g, ' ').trim()
+  if (!text) return ''
+
+  if (text.length <= MAX_HTTP_ERROR_BODY_LENGTH) return text
+  return `${text.slice(0, MAX_HTTP_ERROR_BODY_LENGTH)}…`
+}
+
+class RPCHTTPStatusError extends Error {
+  constructor(status, body) {
+    const bodyPreview = normalizeHTTPErrorBody(body)
+    const details = bodyPreview ? `: ${bodyPreview}` : ''
+    super(`HTTP RPC failed with status ${status}${details}`)
+    this.name = 'RPCHTTPStatusError'
+    this.status = status
+    this.body = body
+  }
+}
+
 export class RPCCommand {
   constructor(userId, workflowId, store, aliasConfig, progressReporter = null, sshClientPool = null) {
     this.store = store
@@ -96,6 +119,7 @@ export class RPCCommand {
 
     if (isError) {
       this.logError(`HTTP request failed with status ${status}`)
+      throw new RPCHTTPStatusError(status, responseBody)
     }
 
     return responseBody

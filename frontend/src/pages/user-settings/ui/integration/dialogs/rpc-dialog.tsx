@@ -33,6 +33,7 @@ import { useRPCFormDefaults } from './hooks/use-rpc-form-defaults'
 import { useRPCProtocolDefaults } from './hooks/use-rpc-protocol-defaults'
 import { RPC_PROTOCOLS, RPC_METHODS, RPC_OUTPUT_FORMATS, ACP_AUTO_APPROVE_OPTIONS } from './rpc-constants'
 import { PresetButtonRow, RPC_PRESETS } from './presets'
+import { integrationAliasSchema } from './integration-alias-schema'
 
 const timeoutMsField = z.preprocess(
   val => (typeof val === 'number' && Number.isNaN(val) ? undefined : val),
@@ -40,7 +41,7 @@ const timeoutMsField = z.preprocess(
 )
 
 const sshSchema = z.object({
-  alias: z.string().regex(/^\/[a-zA-Z][a-zA-Z0-9_-]*$/, 'Alias must start with / followed by alphanumeric'),
+  alias: integrationAliasSchema,
   protocol: z.literal('ssh'),
   description: z.string().optional(),
   host: z.string().min(1, 'Host is required'),
@@ -57,7 +58,7 @@ const sshSchema = z.object({
 })
 
 const httpSchema = z.object({
-  alias: z.string().regex(/^\/[a-zA-Z][a-zA-Z0-9_-]*$/, 'Alias must start with / followed by alphanumeric'),
+  alias: integrationAliasSchema,
   protocol: z.literal('http'),
   description: z.string().optional(),
   url: z.string().url('Must be a valid URL'),
@@ -71,7 +72,7 @@ const httpSchema = z.object({
 })
 
 const acpLocalSchema = z.object({
-  alias: z.string().regex(/^\/[a-zA-Z][a-zA-Z0-9_-]*$/, 'Alias must start with / followed by alphanumeric'),
+  alias: integrationAliasSchema,
   protocol: z.literal('acp-local'),
   description: z.string().optional(),
   command: z.string().min(1, 'Command is required'),

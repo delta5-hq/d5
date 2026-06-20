@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { UseFormSetValue } from 'react-hook-form'
 import { MCP_PRESETS } from './mcp-presets'
-import { D5_BACKEND_ROOT, D5_BACKEND_PATHS } from './d5-backend-paths'
+import { D5_INTERNAL_MCP_SERVERS } from './d5-internal-server-refs'
 
 interface MCPFormFlat {
   alias: string
@@ -114,7 +114,7 @@ describe('MCP_PRESETS', () => {
         ['description', 'Deep research with web and academic paper search'],
         ['transport', 'stdio'],
         ['command', 'node'],
-        ['args', `${D5_BACKEND_ROOT}/${D5_BACKEND_PATHS.mcpResearchRag}`],
+        ['args', D5_INTERNAL_MCP_SERVERS.researchRag],
         ['toolName', 'auto'],
         ['toolInputField', 'prompt'],
         ['timeoutMs', 300000],
@@ -127,7 +127,7 @@ describe('MCP_PRESETS', () => {
         ['description', 'Web page scraper with content extraction'],
         ['transport', 'stdio'],
         ['command', 'node'],
-        ['args', `${D5_BACKEND_ROOT}/${D5_BACKEND_PATHS.mcpScraper}`],
+        ['args', D5_INTERNAL_MCP_SERVERS.scraper],
         ['toolName', 'scrape_web_pages'],
         ['toolInputField', 'text'],
         ['timeoutMs', 180000],
@@ -140,7 +140,7 @@ describe('MCP_PRESETS', () => {
         ['description', 'Generate structured outlines from topics'],
         ['transport', 'stdio'],
         ['command', 'node'],
-        ['args', `${D5_BACKEND_ROOT}/${D5_BACKEND_PATHS.mcpOutliner}`],
+        ['args', D5_INTERNAL_MCP_SERVERS.outliner],
         ['toolName', 'generate_outline'],
         ['toolInputField', 'query'],
         ['timeoutMs', 300000],
@@ -226,6 +226,26 @@ describe('MCP_PRESETS', () => {
         const args = getField(setValue, 'args')
         if (args) {
           expect(args).not.toMatch(/[;&|`$()]/)
+        }
+      })
+    })
+
+    it('internal stdio presets store logical server references instead of backend filesystem paths', () => {
+      const internalRefs = new Set(Object.values(D5_INTERNAL_MCP_SERVERS))
+      const internalPresets = fillAll().filter(({ setValue }) => internalRefs.has(getField(setValue, 'args')))
+
+      expect(internalPresets).toHaveLength(internalRefs.size)
+      internalPresets.forEach(({ setValue }) => {
+        expect(getField(setValue, 'command')).toBe('node')
+        expect(getField(setValue, 'args')).toMatch(/^d5-internal:\/\/mcp-server\//)
+      })
+    })
+
+    it('no preset embeds a local backend filesystem root in arguments', () => {
+      fillAll().forEach(({ setValue }) => {
+        const args = getField(setValue, 'args')
+        if (args) {
+          expect(args).not.toMatch(/(^\/app\b|backend\/build|\.\.\/backend)/)
         }
       })
     })

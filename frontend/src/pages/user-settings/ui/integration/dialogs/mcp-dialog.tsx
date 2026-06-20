@@ -26,6 +26,7 @@ import { FormFieldLabel } from '../components/form-field-label'
 import { serializeArrayToSpaceSeparated, deserializeSpaceSeparatedToArray } from './form-serialization'
 import { buildIntegrationUrl } from '../utils/build-integration-url'
 import { PresetButtonRow, MCP_PRESETS } from './presets'
+import { integrationAliasSchema } from './integration-alias-schema'
 
 const mcpTransports = ['stdio', 'streamable-http', 'sse'] as const
 
@@ -35,7 +36,7 @@ const timeoutMsField = z.preprocess(
 )
 
 const stdioSchema = z.object({
-  alias: z.string().regex(/^\/[a-zA-Z][a-zA-Z0-9_-]*$/, 'Alias must start with / followed by alphanumeric'),
+  alias: integrationAliasSchema,
   transport: z.literal('stdio'),
   toolName: z.string().min(1, 'Tool name is required'),
   toolInputField: z.string().default('prompt'),
@@ -46,7 +47,7 @@ const stdioSchema = z.object({
 })
 
 const urlBasedFields = {
-  alias: z.string().regex(/^\/[a-zA-Z][a-zA-Z0-9_-]*$/, 'Alias must start with / followed by alphanumeric'),
+  alias: integrationAliasSchema,
   toolName: z.string().min(1, 'Tool name is required'),
   toolInputField: z.string().default('prompt'),
   description: z.string().optional(),

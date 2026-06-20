@@ -274,14 +274,12 @@ test.describe.serial('Array Integration CRUD', () => {
     expect(integration.mcp[0].description).toBe('updated')
   })
 
-  test('Alias with special characters URL-encodes correctly', async ({ page }) => {
+  test('Alias with nested path separator is rejected by canonical alias contract', async ({ page }) => {
     const alias = '/test/nested'
 
     const add = await addArrayItem(page, 'mcp', { alias, transport: 'stdio', toolName: 'test' })
-    expect(add.ok).toBe(true)
-
-    const del = await deleteArrayItem(page, 'mcp', alias)
-    expect(del.status).toBe(204)
+    expect(add.ok).toBe(false)
+    expect(add.status).toBe(400)
 
     const integration = await getIntegration(page)
     expect(integration.mcp || []).toHaveLength(0)

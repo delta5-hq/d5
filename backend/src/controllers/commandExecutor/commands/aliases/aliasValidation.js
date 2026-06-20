@@ -1,7 +1,10 @@
 import {queryCommands} from '../../constants/commandRegExp'
 
 export const VALID_ALIAS_PATTERN = /^\/[a-zA-Z][a-zA-Z0-9_-]*$/
-export const BUILT_IN_COMMANDS = new Set(queryCommands)
+export const ADDITIONAL_BUILT_IN_COMMANDS = ['/chat', '/instruct', '/reason', '/yandex', '/validate']
+export const BUILT_IN_COMMANDS = new Set(
+  [...queryCommands, ...ADDITIONAL_BUILT_IN_COMMANDS].map(command => command.toLowerCase()),
+)
 
 export class AliasValidationError extends Error {
   constructor(message, code, alias) {
@@ -31,7 +34,7 @@ export const validateFormat = alias => {
 }
 
 export const validateNotBuiltIn = alias => {
-  if (BUILT_IN_COMMANDS.has(alias)) {
+  if (BUILT_IN_COMMANDS.has(alias.toLowerCase())) {
     throw new AliasValidationError(`Alias '${alias}' conflicts with a built-in command`, 'RESERVED_COMMAND', alias)
   }
 }
