@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react'
 import { IntlProvider } from 'react-intl'
 import type { ReactNode } from 'react'
 import messages from '@shared/lib/intl'
-import type { DiscardedFork } from '@shared/base-types'
+import type { DiscardedFork, ReliabilityMetadata } from '@shared/base-types'
 import type { ForkPreviewState } from '@features/workflow-tree/store/fork-preview-state'
 import { DiscardedForksDrawer } from '../discarded-forks-drawer'
 
@@ -23,6 +23,18 @@ const forkPreview = (overrides: Partial<ForkPreviewState> = {}): ForkPreviewStat
   total: 3,
   forks: [{ forkIndex: 0, status: 'pending' }],
   winnerForkIndex: null,
+  ...overrides,
+})
+
+const reliabilityMetadata = (overrides: Partial<ReliabilityMetadata> = {}): ReliabilityMetadata => ({
+  winnerForkIndex: 1,
+  perCriterionVerdict: [],
+  mode: 'strict',
+  selectionLayer: 'primary',
+  noSignal: false,
+  eligible: 2,
+  total: 3,
+  discardedForks: [discardedFork({ forkIndex: 0, status: 'criteria-failed', failedAt: 'must include numbers' })],
   ...overrides,
 })
 
@@ -57,45 +69,101 @@ describe('DiscardedForksDrawer', () => {
       expect(screen.getByTestId('discarded-fork-2')).toBeDefined()
     })
 
-    it('shows failedAt text for criteria-failed forks', () => {
-      render(
-        <DiscardedForksDrawer
-          discardedForks={[
-            discardedFork({ forkIndex: 0, status: 'criteria-failed', failedAt: 'must include numbers' }),
-          ]}
-          nodeId="n1"
-          onOpenChange={vi.fn()}
-          open={true}
-        />,
-        { wrapper },
-      )
-      expect(screen.getByText(/must include numbers/)).toBeDefined()
+    it.each([
+      {
+        name: 'criteria failure criterion',
+        fork: discardedFork({ forkIndex: 0, status: 'criteria-failed', failedAt: 'must include numbers' }),
+        expected: /must include numbers/,
+      },
+      {
+        name: 'runtime failure reason',
+        fork: discardedFork({ forkIndex: 0, status: 'runtime-failed', reason: 'network timeout' }),
+        expected: /network timeout/,
+      },
+      {
+        name: 'bounded validation attempts',
+        fork: discardedFork({ forkIndex: 0, status: 'criteria-failed', attempts: 4 }),
+        expected: /4 attempts/i,
+      },
+    ])('shows optional diagnostic field: $name', ({ fork, expected }) => {
+      render(<DiscardedForksDrawer discardedForks={[fork]} nodeId="n1" onOpenChange={vi.fn()} open={true} />, {
+        wrapper,
+      })
+      expect(screen.getByText(expected)).toBeDefined()
     })
 
-    it('shows reason text for runtime-failed forks', () => {
+    it.each([
+      {
+        winnerForkIndex: 0,
+        discardedIndexes: [1, 2],
+        expectedOrder: ['discarded-fork-0', 'discarded-fork-1', 'discarded-fork-2'],
+      },
+      {
+        winnerForkIndex: 2,
+        discardedIndexes: [0, 1],
+        expectedOrder: ['discarded-fork-0', 'discarded-fork-1', 'discarded-fork-2'],
+      },
+      {
+        winnerForkIndex: 1,
+        discardedIndexes: [2, 0],
+        expectedOrder: ['discarded-fork-0', 'discarded-fork-1', 'discarded-fork-2'],
+      },
+    ])(
+      'renders a complete sorted stored fork set for winner $winnerForkIndex',
+      ({ winnerForkIndex, discardedIndexes, expectedOrder }) => {
+        render(
+          <DiscardedForksDrawer
+            discardedForks={discardedIndexes.map(forkIndex => discardedFork({ forkIndex }))}
+            metadata={reliabilityMetadata({ winnerForkIndex })}
+            nodeId="n1"
+            onOpenChange={vi.fn()}
+            open={true}
+          />,
+          { wrapper },
+        )
+
+        const rowIds = screen.getAllByTestId(/discarded-fork-/).map(row => row.getAttribute('data-testid'))
+        expect(rowIds).toEqual(expectedOrder)
+        expect(screen.getByText(/selected winner/i)).toBeDefined()
+      },
+    )
+
+    it('deduplicates winner and discarded rows by fork index instead of rendering contradictory statuses', () => {
       render(
         <DiscardedForksDrawer
-          discardedForks={[discardedFork({ forkIndex: 0, status: 'runtime-failed', reason: 'network timeout' })]}
+          discardedForks={[discardedFork({ forkIndex: 1, status: 'criteria-failed' })]}
+          metadata={reliabilityMetadata({ winnerForkIndex: 1 })}
           nodeId="n1"
           onOpenChange={vi.fn()}
           open={true}
         />,
         { wrapper },
       )
-      expect(screen.getByText('network timeout')).toBeDefined()
+      expect(screen.getAllByTestId('discarded-fork-1')).toHaveLength(1)
+      expect(screen.getByText(/selected winner/i)).toBeDefined()
     })
 
-    it('shows attempt count when attempts is present', () => {
+    it('shows selection, failure, and judge-input diagnostics from reliability metadata', () => {
       render(
         <DiscardedForksDrawer
-          discardedForks={[discardedFork({ forkIndex: 0, status: 'criteria-failed', attempts: 4 })]}
+          metadata={reliabilityMetadata({
+            failureCause: 'no-judge-signal',
+            judgeInput: {
+              candidateCount: 2,
+              perForkBudgetChars: 1200,
+              degradedInput: false,
+              resolvedJudgeFamilies: ['openai'],
+            },
+          })}
           nodeId="n1"
           onOpenChange={vi.fn()}
           open={true}
         />,
         { wrapper },
       )
-      expect(screen.getByText(/4 attempts/i)).toBeDefined()
+      expect(screen.getByTestId('fork-inspector-summary').textContent).toMatch(/2 of 3 forks eligible/i)
+      expect(screen.getByTestId('fork-inspector-summary').textContent).toMatch(/no-judge-signal/i)
+      expect(screen.getByTestId('fork-inspector-summary').textContent).toMatch(/1200/)
     })
   })
 

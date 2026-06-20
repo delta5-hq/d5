@@ -1,4 +1,4 @@
-import type { DiscardedFork, NodeId } from '@shared/base-types'
+import type { DiscardedFork, NodeId, ReliabilityMetadata } from '@shared/base-types'
 import type { ForkLeafOutput } from '@features/workflow-tree/api/streaming/fork-event-types'
 import type { ForkPreviewState } from '@features/workflow-tree/store/fork-preview-state'
 import {
@@ -18,6 +18,7 @@ interface ForkRowProps {
   reason?: string
   attempts?: number
   isPending?: boolean
+  isWinner?: boolean
   leafOutputs?: ForkLeafOutput[]
 }
 
@@ -26,10 +27,12 @@ const STATUS_CLASS: Record<string, string> = {
   'criteria-failed': 'text-accent',
   'runtime-failed': 'text-destructive',
   pending: 'text-muted-foreground',
+  selected: 'text-success',
 }
 
-const ForkRow = ({ forkIndex, status, failedAt, reason, attempts, isPending, leafOutputs }: ForkRowProps) => {
-  const statusClass = STATUS_CLASS[isPending ? 'pending' : status] ?? 'text-muted-foreground'
+const ForkRow = ({ forkIndex, status, failedAt, reason, attempts, isPending, isWinner, leafOutputs }: ForkRowProps) => {
+  const displayStatus = isWinner ? 'selected' : isPending ? 'pending' : status
+  const statusClass = STATUS_CLASS[displayStatus] ?? 'text-muted-foreground'
 
   return (
     <div className="flex flex-col gap-0.5 py-1.5 border-b last:border-0" data-testid={`discarded-fork-${forkIndex}`}>
@@ -38,7 +41,9 @@ const ForkRow = ({ forkIndex, status, failedAt, reason, attempts, isPending, lea
           <FormattedMessage id="workflowTree.discardedForks.forkLabel" values={{ index: forkIndex + 1 }} />
         </span>
         <span className={cn('text-xs font-medium', statusClass)}>
-          {isPending ? (
+          {isWinner ? (
+            <FormattedMessage id="workflowTree.discardedForks.status_selected" />
+          ) : isPending ? (
             <FormattedMessage id="workflowTree.discardedForks.statusPending" />
           ) : (
             <FormattedMessage id={`workflowTree.discardedForks.status_${status}`} />
@@ -79,6 +84,25 @@ interface DiscardedForksDrawerProps {
   nodeId: NodeId
   discardedForks?: DiscardedFork[]
   forkPreview?: ForkPreviewState
+  metadata?: ReliabilityMetadata
+}
+
+const buildStoredForkRows = (metadata?: ReliabilityMetadata, discardedForks: DiscardedFork[] = []): ForkRowProps[] => {
+  const winnerForkIndex = metadata?.winnerForkIndex
+  const hasWinner = typeof winnerForkIndex === 'number' && winnerForkIndex >= 0
+  const rowsByFork = new Map<number, ForkRowProps>()
+
+  discardedForks.forEach(fork => rowsByFork.set(fork.forkIndex, fork))
+
+  if (hasWinner) {
+    rowsByFork.set(winnerForkIndex, {
+      forkIndex: winnerForkIndex,
+      status: 'ok',
+      isWinner: true,
+    })
+  }
+
+  return Array.from(rowsByFork.values()).sort((a, b) => a.forkIndex - b.forkIndex)
 }
 
 export const DiscardedForksDrawer = ({
@@ -87,11 +111,13 @@ export const DiscardedForksDrawer = ({
   nodeId,
   discardedForks,
   forkPreview,
+  metadata,
 }: DiscardedForksDrawerProps) => {
   const liveTotal = forkPreview?.total
   const liveForks = forkPreview?.forks
+  const storedForkRows = buildStoredForkRows(metadata, discardedForks)
 
-  const hasContent = Boolean((liveForks && liveForks.length > 0) || (discardedForks && discardedForks.length > 0))
+  const hasContent = Boolean((liveForks && liveForks.length > 0) || storedForkRows.length > 0)
 
   if (!hasContent) return null
 
@@ -110,6 +136,39 @@ export const DiscardedForksDrawer = ({
               <FormattedMessage id="workflowTree.discardedForks.totalLabel" values={{ total: liveTotal }} />
             </div>
           ) : null}
+          {metadata ? (
+            <div className="mt-2 space-y-1 text-xs text-muted-foreground" data-testid="fork-inspector-summary">
+              <div>
+                <FormattedMessage
+                  id="workflowTree.discardedForks.selectionLabel"
+                  values={{
+                    eligible: metadata.eligible,
+                    total: metadata.total,
+                    layer: metadata.selectionLayer,
+                  }}
+                />
+              </div>
+              {metadata.failureCause ? (
+                <div>
+                  <FormattedMessage
+                    id="workflowTree.discardedForks.failureCauseLabel"
+                    values={{ cause: metadata.failureCause }}
+                  />
+                </div>
+              ) : null}
+              {metadata.judgeInput ? (
+                <div>
+                  <FormattedMessage
+                    id="workflowTree.discardedForks.judgeInputLabel"
+                    values={{
+                      count: metadata.judgeInput.candidateCount,
+                      budget: metadata.judgeInput.perForkBudgetChars,
+                    }}
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </GlassSheetHeader>
 
         <div className="mt-4 space-y-0 overflow-y-auto px-6 pb-6" data-testid="discarded-forks-list">
@@ -125,11 +184,12 @@ export const DiscardedForksDrawer = ({
                   status={f.status}
                 />
               ))
-            : discardedForks?.map(f => (
+            : storedForkRows.map(f => (
                 <ForkRow
                   attempts={f.attempts}
                   failedAt={f.failedAt}
                   forkIndex={f.forkIndex}
+                  isWinner={f.isWinner}
                   key={f.forkIndex}
                   reason={f.reason}
                   status={f.status}

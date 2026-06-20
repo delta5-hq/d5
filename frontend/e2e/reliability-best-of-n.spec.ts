@@ -5,9 +5,15 @@ import { TIMEOUTS } from './config/test-timeouts'
 
 const LLM_TIMEOUT = 120_000
 const SUFFIX_RE = /\[(?:✓|✗)[^\]]+\]/
-const COMMODITY_SUFFIX_RE = (n: number) => new RegExp(`\\[✓ \\d+\\/${n}\\]`)
+const COMMODITY_FULL_SUCCESS_SUFFIX_RE = (n: number) => new RegExp(`\\[✓ ${n}\\/${n}\\]`)
 const VALIDATE_VERDICT_RE = /\[(?:✓(?:\s+retry-\d+)?|✗\s+\d+\s+attempts)\]/
 const VALIDATE_FAIL_RE = /\[✗\s+\d+\s+attempts\]/
+const REFINE_FALLBACK_SUFFIX_RE = /\[⚠ fallback: 0\/2 passed; chose fork-\d+\]/
+const COMMODITY_FULL_SUCCESS_CASES = [
+  { n: 2, task: 'List 3 colors' },
+  { n: 3, task: 'List 3 fruits' },
+  { n: 5, task: 'List 3 animals' },
+] as const
 
 async function purgeQaBotWorkflows(page: Parameters<typeof qaBotLogin>[0]) {
   /* qa-bot has LimitWorkflows=10 (seeded by backend-v2/cmd/seed-users); without
@@ -59,13 +65,14 @@ async function selectRootAndOpenDetail(page: Parameters<typeof qaBotLogin>[0]) {
   return { tree, detail, rootId }
 }
 
-async function executeAndWaitForCompletion(
-  page: Parameters<typeof qaBotLogin>[0],
-  detail: NodeDetailPanelPage,
-) {
+async function executeAndWaitForCompletion(page: Parameters<typeof qaBotLogin>[0], detail: NodeDetailPanelPage) {
+  const executeResponse = page.waitForResponse(
+    resp => new URL(resp.url()).pathname.endsWith('/execute') && resp.request().method() === 'POST',
+    { timeout: LLM_TIMEOUT },
+  )
   await detail.execute()
-  await page.getByTestId('abort-node-button').waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
-  await page.getByTestId('abort-node-button').waitFor({ state: 'hidden', timeout: LLM_TIMEOUT })
+  await executeResponse
+  await expect(page.getByTestId('abort-node-button')).toBeHidden({ timeout: TIMEOUTS.BACKEND_SYNC })
 }
 
 async function nodeTitle(page: Parameters<typeof qaBotLogin>[0], nodeId: string): Promise<string> {
@@ -73,62 +80,85 @@ async function nodeTitle(page: Parameters<typeof qaBotLogin>[0], nodeId: string)
   return text?.trim() ?? ''
 }
 
-test.describe('P0.7 — bestOf / refine reliability QA', () => {
+async function expectRootWithCommodityChildren(tree: WorkflowTreePage, n: number) {
+  await expect(tree.nodes).toHaveCount(n + 1, { timeout: TIMEOUTS.BACKEND_SYNC })
+}
+
+async function executeCommodityCommand(page: Parameters<typeof qaBotLogin>[0], command: string) {
+  const tree = new WorkflowTreePage(page)
+  const { detail, rootId } = await selectRootAndOpenDetail(page)
+  await detail.fillCommand(command)
+  await executeAndWaitForCompletion(page, detail)
+  await expect(tree.nodes.first()).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
+  return { tree, rootId }
+}
+
+async function expectCommodityFullSuccess(
+  page: Parameters<typeof qaBotLogin>[0],
+  tree: WorkflowTreePage,
+  rootId: string,
+  n: number,
+) {
+  expect(await nodeTitle(page, rootId)).toMatch(COMMODITY_FULL_SUCCESS_SUFFIX_RE(n))
+  await expectRootWithCommodityChildren(tree, n)
+}
+
+async function expectNoCommodityTokenInChildren(page: Parameters<typeof qaBotLogin>[0], tree: WorkflowTreePage) {
+  const count = await tree.nodes.count()
+  for (let i = 1; i < count; i++) {
+    const childId = await tree.nodeIdAt(i)
+    const title = await nodeTitle(page, childId)
+    expect(title).not.toContain(':n=')
+  }
+}
+
+async function addChildCommand(
+  page: Parameters<typeof qaBotLogin>[0],
+  tree: WorkflowTreePage,
+  parentId: string,
+  command: string,
+) {
+  await tree.selectNode(parentId)
+  const parentDetail = new NodeDetailPanelPage(page)
+  await parentDetail.waitForComponent()
+  const childIndex = await tree.nodes.count()
+  await parentDetail.addChild()
+  await tree.nodes.nth(childIndex).waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
+
+  const childId = await tree.nodeIdAt(childIndex)
+  await tree.selectNode(childId)
+  const childDetail = new NodeDetailPanelPage(page)
+  await childDetail.waitForComponent()
+  await childDetail.fillCommand(command)
+  return childId
+}
+
+async function executeRoot(page: Parameters<typeof qaBotLogin>[0], tree: WorkflowTreePage, rootId: string) {
+  await tree.selectNode(rootId)
+  const rootDetail = new NodeDetailPanelPage(page)
+  await rootDetail.waitForComponent()
+  await executeAndWaitForCompletion(page, rootDetail)
+}
+
+async function expectValidateFailure(page: Parameters<typeof qaBotLogin>[0], validateId: string) {
+  expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_FAIL_RE)
+}
+
+test.describe('Reliability execution contracts', () => {
   test.setTimeout(LLM_TIMEOUT * 2)
 
   test.beforeEach(async ({ page }) => {
     await setupLLMWorkflow(page)
   })
-
-  test('bestOf :n=2 — commodity writes [✓ K/2] suffix on plain LLM cell', async ({ page }) => {
-    const tree = new WorkflowTreePage(page)
-    const { detail, rootId } = await selectRootAndOpenDetail(page)
-    await detail.fillCommand('/chat :n=2 List 3 colors')
-
-    await executeAndWaitForCompletion(page, detail)
-
-    await expect(tree.nodes.first()).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
-    const rootTitle = await nodeTitle(page, rootId)
-    expect(rootTitle).toMatch(COMMODITY_SUFFIX_RE(2))
-    expect(await tree.nodes.count()).toBeGreaterThanOrEqual(2)
-  })
-
-  test('bestOf :n=3 — commodity writes [✓ K/3] suffix on plain LLM cell', async ({ page }) => {
-    const tree = new WorkflowTreePage(page)
-    const { detail, rootId } = await selectRootAndOpenDetail(page)
-    await detail.fillCommand('/chat :n=3 List 3 fruits')
-
-    await executeAndWaitForCompletion(page, detail)
-
-    await expect(tree.nodes.first()).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
-    const rootTitle = await nodeTitle(page, rootId)
-    expect(rootTitle).toMatch(COMMODITY_SUFFIX_RE(3))
-    expect(await tree.nodes.count()).toBeGreaterThanOrEqual(2)
-  })
-
-  test('bestOf :n=5 — commodity writes [✓ K/5] suffix on plain LLM cell', async ({ page }) => {
-    const tree = new WorkflowTreePage(page)
-    const { detail, rootId } = await selectRootAndOpenDetail(page)
-    await detail.fillCommand('/chat :n=5 List 3 animals')
-
-    await executeAndWaitForCompletion(page, detail)
-
-    await expect(tree.nodes.first()).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
-    const rootTitle = await nodeTitle(page, rootId)
-    expect(rootTitle).toMatch(COMMODITY_SUFFIX_RE(5))
-    expect(await tree.nodes.count()).toBeGreaterThanOrEqual(2)
+  COMMODITY_FULL_SUCCESS_CASES.forEach(({ n, task }) => {
+    test(`commodity :n=${n} — full-success suffix and child count match N`, async ({ page }) => {
+      const { tree, rootId } = await executeCommodityCommand(page, `/chat :n=${n} ${task}`)
+      await expectCommodityFullSuccess(page, tree, rootId, n)
+    })
   })
 
   test('bestOf — prompt children populated with real LLM output', async ({ page }) => {
-    const tree = new WorkflowTreePage(page)
-    const { detail } = await selectRootAndOpenDetail(page)
-    await detail.fillCommand('/chat :n=2 List 3 colors')
-
-    await executeAndWaitForCompletion(page, detail)
-
-    await expect(tree.nodes.first()).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
-    const count = await tree.nodes.count()
-    expect(count).toBeGreaterThanOrEqual(2)
+    const { tree } = await executeCommodityCommand(page, '/chat :n=2 List 3 colors')
     const childTitle = await nodeTitle(page, await tree.nodeIdAt(1))
     expect(childTitle.length).toBeGreaterThan(0)
   })
@@ -137,18 +167,8 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     const tree = new WorkflowTreePage(page)
     const { detail, rootId } = await selectRootAndOpenDetail(page)
     await detail.fillCommand('/chat :n=2 List 3 colors')
-    await detail.addChild()
-    await page.locator('[data-node-id]').nth(1).waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
-
-    const refineId = await tree.nodeIdAt(1)
-    await tree.selectNode(refineId)
-    const refineDetail = new NodeDetailPanelPage(page)
-    await refineDetail.waitForComponent()
-    await refineDetail.fillCommand('/refine :n=2')
-
-    await tree.selectNode(rootId)
-    await detail.waitForComponent()
-    await executeAndWaitForCompletion(page, detail)
+    const refineId = await addChildCommand(page, tree, rootId, '/refine :n=2')
+    await executeRoot(page, tree, rootId)
 
     const refineTitle = await nodeTitle(page, refineId)
     expect(refineTitle).toMatch(SUFFIX_RE)
@@ -160,18 +180,8 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     const tree = new WorkflowTreePage(page)
     const { detail, rootId } = await selectRootAndOpenDetail(page)
     await detail.fillCommand('/chat :n=3 List 3 fruits')
-    await detail.addChild()
-    await page.locator('[data-node-id]').nth(1).waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
-
-    const refineId = await tree.nodeIdAt(1)
-    await tree.selectNode(refineId)
-    const refineDetail = new NodeDetailPanelPage(page)
-    await refineDetail.waitForComponent()
-    await refineDetail.fillCommand('/refine :n=3')
-
-    await tree.selectNode(rootId)
-    await detail.waitForComponent()
-    await executeAndWaitForCompletion(page, detail)
+    const refineId = await addChildCommand(page, tree, rootId, '/refine :n=3')
+    await executeRoot(page, tree, rootId)
 
     const refineTitle = await nodeTitle(page, refineId)
     expect(refineTitle).toMatch(SUFFIX_RE)
@@ -183,18 +193,8 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     const tree = new WorkflowTreePage(page)
     const { detail, rootId } = await selectRootAndOpenDetail(page)
     await detail.fillCommand('/chat :n=2 List 3 colors')
-    await detail.addChild()
-    await page.locator('[data-node-id]').nth(1).waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
-
-    const validateId = await tree.nodeIdAt(1)
-    await tree.selectNode(validateId)
-    const validateDetail = new NodeDetailPanelPage(page)
-    await validateDetail.waitForComponent()
-    await validateDetail.fillCommand('/validate Each item must be a distinct color name')
-
-    await tree.selectNode(rootId)
-    await detail.waitForComponent()
-    await executeAndWaitForCompletion(page, detail)
+    const validateId = await addChildCommand(page, tree, rootId, '/validate Each item must be a distinct color name')
+    await executeRoot(page, tree, rootId)
 
     expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_VERDICT_RE)
   })
@@ -210,15 +210,12 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
   })
 
   test('reload persistence — commodity suffix and child outputs survive page reload', async ({ page }) => {
-    const tree = new WorkflowTreePage(page)
-    const { detail, rootId } = await selectRootAndOpenDetail(page)
-    await detail.fillCommand('/chat :n=2 List 3 colors')
-    await executeAndWaitForCompletion(page, detail)
+    const { tree, rootId } = await executeCommodityCommand(page, '/chat :n=2 List 3 colors')
 
     const countBeforeReload = await tree.nodes.count()
-    expect(countBeforeReload).toBeGreaterThanOrEqual(2)
+    expect(countBeforeReload).toBe(3)
     const titleBefore = await nodeTitle(page, rootId)
-    expect(titleBefore).toMatch(COMMODITY_SUFFIX_RE(2))
+    expect(titleBefore).toMatch(COMMODITY_FULL_SUCCESS_SUFFIX_RE(2))
 
     await page.reload()
     await page.waitForLoadState('networkidle')
@@ -227,128 +224,75 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     await expect(reloadedTree.nodes.first()).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
     expect(await reloadedTree.nodes.count()).toBe(countBeforeReload)
     const titleAfter = await nodeTitle(page, rootId)
-    expect(titleAfter).toMatch(COMMODITY_SUFFIX_RE(2))
+    expect(titleAfter).toMatch(COMMODITY_FULL_SUCCESS_SUFFIX_RE(2))
   })
 
   test('validate Job 1 exhaustion — failure suffix on the validate cell', async ({ page }) => {
+    const tree = new WorkflowTreePage(page)
     const { detail, rootId } = await selectRootAndOpenDetail(page)
     await detail.fillCommand('/chat :n=2 List 3 colors')
-    await detail.addChild()
-    const tree = new WorkflowTreePage(page)
-    await page.locator('[data-node-id]').nth(1).waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
+    const validateId = await addChildCommand(
+      page,
+      tree,
+      rootId,
+      '/validate MOCK_VALIDATE_FAIL — The output must be a valid JSON object with key "data" and value 999',
+    )
+    await executeRoot(page, tree, rootId)
 
-    const validateId = await tree.nodeIdAt(1)
-    await tree.selectNode(validateId)
-    const validateDetail = new NodeDetailPanelPage(page)
-    await validateDetail.waitForComponent()
-    await validateDetail.fillCommand('/validate MOCK_VALIDATE_FAIL — The output must be a valid JSON object with key "data" and value 999')
-
-    await tree.selectNode(rootId)
-    await detail.waitForComponent()
-    await executeAndWaitForCompletion(page, detail)
-
-    expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_FAIL_RE)
+    await expectValidateFailure(page, validateId)
   })
 
-  test('refine :n=2 :fallback + REJECT criterion — [⚠ fallback: 0/2 passed; chose fork-N] suffix, validate [✗] suffix', async ({ page }) => {
+  test('refine fallback commits a visibly degraded winner when every criteria-checked fork fails', async ({ page }) => {
     const tree = new WorkflowTreePage(page)
     const { detail, rootId } = await selectRootAndOpenDetail(page)
     await detail.fillCommand('/chat :n=2 Write one sentence about weather')
-    await detail.addChild()
-    await page.locator('[data-node-id]').nth(1).waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
+    const refineId = await addChildCommand(page, tree, rootId, '/refine :n=2 :fallback')
+    const validateId = await addChildCommand(page, tree, refineId, '/validate MOCK_VALIDATE_FAIL — must never pass')
 
-    const refineId = await tree.nodeIdAt(1)
-    await tree.selectNode(refineId)
-    const refineDetail = new NodeDetailPanelPage(page)
-    await refineDetail.waitForComponent()
-    await refineDetail.fillCommand('/refine :n=2 :fallback')
-    await refineDetail.addChild()
-    await page.locator('[data-node-id]').nth(2).waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
-
-    const validateId = await tree.nodeIdAt(2)
-    await tree.selectNode(validateId)
-    const validateDetail = new NodeDetailPanelPage(page)
-    await validateDetail.waitForComponent()
-    await validateDetail.fillCommand('/validate MOCK_VALIDATE_FAIL — must never pass')
-
-    await tree.selectNode(rootId)
-    await detail.waitForComponent()
-    await executeAndWaitForCompletion(page, detail)
+    await executeRoot(page, tree, rootId)
 
     const refineTitle = await nodeTitle(page, refineId)
-    expect(refineTitle).toMatch(/\[⚠ fallback: 0\/2 passed; chose fork-\d+\]/)
-    expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_FAIL_RE)
+    expect(refineTitle).toMatch(REFINE_FALLBACK_SUFFIX_RE)
+    await expectValidateFailure(page, validateId)
   })
-  test('P0.39 grandchild topology — /refine :n=2 :fallback + inner /chat + /validate grandchild, inner /chat executes per fork, [⚠ fallback] and [✗] suffixes propagate', async ({ page }) => {
+
+  test('nested refine topology executes inner commands in each fork and propagates descendant validate failure', async ({
+    page,
+  }) => {
     const tree = new WorkflowTreePage(page)
     const { detail, rootId } = await selectRootAndOpenDetail(page)
     await detail.fillCommand('/chat Write one sentence about the weather')
-    await detail.addChild()
-    await page.locator('[data-node-id]').nth(1).waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
+    const refineId = await addChildCommand(page, tree, rootId, '/refine :n=2 :fallback')
+    const innerChatId = await addChildCommand(page, tree, refineId, '/chat Reply with exactly: HELLO WORLD')
+    const validateId = await addChildCommand(
+      page,
+      tree,
+      innerChatId,
+      '/validate MOCK_VALIDATE_FAIL — Output must contain DEFINITELY_UNREACHABLE_TOKEN_42',
+    )
 
-    const refineId = await tree.nodeIdAt(1)
-    await tree.selectNode(refineId)
-    const refineDetail = new NodeDetailPanelPage(page)
-    await refineDetail.waitForComponent()
-    await refineDetail.fillCommand('/refine :n=2 :fallback')
-    await refineDetail.addChild()
-    await page.locator('[data-node-id]').nth(2).waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
-
-    const innerChatId = await tree.nodeIdAt(2)
-    await tree.selectNode(innerChatId)
-    const innerChatDetail = new NodeDetailPanelPage(page)
-    await innerChatDetail.waitForComponent()
-    await innerChatDetail.fillCommand('/chat Reply with exactly: HELLO WORLD')
-    await innerChatDetail.addChild()
-    await page.locator('[data-node-id]').nth(3).waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
-
-    const validateId = await tree.nodeIdAt(3)
-    await tree.selectNode(validateId)
-    const validateDetail = new NodeDetailPanelPage(page)
-    await validateDetail.waitForComponent()
-    await validateDetail.fillCommand('/validate MOCK_VALIDATE_FAIL — Output must contain DEFINITELY_UNREACHABLE_TOKEN_42')
-
-    await tree.selectNode(rootId)
-    await detail.waitForComponent()
-    await executeAndWaitForCompletion(page, detail)
+    await executeRoot(page, tree, rootId)
 
     const refineTitle = await nodeTitle(page, refineId)
-    expect(refineTitle).toMatch(/\[⚠ fallback: 0\/2 passed; chose fork-\d+\]/)
-    expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_FAIL_RE)
+    expect(refineTitle).toMatch(REFINE_FALLBACK_SUFFIX_RE)
+    await expectValidateFailure(page, validateId)
   })
 
-  test('L367 — commodity ceiling hint visible for /chat :n=2, absent for /chat and /refine :n=2', async ({ page }) => {
+  test('commodity ceiling disclosure appears only for plain commodity LLM commands', async ({ page }) => {
     const { detail } = await selectRootAndOpenDetail(page)
 
-    // commodity :n=2 → hint must appear
     await detail.fillCommand('/chat :n=2 Say OK')
     await expect(page.getByTestId('commodity-ceiling-hint')).toBeVisible()
 
-    // plain /chat (no :n=) → hint must be absent
     await detail.fillCommand('/chat Say OK')
     await expect(page.getByTestId('commodity-ceiling-hint')).not.toBeVisible()
 
-    // /refine :n=2 uses the judge tier, not the commodity tier → hint absent
     await detail.fillCommand('/refine :n=2 Say OK')
     await expect(page.getByTestId('commodity-ceiling-hint')).not.toBeVisible()
   })
 
-  test('L372 — :n=N control parameter does not appear in generated child content', async ({ page }) => {
-    const tree = new WorkflowTreePage(page)
-    const { detail } = await selectRootAndOpenDetail(page)
-    await detail.fillCommand('/chat :n=2 Reply with one word: hello')
-
-    await executeAndWaitForCompletion(page, detail)
-
-    await expect(tree.nodes.first()).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
-    const count = await tree.nodes.count()
-    expect(count).toBeGreaterThanOrEqual(2)
-    // Every child node title must not contain the control parameter literal
-    for (let i = 1; i < count; i++) {
-      const childId = await tree.nodeIdAt(i)
-      const title = await nodeTitle(page, childId)
-      expect(title).not.toContain(':n=2')
-      expect(title).not.toContain(':n=')
-    }
+  test('commodity control parameter does not appear in generated child content', async ({ page }) => {
+    const { tree } = await executeCommodityCommand(page, '/chat :n=2 Reply with one word: hello')
+    await expectNoCommodityTokenInChildren(page, tree)
   })
 })

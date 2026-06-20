@@ -321,7 +321,7 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
     expect(callCount).toBe(1)
   })
 
-  it.each([2, 3])(':n=%i writes [✓ %i/%i] suffix when all forks produce substantive output', async n => {
+  it.each([2, 3])(':n=%i writes exact full-success suffix when all forks produce substantive output', async n => {
     const root = makeRoot(`/chat :n=${n} List 3 items`)
     const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
     let callCount = 0
@@ -380,7 +380,7 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
   it.each([
     [2, '/chat :n=2 List 3 colors'],
     [3, '/chat :n=3 List 3 colors'],
-  ])(':n=%i writes [✗ 0/%i] when all forks produce machine-tagged error nodes', async (n, command) => {
+  ])(':n=%i writes exact all-failed suffix when all forks produce machine-tagged error nodes', async (n, command) => {
     const root = makeRoot(command)
     const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
     let callCount = 0

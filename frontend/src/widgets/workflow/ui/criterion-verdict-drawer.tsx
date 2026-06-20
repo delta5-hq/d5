@@ -28,6 +28,11 @@ const MODE_I18N_KEY: Record<ReliabilityMetadata['mode'], string> = {
   fallback: 'workflowTree.verdictDrawer.modeFallback',
 }
 
+const winnerRankForCriterion = (
+  forkRankings: ReliabilityMetadata['perCriterionVerdict'][number]['forkRankings'],
+  winnerForkIndex: number,
+) => forkRankings.find(({ forkIndex }) => forkIndex === winnerForkIndex)?.rank
+
 interface CriterionVerdictDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -105,44 +110,60 @@ export const CriterionVerdictDrawer = ({ open, onOpenChange, metadata }: Criteri
             </div>
           ) : null}
 
-          {perCriterionVerdict.map(({ criterionId, criterion, forkRankings }) => (
-            <div className="rounded-md border p-3 space-y-2" key={criterionId}>
-              <div>
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  <FormattedMessage id="workflowTree.verdictDrawer.criterionLabel" />
-                </span>
-                <p className="text-sm mt-0.5">{criterion}</p>
-              </div>
+          {perCriterionVerdict.map(({ criterionId, criterion, forkRankings }) => {
+            const winnerRank = winnerRankForCriterion(forkRankings, winnerForkIndex)
 
-              {forkRankings.length > 0 ? (
+            return (
+              <div className="rounded-md border p-3 space-y-2" key={criterionId}>
                 <div>
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    <FormattedMessage id="workflowTree.verdictDrawer.rankingsLabel" />
+                    <FormattedMessage id="workflowTree.verdictDrawer.criterionLabel" />
                   </span>
-                  <ol className="mt-1 space-y-0.5">
-                    {forkRankings.map(({ forkIndex, rank }) => (
-                      <li className="flex items-center gap-2 text-sm" key={forkIndex}>
-                        <span className="text-muted-foreground tabular-nums w-6">
-                          <FormattedMessage id="workflowTree.verdictDrawer.rankLabel" values={{ rank }} />
-                        </span>
-                        <span className={forkIndex === winnerForkIndex ? 'font-semibold text-success' : ''}>
-                          <FormattedMessage
-                            id="workflowTree.verdictDrawer.forkLabel"
-                            values={{ index: forkIndex + 1 }}
-                          />
-                          {forkIndex === winnerForkIndex ? (
-                            <span className="ml-1 text-xs">
-                              <FormattedMessage id="workflowTree.verdictDrawer.winnerLabel" />
-                            </span>
-                          ) : null}
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
+                  <p className="text-sm mt-0.5">{criterion}</p>
                 </div>
-              ) : null}
-            </div>
-          ))}
+
+                {winnerRank ? (
+                  <div className="rounded-sm bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
+                    <FormattedMessage
+                      id="workflowTree.verdictDrawer.winnerEvidenceLabel"
+                      values={{
+                        rank: winnerRank,
+                        total: forkRankings.length,
+                      }}
+                    />
+                  </div>
+                ) : null}
+
+                {forkRankings.length > 0 ? (
+                  <div>
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      <FormattedMessage id="workflowTree.verdictDrawer.rankingsLabel" />
+                    </span>
+                    <ol className="mt-1 space-y-0.5">
+                      {forkRankings.map(({ forkIndex, rank }) => (
+                        <li className="flex items-center gap-2 text-sm" key={forkIndex}>
+                          <span className="text-muted-foreground tabular-nums w-6">
+                            <FormattedMessage id="workflowTree.verdictDrawer.rankLabel" values={{ rank }} />
+                          </span>
+                          <span className={forkIndex === winnerForkIndex ? 'font-semibold text-success' : ''}>
+                            <FormattedMessage
+                              id="workflowTree.verdictDrawer.forkLabel"
+                              values={{ index: forkIndex + 1 }}
+                            />
+                            {forkIndex === winnerForkIndex ? (
+                              <span className="ml-1 text-xs">
+                                <FormattedMessage id="workflowTree.verdictDrawer.winnerLabel" />
+                              </span>
+                            ) : null}
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ) : null}
+              </div>
+            )
+          })}
         </div>
       </GlassSheetContent>
     </GlassSheet>

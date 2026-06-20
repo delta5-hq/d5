@@ -492,6 +492,13 @@ describe('NodeDetailPanel — verdict button', () => {
     fireEvent.click(screen.getByTestId('verdict-button'))
     expect(screen.getByTestId('criterion-verdict-drawer')).toBeInTheDocument()
   })
+
+  it('shows the forks inspector button for reliability metadata even when there are no discarded forks', () => {
+    renderPanel(makeNode({ command: '/refine :n=2' }), false, {
+      reliabilityMetadata: makeMetadata({ discardedForks: [], perCriterionVerdict: [] }),
+    })
+    expect(screen.getByTestId('forks-button')).toBeInTheDocument()
+  })
 })
 
 describe('NodeDetailPanel — title editor strips reliability suffix', () => {

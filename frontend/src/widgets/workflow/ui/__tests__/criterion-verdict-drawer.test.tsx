@@ -144,7 +144,53 @@ describe('CriterionVerdictDrawer — criterion list', () => {
         ],
       }),
     )
-    expect(screen.getByText(/Winner/i)).toBeInTheDocument()
+    expect(screen.getByText(/\(winner\)/i)).toBeInTheDocument()
+  })
+
+  it.each([
+    { winnerForkIndex: 0, winnerRank: 1, expected: /Winner ranked #1 of 3/i },
+    { winnerForkIndex: 1, winnerRank: 2, expected: /Winner ranked #2 of 3/i },
+    { winnerForkIndex: 2, winnerRank: 3, expected: /Winner ranked #3 of 3/i },
+  ])(
+    'shows criterion-level winner rank evidence for winner fork $winnerForkIndex',
+    ({ winnerForkIndex, winnerRank, expected }) => {
+      renderDrawer(
+        makeMetadata({
+          winnerForkIndex,
+          perCriterionVerdict: [
+            {
+              criterionId: 'c1',
+              criterion: 'Quality',
+              forkRankings: [
+                { forkIndex: 0, rank: winnerForkIndex === 0 ? winnerRank : 1 },
+                { forkIndex: 1, rank: winnerForkIndex === 1 ? winnerRank : 2 },
+                { forkIndex: 2, rank: winnerForkIndex === 2 ? winnerRank : 3 },
+              ],
+            },
+          ],
+        }),
+      )
+      expect(screen.getByText(expected)).toBeInTheDocument()
+    },
+  )
+
+  it('does not render winner rank evidence when the criterion has no ranking for the selected fork', () => {
+    renderDrawer(
+      makeMetadata({
+        winnerForkIndex: 9,
+        perCriterionVerdict: [
+          {
+            criterionId: 'c1',
+            criterion: 'Quality',
+            forkRankings: [
+              { forkIndex: 0, rank: 1 },
+              { forkIndex: 1, rank: 2 },
+            ],
+          },
+        ],
+      }),
+    )
+    expect(screen.queryByText(/Winner ranked/i)).not.toBeInTheDocument()
   })
 
   it('does not show "Winner" label when no fork matches winnerForkIndex', () => {

@@ -265,7 +265,7 @@ export const NodeDetailPanel = ({
                         <FormattedMessage id="workflowTree.node.verdictButton" />
                       </button>
                     ) : null}
-                    {forkPreview || reliabilityMetadata?.discardedForks?.length ? (
+                    {forkPreview || reliabilityMetadata ? (
                       <button
                         className="text-xs text-primary underline underline-offset-2 mt-1 block hover:opacity-80 transition-opacity"
                         data-testid="forks-button"
@@ -381,10 +381,11 @@ export const NodeDetailPanel = ({
       {reliabilityMetadata ? (
         <CriterionVerdictDrawer metadata={reliabilityMetadata} onOpenChange={setVerdictOpen} open={verdictOpen} />
       ) : null}
-      {forkPreview || reliabilityMetadata?.discardedForks?.length ? (
+      {forkPreview || reliabilityMetadata ? (
         <DiscardedForksDrawer
           discardedForks={reliabilityMetadata?.discardedForks}
           forkPreview={forkPreview}
+          metadata={reliabilityMetadata}
           nodeId={node.id}
           onOpenChange={setForksOpen}
           open={forksOpen}

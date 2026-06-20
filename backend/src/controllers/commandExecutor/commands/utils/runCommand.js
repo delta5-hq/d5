@@ -32,10 +32,9 @@ import {
   stripReliabilitySuffix,
   appendValidateSuffix,
   appendInvalidSuffix,
-  appendCommoditySuffix,
 } from '../../reliability/core/reliabilitySuffix'
 import {getNodeCommand} from './isCommand'
-import {isCommodityForkSuccess} from '../../reliability/core/commodityForkSuccess'
+import {mergeCommodityForkOutputs} from '../../reliability/core/commodityForkMerge'
 import {resolveCommand} from './queryTypeResolver'
 import {ForeachCommand} from '../ForeachCommand'
 import {MemorizeCommand} from '../MemorizeCommand'
@@ -151,27 +150,7 @@ async function runCommodityForks(queryType, context, prompt, cell, store, progre
   )
   throwIfAborted(options.signal)
 
-  let successCount = 0
-  forkStores.forEach((forkStore, forkIndex) => {
-    const forkCell = forkStore.getNode(cell.id)
-    let hadSubstantiveOutput = false
-    for (const promptId of forkCell?.prompts ?? []) {
-      const node = forkStore.getNode(promptId)
-      if (isCommodityForkSuccess(node, forkIndex)) {
-        store.createNode({parent: cell.id, title: node.title})
-        hadSubstantiveOutput = true
-      }
-    }
-    if (hadSubstantiveOutput) successCount++
-  })
-  const cellNode = store.getNode(cell.id)
-  if (cellNode) {
-    cellNode.title = appendCommoditySuffix(cellNode.title || '', {
-      successCount,
-      total: n,
-    })
-    store.saveNodeToOutput(cell.id)
-  }
+  mergeCommodityForkOutputs({store, forkStores, cellId: cell.id, total: n})
 }
 
 /**
