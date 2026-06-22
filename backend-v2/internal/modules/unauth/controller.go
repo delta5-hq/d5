@@ -1,6 +1,8 @@
 package unauth
 
 import (
+	"backend-v2/internal/config"
+
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -10,12 +12,10 @@ func NewController() *Controller {
 	return &Controller{}
 }
 
-/* Health check endpoint for monitoring */
 func (h *Controller) HealthStatus(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{})
 }
 
-/* Prometheus metrics endpoint */
 func (h *Controller) ServeMetrics(c *fiber.Ctx) error {
 	metrics := "# HELP go_info Information about the Go environment.\n"
 	metrics += "# TYPE go_info gauge\n"
@@ -23,4 +23,10 @@ func (h *Controller) ServeMetrics(c *fiber.Ctx) error {
 
 	c.Set("Content-Type", "text/plain; version=0.0.4")
 	return c.SendString(metrics)
+}
+
+func (h *Controller) VersionStatus(c *fiber.Ctx) error {
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"revision": config.BuildRevision,
+	})
 }

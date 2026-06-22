@@ -139,12 +139,19 @@ test_node() {
 build_go() {
   local module_path="${1:-.}"
   local binary_name="${2:-service}"
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   cd "$module_path" || exit 1
-  
-  log_info "Building Go binary via Docker..."
+
+  local revision
+  revision="$("${script_dir}/revision.sh")"
+
+  log_info "Building Go binary via Docker (revision: ${revision})..."
   ensure_docker_network
-  
-  docker build --network "$DOCKER_NETWORK" --target builder -t "${binary_name}-builder" . > /tmp/go-build.log 2>&1 || {
+
+  docker build --network "$DOCKER_NETWORK" --target builder \
+    --build-arg "BUILD_REVISION=${revision}" \
+    -t "${binary_name}-builder" . > /tmp/go-build.log 2>&1 || {
     log_error "Build failed"
     tail -30 /tmp/go-build.log
     return 1
@@ -161,15 +168,20 @@ build_go() {
 
 build_node() {
   local module_path="${1:-.}"
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   cd "$module_path" || exit 1
-  
-  log_info "Building Node.js project..."
-  npm run build > /tmp/node-build.log 2>&1 || {
+
+  local revision
+  revision="$("${script_dir}/revision.sh")"
+
+  log_info "Building Node.js project (revision: ${revision})..."
+  BUILD_REVISION="${revision}" npm run build > /tmp/node-build.log 2>&1 || {
     log_error "Build failed"
     tail -30 /tmp/node-build.log
     return 1
   }
-  
+
   log_success "Build complete"
 }
 

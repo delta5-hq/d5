@@ -24,6 +24,12 @@ const threeFamilies: IntegrationSettings = {
   claude: { apiKey: 'sk-ant-test', model: 'claude-3' },
   deepseek: { apiKey: 'sk-ds', model: 'deepseek-chat' },
 }
+const claudeOnly: IntegrationSettings = { claude: { apiKey: 'sk-ant-test', model: 'claude-3' } }
+const deepseekOnly: IntegrationSettings = { deepseek: { apiKey: 'sk-ds', model: 'deepseek-chat' } }
+const deepseekAndQwen: IntegrationSettings = {
+  deepseek: { apiKey: 'sk-ds', model: 'deepseek-chat' },
+  qwen: { apiKey: 'sk-q', model: 'qwen-max' },
+}
 const allSixFamilies: IntegrationSettings = {
   openai: { apiKey: 'sk-1', model: 'gpt-4o' },
   claude: { apiKey: 'sk-2', model: 'claude-3' },
@@ -149,6 +155,54 @@ describe('computePreExecuteWarnings', () => {
     })
   })
 
+  describe('/refine :n=N — noReasoningMode warning', () => {
+    it('emits when only higher-tier non-reasoning families are configured', () => {
+      const nodes = makeNodes(nodeId, parentId)
+      expect(computePreExecuteWarnings('/refine :n=3', nodeId, nodes, deepseekAndQwen)).toContainEqual({
+        condition: 'noReasoningMode',
+        severity: 'medium',
+      })
+    })
+
+    it('emits alongside singleProvider when exactly one non-reasoning family is configured', () => {
+      const nodes = makeNodes(nodeId, parentId)
+      const warnings = computePreExecuteWarnings('/refine :n=3', nodeId, nodes, deepseekOnly)
+      expect(warnings).toContainEqual({ condition: 'singleProvider', severity: 'high' })
+      expect(warnings).toContainEqual({ condition: 'noReasoningMode', severity: 'medium' })
+    })
+
+    it('emits alongside lowestTierOnly when all configured families are lowest-tier', () => {
+      const nodes = makeNodes(nodeId, parentId)
+      const warnings = computePreExecuteWarnings('/refine :n=3', nodeId, nodes, yandexAndCustom)
+      expect(warnings).toContainEqual({ condition: 'lowestTierOnly', severity: 'medium' })
+      expect(warnings).toContainEqual({ condition: 'noReasoningMode', severity: 'medium' })
+    })
+
+    it('does not emit when OpenAI is configured', () => {
+      const nodes = makeNodes(nodeId, parentId)
+      const warnings = computePreExecuteWarnings('/refine :n=3', nodeId, nodes, openaiOnly)
+      expect(warnings.every(w => w.condition !== 'noReasoningMode')).toBe(true)
+    })
+
+    it('does not emit when Claude is configured', () => {
+      const nodes = makeNodes(nodeId, parentId)
+      const warnings = computePreExecuteWarnings('/refine :n=3', nodeId, nodes, claudeOnly)
+      expect(warnings.every(w => w.condition !== 'noReasoningMode')).toBe(true)
+    })
+
+    it('does not emit when OpenAI is present alongside lower-tier families', () => {
+      const nodes = makeNodes(nodeId, parentId)
+      const warnings = computePreExecuteWarnings('/refine :n=3', nodeId, nodes, openaiAndYandex)
+      expect(warnings.every(w => w.condition !== 'noReasoningMode')).toBe(true)
+    })
+
+    it('does not emit when no providers are configured', () => {
+      const nodes = makeNodes(nodeId, parentId)
+      const warnings = computePreExecuteWarnings('/refine :n=3', nodeId, nodes, noSettings)
+      expect(warnings.every(w => w.condition !== 'noReasoningMode')).toBe(true)
+    })
+  })
+
   describe('/refine :n=N — fallbackWithWeakJudge warning', () => {
     it('emits when :fallback is set and only one family is configured', () => {
       const nodes = makeNodes(nodeId, parentId)
@@ -264,6 +318,11 @@ describe('computePreExecuteWarnings', () => {
       const nodes = makeNodes(nodeId, parentId)
       const warnings = computePreExecuteWarnings('/validate :n=2 criterion', nodeId, nodes, openaiOnly)
       expect(warnings.every(w => w.condition !== 'fallbackWithWeakJudge')).toBe(true)
+    })
+    it('does not emit noReasoningMode for /validate regardless of provider configuration', () => {
+      const nodes = makeNodes(nodeId, parentId)
+      const warnings = computePreExecuteWarnings('/validate :n=2 criterion', nodeId, nodes, deepseekAndQwen)
+      expect(warnings.every(w => w.condition !== 'noReasoningMode')).toBe(true)
     })
   })
 })

@@ -11,7 +11,36 @@ import prettierConfig from 'eslint-config-prettier'
 export default tseslint.config([
   globalIgnores(['dist']),
   {
+    files: ['plugins/**/*.{ts,tsx}'],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        project: './tsconfig.node.json',
+        sourceType: 'module',
+        ecmaVersion: 'latest',
+      },
+      globals: globals.node,
+    },
+    plugins: {
+      '@typescript-eslint': tseslint.plugin,
+      prettier: prettierPlugin,
+    },
+    rules: {
+      ...js.configs.recommended.rules,
+      ...tseslint.configs.recommended.rules,
+      'prettier/prettier': 'error',
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'no-console': 'warn',
+      'no-debugger': 'error',
+      'prefer-const': 'warn',
+      'object-shorthand': ['warn', 'always'],
+      eqeqeq: ['warn', 'always'],
+    },
+  },
+  {
     files: ['**/*.{ts,tsx}'],
+    ignores: ['plugins/**'],
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {
@@ -19,7 +48,7 @@ export default tseslint.config([
         sourceType: 'module',
         ecmaVersion: 'latest',
       },
-      globals: globals.browser,
+      globals: { ...globals.browser, __BUILD_REVISION__: 'readonly' },
     },
     settings: {
       react: {

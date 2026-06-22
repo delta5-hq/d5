@@ -587,6 +587,24 @@ describe('bindExecuteAction', () => {
     })
   })
 
+  describe('store state immutability on execution failure', () => {
+    it.each([
+      ['AbortError', new DOMException('aborted', 'AbortError')],
+      ['network Error', new Error('network error')],
+      ['TypeError', new TypeError('unexpected response')],
+      ['non-AbortError DOMException', new DOMException('not allowed', 'NotAllowedError')],
+    ])('does not mutate workflow nodes or invoke merge when the API rejects with %s', async (_label, error) => {
+      vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(error)
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const nodesBefore = { ...store.getState().nodes }
+      await makeExecute(store, makePersister())(stubNode, 'query')
+
+      expect(store.getState().nodes).toEqual(nodesBefore)
+      expect(mergeWorkflowChanges).not.toHaveBeenCalled()
+    })
+  })
+
   it('returns true on successful execution', async () => {
     mockIdentityExecution(N1)
 

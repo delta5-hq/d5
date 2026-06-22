@@ -558,3 +558,72 @@ describe('NodeDetailPanel — title editor strips reliability suffix', () => {
     expect(onUpdateNode).toHaveBeenCalledWith('n1', { title: 'Compare rivals' })
   })
 })
+
+describe('NodeDetailPanel — commodity ceiling hint visibility', () => {
+  describe('hint present: plain LLM command with :n= at or above minimum (N ≥ 2)', () => {
+    it.each([
+      ['/chat :n=2 query', 'minimum active value'],
+      ['/chat :n=3 query', 'common 3-fork case'],
+      ['/chat :n=10 query', 'at COMMODITY_N_MAX cap'],
+      ['/claude :n=2 query', 'non-chat LLM family with :n=2'],
+      ['/chat :n=2', 'no task text after param'],
+      ['/chat :n=2  ', 'trailing whitespace after param'],
+    ])('%s (%s)', command => {
+      renderPanel(makeNode({ command }), false)
+      expect(screen.getByTestId('commodity-ceiling-hint')).toBeInTheDocument()
+    })
+  })
+
+  describe('hint absent: :n= below minimum or missing on a plain command', () => {
+    it.each([
+      ['/chat query', 'no :n= present'],
+      ['/chat :n=1 query', ':n=1 is below minimum'],
+      ['/chat :n=0 query', ':n=0 is below minimum'],
+      ['/chat :n=abc query', 'non-numeric N is not a commodity fork count'],
+      ['/chat :n= query', 'empty N after :n= is not a commodity fork count'],
+    ])('%s (%s)', command => {
+      renderPanel(makeNode({ command }), false)
+      expect(screen.queryByTestId('commodity-ceiling-hint')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('hint absent: non-commodity cell prefixes ignore :n= value', () => {
+    it.each([
+      '/refine :n=3',
+      '/validate :n=2 must mention revenue',
+      '/foreach :n=3 items',
+      '/steps :n=2',
+      '/switch :n=5 condition',
+      '/case :n=2 label',
+      '/summarize :n=3',
+      '/memorize :n=2',
+      '/outline :n=3',
+    ])('%s', command => {
+      renderPanel(makeNode({ command }), false)
+      expect(screen.queryByTestId('commodity-ceiling-hint')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('hint toggles live on command change without page reload', () => {
+    it('appears when :n=N is added to a commodity command', () => {
+      const { rerenderPanel } = renderPanel(makeNode({ command: '/chat query' }), false)
+      expect(screen.queryByTestId('commodity-ceiling-hint')).not.toBeInTheDocument()
+      rerenderPanel(makeNode({ command: '/chat :n=2 query' }), false)
+      expect(screen.getByTestId('commodity-ceiling-hint')).toBeInTheDocument()
+    })
+
+    it('disappears when :n=N is removed from a commodity command', () => {
+      const { rerenderPanel } = renderPanel(makeNode({ command: '/chat :n=2 query' }), false)
+      expect(screen.getByTestId('commodity-ceiling-hint')).toBeInTheDocument()
+      rerenderPanel(makeNode({ command: '/chat query' }), false)
+      expect(screen.queryByTestId('commodity-ceiling-hint')).not.toBeInTheDocument()
+    })
+
+    it('disappears when command changes from commodity :n=N to non-commodity :n=N', () => {
+      const { rerenderPanel } = renderPanel(makeNode({ command: '/chat :n=2 query' }), false)
+      expect(screen.getByTestId('commodity-ceiling-hint')).toBeInTheDocument()
+      rerenderPanel(makeNode({ command: '/refine :n=2 query' }), false)
+      expect(screen.queryByTestId('commodity-ceiling-hint')).not.toBeInTheDocument()
+    })
+  })
+})

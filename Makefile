@@ -1,4 +1,4 @@
-.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e stop ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend build-backend build-backend-v2 build-frontend test-backend test-backend-v2 test-frontend e2e-backend e2e-frontend _e2e-frontend-run e2e-frontend-throttled e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks clean-e2e clean-all fix-permissions cleanup-old-data
+.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e stop ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend build-backend build-backend-v2 build-frontend test-backend test-backend-v2 test-frontend e2e-backend e2e-frontend _e2e-frontend-run e2e-frontend-throttled e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks clean-e2e clean-all fix-permissions cleanup-old-data probe-revision probe-revision-e2e test-scripts
 
 # Configuration
 DOCKER_NETWORK := d5-dev-network
@@ -41,6 +41,9 @@ help:
 	@echo "  make test-backend        - Run backend unit tests"
 	@echo "  make test-backend-v2     - Run backend-v2 unit tests"
 	@echo "  make test-frontend       - Run frontend unit tests (Vitest)"
+	@echo "  make test-scripts        - Run shell script unit tests (revision.sh)"
+	@echo "  make probe-revision      - Verify running dev services match working-tree revision (run before web-qa)"
+	@echo "  make probe-revision-e2e  - Same check against E2E ports"
 	@echo ""
 	@echo "Setup:"
 	@echo "  make e2e-db-init         - Initialize E2E database with test fixtures"
@@ -72,7 +75,7 @@ help:
 lint: lint-backend lint-backend-v2 lint-docker-backend-v2 lint-docker-backend lint-docker-frontend lint-frontend
 	@echo "✓ All modules linted"
 
-test: test-backend test-backend-v2 test-frontend
+test: test-backend test-backend-v2 test-frontend test-scripts
 	@echo "✓ All modules tested"
 
 build: build-backend build-backend-v2 build-frontend
@@ -222,6 +225,18 @@ stop:
 ci-local: lint build test
 	@echo "✓ Pre-commit checks passed"
 
+probe-revision:
+	@bash scripts/probe-revision.sh \
+		"go-backend=http://localhost:$(BACKEND_PORT)" \
+		"node-backend=http://localhost:$(NODEJS_BACKEND_PORT)" \
+		"frontend=http://localhost:$(FRONTEND_PORT)"
+
+probe-revision-e2e:
+	@bash scripts/probe-revision.sh \
+		"go-backend=http://localhost:$(E2E_BACKEND_PORT)" \
+		"node-backend=http://localhost:$(E2E_NODEJS_BACKEND_PORT)" \
+		"frontend=http://localhost:$(E2E_FRONTEND_PORT)"
+
 lint-backend:
 	@bash scripts/ci-helpers.sh lint_node backend
 
@@ -258,6 +273,10 @@ test-backend:
 test-frontend:
 	@echo "→ Running frontend unit tests..."
 	@cd frontend && npm test -- --run
+
+test-scripts:
+	@echo "→ Running shell script tests..."
+	@bash scripts/revision.test.sh
 
 e2e-backend: start-mongodb-e2e e2e-db-init
 	@echo "→ Building backend-v2..."

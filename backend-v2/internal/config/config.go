@@ -10,6 +10,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
+var BuildRevision = "dev"
+
 var (
 	Port          string
 	MongoUsername string
@@ -24,10 +26,9 @@ var (
 )
 
 func init() {
-	/* Load .env if exists - optional, environment variables take precedence */
-	if err := godotenv.Load(".env"); err != nil {
-		log.Printf("[DEBUG] .env file not loaded (optional): %v", err)
-	}
+	_ = godotenv.Load(".env")
+
+	BuildRevision = overrideRevisionFromEnv(BuildRevision, os.Getenv("BUILD_REVISION"))
 
 	Port = getEnv("PORT", "8080")
 	MongoUsername = getEnv("MONGO_USERNAME", "delta5")
@@ -77,4 +78,12 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// "dev" signals no SHA was injected at link time; only then does the env override apply.
+func overrideRevisionFromEnv(current, envValue string) string {
+	if envValue != "" && current == "dev" {
+		return envValue
+	}
+	return current
 }

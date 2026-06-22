@@ -8,6 +8,7 @@ type LLMProviderKey = 'openai' | 'claude' | 'deepseek' | 'qwen' | 'yandex' | 'cu
 const HIGHER_TIER_PROVIDERS: readonly LLMProviderKey[] = ['openai', 'claude', 'deepseek', 'qwen']
 const LOWER_TIER_PROVIDERS: readonly LLMProviderKey[] = ['yandex', 'custom_llm']
 const ALL_LLM_PROVIDERS: readonly LLMProviderKey[] = [...HIGHER_TIER_PROVIDERS, ...LOWER_TIER_PROVIDERS]
+const REASONING_CAPABLE_PROVIDERS: readonly LLMProviderKey[] = ['openai', 'claude']
 
 function isProviderConfigured(settings: IntegrationSettings, key: LLMProviderKey): boolean {
   const p = settings[key] as { apiKey?: string; apiRootUrl?: string } | undefined
@@ -24,6 +25,11 @@ function hasOnlyLowestTierFamilies(settings: IntegrationSettings | undefined): b
   const hasAny = ALL_LLM_PROVIDERS.some(key => isProviderConfigured(settings, key))
   const hasHigherTier = HIGHER_TIER_PROVIDERS.some(key => isProviderConfigured(settings, key))
   return hasAny && !hasHigherTier
+}
+
+function hasReasoningCapableProvider(settings: IntegrationSettings | undefined): boolean {
+  if (!settings) return false
+  return REASONING_CAPABLE_PROVIDERS.some(key => isProviderConfigured(settings, key))
 }
 
 function readValidateN(command: string | undefined): number | null {
@@ -54,6 +60,10 @@ export function computePreExecuteWarnings(
       warnings.push({ condition: 'singleProvider', severity: 'high' })
     } else if (hasOnlyLowestTierFamilies(settings)) {
       warnings.push({ condition: 'lowestTierOnly', severity: 'medium' })
+    }
+
+    if (familyCount > 0 && !hasReasoningCapableProvider(settings)) {
+      warnings.push({ condition: 'noReasoningMode', severity: 'medium' })
     }
 
     const hasFallback = /\bfallback\b/.test(nodeCommand)
