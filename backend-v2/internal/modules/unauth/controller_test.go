@@ -18,12 +18,12 @@ func newApp() *fiber.App {
 	return app
 }
 
-func parseRevisionResponse(t *testing.T, app *fiber.App) map[string]string {
+func parseVersionResponse(t *testing.T, app *fiber.App) map[string]string {
 	t.Helper()
-	req := httptest.NewRequest("GET", "/revision", nil)
+	req := httptest.NewRequest("GET", "/version", nil)
 	resp, err := app.Test(req)
 	if err != nil {
-		t.Fatalf("GET /revision failed: %v", err)
+		t.Fatalf("GET /version failed: %v", err)
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
@@ -35,7 +35,7 @@ func parseRevisionResponse(t *testing.T, app *fiber.App) map[string]string {
 }
 
 func TestVersionStatus_AlwaysRespondsWith200(t *testing.T) {
-	req := httptest.NewRequest("GET", "/revision", nil)
+	req := httptest.NewRequest("GET", "/version", nil)
 	resp, err := newApp().Test(req)
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
@@ -47,10 +47,10 @@ func TestVersionStatus_AlwaysRespondsWith200(t *testing.T) {
 	}
 }
 
-func TestVersionStatus_RevisionFieldPassesThrough(t *testing.T) {
+func TestVersionStatus_VersionFieldPassesThrough(t *testing.T) {
 	cases := []struct {
-		name     string
-		revision string
+		name    string
+		version string
 	}{
 		{"git short sha", "a1b2c3d"},
 		{"full 40-char sha", "4b825dc642cb6eb9a060e54bf8d69288fbee4904"},
@@ -60,41 +60,46 @@ func TestVersionStatus_RevisionFieldPassesThrough(t *testing.T) {
 		{"dev sentinel", "dev"},
 		{"commit+tree composite format", "4b825dc642cb6eb9a060e54bf8d69288fbee4904+abc123def456abc123def456abc123def456abc1"},
 		{"commit+tree composite with dirty marker", "4b825dc642cb6eb9a060e54bf8d69288fbee4904+abc123def456abc123def456abc123def456abc1[dirty]"},
+		// The serializer must not truncate, coerce, or reject any valid string value.
+		{"empty string: JSON encoder must produce version:\"\"", ""},
+		{"whitespace-only: spaces preserved verbatim in JSON string", "   "},
+		// Characters that require JSON escaping — fiber must encode and the client must decode without loss.
+		{"JSON-special chars: slash, plus, backslash, double-quote", "sha/with+equals\\and\"quotes\""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			original := config.BuildRevision
-			t.Cleanup(func() { config.BuildRevision = original })
-			config.BuildRevision = tc.revision
+			original := config.BuildVersion
+			t.Cleanup(func() { config.BuildVersion = original })
+			config.BuildVersion = tc.version
 
-			result := parseRevisionResponse(t, newApp())
-			if result["revision"] != tc.revision {
-				t.Errorf("revision: want %q, got %q", tc.revision, result["revision"])
+			result := parseVersionResponse(t, newApp())
+			if result["version"] != tc.version {
+				t.Errorf("version: want %q, got %q", tc.version, result["version"])
 			}
 		})
 	}
 }
 
-func TestVersionStatus_ResponseContainsExactlyRevisionKey(t *testing.T) {
-	original := config.BuildRevision
-	t.Cleanup(func() { config.BuildRevision = original })
-	config.BuildRevision = "shape-test"
+func TestVersionStatus_ResponseContainsExactlyVersionKey(t *testing.T) {
+	original := config.BuildVersion
+	t.Cleanup(func() { config.BuildVersion = original })
+	config.BuildVersion = "shape-test"
 
-	result := parseRevisionResponse(t, newApp())
+	result := parseVersionResponse(t, newApp())
 	if len(result) != 1 {
 		t.Errorf("response has %d key(s), want exactly 1: %v", len(result), result)
 	}
-	if _, ok := result["revision"]; !ok {
-		t.Errorf("response missing 'revision' key: %v", result)
+	if _, ok := result["version"]; !ok {
+		t.Errorf("response missing 'version' key: %v", result)
 	}
 }
 
 func TestRegisterRoutes_AllUnauthRoutes(t *testing.T) {
 	expected := map[string]bool{
-		"/health":   false,
-		"/healthz":  false,
-		"/metrics":  false,
-		"/revision": false,
+		"/health":  false,
+		"/healthz": false,
+		"/metrics": false,
+		"/version": false,
 	}
 
 	app := fiber.New()
@@ -116,7 +121,7 @@ func TestRegisterRoutes_AllUnauthRoutes(t *testing.T) {
 }
 
 func TestVersionStatus_ContentTypeIsApplicationJSON(t *testing.T) {
-	req := httptest.NewRequest("GET", "/revision", nil)
+	req := httptest.NewRequest("GET", "/version", nil)
 	resp, err := newApp().Test(req)
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
@@ -135,15 +140,15 @@ func TestVersionStatus_NonGetMethodsAreNotHandled(t *testing.T) {
 
 	for _, method := range methods {
 		t.Run(method, func(t *testing.T) {
-			req := httptest.NewRequest(method, "/revision", nil)
+			req := httptest.NewRequest(method, "/version", nil)
 			resp, err := app.Test(req)
 			if err != nil {
-				t.Fatalf("%s /revision failed: %v", method, err)
+				t.Fatalf("%s /version failed: %v", method, err)
 			}
 			defer resp.Body.Close()
 
 			if resp.StatusCode == 200 {
-				t.Errorf("%s /revision: got 200, want a non-2xx status (route is GET-only)", method)
+				t.Errorf("%s /version: got 200, want a non-2xx status (route is GET-only)", method)
 			}
 		})
 	}

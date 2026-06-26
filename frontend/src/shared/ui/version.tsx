@@ -1,4 +1,4 @@
-import { buildRevision } from '../build-revision'
+import { buildVersion } from '../build-version'
 import ClickToCopy from './click-to-copy'
 import { FormattedMessage } from 'react-intl'
 import { useSidebar } from './sidebar'
@@ -12,7 +12,7 @@ const VersionDisplay = ({ isCollapsed = false }: VersionDisplayProps) => (
     <p className="text-sm group-data-[collapsible=icon]:hidden">
       <FormattedMessage id="sidebarBuild" />:
     </p>
-    <ClickToCopy className={isCollapsed ? 'text-xs' : 'text-sm'} hideIcon={isCollapsed} text={buildRevision} />
+    <ClickToCopy className={isCollapsed ? 'text-xs' : 'text-sm'} hideIcon={isCollapsed} text={buildVersion} />
   </div>
 )
 

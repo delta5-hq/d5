@@ -8,6 +8,26 @@ import { globalIgnores } from 'eslint/config'
 import prettierPlugin from 'eslint-plugin-prettier'
 import prettierConfig from 'eslint-config-prettier'
 
+const d5GuardrailRules = {
+  'no-inline-disable-restricted-syntax': {
+    create(context) {
+      return {
+        Program(node) {
+          context.sourceCode.getAllComments().forEach(comment => {
+            if (/\beslint-disable(?:-next-line|-line)?\b.*\bno-restricted-syntax\b/.test(comment.value)) {
+              context.report({
+                node,
+                loc: comment.loc ?? node.loc ?? undefined,
+                message: 'Inline disables for no-restricted-syntax are forbidden in render-path lint gates.',
+              })
+            }
+          })
+        },
+      }
+    },
+  },
+}
+
 export default tseslint.config([
   globalIgnores(['dist']),
   {
@@ -48,7 +68,7 @@ export default tseslint.config([
         sourceType: 'module',
         ecmaVersion: 'latest',
       },
-      globals: { ...globals.browser, __BUILD_REVISION__: 'readonly' },
+      globals: { ...globals.browser, __BUILD_VERSION__: 'readonly' },
     },
     settings: {
       react: {
@@ -60,6 +80,7 @@ export default tseslint.config([
       react,
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
+      'd5-guardrails': {rules: d5GuardrailRules},
       prettier: prettierPlugin,
     },
     rules: {
@@ -84,6 +105,7 @@ export default tseslint.config([
       'arrow-body-style': ['warn', 'as-needed'],
       'object-shorthand': ['warn', 'always'],
       eqeqeq: ['warn', 'always'],
+      'd5-guardrails/no-inline-disable-restricted-syntax': 'error',
 
       // react rules
       'react/prefer-stateless-function': 'error',
@@ -117,6 +139,24 @@ export default tseslint.config([
       'react/jsx-one-expression-per-line': 'off',
       'react/prop-types': 'off',
       'react/jsx-no-literals': ['warn', { noStrings: true, ignoreProps: true, allowedStrings: ['.', '-', '+', ':', '/'] }],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'JSXText[value=/(?:^|\s)(?:\d+\.\d+\.\d+|dev|local|unknown)(?:\s|$)/]',
+          message:
+            'Hardcoded version/build/environment strings are forbidden in JSX render paths. Import from the shared build-version module.',
+        },
+        {
+          selector: 'JSXAttribute > Literal[value=/^(?:\d+\.\d+\.\d+|dev|local|unknown)$/]',
+          message:
+            'Hardcoded version/build/environment strings are forbidden in JSX attributes. Import from the shared build-version module.',
+        },
+        {
+          selector: 'JSXExpressionContainer > Literal[value=/^(?:\d+\.\d+\.\d+|dev|local|unknown)$/]',
+          message:
+            'Hardcoded version/build/environment strings are forbidden in JSX expressions. Import from the shared build-version module.',
+        },
+      ],
     },
   },
 ])

@@ -1,43 +1,43 @@
-import revision from '../revision/bakedRevision'
-import buildRevision from './buildRevision'
+import version from '../version/bakedVersion'
+import buildVersion from './buildVersion'
 
 const runMiddleware = async () => {
   const ctx = {status: null, body: null}
-  await buildRevision(ctx)
+  await buildVersion(ctx)
   return ctx
 }
 
 const withEnv = async (envValue, fn) => {
-  const saved = process.env.BUILD_REVISION
+  const saved = process.env.BUILD_VERSION
   try {
-    if (envValue === undefined) delete process.env.BUILD_REVISION
-    else process.env.BUILD_REVISION = envValue
+    if (envValue === undefined) delete process.env.BUILD_VERSION
+    else process.env.BUILD_VERSION = envValue
     await fn()
   } finally {
-    if (saved === undefined) delete process.env.BUILD_REVISION
-    else process.env.BUILD_REVISION = saved
+    if (saved === undefined) delete process.env.BUILD_VERSION
+    else process.env.BUILD_VERSION = saved
   }
 }
 
-describe('buildRevision middleware', () => {
+describe('buildVersion middleware', () => {
   it('responds HTTP 200', async () => {
     const ctx = await runMiddleware()
     expect(ctx.status).toBe(200)
   })
 
-  it('response body is exactly {revision: <baked-value>} with no extra keys', async () => {
+  it('response body is exactly {version: <baked-value>} with no extra keys', async () => {
     const ctx = await runMiddleware()
-    expect(Object.keys(ctx.body)).toStrictEqual(['revision'])
-    expect(ctx.body.revision).toBe(revision)
+    expect(Object.keys(ctx.body)).toStrictEqual(['version'])
+    expect(ctx.body.version).toBe(version)
   })
 
-  it('revision is a non-empty string', async () => {
+  it('version is a non-empty string', async () => {
     const ctx = await runMiddleware()
-    expect(typeof ctx.body.revision).toBe('string')
-    expect(ctx.body.revision.trim().length).toBeGreaterThan(0)
+    expect(typeof ctx.body.version).toBe('string')
+    expect(ctx.body.version.trim()).not.toBe('')
   })
 
-  describe('runtime process environment cannot override the baked revision', () => {
+  describe('runtime process environment cannot override the baked version', () => {
     it.each([
       ['absent (undefined)', undefined],
       ['empty string', ''],
@@ -49,7 +49,7 @@ describe('buildRevision middleware', () => {
     ])('%s: returns the baked constant unchanged', async (_label, envValue) => {
       await withEnv(envValue, async () => {
         const ctx = await runMiddleware()
-        expect(ctx.body.revision).toBe(revision)
+        expect(ctx.body.version).toBe(version)
       })
     })
   })

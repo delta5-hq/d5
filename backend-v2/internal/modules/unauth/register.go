@@ -8,5 +8,5 @@ func RegisterRoutes(router fiber.Router, handler *Controller) {
 	router.Get("/health", handler.HealthStatus)
 	router.Get("/healthz", handler.HealthStatus)
 	router.Get("/metrics", handler.ServeMetrics)
-	router.Get("/revision", handler.VersionStatus)
+	router.Get("/version", handler.VersionStatus)
 }

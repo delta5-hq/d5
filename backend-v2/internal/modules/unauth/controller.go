@@ -27,6 +27,6 @@ func (h *Controller) ServeMetrics(c *fiber.Ctx) error {
 
 func (h *Controller) VersionStatus(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"revision": config.BuildRevision,
+		"version": config.BuildVersion,
 	})
 }

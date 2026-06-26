@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Behavioral test suite for scripts/revision.sh.
+# Behavioral test suite for scripts/version.sh.
 #
 # Each case names an algorithm invariant — not a bug reference or implementation
 # detail.  Groups: format · sentinel-fallbacks · fallback-chain · idempotency ·
@@ -8,12 +8,12 @@
 #
 # Self-contained: no external test framework required.
 # Exit:  0 when all cases pass, 1 on any failure.
-# Run:   bash scripts/revision.test.sh
+# Run:   bash scripts/version.test.sh
 
 set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REVISION_SH="${SCRIPT_DIR}/revision.sh"
+VERSION_SH="${SCRIPT_DIR}/version.sh"
 REAL_GIT="$(command -v git)"
 
 # ---------------------------------------------------------------------------
@@ -54,7 +54,7 @@ _summary() {
 # Fixtures
 # ---------------------------------------------------------------------------
 
-WORK="$(mktemp -d -t revision-suite-XXXXXX)"
+WORK="$(mktemp -d -t version-suite-XXXXXX)"
 trap 'rm -rf "$WORK"' EXIT
 
 # Create an isolated git repo with one committed file; prints the repo path.
@@ -70,9 +70,7 @@ _repo() {
     printf '%s' "$dir"
 }
 
-# Create a git wrapper that exits 1 for one specific subcommand and delegates
-# all others to the real git.  Uses $REAL_GIT (absolute path) to prevent
-# infinite recursion when the fake directory is prepended to PATH.
+# Uses $REAL_GIT (absolute path) to prevent infinite recursion when the fake directory is prepended to PATH.
 _fake_git() {
     local subcmd="$1" dir="$WORK/fake-git-${subcmd}"
     mkdir -p "$dir"
@@ -82,9 +80,7 @@ _fake_git() {
     printf '%s' "$dir"
 }
 
-# Create a git wrapper that exits 1 for every subcommand, simulating a broken
-# or absent git installation while preserving the rest of PATH (so bash and
-# other tools remain available to the script under test).
+# Preserves the rest of PATH so bash, mktemp, and other tools remain available inside the script under test.
 _fake_git_unavailable() {
     local dir="$WORK/fake-git-unavailable"
     mkdir -p "$dir"
@@ -93,15 +89,15 @@ _fake_git_unavailable() {
     printf '%s' "$dir"
 }
 
-# Run revision.sh as a standalone command (exercises the if __main__ code path).
-_cmd() { (cd "$1" && bash "${REVISION_SH}" 2>/dev/null); }
+# Run version.sh as a standalone command (exercises the if __main__ code path).
+_cmd() { (cd "$1" && bash "${VERSION_SH}" 2>/dev/null); }
 
-# Run revision.sh as a command with a PATH prefix (for fake-git injection).
+# Run version.sh as a command with a PATH prefix (for fake-git injection).
 # Keeps the rest of PATH intact so bash, mktemp, find, etc. remain usable.
-_cmd_path() { (cd "$1" && PATH="$2:${PATH}" bash "${REVISION_SH}" 2>/dev/null); }
+_cmd_path() { (cd "$1" && PATH="$2:${PATH}" bash "${VERSION_SH}" 2>/dev/null); }
 
-# Run compute_revision via library mode (source then call).
-_lib() { (cd "$1" && source "${REVISION_SH}" && compute_revision 2>/dev/null); }
+# Run compute_version via library mode (source then call).
+_lib() { (cd "$1" && source "${VERSION_SH}" && compute_version 2>/dev/null); }
 
 # ---------------------------------------------------------------------------
 # format — output shape contract
@@ -164,6 +160,18 @@ assert_matches \
     "git-add failure: bare commit sha matches 40-hex format (no + separator)" \
     '^[0-9a-f]{40}$' \
     "$(_cmd_path "$REPO_CHAIN" "$FAKE_ADD")"
+
+FAKE_WT_CHAIN="$(_fake_git write-tree)"
+
+assert_eq \
+    "git write-tree failure: falls back to bare 40-hex commit sha" \
+    "$HEAD_CHAIN" \
+    "$(_cmd_path "$REPO_CHAIN" "$FAKE_WT_CHAIN")"
+
+assert_matches \
+    "git write-tree failure: bare commit sha matches 40-hex format (no + separator)" \
+    '^[0-9a-f]{40}$' \
+    "$(_cmd_path "$REPO_CHAIN" "$FAKE_WT_CHAIN")"
 
 # ---------------------------------------------------------------------------
 # idempotency — repeated calls on an unchanged working tree
@@ -235,7 +243,7 @@ _cmd "$REPO_ISO" > /dev/null
 IDX_MTIME_AFTER="$(stat -c '%Y' "$REPO_ISO/.git/index")"
 
 assert_eq \
-    ".git/index mtime: unmodified after compute_revision" \
+    ".git/index mtime: unmodified after compute_version" \
     "$IDX_MTIME_BEFORE" "$IDX_MTIME_AFTER"
 
 LEAK_BEFORE="$(find /tmp -maxdepth 1 -name 'git-wtree-*' 2>/dev/null | wc -l)"
@@ -303,6 +311,7 @@ assert_matches \
     "$(_cmd "$REPO_DIRTY_STAGED")"
 
 REPO_DIRTY_RESTORED=$(_repo dirty-restored)
+REV_DIRTY_RESTORED_CLEAN=$(_cmd "$REPO_DIRTY_RESTORED")
 
 printf 'changed\n' >> "$REPO_DIRTY_RESTORED/file.txt"
 "$REAL_GIT" -C "$REPO_DIRTY_RESTORED" checkout -- file.txt
@@ -310,7 +319,7 @@ REV_DIRTY_RESTORED=$(_cmd "$REPO_DIRTY_RESTORED")
 
 assert_eq \
     "restored working tree: matches clean baseline, no [dirty] suffix" \
-    "$REV_DIRTY_CLEAN" \
+    "$REV_DIRTY_RESTORED_CLEAN" \
     "$REV_DIRTY_RESTORED"
 
 assert_matches \

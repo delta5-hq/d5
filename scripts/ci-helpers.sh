@@ -143,14 +143,14 @@ build_go() {
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   cd "$module_path" || exit 1
 
-  local revision
-  revision="$("${script_dir}/revision.sh")"
+  local version
+  version="$("${script_dir}/version.sh")"
 
-  log_info "Building Go binary via Docker (revision: ${revision})..."
+  log_info "Building Go binary via Docker (version: ${version})..."
   ensure_docker_network
 
   docker build --network "$DOCKER_NETWORK" --target builder \
-    --build-arg "BUILD_REVISION=${revision}" \
+    --build-arg "BUILD_VERSION=${version}" \
     -t "${binary_name}-builder" . > /tmp/go-build.log 2>&1 || {
     log_error "Build failed"
     tail -30 /tmp/go-build.log
@@ -172,11 +172,11 @@ build_node() {
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   cd "$module_path" || exit 1
 
-  local revision
-  revision="$("${script_dir}/revision.sh")"
+  local version
+  version="$("${script_dir}/version.sh")"
 
-  log_info "Building Node.js project (revision: ${revision})..."
-  BUILD_REVISION="${revision}" npm run build > /tmp/node-build.log 2>&1 || {
+  log_info "Building Node.js project (version: ${version})..."
+  BUILD_VERSION="${version}" npm run build > /tmp/node-build.log 2>&1 || {
     log_error "Build failed"
     tail -30 /tmp/node-build.log
     return 1
@@ -236,6 +236,73 @@ generate_docker_name() {
     else
         echo "${base_name}"
     fi
+}
+
+check_no_legacy_version_symbols() {
+  local repo_root
+  repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+
+  local patterns=(
+    'BUILD_REVISION'
+    'bakeRevision'
+    'bakedRevision'
+    'buildRevision'
+    'revisionPlugin'
+    'revision-plugin'
+    'build-revision'
+    'probe-revision'
+    'BuildRevision'
+  )
+  local retired_ci_guard_make='check-no-stale-''revision'
+  local retired_ci_guard_shell='check_no_stale_''revision'
+  patterns+=("${retired_ci_guard_make}" "${retired_ci_guard_shell}")
+
+  local pattern
+  pattern="$(IFS='|'; echo "${patterns[*]}")"
+
+  local hits
+  hits=$(grep -rn \
+    --include="*.go" --include="*.ts" --include="*.tsx" \
+    --include="*.js" --include="*.json" --include="*.sh" \
+    --include="Makefile" --include="*.md" \
+    --exclude-dir=node_modules --exclude-dir=dist \
+    --exclude-dir=logs --exclude-dir=.git \
+    --exclude="ci-helpers.sh" \
+    --exclude="TODO.md" \
+    -E "$pattern" \
+    "$repo_root/scripts" \
+    "$repo_root/backend-v2" \
+    "$repo_root/frontend/src" \
+    "$repo_root/frontend/plugins" \
+    "$repo_root/backend/src" \
+    "$repo_root/backend/scripts" \
+    "$repo_root/backend/package.json" \
+    "$repo_root/Makefile" \
+    "$repo_root/.github/docs" \
+    2>/dev/null || true)
+
+  # Also check Dockerfiles (exact filename, not matched by --include)
+  local dockerfile_hits
+  dockerfile_hits=$(grep -rn \
+    --include="Dockerfile" \
+    --exclude-dir=node_modules --exclude-dir=.git \
+    -E "$pattern" \
+    "$repo_root" 2>/dev/null || true)
+
+  local lessons_hits=""
+  if [ -f "$repo_root/.github/docs/lessons-360.md" ]; then
+    lessons_hits=$(grep -n -E "$pattern" "$repo_root/.github/docs/lessons-360.md" 2>/dev/null || true)
+  fi
+
+  local all_hits="${hits}${dockerfile_hits}${lessons_hits}"
+
+  if [ -n "$all_hits" ]; then
+    log_error "Legacy build-version symbols found — rename is incomplete:"
+    echo "$all_hits" >&2
+    return 1
+  fi
+
+  log_success "No legacy build-version symbols found"
 }
 
 if [ -n "$1" ]; then

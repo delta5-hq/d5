@@ -4,7 +4,7 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import svgr from 'vite-plugin-svgr'
 import obfuscatorPlugin from 'vite-plugin-javascript-obfuscator'
-import { revisionPlugin } from './plugins/revision-plugin'
+import { versionPlugin } from './plugins/version-plugin'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       svgr(),
-      revisionPlugin(),
+      versionPlugin(),
       {
         // Safari enforces CORS even for same-origin requests when crossorigin is present: https://github.com/vitejs/vite/issues/6648
         name: 'remove-crossorigin',

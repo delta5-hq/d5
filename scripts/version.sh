@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Revision string: <commit-sha>+<tree-sha>[dirty]  — or "dev" when git is unavailable.
+# Version string: <commit-sha>+<tree-sha>[dirty]  — or "dev" when git is unavailable.
 #
 # <tree-sha> reflects the full working tree (staged + unstaged) by hashing
 # a temporary git index that never touches .git/index.  Two invocations with
@@ -9,8 +9,8 @@
 #
 # [dirty] is appended when the working tree differs from the HEAD tree.
 #
-# Library:  source scripts/revision.sh && rev=$(compute_revision)
-# Command:  bash scripts/revision.sh
+# Library:  source scripts/version.sh && ver=$(compute_version)
+# Command:  bash scripts/version.sh
 
 _git_head_sha() {
     git rev-parse HEAD 2>/dev/null
@@ -35,7 +35,7 @@ _git_working_tree_sha() {
     GIT_INDEX_FILE="${tmp_index}" git write-tree 2>/dev/null
 }
 
-compute_revision() {
+compute_version() {
     local commit tree_sha head_tree dirty_suffix
     commit="$(_git_head_sha)" || { printf '%s' 'dev'; return 0; }
     tree_sha="$(_git_working_tree_sha)" || { printf '%s' "${commit}"; return 0; }
@@ -46,5 +46,5 @@ compute_revision() {
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    compute_revision
+    compute_version
 fi

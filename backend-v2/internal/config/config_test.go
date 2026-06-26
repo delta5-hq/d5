@@ -54,16 +54,15 @@ func TestGetEnv_FallbackBehavior(t *testing.T) {
 	}
 }
 
-// TestBuildRevision_SentinelExactValue: "dev" not merely non-empty —
-// that signals "no revision injected at build time".
-func TestBuildRevision_SentinelExactValue(t *testing.T) {
-	if BuildRevision != "dev" {
-		t.Errorf("BuildRevision without ldflags injection = %q; want sentinel %q", BuildRevision, "dev")
+// "dev" is the sentinel for "no SHA injected at build time", not merely a non-empty placeholder.
+func TestBuildVersion_SentinelExactValue(t *testing.T) {
+	if BuildVersion != "dev" {
+		t.Errorf("BuildVersion without ldflags injection = %q; want sentinel %q", BuildVersion, "dev")
 	}
 }
 
-// TestOverrideRevisionFromEnv: env fills missing revisions but cannot overwrite an ldflags-baked SHA.
-func TestOverrideRevisionFromEnv(t *testing.T) {
+// Env fills missing versions at runtime but cannot overwrite a SHA baked in by ldflags.
+func TestOverrideVersionFromEnv(t *testing.T) {
 	cases := []struct {
 		name    string
 		current string
@@ -79,12 +78,19 @@ func TestOverrideRevisionFromEnv(t *testing.T) {
 		{"non-sentinel + composite sha+tree[dirty] format: current kept", "baked-sha", "deadbeef+cafebabe[dirty]", "baked-sha"},
 		{"non-sentinel matching env: current returned unchanged", "abc123", "abc123", "abc123"},
 		{"sentinel + env also sentinel: env wins (idempotent, both are dev)", "dev", "dev", "dev"},
+		// Content validation is the caller's responsibility; non-empty whitespace is a valid override.
+		{"sentinel + whitespace-only env: whitespace overrides sentinel (non-empty beats dev)", "dev", "  ", "  "},
+		{"sentinel + tab-only env: tab overrides sentinel", "dev", "\t", "\t"},
+		{"non-sentinel + whitespace-only env: current kept (env gate requires sentinel)", "baked-sha", "  ", "baked-sha"},
+		// Empty-string current is not the dev sentinel — env cannot override it either.
+		{"empty-string current + non-empty env: current kept (empty string is not the dev sentinel)", "", "abc123", ""},
+		{"empty-string current + empty env: current kept", "", "", ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := overrideRevisionFromEnv(tc.current, tc.envVal)
+			got := overrideVersionFromEnv(tc.current, tc.envVal)
 			if got != tc.want {
-				t.Errorf("overrideRevisionFromEnv(%q, %q) = %q; want %q",
+				t.Errorf("overrideVersionFromEnv(%q, %q) = %q; want %q",
 					tc.current, tc.envVal, got, tc.want)
 			}
 		})

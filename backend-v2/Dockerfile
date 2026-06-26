@@ -1,5 +1,5 @@
 FROM golang:1.25-alpine AS builder
-ARG BUILD_REVISION=dev
+ARG BUILD_VERSION=dev
 
 WORKDIR /build
 
@@ -8,7 +8,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w -X backend-v2/internal/config.BuildRevision=${BUILD_REVISION}" -o service . \
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w -X backend-v2/internal/config.BuildVersion=${BUILD_VERSION}" -o service . \
  && CGO_ENABLED=0 GOOS=linux go build -o seed-users ./cmd/seed-users
 
 FROM alpine:3.21

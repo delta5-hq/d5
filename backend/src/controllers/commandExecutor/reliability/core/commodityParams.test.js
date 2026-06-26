@@ -109,9 +109,9 @@ describe('stripCommodityN', () => {
 })
 
 describe('COMMODITY_N_MAX', () => {
-  it('is a positive integer ≥ 2', () => {
+  it('is the exact upper bound that the commodity fork path clamps :n=N to', () => {
     expect(typeof COMMODITY_N_MAX).toBe('number')
     expect(Number.isInteger(COMMODITY_N_MAX)).toBe(true)
-    expect(COMMODITY_N_MAX).toBeGreaterThanOrEqual(2)
+    expect(COMMODITY_N_MAX).toBe(10)
   })
 })

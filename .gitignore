@@ -3,8 +3,11 @@
 # ============================================
 
 # Project metadata (workspace-specific)
-.github
+.github/*
+!.github/workflows/
 !.github/workflows/ci.yml
+!.github/docs/
+.github/docs/*
 contribot.state.json
 
 # Editor/IDE (global for all subdirs)

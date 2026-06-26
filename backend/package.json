@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node build/index.js",
-    "build": "cross-env NODE_ENV=production babel src -d build && node scripts/bakeRevision.js",
+    "build": "cross-env NODE_ENV=production babel src -d build && node scripts/bakeVersion.js",
     "dev": "cross-env DEBUG=${DEBUG:-'delta5:*'} nodemon src/index.js",
     "test": "cross-env DEBUG=${DEBUG:-''} NODE_ENV=test jest --verbose --coverage --reporters=default --reporters=jest-junit --runInBand --testPathIgnorePatterns=/e2e/ --testPathIgnorePatterns=.integration --forceExit",
     "test:integration": "cross-env NODE_ENV=test jest --verbose --runInBand --testPathPattern=\\.integration\\.test --forceExit",
