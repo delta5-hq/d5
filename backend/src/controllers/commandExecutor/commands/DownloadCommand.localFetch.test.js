@@ -7,6 +7,18 @@ jest.mock('../../../models/WorkflowFile', () => ({
   write: jest.fn(),
 }))
 
+// Bypass the AbortController timeout in fetchWithProxySupport: this suite exercises
+// real HTTP against an in-process localhost server, but on slow CI runners (GitHub Actions
+// ubuntu-latest with Babel/Istanbul --coverage instrumentation), the SCRAPE_V2_TIMEOUT_MS
+// (8 s) abort can fire before the request completes — processUrl swallows the abort and
+// returns null, leaving WorkflowFile.write uncalled and surfacing as "expected 2, received 0".
+// The timeout-handling path is independently covered by scrape.test.js.
+jest.mock('../../utils/fetchWithProxySupport', () => {
+  const nodeFetch = jest.requireActual('node-fetch')
+  const realFetch = nodeFetch.default || nodeFetch
+  return {fetchWithProxySupport: (url, options) => realFetch(url, options)}
+})
+
 const startServer = handler =>
   new Promise(resolve => {
     const server = http.createServer(handler)
