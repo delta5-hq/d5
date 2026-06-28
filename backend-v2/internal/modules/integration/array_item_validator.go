@@ -57,7 +57,7 @@ var reservedCommandAliases = newStringSet(
 	"/yandexgpt",
 )
 
-var supportedRPCProtocols = newStringSet("acp-local", "acp-ssh", "http", "ssh")
+var supportedRPCProtocols = newStringSet("acp-local", "http", "ssh")
 
 func newStringSet(values ...string) map[string]struct{} {
 	set := make(map[string]struct{}, len(values))
@@ -113,7 +113,7 @@ func validateAliasField(item map[string]interface{}) error {
 func validateRPCProtocol(item map[string]interface{}) error {
 	value, exists := item["protocol"]
 	if !exists {
-		return arrayItemValidationError{message: "invalid protocol: expected one of ssh, http, acp-local, acp-ssh"}
+		return arrayItemValidationError{message: "invalid protocol: expected one of ssh, http, acp-local"}
 	}
 
 	protocol, ok := value.(string)
@@ -122,7 +122,7 @@ func validateRPCProtocol(item map[string]interface{}) error {
 	}
 
 	if _, supported := supportedRPCProtocols[protocol]; !supported {
-		return arrayItemValidationError{message: "invalid protocol: expected one of ssh, http, acp-local, acp-ssh"}
+		return arrayItemValidationError{message: "invalid protocol: expected one of ssh, http, acp-local"}
 	}
 
 	return nil
@@ -211,7 +211,7 @@ func validateRPCProtocolIfPresent(updates map[string]interface{}) error {
 		return arrayItemValidationError{message: "invalid protocol: expected string"}
 	}
 	if _, supported := supportedRPCProtocols[protocol]; !supported {
-		return arrayItemValidationError{message: "invalid protocol: expected one of ssh, http, acp-local, acp-ssh"}
+		return arrayItemValidationError{message: "invalid protocol: expected one of ssh, http, acp-local"}
 	}
 	return nil
 }

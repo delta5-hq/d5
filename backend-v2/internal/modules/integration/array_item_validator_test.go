@@ -1,7 +1,11 @@
 package integration
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
+	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -137,6 +141,34 @@ func TestReservedCommandAliasSetInvariants(t *testing.T) {
 	}
 }
 
+var legacyReservedCommandAliases = newStringSet(
+	"/completion",
+	"/yandex",
+)
+
+func TestLegacyReservedCommandAliasSetInvariants(t *testing.T) {
+	if len(legacyReservedCommandAliases) == 0 {
+		t.Fatal("legacy reserved command alias set must not be empty")
+	}
+
+	for alias := range legacyReservedCommandAliases {
+		t.Run(alias, func(t *testing.T) {
+			if _, reserved := reservedCommandAliases[alias]; !reserved {
+				t.Fatalf("legacy alias must also be reserved: %s", alias)
+			}
+		})
+	}
+}
+
+func TestSupportedRPCProtocolsMatchFrontendDialogOptions(t *testing.T) {
+	frontendProtocols := readFrontendRPCProtocols(t)
+	backendProtocols := sortedStringSetKeys(supportedRPCProtocols)
+
+	if !reflect.DeepEqual(backendProtocols, frontendProtocols) {
+		t.Fatalf("supported RPC protocols drifted from frontend dialog options\nbackend-v2: %#v\nfrontend:   %#v", backendProtocols, frontendProtocols)
+	}
+}
+
 func TestSupportedRPCProtocolSetInvariants(t *testing.T) {
 	if len(supportedRPCProtocols) == 0 {
 		t.Fatal("supported RPC protocol set must not be empty")
@@ -154,18 +186,154 @@ func TestSupportedRPCProtocolSetInvariants(t *testing.T) {
 	}
 }
 
+func TestReservedCommandAliasesMatchFrontendBuiltins(t *testing.T) {
+	frontendAliases := readFrontendBuiltinCommandAliases(t)
+	reservedAliases := sortedStringSetKeys(withoutKeys(reservedCommandAliases, legacyReservedCommandAliases))
+
+	if !reflect.DeepEqual(reservedAliases, frontendAliases) {
+		t.Fatalf("reserved aliases drifted from frontend builtins\nbackend-v2: %#v\nfrontend:   %#v", reservedAliases, frontendAliases)
+	}
+}
+
+func TestLegacyReservedCommandAliasesStayBackendOnly(t *testing.T) {
+	frontendAliases := newStringSet(readFrontendBuiltinCommandAliases(t)...)
+
+	for alias := range legacyReservedCommandAliases {
+		t.Run(alias, func(t *testing.T) {
+			if _, visible := frontendAliases[alias]; visible {
+				t.Fatalf("legacy reserved alias must not be exposed as a current frontend builtin: %s", alias)
+			}
+		})
+	}
+}
+
+const frontendBuiltinCommandAliasesPath = "frontend/src/shared/lib/builtin-command-aliases.ts"
+const frontendRPCConstantsPath = "frontend/src/pages/user-settings/ui/integration/dialogs/rpc-constants.ts"
+
+func readFrontendRPCProtocols(t *testing.T) []string {
+	t.Helper()
+
+	content := readRepositoryFile(t, frontendRPCConstantsPath)
+	protocolsSource := regexp.MustCompile(`RPC_PROTOCOLS\s*=\s*\[([^\]]+)\]`).FindStringSubmatch(content)
+	if len(protocolsSource) != 2 {
+		t.Fatalf("RPC_PROTOCOLS declaration not found in %s", frontendRPCConstantsPath)
+	}
+	matches := regexp.MustCompile(`'([^']+)'`).FindAllStringSubmatch(protocolsSource[1], -1)
+	if len(matches) == 0 {
+		t.Fatalf("no RPC protocols found in %s", frontendRPCConstantsPath)
+	}
+
+	protocols := make([]string, 0, len(matches))
+	seen := map[string]struct{}{}
+	for _, match := range matches {
+		protocol := match[1]
+		if _, exists := seen[protocol]; exists {
+			t.Fatalf("duplicate frontend RPC protocol: %s", protocol)
+		}
+		seen[protocol] = struct{}{}
+		protocols = append(protocols, protocol)
+	}
+	sort.Strings(protocols)
+	return protocols
+}
+
+func readFrontendBuiltinCommandAliases(t *testing.T) []string {
+	t.Helper()
+
+	content := readRepositoryFile(t, frontendBuiltinCommandAliasesPath)
+
+	matches := regexp.MustCompile(`alias:\s*'(/[^']+)'`).FindAllStringSubmatch(content, -1)
+	if len(matches) == 0 {
+		t.Fatalf("no builtin aliases found in %s", frontendBuiltinCommandAliasesPath)
+	}
+
+	aliases := make([]string, 0, len(matches))
+	seen := map[string]struct{}{}
+	for _, match := range matches {
+		alias := match[1]
+		if _, exists := seen[alias]; exists {
+			t.Fatalf("duplicate frontend builtin alias: %s", alias)
+		}
+		seen[alias] = struct{}{}
+		aliases = append(aliases, alias)
+	}
+	sort.Strings(aliases)
+	return aliases
+}
+
+func readRepositoryFile(t *testing.T, repositoryPath string) string {
+	t.Helper()
+
+	root := findRepositoryRoot(t)
+	path := filepath.Join(root, filepath.FromSlash(repositoryPath))
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read repository file %s: %v", repositoryPath, err)
+	}
+	return string(content)
+}
+
+func findRepositoryRoot(t *testing.T) string {
+	t.Helper()
+
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get working directory: %v", err)
+	}
+
+	for {
+		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(frontendBuiltinCommandAliasesPath))); err == nil {
+			return dir
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Skip("frontend sources unavailable; run from repository root to enforce frontend/backend drift checks")
+		}
+		dir = parent
+	}
+}
+
+func sortedStringSetKeys(set map[string]struct{}) []string {
+	keys := make([]string, 0, len(set))
+	for key := range set {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func withoutKeys(source map[string]struct{}, excluded map[string]struct{}) map[string]struct{} {
+	result := make(map[string]struct{}, len(source))
+	for key := range source {
+		if _, skip := excluded[key]; skip {
+			continue
+		}
+		result[key] = struct{}{}
+	}
+	return result
+}
+
 func TestValidateArrayItemShapeRejectsEveryReservedAlias(t *testing.T) {
 	for _, fieldName := range registeredArrayItemFields() {
 		t.Run(fieldName, func(t *testing.T) {
 			for reservedAlias := range reservedCommandAliases {
 				t.Run(reservedAlias, func(t *testing.T) {
-					err := validateArrayItemShape(fieldName, buildAliasItem(fieldName, strings.ToUpper(reservedAlias)))
+					for _, aliasVariant := range aliasCaseVariants(reservedAlias) {
+						err := validateArrayItemShape(fieldName, buildAliasItem(fieldName, aliasVariant))
 
-					assertValidationErrorContains(t, err, "built-in")
+						assertValidationErrorContains(t, err, "built-in")
+					}
 				})
 			}
 		})
 	}
+}
+
+func aliasCaseVariants(alias string) []string {
+	upper := strings.ToUpper(alias)
+	title := alias[:1] + strings.ToUpper(alias[1:2]) + alias[2:]
+	return []string{alias, upper, title}
 }
 
 func registeredArrayItemFields() []string {
@@ -189,6 +357,7 @@ func TestValidateArrayItemShapeRPCProtocol(t *testing.T) {
 		wantErr  string
 	}{
 		{name: "rejects unsupported protocol", protocol: "telnet", wantErr: "invalid protocol"},
+		{name: "rejects unimplemented acp ssh protocol", protocol: "acp-ssh", wantErr: "invalid protocol"},
 		{name: "rejects supported protocol with different case", protocol: "HTTP", wantErr: "invalid protocol"},
 		{name: "rejects empty protocol", protocol: "", wantErr: "invalid protocol"},
 		{name: "rejects non-string protocol", protocol: 12, wantErr: "invalid protocol"},
@@ -416,6 +585,13 @@ func TestArrayItemCreateAndUpdateValidationContracts(t *testing.T) {
 			updateErr: "invalid protocol",
 		},
 		{
+			name:      "rpc unimplemented acp ssh protocol is rejected by both create and update",
+			fieldName: "rpc",
+			patch:     map[string]interface{}{"protocol": "acp-ssh"},
+			createErr: "invalid protocol",
+			updateErr: "invalid protocol",
+		},
+		{
 			name:      "invalid args are rejected by both create and update",
 			fieldName: "mcp",
 			patch:     map[string]interface{}{"args": "server.js"},
@@ -511,6 +687,7 @@ func TestValidateArrayItemUpdateShapeRPCProtocolWhenPresent(t *testing.T) {
 		{name: "absent protocol passes", patch: map[string]interface{}{}},
 		{name: "absent protocol with other fields passes", patch: map[string]interface{}{"description": "x"}},
 		{name: "rejects unsupported protocol", patch: map[string]interface{}{"protocol": "telnet"}, wantErr: "invalid protocol"},
+		{name: "rejects unimplemented acp ssh protocol", patch: map[string]interface{}{"protocol": "acp-ssh"}, wantErr: "invalid protocol"},
 		{name: "rejects supported protocol with wrong case", patch: map[string]interface{}{"protocol": "HTTP"}, wantErr: "invalid protocol"},
 		{name: "rejects empty string protocol", patch: map[string]interface{}{"protocol": ""}, wantErr: "invalid protocol"},
 		{name: "rejects non-string protocol", patch: map[string]interface{}{"protocol": 12}, wantErr: "invalid protocol"},
