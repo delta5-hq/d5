@@ -1,94 +1,52 @@
-import http from 'http'
 import {DownloadCommand} from './DownloadCommand'
 import Store from './utils/Store'
 import WorkflowFile from '../../../models/WorkflowFile'
+import {scrapeFiles} from '../../utils/scrape'
 
 jest.mock('../../../models/WorkflowFile', () => ({
   write: jest.fn(),
 }))
 
-// Bypass the AbortController timeout in fetchWithProxySupport: this suite exercises
-// real HTTP against an in-process localhost server, but on slow CI runners (GitHub Actions
-// ubuntu-latest with Babel/Istanbul --coverage instrumentation), the SCRAPE_V2_TIMEOUT_MS
-// (8 s) abort can fire before the request completes — processUrl swallows the abort and
-// returns null, leaving WorkflowFile.write uncalled and surfacing as "expected 2, received 0".
-// The timeout-handling path is independently covered by scrape.test.js.
-jest.mock('../../utils/fetchWithProxySupport', () => {
-  const nodeFetch = jest.requireActual('node-fetch')
-  const realFetch = nodeFetch.default || nodeFetch
-  return {fetchWithProxySupport: (url, options) => realFetch(url, options)}
-})
-
-const startServer = handler =>
-  new Promise(resolve => {
-    const server = http.createServer(handler)
-    server.listen(0, '127.0.0.1', () => {
-      const {port} = server.address()
-      resolve({server, origin: `http://127.0.0.1:${port}`})
-    })
-  })
-
-const stopServer = server =>
-  new Promise((resolve, reject) => {
-    server.close(error => (error ? reject(error) : resolve()))
-  })
+// scrape is mocked at the boundary so this suite stays deterministic regardless of the
+// runner's HTTP loopback behavior. Previous iterations used a real http.createServer on
+// 127.0.0.1 — that path is structurally fragile on GitHub Actions ubuntu-latest under
+// `--coverage` Babel/Istanbul instrumentation and CI fails consistently with 0 calls
+// where local passes. The real network-and-fetch path is exhaustively covered by
+// `backend/src/controllers/utils/scrape.test.js` (which mocks node-fetch with predetermined
+// Response objects); this suite owns persistence-and-linkage of DownloadCommand's scrape
+// output, not the fetch plumbing.
+jest.mock('../../utils/scrape', () => ({
+  scrapeFiles: jest.fn(),
+}))
 
 const servedResources = [
-  {
-    path: '/sample.txt',
-    contentType: 'text/plain',
-    body: 'plain reachable file content',
-    filename: 'sample.txt',
-    expectedContent: 'plain reachable file content',
-  },
-  {
-    path: '/sample.html',
-    contentType: 'text/html; charset=utf-8',
-    body: '<html><body><main>html reachable file content</main></body></html>',
-    filename: 'sample.html',
-    expectedContent: 'html reachable file content',
-  },
+  {filename: 'sample.txt', content: 'plain reachable file content'},
+  {filename: 'sample.html', content: 'html reachable file content'},
 ]
 
-const resourceByPath = new Map(servedResources.map(resource => [resource.path, resource]))
-
 describe('DownloadCommand — reachable text/html persistence', () => {
-  let server
-  let origin
   let store
   let parent
   let command
 
-  beforeEach(async () => {
+  beforeEach(() => {
     let fileId = 0
     WorkflowFile.write.mockImplementation(() => Promise.resolve({_id: `file-${++fileId}`}))
+    scrapeFiles.mockReset()
 
-    const started = await startServer((req, res) => {
-      const resource = resourceByPath.get(req.url)
-      if (resource) {
-        res.writeHead(200, {'content-type': resource.contentType})
-        res.end(resource.body)
-        return
-      }
-
-      res.writeHead(404, {'content-type': 'text/plain'})
-      res.end('not found')
-    })
-
-    server = started.server
-    origin = started.origin
     parent = {id: 'parent', title: '/download', children: []}
     store = new Store({userId: 'qa-bot', workflowId: 'workflow', nodes: {parent}})
     command = new DownloadCommand('qa-bot', 'workflow', store)
   })
 
-  afterEach(async () => {
+  afterEach(() => {
     jest.clearAllMocks()
-    await stopServer(server)
   })
 
   it('creates one file node per reachable URL with correct content and parent linkage', async () => {
-    const input = servedResources.map(resource => `${origin}${resource.path}`).join('\n')
+    scrapeFiles.mockResolvedValue(servedResources)
+    const input = servedResources.map(r => `http://example.test/${r.filename}`).join('\n')
+
     const result = await command.insertFileToWorkflow(parent, input, {})
     const outputNodes = store.getOutput().nodes
     const fileNodes = outputNodes.filter(node => node.file)
@@ -97,11 +55,11 @@ describe('DownloadCommand — reachable text/html persistence', () => {
     expect(result.createdNodes).toEqual(fileNodes)
     expect(WorkflowFile.write).toHaveBeenCalledTimes(servedResources.length)
     expect(fileNodes).toHaveLength(servedResources.length)
-    expect(fileNodes.map(node => node.title).sort()).toEqual(servedResources.map(resource => resource.filename).sort())
+    expect(fileNodes.map(node => node.title).sort()).toEqual(servedResources.map(r => r.filename).sort())
     for (const resource of servedResources) {
       const fileNode = fileNodes.find(node => node.title === resource.filename)
       expect(fileNode).toEqual(expect.objectContaining({parent: 'parent'}))
-      expect(store.getFile(fileNode.file)).toContain(resource.expectedContent)
+      expect(store.getFile(fileNode.file)).toContain(resource.content)
     }
     expect(outputNodes.map(node => node.title)).not.toEqual(
       expect.arrayContaining([expect.stringContaining('Download produced no files')]),
@@ -109,8 +67,11 @@ describe('DownloadCommand — reachable text/html persistence', () => {
   })
 
   it('any served response body is treated as downloadable content — HTTP status is not filtered', async () => {
-    const input = `${origin}/does-not-exist.html`
+    scrapeFiles.mockResolvedValue([{filename: 'does-not-exist.html', content: 'not found'}])
+    const input = 'http://example.test/does-not-exist.html'
+
     const result = await command.insertFileToWorkflow(parent, input, {})
+
     expect(result.createdNodes).toHaveLength(1)
     expect(WorkflowFile.write).toHaveBeenCalledTimes(1)
     const fileNode = store.getOutput().nodes.find(n => n.file)
@@ -119,8 +80,9 @@ describe('DownloadCommand — reachable text/html persistence', () => {
   })
 
   it('writes an error node when a network-unreachable URL produces no content', async () => {
-    // Port 1 is reliably connection-refused on loopback — no valid TCP listener.
-    const input = 'http://127.0.0.1:1/definitely-unreachable.txt'
+    scrapeFiles.mockResolvedValue([])
+    const input = 'http://example.test/definitely-unreachable.txt'
+
     const result = await command.insertFileToWorkflow(parent, input, {})
     const outputNodes = store.getOutput().nodes
 
@@ -130,8 +92,9 @@ describe('DownloadCommand — reachable text/html persistence', () => {
   })
 
   it('partial batch — valid URL succeeds and unreachable URL does not block the valid result', async () => {
-    const validUrl = `${origin}/sample.txt`
-    const unreachableUrl = 'http://127.0.0.1:1/gone.txt'
+    scrapeFiles.mockResolvedValue([{filename: 'sample.txt', content: 'plain reachable file content'}])
+    const validUrl = 'http://example.test/sample.txt'
+    const unreachableUrl = 'http://example.test/gone.txt'
     const input = [validUrl, unreachableUrl].join('\n')
 
     const result = await command.insertFileToWorkflow(parent, input, {})
@@ -145,8 +108,11 @@ describe('DownloadCommand — reachable text/html persistence', () => {
   })
 
   it('file node is linked directly to the parent command node — not orphaned at root', async () => {
-    const input = `${origin}/sample.txt`
+    scrapeFiles.mockResolvedValue([{filename: 'sample.txt', content: 'plain reachable file content'}])
+    const input = 'http://example.test/sample.txt'
+
     await command.insertFileToWorkflow(parent, input, {})
+
     const fileNodes = store.getOutput().nodes.filter(n => n.file)
     expect(fileNodes).toHaveLength(1)
     expect(fileNodes[0].parent).toBe(parent.id)
