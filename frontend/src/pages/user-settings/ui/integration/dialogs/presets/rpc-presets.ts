@@ -1,5 +1,4 @@
 import type { PresetDefinition } from './types'
-import { D5_BACKEND_PATHS, D5_REMOTE_BACKEND_ROOT } from './d5-internal-server-refs'
 
 interface RPCFormFlat {
   alias: string
@@ -27,7 +26,67 @@ interface RPCFormFlat {
   allowedTools?: string
 }
 
-export const RPC_PRESETS: PresetDefinition<RPCFormFlat>[] = [
+type RPCPreset = PresetDefinition<RPCFormFlat>
+
+type PortableSSHCLIPreset = {
+  id: string
+  label: string
+  icon: string
+  command: string
+  description: string
+  timeoutMs: number
+}
+
+const applyTextSSHCommandPreset = (
+  setValue: Parameters<RPCPreset['fill']>[0],
+  commandTemplate: string,
+  description?: string,
+  timeoutMs?: number,
+) => {
+  setValue('protocol', 'ssh')
+  setValue('commandTemplate', commandTemplate)
+  setValue('outputFormat', 'text')
+  if (description) setValue('description', description)
+  if (timeoutMs) setValue('timeoutMs', timeoutMs)
+}
+
+const portableD5CLIPresets: PortableSSHCLIPreset[] = [
+  {
+    id: 'scraper-ssh',
+    label: 'D5 Scraper CLI (SSH)',
+    icon: '🕷️',
+    command: 'd5-scrape "{{prompt}}"',
+    description: 'Run a portable D5 scraper CLI installed on the SSH target',
+    timeoutMs: 180000,
+  },
+  {
+    id: 'outliner-ssh',
+    label: 'D5 Outliner CLI (SSH)',
+    icon: '📋',
+    command: 'd5-outline "{{prompt}}"',
+    description: 'Run a portable D5 outliner CLI installed on the SSH target',
+    timeoutMs: 300000,
+  },
+  {
+    id: 'research-rag-ssh',
+    label: 'D5 Research CLI (SSH)',
+    icon: '🔬',
+    command: 'd5-research "{{prompt}}"',
+    description: 'Run a portable D5 research CLI installed on the SSH target',
+    timeoutMs: 300000,
+  },
+]
+
+const createPortableD5CLIPreset = (preset: PortableSSHCLIPreset): RPCPreset => ({
+  id: preset.id,
+  label: preset.label,
+  icon: preset.icon,
+  fill: setValue => {
+    applyTextSSHCommandPreset(setValue, preset.command, preset.description, preset.timeoutMs)
+  },
+})
+
+export const RPC_PRESETS: RPCPreset[] = [
   {
     id: 'claude-cli-ssh',
     label: 'Claude CLI (SSH)',
@@ -102,30 +161,5 @@ export const RPC_PRESETS: PresetDefinition<RPCFormFlat>[] = [
       setValue('timeoutMs', 300000)
     },
   },
-  {
-    id: 'outliner-ssh',
-    label: 'Outliner (SSH)',
-    icon: '📝',
-    fill: setValue => {
-      setValue('protocol', 'ssh')
-      setValue(
-        'commandTemplate',
-        `cd "${D5_REMOTE_BACKEND_ROOT}" && node ${D5_BACKEND_PATHS.mcpCli} ${D5_BACKEND_PATHS.mcpOutliner} generate_outline --query="{{prompt}}"`,
-      )
-      setValue('outputFormat', 'text')
-    },
-  },
-  {
-    id: 'scraper-ssh',
-    label: 'Web Scraper (SSH)',
-    icon: '🌐',
-    fill: setValue => {
-      setValue('protocol', 'ssh')
-      setValue(
-        'commandTemplate',
-        `cd "${D5_REMOTE_BACKEND_ROOT}" && node ${D5_BACKEND_PATHS.mcpCli} ${D5_BACKEND_PATHS.mcpScraper} scrape_web_pages --urls="{{prompt}}"`,
-      )
-      setValue('outputFormat', 'text')
-    },
-  },
+  ...portableD5CLIPresets.map(createPortableD5CLIPreset),
 ]

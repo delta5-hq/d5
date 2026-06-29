@@ -8,6 +8,7 @@ import {
   findRPCAliasByQueryType,
   resolveCommand,
 } from './queryTypeResolver'
+import {commandLookalikeInputs, orderedCommandLookalikeInputs} from '../../constants/commandBoundaryCases.testData'
 
 const mkMCPAlias = alias => ({alias})
 const mkRPCAlias = alias => ({alias})
@@ -171,6 +172,17 @@ describe('queryTypeResolver', () => {
       it.each([['/unknown'], ['text'], [''], [null], [undefined]])('returns undefined for: %s', input => {
         expect(resolveQueryType(input, {mcpAliases, rpcAliases})).toBeUndefined()
       })
+
+      it.each(commandLookalikeInputs)('does not resolve built-in command-prefix lookalike: %s', input => {
+        expect(resolveQueryType(input, {mcpAliases: [], rpcAliases: []})).toBeUndefined()
+      })
+
+      it.each(orderedCommandLookalikeInputs)(
+        'does not resolve ordered built-in command-prefix lookalike: %s',
+        input => {
+          expect(resolveQueryType(input, {mcpAliases: [], rpcAliases: []})).toBeUndefined()
+        },
+      )
     })
 
     describe('parameter handling', () => {
@@ -319,6 +331,13 @@ describe('queryTypeResolver', () => {
     })
 
     it.each([[null], [undefined], ['']])('handles %s input', input => {
+      const result = resolveCommand(input, aliases)
+      expect(result.queryType).toBeUndefined()
+      expect(result.mcpAlias).toBeUndefined()
+      expect(result.rpcAlias).toBeUndefined()
+    })
+
+    it.each(orderedCommandLookalikeInputs)('returns no alias payload for ordered lookalike: %s', input => {
       const result = resolveCommand(input, aliases)
       expect(result.queryType).toBeUndefined()
       expect(result.mcpAlias).toBeUndefined()

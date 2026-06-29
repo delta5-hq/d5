@@ -13,13 +13,3 @@ export const D5_INTERNAL_MCP_SERVERS = {
   scraper: internalMcpServerUri(internalMcpServerCatalog.scraper.id),
   outliner: internalMcpServerUri(internalMcpServerCatalog.outliner.id),
 } as const
-
-export const D5_REMOTE_BACKEND_ROOT =
-  '${D5_BACKEND_ROOT:?Set D5_BACKEND_ROOT on the SSH target to the D5 backend build directory}'
-
-export const D5_BACKEND_PATHS = {
-  mcpCli: 'mcp-servers/cli.js',
-  mcpResearchRag: internalMcpServerCatalog.researchRag.script,
-  mcpScraper: internalMcpServerCatalog.scraper.script,
-  mcpOutliner: internalMcpServerCatalog.outliner.script,
-} as const

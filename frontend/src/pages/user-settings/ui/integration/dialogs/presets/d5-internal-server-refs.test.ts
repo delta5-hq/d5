@@ -1,9 +1,26 @@
 import { describe, expect, it } from 'vitest'
-import { D5_BACKEND_PATHS, D5_INTERNAL_MCP_SERVERS, D5_REMOTE_BACKEND_ROOT } from './d5-internal-server-refs'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import process from 'node:process'
+
+import { D5_INTERNAL_MCP_SERVERS } from './d5-internal-server-refs'
 
 const internalServerRefs = Object.entries(D5_INTERNAL_MCP_SERVERS)
-const backendPaths = Object.entries(D5_BACKEND_PATHS)
 const internalServerIds = internalServerRefs.map(([_name, value]) => value.replace('d5-internal://mcp-server/', ''))
+const backendInternalCatalogPath = resolve(
+  process.cwd(),
+  '../backend/src/controllers/commandExecutor/commands/mcp/internalMCPServerCatalog.js',
+)
+
+const readBackendInternalServerIds = (): string[] => {
+  const backendCatalogSource = readFileSync(backendInternalCatalogPath, 'utf8')
+  const catalogMatch = backendCatalogSource.match(
+    /INTERNAL_MCP_SERVER_CATALOG\s*=\s*Object\.freeze\(\{([\s\S]*?)\n\}\)/,
+  )
+  if (!catalogMatch) throw new Error('Backend internal MCP server catalog not found')
+
+  return [...catalogMatch[1].matchAll(/^\s*['"]?([a-z0-9]+(?:-[a-z0-9]+)*)['"]?\s*:/gm)].map(match => match[1])
+}
 
 describe('D5 internal server references', () => {
   it('uses logical MCP server URIs instead of filesystem paths', () => {
@@ -23,24 +40,13 @@ describe('D5 internal server references', () => {
     })
   })
 
-  it('keeps backend CLI paths relative so SSH targets own their filesystem root', () => {
-    backendPaths.forEach(([_name, value]) => {
-      expect(value).toMatch(/^mcp-servers\//)
-      expect(value).not.toMatch(/^\//)
-      expect(value).not.toContain('..')
-      expect(value.trim()).toBe(value)
-    })
+  it('does not publish D5 backend filesystem paths for RPC SSH presets', async () => {
+    const refs = await import('./d5-internal-server-refs')
+    expect(refs).not.toHaveProperty('D5_REMOTE_BACKEND_ROOT')
+    expect(refs).not.toHaveProperty('D5_BACKEND_PATHS')
   })
 
-  it('keeps one relative CLI script path for each logical internal server id', () => {
-    internalServerIds.forEach(serverId => {
-      expect(Object.values(D5_BACKEND_PATHS)).toContain(`mcp-servers/${serverId}/server.js`)
-    })
-  })
-
-  it('makes remote backend root a shell-side requirement instead of a frontend build path', () => {
-    expect(D5_REMOTE_BACKEND_ROOT).toContain('D5_BACKEND_ROOT')
-    expect(D5_REMOTE_BACKEND_ROOT).not.toContain('/app')
-    expect(D5_REMOTE_BACKEND_ROOT).not.toContain('backend/build')
+  it('stays aligned with backend executor internal MCP server catalog', () => {
+    expect([...internalServerIds].sort()).toEqual(readBackendInternalServerIds().sort())
   })
 })

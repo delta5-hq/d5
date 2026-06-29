@@ -1,4 +1,5 @@
 import {commandRegExp, queryCommands} from '../../constants/commandRegExp'
+import {matchesCommand} from '../../constants/matchesCommand'
 
 /**
  * @typedef {Object} DynamicAlias
@@ -15,18 +16,6 @@ const STEPS_ORDER_PREFIX = /^#-?\d+\s+/
 const normalizeText = text => {
   if (!text) return ''
   return text.trimStart().replace(STEPS_ORDER_PREFIX, '')
-}
-
-/**
- * Checks if normalized text matches an alias with word boundary
- * @param {string} normalizedText
- * @param {string} alias
- * @returns {boolean}
- */
-const hasWordBoundary = (normalizedText, alias) => {
-  if (!normalizedText.startsWith(alias)) return false
-  if (normalizedText.length === alias.length) return true
-  return /\s/.test(normalizedText[alias.length])
 }
 
 /**
@@ -58,7 +47,7 @@ export const matchesBuiltInCommandWithOrder = text => {
 export const matchesDynamicAlias = (text, aliases = []) => {
   if (!text || !aliases || !aliases.length) return false
   const normalized = normalizeText(text)
-  return aliases.some(({alias}) => hasWordBoundary(normalized, alias))
+  return aliases.some(({alias}) => matchesCommand(normalized, alias))
 }
 
 /**
@@ -89,12 +78,7 @@ export const isAnyCommandWithOrder = (text, dynamicAliases = []) => {
 export const extractBuiltInCommandPrefix = text => {
   if (!text) return null
   const trimmed = text.trimStart()
-  for (const prefix of queryCommands) {
-    if (trimmed.startsWith(prefix)) {
-      return prefix
-    }
-  }
-  return null
+  return queryCommands.find(prefix => matchesCommand(trimmed, prefix)) ?? null
 }
 
 /**
@@ -106,5 +90,5 @@ export const extractBuiltInCommandPrefix = text => {
 export const extractDynamicAlias = (text, aliases = []) => {
   if (!text || !aliases.length) return null
   const normalized = normalizeText(text)
-  return aliases.find(({alias}) => hasWordBoundary(normalized, alias)) || null
+  return aliases.find(({alias}) => matchesCommand(normalized, alias)) || null
 }
