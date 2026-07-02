@@ -1,4 +1,4 @@
-import {planResponse, MOCK_VERIFIER_FAIL_KEYWORD} from './ResponsePlanner'
+import {planResponse, MOCK_VERIFIER_FAIL_KEYWORD, MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX} from './ResponsePlanner'
 
 const generatorContent = corpus => `gen:${corpus.slice(0, 20)}`
 
@@ -87,6 +87,44 @@ describe('ResponsePlanner', () => {
     it('returns YES when verifier prompt has no Criterion field', () => {
       const messages = [{content: 'strict quality verifier — Reply ONLY with YES or NO'}]
       expect(planResponse(messages, generatorContent)).toBe('YES')
+    })
+
+    it('fails only when the conditional content token is present', () => {
+      const messages = [
+        {content: 'You are a strict quality verifier. Reply ONLY with YES or NO: <reason>.'},
+        {
+          content: `Content:\n---\nmock output for Beta\n---\n\nCriterion: ${MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX}Beta`,
+        },
+      ]
+      expect(planResponse(messages, generatorContent)).toMatch(/^NO/)
+    })
+
+    it('passes when the conditional content token is absent', () => {
+      const messages = [
+        {content: 'You are a strict quality verifier. Reply ONLY with YES or NO: <reason>.'},
+        {
+          content: `Content:\n---\nmock output for Alpha\n---\n\nCriterion: ${MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX}Beta`,
+        },
+      ]
+      expect(planResponse(messages, generatorContent)).toBe('YES')
+    })
+
+    it('conditional sentinel controls only the final verifier criterion field', () => {
+      const messages = [
+        {content: 'You are a strict quality verifier. Reply ONLY with YES or NO: <reason>.'},
+        {
+          content: `Content:\n---\n${MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX}Beta appears in generated text for Beta\n---\n\nCriterion: must mention a company name`,
+        },
+      ]
+      expect(planResponse(messages, generatorContent)).toBe('YES')
+    })
+
+    it('falls back to full verifier corpus when the prompt has no fenced content block', () => {
+      const messages = [
+        {content: 'You are a strict quality verifier. Reply ONLY with YES or NO: <reason>.'},
+        {content: `Criterion: ${MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX}Beta`},
+      ]
+      expect(planResponse(messages, generatorContent)).toMatch(/^NO/)
     })
   })
 

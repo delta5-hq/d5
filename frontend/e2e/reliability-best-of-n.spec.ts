@@ -144,6 +144,38 @@ async function expectValidateFailure(page: Parameters<typeof qaBotLogin>[0], val
   expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_FAIL_RE)
 }
 
+type WorkflowNodeSnapshot = {
+  title?: string
+  parent?: string
+}
+
+type WorkflowSnapshot = {
+  nodes?: Record<string, WorkflowNodeSnapshot>
+}
+
+async function loadWorkflowSnapshot(page: Parameters<typeof qaBotLogin>[0]): Promise<WorkflowSnapshot> {
+  const workflowId = new URL(page.url()).pathname.split('/').filter(Boolean).pop()
+  const workflowResponse = await page.request.get(`/api/v2/workflow/${workflowId}`)
+  expect(workflowResponse.ok()).toBeTruthy()
+  return workflowResponse.json()
+}
+
+function validateTitlesOwnedByIterations(
+  workflow: WorkflowSnapshot,
+  criterionMarker: string,
+  iterationIds: string[],
+): string[] {
+  const workflowNodes = workflow.nodes ?? {}
+  const iterationIdSet = new Set(iterationIds)
+
+  return Object.values(workflowNodes)
+    .filter(node => {
+      const title = String(node.title ?? '')
+      return title.includes(criterionMarker) && iterationIdSet.has(node.parent ?? '')
+    })
+    .map(node => String(node.title ?? ''))
+}
+
 test.describe('Reliability execution contracts', () => {
   test.setTimeout(LLM_TIMEOUT * 2)
 
@@ -197,6 +229,48 @@ test.describe('Reliability execution contracts', () => {
     await executeRoot(page, tree, rootId)
 
     expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_VERDICT_RE)
+  })
+
+  test('foreach validate — each iteration shows its own pass or fail verdict', async ({ page }) => {
+    const tree = new WorkflowTreePage(page)
+    const { rootId } = await selectRootAndOpenDetail(page)
+    const batchId = await addChildCommand(page, tree, rootId, 'Batch')
+
+    const alphaId = await addChildCommand(page, tree, batchId, 'Alpha')
+    const betaId = await addChildCommand(page, tree, batchId, 'Beta')
+    const gammaId = await addChildCommand(page, tree, batchId, 'Gamma')
+    const foreachId = await addChildCommand(page, tree, batchId, '/foreach /chat @@ --parallel=no')
+    await addChildCommand(
+      page,
+      tree,
+      foreachId,
+      '/validate :retry=0 MOCK_VALIDATE_FAIL_IF_CONTENT_CONTAINS=Beta — Beta fails only',
+    )
+
+    await tree.selectNode(foreachId)
+    const foreachDetail = new NodeDetailPanelPage(page)
+    await foreachDetail.waitForComponent()
+    await executeAndWaitForCompletion(page, foreachDetail)
+
+    const snapshot = await loadWorkflowSnapshot(page)
+
+    const validateVerdicts = validateTitlesOwnedByIterations(
+      snapshot,
+      'MOCK_VALIDATE_FAIL_IF_CONTENT_CONTAINS=Beta',
+      [alphaId, betaId, gammaId],
+    )
+
+    expect(validateVerdicts).toHaveLength(3)
+    expect(validateVerdicts.filter(title => /\[✓\]/.test(title))).toHaveLength(2)
+    expect(validateVerdicts.filter(title => /\[✗\s+\d+\s+attempts\]/.test(title))).toHaveLength(1)
+
+    // The authored /validate template (parent === foreachId) must survive execution
+    // without any verdict suffix — it is a blueprint, not a verdict recipient.
+    const templateTitles = Object.values(snapshot.nodes ?? {})
+      .filter(n => n.parent === foreachId && String(n.title ?? '').includes('MOCK_VALIDATE_FAIL'))
+      .map(n => String(n.title ?? ''))
+    expect(templateTitles).toHaveLength(1)
+    expect(templateTitles[0]).not.toMatch(/\[[✓✗]/)
   })
 
   test('executing visual state — abort button visible while running', async ({ page }) => {

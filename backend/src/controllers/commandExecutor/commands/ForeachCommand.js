@@ -16,8 +16,7 @@ import {
 import {STEPS_QUERY} from '../constants/steps'
 import {SUMMARIZE_QUERY} from '../constants/summarize'
 import {CHAT_PARAM_PARENTS} from '../constants/chat'
-import {VALIDATE_QUERY} from '../constants/validate'
-import {getNodeCommand} from './utils/isCommand'
+import {isValidate} from './utils/isCommand'
 import {runCommand} from './utils/runCommand'
 import {StepsCommand} from './StepsCommand'
 import {createDeepClone} from './utils/createDeepClone'
@@ -290,9 +289,7 @@ export class ForeachCommand {
     const parentNode = this.store.getNode(node.parent)
     const isRoot = !parentNode?.parent
 
-    const validateTemplateIds = (node.children || []).filter(id =>
-      getNodeCommand(this.store.getNode(id))?.startsWith(VALIDATE_QUERY),
-    )
+    const validateTemplateIds = (node.children || []).filter(id => isValidate(this.store.getNode(id)))
 
     try {
       if (parentNode && !isRoot) {

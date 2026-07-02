@@ -2,6 +2,7 @@ import {FOREACH_QUERY} from '../../constants/foreach'
 import {OUTLINE_PARAM_SUMMARIZE_REGEX, OUTLINE_QUERY} from '../../constants/outline'
 import {clearStepsPrefix, STEPS_QUERY} from '../../constants/steps'
 import {SUMMARIZE_QUERY} from '../../constants/summarize'
+import {VALIDATE_QUERY} from '../../constants/validate'
 
 /**
  * @param {Object} node
@@ -44,6 +45,18 @@ export const isSummarize = node => {
 
   if (field) {
     return field.startsWith(SUMMARIZE_QUERY)
+  }
+
+  return false
+}
+
+export const isValidate = node => {
+  if (!node) return false
+
+  const field = getNodeCommand(node)
+
+  if (field) {
+    return field.startsWith(VALIDATE_QUERY)
   }
 
   return false

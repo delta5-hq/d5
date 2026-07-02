@@ -33,7 +33,7 @@ import {
   appendValidateSuffix,
   appendInvalidSuffix,
 } from '../../reliability/core/reliabilitySuffix'
-import {getNodeCommand} from './isCommand'
+import {getNodeCommand, isValidate} from './isCommand'
 import {mergeCommodityForkOutputs} from '../../reliability/core/commodityForkMerge'
 import {resolveCommand} from './queryTypeResolver'
 import {ForeachCommand} from '../ForeachCommand'
@@ -178,6 +178,11 @@ function hasRefineDescendant(node, store) {
     if (hasRefineDescendant(child, store)) return true
   }
   return false
+}
+
+function foreachValidateTemplateExclusions(queryType, cell, store) {
+  if (queryType !== FOREACH_QUERY_TYPE) return []
+  return (store.getNode(cell.id)?.children ?? []).filter(id => isValidate(store.getNode(id)))
 }
 
 function writeModifierRootError(cell, store, queryType) {
@@ -370,10 +375,8 @@ export const runCommand = async (
             }
             await postProcessNode(childNode, ids)
           }
-        } else if (query?.startsWith(VALIDATE_QUERY)) {
-          const remainingValidates = sortedNodes.filter(
-            n => getNodeCommand(n)?.startsWith(VALIDATE_QUERY) && !ids.includes(n.id),
-          )
+        } else if (isValidate(childNode)) {
+          const remainingValidates = sortedNodes.filter(n => isValidate(n) && !ids.includes(n.id))
           remainingValidates.forEach(v => ids.push(v.id))
           const allValidates = [childNode, ...remainingValidates]
 
@@ -480,7 +483,7 @@ export const runCommand = async (
   }
 
   if (runPostProccess) {
-    await postProcessNode(store.getNode(cell.id))
+    await postProcessNode(store.getNode(cell.id), foreachValidateTemplateExclusions(queryType, cell, store))
   }
 
   store.removeOrphanedNodes()

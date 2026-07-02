@@ -2,7 +2,7 @@ import {runCommand} from './runCommand'
 import {CriteriaFailedError} from '../../reliability/core/CriteriaFailedError'
 import {ValidateCommand} from '../../reliability/core/ValidateCommand'
 import Store from './Store'
-import {MOCK_VERIFIER_FAIL_KEYWORD} from './langchain/noopLLM/ResponsePlanner'
+import {MOCK_VERIFIER_FAIL_KEYWORD, MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX} from './langchain/noopLLM/ResponsePlanner'
 
 jest.mock('debug', () => {
   const fn = jest.fn(() => fn)
@@ -482,6 +482,35 @@ describe('runCommand \u2014 /validate with NoopLLM verifier contract', () => {
 
     expect(pass.store.getNode(pass.validate.id).title).toMatch(/\[✓\]/)
     expect(fail.store.getNode(fail.validate.id).title).toMatch(/\[✗ 1 attempts\]/)
+  })
+
+  const buildConditionalSentinelStore = (token, chatContent) => {
+    const root = {id: 'root', parent: null, command: `/chat ${chatContent}`, children: ['v']}
+    const v = {
+      id: 'v',
+      parent: 'root',
+      command: `/validate ${MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX}${token} :retry=0`,
+      children: [],
+    }
+    const store = buildStore({root, v})
+    store._integrationSettingsCache = {}
+    return {root, store}
+  }
+
+  it.each([
+    ['token present in content — verifier rejects', 'SENTINEL', 'response including SENTINEL', true],
+    ['token absent from content — verifier accepts', 'SENTINEL', 'regular response', false],
+  ])('conditional sentinel: %s', async (_label, token, chatContent, shouldFail) => {
+    const {root, store} = buildConditionalSentinelStore(token, chatContent)
+    const execution = runCommand({queryType: 'chat', cell: root, store})
+
+    if (shouldFail) {
+      await expect(execution).rejects.toBeInstanceOf(CriteriaFailedError)
+      expect(store.getNode('v').title).toMatch(/\[✗ 1 attempts\]/)
+    } else {
+      await expect(execution).resolves.toBeUndefined()
+      expect(store.getNode('v').title).toMatch(/\[✓\]/)
+    }
   })
 })
 

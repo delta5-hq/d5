@@ -1,4 +1,4 @@
-import {getNodeCommand, isSteps, isForeach, isSummarize} from './isCommand'
+import {getNodeCommand, isSteps, isForeach, isSummarize, isValidate} from './isCommand'
 
 describe('getNodeCommand', () => {
   describe('field precedence', () => {
@@ -207,6 +207,42 @@ describe('isSummarize', () => {
   })
 })
 
+describe('isValidate', () => {
+  describe('positive detection', () => {
+    it.each([
+      [{command: '/validate must include numbers'}, 'in command'],
+      [{title: '/validate must include numbers'}, 'in title'],
+      [{command: '/validate'}, 'bare command'],
+      [{title: '/validate :retry=2 criterion text'}, 'with params'],
+      [{command: '/validate criterion\nmore context'}, 'multiline'],
+    ])('detects /validate: %s', node => {
+      expect(isValidate(node)).toBe(true)
+    })
+
+    it('detects /validate when both fields present (command wins)', () => {
+      expect(isValidate({command: '/validate criterion', title: '/chat other'})).toBe(true)
+    })
+
+    it('detects /validate in title when command is empty', () => {
+      expect(isValidate({command: '', title: '/validate criterion'})).toBe(true)
+    })
+  })
+
+  describe('negative detection', () => {
+    it.each([
+      [{command: '/chat validate something'}, 'different command'],
+      [{title: '/foreach validate'}, 'different title'],
+      [{command: 'validate without slash'}, 'missing slash'],
+      [{title: 'text mentions /validate inside'}, 'not prefix'],
+      [null, 'null node'],
+      [undefined, 'undefined node'],
+      [{}, 'empty object'],
+    ])('returns false for: %s', node => {
+      expect(isValidate(node)).toBe(false)
+    })
+  })
+})
+
 describe('integration: command resolution across predicates', () => {
   it('correctly resolves different commands from same node structure', () => {
     const nodeTemplate = cmd => ({command: cmd, title: 'Task', children: []})
@@ -215,6 +251,7 @@ describe('integration: command resolution across predicates', () => {
     expect(isSteps(nodeTemplate('/steps task'))).toBe(true)
     expect(isForeach(nodeTemplate('/steps task'))).toBe(false)
     expect(isSummarize(nodeTemplate('/steps task'))).toBe(false)
+    expect(isValidate(nodeTemplate('/steps task'))).toBe(false)
   })
 
   it('all predicates use same field precedence (command over title)', () => {
@@ -223,6 +260,7 @@ describe('integration: command resolution across predicates', () => {
     expect(getNodeCommand(node)).toBe('/steps work')
     expect(isSteps(node)).toBe(true)
     expect(isForeach(node)).toBe(false)
+    expect(isValidate(node)).toBe(false)
   })
 
   it('all predicates handle null nodes identically', () => {
@@ -230,5 +268,6 @@ describe('integration: command resolution across predicates', () => {
     expect(isSteps(null)).toBe(false)
     expect(isForeach(null)).toBe(false)
     expect(isSummarize(null)).toBe(false)
+    expect(isValidate(null)).toBe(false)
   })
 })

@@ -149,8 +149,8 @@ describe('ForeachCommand — /validate template cloning', () => {
       expect(store.getNode(leaf.children[0]).command).toMatch(/^\/validate/)
     })
 
-    it.each(['/validate criterion', '/validate :retry=1 criterion', '/validate :n=2 criterion'])(
-      'recognizes "%s" as a validate template',
+    it.each(['/validate criterion', '/validate :retry=1 criterion', '/validate :n=2 criterion', '/validate'])(
+      'recognizes "%s" as a validate template regardless of param presence',
       async validateCmd => {
         const store = buildForeachStore({validateCommand: validateCmd})
         await makeCmd(store).run(store.getNode('fe'), {})
@@ -160,6 +160,25 @@ describe('ForeachCommand — /validate template cloning', () => {
         })
       },
     )
+
+    it('identifies validate templates via title field when command field is absent', async () => {
+      const store = new Store({
+        userId: 'user1',
+        nodes: {
+          gp: {id: 'gp', parent: null, children: ['p']},
+          p: {id: 'p', parent: 'gp', command: '/chat task', children: ['fe', 'i1'], prompts: ['i1']},
+          fe: {id: 'fe', parent: 'p', command: '/foreach /chat @@', children: ['vt0']},
+          vt0: {id: 'vt0', parent: 'fe', title: '/validate criterion', children: []},
+          i1: {id: 'i1', parent: 'p', title: 'Item 1', children: []},
+        },
+      })
+      await makeCmd(store).run(store.getNode('fe'), {})
+
+      const [[{cell}]] = mockRunCommand.mock.calls
+      const leaf = store.getNode(cell.id)
+      expect(leaf.children).toHaveLength(1)
+      expect(store.getNode(leaf.children[0]).title).toBe('/validate criterion')
+    })
   })
 
   describe('clone structure', () => {
@@ -249,16 +268,15 @@ describe('ForeachCommand — /validate template cloning', () => {
       })
     })
 
-    it('two validate templates → exactly two clones per leaf, one per template command', async () => {
+    it('two validate templates → both clones appear per leaf in authored order', async () => {
       const store = buildForeachStore({extraValidates: ['/validate criterion B']})
       await makeCmd(store).run(store.getNode('fe'), {})
 
       mockRunCommand.mock.calls.forEach(([{cell}]) => {
-        const leaf = store.getNode(cell.id)
-        expect(leaf.children).toHaveLength(2)
-        const cloneCmds = leaf.children.map(id => store.getNode(id).command)
-        expect(cloneCmds).toContain('/validate criterion')
-        expect(cloneCmds).toContain('/validate criterion B')
+        expect(store.getNode(cell.id).children.map(id => store.getNode(id).command)).toEqual([
+          '/validate criterion',
+          '/validate criterion B',
+        ])
       })
     })
   })
@@ -399,101 +417,34 @@ describe('ForeachCommand end-to-end — cloned /validate verdict written into st
     validateSpy.mockRestore()
   })
 
-  it('three iteration leaves each receive their own independent verdict suffix — pass/fail/pass pattern', async () => {
-    const store = buildForeachStore({
-      parallel: false,
-      itemCount: 3,
-      validateCommand: '/validate :retry=0 criterion',
-    })
+  it.each([[2], [3]])(
+    'sequential: %d iteration leaves — each clone carries its own independent verdict, no cross-contamination',
+    async itemCount => {
+      const store = buildForeachStore({parallel: false, itemCount, validateCommand: '/validate :retry=0 criterion'})
+      await makeCmd(store).run(store.getNode('fe'), {})
 
-    await makeCmd(store).run(store.getNode('fe'), {})
+      const cloneIds = Array.from({length: itemCount}, (_, i) => store.getNode(`i${i + 1}`).children[0])
+      expect(new Set(cloneIds).size).toBe(itemCount)
 
-    const [cloneId1, cloneId2, cloneId3] = ['i1', 'i2', 'i3'].map(id => store.getNode(id).children[0])
-    expect(new Set([cloneId1, cloneId2, cloneId3]).size).toBe(3)
+      const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+      let callIdx = 0
+      const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run').mockImplementation(async () => {
+        const passed = callIdx % 2 === 0
+        callIdx++
+        return {passed, criterion: 'criterion', reason: passed ? '' : 'fail'}
+      })
 
-    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
-    const outcomes = [
-      {passed: true, criterion: 'criterion', reason: ''},
-      {passed: false, criterion: 'criterion', reason: 'fail'},
-      {passed: true, criterion: 'criterion', reason: ''},
-    ]
-    let callIdx = 0
-    const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run').mockImplementation(async () => outcomes[callIdx++])
+      for (let i = 0; i < itemCount; i++) {
+        await realRunCommand({queryType: 'chat', cell: store.getNode(`i${i + 1}`), store}, null).catch(() => {})
+      }
 
-    await realRunCommand({queryType: 'chat', cell: store.getNode('i1'), store}, null)
-    await realRunCommand({queryType: 'chat', cell: store.getNode('i2'), store}, null).catch(() => {})
-    await realRunCommand({queryType: 'chat', cell: store.getNode('i3'), store}, null)
+      cloneIds.forEach((id, i) => expect(store.getNode(id).title).toMatch(i % 2 === 0 ? /✓/ : /✗/))
+      expect(store.getNode('vt0').title).toBe('/validate :retry=0 criterion')
 
-    expect(store.getNode(cloneId1).title).toMatch(/✓/)
-    expect(store.getNode(cloneId2).title).toMatch(/✗/)
-    expect(store.getNode(cloneId3).title).toMatch(/✓/)
-    expect(store.getNode('vt0').title).toBe('/validate :retry=0 criterion')
-
-    chatSpy.mockRestore()
-    validateSpy.mockRestore()
-  })
-
-  it('each of the two iteration leaves receives its own independent verdict suffix — no cross-contamination', async () => {
-    const store = buildForeachStore({parallel: false})
-
-    await makeCmd(store).run(store.getNode('fe'), {})
-
-    const i1 = store.getNode('i1')
-    const i2 = store.getNode('i2')
-    expect(i1.children).toHaveLength(1)
-    expect(i2.children).toHaveLength(1)
-    const cloneId1 = i1.children[0]
-    const cloneId2 = i2.children[0]
-    expect(cloneId1).not.toBe(cloneId2)
-
-    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
-    let validateCallIdx = 0
-    const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run').mockImplementation(async () => {
-      validateCallIdx++
-      return validateCallIdx === 1
-        ? {passed: true, criterion: 'criterion', reason: ''}
-        : {passed: false, criterion: 'criterion', reason: 'fail'}
-    })
-
-    await realRunCommand({queryType: 'chat', cell: store.getNode('i1'), store}, null)
-    await realRunCommand({queryType: 'chat', cell: store.getNode('i2'), store}, null).catch(() => {})
-
-    expect(store.getNode(cloneId1).title).toMatch(/✓/)
-    expect(store.getNode(cloneId2).title).toMatch(/✗/)
-    expect(store.getNode('vt0').title).toBe('/validate criterion')
-
-    chatSpy.mockRestore()
-    validateSpy.mockRestore()
-  })
-
-  it('parallel (default): 2 concurrent iterations with mixed pass/fail — each clone carries the correct independent verdict', async () => {
-    const store = buildForeachStore({parallel: true, validateCommand: '/validate :retry=0 criterion'})
-
-    await makeCmd(store).run(store.getNode('fe'), {})
-
-    const cloneId1 = store.getNode('i1').children[0]
-    const cloneId2 = store.getNode('i2').children[0]
-    expect(cloneId1).not.toBe(cloneId2)
-
-    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
-    const passingCloneIds = new Set([cloneId1])
-    const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run').mockImplementation(async validateNode => {
-      const passed = passingCloneIds.has(validateNode.id)
-      return {passed, criterion: 'criterion', reason: passed ? '' : 'fail'}
-    })
-
-    await Promise.all([
-      realRunCommand({queryType: 'chat', cell: store.getNode('i1'), store}, null),
-      realRunCommand({queryType: 'chat', cell: store.getNode('i2'), store}, null).catch(() => {}),
-    ])
-
-    expect(store.getNode(cloneId1).title).toMatch(/✓/)
-    expect(store.getNode(cloneId2).title).toMatch(/✗/)
-    expect(store.getNode('vt0').title).toBe('/validate :retry=0 criterion')
-
-    chatSpy.mockRestore()
-    validateSpy.mockRestore()
-  })
+      chatSpy.mockRestore()
+      validateSpy.mockRestore()
+    },
+  )
 
   it('parallel (default): 2 validate templates per iteration — all template clones across all leaves receive their verdict suffix', async () => {
     const store = buildForeachStore({parallel: true, extraValidates: ['/validate criterion B']})
@@ -526,39 +477,33 @@ describe('ForeachCommand end-to-end — cloned /validate verdict written into st
     validateSpy.mockRestore()
   })
 
-  it('parallel (default): 3 concurrent iterations — each clone carries its own independent verdict, no cross-contamination', async () => {
-    const store = buildForeachStore({
-      parallel: true,
-      itemCount: 3,
-      validateCommand: '/validate :retry=0 criterion',
-    })
+  it.each([[2], [3]])(
+    'parallel: %d concurrent iterations — each clone carries its own independent verdict, no cross-contamination',
+    async itemCount => {
+      const store = buildForeachStore({parallel: true, itemCount, validateCommand: '/validate :retry=0 criterion'})
+      await makeCmd(store).run(store.getNode('fe'), {})
 
-    await makeCmd(store).run(store.getNode('fe'), {})
+      const cloneIds = Array.from({length: itemCount}, (_, i) => store.getNode(`i${i + 1}`).children[0])
+      expect(new Set(cloneIds).size).toBe(itemCount)
 
-    const cloneId1 = store.getNode('i1').children[0]
-    const cloneId2 = store.getNode('i2').children[0]
-    const cloneId3 = store.getNode('i3').children[0]
-    expect(new Set([cloneId1, cloneId2, cloneId3]).size).toBe(3)
+      const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+      const passingCloneIds = new Set(cloneIds.filter((_, i) => i % 2 === 0))
+      const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run').mockImplementation(async validateNode => {
+        const passed = passingCloneIds.has(validateNode.id)
+        return {passed, criterion: 'criterion', reason: passed ? '' : 'fail'}
+      })
 
-    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
-    const passingCloneIds = new Set([cloneId1, cloneId3])
-    const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run').mockImplementation(async validateNode => {
-      const passed = passingCloneIds.has(validateNode.id)
-      return {passed, criterion: 'criterion', reason: passed ? '' : 'fail'}
-    })
+      await Promise.all(
+        Array.from({length: itemCount}, (_, i) =>
+          realRunCommand({queryType: 'chat', cell: store.getNode(`i${i + 1}`), store}, null).catch(() => {}),
+        ),
+      )
 
-    await Promise.all([
-      realRunCommand({queryType: 'chat', cell: store.getNode('i1'), store}, null),
-      realRunCommand({queryType: 'chat', cell: store.getNode('i2'), store}, null).catch(() => {}),
-      realRunCommand({queryType: 'chat', cell: store.getNode('i3'), store}, null),
-    ])
+      cloneIds.forEach((id, i) => expect(store.getNode(id).title).toMatch(i % 2 === 0 ? /✓/ : /✗/))
+      expect(store.getNode('vt0').title).toBe('/validate :retry=0 criterion')
 
-    expect(store.getNode(cloneId1).title).toMatch(/✓/)
-    expect(store.getNode(cloneId2).title).toMatch(/✗/)
-    expect(store.getNode(cloneId3).title).toMatch(/✓/)
-    expect(store.getNode('vt0').title).toBe('/validate :retry=0 criterion')
-
-    chatSpy.mockRestore()
-    validateSpy.mockRestore()
-  })
+      chatSpy.mockRestore()
+      validateSpy.mockRestore()
+    },
+  )
 })

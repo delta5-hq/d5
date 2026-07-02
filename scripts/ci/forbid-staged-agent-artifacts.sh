@@ -4,11 +4,26 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
 readonly ALLOWED_LOCK_REGISTRY='.github/docs/locked-surfaces-360.md'
+readonly ALLOWED_DOCS=(
+  '.github/docs/lessons-360.md'
+  "$ALLOWED_LOCK_REGISTRY"
+)
 
 is_github_docs_path() {
   local path="$1"
 
   [[ "$path" == .github/docs/* || "$path" == */.github/docs/* ]]
+}
+
+is_allowed_doc_path() {
+  local path="$1"
+  local allowed
+
+  for allowed in "${ALLOWED_DOCS[@]}"; do
+    [ "$path" = "$allowed" ] && return 0
+  done
+
+  return 1
 }
 
 is_blocked_staged_path() {
@@ -20,7 +35,7 @@ is_blocked_staged_path() {
       ;;
     *)
       if is_github_docs_path "$path"; then
-        [ "$path" != "$ALLOWED_LOCK_REGISTRY" ]
+        ! is_allowed_doc_path "$path"
         return
       fi
       return 1

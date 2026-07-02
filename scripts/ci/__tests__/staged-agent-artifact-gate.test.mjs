@@ -9,8 +9,13 @@ import {describe, test} from 'node:test'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const GATE_SCRIPT = path.join(__dirname, '..', 'forbid-staged-agent-artifacts.sh')
 const LOCKED_SURFACE_REGISTRY = '.github/docs/locked-surfaces-360.md'
+const ALLOWED_DOCS = [
+  '.github/docs/lessons-360.md',
+]
 const BLOCKED_PROCESS_ARTIFACTS = [
+  '.github/docs/naming-decisions.md',
   '.github/docs/prr-360.md',
+  '.github/docs/qa-probe-coverage-360.md',
   '.github/docs/review-entry-360.md',
   '.github/docs/workpad.md',
   'backend-v2/.github/docs/ADR-001-backend-separation.md',
@@ -25,6 +30,7 @@ const ALLOWED_PRODUCTION_PATHS = [
   'frontend/src/feature.tsx',
   '.github/workflows/ci.yml',
   LOCKED_SURFACE_REGISTRY,
+  ...ALLOWED_DOCS,
 ]
 
 function withRepo(fn) {

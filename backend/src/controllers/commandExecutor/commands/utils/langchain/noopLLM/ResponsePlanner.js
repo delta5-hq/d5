@@ -37,6 +37,7 @@ const rankingResponse = candidateCount => {
 }
 
 export const MOCK_VERIFIER_FAIL_KEYWORD = 'MOCK_VALIDATE_FAIL'
+export const MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX = 'MOCK_VALIDATE_FAIL_IF_CONTENT_CONTAINS='
 
 const extractVerifierCriterion = corpus => {
   const matches = [...corpus.matchAll(/^\s*Criterion:\s*(.+?)\s*$/gim)]
@@ -44,11 +45,31 @@ const extractVerifierCriterion = corpus => {
   return lastCriterion?.[1]?.trim() ?? ''
 }
 
+const extractVerifierContent = corpus => {
+  const match = corpus.match(/Content:\s*---\s*([\s\S]*?)\s*---/i)
+  return match?.[1] ?? corpus
+}
+
+const CONDITIONAL_FAILURE_TOKEN_RE = new RegExp(`${MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX}(\\S+)`)
+
+const readConditionalFailureToken = criterion => criterion.match(CONDITIONAL_FAILURE_TOKEN_RE)?.[1] ?? ''
+
 const verifierVerdict = corpus => {
   const criterion = extractVerifierCriterion(corpus)
-  return criterion.toUpperCase().includes(MOCK_VERIFIER_FAIL_KEYWORD)
-    ? `NO: mock rejection — criterion contains ${MOCK_VERIFIER_FAIL_KEYWORD}`
-    : 'YES'
+  const conditionalToken = readConditionalFailureToken(criterion)
+
+  if (
+    criterion.toUpperCase().includes(MOCK_VERIFIER_FAIL_KEYWORD) &&
+    !criterion.includes(MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX)
+  ) {
+    return `NO: mock rejection — criterion contains ${MOCK_VERIFIER_FAIL_KEYWORD}`
+  }
+
+  if (conditionalToken && extractVerifierContent(corpus).includes(conditionalToken)) {
+    return `NO: mock rejection — content contains ${conditionalToken}`
+  }
+
+  return 'YES'
 }
 
 export const planResponse = (messages, synthesizeGeneratorContent) => {
