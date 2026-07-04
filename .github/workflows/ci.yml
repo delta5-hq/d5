@@ -210,6 +210,7 @@ jobs:
       MONGO_HOST: localhost
       MONGO_PORT: 27017
       MONGO_DB: delta5_${{ github.run_id }}
+      MONGO_DATABASE: delta5_${{ github.run_id }}
       MONGO_URI: mongodb://localhost:27017/delta5_${{ github.run_id }}
       E2E_MONGO_URI: mongodb://localhost:27017/delta5_${{ github.run_id }}
       JWT_SECRET: test-jwt-secret-change-in-production
