@@ -2,6 +2,7 @@ import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { IntlProvider } from 'react-intl'
+import { CustomLLMApiType } from '@shared/config'
 import { CustomLLMDialog } from './custom-llm-dialog'
 
 const mockSave = vi.fn()
@@ -79,6 +80,13 @@ beforeEach(() => {
 })
 
 describe('CustomLLMDialog endpoint validation', () => {
+  it('renders every configured Custom LLM API type as a selectable option', () => {
+    renderDialog()
+
+    fireEvent.click(screen.getByRole('combobox'))
+
+    Object.values(CustomLLMApiType).forEach(apiType => expect(screen.getAllByText(apiType).length).toBeGreaterThan(0))
+  })
   it.each([
     ['current display value', 'OpenAI compatible'],
     ['legacy OpenAI key', 'openai'],
@@ -125,5 +133,11 @@ describe('CustomLLMDialog endpoint validation', () => {
 
     await waitFor(() => expect(alert).toHaveTextContent(`${label} rejected`))
     expect(mockSave).not.toHaveBeenCalled()
+  })
+
+  it('shows the saved model when editing existing Custom LLM settings', () => {
+    renderCustomLLMDialog({ ...savedCustomLLM, model: 'test-model' })
+
+    expect(screen.getByLabelText('Model')).toHaveValue('test-model')
   })
 })

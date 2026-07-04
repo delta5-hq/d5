@@ -1,0 +1,11 @@
+{
+  "research-rag": {
+    "script": "research-rag/server.js"
+  },
+  "scraper": {
+    "script": "scraper/server.js"
+  },
+  "outliner": {
+    "script": "outliner/server.js"
+  }
+}

@@ -5,6 +5,7 @@ import {determineLLMType, getIntegrationSettings, getLLM} from './utils/langchai
 import {assertToolCallingCapability, createMCPAgentExecutor} from './utils/langchain/getAgentExecutor'
 import {isInternalMcpServer, buildInternalServerEnv, resolveInternalServerScript} from './mcp/internalServerEnv'
 import {runWithErrorNode} from './shared/runWithErrorNode'
+import {resolveExternalCommandPrompt} from './shared/resolveExternalCommandPrompt'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 
@@ -120,12 +121,9 @@ export class MCPCommand {
   }
 
   extractPrompt(node, originalPrompt) {
-    if (originalPrompt) {
-      return this.stripAliasPrefix(originalPrompt)
-    }
-
-    const rawTitle = node?.command || node?.title || ''
-    return this.stripAliasPrefix(rawTitle)
+    const rawPrompt = originalPrompt || node?.command || node?.title || ''
+    const resolvedPrompt = resolveExternalCommandPrompt(rawPrompt, node, this.store)
+    return this.stripAliasPrefix(resolvedPrompt)
   }
 
   stripAliasPrefix(text) {

@@ -1,3 +1,5 @@
+import internalMCPServerContract from '../../../../../../shared-contracts/internal-mcp-server-catalog.json'
+
 import {
   buildInternalMCPServerUri,
   listInternalMCPServerIds,
@@ -5,12 +7,7 @@ import {
   resolveInternalMCPServerScript,
 } from './internalMCPServerCatalog'
 
-const knownServers = [
-  ['research-rag', 'research-rag/server.js'],
-  ['scraper', 'scraper/server.js'],
-  ['outliner', 'outliner/server.js'],
-]
-
+const knownServers = Object.entries(internalMCPServerContract).map(([serverId, server]) => [serverId, server.script])
 const knownServerIds = knownServers.map(([id]) => id)
 const knownScripts = knownServers.map(([, script]) => script)
 

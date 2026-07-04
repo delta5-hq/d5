@@ -9,6 +9,7 @@ import {RPC_PROTOCOL} from '../constants/rpc'
 import {SessionIdExtractor} from './rpc/SessionIdExtractor'
 import {SessionIdInjector} from './rpc/SessionIdInjector'
 import IntegrationSessionRepository from '../../../repositories/IntegrationSessionRepository'
+import {resolveExternalCommandPrompt} from './shared/resolveExternalCommandPrompt'
 
 const log = debug('delta5:app:Command:RPC')
 
@@ -220,12 +221,9 @@ export class RPCCommand {
   }
 
   extractPrompt(node, originalPrompt) {
-    if (originalPrompt) {
-      return this.stripAliasPrefix(originalPrompt)
-    }
-
-    const rawTitle = node?.command || node?.title || ''
-    return this.stripAliasPrefix(rawTitle)
+    const rawPrompt = originalPrompt || node?.command || node?.title || ''
+    const resolvedPrompt = resolveExternalCommandPrompt(rawPrompt, node, this.store)
+    return this.stripAliasPrefix(resolvedPrompt)
   }
 
   stripAliasPrefix(text) {

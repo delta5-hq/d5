@@ -2,6 +2,7 @@
   "extends": "./tsconfig.json",
   "include": [
     "src",
-    "e2e"
+    "e2e",
+    "../shared-contracts"
   ]
 }

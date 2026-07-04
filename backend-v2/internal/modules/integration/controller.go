@@ -1,6 +1,8 @@
 package integration
 
 import (
+	"context"
+
 	"backend-v2/internal/common/constants"
 	"backend-v2/internal/common/logger"
 	"backend-v2/internal/common/response"
@@ -121,8 +123,8 @@ func (ctrl *Controller) UpdateService(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Something is wrong with the provided data")
 	}
 
-	if err := ctrl.validateServiceConfig(c, service, serviceConfig); err != nil {
-		return err
+	if err := ctrl.validateServiceConfig(c.Context(), service, serviceConfig); err != nil {
+		return response.BadRequest(c, err.Error())
 	}
 
 	if _, err := ctrl.service.CreateLLMVector(c.Context(), ctrl.db, scope.UserID, service); err != nil {
@@ -149,16 +151,12 @@ func (ctrl *Controller) UpdateService(c *fiber.Ctx) error {
 	return c.JSON(secureResponse)
 }
 
-func (ctrl *Controller) validateServiceConfig(c *fiber.Ctx, service string, serviceConfig map[string]interface{}) error {
+func (ctrl *Controller) validateServiceConfig(ctx context.Context, service string, serviceConfig map[string]interface{}) error {
 	if service != "custom_llm" {
 		return nil
 	}
 
-	if err := ctrl.customLLMValidator.Validate(c.Context(), serviceConfig); err != nil {
-		return response.BadRequest(c, err.Error())
-	}
-
-	return nil
+	return ctrl.customLLMValidator.Validate(ctx, serviceConfig)
 }
 
 func (ctrl *Controller) Delete(c *fiber.Ctx) error {

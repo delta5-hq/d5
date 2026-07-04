@@ -28,63 +28,16 @@ interface RPCFormFlat {
 
 type RPCPreset = PresetDefinition<RPCFormFlat>
 
-type PortableSSHCLIPreset = {
-  id: string
-  label: string
-  icon: string
-  command: string
-  description: string
-  timeoutMs: number
-}
+const d5CliCommandTemplate = (binary: string) =>
+  `command -v ${binary} >/dev/null 2>&1 && ${binary} "{{prompt}}" || { echo "${binary} executable not found on SSH target"; exit 127; }`
 
-const applyTextSSHCommandPreset = (
-  setValue: Parameters<RPCPreset['fill']>[0],
-  commandTemplate: string,
-  description?: string,
-  timeoutMs?: number,
-) => {
+const fillD5CliSshPreset = (setValue: Parameters<RPCPreset['fill']>[0], binary: string, description: string) => {
   setValue('protocol', 'ssh')
-  setValue('commandTemplate', commandTemplate)
+  setValue('commandTemplate', d5CliCommandTemplate(binary))
   setValue('outputFormat', 'text')
-  if (description) setValue('description', description)
-  if (timeoutMs) setValue('timeoutMs', timeoutMs)
+  setValue('description', description)
+  setValue('timeoutMs', 300000)
 }
-
-const portableD5CLIPresets: PortableSSHCLIPreset[] = [
-  {
-    id: 'scraper-ssh',
-    label: 'D5 Scraper CLI (SSH)',
-    icon: '🕷️',
-    command: 'd5-scrape "{{prompt}}"',
-    description: 'Run a portable D5 scraper CLI installed on the SSH target',
-    timeoutMs: 180000,
-  },
-  {
-    id: 'outliner-ssh',
-    label: 'D5 Outliner CLI (SSH)',
-    icon: '📋',
-    command: 'd5-outline "{{prompt}}"',
-    description: 'Run a portable D5 outliner CLI installed on the SSH target',
-    timeoutMs: 300000,
-  },
-  {
-    id: 'research-rag-ssh',
-    label: 'D5 Research CLI (SSH)',
-    icon: '🔬',
-    command: 'd5-research "{{prompt}}"',
-    description: 'Run a portable D5 research CLI installed on the SSH target',
-    timeoutMs: 300000,
-  },
-]
-
-const createPortableD5CLIPreset = (preset: PortableSSHCLIPreset): RPCPreset => ({
-  id: preset.id,
-  label: preset.label,
-  icon: preset.icon,
-  fill: setValue => {
-    applyTextSSHCommandPreset(setValue, preset.command, preset.description, preset.timeoutMs)
-  },
-})
 
 export const RPC_PRESETS: RPCPreset[] = [
   {
@@ -109,6 +62,30 @@ export const RPC_PRESETS: RPCPreset[] = [
       setValue('outputFormat', 'json')
       setValue('outputField', 'suites')
       setValue('sessionIdField', 'session_id')
+    },
+  },
+  {
+    id: 'd5-scrape-ssh',
+    label: 'D5 Scrape (SSH)',
+    icon: '🧲',
+    fill: setValue => {
+      fillD5CliSshPreset(setValue, 'd5-scrape', 'Run the installed D5 scraper CLI via SSH')
+    },
+  },
+  {
+    id: 'd5-outline-ssh',
+    label: 'D5 Outline (SSH)',
+    icon: '🧭',
+    fill: setValue => {
+      fillD5CliSshPreset(setValue, 'd5-outline', 'Run the installed D5 outliner CLI via SSH')
+    },
+  },
+  {
+    id: 'd5-research-ssh',
+    label: 'D5 Research (SSH)',
+    icon: '🔎',
+    fill: setValue => {
+      fillD5CliSshPreset(setValue, 'd5-research', 'Run the installed D5 research CLI via SSH')
     },
   },
   {
@@ -161,5 +138,4 @@ export const RPC_PRESETS: RPCPreset[] = [
       setValue('timeoutMs', 300000)
     },
   },
-  ...portableD5CLIPresets.map(createPortableD5CLIPreset),
 ]

@@ -50,6 +50,7 @@ export default defineConfig(({ mode }) => {
         '@pages': path.resolve(__dirname, 'src/pages'),
         '@widgets': path.resolve(__dirname, 'src/widgets'),
         '@processes': path.resolve(__dirname, 'src/processes'),
+        '@contracts': path.resolve(__dirname, '../shared-contracts'),
         '@/components': path.resolve(__dirname, 'src/shared/components'),
         '@': path.resolve(__dirname, 'src'),
       },

@@ -1,15 +1,13 @@
-const INTERNAL_MCP_SERVER_URI_PREFIX = 'd5-internal://mcp-server/'
+import internalMcpServerCatalog from '@contracts/internal-mcp-server-catalog.json'
 
-const internalMcpServerCatalog = {
-  researchRag: { id: 'research-rag', script: 'mcp-servers/research-rag/server.js' },
-  scraper: { id: 'scraper', script: 'mcp-servers/scraper/server.js' },
-  outliner: { id: 'outliner', script: 'mcp-servers/outliner/server.js' },
-} as const
+const INTERNAL_MCP_SERVER_URI_PREFIX = 'd5-internal://mcp-server/'
 
 const internalMcpServerUri = (serverId: string): string => `${INTERNAL_MCP_SERVER_URI_PREFIX}${serverId}`
 
 export const D5_INTERNAL_MCP_SERVERS = {
-  researchRag: internalMcpServerUri(internalMcpServerCatalog.researchRag.id),
-  scraper: internalMcpServerUri(internalMcpServerCatalog.scraper.id),
-  outliner: internalMcpServerUri(internalMcpServerCatalog.outliner.id),
+  researchRag: internalMcpServerUri('research-rag'),
+  scraper: internalMcpServerUri('scraper'),
+  outliner: internalMcpServerUri('outliner'),
 } as const
+
+export const D5_INTERNAL_MCP_SERVER_IDS = Object.keys(internalMcpServerCatalog).sort()

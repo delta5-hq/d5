@@ -1,26 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
-import process from 'node:process'
+import internalMcpServerCatalog from '@contracts/internal-mcp-server-catalog.json'
 
-import { D5_INTERNAL_MCP_SERVERS } from './d5-internal-server-refs'
+import { D5_INTERNAL_MCP_SERVER_IDS, D5_INTERNAL_MCP_SERVERS } from './d5-internal-server-refs'
 
 const internalServerRefs = Object.entries(D5_INTERNAL_MCP_SERVERS)
 const internalServerIds = internalServerRefs.map(([_name, value]) => value.replace('d5-internal://mcp-server/', ''))
-const backendInternalCatalogPath = resolve(
-  process.cwd(),
-  '../backend/src/controllers/commandExecutor/commands/mcp/internalMCPServerCatalog.js',
-)
-
-const readBackendInternalServerIds = (): string[] => {
-  const backendCatalogSource = readFileSync(backendInternalCatalogPath, 'utf8')
-  const catalogMatch = backendCatalogSource.match(
-    /INTERNAL_MCP_SERVER_CATALOG\s*=\s*Object\.freeze\(\{([\s\S]*?)\n\}\)/,
-  )
-  if (!catalogMatch) throw new Error('Backend internal MCP server catalog not found')
-
-  return [...catalogMatch[1].matchAll(/^\s*['"]?([a-z0-9]+(?:-[a-z0-9]+)*)['"]?\s*:/gm)].map(match => match[1])
-}
+const contractServerIds = Object.keys(internalMcpServerCatalog).sort()
 
 describe('D5 internal server references', () => {
   it('uses logical MCP server URIs instead of filesystem paths', () => {
@@ -47,6 +32,7 @@ describe('D5 internal server references', () => {
   })
 
   it('stays aligned with backend executor internal MCP server catalog', () => {
-    expect([...internalServerIds].sort()).toEqual(readBackendInternalServerIds().sort())
+    expect(D5_INTERNAL_MCP_SERVER_IDS).toEqual(contractServerIds)
+    expect([...internalServerIds].sort()).toEqual(contractServerIds)
   })
 })

@@ -49,43 +49,15 @@ const getStringFieldEntries = (setValue: ReturnType<typeof vi.fn>) =>
 
 const backendOwnedRuntimeTokens = ['D5_BACKEND_ROOT', 'mcp-servers/cli.js', '/app', 'backend/build', '../backend']
 
-const portableD5CLISSHContracts = [
-  {
-    id: 'scraper-ssh',
-    commandTemplate: 'd5-scrape "{{prompt}}"',
-    description: 'Run a portable D5 scraper CLI installed on the SSH target',
-    timeoutMs: 180000,
-  },
-  {
-    id: 'outliner-ssh',
-    commandTemplate: 'd5-outline "{{prompt}}"',
-    description: 'Run a portable D5 outliner CLI installed on the SSH target',
-    timeoutMs: 300000,
-  },
-  {
-    id: 'research-rag-ssh',
-    commandTemplate: 'd5-research "{{prompt}}"',
-    description: 'Run a portable D5 research CLI installed on the SSH target',
-    timeoutMs: 300000,
-  },
-] as const
-
-const portableD5CLISSHIds = portableD5CLISSHContracts.map(contract => contract.id)
-
 describe('RPC_PRESETS', () => {
   describe('collection structure', () => {
     it('count matches expected (breaking-change sentinel)', () => {
-      expect(RPC_PRESETS).toHaveLength(6 + portableD5CLISSHContracts.length)
+      expect(RPC_PRESETS).toHaveLength(9)
     })
 
     it('ids are unique across all presets', () => {
       const ids = RPC_PRESETS.map(p => p.id)
       expect(new Set(ids).size).toBe(ids.length)
-    })
-
-    it('includes portable D5 CLI SSH replacement presets', () => {
-      const ids = RPC_PRESETS.map(p => p.id)
-      expect(ids).toEqual(expect.arrayContaining([...portableD5CLISSHIds]))
     })
 
     it('ids are non-empty', () => {
@@ -158,6 +130,45 @@ describe('RPC_PRESETS', () => {
       ])
     })
 
+    it('d5-scrape-ssh: portable D5 scraper CLI over SSH', () => {
+      expect(fillPresetCalls('d5-scrape-ssh')).toEqual([
+        ['protocol', 'ssh'],
+        [
+          'commandTemplate',
+          'command -v d5-scrape >/dev/null 2>&1 && d5-scrape "{{prompt}}" || { echo "d5-scrape executable not found on SSH target"; exit 127; }',
+        ],
+        ['outputFormat', 'text'],
+        ['description', 'Run the installed D5 scraper CLI via SSH'],
+        ['timeoutMs', 300000],
+      ])
+    })
+
+    it('d5-outline-ssh: portable D5 outliner CLI over SSH', () => {
+      expect(fillPresetCalls('d5-outline-ssh')).toEqual([
+        ['protocol', 'ssh'],
+        [
+          'commandTemplate',
+          'command -v d5-outline >/dev/null 2>&1 && d5-outline "{{prompt}}" || { echo "d5-outline executable not found on SSH target"; exit 127; }',
+        ],
+        ['outputFormat', 'text'],
+        ['description', 'Run the installed D5 outliner CLI via SSH'],
+        ['timeoutMs', 300000],
+      ])
+    })
+
+    it('d5-research-ssh: portable D5 research CLI over SSH', () => {
+      expect(fillPresetCalls('d5-research-ssh')).toEqual([
+        ['protocol', 'ssh'],
+        [
+          'commandTemplate',
+          'command -v d5-research >/dev/null 2>&1 && d5-research "{{prompt}}" || { echo "d5-research executable not found on SSH target"; exit 127; }',
+        ],
+        ['outputFormat', 'text'],
+        ['description', 'Run the installed D5 research CLI via SSH'],
+        ['timeoutMs', 300000],
+      ])
+    })
+
     it('ide-http: HTTP POST to local IDE endpoint', () => {
       expect(fillPresetCalls('ide-http')).toEqual([
         ['protocol', 'http'],
@@ -197,16 +208,6 @@ describe('RPC_PRESETS', () => {
         ['outputField', 'output'],
         ['description', 'Run Playwright tests via SSH'],
         ['timeoutMs', 300000],
-      ])
-    })
-
-    it.each(portableD5CLISSHContracts)('$id: portable D5 CLI over SSH', contract => {
-      expect(fillPresetCalls(contract.id)).toEqual([
-        ['protocol', 'ssh'],
-        ['commandTemplate', contract.commandTemplate],
-        ['outputFormat', 'text'],
-        ['description', contract.description],
-        ['timeoutMs', contract.timeoutMs],
       ])
     })
   })
@@ -310,21 +311,15 @@ describe('RPC_PRESETS', () => {
         })
     })
 
-    it('portable D5 CLI SSH presets invoke installed CLI commands without remote source-tree assumptions', () => {
-      portableD5CLISSHContracts.forEach(contract => {
-        const preset = RPC_PRESETS.find(candidate => candidate.id === contract.id)
-        expect(preset, `${contract.id} preset must exist`).toBeTruthy()
-
-        const { setValue } = fillPreset(preset!)
-        const commandTemplate = getField(setValue, 'commandTemplate') as string
-
-        expect(commandTemplate).toBe(contract.commandTemplate)
-        expect(commandTemplate).toContain('{{prompt}}')
-        expect(commandTemplate).not.toMatch(/\b(cd|node|npm|npx)\b|[./~]/)
-        backendOwnedRuntimeTokens.forEach(token => {
-          expect(commandTemplate).not.toContain(token)
+    it('D5 CLI SSH presets prove the remote executable before invocation', () => {
+      fillAll()
+        .filter(({ preset }) => preset.id.startsWith('d5-'))
+        .forEach(({ preset, setValue }) => {
+          const binary = preset.id.replace(/-ssh$/, '')
+          const commandTemplate = getField(setValue, 'commandTemplate')
+          expect(commandTemplate).toContain(`command -v ${binary}`)
+          expect(commandTemplate).toContain(`${binary} executable not found on SSH target`)
         })
-      })
     })
   })
 

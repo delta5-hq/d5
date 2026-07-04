@@ -154,6 +154,42 @@ beforeEach(() => {
   getIntegrationSettings.mockResolvedValue(settings)
 })
 
+const createReferenceWorkflow = ({nodeId, command, refDefinition, hashDefinition}) => {
+  const commandNode = {id: nodeId, title: command, command, children: [], depth: 1}
+  const refNode = {id: `${nodeId}Ref`, title: refDefinition, children: [], depth: 1}
+  const hashNode = {id: `${nodeId}Hash`, title: hashDefinition, children: [], depth: 1}
+  const rootNode = {
+    id: `${nodeId}Root`,
+    title: 'Workflow',
+    children: [commandNode.id, refNode.id, hashNode.id],
+    depth: 0,
+  }
+
+  commandNode.parent = rootNode.id
+  refNode.parent = rootNode.id
+  hashNode.parent = rootNode.id
+
+  return {
+    commandNode,
+    nodes: {
+      [commandNode.id]: commandNode,
+      [refNode.id]: refNode,
+      [hashNode.id]: hashNode,
+      [rootNode.id]: rootNode,
+    },
+  }
+}
+
+const lastMockCallArg = mockFn => mockFn.mock.calls[mockFn.mock.calls.length - 1][0]
+
+const expectResolvedExternalPrompt = (prompt, expectedParts, trailingWhitespace = '') => {
+  expectedParts.forEach(expectedPart => expect(prompt).toContain(expectedPart))
+  expect(prompt).not.toMatch(/@@|##_/)
+  if (trailingWhitespace) {
+    expect(prompt.endsWith(trailingWhitespace)).toBe(true)
+  }
+}
+
 describe('ChatCommand run test', () => {
   it('should succesfully create nodes and return output', async () => {
     const chatNode = {id: 'chatNode', title: '/chatgpt write one pet name', command: '/chatgpt write one pet name'}
@@ -1907,6 +1943,41 @@ describe('MCPCommand run test', () => {
     )
   })
 
+  it('should resolve @ and # references before sending MCP tool arguments', async () => {
+    const {commandNode, nodes} = createReferenceWorkflow({
+      nodeId: 'mcpNode',
+      command: '/mymcp summarize @@topic and ##_source',
+      refDefinition: '@topic reference topic',
+      hashDefinition: '#_source hash source',
+    })
+    const mockStore = new Store({userId, workflowId, aliases: {mcp: [mcpAlias], rpc: []}, nodes})
+
+    MCPClientManager.callTool.mockResolvedValueOnce({content: 'resolved', isError: false})
+
+    await runCommand({cell: commandNode, store: mockStore, mcpAlias})
+
+    const prompt = lastMockCallArg(MCPClientManager.callTool).toolArguments.prompt
+    expectResolvedExternalPrompt(prompt, ['reference topic', 'hash source'])
+  })
+
+  it('should preserve typed trailing whitespace after resolving MCP tool arguments', async () => {
+    const trailingWhitespace = '   '
+    const {commandNode, nodes} = createReferenceWorkflow({
+      nodeId: 'mcpNode',
+      command: `/mymcp summarize @@topic and ##_source${trailingWhitespace}`,
+      refDefinition: '@topic reference topic',
+      hashDefinition: '#_source hash source',
+    })
+    const mockStore = new Store({userId, workflowId, aliases: {mcp: [mcpAlias], rpc: []}, nodes})
+
+    MCPClientManager.callTool.mockResolvedValueOnce({content: 'resolved', isError: false})
+
+    await runCommand({cell: commandNode, store: mockStore, mcpAlias})
+
+    const prompt = lastMockCallArg(MCPClientManager.callTool).toolArguments.prompt
+    expectResolvedExternalPrompt(prompt, ['reference topic', 'hash source'], trailingWhitespace)
+  })
+
   it('should handle error when MCP tool connection fails', async () => {
     const mcpNode = {id: 'mcpNode', title: '/mymcp explain quantum physics', command: '/mymcp explain quantum physics'}
     const rootNode = {id: 'rootNode', title: 'Workflow', children: [mcpNode.id]}
@@ -2118,6 +2189,38 @@ describe('RPCCommand run test', () => {
         }),
       ]),
     )
+  })
+
+  it('should resolve @ and # references before interpolating RPC HTTP body', async () => {
+    const {commandNode, nodes} = createReferenceWorkflow({
+      nodeId: 'rpcNode',
+      command: '/api1 run @@task using ##_source',
+      refDefinition: '@task referenced task',
+      hashDefinition: '#_source referenced source',
+    })
+    const mockStore = new Store({userId, workflowId, aliases: {mcp: [], rpc: [httpAlias]}, nodes})
+
+    await runCommand({cell: commandNode, store: mockStore, rpcAlias: httpAlias})
+
+    const {body} = lastMockCallArg(mockHTTPExecute)
+    expectResolvedExternalPrompt(body, ['referenced task', 'referenced source'])
+  })
+
+  it('should preserve typed trailing whitespace after resolving RPC HTTP body prompt', async () => {
+    const trailingWhitespace = '   '
+    const {commandNode, nodes} = createReferenceWorkflow({
+      nodeId: 'rpcNode',
+      command: `/api1 run @@task using ##_source${trailingWhitespace}`,
+      refDefinition: '@task referenced task',
+      hashDefinition: '#_source referenced source',
+    })
+    const mockStore = new Store({userId, workflowId, aliases: {mcp: [], rpc: [httpAlias]}, nodes})
+
+    await runCommand({cell: commandNode, store: mockStore, rpcAlias: httpAlias})
+
+    const {body} = lastMockCallArg(mockHTTPExecute)
+    const parsedBody = JSON.parse(body)
+    expectResolvedExternalPrompt(parsedBody.cmd, ['referenced task', 'referenced source'], trailingWhitespace)
   })
 
   it('should create error node when SSH execution fails', async () => {

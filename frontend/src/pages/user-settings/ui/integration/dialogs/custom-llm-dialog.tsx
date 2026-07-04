@@ -24,7 +24,7 @@ import type { CustomLLM, DialogProps } from '@shared/base-types'
 import type { HttpError } from '@shared/lib/error'
 import { buildIntegrationUrl } from '../utils/build-integration-url'
 import { toastIntegrationError } from '../utils/toast-integration-error'
-import { CustomLLMApiType, CUSTOM_LLM_CHAT_COMPLETIONS_PATH } from '@shared/config'
+import { CustomLLMApiType, CUSTOM_LLM_CHAT_COMPLETIONS_PATH, type CustomLLMApiTypeValue } from '@shared/config'
 import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
 
 import isUrl from '@shared/lib/isUrl'
@@ -41,7 +41,7 @@ const customLLMSchema = z.object({
 
 type CustomLLMFormValues = z.infer<typeof customLLMSchema>
 
-const CUSTOM_LLM_API_TYPE_ALIASES: Record<string, CustomLLMApiType> = {
+const CUSTOM_LLM_API_TYPE_ALIASES: Record<string, CustomLLMApiTypeValue> = {
   openai: CustomLLMApiType.OpenAI_Compatible,
   openai_compatible: CustomLLMApiType.OpenAI_Compatible,
   openaiCompatible: CustomLLMApiType.OpenAI_Compatible,
@@ -65,9 +65,10 @@ const formatConnectionError = (error: unknown): string => {
 const shouldValidateConnection = (values: CustomLLMFormValues, saved: CustomLLM | undefined): boolean =>
   Boolean(values.apiRootUrl) && !objectsAreEqual(values, saved || {})
 
-const normalizeCustomLLMApiType = (apiType: CustomLLM['apiType'] | undefined): CustomLLMApiType => {
+const normalizeCustomLLMApiType = (apiType: CustomLLM['apiType'] | undefined): CustomLLMApiTypeValue => {
   if (!apiType) return CustomLLMApiType.OpenAI_Compatible
-  if (Object.values(CustomLLMApiType).includes(apiType as CustomLLMApiType)) return apiType as CustomLLMApiType
+  if (Object.values(CustomLLMApiType).includes(apiType as CustomLLMApiTypeValue))
+    return apiType as CustomLLMApiTypeValue
   return CUSTOM_LLM_API_TYPE_ALIASES[apiType] || CustomLLMApiType.OpenAI_Compatible
 }
 
@@ -169,7 +170,7 @@ export const CustomLLMDialog: React.FC<CustomLLMDialogProps> = ({ data, open, on
           </Label>
           <Select
             disabled={isSubmitting}
-            onValueChange={(val: CustomLLMApiType) => setValue('apiType', val)}
+            onValueChange={(val: CustomLLMApiTypeValue) => setValue('apiType', val)}
             value={watch('apiType')}
           >
             <SelectTrigger data-select-name="custom_llm-model">

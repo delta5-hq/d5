@@ -35,6 +35,7 @@ type DeepseekConfig struct {
 
 type CustomLLMConfig struct {
 	APIRootURL          string `json:"apiRootUrl,omitempty" bson:"apiRootUrl,omitempty"`
+	Model               string `json:"model,omitempty" bson:"model,omitempty"`
 	MaxTokens           int    `json:"maxTokens,omitempty" bson:"maxTokens,omitempty"`
 	EmbeddingsChunkSize int    `json:"embeddingsChunkSize,omitempty" bson:"embeddingsChunkSize,omitempty"`
 	APIType             string `json:"apiType,omitempty" bson:"apiType,omitempty"`

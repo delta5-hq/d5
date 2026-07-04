@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as React from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { FormattedMessage } from 'react-intl'
 import { X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -23,12 +23,18 @@ import { Textarea } from '@shared/ui/textarea'
 import { useApiMutation } from '@shared/composables'
 import type { HttpError } from '@shared/lib/error'
 import { FormFieldLabel } from '../components/form-field-label'
-import { serializeArrayToSpaceSeparated, deserializeSpaceSeparatedToArray } from './form-serialization'
+import {
+  serializeArrayToSpaceSeparated,
+  deserializeSpaceSeparatedToArray,
+  serializeObjectToKeyValueLines,
+  deserializeKeyValueLinesToObject,
+} from './form-serialization'
 import { buildIntegrationUrl } from '../utils/build-integration-url'
 import { PresetButtonRow, MCP_PRESETS } from './presets'
 import { integrationAliasSchema } from './integration-alias-schema'
 
 const mcpTransports = ['stdio', 'streamable-http', 'sse'] as const
+const KEY_VALUE_LINES_HELP_TEXT = 'One KEY=VALUE per line'
 
 const timeoutMsField = z.preprocess(
   val => (typeof val === 'number' && Number.isNaN(val) ? undefined : val),
@@ -43,6 +49,7 @@ const stdioSchema = z.object({
   description: z.string().optional(),
   command: z.string().min(1, 'Command is required'),
   args: z.string().optional(),
+  env: z.string().optional(),
   timeoutMs: timeoutMsField,
 })
 
@@ -52,6 +59,7 @@ const urlBasedFields = {
   toolInputField: z.string().default('prompt'),
   description: z.string().optional(),
   serverUrl: z.string().url('Must be a valid URL'),
+  headers: z.string().optional(),
   timeoutMs: timeoutMsField,
 }
 
@@ -62,7 +70,6 @@ const mcpSchema = z.discriminatedUnion('transport', [stdioSchema, httpSchema, ss
 
 type MCPFormValues = z.infer<typeof mcpSchema>
 
-/* Flat merged type so react-hook-form resolves all fields without union ambiguity */
 type MCPFormFlat = {
   alias: string
   transport: 'stdio' | 'streamable-http' | 'sse'
@@ -72,11 +79,25 @@ type MCPFormFlat = {
   timeoutMs?: number
   command?: string
   args?: string
+  env?: string
   serverUrl?: string
+  headers?: string
+}
+
+type MCPDialogData = Partial<Omit<MCPFormFlat, 'args' | 'env' | 'headers'>> & {
+  args?: string[] | string
+  env?: Record<string, string> | string
+  headers?: Record<string, string> | string
+}
+
+type MCPPayload = Omit<MCPFormFlat, 'args' | 'env' | 'headers'> & {
+  args?: string[]
+  env?: Record<string, string>
+  headers?: Record<string, string>
 }
 
 interface Props extends DialogProps {
-  data?: Partial<MCPFormValues>
+  data?: MCPDialogData
   refresh: () => Promise<void>
   existingAliases?: string[]
   isEdit?: boolean
@@ -119,16 +140,18 @@ const MCPDialog: React.FC<Props> = ({
       }
     }
 
-    const serialized: Partial<MCPFormFlat> = { ...data }
+    const { args, env, headers, ...plainFields } = data
+    const serialized: Partial<MCPFormFlat> = { ...plainFields }
 
-    serialized.args = serializeArrayToSpaceSeparated((data as any).args)
+    serialized.args = serializeArrayToSpaceSeparated(args)
+    serialized.env = serializeObjectToKeyValueLines(env)
+    serialized.headers = serializeObjectToKeyValueLines(headers)
 
     return serialized
   }, [data])
 
   const form = useForm<MCPFormFlat>({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resolver: zodResolver(mcpSchema) as any,
+    resolver: zodResolver(mcpSchema) as Resolver<MCPFormFlat>,
     defaultValues: formDefaults,
   })
 
@@ -150,17 +173,20 @@ const MCPDialog: React.FC<Props> = ({
         return
       }
 
-      const payload = { ...values }
+      const { args, env, headers, ...plainValues } = values
+      const payload: MCPPayload = { ...plainValues }
       if (transport === 'stdio') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ;(payload as any).args = deserializeSpaceSeparatedToArray(values.args)
+        payload.args = deserializeSpaceSeparatedToArray(args)
+        payload.env = deserializeKeyValueLinesToObject(env)
+      } else {
+        payload.headers = deserializeKeyValueLinesToObject(headers)
       }
 
       await save(payload as unknown as MCPFormValues)
       await refresh()
       onClose?.()
     } catch {
-      // Error already handled by mutation hook
+      return undefined
     }
   }
 
@@ -186,7 +212,6 @@ const MCPDialog: React.FC<Props> = ({
         <GlassDialogDescription />
 
         <div className="flex flex-col gap-4">
-          {/* Alias */}
           <div className="flex flex-col gap-2">
             <FormFieldLabel htmlFor="alias" labelId="dialog.integration.alias" required />
             <Input
@@ -200,10 +225,8 @@ const MCPDialog: React.FC<Props> = ({
             />
           </div>
 
-          {/* Presets */}
           {!isEdit ? <PresetButtonRow disabled={isSubmitting} presets={MCP_PRESETS} setValue={setValue} /> : null}
 
-          {/* Transport */}
           <div className="flex flex-col gap-2">
             <FormFieldLabel htmlFor="transport" labelId="dialog.integration.transport" required />
             <Select
@@ -224,13 +247,11 @@ const MCPDialog: React.FC<Props> = ({
             </Select>
           </div>
 
-          {/* Description */}
           <div className="flex flex-col gap-2">
             <FormFieldLabel htmlFor="description" labelId="dialog.integration.description" />
             <Input id="description" {...register('description')} disabled={isSubmitting} />
           </div>
 
-          {/* Tool Name */}
           <div className="flex flex-col gap-2">
             <FormFieldLabel htmlFor="toolName" labelId="dialog.integration.toolName" required />
             <Input
@@ -244,7 +265,6 @@ const MCPDialog: React.FC<Props> = ({
             />
           </div>
 
-          {/* Tool Input Field */}
           <div className="flex flex-col gap-2">
             <FormFieldLabel htmlFor="toolInputField" labelId="dialog.integration.toolInputField" />
             <Input id="toolInputField" {...register('toolInputField')} disabled={isSubmitting} placeholder="prompt" />
@@ -252,7 +272,6 @@ const MCPDialog: React.FC<Props> = ({
 
           {transport === 'stdio' ? (
             <>
-              {/* STDIO Fields */}
               <div className="flex flex-col gap-2">
                 <FormFieldLabel htmlFor="command" labelId="dialog.integration.command" required />
                 <Input
@@ -277,10 +296,22 @@ const MCPDialog: React.FC<Props> = ({
                   rows={2}
                 />
               </div>
+
+              <div className="flex flex-col gap-2">
+                <FormFieldLabel htmlFor="env" labelId="dialog.integration.environmentVariables" />
+                <Textarea
+                  id="env"
+                  {...register('env')}
+                  className="font-mono text-xs"
+                  disabled={isSubmitting}
+                  placeholder="API_KEY=secret&#10;NODE_ENV=production"
+                  rows={3}
+                />
+                <span className="text-xs text-muted-foreground">{KEY_VALUE_LINES_HELP_TEXT}</span>
+              </div>
             </>
           ) : (
             <>
-              {/* HTTP Fields */}
               <div className="flex flex-col gap-2">
                 <FormFieldLabel htmlFor="serverUrl" labelId="dialog.integration.serverUrl" required />
                 <Input
@@ -293,10 +324,22 @@ const MCPDialog: React.FC<Props> = ({
                   placeholder="http://localhost:3100"
                 />
               </div>
+
+              <div className="flex flex-col gap-2">
+                <FormFieldLabel htmlFor="headers" labelId="dialog.integration.headers" />
+                <Textarea
+                  id="headers"
+                  {...register('headers')}
+                  className="font-mono text-xs"
+                  disabled={isSubmitting}
+                  placeholder="Authorization=Bearer token&#10;X-API-Key=secret"
+                  rows={3}
+                />
+                <span className="text-xs text-muted-foreground">{KEY_VALUE_LINES_HELP_TEXT}</span>
+              </div>
             </>
           )}
 
-          {/* Timeout */}
           <div className="flex flex-col gap-2">
             <FormFieldLabel htmlFor="timeoutMs" labelId="dialog.integration.timeout" />
             <Input

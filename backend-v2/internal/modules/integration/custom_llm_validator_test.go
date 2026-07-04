@@ -5,9 +5,47 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+func sharedContractPath(t *testing.T, fileName string) string {
+	t.Helper()
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve current test file")
+	}
+	return filepath.Join(filepath.Dir(currentFile), "..", "..", "..", "..", "shared-contracts", fileName)
+}
+
+func TestCustomLLMValidatorSupportsSharedAPITypeContract(t *testing.T) {
+	contractBytes, err := os.ReadFile(sharedContractPath(t, "custom-llm-api-types.json"))
+	if err != nil {
+		t.Fatalf("read shared Custom LLM API type contract: %v", err)
+	}
+
+	var apiTypes map[string]string
+	if err := json.Unmarshal(contractBytes, &apiTypes); err != nil {
+		t.Fatalf("parse shared Custom LLM API type contract: %v", err)
+	}
+
+	seen := map[string]string{}
+	for key, apiType := range apiTypes {
+		if strings.TrimSpace(apiType) != apiType || apiType == "" {
+			t.Fatalf("shared API type %s=%q must be non-empty and trimmed", key, apiType)
+		}
+		if previousKey, ok := seen[apiType]; ok {
+			t.Fatalf("shared API type value %q is duplicated by %s and %s", apiType, previousKey, key)
+		}
+		seen[apiType] = key
+		if _, ok := customLLMValidationProfiles[apiType]; !ok {
+			t.Fatalf("shared API type %s=%q has no backend validation profile", key, apiType)
+		}
+	}
+}
 
 func TestCustomLLMValidatorSuccessfulProbeRequest(t *testing.T) {
 	tests := []struct {
