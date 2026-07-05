@@ -6,32 +6,16 @@ import {
   it,
   expect,
 } from "@jest/globals";
-import { testOrchestrator, testDataFactory } from "./shared/test-data-factory";
+import {
+  testOrchestrator,
+  testDataFactory,
+  rawIntegrationDoc,
+} from "./shared/test-data-factory";
 import {
   subscriberRequest,
   administratorRequest,
   customerRequest,
 } from "./shared/requests";
-import { MongoClient } from "mongodb";
-
-const mongoUri =
-  process.env.E2E_MONGO_URI || "mongodb://localhost:27017/delta5";
-
-let mongoClient;
-
-async function integrationCollection() {
-  if (!mongoClient) {
-    mongoClient = new MongoClient(mongoUri);
-    await mongoClient.connect();
-  }
-  const dbName = new URL(mongoUri).pathname.slice(1) || "delta5";
-  return mongoClient.db(dbName).collection("integrations");
-}
-
-async function rawIntegrationDoc(userId, workflowId = null) {
-  const integrations = await integrationCollection();
-  return integrations.findOne({ userId, workflowId });
-}
 
 const valueAtPath = (source, path) =>
   path.split(".").reduce((value, key) => value?.[key], source);
@@ -79,12 +63,6 @@ const scopedLLMServices = [
   },
 ];
 
-async function closeMongoClient() {
-  if (!mongoClient) return;
-  await mongoClient.close();
-  mongoClient = undefined;
-}
-
 describe("Integration Router", () => {
   beforeEach(async () => {
     await testOrchestrator.prepareTestEnvironment();
@@ -106,7 +84,6 @@ describe("Integration Router", () => {
 
   afterAll(async () => {
     await testOrchestrator.cleanupTestEnvironment();
-    await closeMongoClient();
   });
 
   describe("GET /integration", () => {
@@ -1017,3 +994,4 @@ describe("Array Item Scope Isolation — workflowId segregation", () => {
     expect((wfRes.body.rpc ?? []).map((r) => r.alias)).toContain("/wf-rpc");
   });
 });
+

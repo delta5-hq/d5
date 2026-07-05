@@ -48,7 +48,7 @@ describe('SSHExecutor', () => {
       if (event === 'data') {
         process.nextTick(() => callback(Buffer.from('hello output')))
       } else if (event === 'close') {
-        setTimeout(() => callback(0, null), 10)
+        setImmediate(() => callback(0, null))
       }
       return mockStream
     })
@@ -143,6 +143,189 @@ describe('SSHExecutor', () => {
     ).rejects.toThrow('SSH exec failed: Command not found')
   })
 
+  it('forwards connection parameters to ssh2 connect', async () => {
+    mockClient.on.mockImplementation((event, callback) => {
+      if (event === 'ready') {
+        setImmediate(() => callback())
+      }
+      return mockClient
+    })
+
+    mockClient.exec.mockImplementation((cmd, callback) => {
+      callback(null, mockStream)
+    })
+
+    mockStream.on.mockImplementation((event, callback) => {
+      if (event === 'close') {
+        setImmediate(() => callback(0, null))
+      }
+      return mockStream
+    })
+
+    mockStream.stderr.on.mockImplementation(() => {})
+
+    await executor.execute({
+      host: '10.0.0.1',
+      port: 2222,
+      username: 'admin',
+      privateKey: 'BEGIN RSA PRIVATE KEY',
+      command: 'whoami',
+    })
+
+    expect(mockClient.connect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: '10.0.0.1',
+        port: 2222,
+        username: 'admin',
+        privateKey: 'BEGIN RSA PRIVATE KEY',
+      }),
+    )
+  })
+
+  it('maps null passphrase to undefined in connect options', async () => {
+    mockClient.on.mockImplementation((event, callback) => {
+      if (event === 'ready') {
+        setImmediate(() => callback())
+      }
+      return mockClient
+    })
+
+    mockClient.exec.mockImplementation((cmd, callback) => {
+      callback(null, mockStream)
+    })
+
+    mockStream.on.mockImplementation((event, callback) => {
+      if (event === 'close') {
+        setImmediate(() => callback(0, null))
+      }
+      return mockStream
+    })
+
+    mockStream.stderr.on.mockImplementation(() => {})
+
+    await executor.execute({
+      host: 'localhost',
+      username: 'user',
+      privateKey: 'key',
+      command: 'test',
+      passphrase: null,
+    })
+
+    expect(mockClient.connect).toHaveBeenCalledWith(expect.objectContaining({passphrase: undefined}))
+  })
+
+  it('collects multiple stdout chunks and stderr before stream closes', async () => {
+    mockClient.on.mockImplementation((event, callback) => {
+      if (event === 'ready') {
+        setImmediate(() => callback())
+      }
+      return mockClient
+    })
+
+    mockClient.exec.mockImplementation((cmd, callback) => {
+      callback(null, mockStream)
+    })
+
+    mockStream.on.mockImplementation((event, callback) => {
+      if (event === 'data') {
+        process.nextTick(() => {
+          callback(Buffer.from('chunk1\n'))
+          callback(Buffer.from('chunk2\n'))
+        })
+      } else if (event === 'close') {
+        setImmediate(() => callback(0, null))
+      }
+      return mockStream
+    })
+
+    mockStream.stderr.on.mockImplementation((event, callback) => {
+      if (event === 'data') {
+        process.nextTick(() => callback(Buffer.from('warning\n')))
+      }
+    })
+
+    const result = await executor.execute({
+      host: 'localhost',
+      username: 'user',
+      privateKey: 'fake-key',
+      command: 'multi',
+    })
+
+    expect(result.stdout).toBe('chunk1\nchunk2\n')
+    expect(result.stderr).toBe('warning\n')
+    expect(result.exitCode).toBe(0)
+  })
+
+  it('normalizes null exit code to zero', async () => {
+    mockClient.on.mockImplementation((event, callback) => {
+      if (event === 'ready') {
+        setImmediate(() => callback())
+      }
+      return mockClient
+    })
+
+    mockClient.exec.mockImplementation((cmd, callback) => {
+      callback(null, mockStream)
+    })
+
+    mockStream.on.mockImplementation((event, callback) => {
+      if (event === 'close') {
+        setImmediate(() => callback(null, null))
+      }
+      return mockStream
+    })
+
+    mockStream.stderr.on.mockImplementation(() => {})
+
+    const result = await executor.execute({
+      host: 'localhost',
+      username: 'user',
+      privateKey: 'key',
+      command: 'test',
+    })
+
+    expect(result.exitCode).toBe(0)
+  })
+
+  it('returns non-zero exit code from own client', async () => {
+    mockClient.on.mockImplementation((event, callback) => {
+      if (event === 'ready') {
+        setImmediate(() => callback())
+      }
+      return mockClient
+    })
+
+    mockClient.exec.mockImplementation((cmd, callback) => {
+      callback(null, mockStream)
+    })
+
+    mockStream.on.mockImplementation((event, callback) => {
+      if (event === 'data') {
+        process.nextTick(() => callback(Buffer.from('')))
+      } else if (event === 'close') {
+        setImmediate(() => callback(1, null))
+      }
+      return mockStream
+    })
+
+    mockStream.stderr.on.mockImplementation((event, callback) => {
+      if (event === 'data') {
+        process.nextTick(() => callback(Buffer.from('exit failure\n')))
+      }
+    })
+
+    const result = await executor.execute({
+      host: 'localhost',
+      username: 'user',
+      privateKey: 'fake-key',
+      command: 'fail',
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toBe('exit failure\n')
+    expect(mockClient.end).toHaveBeenCalled()
+  })
+
   describe('shared client mode', () => {
     let sharedClient
 
@@ -163,7 +346,7 @@ describe('SSHExecutor', () => {
         if (event === 'data') {
           process.nextTick(() => callback(Buffer.from('output from shared')))
         } else if (event === 'close') {
-          setTimeout(() => callback(0, null), 10)
+          setImmediate(() => callback(0, null))
         }
         return mockStream
       })
@@ -258,10 +441,12 @@ describe('SSHExecutor', () => {
 
       mockStream.on.mockImplementation((event, callback) => {
         if (event === 'data') {
-          process.nextTick(() => callback(Buffer.from('line1\n')))
-          setTimeout(() => callback(Buffer.from('line2\n')), 5)
+          process.nextTick(() => {
+            callback(Buffer.from('line1\n'))
+            callback(Buffer.from('line2\n'))
+          })
         } else if (event === 'close') {
-          setTimeout(() => callback(0, null), 20)
+          setImmediate(() => callback(0, null))
         }
         return mockStream
       })
@@ -285,6 +470,31 @@ describe('SSHExecutor', () => {
       expect(result.exitCode).toBe(0)
     })
 
+    it('normalizes null exit code to zero', async () => {
+      sharedClient.exec.mockImplementation((cmd, callback) => {
+        callback(null, mockStream)
+      })
+
+      mockStream.on.mockImplementation((event, callback) => {
+        if (event === 'close') {
+          setImmediate(() => callback(null, null))
+        }
+        return mockStream
+      })
+
+      mockStream.stderr.on.mockImplementation(() => {})
+
+      const result = await executor.execute({
+        host: 'localhost',
+        username: 'user',
+        privateKey: 'key',
+        command: 'test',
+        client: sharedClient,
+      })
+
+      expect(result.exitCode).toBe(0)
+    })
+
     it('returns non-zero exit code from shared client', async () => {
       sharedClient.exec.mockImplementation((cmd, callback) => {
         callback(null, mockStream)
@@ -294,7 +504,7 @@ describe('SSHExecutor', () => {
         if (event === 'data') {
           process.nextTick(() => callback(Buffer.from('')))
         } else if (event === 'close') {
-          setTimeout(() => callback(127, null), 10)
+          setImmediate(() => callback(127, null))
         }
         return mockStream
       })
