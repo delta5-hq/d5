@@ -20,7 +20,8 @@
     "user": "babel-node --presets @babel/preset-env scripts/createUser.js",
     "mcp:research": "node build/mcp-servers/research-rag/server.js",
     "mcp:outliner": "node build/mcp-servers/outliner/server.js",
-    "mcp:scraper": "node build/mcp-servers/scraper/server.js"
+    "mcp:scraper": "node build/mcp-servers/scraper/server.js",
+    "pretest": "npm run build:mcp-servers"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "0.14.0",
