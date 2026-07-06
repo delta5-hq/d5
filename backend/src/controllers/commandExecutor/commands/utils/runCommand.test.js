@@ -1,5 +1,5 @@
 import {ChatCommand} from '../ChatCommand'
-import {OutlineCommand} from '../OutlineCommand'
+import {SummarizeCommand} from '../SummarizeCommand'
 import executeExample1 from './exampleData/executeExample1.json'
 import {runCommand} from './runCommand'
 import Store from './Store'
@@ -26,9 +26,9 @@ describe('runCommand', () => {
     jest.clearAllMocks()
   })
 
-  it('should run 4 times chat and 1 times outline', async () => {
+  it('should run 4 times chat and 1 times outline --summarize', async () => {
     const chatRunSpy = jest.spyOn(ChatCommand.prototype, 'run').mockReturnValue({nodes: []})
-    const outlineRunSpy = jest.spyOn(OutlineCommand.prototype, 'run').mockReturnValue({nodes: []})
+    const replyDefaultSpy = jest.spyOn(SummarizeCommand.prototype, 'replyDefault').mockResolvedValue('')
 
     const {workflowNodes, workflowFiles, ...data} = executeExample1
     const mockStore = new Store({
@@ -39,15 +39,15 @@ describe('runCommand', () => {
     await runCommand({...data, store: mockStore})
 
     expect(chatRunSpy).toHaveBeenCalledTimes(4)
-    expect(outlineRunSpy).toHaveBeenCalledTimes(1)
+    expect(replyDefaultSpy).toHaveBeenCalledTimes(1)
 
     chatRunSpy.mockRestore()
-    outlineRunSpy.mockRestore()
+    replyDefaultSpy.mockRestore()
   })
 
-  it('should run summarize outline', async () => {
+  it('should run outline --summarize via SummarizeCommand.replyDefault', async () => {
     const chatRunSpy = jest.spyOn(ChatCommand.prototype, 'run').mockReturnValue({nodes: []})
-    const outlineSummarizeSpy = jest.spyOn(OutlineCommand.prototype, 'replyWithSummarize').mockReturnValue([])
+    const replyDefaultSpy = jest.spyOn(SummarizeCommand.prototype, 'replyDefault').mockResolvedValue('')
 
     const {workflowNodes, workflowFiles, ...data} = executeExample1
     const mockStore = new Store({
@@ -57,10 +57,10 @@ describe('runCommand', () => {
     })
     await runCommand({...data, store: mockStore})
 
-    expect(outlineSummarizeSpy).toHaveBeenCalledTimes(1)
+    expect(replyDefaultSpy).toHaveBeenCalledTimes(1)
 
     chatRunSpy.mockRestore()
-    outlineSummarizeSpy.mockRestore()
+    replyDefaultSpy.mockRestore()
   })
 
   it('should run foreach only with prompts', async () => {

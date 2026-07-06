@@ -4,14 +4,12 @@ import {COMPLETION_QUERY_TYPE} from '../../constants/completion'
 import {CUSTOM_LLM_CHAT_QUERY_TYPE} from '../../constants/custom_llm'
 import {DEEPSEEK_QUERY_TYPE} from '../../constants/deepseek'
 import {DOWNLOAD_QUERY_TYPE} from '../../constants/download'
-import {EXT_QUERY_TYPE} from '../../constants/ext'
 import {FOREACH_QUERY, FOREACH_QUERY_TYPE} from '../../constants/foreach'
 import {MEMORIZE_QUERY, MEMORIZE_QUERY_TYPE} from '../../constants/memorize'
 import {OUTLINE_QUERY, OUTLINE_QUERY_TYPE, readSummarizeParam} from '../../constants/outline'
 import {PERPLEXITY_QUERY_TYPE} from '../../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../../constants/qwen'
 import {REFINE_QUERY} from '../../constants/refine'
-import {SCHOLAR_QUERY_TYPE} from '../../constants/scholar'
 import {STEPS_QUERY_TYPE} from '../../constants/steps'
 import {SUMMARIZE_QUERY, SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
 import {VALIDATE_QUERY} from '../../constants/validate'
@@ -28,17 +26,18 @@ import {
 } from '../../reliability/core/CommodityForkRunner'
 import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {MCP_FUSION_QUERY_TYPE} from '../../constants/mcpFusion'
-import {WEB_QUERY_TYPE} from '../../constants/web'
 import {YANDEX_QUERY_TYPE} from '../../constants/yandex'
 import {CONTROL_FLOW_COMMANDS} from '../../constants'
 import ProgressReporter from '../../ProgressReporter'
 import {CommandFactory} from '../../reliability'
 import {stripReliabilitySuffix, appendValidateSuffix} from '../../reliability/core/reliabilitySuffix'
-import {getNodeCommand} from './isCommand'
+import {getNodeCommand, isOutlineSummarize} from './isCommand'
 import {ForeachCommand} from '../ForeachCommand'
-import {MemorizeCommand} from '../MemorizeCommand'
-import {OutlineCommand} from '../OutlineCommand'
 import {SummarizeCommand} from '../SummarizeCommand'
+import {dispatchDownload} from '../internalResearch/DownloadDispatcher'
+import {dispatchMemorize} from '../internalResearch/MemorizeDispatcher'
+import {dispatchOutlineSummarize} from '../internalResearch/OutlineSummarizeDispatcher'
+import {INTERNAL_RESEARCH_QUERY_TYPES, getResearchAlias} from '../internalResearch/InternalResearchAliasMap'
 import {MCPCommand} from '../MCPCommand'
 import {MCPFusionCommand} from '../MCPFusionCommand'
 import {RPCCommand} from '../RPCCommand'
@@ -51,9 +50,6 @@ function getCommandName(queryType) {
   const nameMap = {
     [MCP_FUSION_QUERY_TYPE]: 'MCPFusionCommand',
     [YANDEX_QUERY_TYPE]: 'YandexCommand',
-    [WEB_QUERY_TYPE]: 'WebCommand',
-    [SCHOLAR_QUERY_TYPE]: 'ScholarCommand',
-    [OUTLINE_QUERY_TYPE]: 'OutlineCommand',
     [STEPS_QUERY_TYPE]: 'StepsCommand',
     [CHAT_QUERY_TYPE]: 'ChatCommand',
     [SUMMARIZE_QUERY_TYPE]: 'SummarizeCommand',
@@ -63,11 +59,8 @@ function getCommandName(queryType) {
     [PERPLEXITY_QUERY_TYPE]: 'PerplexityCommand',
     [QWEN_QUERY_TYPE]: 'QwenCommand',
     [DEEPSEEK_QUERY_TYPE]: 'DeepseekCommand',
-    [DOWNLOAD_QUERY_TYPE]: 'DownloadCommand',
     [CUSTOM_LLM_CHAT_QUERY_TYPE]: 'CustomLLMChatCommand',
-    [EXT_QUERY_TYPE]: 'ExtCommand',
     [COMPLETION_QUERY_TYPE]: 'CompletionCommand',
-    [MEMORIZE_QUERY_TYPE]: 'MemorizeCommand',
   }
   return nameMap[queryType]
 }
@@ -140,6 +133,16 @@ export const runCommand = async (
     await command.run(cell, context, prompt, {signal})
   } else if (queryType === MCP_FUSION_QUERY_TYPE) {
     const command = new MCPFusionCommand(store._userId, store._workflowId, store)
+    await command.run(cell, context, prompt, {signal})
+  } else if (queryType === DOWNLOAD_QUERY_TYPE) {
+    await dispatchDownload(cell, store, signal)
+  } else if (queryType === MEMORIZE_QUERY_TYPE) {
+    await dispatchMemorize(cell, store, signal)
+  } else if (queryType === OUTLINE_QUERY_TYPE && isOutlineSummarize(getNodeCommand(cell))) {
+    await dispatchOutlineSummarize(cell, store, signal)
+  } else if (INTERNAL_RESEARCH_QUERY_TYPES.has(queryType)) {
+    const alias = getResearchAlias(queryType)
+    const command = new MCPCommand(store._userId, store._workflowId, store, alias)
     await command.run(cell, context, prompt, {signal})
   } else if (getCommandName(queryType) || CONTROL_FLOW_COMMANDS.has(queryType)) {
     await executeCommandWithProgress(queryType, context, prompt, cell, store, progress)
@@ -226,17 +229,10 @@ export const runCommand = async (
 
           flag = true
         } else if (query?.startsWith(MEMORIZE_QUERY)) {
-          const command = new MemorizeCommand(store._userId, store._workflowId, store)
-
-          postProcessTracker = await postProcessProgress.add('MemorizeCommand.run')
-          await command.run(childNode, {signal})
-
+          await dispatchMemorize(childNode, store, signal)
           flag = true
         } else if (query?.startsWith(OUTLINE_QUERY) && readSummarizeParam(query)) {
-          const command = new OutlineCommand(store._userId, store._workflowId, store)
-
-          postProcessTracker = await postProcessProgress.add('OutlineCommand.run')
-          flag = await command.run(childNode, undefined, {signal})
+          await dispatchOutlineSummarize(childNode, store, signal)
         } else if (query?.startsWith(REFINE_QUERY)) {
           if (!memoMap?.has(childNode.id)) {
             if (!memoMap) memoMap = new Map()

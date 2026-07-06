@@ -14,21 +14,17 @@ import {PerplexityCommand} from '../PerplexityCommand'
 import {PERPLEXITY_QUERY_TYPE} from '../../constants/perplexity'
 import {CustomLLMChatCommand} from '../CustomLLMChatCommand'
 import {CUSTOM_LLM_CHAT_QUERY_TYPE} from '../../constants/custom_llm'
-import {WebCommand} from '../WebCommand'
 import {WEB_QUERY_TYPE} from '../../constants/web'
 import {SCHOLAR_QUERY_TYPE} from '../../constants/scholar'
-import {ScholarCommand} from '../ScholarCommand'
-import {OutlineCommand} from '../OutlineCommand'
 import {OUTLINE_QUERY_TYPE} from '../../constants/outline'
-import {ExtCommand} from '../ExtCommand'
 import {EXT_QUERY_TYPE} from '../../constants/ext'
 import {BaseChatModel} from '@langchain/core/language_models/chat_models'
 import {getIntegrationSettings, Model} from './langchain/getLLM'
 import YandexService from '../../../integrations/yandex/YandexService'
 import {ClaudeService} from '../../../integrations/claude/ClaudeService'
-import {ExtVectorStore} from './langchain/vectorStore/ExtVectorStore'
-import {DownloadCommand} from '../DownloadCommand'
 import {DOWNLOAD_QUERY_TYPE} from '../../constants/download'
+import {scrapeFiles} from '../../../utils/scrape'
+import WorkflowFile from '../../../../models/WorkflowFile'
 import {REFINE_QUERY_TYPE} from '../../constants/refine'
 import {LLMChain} from '@langchain/classic/chains'
 import {SWITCH_QUERY_TYPE} from '../../constants/switch'
@@ -70,6 +66,17 @@ jest.mock('../../../integrations/yandex/YandexService', () => ({
 jest.mock('../../../integrations/claude/ClaudeService', () => ({
   ClaudeService: {
     sendMessages: jest.fn(),
+  },
+}))
+
+jest.mock('../../../utils/scrape', () => ({
+  scrapeFiles: jest.fn(),
+}))
+
+jest.mock('../../../../models/WorkflowFile', () => ({
+  __esModule: true,
+  default: {
+    write: jest.fn(),
   },
 }))
 
@@ -663,419 +670,83 @@ describe('CustomLLMCommand run test', () => {
   })
 })
 
-describe('WebCommand run test', () => {
-  it('should succesfully create nodes and return output', async () => {
-    const chatNode = {id: 'chatNode', title: '/web write one pet name', command: '/web write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
-    chatNode.parent = rootNode.id
+describe.each([
+  [WEB_QUERY_TYPE, '/web write one pet name', 'Rex'],
+  [SCHOLAR_QUERY_TYPE, '/scholar write one pet name', 'Rex'],
+  [OUTLINE_QUERY_TYPE, '/outline write one pet name', 'Rex'],
+  [EXT_QUERY_TYPE, '/ext write one pet name', 'Rex'],
+])('%s dispatch via internal MCP server', (queryType, command, responseTitle) => {
+  it('creates output nodes from a successful MCP tool response', async () => {
+    const node = {id: 'cmdNode', title: command, command}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [node.id]}
+    node.parent = rootNode.id
 
-    const mockStore = new Store({
-      userId,
-      workflowId,
-      nodes: {
-        chatNode,
-        rootNode,
-      },
-    })
+    const mockStore = new Store({userId, workflowId, nodes: {cmdNode: node, rootNode}})
 
-    const chatRunSpy = jest.spyOn(WebCommand.prototype, 'createResponseWeb').mockResolvedValueOnce('Rex')
+    MCPClientManager.callTool.mockResolvedValueOnce({content: responseTitle, isError: false})
 
-    await runCommand({
-      cell: chatNode,
-      queryType: WEB_QUERY_TYPE,
-      store: mockStore,
-    })
+    await runCommand({cell: node, queryType, store: mockStore})
 
     const output = mockStore.getOutput()
 
     expect(output.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          title: 'Rex',
-          parent: chatNode.id,
-        }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({title: responseTitle, parent: node.id})]),
     )
-
-    chatRunSpy.mockRestore()
   })
 
-  it('should handle error web request', async () => {
-    const chatNode = {id: 'chatNode', title: '/web write one pet name', command: '/web write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
-    chatNode.parent = rootNode.id
+  it('resolves without throwing when the MCP tool rejects', async () => {
+    const node = {id: 'cmdNode', title: command, command}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [node.id]}
+    node.parent = rootNode.id
 
-    const mockStore = new Store({
-      userId,
-      workflowId,
-      nodes: {
-        chatNode,
-        rootNode,
-      },
-    })
+    const mockStore = new Store({userId, workflowId, nodes: {cmdNode: node, rootNode}})
 
-    const chatRunSpy = jest
-      .spyOn(WebCommand.prototype, 'createResponseWeb')
-      .mockRejectedValueOnce(new Error('Api Error'))
+    MCPClientManager.callTool.mockRejectedValueOnce(new Error('MCP error'))
 
-    await expect(
-      runCommand({
-        cell: chatNode,
-        queryType: WEB_QUERY_TYPE,
-        store: mockStore,
-      }),
-    ).resolves.not.toThrow()
-
-    chatRunSpy.mockRestore()
+    await expect(runCommand({cell: node, queryType, store: mockStore})).resolves.not.toThrow()
   })
 })
 
-describe('ScholarCommand run test', () => {
-  it('should succesfully create nodes and return output', async () => {
-    const chatNode = {id: 'chatNode', title: '/scholar write one pet name', command: '/scholar write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
-    chatNode.parent = rootNode.id
-
-    const mockStore = new Store({
-      userId,
-      workflowId,
-      nodes: {
-        chatNode,
-        rootNode,
-      },
-    })
-
-    const chatRunSpy = jest.spyOn(ScholarCommand.prototype, 'createResponseScholar').mockResolvedValueOnce('Rex')
-
-    await runCommand({
-      cell: chatNode,
-      queryType: SCHOLAR_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          title: 'Rex',
-          parent: chatNode.id,
-        }),
-      ]),
-    )
-
-    chatRunSpy.mockRestore()
-  })
-
-  it('should handle error scholar request', async () => {
-    const chatNode = {id: 'chatNode', title: '/scholar write one pet name', command: '/scholar write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
-    chatNode.parent = rootNode.id
-
-    const mockStore = new Store({
-      userId,
-      workflowId,
-      nodes: {
-        chatNode,
-        rootNode,
-      },
-    })
-
-    const chatRunSpy = jest
-      .spyOn(ScholarCommand.prototype, 'createResponseScholar')
-      .mockRejectedValueOnce(new Error('Api Error'))
-
-    await expect(
-      runCommand({
-        cell: chatNode,
-        queryType: SCHOLAR_QUERY_TYPE,
-        store: mockStore,
-      }),
-    ).resolves.not.toThrow()
-
-    chatRunSpy.mockRestore()
-  })
-})
-
-describe('OutlineCommand run test', () => {
-  it('should succesfully create nodes and return output', async () => {
-    const chatNode = {id: 'chatNode', title: '/outline write one pet name', command: '/outline write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
-    chatNode.parent = rootNode.id
-
-    const mockStore = new Store({
-      userId,
-      workflowId,
-      nodes: {
-        chatNode,
-        rootNode,
-      },
-    })
-
-    const chatRunSpy = jest.spyOn(OutlineCommand.prototype, 'createResponseOutline').mockResolvedValueOnce('Rex')
-
-    await runCommand({
-      cell: chatNode,
-      queryType: OUTLINE_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          title: 'Rex',
-          parent: chatNode.id,
-        }),
-      ]),
-    )
-
-    chatRunSpy.mockRestore()
-  })
-
-  it('should handle error outline request', async () => {
-    const chatNode = {id: 'chatNode', title: '/outline write one pet name', command: '/outline write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
-    chatNode.parent = rootNode.id
-
-    const mockStore = new Store({
-      userId,
-      workflowId,
-      nodes: {
-        chatNode,
-        rootNode,
-      },
-    })
-
-    const chatRunSpy = jest
-      .spyOn(OutlineCommand.prototype, 'createResponseOutline')
-      .mockRejectedValueOnce(new Error('Api Error'))
-
-    await expect(
-      runCommand({
-        cell: chatNode,
-        queryType: OUTLINE_QUERY_TYPE,
-        store: mockStore,
-      }),
-    ).resolves.not.toThrow()
-
-    chatRunSpy.mockRestore()
-  })
-})
-
-describe('ExtCommand run test', () => {
-  it('should succesfully create nodes and return output', async () => {
-    const chatNode = {id: 'chatNode', title: '/ext write one pet name', command: '/ext write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
-    chatNode.parent = rootNode.id
-
-    const mockStore = new Store({
-      userId,
-      workflowId,
-      nodes: {
-        chatNode,
-        rootNode,
-      },
-    })
-
-    const chatRunSpy = jest.spyOn(ExtCommand.prototype, 'createResponseExt').mockResolvedValueOnce('Rex')
-
-    await runCommand({
-      cell: chatNode,
-      queryType: EXT_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          title: 'Rex',
-          parent: chatNode.id,
-        }),
-      ]),
-    )
-
-    chatRunSpy.mockRestore()
-  })
-
-  it('should handle error ext request', async () => {
-    const chatNode = {id: 'chatNode', title: '/ext write one pet name', command: '/ext write one pet name'}
-    const rootNode = {id: 'rootNode', title: 'Workflow', children: [chatNode.id]}
-    chatNode.parent = rootNode.id
-
-    const mockStore = new Store({
-      userId,
-      workflowId,
-      nodes: {
-        chatNode,
-        rootNode,
-      },
-    })
-
-    const setVectorsSpy = jest
-      .spyOn(ExtVectorStore.prototype, 'setVectors')
-      .mockRejectedValueOnce(new Error('Vector store error'))
-
-    await expect(
-      runCommand({
-        cell: chatNode,
-        queryType: EXT_QUERY_TYPE,
-        store: mockStore,
-      }),
-    ).resolves.not.toThrow()
-
-    setVectorsSpy.mockRestore()
-  })
-})
-
-describe('DownloadCommand run test', () => {
-  beforeAll(() => {
-    jest.spyOn(console, 'log').mockImplementation(() => {})
-    jest.spyOn(console, 'error').mockImplementation(() => {})
-  })
-
-  afterAll(() => {
-    console.log.mockRestore()
-    console.error.mockRestore()
-  })
-
-  it('should successfully download and create nodes', async () => {
-    const downloadNode = {
-      id: 'downloadNode',
-      title: '/download https://example.com',
-      command: '/download https://example.com',
-    }
-    const rootNode = {id: 'rootNode', title: 'Workflow', children: [downloadNode.id]}
-    downloadNode.parent = rootNode.id
-
-    const mockStore = new Store({
-      userId,
-      workflowId,
-      nodes: {
-        downloadNode,
-        rootNode,
-      },
-    })
-
-    const mockScrapeResult = [
-      {
-        content: 'test content',
-        filename: 'test.txt',
-        contentType: 'text/plain',
-      },
-    ]
-
-    const scrapeSpy = jest.spyOn(DownloadCommand.prototype, 'scrape').mockResolvedValueOnce(mockScrapeResult)
-    const uploadSpy = jest.spyOn(DownloadCommand.prototype, 'upload').mockResolvedValueOnce({_id: 'fileId'})
-
-    await runCommand({
-      cell: downloadNode,
-      queryType: DOWNLOAD_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          title: 'test.txt',
-          parent: downloadNode.id,
-          file: 'fileId',
-        }),
-      ]),
-    )
-
-    expect(scrapeSpy).toHaveBeenCalledWith(['https://example.com'], expect.any(Object))
-    expect(uploadSpy).toHaveBeenCalled()
-
-    scrapeSpy.mockRestore()
-    uploadSpy.mockRestore()
-  })
-
-  it('should handle upload errors gracefully', async () => {
-    const downloadNode = {
-      id: 'downloadNode',
-      title: '/download https://example.com',
-      command: '/download https://example.com',
-    }
-    const rootNode = {id: 'rootNode', title: 'Workflow', children: [downloadNode.id]}
-    downloadNode.parent = rootNode.id
-
-    const mockStore = new Store({
-      userId,
-      workflowId,
-      nodes: {
-        downloadNode,
-        rootNode,
-      },
-    })
-
-    const mockScrapeResult = [
-      {
-        content: 'test content',
-        filename: 'test.txt',
-        contentType: 'text/plain',
-      },
-    ]
-
-    const scrapeSpy = jest.spyOn(DownloadCommand.prototype, 'scrape').mockResolvedValueOnce(mockScrapeResult)
-    const uploadSpy = jest.spyOn(DownloadCommand.prototype, 'upload').mockRejectedValueOnce(new Error('Upload failed'))
-
-    await runCommand({
-      cell: downloadNode,
-      queryType: DOWNLOAD_QUERY_TYPE,
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual([])
-    expect(scrapeSpy).toHaveBeenCalledWith(['https://example.com'], expect.any(Object))
-    expect(uploadSpy).toHaveBeenCalled()
-
-    scrapeSpy.mockRestore()
-    uploadSpy.mockRestore()
-  })
-})
-
-describe('/refine top-level run (P0.1: legacy removed)', () => {
-  /*
-   * Legacy iterative /refine was removed in P0.1. The class no longer exists
-   * and `/refine` is no longer dispatched via createRunner — it only fires
-   * as a post-processor where it now emits a parse-time error suffix.
-   *
-   * Top-level `/refine` (queryType=REFINE_QUERY_TYPE) therefore reaches
-   * CommandFactory.createRunner's default branch and throws.
-   *
-   * Post-processor parse-time-error behavior is covered by
-   * runCommand.postprocess.test.js > "legacy /refine — parse-time error (P0.1)".
-   */
-  beforeEach(() => {
-    jest.clearAllMocks()
-  })
-
-  it('rejects /refine as a top-level runnable command (use as post-processor only)', async () => {
+describe('/refine top-level run', () => {
+  const makeRefineStore = (command, extraNodes = {}) => {
     const refineNode = {
       id: 'refineNode',
-      title: '/refine make it more concise',
-      command: '/refine make it more concise',
+      title: command,
+      command,
       children: [],
       parent: 'rootNode',
     }
     const rootNode = {id: 'rootNode', title: 'Workflow', children: [refineNode.id]}
-    const mockStore = new Store({userId, workflowId, nodes: {refineNode, rootNode}})
+    const store = new Store({userId, workflowId, nodes: {refineNode, rootNode, ...extraNodes}})
+    return {store, refineNode}
+  }
 
-    await expect(
-      runCommand({
-        cell: refineNode,
-        queryType: REFINE_QUERY_TYPE,
-        store: mockStore,
-      }),
-    ).rejects.toThrow(/Unknown queryType: refine/)
+  const expectErrorChildOf = (store, parentId, titleMatcher) =>
+    expect(store.getOutput().nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({title: expect.stringContaining(titleMatcher), parent: parentId}),
+      ]),
+    )
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('resolves and produces a visible error node when :n= is absent', async () => {
+    const {store, refineNode} = makeRefineStore('/refine make it more concise')
+
+    await runCommand({cell: refineNode, queryType: REFINE_QUERY_TYPE, store})
+
+    expectErrorChildOf(store, refineNode.id, '/refine requires :n=N')
+  })
+
+  it('resolves and produces a visible error node when projected cost exceeds :limit=', async () => {
+    // :limit= guards against runaway fork budgets; cost is checked before any fork is spawned
+    const {store, refineNode} = makeRefineStore('/refine :n=2 :limit=1 trim this')
+
+    await runCommand({cell: refineNode, queryType: REFINE_QUERY_TYPE, store})
+
+    expectErrorChildOf(store, refineNode.id, 'exceeds limit')
   })
 })
 
@@ -1770,12 +1441,12 @@ describe('CompletionCommand run test', () => {
   })
 })
 
-describe('MemorizeCommand run test', () => {
+describe('/memorize dispatch test', () => {
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
-  it('should successfully memorize content and create embeddings', async () => {
+  it('should extract parent content and dispatch to MCP tool', async () => {
     const memorizeNode = {
       id: 'memorizeNode',
       title: '/memorize --context=test',
@@ -1801,103 +1472,45 @@ describe('MemorizeCommand run test', () => {
     const mockStore = new Store({
       userId,
       workflowId,
-      nodes: {
-        memorizeNode,
-        parentNode,
-        childNode,
-        rootNode,
-      },
+      nodes: {memorizeNode, parentNode, childNode, rootNode},
     })
 
-    const mockLoad = jest.fn().mockResolvedValue(undefined)
-    jest.spyOn(ExtVectorStore.prototype, 'load').mockImplementation(mockLoad)
+    MCPClientManager.callTool.mockResolvedValueOnce({content: 'Memorized 2 chunks', isError: false})
 
-    await runCommand({
-      cell: memorizeNode,
-      queryType: MEMORIZE_QUERY_TYPE,
-      store: mockStore,
-    })
+    await runCommand({cell: memorizeNode, queryType: MEMORIZE_QUERY_TYPE, store: mockStore})
 
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual([])
-    expect(mockLoad).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({
-          content: expect.stringContaining('Parent Content'),
-          hrefs: ['parentNode'],
-        }),
-        expect.objectContaining({
-          content: expect.stringContaining('Child Content'),
-          hrefs: ['childNode'],
-        }),
-      ]),
-      false,
-    )
+    expect(MCPClientManager.callTool).toHaveBeenCalledTimes(1)
+    const callArgs = MCPClientManager.callTool.mock.calls[0][0]
+    expect(callArgs.toolArguments.text).toContain('Parent Content')
+    expect(callArgs.toolArguments.context).toBe('test')
   })
 
-  it('should handle memorize command with rechunk parameter', async () => {
+  it('should handle memorize error gracefully', async () => {
     const memorizeNode = {
       id: 'memorizeNode',
-      title: '/memorize --rechunk --context=test',
-      command: '/memorize --rechunk --context=test',
+      title: '/memorize --context=test',
+      command: '/memorize --context=test',
       parent: 'parentNode',
     }
     const parentNode = {
       id: 'parentNode',
-      title: 'Parent Content for Rechunk',
+      title: 'Parent Content',
       children: [memorizeNode.id],
     }
-    const childNode1 = {
-      id: 'childNode1',
-      title: 'Child Content 1',
-      children: [],
-      parent: 'parentNode',
-    }
-    const childNode2 = {
-      id: 'childNode2',
-      title: 'Child Content 2',
-      children: [],
-      parent: 'parentNode',
-    }
-    parentNode.children.push(childNode1.id, childNode2.id)
-
     const rootNode = {id: 'rootNode', title: 'Workflow', children: [parentNode.id]}
     parentNode.parent = rootNode.id
 
     const mockStore = new Store({
       userId,
       workflowId,
-      nodes: {
-        memorizeNode,
-        parentNode,
-        childNode1,
-        childNode2,
-        rootNode,
-      },
+      nodes: {memorizeNode, parentNode, rootNode},
     })
 
-    const mockLoad = jest.fn().mockResolvedValue(undefined)
-    jest.spyOn(ExtVectorStore.prototype, 'load').mockImplementation(mockLoad)
+    MCPClientManager.callTool.mockRejectedValueOnce(new Error('MCP connection failed'))
 
-    await runCommand({
-      cell: memorizeNode,
-      queryType: 'memorize',
-      store: mockStore,
-    })
-
-    const output = mockStore.getOutput()
-
-    expect(output.nodes).toEqual([])
-    expect(mockLoad).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({
-          content: expect.stringContaining('Parent Content for Rechunk. Child Content 1. Child Content 2.'),
-          hrefs: ['parentNode'],
-        }),
-      ]),
-      false,
-    )
+    await expect(
+      runCommand({cell: memorizeNode, queryType: MEMORIZE_QUERY_TYPE, store: mockStore}),
+    ).resolves.not.toThrow()
   })
 })
 
@@ -2464,5 +2077,38 @@ describe('RPCCommand run test', () => {
       'rpc',
       'extracted-123',
     )
+  })
+})
+
+describe('/download dispatch routing', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('routes DOWNLOAD_QUERY_TYPE to the file-artifact path, not MCPClientManager', async () => {
+    const node = {id: 'dlNode', title: '/download https://example.com', command: '/download https://example.com'}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [node.id]}
+    node.parent = rootNode.id
+    const mockStore = new Store({userId, workflowId, nodes: {dlNode: node, rootNode}})
+
+    scrapeFiles.mockResolvedValueOnce([{filename: 'page.txt', content: 'content'}])
+    WorkflowFile.write.mockResolvedValueOnce({_id: 'fid'})
+
+    await runCommand({cell: node, queryType: DOWNLOAD_QUERY_TYPE, store: mockStore})
+
+    expect(scrapeFiles).toHaveBeenCalledTimes(1)
+    expect(WorkflowFile.write).toHaveBeenCalledTimes(1)
+    expect(MCPClientManager.callTool).not.toHaveBeenCalled()
+  })
+
+  it('resolves without throwing when the download path encounters an error', async () => {
+    const node = {id: 'dlNode', title: '/download https://example.com', command: '/download https://example.com'}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [node.id]}
+    node.parent = rootNode.id
+    const mockStore = new Store({userId, workflowId, nodes: {dlNode: node, rootNode}})
+
+    scrapeFiles.mockRejectedValueOnce(new Error('Connection refused'))
+
+    await expect(runCommand({cell: node, queryType: DOWNLOAD_QUERY_TYPE, store: mockStore})).resolves.not.toThrow()
   })
 })

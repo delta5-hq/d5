@@ -1,8 +1,10 @@
+import fs from 'fs'
 import path from 'path'
 import {MONGO_URI} from '../../../../constants'
 import {readInternalMCPServerId, resolveInternalMCPServerScript} from './internalMCPServerCatalog'
 
-export const INTERNAL_SERVERS_DIR = path.resolve(__dirname, '../../../../mcp-servers')
+const BACKEND_ROOT = path.resolve(__dirname, '../../../../../')
+export const INTERNAL_SERVERS_DIR = process.env.INTERNAL_SERVERS_DIR ?? path.join(BACKEND_ROOT, 'build', 'mcp-servers')
 
 const DOCKER_MCP_SERVERS_PREFIX = '/app/mcp-servers'
 
@@ -15,10 +17,17 @@ const isUnderInternalServersDir = resolvedScriptPath => resolvedScriptPath.start
 const isDockerMcpPath = scriptPath =>
   scriptPath === DOCKER_MCP_SERVERS_PREFIX || scriptPath.startsWith(DOCKER_MCP_SERVERS_PREFIX + '/')
 
+const requireBuiltScript = (resolvedPath, serverId) => {
+  if (!fs.existsSync(resolvedPath)) {
+    throw new Error(`Internal MCP server '${serverId}' is not built. Run: npm run build`)
+  }
+  return resolvedPath
+}
+
 const resolveInternalServerUri = scriptPath => {
   const serverId = readInternalMCPServerId(scriptPath)
   if (!serverId) return null
-  return path.join(INTERNAL_SERVERS_DIR, resolveInternalMCPServerScript(serverId))
+  return requireBuiltScript(path.join(INTERNAL_SERVERS_DIR, resolveInternalMCPServerScript(serverId)), serverId)
 }
 
 export const resolveInternalServerScript = scriptPath => {

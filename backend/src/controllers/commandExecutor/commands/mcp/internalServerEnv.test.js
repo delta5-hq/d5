@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import {
   isInternalMcpServer,
@@ -17,6 +18,136 @@ const logicalInternalServerCases = [
   ['scraper', 'd5-internal://mcp-server/scraper', path.join(INTERNAL_SERVERS_DIR, 'scraper/server.js')],
   ['outliner', 'd5-internal://mcp-server/outliner', path.join(INTERNAL_SERVERS_DIR, 'outliner/server.js')],
 ]
+
+const dockerPathCases = [
+  ['research-rag', '/app/mcp-servers/research-rag/server.js', 'research-rag/server.js'],
+  ['scraper', '/app/mcp-servers/scraper/server.js', 'scraper/server.js'],
+  ['outliner', '/app/mcp-servers/outliner/server.js', 'outliner/server.js'],
+]
+
+const ABSENT_SERVERS_DIR = '/tmp/d5-test-absent-mcp-servers-dir'
+
+const withAbsentServersDir = callback => {
+  const saved = process.env.INTERNAL_SERVERS_DIR
+  process.env.INTERNAL_SERVERS_DIR = ABSENT_SERVERS_DIR
+  try {
+    callback()
+  } finally {
+    if (saved === undefined) delete process.env.INTERNAL_SERVERS_DIR
+    else process.env.INTERNAL_SERVERS_DIR = saved
+  }
+}
+
+describe('INTERNAL_SERVERS_DIR resolution', () => {
+  it('is an absolute path', () => {
+    expect(path.isAbsolute(INTERNAL_SERVERS_DIR)).toBe(true)
+  })
+
+  it('ends with the mcp-servers directory segment', () => {
+    expect(path.basename(INTERNAL_SERVERS_DIR)).toBe('mcp-servers')
+  })
+
+  it('resolves inside the build tree', () => {
+    expect(INTERNAL_SERVERS_DIR).toContain(path.join('build', 'mcp-servers'))
+  })
+
+  it('does not resolve inside the src tree', () => {
+    expect(INTERNAL_SERVERS_DIR).not.toContain(path.join('src', 'mcp-servers'))
+  })
+
+  it('is overridden by INTERNAL_SERVERS_DIR env var at module load time', () => {
+    const customPath = '/custom/servers'
+    process.env.INTERNAL_SERVERS_DIR = customPath
+    try {
+      let overridden
+      jest.isolateModules(() => {
+        jest.mock('../../../../constants', () => ({MONGO_URI: 'mongodb://localhost:27017/test'}))
+        overridden = require('./internalServerEnv').INTERNAL_SERVERS_DIR
+      })
+      expect(overridden).toBe(customPath)
+    } finally {
+      delete process.env.INTERNAL_SERVERS_DIR
+    }
+  })
+
+  it('treats empty string INTERNAL_SERVERS_DIR env var as an explicit override (nullish-coalesce semantics)', () => {
+    process.env.INTERNAL_SERVERS_DIR = ''
+    try {
+      let overridden
+      jest.isolateModules(() => {
+        jest.mock('../../../../constants', () => ({MONGO_URI: 'mongodb://localhost:27017/test'}))
+        overridden = require('./internalServerEnv').INTERNAL_SERVERS_DIR
+      })
+      expect(overridden).toBe('')
+    } finally {
+      delete process.env.INTERNAL_SERVERS_DIR
+    }
+  })
+})
+
+describe('resolveInternalServerScript', () => {
+  it.each(logicalInternalServerCases)('maps logical %s server URI to INTERNAL_SERVERS_DIR', (_name, uri, expected) => {
+    expect(resolveInternalServerScript(uri)).toBe(expected)
+  })
+
+  it('rejects unknown logical internal server URI', () => {
+    expect(() => resolveInternalServerScript('d5-internal://mcp-server/unknown')).toThrow('Unknown internal MCP server')
+  })
+
+  describe('existence guard for internal server URIs', () => {
+    it.each(logicalInternalServerCases)(
+      'throws an actionable error naming %s and the build command when the built script is absent',
+      (serverId, uri) => {
+        withAbsentServersDir(() => {
+          jest.isolateModules(() => {
+            jest.mock('../../../../constants', () => ({MONGO_URI: 'mongodb://localhost:27017/test'}))
+            const {resolveInternalServerScript: resolve} = require('./internalServerEnv')
+            expect(() => resolve(uri)).toThrow(`Internal MCP server '${serverId}' is not built. Run: npm run build`)
+          })
+        })
+      },
+    )
+
+    it.each(logicalInternalServerCases)(
+      'throws an actionable error naming %s when the servers directory exists but the script file is absent (partial build)',
+      (serverId, uri) => {
+        const tmpDir = fs.mkdtempSync(path.join('/tmp', 'd5-test-partial-build-'))
+        process.env.INTERNAL_SERVERS_DIR = tmpDir
+        try {
+          jest.isolateModules(() => {
+            jest.mock('../../../../constants', () => ({MONGO_URI: 'mongodb://localhost:27017/test'}))
+            const {resolveInternalServerScript: resolve} = require('./internalServerEnv')
+            expect(() => resolve(uri)).toThrow(`Internal MCP server '${serverId}' is not built. Run: npm run build`)
+          })
+        } finally {
+          delete process.env.INTERNAL_SERVERS_DIR
+          fs.rmdirSync(tmpDir)
+        }
+      },
+    )
+
+    it('does not check existence for Docker preset paths — filesystem is managed externally', () => {
+      expect(() => resolveInternalServerScript('/app/mcp-servers/absent-server/server.js')).not.toThrow()
+    })
+
+    it('does not check existence for user-supplied arbitrary paths', () => {
+      expect(() => resolveInternalServerScript('/tmp/this-path-does-not-exist-d5-test.js')).not.toThrow()
+    })
+  })
+
+  it.each(dockerPathCases)('maps Docker preset path for %s to INTERNAL_SERVERS_DIR', (_name, dockerPath, relPath) => {
+    expect(resolveInternalServerScript(dockerPath)).toBe(path.join(INTERNAL_SERVERS_DIR, relPath))
+  })
+
+  it('returns absolute paths unchanged if already under INTERNAL_SERVERS_DIR', () => {
+    const localPath = path.join(INTERNAL_SERVERS_DIR, 'scraper/server.js')
+    expect(resolveInternalServerScript(localPath)).toBe(localPath)
+  })
+
+  it('returns unrelated paths unchanged', () => {
+    expect(resolveInternalServerScript('/usr/local/bin/server.js')).toBe('/usr/local/bin/server.js')
+  })
+})
 
 describe('isInternalMcpServer', () => {
   describe('command gate', () => {
@@ -58,12 +189,8 @@ describe('isInternalMcpServer', () => {
       expect(isInternalMcpServer('node', ['/home/user/mcp-servers/server.js'])).toBe(false)
     })
 
-    it('accepts /app/mcp-servers/... Docker preset path', () => {
-      expect(isInternalMcpServer('node', ['/app/mcp-servers/research-rag/server.js'])).toBe(true)
-    })
-
-    it('accepts /app/mcp-servers/... Docker preset path for scraper', () => {
-      expect(isInternalMcpServer('node', ['/app/mcp-servers/scraper/server.js'])).toBe(true)
+    it.each(dockerPathCases)('accepts Docker preset path for %s', (_name, dockerPath) => {
+      expect(isInternalMcpServer('node', [dockerPath])).toBe(true)
     })
 
     it.each(logicalInternalServerCases)('accepts logical internal server URI for %s', (_name, uri) => {
@@ -101,34 +228,22 @@ describe('isInternalMcpServer', () => {
       expect(isInternalMcpServer('node', [internalPath('server.js'), '--extra-flag'])).toBe(true)
     })
   })
-})
 
-describe('resolveInternalServerScript', () => {
-  it.each(logicalInternalServerCases)('maps logical %s server URI to INTERNAL_SERVERS_DIR', (_name, uri, expected) => {
-    expect(resolveInternalServerScript(uri)).toBe(expected)
-  })
-
-  it('rejects unknown logical internal server URI', () => {
-    expect(() => resolveInternalServerScript('d5-internal://mcp-server/unknown')).toThrow('Unknown internal MCP server')
-  })
-
-  it('maps /app/mcp-servers/... to INTERNAL_SERVERS_DIR/...', () => {
-    const result = resolveInternalServerScript('/app/mcp-servers/research-rag/server.js')
-    expect(result).toBe(path.join(INTERNAL_SERVERS_DIR, 'research-rag/server.js'))
-  })
-
-  it('maps /app/mcp-servers/scraper/server.js to INTERNAL_SERVERS_DIR', () => {
-    const result = resolveInternalServerScript('/app/mcp-servers/scraper/server.js')
-    expect(result).toBe(path.join(INTERNAL_SERVERS_DIR, 'scraper/server.js'))
-  })
-
-  it('returns absolute paths unchanged if already under INTERNAL_SERVERS_DIR', () => {
-    const localPath = path.join(INTERNAL_SERVERS_DIR, 'scraper/server.js')
-    expect(resolveInternalServerScript(localPath)).toBe(localPath)
-  })
-
-  it('returns unrelated paths unchanged', () => {
-    expect(resolveInternalServerScript('/usr/local/bin/server.js')).toBe('/usr/local/bin/server.js')
+  describe('existence error propagation', () => {
+    it.each(logicalInternalServerCases)(
+      'propagates the absence error for %s when called with a logical URI and the built script is missing',
+      (serverId, uri) => {
+        withAbsentServersDir(() => {
+          jest.isolateModules(() => {
+            jest.mock('../../../../constants', () => ({MONGO_URI: 'mongodb://localhost:27017/test'}))
+            const {isInternalMcpServer: check} = require('./internalServerEnv')
+            expect(() => check('node', [uri])).toThrow(
+              `Internal MCP server '${serverId}' is not built. Run: npm run build`,
+            )
+          })
+        })
+      },
+    )
   })
 })
 

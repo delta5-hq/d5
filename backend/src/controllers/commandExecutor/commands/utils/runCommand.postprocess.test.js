@@ -1,7 +1,5 @@
 import {ChatCommand} from '../ChatCommand'
 import {SummarizeCommand} from '../SummarizeCommand'
-import {MemorizeCommand} from '../MemorizeCommand'
-import {OutlineCommand} from '../OutlineCommand'
 import {runCommand} from './runCommand'
 import Store from './Store'
 import ProgressReporter from '../../ProgressReporter'
@@ -19,6 +17,14 @@ jest.mock('../../ProgressReporter', () => {
   }
 })
 
+jest.mock('../internalResearch/MemorizeDispatcher', () => ({
+  dispatchMemorize: jest.fn().mockResolvedValue(undefined),
+}))
+
+jest.mock('../internalResearch/OutlineSummarizeDispatcher', () => ({
+  dispatchOutlineSummarize: jest.fn().mockResolvedValue(undefined),
+}))
+
 function buildNodes(nodeMap) {
   const store = new Store({userId: 'userId', nodes: nodeMap})
   return store
@@ -31,6 +37,7 @@ describe('runCommand - Post-process dispatch', () => {
 
   afterEach(() => {
     jest.restoreAllMocks()
+    jest.clearAllMocks()
   })
 
   /*
@@ -43,6 +50,8 @@ describe('runCommand - Post-process dispatch', () => {
   describe('execution order', () => {
     it('runs post-process children by priority: summarize < memorize < outline', async () => {
       const executionOrder = []
+      const {dispatchMemorize} = require('../internalResearch/MemorizeDispatcher')
+      const {dispatchOutlineSummarize} = require('../internalResearch/OutlineSummarizeDispatcher')
 
       const root = {
         id: 'root',
@@ -62,12 +71,11 @@ describe('runCommand - Post-process dispatch', () => {
       jest.spyOn(SummarizeCommand.prototype, 'run').mockImplementation(async () => {
         executionOrder.push('summarize')
       })
-      jest.spyOn(MemorizeCommand.prototype, 'run').mockImplementation(async () => {
+      dispatchMemorize.mockImplementation(async () => {
         executionOrder.push('memorize')
       })
-      jest.spyOn(OutlineCommand.prototype, 'run').mockImplementation(async () => {
+      dispatchOutlineSummarize.mockImplementation(async () => {
         executionOrder.push('outline')
-        return true
       })
 
       await runCommand({queryType: 'chat', cell: root, store, userId: 'userId'})
@@ -77,6 +85,8 @@ describe('runCommand - Post-process dispatch', () => {
 
     it('sorts post-process children by priority using title field when command absent', async () => {
       const executionOrder = []
+      const {dispatchMemorize} = require('../internalResearch/MemorizeDispatcher')
+      const {dispatchOutlineSummarize} = require('../internalResearch/OutlineSummarizeDispatcher')
 
       const root = {
         id: 'root',
@@ -96,12 +106,11 @@ describe('runCommand - Post-process dispatch', () => {
       jest.spyOn(SummarizeCommand.prototype, 'run').mockImplementation(async () => {
         executionOrder.push('summarize')
       })
-      jest.spyOn(MemorizeCommand.prototype, 'run').mockImplementation(async () => {
+      dispatchMemorize.mockImplementation(async () => {
         executionOrder.push('memorize')
       })
-      jest.spyOn(OutlineCommand.prototype, 'run').mockImplementation(async () => {
+      dispatchOutlineSummarize.mockImplementation(async () => {
         executionOrder.push('outline')
-        return true
       })
 
       await runCommand({queryType: 'chat', cell: root, store, userId: 'userId'})
@@ -112,6 +121,7 @@ describe('runCommand - Post-process dispatch', () => {
 
   describe('recursive post-processing', () => {
     it('processes children of a flag=true post-processor as sub-post-process commands', async () => {
+      const {dispatchMemorize} = require('../internalResearch/MemorizeDispatcher')
       const root = {
         id: 'root',
         parent: 'root',
@@ -133,11 +143,10 @@ describe('runCommand - Post-process dispatch', () => {
       })
 
       jest.spyOn(SummarizeCommand.prototype, 'run').mockResolvedValue()
-      const memorizeSpy = jest.spyOn(MemorizeCommand.prototype, 'run').mockResolvedValue()
 
       await runCommand({queryType: 'chat', cell: root, store, userId: 'userId'})
 
-      expect(memorizeSpy).toHaveBeenCalledTimes(1)
+      expect(dispatchMemorize).toHaveBeenCalledTimes(1)
     })
   })
 

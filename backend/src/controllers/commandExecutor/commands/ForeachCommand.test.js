@@ -6,9 +6,7 @@ import {getLLM, Model} from './utils/langchain/getLLM'
 import {REF_PREFIX} from '../constants'
 import {translate} from './utils/translate'
 import {createNodes} from './utils/createNodes'
-import {ScholarCommand} from './ScholarCommand'
-import {OutlineCommand} from './OutlineCommand'
-import {WebCommand} from './WebCommand'
+import * as MCPClientManager from './mcp/MCPClientManager'
 import {createDeepClone} from './utils/createDeepClone'
 import {StepsCommand} from './StepsCommand'
 import ProgressReporter from '../ProgressReporter'
@@ -22,6 +20,10 @@ jest.mock('./utils/langchain/getLLM', () => ({
 
 jest.mock('./StepsCommand')
 jest.mock('./utils/runCommand')
+jest.mock('./mcp/MCPClientManager', () => ({
+  callTool: jest.fn().mockResolvedValue({content: 'response', isError: false}),
+  listTools: jest.fn(),
+}))
 jest.mock('./utils/translate')
 jest.mock('./utils/createNodes')
 jest.mock('./utils/createDeepClone')
@@ -740,14 +742,16 @@ describe('ForeachCommand', () => {
       }
 
       runCommand.mockImplementation(sourceRunCommand)
-      const scholarSpy = jest.spyOn(ScholarCommand.prototype, 'createResponseScholar').mockReturnValue('response')
+      MCPClientManager.callTool.mockResolvedValue({content: 'response', isError: false})
 
       await command.run(child1)
 
-      expect(scholarSpy).toHaveBeenCalledWith(
-        expect.anything(),
-        'some prompt yandexgpt response on your question',
-        expect.anything(),
+      expect(MCPClientManager.callTool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolArguments: expect.objectContaining({
+            query: expect.stringContaining('some prompt yandexgpt response on your question'),
+          }),
+        }),
       )
     })
 
@@ -775,14 +779,16 @@ describe('ForeachCommand', () => {
       }
 
       runCommand.mockImplementation(sourceRunCommand)
-      const scholarSpy = jest.spyOn(ScholarCommand.prototype, 'createResponseScholar').mockReturnValue('response')
+      MCPClientManager.callTool.mockResolvedValue({content: 'response', isError: false})
 
       await command.run(child1)
 
-      expect(scholarSpy).toHaveBeenCalledWith(
-        expect.anything(),
-        'some prompt yandexgpt response on your question',
-        expect.anything(),
+      expect(MCPClientManager.callTool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolArguments: expect.objectContaining({
+            query: expect.stringContaining('some prompt yandexgpt response on your question'),
+          }),
+        }),
       )
     })
 
@@ -810,14 +816,16 @@ describe('ForeachCommand', () => {
       }
 
       runCommand.mockImplementation(sourceRunCommand)
-      const outlineSpy = jest.spyOn(OutlineCommand.prototype, 'createResponseOutline').mockReturnValue('response')
+      MCPClientManager.callTool.mockResolvedValue({content: 'response', isError: false})
 
       await command.run(child1)
 
-      expect(outlineSpy).toHaveBeenCalledWith(
-        expect.anything(),
-        'some prompt yandexgpt response on your question',
-        expect.anything(),
+      expect(MCPClientManager.callTool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolArguments: expect.objectContaining({
+            query: expect.stringContaining('some prompt yandexgpt response on your question'),
+          }),
+        }),
       )
     })
 
@@ -840,14 +848,16 @@ describe('ForeachCommand', () => {
       }
 
       runCommand.mockImplementation(sourceRunCommand)
-      const webSpy = jest.spyOn(WebCommand.prototype, 'createResponseWeb').mockReturnValue('response')
+      MCPClientManager.callTool.mockResolvedValue({content: 'response', isError: false})
 
       await command.run(child1)
 
-      expect(webSpy).toHaveBeenCalledWith(
-        expect.anything(),
-        'some prompt yandexgpt response on your question',
-        expect.anything(),
+      expect(MCPClientManager.callTool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolArguments: expect.objectContaining({
+            query: expect.stringContaining('some prompt yandexgpt response on your question'),
+          }),
+        }),
       )
     })
 
