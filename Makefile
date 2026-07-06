@@ -290,6 +290,7 @@ test-scripts:
 	@node --test scripts/ci/__tests__/legacy-version-symbol-gate.test.mjs
 	@node --test scripts/ci/__tests__/range-assertion-gate.test.mjs
 	@node --test scripts/ci/__tests__/staged-agent-artifact-gate.test.mjs
+	@node --test scripts/ci/__tests__/determinism-gate.test.mjs
 
 e2e-backend: start-mongodb-e2e e2e-db-init
 	@echo "→ Building backend-v2..."

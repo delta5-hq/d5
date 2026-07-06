@@ -19,8 +19,7 @@ async function purgeQaBotWorkflows(page: Parameters<typeof qaBotLogin>[0]) {
   /* qa-bot has LimitWorkflows=10 (seeded by backend-v2/cmd/seed-users); without
      this purge, 10× test.beforeEach × 2 browsers saturates the cap and the next
      POST /workflow returns 402 silently — page never navigates, waitForURL
-     times out at 15s. Grounded via test-results page snapshot showing 10
-     accumulated qa-bot workflow cards at failure point.
+     times out at 15s.
      Retry loop: parallel workers share the same qa-bot user, so the other
      browser can re-fill the quota between our GET and DELETE; loop until the
      listing comes back empty (or we exhaust attempts). */
@@ -144,6 +143,56 @@ async function expectValidateFailure(page: Parameters<typeof qaBotLogin>[0], val
   expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_FAIL_RE)
 }
 
+async function assertForeachValidateContractFor(
+  page: Parameters<typeof qaBotLogin>[0],
+  foreachCommand: string,
+) {
+  const contentKeyedSentinel = 'MOCK_VALIDATE_FAIL_IF_CONTENT_CONTAINS=Beta'
+
+  const tree = new WorkflowTreePage(page)
+  const { rootId } = await selectRootAndOpenDetail(page)
+  const batchId = await addChildCommand(page, tree, rootId, 'Batch')
+
+  const alphaId = await addChildCommand(page, tree, batchId, 'Alpha')
+  const betaId = await addChildCommand(page, tree, batchId, 'Beta')
+  const gammaId = await addChildCommand(page, tree, batchId, 'Gamma')
+  const foreachId = await addChildCommand(page, tree, batchId, foreachCommand)
+  await addChildCommand(
+    page,
+    tree,
+    foreachId,
+    `/validate :retry=0 ${contentKeyedSentinel} — Beta fails only`,
+  )
+
+  await tree.selectNode(foreachId)
+  const foreachDetail = new NodeDetailPanelPage(page)
+  await foreachDetail.waitForComponent()
+  await executeAndWaitForCompletion(page, foreachDetail)
+
+  const snapshot = await loadWorkflowSnapshot(page)
+
+  const validateVerdicts = validateTitlesOwnedByIterations(
+    snapshot,
+    contentKeyedSentinel,
+    [alphaId, betaId, gammaId],
+  )
+  expect(validateVerdicts).toHaveLength(3)
+  expect(validateVerdicts.filter(title => /\[✓\]/.test(title))).toHaveLength(2)
+  expect(validateVerdicts.filter(title => /\[✗\s+\d+\s+attempts\]/.test(title))).toHaveLength(1)
+
+  const templateNodes = Object.values(snapshot.nodes ?? {}).filter(
+    n => n.parent === foreachId && String(n.title ?? '').includes(contentKeyedSentinel),
+  )
+  expect(templateNodes).toHaveLength(1)
+  expect(String(templateNodes[0].title ?? '')).not.toMatch(VALIDATE_VERDICT_RE)
+
+  const verdictsUnderForeach = Object.values(snapshot.nodes ?? {}).filter(n => {
+    const title = String(n.title ?? '')
+    return title.includes(contentKeyedSentinel) && n.parent === foreachId && VALIDATE_VERDICT_RE.test(title)
+  })
+  expect(verdictsUnderForeach).toHaveLength(0)
+}
+
 type WorkflowNodeSnapshot = {
   title?: string
   parent?: string
@@ -231,46 +280,12 @@ test.describe('Reliability execution contracts', () => {
     expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_VERDICT_RE)
   })
 
-  test('foreach validate — each iteration shows its own pass or fail verdict', async ({ page }) => {
-    const tree = new WorkflowTreePage(page)
-    const { rootId } = await selectRootAndOpenDetail(page)
-    const batchId = await addChildCommand(page, tree, rootId, 'Batch')
+  test('foreach validate — sequential: each iteration shows its own pass or fail verdict', async ({ page }) => {
+    await assertForeachValidateContractFor(page, '/foreach /chat @@ --parallel=no')
+  })
 
-    const alphaId = await addChildCommand(page, tree, batchId, 'Alpha')
-    const betaId = await addChildCommand(page, tree, batchId, 'Beta')
-    const gammaId = await addChildCommand(page, tree, batchId, 'Gamma')
-    const foreachId = await addChildCommand(page, tree, batchId, '/foreach /chat @@ --parallel=no')
-    await addChildCommand(
-      page,
-      tree,
-      foreachId,
-      '/validate :retry=0 MOCK_VALIDATE_FAIL_IF_CONTENT_CONTAINS=Beta — Beta fails only',
-    )
-
-    await tree.selectNode(foreachId)
-    const foreachDetail = new NodeDetailPanelPage(page)
-    await foreachDetail.waitForComponent()
-    await executeAndWaitForCompletion(page, foreachDetail)
-
-    const snapshot = await loadWorkflowSnapshot(page)
-
-    const validateVerdicts = validateTitlesOwnedByIterations(
-      snapshot,
-      'MOCK_VALIDATE_FAIL_IF_CONTENT_CONTAINS=Beta',
-      [alphaId, betaId, gammaId],
-    )
-
-    expect(validateVerdicts).toHaveLength(3)
-    expect(validateVerdicts.filter(title => /\[✓\]/.test(title))).toHaveLength(2)
-    expect(validateVerdicts.filter(title => /\[✗\s+\d+\s+attempts\]/.test(title))).toHaveLength(1)
-
-    // The authored /validate template (parent === foreachId) must survive execution
-    // without any verdict suffix — it is a blueprint, not a verdict recipient.
-    const templateTitles = Object.values(snapshot.nodes ?? {})
-      .filter(n => n.parent === foreachId && String(n.title ?? '').includes('MOCK_VALIDATE_FAIL'))
-      .map(n => String(n.title ?? ''))
-    expect(templateTitles).toHaveLength(1)
-    expect(templateTitles[0]).not.toMatch(/\[[✓✗]/)
+  test('foreach validate — parallel: each iteration shows its own pass or fail verdict', async ({ page }) => {
+    await assertForeachValidateContractFor(page, '/foreach /chat @@')
   })
 
   test('executing visual state — abort button visible while running', async ({ page }) => {

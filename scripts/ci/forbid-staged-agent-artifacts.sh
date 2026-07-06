@@ -43,7 +43,16 @@ is_blocked_staged_path() {
   esac
 }
 
+get_changed_paths() {
+  if [ "${1:-}" = "--from-stdin" ]; then
+    cat
+  else
+    git -C "$REPO_ROOT" diff --cached --name-only
+  fi
+}
+
 main() {
+  local mode="${1:-}"
   local failed=0
   local path
 
@@ -54,7 +63,7 @@ main() {
       echo "AGENT-ARTIFACT-VIOLATION: staged private/process artifact: $path" >&2
       failed=1
     fi
-  done < <(git -C "$REPO_ROOT" diff --cached --name-only)
+  done < <(get_changed_paths "$mode")
 
   if [ "$failed" -eq 1 ]; then
     echo "Remove private/process artifacts from the staged set or add a dedicated production allowlist entry in scripts/ci/forbid-staged-agent-artifacts.sh." >&2

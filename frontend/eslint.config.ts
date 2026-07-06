@@ -1,3 +1,4 @@
+import type { Linter } from 'eslint'
 import js from '@eslint/js'
 import globals from 'globals'
 import react from 'eslint-plugin-react'
@@ -6,27 +7,14 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 import { globalIgnores } from 'eslint/config'
 import prettierPlugin from 'eslint-plugin-prettier'
-import prettierConfig from 'eslint-config-prettier'
+import { noInlineDisableGuardrailRule } from './plugins/no-inline-disable-guardrail.js'
+import { hardcodedVersionRestrictions } from './plugins/jsx-version-restrictions.js'
 
-const d5GuardrailRules = {
-  'no-inline-disable-restricted-syntax': {
-    create(context) {
-      return {
-        Program(node) {
-          context.sourceCode.getAllComments().forEach(comment => {
-            if (/\beslint-disable(?:-next-line|-line)?\b.*\bno-restricted-syntax\b/.test(comment.value)) {
-              context.report({
-                node,
-                loc: comment.loc ?? node.loc ?? undefined,
-                message: 'Inline disables for no-restricted-syntax are forbidden in render-path lint gates.',
-              })
-            }
-          })
-        },
-      }
-    },
-  },
-}
+// ConfigArray (Linter.Config[]) — spreading .rules directly returns undefined; merge each element instead.
+const tsRecommendedRules = Object.assign(
+  {} as Linter.RulesRecord,
+  ...tseslint.configs.recommended.map(c => c.rules ?? {}),
+) as Linter.RulesRecord
 
 export default tseslint.config([
   globalIgnores(['dist']),
@@ -47,7 +35,7 @@ export default tseslint.config([
     },
     rules: {
       ...js.configs.recommended.rules,
-      ...tseslint.configs.recommended.rules,
+      ...tsRecommendedRules,
       'prettier/prettier': 'error',
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
@@ -80,12 +68,12 @@ export default tseslint.config([
       react,
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
-      'd5-guardrails': {rules: d5GuardrailRules},
+      'd5-guardrails': { rules: { 'no-inline-disable-restricted-syntax': noInlineDisableGuardrailRule } },
       prettier: prettierPlugin,
     },
     rules: {
       ...js.configs.recommended.rules,
-      ...tseslint.configs.recommended.rules,
+      ...tsRecommendedRules,
       ...react.configs.recommended.rules,
       ...reactHooks.configs['recommended-latest'].rules,
       ...reactRefresh.configs.vite.rules,
@@ -107,7 +95,6 @@ export default tseslint.config([
       eqeqeq: ['warn', 'always'],
       'd5-guardrails/no-inline-disable-restricted-syntax': 'error',
 
-      // react rules
       'react/prefer-stateless-function': 'error',
       'react/button-has-type': 'error',
       'react/no-unused-prop-types': 'error',
@@ -139,24 +126,7 @@ export default tseslint.config([
       'react/jsx-one-expression-per-line': 'off',
       'react/prop-types': 'off',
       'react/jsx-no-literals': ['warn', { noStrings: true, ignoreProps: true, allowedStrings: ['.', '-', '+', ':', '/'] }],
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: 'JSXText[value=/(?:^|\s)(?:\d+\.\d+\.\d+|dev|local|unknown)(?:\s|$)/]',
-          message:
-            'Hardcoded version/build/environment strings are forbidden in JSX render paths. Import from the shared build-version module.',
-        },
-        {
-          selector: 'JSXAttribute > Literal[value=/^(?:\d+\.\d+\.\d+|dev|local|unknown)$/]',
-          message:
-            'Hardcoded version/build/environment strings are forbidden in JSX attributes. Import from the shared build-version module.',
-        },
-        {
-          selector: 'JSXExpressionContainer > Literal[value=/^(?:\d+\.\d+\.\d+|dev|local|unknown)$/]',
-          message:
-            'Hardcoded version/build/environment strings are forbidden in JSX expressions. Import from the shared build-version module.',
-        },
-      ],
+      'no-restricted-syntax': ['error', ...hardcodedVersionRestrictions],
     },
   },
 ])
