@@ -116,6 +116,68 @@ describe('resolveNodeCommandBindPaths', () => {
     })
   })
 
+  describe('co-located resource directories alongside node_modules', () => {
+    it('includes a listed resource dir that exists beside node_modules at the project root', () => {
+      const exists = existsOnly('/project/src/server.js', '/project/node_modules', '/project/shared-contracts')
+      expect(resolveNodeCommandBindPaths('node', ['/project/src/server.js'], exists)).toEqual([
+        '/project',
+        '/project/shared-contracts',
+      ])
+    })
+
+    it('omits a listed resource dir name when it does not exist on disk beside node_modules', () => {
+      const exists = existsOnly('/project/src/server.js', '/project/node_modules')
+      expect(resolveNodeCommandBindPaths('node', ['/project/src/server.js'], exists)).toEqual(['/project'])
+    })
+
+    it('does not include a resource dir that exists at a level with no node_modules', () => {
+      const exists = existsOnly('/project/src/server.js', '/project/node_modules', '/project/src/shared-contracts')
+      expect(resolveNodeCommandBindPaths('node', ['/project/src/server.js'], exists)).toEqual(['/project'])
+    })
+
+    it('does not include arbitrary sibling directories that are not in the co-located resource list', () => {
+      const exists = existsOnly('/project/src/server.js', '/project/node_modules', '/project/unlisted-dir')
+      expect(resolveNodeCommandBindPaths('node', ['/project/src/server.js'], exists)).toEqual(['/project'])
+    })
+
+    it('does not include co-located resource dirs when the fallback path applies (no node_modules ancestors)', () => {
+      const exists = existsOnly('/srv/app/server.js', '/srv/shared-contracts')
+      expect(resolveNodeCommandBindPaths('node', ['/srv/app/server.js'], exists)).toEqual(['/srv/app'])
+    })
+
+    it('includes a resource dir only at ancestor levels where both node_modules and the resource dir are present', () => {
+      const exists = existsOnly(
+        '/monorepo/pkg/src/server.js',
+        '/monorepo/pkg/node_modules',
+        '/monorepo/node_modules',
+        '/monorepo/shared-contracts',
+      )
+      expect(resolveNodeCommandBindPaths('node', ['/monorepo/pkg/src/server.js'], exists)).toEqual([
+        '/monorepo/pkg',
+        '/monorepo/node_modules',
+        '/monorepo/shared-contracts',
+      ])
+    })
+
+    it('includes resource dirs from every ancestor level where both are present across a deep tree', () => {
+      const exists = existsOnly(
+        '/root/a/b/server.js',
+        '/root/a/b/node_modules',
+        '/root/a/b/shared-contracts',
+        '/root/a/node_modules',
+        '/root/node_modules',
+        '/root/shared-contracts',
+      )
+      expect(resolveNodeCommandBindPaths('node', ['/root/a/b/server.js'], exists)).toEqual([
+        '/root/a/b',
+        '/root/a/node_modules',
+        '/root/node_modules',
+        '/root/a/b/shared-contracts',
+        '/root/shared-contracts',
+      ])
+    })
+  })
+
   describe('node-jiti command', () => {
     it('applies the same resolution strategy as node', () => {
       const exists = existsOnly('/project/src/server.js', '/project/node_modules')
@@ -125,6 +187,14 @@ describe('resolveNodeCommandBindPaths', () => {
     it('falls back to script dir when no node_modules ancestor exists', () => {
       const exists = existsOnly('/srv/app/server.js')
       expect(resolveNodeCommandBindPaths('node-jiti', ['/srv/app/server.js'], exists)).toEqual(['/srv/app'])
+    })
+
+    it('includes co-located resource directories using the same strategy as node', () => {
+      const exists = existsOnly('/project/src/server.js', '/project/node_modules', '/project/shared-contracts')
+      expect(resolveNodeCommandBindPaths('node-jiti', ['/project/src/server.js'], exists)).toEqual([
+        '/project',
+        '/project/shared-contracts',
+      ])
     })
   })
 })

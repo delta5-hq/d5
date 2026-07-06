@@ -2,6 +2,7 @@ import path from 'path'
 
 const NODE_COMMANDS = new Set(['node', 'node-jiti'])
 const SCRIPT_EXTENSIONS = new Set(['.js', '.cjs', '.mjs'])
+const CO_LOCATED_RESOURCE_DIRS = ['shared-contracts']
 
 const findScriptArg = args => (args ?? []).find(a => SCRIPT_EXTENSIONS.has(path.extname(a)))
 
@@ -20,6 +21,9 @@ const walkUpForNodeModules = (startDir, existsSync) => {
   return results
 }
 
+const collectCoLocatedResourceDirs = (dirsWithNodeModules, resourceDirNames, existsSync) =>
+  dirsWithNodeModules.flatMap(dir => resourceDirNames.map(name => path.join(dir, name)).filter(existsSync))
+
 export const resolveNodeCommandBindPaths = (command, args, existsSync) => {
   if (!NODE_COMMANDS.has(command)) return []
 
@@ -36,6 +40,7 @@ export const resolveNodeCommandBindPaths = (command, args, existsSync) => {
 
   const [projectRoot, ...ancestorRoots] = dirsWithNodeModules
   const ancestorNodeModuleDirs = ancestorRoots.map(d => path.join(d, 'node_modules'))
+  const coLocatedResourceDirs = collectCoLocatedResourceDirs(dirsWithNodeModules, CO_LOCATED_RESOURCE_DIRS, existsSync)
 
-  return [projectRoot, ...ancestorNodeModuleDirs]
+  return [projectRoot, ...ancestorNodeModuleDirs, ...coLocatedResourceDirs]
 }
