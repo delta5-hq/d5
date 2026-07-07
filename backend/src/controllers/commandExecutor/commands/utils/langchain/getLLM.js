@@ -21,7 +21,7 @@ import {ChatOpenAI} from '@langchain/openai'
 import {QWEN_API_URL, DEEPSEEK_API_URL} from '../../../../../shared/config/constants'
 import {ChatClaude} from './Anthropic'
 import {CustomLLMChat, CustomEmbeddings} from './CustomLLMChat'
-import {createNoopLLM} from './noopLLM'
+import {createNoopEmbeddings, createNoopLLM} from './noopLLM'
 import {Model, detectConfiguredProvider, loadIntegrationSettings} from './IntegrationSettingsLoader'
 import {NATIVE_EMBEDDINGS_TYPES, resolveEmbeddingsFallbackType} from './EmbeddingsFallbackResolver'
 import {
@@ -238,6 +238,13 @@ const buildNativeEmbeddings = (type, settings) => {
 }
 
 export const getEmbeddings = ({type, settings}) => {
+  if (process.env.MOCK_EXTERNAL_SERVICES === 'true') {
+    return {
+      ...createNoopEmbeddings(),
+      storageType: EmbStorageType.openai,
+    }
+  }
+
   const resolvedType = NATIVE_EMBEDDINGS_TYPES.has(type) ? type : resolveEmbeddingsFallbackType(settings)
   return buildNativeEmbeddings(resolvedType, settings)
 }

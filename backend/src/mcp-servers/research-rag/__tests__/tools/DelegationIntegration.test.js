@@ -71,6 +71,22 @@ describe('Delegation Integration Tests', () => {
       })
     })
 
+    it('converts maxChunks labels before delegating to WebCommand', async () => {
+      const mockCreateResponse = jest.fn().mockResolvedValue('result')
+      WebCommand.mockImplementation(() => ({
+        createResponseWeb: mockCreateResponse,
+      }))
+
+      const tool = new WebSearchQATool(mockUserContext, mockAdapter)
+      await tool.execute({query: 'test', maxChunks: 'xxs'})
+
+      expect(mockCreateResponse).toHaveBeenCalledWith(
+        {command: '--max-chunks=1'},
+        'test',
+        expect.objectContaining({maxChunks: 1}),
+      )
+    })
+
     it('handles command returning empty string', async () => {
       WebCommand.mockImplementation(() => ({
         createResponseWeb: jest.fn().mockResolvedValue(''),
@@ -148,7 +164,7 @@ describe('Delegation Integration Tests', () => {
   })
 
   describe('MemorizeContentTool → MemorizeCommand delegation', () => {
-    it('delegates to _getVectorStore with command string', async () => {
+    it('delegates to _getVectorStore with the requested context name', async () => {
       const mockGetVectorStore = jest.fn().mockResolvedValue({})
       const mockCreateChunks = jest.fn().mockReturnValue([{content: 'chunk', hrefs: ['src']}])
       const mockSaveEmbeddings = jest.fn().mockResolvedValue()
@@ -162,7 +178,7 @@ describe('Delegation Integration Tests', () => {
       const tool = new MemorizeContentTool(mockUserContext, mockAdapter)
       await tool.execute({text: 'content to memorize', context: 'my-context'})
 
-      expect(mockGetVectorStore).toHaveBeenCalledWith('--context=my-context', 'my-context')
+      expect(mockGetVectorStore).toHaveBeenCalledWith('my-context')
     })
 
     it('delegates chunking logic to MemorizeCommand.createChunks', async () => {

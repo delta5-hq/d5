@@ -5,7 +5,6 @@ import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/subst
 import {readLangParam, readCitationParam} from '../constants'
 import {getEmbeddings, determineLLMType, getIntegrationSettings, getLLM} from './utils/langchain/getLLM'
 import {conditionallyTranslate} from './utils/translate'
-import {createSimpleAgentExecutor} from './utils/langchain/getAgentExecutor'
 import {JSKnowledgeMapWebScholarSearch} from './utils/langchain/JSKnowledgeMapWebScholarSearch'
 import {WebVectorStore} from './utils/langchain/vectorStore/WebVectorStore'
 import {readMaxChunksParam} from '../constants'
@@ -63,13 +62,9 @@ export class ScholarCommand {
       userInput,
       onError: this.logError,
       convertOutputToOutline: false,
-    }).asTool()
+    })
 
-    const tools = [searchTool]
-
-    const executor = createSimpleAgentExecutor(llm, tools, lang)
-
-    let result = (await executor.invoke({input: userInput})).output
+    let result = await searchTool.getKnowledgeMapWebExt(userInput)
 
     result = await conditionallyTranslate(result, lang, llm, this.logError, settings)
 

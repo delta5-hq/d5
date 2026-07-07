@@ -18,7 +18,7 @@ describe('CommandContextAdapter', () => {
       expect(result).toEqual({
         lang: 'ru',
         citations: true,
-        maxChunks: 'xl',
+        maxChunks: 15,
       })
     })
 
@@ -88,7 +88,7 @@ describe('CommandContextAdapter', () => {
       expect(result).toEqual({
         lang: 'en',
         citations: true,
-        maxChunks: 'l',
+        maxChunks: 10,
         minYear: 2020,
       })
     })
@@ -116,12 +116,12 @@ describe('CommandContextAdapter', () => {
       const result = adapter.parseScholarSearchParams({
         lang: 'ru',
         citations: true,
-        maxChunks: 'm',
+        maxChunks: 's',
       })
 
       expect(result).toHaveProperty('lang', 'ru')
       expect(result).toHaveProperty('citations', true)
-      expect(result).toHaveProperty('maxChunks', 'm')
+      expect(result).toHaveProperty('maxChunks', 8)
       expect(result).toHaveProperty('minYear')
     })
   })
@@ -164,8 +164,14 @@ describe('CommandContextAdapter', () => {
 
       expect(result).toHaveProperty('lang', 'en')
       expect(result).toHaveProperty('citations', false)
-      expect(result).toHaveProperty('maxChunks', 's')
+      expect(result).toHaveProperty('maxChunks', 8)
       expect(result).toHaveProperty('context')
+    })
+
+    it('preserves numeric maxChunks values', () => {
+      expect(adapter.parseWebSearchParams({maxChunks: 3}).maxChunks).toBe(3)
+      expect(adapter.parseScholarSearchParams({maxChunks: 2}).maxChunks).toBe(2)
+      expect(adapter.parseKnowledgeBaseParams({maxChunks: 1}).maxChunks).toBe(1)
     })
   })
 

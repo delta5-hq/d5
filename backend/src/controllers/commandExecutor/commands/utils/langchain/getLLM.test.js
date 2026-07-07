@@ -1084,6 +1084,34 @@ describe('getLLM MOCK_EXTERNAL_SERVICES gate', () => {
   })
 })
 
+describe('getEmbeddings MOCK_EXTERNAL_SERVICES gate', () => {
+  it.each([Model.OpenAI, Model.Claude, Model.Deepseek, Model.Qwen, Model.YandexGPT, Model.CustomLLM])(
+    'returns NoopEmbeddings regardless of declared type (%s) and never consults provider credentials',
+    async type => {
+      await withEnv({MOCK_EXTERNAL_SERVICES: 'true'}, async () => {
+        const {embeddings, chunkSize, similarityThreshold, storageType} = getEmbeddings({type, settings: {}})
+        const documents = await embeddings.embedDocuments(['D5 MCP command'])
+        const query = await embeddings.embedQuery('D5 MCP command')
+
+        expect(documents).toHaveLength(1)
+        expect(documents[0]).toHaveLength(query.length)
+        expect(chunkSize).toBeGreaterThan(0)
+        expect(similarityThreshold).toBe(0)
+        expect(storageType).toBe(EmbStorageType.openai)
+      })
+    },
+  )
+
+  it.each(['false', '', '1', 'yes', 'TRUE', undefined])(
+    'does NOT activate mock embeddings when MOCK_EXTERNAL_SERVICES=%s (strict "true" gate)',
+    value => {
+      withEnv({MOCK_EXTERNAL_SERVICES: value}, () => {
+        expect(() => getEmbeddings({type: Model.OpenAI, settings: {}})).toThrow(/OpenAI API key not configured/)
+      })
+    },
+  )
+})
+
 describe('getEmbeddings — fallback resolution for non-native embeddings providers', () => {
   const {getEmbeddings} = require('./getLLM')
 

@@ -38,6 +38,10 @@ import {dispatchDownload} from '../internalResearch/DownloadDispatcher'
 import {dispatchMemorize} from '../internalResearch/MemorizeDispatcher'
 import {dispatchOutlineSummarize} from '../internalResearch/OutlineSummarizeDispatcher'
 import {INTERNAL_RESEARCH_QUERY_TYPES, getResearchAlias} from '../internalResearch/InternalResearchAliasMap'
+import {
+  buildInternalResearchToolStaticArgs,
+  cleanInternalResearchPrompt,
+} from '../internalResearch/ResearchToolStaticArgs'
 import {MCPCommand} from '../MCPCommand'
 import {MCPFusionCommand} from '../MCPFusionCommand'
 import {RPCCommand} from '../RPCCommand'
@@ -141,9 +145,14 @@ export const runCommand = async (
   } else if (queryType === OUTLINE_QUERY_TYPE && isOutlineSummarize(getNodeCommand(cell))) {
     await dispatchOutlineSummarize(cell, store, signal)
   } else if (INTERNAL_RESEARCH_QUERY_TYPES.has(queryType)) {
-    const alias = getResearchAlias(queryType)
+    const nodeCommand = getNodeCommand(cell) || ''
+    const alias = {
+      ...getResearchAlias(queryType),
+      toolStaticArgs: buildInternalResearchToolStaticArgs(queryType, nodeCommand),
+    }
+    const researchPrompt = cleanInternalResearchPrompt(prompt || nodeCommand)
     const command = new MCPCommand(store._userId, store._workflowId, store, alias)
-    await command.run(cell, context, prompt, {signal})
+    await command.run(cell, context, researchPrompt, {signal})
   } else if (getCommandName(queryType) || CONTROL_FLOW_COMMANDS.has(queryType)) {
     await executeCommandWithProgress(queryType, context, prompt, cell, store, progress)
   } else {

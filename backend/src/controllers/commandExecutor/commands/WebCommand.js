@@ -12,7 +12,6 @@ import {
   CITATIONS_STRING,
 } from '../constants'
 import {getEmbeddings, determineLLMType, getIntegrationSettings, getLLM} from './utils/langchain/getLLM'
-import {createSimpleAgentExecutor} from './utils/langchain/getAgentExecutor'
 import {JSKnowledgeMapWebScholarSearch} from './utils/langchain/JSKnowledgeMapWebScholarSearch'
 import {referencePatterns} from './references/utils/referencePatterns'
 import {clearReferences} from './references/utils/referenceUtils' // Direct import
@@ -65,13 +64,9 @@ export class WebCommand {
       userInput,
       onError: this.logError,
       convertOutputToOutline: false,
-    }).asTool()
+    })
 
-    const tools = [searchTool]
-
-    const executor = createSimpleAgentExecutor(llm, tools, lang)
-
-    let result = (await executor.invoke({input: userInput})).output
+    let result = await searchTool.getKnowledgeMapWebExt(userInput)
 
     result = await conditionallyTranslate(result, lang, llm, this.logError, settings)
 

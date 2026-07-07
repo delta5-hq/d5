@@ -12,7 +12,6 @@ import {
 import {determineLLMType, getEmbeddings, getIntegrationSettings, getLLM} from './utils/langchain/getLLM'
 import {ExtVectorStore} from './utils/langchain/vectorStore/ExtVectorStore'
 import {JSKnowledgeMapWebScholarSearch} from './utils/langchain/JSKnowledgeMapWebScholarSearch'
-import {createSimpleAgentExecutor} from './utils/langchain/getAgentExecutor'
 import {readExtContextParam} from '../constants/ext'
 import {translate} from './utils/translate'
 import {referencePatterns} from './references/utils/referencePatterns'
@@ -76,13 +75,9 @@ export class ExtCommand {
       userInput,
       onError: this.logError,
       convertOutputToOutline: false,
-    }).asTool()
+    })
 
-    const tools = [searchTool]
-
-    const executor = createSimpleAgentExecutor(llm, tools, lang)
-
-    let result = (await executor.invoke({input: userInput})).output
+    let result = await searchTool.getKnowledgeMapWebExt(userInput)
 
     if (lang && result) {
       result = await this.translate(result, llm, lang)

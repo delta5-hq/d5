@@ -707,6 +707,64 @@ describe.each([
   })
 })
 
+describe('internal research MCP slash parameter bridge', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  const runInternalResearchCommand = async ({queryType, command, prompt}) => {
+    const node = {id: 'cmdNode', title: command, command}
+    const rootNode = {id: 'rootNode', title: 'Workflow', children: [node.id]}
+    node.parent = rootNode.id
+
+    const mockStore = new Store({userId, workflowId, nodes: {cmdNode: node, rootNode}})
+    MCPClientManager.callTool.mockResolvedValueOnce({content: 'ok', isError: false})
+
+    await runCommand({cell: node, queryType, store: mockStore, prompt})
+
+    return lastMockCallArg(MCPClientManager.callTool).toolArguments
+  }
+
+  it.each([
+    [
+      WEB_QUERY_TYPE,
+      '/web --lang=ru --citation --xxs find D5 workflow evidence',
+      {query: 'find D5 workflow evidence', lang: 'ru', citations: true, maxChunks: 'xxs'},
+    ],
+    [
+      SCHOLAR_QUERY_TYPE,
+      '/scholar --min-year=2020 --citation --xxs agent workflow protocols',
+      {query: 'agent workflow protocols', citations: true, maxChunks: 'xxs', minYear: 2020},
+    ],
+    [
+      EXT_QUERY_TYPE,
+      '/ext --context=my-context --xxs answer from memorized corpus: @@',
+      {query: 'answer from memorized corpus: @@', context: 'my-context', maxChunks: 'xxs'},
+    ],
+    [
+      OUTLINE_QUERY_TYPE,
+      '/outline --web=xxs --lang=ru --citation map workflow protocols',
+      {query: 'map workflow protocols', web: 'xxs', lang: 'ru', citations: true},
+    ],
+  ])('passes cleaned %s command text and static tool args', async (queryType, command, expectedArgs) => {
+    await expect(runInternalResearchCommand({queryType, command})).resolves.toMatchObject(expectedArgs)
+  })
+
+  it('parses static args from the node command while cleaning an explicit prompt', async () => {
+    const toolArguments = await runInternalResearchCommand({
+      queryType: EXT_QUERY_TYPE,
+      command: '/ext --context=qa-corpus --xxs fallback query',
+      prompt: '/ext --context=qa-corpus --xxs explicit query @@',
+    })
+
+    expect(toolArguments).toMatchObject({
+      context: 'qa-corpus',
+      maxChunks: 'xxs',
+      query: 'explicit query @@',
+    })
+  })
+})
+
 describe('/refine top-level run', () => {
   const makeRefineStore = (command, extraNodes = {}) => {
     const refineNode = {

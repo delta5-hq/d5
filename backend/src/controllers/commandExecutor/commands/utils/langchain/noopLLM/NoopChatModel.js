@@ -32,6 +32,12 @@ export class NoopChatModel {
     })()
   }
 
+  pipe(outputParser) {
+    return {
+      invoke: async (messages, options) => outputParser.invoke(await this.invoke(messages, options), options),
+    }
+  }
+
   bind() {
     return this
   }

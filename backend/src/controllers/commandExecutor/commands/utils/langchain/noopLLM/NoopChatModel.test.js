@@ -39,6 +39,16 @@ describe('NoopChatModel', () => {
     expect(chunks[0].content).toBe('fixed-response')
   })
 
+  it('pipe invokes a downstream parser with the model response', async () => {
+    const model = new NoopChatModel({plan: fixedPlan})
+    const parser = {
+      invoke: jest.fn(async message => `parsed:${message.content}`),
+    }
+
+    await expect(model.pipe(parser).invoke([{content: 'x'}])).resolves.toBe('parsed:fixed-response')
+    expect(parser.invoke).toHaveBeenCalledWith(expect.objectContaining({content: 'fixed-response'}), undefined)
+  })
+
   it('bind and withStructuredOutput return the model itself for langchain compatibility', () => {
     const model = new NoopChatModel({plan: fixedPlan})
     expect(model.bind()).toBe(model)
@@ -53,7 +63,9 @@ describe('NoopChatModel', () => {
 
   it('invoke without an options argument does not throw', async () => {
     const model = new NoopChatModel({plan: fixedPlan})
-    await expect(model.invoke([{content: 'x'}])).resolves.toMatchObject({content: 'fixed-response'})
+    await expect(model.invoke([{content: 'x'}])).resolves.toMatchObject({
+      content: 'fixed-response',
+    })
   })
 
   it('invoke with an empty messages array still resolves via the plan function', async () => {
