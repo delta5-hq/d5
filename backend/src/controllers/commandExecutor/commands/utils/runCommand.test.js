@@ -321,98 +321,95 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
     expect(callCount).toBe(1)
   })
 
-  it.each([2, 3])(':n=%i writes exact full-success suffix when all forks produce substantive output', async n => {
-    const root = makeRoot(`/chat :n=${n} List 3 items`)
+  const runCommodityOutcomes = async outcomes => {
+    const root = makeRoot(`/chat :n=${outcomes.length} List 3 colors`)
     const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
     let callCount = 0
     const spy = jest
       .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
       .mockImplementation(async function () {
+        const outcome = outcomes[callCount]
         callCount++
-        this.store.createNode({parent: root.id, title: `${SUBSTANTIVE_OUTPUT} Fork ${callCount}.`}, true)
-      })
-    await runCommand({queryType: 'chat', cell: root, store})
-    spy.mockRestore()
-    expect(root.title).toMatch(new RegExp(`\\[✓ ${n}/${n}\\]`))
-  })
 
-  it(':n=2 writes [✓ 1/2] when one fork produces a refusal and one produces substantive output', async () => {
-    const root = makeRoot('/chat :n=2 List 3 colors')
-    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
-    let callCount = 0
-    const spy = jest
-      .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
-      .mockImplementation(async function () {
-        callCount++
-        const title =
-          callCount === 1 ? "I'm sorry, I cannot help with that request." : `${SUBSTANTIVE_OUTPUT} Fork ${callCount}.`
-        this.store.createNode({parent: root.id, title}, true)
-      })
-    await runCommand({queryType: 'chat', cell: root, store})
-    spy.mockRestore()
-    expect(root.title).toMatch(/\[✓ 1\/2\]/)
-  })
-
-  it(':n=3 writes [✗ 0/3] when all forks produce refusal output', async () => {
-    const root = makeRoot('/chat :n=3 List 3 colors')
-    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
-    const spy = jest
-      .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
-      .mockImplementation(async function () {
-        this.store.createNode({parent: root.id, title: "I'm sorry, I cannot assist with that."}, true)
-      })
-    await runCommand({queryType: 'chat', cell: root, store})
-    spy.mockRestore()
-    expect(root.title).toMatch(/\[✗ 0\/3\]/)
-  })
-
-  it(':n=2 writes [✗ 0/2] suffix when no fork produces output', async () => {
-    const root = makeRoot('/chat :n=2 List 3 colors')
-    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
-    const spy = jest
-      .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
-      .mockImplementation(async function () {})
-    await runCommand({queryType: 'chat', cell: root, store})
-    spy.mockRestore()
-    expect(root.title).toMatch(/\[✗ 0\/2\]/)
-  })
-
-  it.each([
-    [2, '/chat :n=2 List 3 colors'],
-    [3, '/chat :n=3 List 3 colors'],
-  ])(':n=%i writes exact all-failed suffix when all forks produce machine-tagged error nodes', async (n, command) => {
-    const root = makeRoot(command)
-    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
-    let callCount = 0
-    const spy = jest
-      .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
-      .mockImplementation(async function () {
-        callCount++
-        this.store.importer.createErrorNode('Error: provider failure', root.id)
-      })
-    await runCommand({queryType: 'chat', cell: root, store})
-    spy.mockRestore()
-    expect(callCount).toBe(n)
-    expect(root.title).toMatch(new RegExp(`\\[✗ 0/${n}\\]`))
-  })
-
-  it(':n=2 writes [✓ 1/2] when one fork produces a machine-tagged error node and one produces substantive output', async () => {
-    const root = makeRoot('/chat :n=2 List 3 colors')
-    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
-    let callCount = 0
-    const spy = jest
-      .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
-      .mockImplementation(async function () {
-        callCount++
-        if (callCount === 1) {
-          this.store.importer.createErrorNode('Error: provider failure', root.id)
-        } else {
-          this.store.createNode({parent: root.id, title: `${SUBSTANTIVE_OUTPUT} Fork ${callCount}.`}, true)
+        switch (outcome) {
+          case 'success':
+            this.store.createNode({parent: root.id, title: `${SUBSTANTIVE_OUTPUT} Fork ${callCount}.`}, true)
+            return
+          case 'refusal':
+            this.store.createNode({parent: root.id, title: "I'm sorry, I cannot assist with that."}, true)
+            return
+          case 'empty':
+            this.store.createNode({parent: root.id, title: '   '}, true)
+            return
+          case 'error':
+            this.store.importer.createErrorNode('Error: provider failure', root.id)
+            return
+          default:
+            return
         }
       })
-    await runCommand({queryType: 'chat', cell: root, store})
-    spy.mockRestore()
-    expect(root.title).toMatch(/\[✓ 1\/2\]/)
+
+    try {
+      await runCommand({queryType: 'chat', cell: root, store})
+    } finally {
+      spy.mockRestore()
+    }
+
+    return {
+      callCount,
+      rootTitle: root.title,
+      childTitles: Object.values(store._nodes)
+        .filter(nd => nd.parent === root.id)
+        .map(nd => nd.title),
+    }
+  }
+
+  it.each([
+    {
+      name: 'all forks produce substantive output',
+      outcomes: ['success', 'success'],
+      suffix: /\[✓ 2\/2\]/,
+      childCount: 2,
+    },
+    {
+      name: 'all three forks produce substantive output',
+      outcomes: ['success', 'success', 'success'],
+      suffix: /\[✓ 3\/3\]/,
+      childCount: 3,
+    },
+    {
+      name: 'one refusal and one substantive output',
+      outcomes: ['refusal', 'success'],
+      suffix: /\[✓ 1\/2\]/,
+      childCount: 1,
+    },
+    {
+      name: 'all forks produce refusal output',
+      outcomes: ['refusal', 'refusal', 'refusal'],
+      suffix: /\[✗ 0\/3\]/,
+      childCount: 0,
+    },
+    {name: 'no fork produces output', outcomes: ['none', 'none'], suffix: /\[✗ 0\/2\]/, childCount: 0},
+    {name: 'all forks produce empty output', outcomes: ['empty', 'empty'], suffix: /\[✗ 0\/2\]/, childCount: 0},
+    {
+      name: 'all forks produce machine-tagged error nodes',
+      outcomes: ['error', 'error', 'error'],
+      suffix: /\[✗ 0\/3\]/,
+      childCount: 0,
+    },
+    {
+      name: 'one machine-tagged error and one substantive output',
+      outcomes: ['error', 'success'],
+      suffix: /\[✓ 1\/2\]/,
+      childCount: 1,
+    },
+  ])('classifies commodity fork outcomes: $name', async ({outcomes, suffix, childCount}) => {
+    const result = await runCommodityOutcomes(outcomes)
+
+    expect(result.callCount).toBe(outcomes.length)
+    expect(result.rootTitle).toMatch(suffix)
+    expect(result.childTitles).toHaveLength(childCount)
+    result.childTitles.forEach(title => expect(title).toContain(SUBSTANTIVE_OUTPUT))
   })
 
   it('no :n= token — no suffix written on root cell', async () => {

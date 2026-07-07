@@ -6,10 +6,11 @@ import { TIMEOUTS } from './config/test-timeouts'
 const LLM_TIMEOUT = 120_000
 const SUFFIX_RE = /\[(?:✓|✗)[^\]]+\]/
 const COMMODITY_FULL_SUCCESS_SUFFIX_RE = (n: number) => new RegExp(`\\[✓ ${n}\\/${n}\\]`)
+const COMMODITY_OUTCOME_SUFFIX_RE = /\[(✓|✗) (\d+)\/(\d+)\]/
 const VALIDATE_VERDICT_RE = /\[(?:✓(?:\s+retry-\d+)?|✗\s+\d+\s+attempts)\]/
 const VALIDATE_FAIL_RE = /\[✗\s+\d+\s+attempts\]/
 const REFINE_FALLBACK_SUFFIX_RE = /\[⚠ fallback: 0\/2 passed; chose fork-\d+\]/
-const COMMODITY_FULL_SUCCESS_CASES = [
+const COMMODITY_DETERMINISTIC_FULL_SUCCESS_CASES = [
   { n: 2, task: 'List 3 colors' },
   { n: 3, task: 'List 3 fruits' },
   { n: 5, task: 'List 3 animals' },
@@ -99,7 +100,30 @@ async function expectCommodityFullSuccess(
   n: number,
 ) {
   expect(await nodeTitle(page, rootId)).toMatch(COMMODITY_FULL_SUCCESS_SUFFIX_RE(n))
+  expect(await persistedChildTitles(page, rootId)).toHaveLength(n)
   await expectRootWithCommodityChildren(tree, n)
+}
+
+async function expectCommodityOutcomeMatchesChildren(
+  page: Parameters<typeof qaBotLogin>[0],
+  tree: WorkflowTreePage,
+  rootId: string,
+  expectedTotal: number,
+) {
+  const title = await nodeTitle(page, rootId)
+  const match = title.match(COMMODITY_OUTCOME_SUFFIX_RE)
+  expect(match).not.toBeNull()
+
+  const [, status, successText, totalText] = match as RegExpMatchArray
+  const successCount = Number(successText)
+  const total = Number(totalText)
+
+  expect(total).toBe(expectedTotal)
+  expect(successCount).toBeGreaterThanOrEqual(0)
+  expect(successCount).toBeLessThanOrEqual(expectedTotal)
+  expect(status).toBe(successCount === 0 ? '✗' : '✓')
+  expect(await persistedChildTitles(page, rootId)).toHaveLength(successCount)
+  await expect(tree.nodes).toHaveCount(successCount + 1, { timeout: TIMEOUTS.BACKEND_SYNC })
 }
 
 async function expectNoCommodityTokenInChildren(page: Parameters<typeof qaBotLogin>[0], tree: WorkflowTreePage) {
@@ -209,6 +233,13 @@ async function loadWorkflowSnapshot(page: Parameters<typeof qaBotLogin>[0]): Pro
   return workflowResponse.json()
 }
 
+async function persistedChildTitles(page: Parameters<typeof qaBotLogin>[0], parentId: string): Promise<string[]> {
+  const snapshot = await loadWorkflowSnapshot(page)
+  return Object.values(snapshot.nodes ?? {})
+    .filter(node => node.parent === parentId)
+    .map(node => String(node.title ?? ''))
+}
+
 function validateTitlesOwnedByIterations(
   workflow: WorkflowSnapshot,
   criterionMarker: string,
@@ -231,8 +262,8 @@ test.describe('Reliability execution contracts', () => {
   test.beforeEach(async ({ page }) => {
     await setupLLMWorkflow(page)
   })
-  COMMODITY_FULL_SUCCESS_CASES.forEach(({ n, task }) => {
-    test(`commodity :n=${n} — full-success suffix and child count match N`, async ({ page }) => {
+  COMMODITY_DETERMINISTIC_FULL_SUCCESS_CASES.forEach(({ n, task }) => {
+    test(`commodity :n=${n} — deterministic full-success suffix and child count match N`, async ({ page }) => {
       const { tree, rootId } = await executeCommodityCommand(page, `/chat :n=${n} ${task}`)
       await expectCommodityFullSuccess(page, tree, rootId, n)
     })
@@ -242,6 +273,11 @@ test.describe('Reliability execution contracts', () => {
     const { tree } = await executeCommodityCommand(page, '/chat :n=2 List 3 colors')
     const childTitle = await nodeTitle(page, await tree.nodeIdAt(1))
     expect(childTitle.length).toBeGreaterThan(0)
+  })
+
+  test('commodity :n=2 — provider smoke reports actual fork outcome honestly', async ({ page }) => {
+    const { tree, rootId } = await executeCommodityCommand(page, '/chat :n=2 List 3 colors')
+    await expectCommodityOutcomeMatchesChildren(page, tree, rootId, 2)
   })
 
   test('refine :n=2 — suffix shows candidate count not [✓ refined]', async ({ page }) => {
@@ -298,7 +334,7 @@ test.describe('Reliability execution contracts', () => {
     await expect(page.getByTestId('abort-node-button')).not.toBeVisible()
   })
 
-  test('reload persistence — commodity suffix and child outputs survive page reload', async ({ page }) => {
+  test('reload persistence — deterministic commodity full-success survives page reload', async ({ page }) => {
     const { tree, rootId } = await executeCommodityCommand(page, '/chat :n=2 List 3 colors')
 
     const countBeforeReload = await tree.nodes.count()
