@@ -2,7 +2,7 @@ import debug from 'debug'
 import {SystemMessage, HumanMessage} from '@langchain/core/messages'
 import {getIntegrationSettings, determineLLMType, getLLM} from '../../commands/utils/langchain/getLLM'
 import {NodeTextExtractor} from '../../commands/utils/NodeTextExtractor'
-import {getNodeCommand} from '../../commands/utils/isCommand'
+import {getNodeCommand, isOutlineSummarize, isSummarize} from '../../commands/utils/isCommand'
 import {isValidateCell, readValidateCriterion, readValidateN} from './validateParams'
 import {isValidRefineCell} from './refineParams'
 
@@ -22,6 +22,33 @@ const parseJurorResponse = raw => {
 }
 
 const skipValidateFn = node => isValidateCell(getNodeCommand(node))
+
+const hasMaterializedPromptOutput = (node, store) => (node.prompts ?? []).some(promptId => store.getNode(promptId))
+
+const isSummaryPostProcessor = node => isSummarize(node) || isOutlineSummarize(getNodeCommand(node))
+
+const extractValidationContent = async (parentNode, store) => {
+  const extractor = new NodeTextExtractor(Infinity, skipValidateFn, store)
+  const summaryOutputs = []
+
+  for (const childId of parentNode.children ?? []) {
+    const child = store.getNode(childId)
+    if (!child || !isSummaryPostProcessor(child) || !hasMaterializedPromptOutput(child, store)) {
+      continue
+    }
+
+    const content = await extractor.extractFullContent(child)
+    if (content.trim()) {
+      summaryOutputs.push(content)
+    }
+  }
+
+  if (summaryOutputs.length) {
+    return summaryOutputs.join('\n')
+  }
+
+  return extractor.extractFullContent(parentNode)
+}
 
 export class ValidateCommand {
   constructor(userId, workflowId, store) {
@@ -44,8 +71,7 @@ export class ValidateCommand {
       parentNode = this.store.getNode(parentNode.parent) || parentNode
     }
 
-    const extractor = new NodeTextExtractor(Infinity, skipValidateFn, this.store)
-    const content = await extractor.extractFullContent(parentNode)
+    const content = await extractValidationContent(parentNode, this.store)
 
     if (!content.trim()) return {passed: false, criterion, reason: 'parent output is empty'}
 
