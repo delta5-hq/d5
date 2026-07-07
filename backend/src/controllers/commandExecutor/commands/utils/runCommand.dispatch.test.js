@@ -727,26 +727,36 @@ describe('internal research MCP slash parameter bridge', () => {
 
   it.each([
     [
+      'web common flags',
       WEB_QUERY_TYPE,
       '/web --lang=ru --citation --xxs find D5 workflow evidence',
       {query: 'find D5 workflow evidence', lang: 'ru', citations: true, maxChunks: 'xxs'},
     ],
     [
+      'scholar kebab-case min-year flag',
       SCHOLAR_QUERY_TYPE,
       '/scholar --min-year=2020 --citation --xxs agent workflow protocols',
       {query: 'agent workflow protocols', citations: true, maxChunks: 'xxs', minYear: 2020},
     ],
     [
+      'scholar snake_case min_year flag',
+      SCHOLAR_QUERY_TYPE,
+      '/scholar --min_year=2024 --citation --xxs legacy scholar flag spelling',
+      {query: 'legacy scholar flag spelling', citations: true, maxChunks: 'xxs', minYear: 2024},
+    ],
+    [
+      'ext context flag',
       EXT_QUERY_TYPE,
       '/ext --context=my-context --xxs answer from memorized corpus: @@',
       {query: 'answer from memorized corpus: @@', context: 'my-context', maxChunks: 'xxs'},
     ],
     [
+      'outline mixed research flags',
       OUTLINE_QUERY_TYPE,
       '/outline --web=xxs --lang=ru --citation map workflow protocols',
       {query: 'map workflow protocols', web: 'xxs', lang: 'ru', citations: true},
     ],
-  ])('passes cleaned %s command text and static tool args', async (queryType, command, expectedArgs) => {
+  ])('passes cleaned command text and static tool args for %s', async (_label, queryType, command, expectedArgs) => {
     await expect(runInternalResearchCommand({queryType, command})).resolves.toMatchObject(expectedArgs)
   })
 

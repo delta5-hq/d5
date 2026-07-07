@@ -217,30 +217,25 @@ describe('MemorizeDispatcher', () => {
   describe('parameter parsing', () => {
     const getStaticArgs = () => require('../MCPCommand').MCPCommand.mock.calls.at(-1)?.[3]?.toolStaticArgs
 
-    it('uses DEFAULT_CONTEXT_NAME when no --context param given', async () => {
+    const dispatchCommand = async command => {
       const {MCPCommand} = require('../MCPCommand')
       MCPCommand.mockClear()
 
-      const cell = makeMemorizeCell('/memorize')
+      const cell = makeMemorizeCell(command)
       const parent = makeParent()
       const store = buildStore({memorizeNode: cell, parentNode: parent})
 
       await dispatchMemorize(cell, store, undefined)
 
-      expect(getStaticArgs().context).toBe(DEFAULT_CONTEXT_NAME)
-    })
+      return getStaticArgs()
+    }
 
-    it('reads explicit --context param', async () => {
-      const {MCPCommand} = require('../MCPCommand')
-      MCPCommand.mockClear()
-
-      const cell = makeMemorizeCell('/memorize --context=mybook')
-      const parent = makeParent()
-      const store = buildStore({memorizeNode: cell, parentNode: parent})
-
-      await dispatchMemorize(cell, store, undefined)
-
-      expect(getStaticArgs().context).toBe('mybook')
+    it.each([
+      ['default context', '/memorize', DEFAULT_CONTEXT_NAME],
+      ['single-token context', '/memorize --context=mybook', 'mybook'],
+      ['hyphenated context', '/memorize --context=project-notes', 'project-notes'],
+    ])('reads %s', async (_label, command, expectedContext) => {
+      await expect(dispatchCommand(command)).resolves.toMatchObject({context: expectedContext})
     })
 
     it('sets keep=true when context is DEFAULT_CONTEXT_NAME and no explicit --keep', async () => {
