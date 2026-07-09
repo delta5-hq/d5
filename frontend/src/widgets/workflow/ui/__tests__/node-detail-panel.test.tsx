@@ -505,14 +505,21 @@ describe('NodeDetailPanel — title editor strips reliability suffix', () => {
   // exhaustive suffix-shape coverage for all variant types lives in reliability-suffix.test.ts
   const SUFFIX_SHAPES = [
     ['validate pass first attempt', 'Work item [✓]', 'Work item', '[✓]'],
-    ['validate pass after retry', 'Work item [✓ retry-2]', 'Work item', '[✓ retry-2]'],
-    ['refine all forks eligible', 'Work item [✓ 2/2]', 'Work item', '[✓ 2/2]'],
-    ['refine partial forks eligible', 'Work item [✓ 2/3]', 'Work item', '[✓ 2/3]'],
-    ['refine no forks eligible', 'Work item [✗ 0/3]', 'Work item', '[✗ 0/3]'],
-    ['validate all retries exhausted', 'Work item [✗ 3 attempts]', 'Work item', '[✗ 3 attempts]'],
-    ['no judge signal', 'Work item [⚠ no judge signal]', 'Work item', '[⚠ no judge signal]'],
+    ['validate pass after N retries', 'Work item [✓ +2]', 'Work item', '[✓ +2]'],
+    ['refine/commodity all succeeded', 'Work item [✓ 2/2]', 'Work item', '[✓ 2/2]'],
+    ['refine/commodity partial success', 'Work item [✓ 2/3]', 'Work item', '[✓ 2/3]'],
+    ['commodity partial with warning', 'Work item [✓ 1/3 ⚠]', 'Work item', '[✓ 1/3 ⚠]'],
+    ['refine/commodity all failed', 'Work item [✗ 0/3]', 'Work item', '[✗ 0/3]'],
+    ['validate all retries exhausted', 'Work item [✗ 3×]', 'Work item', '[✗ 3×]'],
+    ['validate invalid criterion', 'Work item [✗ !]', 'Work item', '[✗ !]'],
+    ['no judge signal', 'Work item [⚠ ∅]', 'Work item', '[⚠ ∅]'],
+    ['fallback winner committed', 'Work item [⚠ 0/2]', 'Work item', '[⚠ 0/2]'],
+    // historical engine shapes (v1 — still stripped for backward compat)
+    ['v1 validate pass after retry', 'Work item [✓ retry-2]', 'Work item', '[✓ retry-2]'],
+    ['v1 validate all retries exhausted', 'Work item [✗ 3 attempts]', 'Work item', '[✗ 3 attempts]'],
+    ['v1 no judge signal', 'Work item [⚠ no judge signal]', 'Work item', '[⚠ no judge signal]'],
     [
-      'fallback winner committed',
+      'v1 fallback winner committed',
       'Work item [⚠ fallback: 0/2 passed; chose fork-0]',
       'Work item',
       '[⚠ fallback: 0/2 passed; chose fork-0]',
@@ -624,6 +631,138 @@ describe('NodeDetailPanel — commodity ceiling hint visibility', () => {
       expect(screen.getByTestId('commodity-ceiling-hint')).toBeInTheDocument()
       rerenderPanel(makeNode({ command: '/refine :n=2 query' }), false)
       expect(screen.queryByTestId('commodity-ceiling-hint')).not.toBeInTheDocument()
+    })
+  })
+})
+
+describe('NodeDetailPanel — verdict drawer: trigger gate', () => {
+  const reliabilityMetadata = {
+    winnerForkIndex: null as number | null,
+    perCriterionVerdict: [{ criterionId: 'c1', criterion: 'Accuracy', forkRankings: [{ forkIndex: 0, rank: 1 }] }],
+    mode: 'strict' as const,
+    selectionLayer: 'primary' as const,
+    noSignal: false,
+    eligible: 2,
+    total: 2,
+  }
+
+  describe('opening conditions', () => {
+    it('opens when trigger identifies this node and reliability metadata is present', () => {
+      renderPanel(makeNode(), false, { openDrawerForNodeId: 'n1', reliabilityMetadata })
+      expect(screen.getByTestId('criterion-verdict-drawer')).toBeInTheDocument()
+    })
+
+    it.each<[string, string | undefined]>([
+      ['trigger is absent', undefined],
+      ['trigger targets a different node', 'other-node'],
+    ])('stays closed when %s', (_label, openDrawerForNodeId) => {
+      renderPanel(makeNode(), false, { openDrawerForNodeId, reliabilityMetadata })
+      expect(screen.queryByTestId('criterion-verdict-drawer')).not.toBeInTheDocument()
+    })
+
+    it('stays closed when trigger matches this node but reliability metadata is absent', () => {
+      renderPanel(makeNode(), false, { openDrawerForNodeId: 'n1' })
+      expect(screen.queryByTestId('criterion-verdict-drawer')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('parent notification — onDrawerOpened', () => {
+    it.each<[string, typeof reliabilityMetadata | undefined]>([
+      ['reliability metadata present', reliabilityMetadata],
+      ['reliability metadata absent', undefined],
+    ])('notifies parent exactly once when trigger matches this node and %s', (_label, meta) => {
+      const onDrawerOpened = vi.fn()
+      renderPanel(makeNode(), false, { openDrawerForNodeId: 'n1', reliabilityMetadata: meta, onDrawerOpened })
+      expect(onDrawerOpened).toHaveBeenCalledTimes(1)
+    })
+
+    it.each<[string, string | undefined]>([
+      ['trigger is absent', undefined],
+      ['trigger targets a different node', 'other-node'],
+    ])('does not notify parent when %s', (_label, openDrawerForNodeId) => {
+      const onDrawerOpened = vi.fn()
+      renderPanel(makeNode(), false, { openDrawerForNodeId, reliabilityMetadata, onDrawerOpened })
+      expect(onDrawerOpened).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('trigger is a one-shot signal', () => {
+    it('trigger arriving via prop update after mount opens the drawer', () => {
+      const { rerender } = render(
+        <NodeDetailPanel {...makeProps(makeNode(), false, { openDrawerForNodeId: undefined, reliabilityMetadata })} />,
+        { wrapper },
+      )
+      expect(screen.queryByTestId('criterion-verdict-drawer')).not.toBeInTheDocument()
+
+      rerender(
+        <NodeDetailPanel {...makeProps(makeNode(), false, { openDrawerForNodeId: 'n1', reliabilityMetadata })} />,
+      )
+      expect(screen.getByTestId('criterion-verdict-drawer')).toBeInTheDocument()
+    })
+
+    it('drawer stays open after trigger is consumed and cleared', () => {
+      const { rerender } = render(
+        <NodeDetailPanel
+          {...makeProps(makeNode(), false, { openDrawerForNodeId: 'n1', reliabilityMetadata, onDrawerOpened: vi.fn() })}
+        />,
+        { wrapper },
+      )
+      expect(screen.getByTestId('criterion-verdict-drawer')).toBeInTheDocument()
+
+      rerender(
+        <NodeDetailPanel {...makeProps(makeNode(), false, { openDrawerForNodeId: undefined, reliabilityMetadata })} />,
+      )
+      expect(screen.getByTestId('criterion-verdict-drawer')).toBeInTheDocument()
+    })
+
+    it('a subsequent trigger re-opens the drawer after the previous one was consumed', () => {
+      const onDrawerOpened = vi.fn()
+      const props = (trigger: string | undefined) =>
+        makeProps(makeNode(), false, { openDrawerForNodeId: trigger, reliabilityMetadata, onDrawerOpened })
+
+      const { rerender } = render(<NodeDetailPanel {...props('n1')} />, { wrapper })
+      expect(onDrawerOpened).toHaveBeenCalledTimes(1)
+
+      rerender(<NodeDetailPanel {...props(undefined)} />)
+      rerender(<NodeDetailPanel {...props('n1')} />)
+      expect(onDrawerOpened).toHaveBeenCalledTimes(2)
+    })
+
+    it('drawer stays closed when trigger was consumed without opening and reliability metadata later appears', () => {
+      const onDrawerOpened = vi.fn()
+      const { rerender } = render(
+        <NodeDetailPanel {...makeProps(makeNode(), false, { openDrawerForNodeId: 'n1', onDrawerOpened })} />,
+        { wrapper },
+      )
+      expect(onDrawerOpened).toHaveBeenCalledTimes(1)
+      expect(screen.queryByTestId('criterion-verdict-drawer')).not.toBeInTheDocument()
+
+      rerender(
+        <NodeDetailPanel
+          {...makeProps(makeNode(), false, { openDrawerForNodeId: undefined, reliabilityMetadata, onDrawerOpened })}
+        />,
+      )
+      expect(screen.queryByTestId('criterion-verdict-drawer')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('mount and navigation behavior', () => {
+    it('drawer is closed on initial mount when no trigger is set', () => {
+      renderPanel(makeNode(), false, { reliabilityMetadata })
+      expect(screen.queryByTestId('criterion-verdict-drawer')).not.toBeInTheDocument()
+    })
+
+    it('drawer is closed when remounted without a pending trigger', () => {
+      const { unmount } = renderPanel(makeNode(), false, {
+        openDrawerForNodeId: 'n1',
+        reliabilityMetadata,
+        onDrawerOpened: vi.fn(),
+      })
+      expect(screen.getByTestId('criterion-verdict-drawer')).toBeInTheDocument()
+      unmount()
+
+      renderPanel(makeNode(), false, { openDrawerForNodeId: undefined, reliabilityMetadata })
+      expect(screen.queryByTestId('criterion-verdict-drawer')).not.toBeInTheDocument()
     })
   })
 })

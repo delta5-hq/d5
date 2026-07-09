@@ -22,6 +22,7 @@ export interface WorkflowSegmentTreeProps {
   onDuplicateNode?: (nodeId: string) => void
   onRename?: (nodeId: string, newTitle: string) => void
   onRequestRename?: (nodeId: string) => void
+  onSuffixClick?: (nodeId: string) => void
   onVisibleOrderChange?: (order: readonly string[]) => void
   /** Newly created node ID — signals the tree to flash it on mount */
   flashNodeId?: string
@@ -40,6 +41,7 @@ const WorkflowSegmentTreeInner = ({
   onDuplicateNode,
   onRename,
   onRequestRename,
+  onSuffixClick,
   onVisibleOrderChange,
   flashNodeId,
 }: WorkflowSegmentTreeProps) => {
@@ -86,6 +88,7 @@ const WorkflowSegmentTreeInner = ({
               onRename={onRename}
               onRequestRename={onRequestRename}
               onSelect={handleSelect}
+              onSuffixClick={onSuffixClick}
               onToggle={handleToggle}
               onVisibleOrderChange={onVisibleOrderChange}
               overscanCount={overscanCount}

@@ -5,13 +5,22 @@
       "criterionId": "v1",
       "criterion": "must include revenue numbers",
       "forkRankings": [
-        {"forkIndex": 0, "rank": 1},
-        {"forkIndex": 1, "rank": 2}
+        {
+          "forkIndex": 0,
+          "rank": 1
+        },
+        {
+          "forkIndex": 1,
+          "rank": 2
+        }
       ]
     }
   ],
   "mode": "strict",
-  "selectionLayer": "primary",
+  "selectionLayer": "fallback",
+  "fallbackUsed": true,
+  "generatorOnlyJudge": true,
+  "judgeReasoningRequested": true,
   "noSignal": false,
   "eligible": 1,
   "total": 2,
@@ -20,10 +29,15 @@
     "candidateCount": 2,
     "perForkBudgetChars": 5000,
     "degradedInput": false,
-    "resolvedJudgeFamilies": ["openai"]
+    "resolvedJudgeFamilies": [
+      "openai"
+    ]
   },
   "judgeQualityWarnings": [
-    {"condition": "singleProvider", "severity": "high"}
+    {
+      "condition": "singleProvider",
+      "severity": "high"
+    }
   ],
   "failureCause": "structural-gate",
   "remediationHint": "revise-prompt",

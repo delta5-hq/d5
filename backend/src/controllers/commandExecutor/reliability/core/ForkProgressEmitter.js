@@ -13,7 +13,12 @@ class SSEForkProgressEmitter {
 
   forksStarted(refineNodeId, total) {
     for (let forkIndex = 0; forkIndex < total; forkIndex++) {
-      this._progress.emitUpdate({type: FORK_EVENT.FORK_STARTED, refineNodeId, forkIndex, total})
+      this._progress.emitUpdate({
+        type: FORK_EVENT.FORK_STARTED,
+        refineNodeId,
+        forkIndex,
+        total,
+      })
     }
   }
 
@@ -30,8 +35,17 @@ class SSEForkProgressEmitter {
     this._progress.emitUpdate(payload)
   }
 
-  refineComplete(refineNodeId, winnerForkIndex, total) {
-    this._progress.emitUpdate({type: FORK_EVENT.REFINE_COMPLETE, refineNodeId, winnerForkIndex, total})
+  refineComplete(refineNodeId, winnerForkIndex, total, telemetry = {}) {
+    const payload = {
+      type: FORK_EVENT.REFINE_COMPLETE,
+      refineNodeId,
+      winnerForkIndex,
+      total,
+    }
+    if (telemetry.fallbackUsed) payload.fallbackUsed = true
+    if (telemetry.generatorOnlyJudge) payload.generatorOnlyJudge = true
+    if (telemetry.judgeReasoningRequested) payload.judgeReasoningRequested = true
+    this._progress.emitUpdate(payload)
   }
 }
 

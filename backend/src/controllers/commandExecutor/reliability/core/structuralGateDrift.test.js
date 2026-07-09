@@ -68,7 +68,12 @@ describe('structuralGateDrift', () => {
         rankingCount: 2,
       })
 
-      expect(event).toEqual({forkIndex: 1, score: 3, winnerScore: 0, rankingCount: 2})
+      expect(event).toEqual({
+        forkIndex: 1,
+        score: 3,
+        winnerScore: 0,
+        rankingCount: 2,
+      })
       expect(log).toHaveBeenCalledWith(expect.stringContaining(STRUCTURAL_GATE_DRIFT_SIGNAL), 1, 3, 0, 2)
       expect(log.mock.calls[0].join(' ')).not.toContain(content)
     })

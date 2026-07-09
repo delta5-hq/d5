@@ -239,5 +239,59 @@ describe('SSEForkProgressEmitter', () => {
         total: 1,
       })
     })
+
+    it('includes fallbackUsed in payload when telemetry.fallbackUsed is true', () => {
+      emitter.refineComplete('refine1', 1, 3, {fallbackUsed: true})
+      expect(emitUpdate).toHaveBeenCalledWith(expect.objectContaining({fallbackUsed: true}))
+    })
+
+    it('includes generatorOnlyJudge in payload when telemetry.generatorOnlyJudge is true', () => {
+      emitter.refineComplete('refine1', 1, 3, {generatorOnlyJudge: true})
+      expect(emitUpdate).toHaveBeenCalledWith(expect.objectContaining({generatorOnlyJudge: true}))
+    })
+
+    it('includes judgeReasoningRequested in payload when telemetry.judgeReasoningRequested is true', () => {
+      emitter.refineComplete('refine1', 1, 3, {judgeReasoningRequested: true})
+      expect(emitUpdate).toHaveBeenCalledWith(expect.objectContaining({judgeReasoningRequested: true}))
+    })
+
+    it('includes all three telemetry fields when all are set simultaneously', () => {
+      emitter.refineComplete('refine1', 1, 3, {
+        fallbackUsed: true,
+        generatorOnlyJudge: true,
+        judgeReasoningRequested: true,
+      })
+      expect(emitUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fallbackUsed: true,
+          generatorOnlyJudge: true,
+          judgeReasoningRequested: true,
+        }),
+      )
+    })
+
+    it('preserves base payload fields when telemetry is provided', () => {
+      emitter.refineComplete('refine1', 2, 4, {fallbackUsed: true})
+      expect(emitUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: FORK_EVENT.REFINE_COMPLETE,
+          refineNodeId: 'refine1',
+          winnerForkIndex: 2,
+          total: 4,
+        }),
+      )
+    })
+
+    it.each([
+      [{fallbackUsed: false, generatorOnlyJudge: false, judgeReasoningRequested: false}, 'all false'],
+      [{}, 'empty object'],
+      [undefined, 'no telemetry arg'],
+    ])('omits telemetry fields when not truthy (%s)', telemetry => {
+      emitter.refineComplete('refine1', 1, 3, telemetry)
+      const call = emitUpdate.mock.calls[0][0]
+      expect(call).not.toHaveProperty('fallbackUsed')
+      expect(call).not.toHaveProperty('generatorOnlyJudge')
+      expect(call).not.toHaveProperty('judgeReasoningRequested')
+    })
   })
 })

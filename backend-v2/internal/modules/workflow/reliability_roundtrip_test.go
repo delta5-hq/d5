@@ -6,14 +6,11 @@ import (
 	"testing"
 )
 
-// boolPtr converts a bool literal to a pointer, enabling inline assignment of *bool fields.
 func boolPtr(v bool) *bool { return &v }
 
-// minimalReliabilityMetadata returns a ReliabilityMetadata with only required fields set.
-// All optional fields (TiebreakUsed, JudgeInput, JudgeQualityWarnings) are left nil/zero.
 func minimalReliabilityMetadata() models.ReliabilityMetadata {
 	return models.ReliabilityMetadata{
-		WinnerForkIndex:     0,
+		WinnerForkIndex:     intPtr(0),
 		PerCriterionVerdict: []models.CriterionVerdict{},
 		Mode:                models.RefineModeStrict,
 		SelectionLayer:      models.SelectionLayerPrimary,
@@ -23,7 +20,6 @@ func minimalReliabilityMetadata() models.ReliabilityMetadata {
 	}
 }
 
-// unmarshalNodeRoundTrip marshals node to JSON then unmarshals back; fails the test on any error.
 func unmarshalNodeRoundTrip(t *testing.T, node models.Node) models.Node {
 	t.Helper()
 	data, err := json.Marshal(node)
@@ -37,8 +33,7 @@ func unmarshalNodeRoundTrip(t *testing.T, node models.Node) models.Node {
 	return restored
 }
 
-// extractRawFields deserializes a JSON-encoded Node and returns the reliabilityMetadata object
-// as a raw key→value map, allowing key-presence assertions without interpreting values.
+// key-presence assertions need raw bytes; typed unmarshaling normalizes absent-vs-zero.
 func extractRawFields(t *testing.T, node models.Node) map[string]json.RawMessage {
 	t.Helper()
 	data, err := json.Marshal(node)
@@ -67,8 +62,7 @@ func TestNode_ExecutionStatus_RoundTrip(t *testing.T) {
 	}
 }
 
-// TestNode_ReliabilityMetadata_Presence verifies the omitempty contract: a nil metadata pointer
-// produces no JSON key; a non-nil pointer always produces the key regardless of field values.
+// omitempty applies to the pointer itself — a non-nil pointer with zero-value fields still produces JSON keys.
 func TestNode_ReliabilityMetadata_Presence(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -118,10 +112,7 @@ func TestNode_ReliabilityMetadata_Presence(t *testing.T) {
 	}
 }
 
-// TestReliabilityMetadata_RequiredFields_RoundTrip verifies that every non-optional field —
-// including zero/false/empty variants — survives JSON marshal→unmarshal unchanged.
-// Required fields must appear in JSON and preserve their exact value, even when that value is the
-// Go zero for its type (0 for int, false for bool, "" for string, [] for slice).
+// Go zero values (0, false, "", []) must not be silently dropped — json omitempty on optional fields must not bleed onto required ones.
 func TestReliabilityMetadata_RequiredFields_RoundTrip(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -131,7 +122,7 @@ func TestReliabilityMetadata_RequiredFields_RoundTrip(t *testing.T) {
 		{
 			name: "winner is fork 0 (zero value must not be omitted)",
 			metadata: models.ReliabilityMetadata{
-				WinnerForkIndex: 0,
+				WinnerForkIndex: intPtr(0),
 				Mode:            models.RefineModeStrict,
 				SelectionLayer:  models.SelectionLayerPrimary,
 				Eligible:        1,
@@ -142,7 +133,7 @@ func TestReliabilityMetadata_RequiredFields_RoundTrip(t *testing.T) {
 		{
 			name: "no-signal path with zero eligible and total",
 			metadata: models.ReliabilityMetadata{
-				WinnerForkIndex: 0,
+				WinnerForkIndex: intPtr(0),
 				Mode:            models.RefineModeStrict,
 				SelectionLayer:  models.SelectionLayerPrimary,
 				NoSignal:        true,
@@ -154,7 +145,7 @@ func TestReliabilityMetadata_RequiredFields_RoundTrip(t *testing.T) {
 		{
 			name: "empty criterion list preserves slice identity",
 			metadata: models.ReliabilityMetadata{
-				WinnerForkIndex:     1,
+				WinnerForkIndex:     intPtr(1),
 				PerCriterionVerdict: []models.CriterionVerdict{},
 				Mode:                models.RefineModeStrict,
 				SelectionLayer:      models.SelectionLayerPrimary,
@@ -166,7 +157,7 @@ func TestReliabilityMetadata_RequiredFields_RoundTrip(t *testing.T) {
 		{
 			name: "multiple criteria with multiple fork rankings",
 			metadata: models.ReliabilityMetadata{
-				WinnerForkIndex: 2,
+				WinnerForkIndex: intPtr(2),
 				PerCriterionVerdict: []models.CriterionVerdict{
 					{
 						CriterionID:  "c1",
@@ -189,7 +180,7 @@ func TestReliabilityMetadata_RequiredFields_RoundTrip(t *testing.T) {
 		{
 			name: "strict mode with primary selection layer",
 			metadata: models.ReliabilityMetadata{
-				WinnerForkIndex: 1,
+				WinnerForkIndex: intPtr(1),
 				Mode:            models.RefineModeStrict,
 				SelectionLayer:  models.SelectionLayerPrimary,
 				Eligible:        2,
@@ -200,7 +191,7 @@ func TestReliabilityMetadata_RequiredFields_RoundTrip(t *testing.T) {
 		{
 			name: "fallback mode with fallback selection layer",
 			metadata: models.ReliabilityMetadata{
-				WinnerForkIndex: 0,
+				WinnerForkIndex: intPtr(0),
 				Mode:            models.RefineModeBackFall,
 				SelectionLayer:  models.SelectionLayerFallback,
 				Eligible:        0,
@@ -220,8 +211,8 @@ func TestReliabilityMetadata_RequiredFields_RoundTrip(t *testing.T) {
 				t.Fatal("reliabilityMetadata must be non-nil after round-trip")
 			}
 			orig := &tt.metadata
-			if rm.WinnerForkIndex != orig.WinnerForkIndex {
-				t.Errorf("%s: WinnerForkIndex want %d, got %d", tt.description, orig.WinnerForkIndex, rm.WinnerForkIndex)
+			if !winnerForkIndexEqual(rm.WinnerForkIndex, orig.WinnerForkIndex) {
+				t.Errorf("%s: WinnerForkIndex mismatch: want %v, got %v", tt.description, orig.WinnerForkIndex, rm.WinnerForkIndex)
 			}
 			if rm.Mode != orig.Mode {
 				t.Errorf("%s: Mode want %q, got %q", tt.description, orig.Mode, rm.Mode)
@@ -256,9 +247,7 @@ func TestReliabilityMetadata_RequiredFields_RoundTrip(t *testing.T) {
 	}
 }
 
-// TestReliabilityMetadata_OptionalFields_OmittedWhenAbsent verifies that optional fields
-// are absent from the JSON output when their Go value is nil or an empty slice.
-// This prevents the frontend from receiving null/""/[] where it expects the key to be absent.
+// Frontend expects key absence, not null/""/[] — the field must not appear at all when unset.
 func TestReliabilityMetadata_OptionalFields_OmittedWhenAbsent(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -275,7 +264,7 @@ func TestReliabilityMetadata_OptionalFields_OmittedWhenAbsent(t *testing.T) {
 		{
 			name: "empty JudgeQualityWarnings slice omitted",
 			metadata: models.ReliabilityMetadata{
-				WinnerForkIndex:      0,
+				WinnerForkIndex:      intPtr(0),
 				Mode:                 models.RefineModeStrict,
 				SelectionLayer:       models.SelectionLayerPrimary,
 				Eligible:             1,
@@ -288,7 +277,7 @@ func TestReliabilityMetadata_OptionalFields_OmittedWhenAbsent(t *testing.T) {
 		{
 			name: "TiebreakUsed nil while others set",
 			metadata: models.ReliabilityMetadata{
-				WinnerForkIndex: 1,
+				WinnerForkIndex: intPtr(1),
 				Mode:            models.RefineModeStrict,
 				SelectionLayer:  models.SelectionLayerPrimary,
 				Eligible:        2,
@@ -318,8 +307,6 @@ func TestReliabilityMetadata_OptionalFields_OmittedWhenAbsent(t *testing.T) {
 	}
 }
 
-// TestReliabilityMetadata_OptionalFields_PreservedWhenSet verifies that optional fields
-// survive JSON round-trip with their exact values when explicitly set.
 func TestReliabilityMetadata_OptionalFields_PreservedWhenSet(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -473,6 +460,66 @@ func TestReliabilityMetadata_OptionalFields_PreservedWhenSet(t *testing.T) {
 			},
 			description: "failure cause, remediation hint, structural flag, and structural warning must survive round-trip",
 		},
+		{
+			name: "degradedInput JudgeQualityWarning round-trip",
+			metadata: func() models.ReliabilityMetadata {
+				m := minimalReliabilityMetadata()
+				m.JudgeQualityWarnings = []models.JudgeQualityWarning{
+					{Condition: models.JudgeWarnDegradedInput, Severity: models.JudgeSeverityMedium},
+				}
+				return m
+			}(),
+			verify: func(t *testing.T, rm *models.ReliabilityMetadata) {
+				t.Helper()
+				if len(rm.JudgeQualityWarnings) != 1 {
+					t.Fatalf("JudgeQualityWarnings length want 1, got %d", len(rm.JudgeQualityWarnings))
+				}
+				if rm.JudgeQualityWarnings[0].Condition != models.JudgeWarnDegradedInput {
+					t.Errorf("Condition want %q, got %q", models.JudgeWarnDegradedInput, rm.JudgeQualityWarnings[0].Condition)
+				}
+				if rm.JudgeQualityWarnings[0].Severity != models.JudgeSeverityMedium {
+					t.Errorf("Severity want %q, got %q", models.JudgeSeverityMedium, rm.JudgeQualityWarnings[0].Severity)
+				}
+			},
+			description: "degradedInput warning condition and severity must survive round-trip",
+		},
+		{
+			name: "all JudgeWarningCondition values round-trip without data loss",
+			metadata: func() models.ReliabilityMetadata {
+				m := minimalReliabilityMetadata()
+				m.JudgeQualityWarnings = []models.JudgeQualityWarning{
+					{Condition: models.JudgeWarnSingleProvider, Severity: models.JudgeSeverityHigh},
+					{Condition: models.JudgeWarnLowestTierOnly, Severity: models.JudgeSeverityMedium},
+					{Condition: models.JudgeWarnJuryDuplicates, Severity: models.JudgeSeverityMedium},
+					{Condition: models.JudgeWarnFallbackWeakJudge, Severity: models.JudgeSeverityHigh},
+					{Condition: models.JudgeWarnNoReasoningMode, Severity: models.JudgeSeverityMedium},
+					{Condition: models.JudgeWarnAllGateFiltered, Severity: models.JudgeSeverityHigh},
+					{Condition: models.JudgeWarnDegradedInput, Severity: models.JudgeSeverityMedium},
+				}
+				return m
+			}(),
+			verify: func(t *testing.T, rm *models.ReliabilityMetadata) {
+				t.Helper()
+				want := []models.JudgeWarningCondition{
+					models.JudgeWarnSingleProvider,
+					models.JudgeWarnLowestTierOnly,
+					models.JudgeWarnJuryDuplicates,
+					models.JudgeWarnFallbackWeakJudge,
+					models.JudgeWarnNoReasoningMode,
+					models.JudgeWarnAllGateFiltered,
+					models.JudgeWarnDegradedInput,
+				}
+				if len(rm.JudgeQualityWarnings) != len(want) {
+					t.Fatalf("JudgeQualityWarnings length want %d, got %d", len(want), len(rm.JudgeQualityWarnings))
+				}
+				for i, wantCond := range want {
+					if rm.JudgeQualityWarnings[i].Condition != wantCond {
+						t.Errorf("warning[%d].Condition want %q, got %q", i, wantCond, rm.JudgeQualityWarnings[i].Condition)
+					}
+				}
+			},
+			description: "all seven warning conditions must survive a round-trip in order without any being dropped or mutated",
+		},
 	}
 
 	for _, tt := range tests {
@@ -487,9 +534,7 @@ func TestReliabilityMetadata_OptionalFields_PreservedWhenSet(t *testing.T) {
 	}
 }
 
-// TestReliabilityMetadata_EnumConstants_SerializeToCanonicalStrings verifies that every typed
-// string constant serializes to the exact lowercase string value expected by the frontend.
-// If any constant drifts from its JSON representation, the frontend verdict drawer breaks silently.
+// Enum constant drift silently breaks the frontend verdict drawer.
 func TestReliabilityMetadata_EnumConstants_SerializeToCanonicalStrings(t *testing.T) {
 	t.Run("RefineMode", func(t *testing.T) {
 		tests := []struct {
@@ -498,6 +543,7 @@ func TestReliabilityMetadata_EnumConstants_SerializeToCanonicalStrings(t *testin
 		}{
 			{models.RefineModeStrict, `"strict"`},
 			{models.RefineModeBackFall, `"fallback"`},
+			{models.RefineModeCommodity, `"commodity"`},
 		}
 		for _, tt := range tests {
 			t.Run(string(tt.value), func(t *testing.T) {
@@ -566,6 +612,7 @@ func TestReliabilityMetadata_EnumConstants_SerializeToCanonicalStrings(t *testin
 			{models.JudgeWarnFallbackWeakJudge, `"fallbackWithWeakJudge"`},
 			{models.JudgeWarnNoReasoningMode, `"noReasoningMode"`},
 			{models.JudgeWarnAllGateFiltered, `"allGateFiltered"`},
+			{models.JudgeWarnDegradedInput, `"degradedInput"`},
 		}
 		for _, tt := range tests {
 			t.Run(string(tt.value), func(t *testing.T) {
@@ -628,10 +675,7 @@ func TestReliabilityMetadata_EnumConstants_SerializeToCanonicalStrings(t *testin
 	})
 }
 
-// TestReliabilityMetadata_JSONFieldNames verifies that Go struct field names produce the exact
-// camelCase JSON keys the TypeScript frontend contract expects.
-// A drift here (e.g. renaming a Go field) would silently break the verdict drawer and persist
-// undetected until a browser session, because Go's json package uses the struct tag, not the name.
+// Go uses the struct tag for JSON keys, not the field name — renaming a field silently breaks the TypeScript contract until a browser session.
 func TestReliabilityMetadata_JSONFieldNames(t *testing.T) {
 	t.Run("ReliabilityMetadata top-level keys", func(t *testing.T) {
 		tiebreak := true
@@ -650,6 +694,9 @@ func TestReliabilityMetadata_JSONFieldNames(t *testing.T) {
 		m.RemediationHint = models.ReliabilityRemediationRevisePrompt
 		m.AllGateFiltered = boolPtr(true)
 		m.DiscardedForks = []models.DiscardedFork{{ForkIndex: 1, Status: models.ForkStatusOK}}
+		m.FallbackUsed = true
+		m.GeneratorOnlyJudge = true
+		m.JudgeReasoningRequested = true
 		node := models.Node{ID: "n", ReliabilityMetadata: &m}
 		rmRaw := extractRawFields(t, node)
 
@@ -666,6 +713,7 @@ func TestReliabilityMetadata_JSONFieldNames(t *testing.T) {
 		optionalKeys := []string{
 			"tiebreakUsed", "judgeInput", "judgeQualityWarnings", "discardedForks",
 			"failureCause", "remediationHint", "allGateFiltered",
+			"fallbackUsed", "generatorOnlyJudge", "judgeReasoningRequested",
 		}
 		for _, key := range optionalKeys {
 			if _, present := rmRaw[key]; !present {
@@ -744,9 +792,7 @@ func TestReliabilityMetadata_JSONFieldNames(t *testing.T) {
 	})
 }
 
-// TestWorkflow_Nodes_ReliabilityMetadata_Isolation verifies that in a workflow with multiple
-// nodes, reliabilityMetadata is independent per node: setting it on one node does not affect
-// others, and nodes that never ran /refine carry no metadata after round-trip.
+// Nodes that never ran /refine must carry no metadata after round-trip.
 func TestWorkflow_Nodes_ReliabilityMetadata_Isolation(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -789,11 +835,11 @@ func TestWorkflow_Nodes_ReliabilityMetadata_Isolation(t *testing.T) {
 			name: "multiple nodes each with independent metadata",
 			nodes: map[string]models.Node{
 				"refine-a": {ID: "refine-a", ReliabilityMetadata: &models.ReliabilityMetadata{
-					WinnerForkIndex: 0, Mode: models.RefineModeStrict,
+					WinnerForkIndex: intPtr(0), Mode: models.RefineModeStrict,
 					SelectionLayer: models.SelectionLayerPrimary, Eligible: 1, Total: 2,
 				}},
 				"refine-b": {ID: "refine-b", ReliabilityMetadata: &models.ReliabilityMetadata{
-					WinnerForkIndex: 1, Mode: models.RefineModeBackFall,
+					WinnerForkIndex: intPtr(1), Mode: models.RefineModeBackFall,
 					SelectionLayer: models.SelectionLayerFallback, Eligible: 0, Total: 3,
 				}},
 			},
@@ -827,7 +873,7 @@ func TestWorkflow_Nodes_ReliabilityMetadata_Isolation(t *testing.T) {
 			// Verify independent metadata values when multiple nodes have it
 			if a, ok := restored.Nodes["refine-a"]; ok && a.ReliabilityMetadata != nil {
 				if b, ok2 := restored.Nodes["refine-b"]; ok2 && b.ReliabilityMetadata != nil {
-					if a.ReliabilityMetadata.WinnerForkIndex == b.ReliabilityMetadata.WinnerForkIndex &&
+					if winnerForkIndexEqual(a.ReliabilityMetadata.WinnerForkIndex, b.ReliabilityMetadata.WinnerForkIndex) &&
 						a.ReliabilityMetadata.Mode == b.ReliabilityMetadata.Mode {
 						t.Error("independent /refine nodes must not share metadata state")
 					}
@@ -839,6 +885,389 @@ func TestWorkflow_Nodes_ReliabilityMetadata_Isolation(t *testing.T) {
 
 // intPtr converts an int literal to a pointer, enabling inline assignment of *int fields.
 func intPtr(v int) *int { return &v }
+
+func winnerForkIndexEqual(a, b *int) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
+// Go nil and JSON null are distinct representations — the nil↔null round-trip must hold for commodity and no-winner paths.
+func TestReliabilityMetadata_WinnerForkIndex_NullPath(t *testing.T) {
+	tests := []struct {
+		name        string
+		mode        models.RefineMode
+		description string
+	}{
+		{
+			name:        "commodity mode nil winner",
+			mode:        models.RefineModeCommodity,
+			description: "commodity mode: no winner fork is selected; WinnerForkIndex must be null in JSON",
+		},
+		{
+			name:        "fallback mode nil winner (no eligible fork promoted)",
+			mode:        models.RefineModeBackFall,
+			description: "fallback mode with nil winner: no fork met criteria and fallback found nothing to promote",
+		},
+		{
+			name:        "strict mode nil winner (all forks below threshold)",
+			mode:        models.RefineModeStrict,
+			description: "strict mode with nil winner: all forks failed the quality threshold; no winner promoted",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := models.ReliabilityMetadata{
+				WinnerForkIndex:     nil,
+				Mode:                tt.mode,
+				SelectionLayer:      models.SelectionLayerPrimary,
+				PerCriterionVerdict: []models.CriterionVerdict{},
+				Eligible:            0,
+				Total:               3,
+			}
+			node := models.Node{ID: "n", ReliabilityMetadata: &m}
+
+			rmRaw := extractRawFields(t, node)
+			wfiBytes, present := rmRaw["winnerForkIndex"]
+			if !present {
+				t.Fatalf("%s: winnerForkIndex key must be present even when value is null", tt.description)
+			}
+			if string(wfiBytes) != "null" {
+				t.Errorf("%s: winnerForkIndex must serialize as null, got %s", tt.description, wfiBytes)
+			}
+
+			restored := unmarshalNodeRoundTrip(t, node)
+			if restored.ReliabilityMetadata == nil {
+				t.Fatalf("%s: reliabilityMetadata must be non-nil after round-trip", tt.description)
+			}
+			if restored.ReliabilityMetadata.WinnerForkIndex != nil {
+				t.Errorf("%s: WinnerForkIndex must be nil after round-trip, got %d",
+					tt.description, *restored.ReliabilityMetadata.WinnerForkIndex)
+			}
+		})
+	}
+}
+
+func TestReliabilityMetadata_InvalidMode_RoundTrip(t *testing.T) {
+	tests := []struct {
+		name         string
+		failureCause models.ReliabilityFailureCause
+		description  string
+	}{
+		{
+			name:         "missing-parent cause",
+			failureCause: models.ReliabilityFailureMissingParent,
+			description:  "invalid mode with missing-parent cause must survive JSON round-trip",
+		},
+		{
+			name:         "invalid-criteria cause",
+			failureCause: models.ReliabilityFailureInvalidCriteria,
+			description:  "invalid mode with invalid-criteria cause must survive JSON round-trip",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := models.ReliabilityMetadata{
+				WinnerForkIndex:     nil,
+				Mode:                models.RefineModeInvalid,
+				SelectionLayer:      models.SelectionLayerPrimary,
+				PerCriterionVerdict: []models.CriterionVerdict{},
+				Eligible:            0,
+				Total:               0,
+				FailureCause:        tt.failureCause,
+			}
+			node := models.Node{ID: "n", ReliabilityMetadata: &m}
+
+			data, err := json.Marshal(node)
+			if err != nil {
+				t.Fatalf("%s: marshal failed: %v", tt.description, err)
+			}
+
+			var restored models.Node
+			if err := json.Unmarshal(data, &restored); err != nil {
+				t.Fatalf("%s: unmarshal failed: %v", tt.description, err)
+			}
+
+			rm := restored.ReliabilityMetadata
+			if rm == nil {
+				t.Fatalf("%s: reliabilityMetadata must be non-nil after round-trip", tt.description)
+			}
+			if rm.Mode != models.RefineModeInvalid {
+				t.Errorf("%s: Mode mismatch: want %q, got %q", tt.description, models.RefineModeInvalid, rm.Mode)
+			}
+			if rm.FailureCause != tt.failureCause {
+				t.Errorf("%s: FailureCause mismatch: want %q, got %q", tt.description, tt.failureCause, rm.FailureCause)
+			}
+			if rm.WinnerForkIndex != nil {
+				t.Errorf("%s: WinnerForkIndex must be nil (null) for invalid mode, got %v", tt.description, *rm.WinnerForkIndex)
+			}
+			if rm.Eligible != 0 {
+				t.Errorf("%s: Eligible must be 0 for invalid mode, got %d", tt.description, rm.Eligible)
+			}
+			if rm.Total != 0 {
+				t.Errorf("%s: Total must be 0 for invalid mode, got %d", tt.description, rm.Total)
+			}
+			if rm.SelectionLayer != models.SelectionLayerPrimary {
+				t.Errorf("%s: SelectionLayer must be %q, got %q", tt.description, models.SelectionLayerPrimary, rm.SelectionLayer)
+			}
+			if rm.PerCriterionVerdict == nil {
+				t.Errorf("%s: PerCriterionVerdict must be non-nil (empty slice, not null) after round-trip", tt.description)
+			}
+			if len(rm.PerCriterionVerdict) != 0 {
+				t.Errorf("%s: PerCriterionVerdict must be empty, got len %d", tt.description, len(rm.PerCriterionVerdict))
+			}
+			rmRaw := extractRawFields(t, node)
+			if _, present := rmRaw["failureCause"]; !present {
+				t.Errorf("%s: failureCause key must be present in JSON output (not suppressed by omitempty)", tt.description)
+			}
+		})
+	}
+}
+
+func TestReliabilityFailureCause_InvalidModeConstants(t *testing.T) {
+	t.Run("ReliabilityFailureMissingParent value is missing-parent", func(t *testing.T) {
+		if models.ReliabilityFailureMissingParent != "missing-parent" {
+			t.Errorf("want %q, got %q", "missing-parent", models.ReliabilityFailureMissingParent)
+		}
+	})
+	t.Run("ReliabilityFailureInvalidCriteria value is invalid-criteria", func(t *testing.T) {
+		if models.ReliabilityFailureInvalidCriteria != "invalid-criteria" {
+			t.Errorf("want %q, got %q", "invalid-criteria", models.ReliabilityFailureInvalidCriteria)
+		}
+	})
+	t.Run("RefineModeInvalid value is invalid", func(t *testing.T) {
+		if models.RefineModeInvalid != "invalid" {
+			t.Errorf("want %q, got %q", "invalid", models.RefineModeInvalid)
+		}
+	})
+	t.Run("missing-parent and invalid-criteria are distinct values", func(t *testing.T) {
+		if models.ReliabilityFailureMissingParent == models.ReliabilityFailureInvalidCriteria {
+			t.Error("ReliabilityFailureMissingParent and ReliabilityFailureInvalidCriteria must be distinct")
+		}
+	})
+}
+
+func TestReliabilityMetadata_FallbackUsed_OmitemptyContract(t *testing.T) {
+	t.Run("absent when SelectionLayer is primary", func(t *testing.T) {
+		m := minimalReliabilityMetadata()
+		m.SelectionLayer = models.SelectionLayerPrimary
+		m.FallbackUsed = false
+		node := models.Node{ID: "n", ReliabilityMetadata: &m}
+		rmRaw := extractRawFields(t, node)
+		if _, present := rmRaw["fallbackUsed"]; present {
+			t.Error("fallbackUsed must be absent from JSON when false — omitempty contract")
+		}
+	})
+
+	t.Run("absent when FallbackUsed is false even with fallback SelectionLayer", func(t *testing.T) {
+		m := minimalReliabilityMetadata()
+		m.SelectionLayer = models.SelectionLayerFallback
+		m.FallbackUsed = false
+		node := models.Node{ID: "n", ReliabilityMetadata: &m}
+		rmRaw := extractRawFields(t, node)
+		if _, present := rmRaw["fallbackUsed"]; present {
+			t.Error("fallbackUsed must be absent from JSON when false regardless of SelectionLayer")
+		}
+	})
+
+	t.Run("present and true when FallbackUsed is true", func(t *testing.T) {
+		m := minimalReliabilityMetadata()
+		m.SelectionLayer = models.SelectionLayerFallback
+		m.FallbackUsed = true
+		node := models.Node{ID: "n", ReliabilityMetadata: &m}
+		rmRaw := extractRawFields(t, node)
+		fuBytes, present := rmRaw["fallbackUsed"]
+		if !present {
+			t.Fatal("fallbackUsed must be present in JSON when true")
+		}
+		if string(fuBytes) != "true" {
+			t.Errorf("fallbackUsed must serialize as true, got %s", fuBytes)
+		}
+
+		restored := unmarshalNodeRoundTrip(t, node)
+		if !restored.ReliabilityMetadata.FallbackUsed {
+			t.Error("FallbackUsed must be true after round-trip")
+		}
+	})
+}
+
+func TestReliabilityMetadata_GeneratorOnlyJudge_OmitemptyContract(t *testing.T) {
+	t.Run("absent when false", func(t *testing.T) {
+		m := minimalReliabilityMetadata()
+		m.GeneratorOnlyJudge = false
+		node := models.Node{ID: "n", ReliabilityMetadata: &m}
+		rmRaw := extractRawFields(t, node)
+		if _, present := rmRaw["generatorOnlyJudge"]; present {
+			t.Error("generatorOnlyJudge must be absent from JSON when false — omitempty contract")
+		}
+	})
+
+	t.Run("present and true when set", func(t *testing.T) {
+		m := minimalReliabilityMetadata()
+		m.GeneratorOnlyJudge = true
+		node := models.Node{ID: "n", ReliabilityMetadata: &m}
+		rmRaw := extractRawFields(t, node)
+		gojBytes, present := rmRaw["generatorOnlyJudge"]
+		if !present {
+			t.Fatal("generatorOnlyJudge must be present in JSON when true")
+		}
+		if string(gojBytes) != "true" {
+			t.Errorf("generatorOnlyJudge must serialize as true, got %s", gojBytes)
+		}
+		restored := unmarshalNodeRoundTrip(t, node)
+		if !restored.ReliabilityMetadata.GeneratorOnlyJudge {
+			t.Error("GeneratorOnlyJudge must be true after round-trip")
+		}
+	})
+}
+
+func TestReliabilityMetadata_JudgeReasoningRequested_OmitemptyContract(t *testing.T) {
+	t.Run("absent when false", func(t *testing.T) {
+		m := minimalReliabilityMetadata()
+		m.JudgeReasoningRequested = false
+		node := models.Node{ID: "n", ReliabilityMetadata: &m}
+		rmRaw := extractRawFields(t, node)
+		if _, present := rmRaw["judgeReasoningRequested"]; present {
+			t.Error("judgeReasoningRequested must be absent from JSON when false — omitempty contract")
+		}
+	})
+
+	t.Run("present and true when set", func(t *testing.T) {
+		m := minimalReliabilityMetadata()
+		m.JudgeReasoningRequested = true
+		node := models.Node{ID: "n", ReliabilityMetadata: &m}
+		rmRaw := extractRawFields(t, node)
+		jrrBytes, present := rmRaw["judgeReasoningRequested"]
+		if !present {
+			t.Fatal("judgeReasoningRequested must be present in JSON when true")
+		}
+		if string(jrrBytes) != "true" {
+			t.Errorf("judgeReasoningRequested must serialize as true, got %s", jrrBytes)
+		}
+		restored := unmarshalNodeRoundTrip(t, node)
+		if !restored.ReliabilityMetadata.JudgeReasoningRequested {
+			t.Error("JudgeReasoningRequested must be true after round-trip")
+		}
+	})
+}
+
+func TestReliabilityMetadata_CommodityMode_RoundTrip(t *testing.T) {
+	m := models.ReliabilityMetadata{
+		WinnerForkIndex:     nil,
+		PerCriterionVerdict: []models.CriterionVerdict{},
+		Mode:                models.RefineModeCommodity,
+		SelectionLayer:      models.SelectionLayerPrimary,
+		NoSignal:            false,
+		Eligible:            3,
+		Total:               3,
+		DiscardedForks:      []models.DiscardedFork{},
+	}
+	node := models.Node{ID: "n", ReliabilityMetadata: &m}
+	restored := unmarshalNodeRoundTrip(t, node)
+
+	rm := restored.ReliabilityMetadata
+	if rm == nil {
+		t.Fatal("reliabilityMetadata must be non-nil after round-trip")
+	}
+	if rm.Mode != models.RefineModeCommodity {
+		t.Errorf("Mode want %q, got %q", models.RefineModeCommodity, rm.Mode)
+	}
+	if rm.WinnerForkIndex != nil {
+		t.Errorf("WinnerForkIndex must be nil, got %d", *rm.WinnerForkIndex)
+	}
+	if rm.Eligible != 3 {
+		t.Errorf("Eligible want 3, got %d", rm.Eligible)
+	}
+	if rm.Total != 3 {
+		t.Errorf("Total want 3, got %d", rm.Total)
+	}
+	if len(rm.DiscardedForks) != 0 {
+		t.Errorf("DiscardedForks must be empty for full-success commodity, got %#v", rm.DiscardedForks)
+	}
+	if rm.JudgeInput != nil {
+		t.Error("JudgeInput must be nil in commodity mode")
+	}
+	if len(rm.JudgeQualityWarnings) != 0 {
+		t.Errorf("JudgeQualityWarnings must be empty for full-success commodity, got %#v", rm.JudgeQualityWarnings)
+	}
+	rmRaw := extractRawFields(t, node)
+	if _, present := rmRaw["generatorOnlyJudge"]; present {
+		t.Error("generatorOnlyJudge must be absent from JSON in commodity mode — omitempty contract")
+	}
+	if _, present := rmRaw["judgeReasoningRequested"]; present {
+		t.Error("judgeReasoningRequested must be absent from JSON in commodity mode — omitempty contract")
+	}
+	if _, present := rmRaw["fallbackUsed"]; present {
+		t.Error("fallbackUsed must be absent from JSON in commodity mode — omitempty contract")
+	}
+	if _, present := rmRaw["judgeQualityWarnings"]; present {
+		t.Error("judgeQualityWarnings must be absent from JSON in full-success commodity — omitempty contract")
+	}
+}
+
+func TestReliabilityMetadata_CommodityMode_PartialSuccess_RoundTrip(t *testing.T) {
+	tests := []struct {
+		name     string
+		eligible int
+		total    int
+	}{
+		{name: "minimal partial (1 of 2)", eligible: 1, total: 2},
+		{name: "low partial (1 of 3)", eligible: 1, total: 3},
+		{name: "near-full partial (2 of 3)", eligible: 2, total: 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			warning := models.JudgeQualityWarning{
+				Condition: models.JudgeWarnCommodityPartialSuccess,
+				Severity:  "medium",
+			}
+			m := models.ReliabilityMetadata{
+				WinnerForkIndex:      nil,
+				PerCriterionVerdict:  []models.CriterionVerdict{},
+				Mode:                 models.RefineModeCommodity,
+				SelectionLayer:       models.SelectionLayerPrimary,
+				Eligible:             tt.eligible,
+				Total:                tt.total,
+				JudgeQualityWarnings: []models.JudgeQualityWarning{warning},
+				DiscardedForks: []models.DiscardedFork{
+					{ForkIndex: tt.total - 1, Status: models.ForkStatusRuntimeFailed},
+				},
+			}
+			node := models.Node{ID: "n", ReliabilityMetadata: &m}
+			restored := unmarshalNodeRoundTrip(t, node)
+
+			rm := restored.ReliabilityMetadata
+			if rm == nil {
+				t.Fatal("reliabilityMetadata must be non-nil after round-trip")
+			}
+			if rm.Eligible != tt.eligible || rm.Total != tt.total {
+				t.Errorf("Eligible/Total want %d/%d, got %d/%d",
+					tt.eligible, tt.total, rm.Eligible, rm.Total)
+			}
+			if len(rm.JudgeQualityWarnings) != 1 {
+				t.Fatalf("want 1 judgeQualityWarning, got %d", len(rm.JudgeQualityWarnings))
+			}
+			if rm.JudgeQualityWarnings[0].Condition != models.JudgeWarnCommodityPartialSuccess {
+				t.Errorf("warning condition want %q, got %q",
+					models.JudgeWarnCommodityPartialSuccess, rm.JudgeQualityWarnings[0].Condition)
+			}
+			if rm.JudgeQualityWarnings[0].Severity != "medium" {
+				t.Errorf("warning severity want %q, got %q", "medium", rm.JudgeQualityWarnings[0].Severity)
+			}
+			rmRaw := extractRawFields(t, node)
+			if _, present := rmRaw["judgeQualityWarnings"]; !present {
+				t.Error("judgeQualityWarnings must be present in JSON for partial success")
+			}
+			if _, present := rmRaw["failureCause"]; present {
+				t.Error("failureCause must be absent from JSON for partial success — only all-failed sets it")
+			}
+		})
+	}
+}
 
 func minimalDiscardedFork(forkIndex int, status models.ForkStatus) models.DiscardedFork {
 	return models.DiscardedFork{ForkIndex: forkIndex, Status: status}
@@ -873,12 +1302,7 @@ func nodeWithDiscardedForks(forks []models.DiscardedFork) models.Node {
 	return models.Node{ID: "n", ReliabilityMetadata: &m}
 }
 
-// TestDiscardedFork_RequiredFields_RoundTrip verifies two invariants of the required fields
-// (ForkIndex and Status) across all valid status values and representative index values:
-//
-//  1. Key presence: both fields appear in the marshalled JSON regardless of their value,
-//     including when ForkIndex is zero and Status is the empty string.
-//  2. Value fidelity: the deserialized values exactly match the originals.
+// ForkIndex zero must not be omitted — zero is a valid winner index, not a missing value.
 func TestDiscardedFork_RequiredFields_RoundTrip(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -958,10 +1382,7 @@ func TestDiscardedFork_RequiredFields_RoundTrip(t *testing.T) {
 	}
 }
 
-// TestDiscardedFork_OptionalFields_OmittedWhenAbsent verifies that the three role-specific
-// optional fields (FailedAt, Reason, Attempts) are absent from JSON when not set by the engine.
-// Each row represents one canonical fork state emitted by the Node.js engine and enumerates
-// exactly which fields must be absent for that state.
+// Each status emits a distinct field subset — absent fields must not appear as null or zero.
 func TestDiscardedFork_OptionalFields_OmittedWhenAbsent(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -1015,10 +1436,7 @@ func TestDiscardedFork_OptionalFields_OmittedWhenAbsent(t *testing.T) {
 	}
 }
 
-// TestDiscardedFork_OptionalFields_PreservedWhenSet verifies that FailedAt, Reason, and Attempts
-// survive JSON round-trip with their exact values when explicitly provided.
-// The Attempts field uses *int to distinguish "absent" from "present with value 0" —
-// the zero-pointer case is tested explicitly to prove the pointer semantics are correct.
+// Attempts uses *int to distinguish absent from present-with-value-0 — the zero-pointer case must not collapse to omitted.
 func TestDiscardedFork_OptionalFields_PreservedWhenSet(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -1146,10 +1564,7 @@ func TestDiscardedFork_OptionalFields_PreservedWhenSet(t *testing.T) {
 	}
 }
 
-// TestDiscardedFork_EnumConstants_SerializeToCanonicalStrings verifies that every ForkStatus
-// constant serializes to the exact wire string the Node.js engine writes and the frontend reads.
-// A drift (e.g. renaming the constant) would break the verdict drawer silently, just as drifting
-// RefineMode or SelectionLayer would — all three enum types are governed by the same invariant.
+// All three enum types (ForkStatus, RefineMode, SelectionLayer) share the same invariant — constant rename silently breaks the verdict drawer.
 func TestDiscardedFork_EnumConstants_SerializeToCanonicalStrings(t *testing.T) {
 	tests := []struct {
 		value    models.ForkStatus
@@ -1172,9 +1587,7 @@ func TestDiscardedFork_EnumConstants_SerializeToCanonicalStrings(t *testing.T) {
 	}
 }
 
-// TestDiscardedFork_JSONFieldNames verifies that every DiscardedFork struct field serializes to
-// the exact camelCase JSON key that the TypeScript DiscardedFork type and the Node.js engine use.
-// Mirrors TestReliabilityMetadata_JSONFieldNames for the nested DiscardedFork struct.
+// Same struct-tag invariant as TestReliabilityMetadata_JSONFieldNames, applied to the nested DiscardedFork type.
 func TestDiscardedFork_JSONFieldNames(t *testing.T) {
 	fork := models.DiscardedFork{
 		ForkIndex: 1,
@@ -1196,11 +1609,7 @@ func TestDiscardedFork_JSONFieldNames(t *testing.T) {
 	}
 }
 
-// TestReliabilityMetadata_DiscardedForks_Presence verifies the omitempty contract for the
-// DiscardedForks slice at the ReliabilityMetadata level: nil and empty slices must be absent
-// from JSON (the frontend guards the drawer button with discardedForks?.length, treating nil
-// and [] identically); a non-empty slice must produce the discardedForks key.
-// Mirrors TestNode_ReliabilityMetadata_Presence for the same omitempty contract on a slice field.
+// Frontend guards the drawer button with discardedForks?.length — nil and [] must both be absent, not serialized as null or [].
 func TestReliabilityMetadata_DiscardedForks_Presence(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -1256,13 +1665,10 @@ func TestReliabilityMetadata_DiscardedForks_Presence(t *testing.T) {
 	}
 }
 
-// TestReliabilityMetadata_DiscardedForks_MultipleForksRoundTrip exercises a realistic N=3
-// best-of-N scenario: winner=fork 2, fork 0 criteria-failed, fork 1 runtime-failed.
-// It verifies the full combination of cross-status, cross-index, and mixed optional fields,
-// and explicitly asserts that the slice preserves insertion order across serialisation.
+// Slice insertion order must be preserved across serialization — cross-status, cross-index, mixed optional fields.
 func TestReliabilityMetadata_DiscardedForks_MultipleForksRoundTrip(t *testing.T) {
 	m := minimalReliabilityMetadata()
-	m.WinnerForkIndex = 2
+	m.WinnerForkIndex = intPtr(2)
 	m.Eligible = 1
 	m.Total = 3
 	m.DiscardedForks = []models.DiscardedFork{

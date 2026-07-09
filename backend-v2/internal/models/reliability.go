@@ -1,11 +1,13 @@
 package models
 
-// RefineMode distinguishes best-of-N strict execution from lenient fallback execution.
+// RefineMode distinguishes best-of-N strict execution from lenient fallback execution and commodity parallel execution.
 type RefineMode string
 
 const (
-	RefineModeStrict   RefineMode = "strict"
-	RefineModeBackFall RefineMode = "fallback"
+	RefineModeStrict    RefineMode = "strict"
+	RefineModeBackFall  RefineMode = "fallback"
+	RefineModeCommodity RefineMode = "commodity"
+	RefineModeInvalid   RefineMode = "invalid"
 )
 
 // SelectionLayer records whether the winner came from the eligible primary pool or the fallback pool.
@@ -29,12 +31,14 @@ const (
 type JudgeWarningCondition string
 
 const (
-	JudgeWarnSingleProvider    JudgeWarningCondition = "singleProvider"
-	JudgeWarnLowestTierOnly    JudgeWarningCondition = "lowestTierOnly"
-	JudgeWarnJuryDuplicates    JudgeWarningCondition = "juryDuplicates"
-	JudgeWarnFallbackWeakJudge JudgeWarningCondition = "fallbackWithWeakJudge"
-	JudgeWarnNoReasoningMode   JudgeWarningCondition = "noReasoningMode"
-	JudgeWarnAllGateFiltered   JudgeWarningCondition = "allGateFiltered"
+	JudgeWarnSingleProvider          JudgeWarningCondition = "singleProvider"
+	JudgeWarnLowestTierOnly          JudgeWarningCondition = "lowestTierOnly"
+	JudgeWarnJuryDuplicates          JudgeWarningCondition = "juryDuplicates"
+	JudgeWarnFallbackWeakJudge       JudgeWarningCondition = "fallbackWithWeakJudge"
+	JudgeWarnNoReasoningMode         JudgeWarningCondition = "noReasoningMode"
+	JudgeWarnAllGateFiltered         JudgeWarningCondition = "allGateFiltered"
+	JudgeWarnDegradedInput           JudgeWarningCondition = "degradedInput"
+	JudgeWarnCommodityPartialSuccess JudgeWarningCondition = "commodityPartialSuccess"
 )
 
 type ReliabilityFailureCause string
@@ -45,6 +49,8 @@ const (
 	ReliabilityFailureRuntimeFailed   ReliabilityFailureCause = "runtime-failed"
 	ReliabilityFailureNoEligibleForks ReliabilityFailureCause = "no-eligible-forks"
 	ReliabilityFailureNoJudgeSignal   ReliabilityFailureCause = "no-judge-signal"
+	ReliabilityFailureMissingParent   ReliabilityFailureCause = "missing-parent"
+	ReliabilityFailureInvalidCriteria ReliabilityFailureCause = "invalid-criteria"
 )
 
 type ReliabilityRemediationHint string
@@ -109,18 +115,21 @@ type JudgeInputMetadata struct {
 // Written by the Node.js execution engine after fork selection; consumed by the frontend verdict drawer.
 // Attached to a Node as a pointer so nodes that have never run /refine carry no overhead.
 type ReliabilityMetadata struct {
-	WinnerForkIndex      int                        `json:"winnerForkIndex" bson:"winnerForkIndex"`
-	PerCriterionVerdict  []CriterionVerdict         `json:"perCriterionVerdict" bson:"perCriterionVerdict"`
-	Mode                 RefineMode                 `json:"mode" bson:"mode"`
-	SelectionLayer       SelectionLayer             `json:"selectionLayer" bson:"selectionLayer"`
-	NoSignal             bool                       `json:"noSignal" bson:"noSignal"`
-	TiebreakUsed         *bool                      `json:"tiebreakUsed,omitempty" bson:"tiebreakUsed,omitempty"`
-	Eligible             int                        `json:"eligible" bson:"eligible"`
-	Total                int                        `json:"total" bson:"total"`
-	JudgeInput           *JudgeInputMetadata        `json:"judgeInput,omitempty" bson:"judgeInput,omitempty"`
-	JudgeQualityWarnings []JudgeQualityWarning      `json:"judgeQualityWarnings,omitempty" bson:"judgeQualityWarnings,omitempty"`
-	FailureCause         ReliabilityFailureCause    `json:"failureCause,omitempty" bson:"failureCause,omitempty"`
-	RemediationHint      ReliabilityRemediationHint `json:"remediationHint,omitempty" bson:"remediationHint,omitempty"`
-	AllGateFiltered      *bool                      `json:"allGateFiltered,omitempty" bson:"allGateFiltered,omitempty"`
-	DiscardedForks       []DiscardedFork            `json:"discardedForks,omitempty" bson:"discardedForks,omitempty"`
+	WinnerForkIndex         *int                       `json:"winnerForkIndex" bson:"winnerForkIndex"`
+	PerCriterionVerdict     []CriterionVerdict         `json:"perCriterionVerdict" bson:"perCriterionVerdict"`
+	Mode                    RefineMode                 `json:"mode" bson:"mode"`
+	SelectionLayer          SelectionLayer             `json:"selectionLayer" bson:"selectionLayer"`
+	FallbackUsed            bool                       `json:"fallbackUsed,omitempty" bson:"fallbackUsed,omitempty"`
+	GeneratorOnlyJudge      bool                       `json:"generatorOnlyJudge,omitempty" bson:"generatorOnlyJudge,omitempty"`
+	JudgeReasoningRequested bool                       `json:"judgeReasoningRequested,omitempty" bson:"judgeReasoningRequested,omitempty"`
+	NoSignal                bool                       `json:"noSignal" bson:"noSignal"`
+	TiebreakUsed            *bool                      `json:"tiebreakUsed,omitempty" bson:"tiebreakUsed,omitempty"`
+	Eligible                int                        `json:"eligible" bson:"eligible"`
+	Total                   int                        `json:"total" bson:"total"`
+	JudgeInput              *JudgeInputMetadata        `json:"judgeInput,omitempty" bson:"judgeInput,omitempty"`
+	JudgeQualityWarnings    []JudgeQualityWarning      `json:"judgeQualityWarnings,omitempty" bson:"judgeQualityWarnings,omitempty"`
+	FailureCause            ReliabilityFailureCause    `json:"failureCause,omitempty" bson:"failureCause,omitempty"`
+	RemediationHint         ReliabilityRemediationHint `json:"remediationHint,omitempty" bson:"remediationHint,omitempty"`
+	AllGateFiltered         *bool                      `json:"allGateFiltered,omitempty" bson:"allGateFiltered,omitempty"`
+	DiscardedForks          []DiscardedFork            `json:"discardedForks,omitempty" bson:"discardedForks,omitempty"`
 }

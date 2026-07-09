@@ -223,7 +223,7 @@ describe('runCommand - Post-process dispatch', () => {
       await runCommand({queryType: 'chat', cell: root, store, userId: 'userId'})
 
       expect(createErrorSpy).toHaveBeenCalledWith(expect.stringContaining('/refine requires :n=N'), refineNode.id)
-      expect(refineNode.title).toMatch(/\[✗ invalid\]/)
+      expect(refineNode.title).toMatch(/\[✗ !\]/)
     })
 
     it('does not recurse into /refine children (no flag=true)', async () => {

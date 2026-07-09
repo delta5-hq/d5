@@ -1224,7 +1224,7 @@ describe('/refine top-level run (P0.488: modifier-root error)', () => {
 
     const outputNodes = mockStore.getOutput().nodes
     const cellOut = outputNodes.find(n => n.id === 'refineNode')
-    expect(cellOut?.title).toMatch(/\[✗ invalid\]/)
+    expect(cellOut?.title).toMatch(/\[✗ !\]/)
     expect(outputNodes.some(n => n.title?.match(/requires a parent cell/i))).toBe(true)
   })
 })
@@ -2249,13 +2249,13 @@ describe('commodity :n=N — direct CHAT_QUERY_TYPE path (no CompletionCommand r
       name: 'provider/runtime error attempts are excluded while valid short output survives',
       outcomes: [new Error('provider rejected credentials'), 'hello'],
       childTitles: ['hello'],
-      suffix: /\[✓ 1\/2\]$/,
+      suffix: /\[✓ 1\/2 ⚠\]$/,
     },
     {
       name: 'provider/runtime error and refusal attempts are both excluded',
       outcomes: [new Error('provider rejected credentials'), "I'm sorry, I cannot help with that.", 'ok'],
       childTitles: ['ok'],
-      suffix: /\[✓ 1\/3\]$/,
+      suffix: /\[✓ 1\/3 ⚠\]$/,
     },
     {
       name: 'all attempts fail before producing acceptable output',

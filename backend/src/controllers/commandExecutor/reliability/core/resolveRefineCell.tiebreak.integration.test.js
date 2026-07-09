@@ -9,7 +9,10 @@ jest.mock('debug', () => {
 })
 
 jest.mock('./SubtreeForkRunner', () => ({runForks: jest.fn()}))
-jest.mock('./StoreFork', () => ({applyCandidate: jest.fn(), createFork: jest.fn()}))
+jest.mock('./StoreFork', () => ({
+  applyCandidate: jest.fn(),
+  createFork: jest.fn(),
+}))
 jest.mock('./OwnershipResolver', () => jest.fn())
 jest.mock('./ForkProgressEmitter', () => ({
   NullForkProgressEmitter: jest.fn(() => ({
@@ -46,8 +49,20 @@ const buildStore = nodeMap => new Store({userId: 'user1', nodes: nodeMap})
 
 const makeRefineStore = () => {
   const store = buildStore({
-    p1: {id: 'p1', parent: null, children: ['r1'], command: '/chat task', title: 'Parent'},
-    r1: {id: 'r1', parent: 'p1', title: 'Refine Cell', command: '/refine :n=2', children: []},
+    p1: {
+      id: 'p1',
+      parent: null,
+      children: ['r1'],
+      command: '/chat task',
+      title: 'Parent',
+    },
+    r1: {
+      id: 'r1',
+      parent: 'p1',
+      title: 'Refine Cell',
+      command: '/refine :n=2',
+      children: [],
+    },
   })
   jest.spyOn(store, 'saveNodeToOutput').mockImplementation(() => {})
   jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
@@ -56,8 +71,20 @@ const makeRefineStore = () => {
 
 const make3ForkRefineStore = () => {
   const store = buildStore({
-    p1: {id: 'p1', parent: null, children: ['r1'], command: '/chat task', title: 'Parent'},
-    r1: {id: 'r1', parent: 'p1', title: 'Refine Cell', command: '/refine :n=3', children: []},
+    p1: {
+      id: 'p1',
+      parent: null,
+      children: ['r1'],
+      command: '/chat task',
+      title: 'Parent',
+    },
+    r1: {
+      id: 'r1',
+      parent: 'p1',
+      title: 'Refine Cell',
+      command: '/refine :n=3',
+      children: [],
+    },
   })
   jest.spyOn(store, 'saveNodeToOutput').mockImplementation(() => {})
   jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
@@ -73,14 +100,23 @@ const makeForkStore = (forkIndex, n = 2) =>
       title: `Fork-${forkIndex} parent output`,
       command: '/chat task',
     },
-    r1: {id: 'r1', parent: 'p1', title: `Fork-${forkIndex} result`, command: `/refine :n=${n}`, children: []},
+    r1: {
+      id: 'r1',
+      parent: 'p1',
+      title: `Fork-${forkIndex} result`,
+      command: `/refine :n=${n}`,
+      children: [],
+    },
   })
 
 const makeValidateNode = (id, command) => buildStore({[id]: {id, parent: 'p1', command, children: []}}).getNode(id)
 
 const TWO_FAMILIES = {openai: {apiKey: 'k'}, claude: {apiKey: 'c'}}
 
-const mockLLMWithContent = content => ({llm: {invoke: jest.fn().mockResolvedValue({content})}, chunkSize: 100_000})
+const mockLLMWithContent = content => ({
+  llm: {invoke: jest.fn().mockResolvedValue({content})},
+  chunkSize: 100_000,
+})
 
 beforeEach(() => {
   jest.clearAllMocks()

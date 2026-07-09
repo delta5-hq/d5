@@ -69,7 +69,7 @@ const maximalVerdict = {
     },
   ],
   mode: 'strict',
-  selectionLayer: 'primary',
+  selectionLayer: 'fallback',
   noSignal: false,
   tiebreakUsed: true,
   judgeInput: {
@@ -82,6 +82,8 @@ const maximalVerdict = {
   failureCause: 'structural-gate',
   remediationHint: 'revise-prompt',
   allGateFiltered: true,
+  generatorOnlyJudge: true,
+  judgeReasoningRequested: true,
 }
 
 const maximalLoserFork = {
@@ -129,8 +131,11 @@ describe('reliabilityMetadata field-set contract', () => {
         'discardedForks',
         'eligible',
         'failureCause',
+        'fallbackUsed',
+        'generatorOnlyJudge',
         'judgeInput',
         'judgeQualityWarnings',
+        'judgeReasoningRequested',
         'mode',
         'noSignal',
         'perCriterionVerdict',
@@ -165,7 +170,11 @@ describe('reliabilityMetadata construction chokepoint', () => {
 describe('nested builder field-set contract — sentinel-proxy confirms no sub-field escapes persistence', () => {
   it('buildJudgeInputMetadata emits exactly the fixture.judgeInput fields', () => {
     const inputProxy = makeSentinelProxy(
-      {candidateCount: 2, perForkBudget: 5000, resolvedModels: [{judgeFamily: 'openai'}]},
+      {
+        candidateCount: 2,
+        perForkBudget: 5000,
+        resolvedModels: [{judgeFamily: 'openai'}],
+      },
       'diag',
     )
     const result = buildJudgeInputMetadata(inputProxy)

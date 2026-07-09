@@ -78,23 +78,23 @@ describe('resolveRefineCell — input guard: :n= absent or invalid', () => {
     expect(mockRunForks).not.toHaveBeenCalled()
   })
 
-  it('marks title with [✗ invalid] suffix when :n= is absent — failure visible on cell and via error child node', async () => {
+  it('marks title with [✗ !] suffix when :n= is absent — failure visible on cell and via error child node', async () => {
     const store = makeStore('/refine')
     const node = store.getNode('r1')
 
     await resolveRefineCell(node, store, new Map())
 
-    expect(node.title).toBe('My Cell [✗ invalid]')
+    expect(node.title).toBe('My Cell [✗ !]')
   })
 
-  it('replaces any pre-existing reliability suffix with [✗ invalid] when :n= is absent', async () => {
+  it('replaces any pre-existing reliability suffix with [✗ !] when :n= is absent', async () => {
     const store = makeStore('/refine')
     const node = store.getNode('r1')
     node.title = 'My Cell [✓ 2/3]'
 
     await resolveRefineCell(node, store, new Map())
 
-    expect(node.title).toBe('My Cell [✗ invalid]')
+    expect(node.title).toBe('My Cell [✗ !]')
   })
 
   it('saves node to output when :n= is absent', async () => {
@@ -124,23 +124,23 @@ describe('resolveRefineCell — input guard: fork cost exceeds :limit=', () => {
     expect(mockRunForks).not.toHaveBeenCalled()
   })
 
-  it('marks title with [✗ invalid] suffix when cost exceeds :limit= — failure visible on cell and via error child node', async () => {
+  it('marks title with [✗ !] suffix when cost exceeds :limit= — failure visible on cell and via error child node', async () => {
     const store = makeStore('/refine :n=3 :limit=0')
     const node = store.getNode('r1')
 
     await resolveRefineCell(node, store, new Map())
 
-    expect(node.title).toBe('My Cell [✗ invalid]')
+    expect(node.title).toBe('My Cell [✗ !]')
   })
 
-  it('replaces any pre-existing reliability suffix with [✗ invalid] when cost exceeds :limit=', async () => {
+  it('replaces any pre-existing reliability suffix with [✗ !] when cost exceeds :limit=', async () => {
     const store = makeStore('/refine :n=3 :limit=0')
     const node = store.getNode('r1')
-    node.title = 'My Cell [✓ retry-1]'
+    node.title = 'My Cell [✓ +1]'
 
     await resolveRefineCell(node, store, new Map())
 
-    expect(node.title).toBe('My Cell [✗ invalid]')
+    expect(node.title).toBe('My Cell [✗ !]')
   })
 })
 
@@ -828,7 +828,7 @@ describe('resolveRefineCell — validate sibling titles transferred from winner 
 })
 
 describe('resolveRefineCell — noSignal routing: strict mode emits warning, fallback mode suppresses warning', () => {
-  it('primary layer — all forks ok but jurors excluded → [⚠ no judge signal] suffix, metadata noSignal:true', async () => {
+  it('primary layer — all forks ok but jurors excluded → [⚠ ∅] suffix, metadata noSignal:true', async () => {
     const winner = okForkStore()
     const forks = [
       {forkIndex: 0, status: 'ok', forkStore: winner},
@@ -848,7 +848,7 @@ describe('resolveRefineCell — noSignal routing: strict mode emits warning, fal
 
     await resolveRefineCell(store.getNode('r1'), store, new Map())
 
-    expect(store._nodes.r1.title).toBe('My Cell [⚠ no judge signal]')
+    expect(store._nodes.r1.title).toBe('My Cell [⚠ ∅]')
     expect(store._nodes.r1.reliabilityMetadata).toMatchObject({
       noSignal: true,
       selectionLayer: 'primary',
@@ -937,7 +937,7 @@ describe('resolveRefineCell — noSignal routing: strict mode emits warning, fal
 
     await resolveRefineCell(store.getNode('r1'), store, new Map())
 
-    expect(store._nodes.r1.title).toBe('My Cell [⚠ fallback: 0/2 passed; chose fork-0]')
+    expect(store._nodes.r1.title).toBe('My Cell [⚠ 0/2]')
     expect(store._nodes.r1.reliabilityMetadata).toMatchObject({
       noSignal: true,
       selectionLayer: 'fallback',
@@ -968,7 +968,7 @@ describe('resolveRefineCell — noSignal routing: strict mode emits warning, fal
 
     await resolveRefineCell(store.getNode('r1'), store, new Map())
 
-    expect(store._nodes.r1.title).toBe('My Cell [⚠ no judge signal]')
+    expect(store._nodes.r1.title).toBe('My Cell [⚠ ∅]')
     expect(store._nodes.r1.reliabilityMetadata).toMatchObject({
       noSignal: true,
       selectionLayer: 'primary',
@@ -1056,7 +1056,7 @@ describe('resolveRefineCell — ForkProgressEmitter integration', () => {
 
     await resolveRefineCell(store.getNode('r1'), store, new Map(), null, emitter)
 
-    expect(emitter.refineComplete).toHaveBeenCalledWith('r1', 0, 2)
+    expect(emitter.refineComplete).toHaveBeenCalledWith('r1', 0, 2, expect.any(Object))
   })
 
   it('calls emitter.refineComplete with null winner when all forks fail in strict mode', async () => {
@@ -1413,7 +1413,10 @@ describe('resolveRefineCell — verdict field propagation to reliabilityMetadata
   })
 
   it.each([true, false])('tiebreakUsed: %s is propagated to reliabilityMetadata', async tiebreakUsed => {
-    const meta = await makeRunWithVerdict({winnerForkIndex: 0, tiebreakUsed})
+    const meta = await makeRunWithVerdict({
+      winnerForkIndex: 0,
+      tiebreakUsed,
+    })
     expect(meta.tiebreakUsed).toBe(tiebreakUsed)
   })
 
@@ -1423,8 +1426,14 @@ describe('resolveRefineCell — verdict field propagation to reliabilityMetadata
   })
 
   it('two sequential calls with the same verdict produce the same winnerForkIndex in reliabilityMetadata', async () => {
-    const meta1 = await makeRunWithVerdict({winnerForkIndex: 0, tiebreakUsed: true})
-    const meta2 = await makeRunWithVerdict({winnerForkIndex: 0, tiebreakUsed: true})
+    const meta1 = await makeRunWithVerdict({
+      winnerForkIndex: 0,
+      tiebreakUsed: true,
+    })
+    const meta2 = await makeRunWithVerdict({
+      winnerForkIndex: 0,
+      tiebreakUsed: true,
+    })
     expect(meta1.winnerForkIndex).toBe(0)
     expect(meta2.winnerForkIndex).toBe(0)
   })

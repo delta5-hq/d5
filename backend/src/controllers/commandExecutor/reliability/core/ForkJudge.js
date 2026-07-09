@@ -24,6 +24,8 @@ import {passesStructuralGate} from './structuralGate'
 import {recordStructuralGateDrift} from './structuralGateDrift'
 import {classifyNoWinner} from './failureSemantics'
 
+const JUDGE_REASONING_BUDGET_TOKENS = 8_000
+
 const log = debug('delta5:forkjudge')
 
 const RANK_SYSTEM_PROMPT =
@@ -34,13 +36,18 @@ const buildRankMessage = (criterion, contents, perForkBudget) => {
   return `Criterion: ${criterion}\n\n${candidates}\n\nRank from best (1) to worst (${contents.length}), comma-separated:`
 }
 
-const resolveJurorModels = (criteria, settings, log) =>
+const resolveJurorModels = (criteria, settings, log, thinkingBudgetTokens = null) =>
   criteria.map(criterion => {
     const jurors = selectJurors(criterion.jurorCount, '__none__', settings)
     const resolvedJurors = jurors.map(juror => {
       const {judgeFamily} = selfJudgingGuard(juror.family, settings)
       try {
-        const {llm, chunkSize} = getLLM({type: judgeFamily, settings, log})
+        const {llm, chunkSize} = getLLM({
+          type: judgeFamily,
+          settings,
+          log,
+          thinkingBudgetTokens,
+        })
         return {juror, judgeFamily, llm, chunkSize}
       } catch (error) {
         return {juror, judgeFamily, error}
@@ -58,7 +65,10 @@ const extractForkContent = async (parentNodeId, forkStore) => {
 }
 
 const applyStructuralGate = (candidateForks, contents) => {
-  const pairs = candidateForks.map((fork, i) => ({fork, content: contents[i]}))
+  const pairs = candidateForks.map((fork, i) => ({
+    fork,
+    content: contents[i],
+  }))
   const passing = pairs.filter(({fork, content}) => passesStructuralGate(content, fork.forkIndex))
   return {
     activeCandidates: passing.map(p => p.fork),
@@ -81,19 +91,29 @@ export class ForkJudge {
    *   parentNodeId: string,
    *   fallback?: boolean,
    *   signal?: AbortSignal|null,
+   *   judgeReasoningRequested?: boolean,
    * }} params
    * @returns {Promise<{
    *   winnerForkIndex: number|null,
    *   perCriterionVerdict: object[],
-   *   mode: 'strict'|'fallback',
+   *   mode: 'strict'|'fallback'|'commodity',
    *   selectionLayer: 'primary'|'fallback'|'none',
    *   noSignal: boolean,
    *   tiebreakUsed: boolean,
+   *   generatorOnlyJudge?: true,
+   *   judgeReasoningRequested: boolean,
    *   judgeInput: ReturnType<import('./reliabilityMetadataFields').buildJudgeInputMetadata>,
    *   judgeQualityWarnings: ReturnType<import('./reliabilityMetadataFields').buildJudgeQualityWarning>[],
    * }>}
    */
-  async selectWinner({forks, validateNodes, parentNodeId, fallback = false, signal = null}) {
+  async selectWinner({
+    forks,
+    validateNodes,
+    parentNodeId,
+    fallback = false,
+    signal = null,
+    judgeReasoningRequested = false,
+  }) {
     const primaryForks = forks.filter(f => f.status === 'ok')
     const fallbackForks = forks.filter(f => f.status === 'criteria-failed' && f.forkStore)
 
@@ -114,6 +134,7 @@ export class ForkJudge {
         selectionLayer: 'none',
         allGateFiltered: false,
         judgeQualityWarnings: [],
+        judgeReasoningRequested,
         ...classifyNoWinner({forkResults: forks}),
       }
     }
@@ -131,7 +152,13 @@ export class ForkJudge {
         noSignal: false,
         tiebreakUsed: false,
         allGateFiltered: true,
-        judgeQualityWarnings: [buildJudgeQualityWarning({condition: 'allGateFiltered', severity: 'high'})],
+        judgeQualityWarnings: [
+          buildJudgeQualityWarning({
+            condition: 'allGateFiltered',
+            severity: 'high',
+          }),
+        ],
+        judgeReasoningRequested,
         ...classifyNoWinner({allGateFiltered: true, forkResults: forks}),
       }
     }
@@ -146,6 +173,7 @@ export class ForkJudge {
         tiebreakUsed: false,
         allGateFiltered: false,
         judgeQualityWarnings: [],
+        judgeReasoningRequested,
       }
     }
 
@@ -199,7 +227,8 @@ export class ForkJudge {
             },
           ]
 
-    const criteriaWithJurors = resolveJurorModels(criteria, settings, this.log)
+    const budgetTokens = judgeReasoningRequested ? JUDGE_REASONING_BUDGET_TOKENS : null
+    const criteriaWithJurors = resolveJurorModels(criteria, settings, this.log, budgetTokens)
     const resolvedModels = criteriaWithJurors.flatMap(c => c.jurors).filter(j => !j.error)
 
     const perForkBudget = computePerForkContentBudgetFromResolvedModels(activeCandidates.length, resolvedModels)
@@ -287,6 +316,8 @@ export class ForkJudge {
         allGateFiltered: false,
         judgeInput,
         judgeQualityWarnings,
+        generatorOnlyJudge: singleProvider || undefined,
+        judgeReasoningRequested,
         ...classifyNoWinner({noSignal: true, forkResults: forks}),
       }
     }
@@ -340,6 +371,8 @@ export class ForkJudge {
       allGateFiltered: false,
       judgeInput,
       judgeQualityWarnings,
+      generatorOnlyJudge: singleProvider || undefined,
+      judgeReasoningRequested,
     }
   }
 }

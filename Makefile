@@ -1,4 +1,4 @@
-.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e stop ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend check-no-legacy-version-symbols forbid-range-assertions forbid-staged-agent-artifacts build-backend build-backend-v2 build-frontend test-backend test-backend-v2 test-frontend e2e-backend e2e-frontend _e2e-frontend-run e2e-frontend-throttled e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks clean-e2e clean-all fix-permissions cleanup-old-data probe-version probe-version-e2e test-scripts
+.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e stop ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend check-no-legacy-version-symbols forbid-range-assertions forbid-staged-agent-artifacts build-backend build-backend-v2 build-frontend test-backend test-backend-v2 test-frontend e2e-backend e2e-frontend _e2e-frontend-run e2e-frontend-throttled e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks clean-e2e clean-all fix-permissions cleanup-old-data probe-version probe-version-e2e test-scripts check-suffix-grammar-parity sync-suffix-grammar
 
 # Configuration
 DOCKER_NETWORK := d5-dev-network
@@ -14,6 +14,8 @@ FRONTEND_PORT := 5173
 E2E_BACKEND_PORT := 3003
 E2E_NODEJS_BACKEND_PORT := 3004
 E2E_FRONTEND_PORT := 5174
+SUFFIX_GRAMMAR_BACKEND := backend/src/controllers/commandExecutor/reliability/core/suffixGrammarShapes.json
+SUFFIX_GRAMMAR_FRONTEND := frontend/src/shared/lib/reliability/suffix-grammar-shapes.json
 
 help:
 	@echo "Available targets:"
@@ -75,7 +77,16 @@ help:
 check-no-legacy-version-symbols:
 	@bash scripts/ci-helpers.sh check_no_legacy_version_symbols
 
-lint: lint-backend lint-backend-v2 lint-docker-backend-v2 lint-docker-backend lint-docker-frontend lint-frontend check-no-legacy-version-symbols
+check-suffix-grammar-parity:
+	@diff $(SUFFIX_GRAMMAR_FRONTEND) $(SUFFIX_GRAMMAR_BACKEND) > /dev/null 2>&1 \
+	  || (echo "ERROR: suffix-grammar-shapes.json is out of sync — run: make sync-suffix-grammar" && exit 1)
+	@echo "✓ suffix-grammar-shapes.json parity confirmed"
+
+sync-suffix-grammar:
+	@cp $(SUFFIX_GRAMMAR_BACKEND) $(SUFFIX_GRAMMAR_FRONTEND)
+	@echo "✓ suffix-grammar-shapes.json synced frontend ← backend"
+
+lint: lint-backend lint-backend-v2 lint-docker-backend-v2 lint-docker-backend lint-docker-frontend lint-frontend check-no-legacy-version-symbols check-suffix-grammar-parity
 	@echo "✓ All modules linted"
 
 test: test-backend test-backend-v2 test-frontend test-scripts

@@ -1,4 +1,5 @@
 import {isDegradedInput} from './judgeContentBudget'
+import {FAILURE_CAUSE} from './failureSemantics'
 
 export function buildJudgeInputMetadata({candidateCount, perForkBudget, resolvedModels}) {
   return {
@@ -43,9 +44,53 @@ export function buildReliabilityMetadata(verdict, forkResults, okCount, n) {
     total: n,
     judgeInput: verdict.judgeInput,
     judgeQualityWarnings: verdict.judgeQualityWarnings ?? [],
+    ...(verdict.selectionLayer === 'fallback' ? {fallbackUsed: true} : {}),
+    ...(verdict.generatorOnlyJudge ? {generatorOnlyJudge: true} : {}),
+    ...(verdict.judgeReasoningRequested ? {judgeReasoningRequested: true} : {}),
     ...(verdict.failureCause !== undefined ? {failureCause: verdict.failureCause} : {}),
     ...(verdict.remediationHint !== undefined ? {remediationHint: verdict.remediationHint} : {}),
     ...(verdict.allGateFiltered !== undefined ? {allGateFiltered: verdict.allGateFiltered} : {}),
     discardedForks: forkResults.filter(f => f.forkIndex !== verdict.winnerForkIndex).map(buildDiscardedFork),
+  }
+}
+
+export const COMMODITY_PARTIAL_SUCCESS_WARNING = Object.freeze({
+  condition: 'commodityPartialSuccess',
+  severity: 'medium',
+})
+
+export function buildCommodityReliabilityMetadata({successCount, total, forkOutcomes}) {
+  const allFailed = successCount === 0 && total > 0
+  const partial = successCount > 0 && successCount < total
+  return {
+    winnerForkIndex: null,
+    perCriterionVerdict: [],
+    mode: 'commodity',
+    selectionLayer: 'primary',
+    noSignal: false,
+    tiebreakUsed: false,
+    eligible: successCount,
+    total,
+    ...(partial ? {judgeQualityWarnings: [COMMODITY_PARTIAL_SUCCESS_WARNING]} : {}),
+    ...(allFailed ? {failureCause: FAILURE_CAUSE.RUNTIME_FAILED} : {}),
+    discardedForks: forkOutcomes
+      .filter(f => !f.succeeded)
+      .map(f => buildDiscardedFork({forkIndex: f.forkIndex, status: 'runtime-failed'})),
+  }
+}
+
+export function buildInvalidReliabilityMetadata({failureCause, remediationHint}) {
+  return {
+    winnerForkIndex: null,
+    perCriterionVerdict: [],
+    mode: 'invalid',
+    selectionLayer: 'primary',
+    noSignal: false,
+    tiebreakUsed: false,
+    eligible: 0,
+    total: 0,
+    failureCause,
+    ...(remediationHint !== undefined ? {remediationHint} : {}),
+    discardedForks: [],
   }
 }

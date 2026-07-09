@@ -5,12 +5,46 @@ const buildStore = () =>
   new Store({
     userId: 'user1',
     nodes: {
-      root: {id: 'root', parent: null, children: ['left', 'right'], title: 'root'},
-      left: {id: 'left', parent: 'root', children: ['left-child'], prompts: ['left-prompt'], title: 'left'},
-      'left-child': {id: 'left-child', parent: 'left', children: [], title: 'left child', file: 'left-file'},
-      'left-prompt': {id: 'left-prompt', parent: 'left', children: [], title: 'left prompt', image: 'left-image'},
-      right: {id: 'right', parent: 'root', children: ['right-child'], title: 'right'},
-      'right-child': {id: 'right-child', parent: 'right', children: [], title: 'right child', file: 'right-file'},
+      root: {
+        id: 'root',
+        parent: null,
+        children: ['left', 'right'],
+        title: 'root',
+      },
+      left: {
+        id: 'left',
+        parent: 'root',
+        children: ['left-child'],
+        prompts: ['left-prompt'],
+        title: 'left',
+      },
+      'left-child': {
+        id: 'left-child',
+        parent: 'left',
+        children: [],
+        title: 'left child',
+        file: 'left-file',
+      },
+      'left-prompt': {
+        id: 'left-prompt',
+        parent: 'left',
+        children: [],
+        title: 'left prompt',
+        image: 'left-image',
+      },
+      right: {
+        id: 'right',
+        parent: 'root',
+        children: ['right-child'],
+        title: 'right',
+      },
+      'right-child': {
+        id: 'right-child',
+        parent: 'right',
+        children: [],
+        title: 'right child',
+        file: 'right-file',
+      },
     },
     edges: {
       'left-edge': {id: 'left-edge', start: 'left', end: 'left-child'},
@@ -45,9 +79,19 @@ describe('StoreExecutionSnapshot', () => {
     const snapshot = captureStoreExecutionSnapshot(store, 'left')
 
     store.getNode('left').title = 'left changed'
-    store.createNode({id: 'left-new', parent: 'left', children: [], title: 'left new'})
+    store.createNode({
+      id: 'left-new',
+      parent: 'left',
+      children: [],
+      title: 'left new',
+    })
     store.getNode('right').title = 'right changed'
-    store.createNode({id: 'right-new', parent: 'right', children: [], title: 'right new'})
+    store.createNode({
+      id: 'right-new',
+      parent: 'right',
+      children: [],
+      title: 'right new',
+    })
 
     restoreStoreExecutionSnapshot(store, snapshot)
 
@@ -90,7 +134,12 @@ describe('StoreExecutionSnapshot', () => {
     markOutput(store, ['left', 'left-child', 'right'], ['left-edge', 'right-edge'])
     const snapshot = captureStoreExecutionSnapshot(store, 'left')
 
-    store.createNode({id: 'left-new', parent: 'left', children: [], title: 'left new'})
+    store.createNode({
+      id: 'left-new',
+      parent: 'left',
+      children: [],
+      title: 'left new',
+    })
     store.createEdge({id: 'left-new-edge', start: 'left', end: 'left-new'})
     store.saveEdgeToOutput('left-new-edge')
     store.saveNodeToOutput('right-child')
@@ -107,7 +156,12 @@ describe('StoreExecutionSnapshot', () => {
 
     store.getNode('left').title = 'left changed'
     store.getNode('right').title = 'right changed'
-    store.createNode({id: 'new-root-child', parent: 'root', children: [], title: 'new'})
+    store.createNode({
+      id: 'new-root-child',
+      parent: 'root',
+      children: [],
+      title: 'new',
+    })
 
     restoreStoreExecutionSnapshot(store, snapshot)
 
@@ -136,16 +190,70 @@ describe('StoreExecutionSnapshot', () => {
 
   it('restores node metadata and removes prompt descendants created after capture', () => {
     const store = buildStore()
-    store.getNode('left').reliabilityMetadata = {winnerForkIndex: 0, total: 2}
+    store.getNode('left').reliabilityMetadata = {
+      winnerForkIndex: 0,
+      total: 2,
+    }
     const snapshot = captureStoreExecutionSnapshot(store, 'left')
 
-    store.getNode('left').reliabilityMetadata = {winnerForkIndex: 1, total: 2, discardedForks: [{forkIndex: 0}]}
-    store.createNode({id: 'left-failed-prompt', parent: 'left', children: [], title: 'failed prompt'}, true)
+    store.getNode('left').reliabilityMetadata = {
+      winnerForkIndex: 1,
+      total: 2,
+      discardedForks: [{forkIndex: 0}],
+    }
+    store.createNode(
+      {
+        id: 'left-failed-prompt',
+        parent: 'left',
+        children: [],
+        title: 'failed prompt',
+      },
+      true,
+    )
 
     restoreStoreExecutionSnapshot(store, snapshot)
 
-    expect(store.getNode('left').reliabilityMetadata).toEqual({winnerForkIndex: 0, total: 2})
+    expect(store.getNode('left').reliabilityMetadata).toEqual({
+      winnerForkIndex: 0,
+      total: 2,
+    })
     expect(store.getNode('left').prompts).toEqual(['left-prompt'])
     expect(store.getNode('left-failed-prompt')).toBeUndefined()
+  })
+  it.each([
+    ['children only (no prompts property)', {id: 'root', title: 'Root', children: ['c']}],
+    ['prompts only (no children property)', {id: 'root', title: 'Root', prompts: ['p']}],
+    ['neither children nor prompts', {id: 'root', title: 'Root'}],
+  ])('captures root node with %s without error', (_, rootShape) => {
+    const store = new Store({userId: 'user1', nodes: {root: rootShape}})
+    const snapshot = captureStoreExecutionSnapshot(store, 'root')
+    expect(snapshot.nodeIds).toContain('root')
+  })
+
+  it('excludes unreachable dangling child ids from the captured subtree', () => {
+    const store = new Store({
+      userId: 'user1',
+      nodes: {root: {id: 'root', title: 'Root', children: ['ghost']}},
+    })
+    const snapshot = captureStoreExecutionSnapshot(store, 'root')
+    expect(snapshot.nodeIds).toEqual(['root'])
+    expect(snapshot.nodeIds).not.toContain('ghost')
+  })
+
+  it('restores a node that was deleted from the store after the snapshot was taken', () => {
+    const store = buildStore()
+    const snapshot = captureStoreExecutionSnapshot(store, 'left')
+    delete store._nodes['left-child']
+    restoreStoreExecutionSnapshot(store, snapshot)
+    expect(store.getNode('left-child')).toBeDefined()
+    expect(store.getNode('left-child').title).toBe('left child')
+  })
+
+  it('restores gracefully from a legacy snapshot that omits the fileIds and files fields', () => {
+    const store = buildStore()
+    const snapshot = captureStoreExecutionSnapshot(store, 'left')
+    const {fileIds: _fi, files: _f, ...legacySnapshot} = snapshot
+    expect(() => restoreStoreExecutionSnapshot(store, legacySnapshot)).not.toThrow()
+    expect(store.getNode('left').title).toBe('left')
   })
 })

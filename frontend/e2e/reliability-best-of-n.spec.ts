@@ -6,10 +6,10 @@ import { TIMEOUTS } from './config/test-timeouts'
 const LLM_TIMEOUT = 120_000
 const SUFFIX_RE = /\[(?:✓|✗)[^\]]+\]/
 const COMMODITY_FULL_SUCCESS_SUFFIX_RE = (n: number) => new RegExp(`\\[✓ ${n}\\/${n}\\]`)
-const COMMODITY_OUTCOME_SUFFIX_RE = /\[(✓|✗) (\d+)\/(\d+)\]/
-const VALIDATE_VERDICT_RE = /\[(?:✓(?:\s+retry-\d+)?|✗\s+\d+\s+attempts)\]/
-const VALIDATE_FAIL_RE = /\[✗\s+\d+\s+attempts\]/
-const REFINE_FALLBACK_SUFFIX_RE = /\[⚠ fallback: 0\/2 passed; chose fork-\d+\]/
+const COMMODITY_OUTCOME_SUFFIX_RE = /\[(✓|✗) (\d+)\/(\d+)(?: ⚠)?\]/
+const VALIDATE_VERDICT_RE = /\[(?:✓(?:\s+\+\d+)?|✗\s+\d+×)\]/
+const VALIDATE_FAIL_RE = /\[✗\s+\d+×\]/
+const REFINE_FALLBACK_SUFFIX_RE = /\[⚠ 0\/\d+\]/
 const COMMODITY_DETERMINISTIC_FULL_SUCCESS_CASES = [
   { n: 2, task: 'List 3 colors' },
   { n: 3, task: 'List 3 fruits' },
@@ -202,7 +202,7 @@ async function assertForeachValidateContractFor(
   )
   expect(validateVerdicts).toHaveLength(3)
   expect(validateVerdicts.filter(title => /\[✓\]/.test(title))).toHaveLength(2)
-  expect(validateVerdicts.filter(title => /\[✗\s+\d+\s+attempts\]/.test(title))).toHaveLength(1)
+  expect(validateVerdicts.filter(title => VALIDATE_FAIL_RE.test(title))).toHaveLength(1)
 
   const templateNodes = Object.values(snapshot.nodes ?? {}).filter(
     n => n.parent === foreachId && String(n.title ?? '').includes(contentKeyedSentinel),

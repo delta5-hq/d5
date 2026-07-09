@@ -854,7 +854,7 @@ describe('ExecutorController', () => {
         expect(response.status).toBe(200)
         const body2 = response.body
         const changedTitles = (body2?.nodesChanged ?? []).map(n => n.title ?? '')
-        expect(changedTitles.some(t => t.includes('[✗ invalid]'))).toBe(true)
+        expect(changedTitles.some(t => t.includes('[✗ !]'))).toBe(true)
       })
     })
 
@@ -1118,7 +1118,7 @@ describe('ExecutorController', () => {
 
       const validateChanged = body.nodesChanged?.find(n => n.id === 'v0')
       expect(validateChanged).toBeDefined()
-      expect(validateChanged.title).toMatch(/\[✗ 1 attempts\]/)
+      expect(validateChanged.title).toMatch(/\[✗ 1×\]/)
     })
 
     it('emits emitComplete (not emitError) on CriteriaFailedError', async () => {

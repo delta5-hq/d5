@@ -447,9 +447,30 @@ export default {
       judgeQualityWarning_noReasoningMode: 'Нет модели с режимом рассуждений — оценка без расширенного анализа',
       judgeQualityWarning_allGateFiltered:
         'Все кандидаты структурно отклонены — fallback не исправит пустой вывод или отказ',
+      judgeQualityWarning_degradedInput:
+        'Бюджет токенов на форк слишком мал для оценки полного контекста — судья ранжирует усечённые данные; достоверность снижена',
+      judgeQualityWarning_commodityPartialSuccess:
+        'Часть параллельных форков завершилась ошибкой — результат отражает только успешные форки; частичное выполнение',
       judgeQualitySeverityHigh: 'высокий',
       judgeQualitySeverityMedium: 'средний',
       judgeQualitySeverityLow: 'низкий',
+      modeCommodity: 'товарный',
+      commodityLabel: '{eligible} из {total} форков выполнены успешно',
+      commodityPartialWarning:
+        'Частичный успех — {eligible} из {total} форков дали результат; {failed} завершились с ошибкой',
+      fallbackUsedLabel:
+        'Резервный победитель выбран принудительно — ни один форк не прошёл основные критерии; выбран наименее плохой',
+      noWinnerLabel: 'Победитель не выбран',
+      generatorOnlyJudgeLabel:
+        'Генератор и судья используют одного провайдера — независимость между семействами моделей недостижима',
+      judgeReasoningRequestedLabel: 'Запрошено расширенное рассуждение судьи (:judge_reasoning)',
+      modeInvalid: 'недопустимый',
+      failureCauseMissingParent:
+        'Эта команда требует родительской ячейки — добавьте её ниже существующей ячейки рабочего процесса',
+      failureCauseInvalidCriteria:
+        'Критерий /validate пуст — добавьте текст критерия в команду /validate перед запуском',
+      commodityAllFailedWarning:
+        'Все {total} параллельных форков завершились с ошибкой — проверьте доступность провайдера и повторите попытку',
     },
 
     discardedForks: {

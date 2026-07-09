@@ -448,9 +448,28 @@ export default {
         'No reasoning-capable model configured — judge operates without extended analysis',
       judgeQualityWarning_allGateFiltered:
         'All candidates were structurally rejected — fallback cannot rescue empty or refusal output',
+      judgeQualityWarning_degradedInput:
+        'Per-fork token budget too small for full-context evaluation — judge ranked on truncated input; confidence is reduced',
+      judgeQualityWarning_commodityPartialSuccess:
+        'Some parallel forks failed — result reflects successful forks only; partial execution',
       judgeQualitySeverityHigh: 'high',
       judgeQualitySeverityMedium: 'medium',
       judgeQualitySeverityLow: 'low',
+      modeCommodity: 'commodity',
+      commodityLabel: '{eligible} of {total} forks succeeded',
+      commodityPartialWarning:
+        'Partial success — {eligible} of {total} forks produced output; {failed} failed at runtime',
+      fallbackUsedLabel: 'Fallback winner committed — no fork passed primary criteria; least-bad fork promoted',
+      noWinnerLabel: 'No winner selected',
+      generatorOnlyJudgeLabel: 'Generator and judge share the same provider — cross-family independence not possible',
+      judgeReasoningRequestedLabel: 'Extended judge reasoning requested (:judge_reasoning)',
+      modeInvalid: 'invalid',
+      failureCauseMissingParent:
+        'This command requires a parent cell — move it below an existing workflow cell before running',
+      failureCauseInvalidCriteria:
+        'Validate criterion is empty — add criterion text to the /validate command before running',
+      commodityAllFailedWarning:
+        'All {total} parallel forks failed at runtime — check provider availability and try again',
     },
 
     discardedForks: {

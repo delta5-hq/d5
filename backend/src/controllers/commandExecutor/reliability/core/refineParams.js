@@ -2,6 +2,7 @@ import {REFINE_QUERY} from '../../constants/refine'
 
 const N_PATTERN = /:n=(\d+)/
 const FALLBACK_PATTERN = /:fallback(?=\s|$)/
+const JUDGE_REASONING_PATTERN = /:judge_reasoning(?=\s|$)/
 const REFINE_CELL_PATTERN = new RegExp(`^${REFINE_QUERY.replace('/', '\\/')}(?:\\s|$)`)
 
 /**
@@ -30,6 +31,8 @@ export const readRefineN = command => {
 export const readFallbackFlag = command => {
   return typeof command === 'string' && FALLBACK_PATTERN.test(command)
 }
+
+export const readJudgeReasoningFlag = command => typeof command === 'string' && JUDGE_REASONING_PATTERN.test(command)
 
 /**
  * @param {string} command

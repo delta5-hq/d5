@@ -15,5 +15,8 @@ export function extractForkLeafOutputs(forkStore, parentNodeId) {
   return (parentNode.prompts ?? [])
     .map(id => forkStore.getNode(id))
     .filter(node => node?.title)
-    .map(node => ({nodeId: node.id, content: node.title.slice(0, LEAF_PREVIEW_MAX_CHARS)}))
+    .map(node => ({
+      nodeId: node.id,
+      content: node.title.slice(0, LEAF_PREVIEW_MAX_CHARS),
+    }))
 }

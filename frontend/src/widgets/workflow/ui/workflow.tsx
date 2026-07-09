@@ -69,6 +69,7 @@ const WorkflowContent = () => {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>()
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<NodeId>>(new Set())
   const [flashNodeId, setFlashNodeId] = useState<string | undefined>()
+  const [openDrawerForNodeId, setOpenDrawerForNodeId] = useState<string | undefined>()
 
   useEffect(() => {
     if (flashNodeId) setFlashNodeId(undefined)
@@ -147,6 +148,7 @@ const WorkflowContent = () => {
 
   const handleSelect = useCallback(
     (id: string, _node: unknown, event?: MouseEvent) => {
+      setOpenDrawerForNodeId(undefined)
       if (event?.shiftKey) {
         actions.rangeSelect(id, visibleOrderRef.current)
       } else if (event && (event.ctrlKey || event.metaKey)) {
@@ -226,6 +228,16 @@ const WorkflowContent = () => {
     },
     [actions],
   )
+
+  const handleSuffixClick = useCallback(
+    (nodeId: string) => {
+      actions.select(nodeId)
+      setOpenDrawerForNodeId(nodeId)
+    },
+    [actions],
+  )
+
+  const handleDrawerOpened = useCallback(() => setOpenDrawerForNodeId(undefined), [])
 
   const handleConfirmDelete = useCallback(() => {
     if (!pendingDeleteId) return
@@ -374,6 +386,7 @@ const WorkflowContent = () => {
             onRename={handleRename}
             onRequestRename={handleRequestRename}
             onSelect={handleSelect}
+            onSuffixClick={handleSuffixClick}
             onVisibleOrderChange={handleVisibleOrderChange}
             rootId={root}
             selectedIds={selectedIds}
@@ -404,11 +417,13 @@ const WorkflowContent = () => {
               onClose={handleCloseDetailPanel}
               onCtrlEnterInCommand={handleCtrlEnterInCommand}
               onDelete={handleDelete}
+              onDrawerOpened={handleDrawerOpened}
               onDuplicateNode={handleDuplicateNode}
               onEnterInCommand={handleEnterInCommand}
               onExecute={handleExecute}
               onShiftCtrlEnterInCommand={handleShiftCtrlEnterInCommand}
               onUpdateNode={handleUpdateNode}
+              openDrawerForNodeId={openDrawerForNodeId}
               preExecuteWarnings={selectedNodePreExecuteWarnings}
               refineCost={selectedNodeRefineProjection?.cost ?? null}
               refineCostExceedsLimit={selectedNodeRefineProjection?.limitExceeded ?? false}

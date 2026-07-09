@@ -121,6 +121,7 @@ export const TreeNodeDefault = ({
   onDelete,
   onDuplicateNode,
   onRequestRename,
+  onSuffixClick,
 }: TreeNodeProps) => {
   const {
     node,
@@ -196,6 +197,14 @@ export const TreeNodeDefault = ({
       onDelete?.(id)
     },
     [id, onDelete],
+  )
+
+  const handleSuffixClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      onSuffixClick?.(id)
+    },
+    [id, onSuffixClick],
   )
 
   const { baseTitle, suffix } = extractReliabilitySuffix(normalizeNodeTitle(node.title) || node.id)
@@ -331,12 +340,14 @@ export const TreeNodeDefault = ({
                 <span className="truncate min-w-0">{baseTitle || node.id}</span>
               )}
               {suffix ? (
-                <span
-                  className="flex-shrink-0 text-xs font-mono text-muted-foreground"
+                <button
+                  className="flex-shrink-0 rounded-sm text-xs font-mono text-muted-foreground hover:text-primary hover:underline underline-offset-2 transition-colors active:opacity-70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/50"
                   data-testid="reliability-suffix"
+                  onClick={handleSuffixClick}
+                  type="button"
                 >
                   {suffix}
-                </span>
+                </button>
               ) : null}
             </span>
             {isDirty ? (

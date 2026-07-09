@@ -155,7 +155,7 @@ describe('runCommand \u2014 /validate: [\u2713] suffix on successful validation'
     expect(store.getNode('v1').title).toMatch(/\[\u2713\]/)
   })
 
-  it('[\u2713 retry-N] appended when validate passes after N retries', async () => {
+  it('[\u2713 +N] appended when validate passes after N retries', async () => {
     const store = treeWithValidates('/validate criterion :retry=1')
     let callCount = 0
     const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run').mockImplementation(async () => {
@@ -169,7 +169,7 @@ describe('runCommand \u2014 /validate: [\u2713] suffix on successful validation'
     spy.mockRestore()
     validateSpy.mockRestore()
 
-    expect(store.getNode('v0').title).toMatch(/\[\u2713 retry-1\]/)
+    expect(store.getNode('v0').title).toMatch(/\[\u2713 \+1\]/)
   })
 
   it('no retry count in suffix when passing on first attempt even if retry budget is available', async () => {
@@ -188,7 +188,7 @@ describe('runCommand \u2014 /validate: [\u2713] suffix on successful validation'
 
   it('replaces pre-existing reliability suffix on pass (no stacking)', async () => {
     const store = treeWithValidates('/validate criterion :retry=0')
-    store.getNode('v0').title = 'My validate [\u2717 2 attempts]'
+    store.getNode('v0').title = 'My validate [\u2717 2\u00d7]'
     const validateSpy = alwaysPass()
     const spy = chatSpy()
 
@@ -202,8 +202,8 @@ describe('runCommand \u2014 /validate: [\u2713] suffix on successful validation'
   })
 })
 
-describe('runCommand \u2014 /validate: [\u2717 N attempts] suffix on failed validation', () => {
-  it('appends [\u2717 1 attempts] when retry=0 and criteria fails', async () => {
+describe('runCommand \u2014 /validate: [\u2717 N\u00d7] suffix on failed validation', () => {
+  it('appends [\u2717 1\u00d7] when retry=0 and criteria fails', async () => {
     const store = treeWithValidates('/validate criterion :retry=0')
     const validateSpy = alwaysFail()
     const spy = chatSpy()
@@ -212,10 +212,10 @@ describe('runCommand \u2014 /validate: [\u2717 N attempts] suffix on failed vali
     spy.mockRestore()
     validateSpy.mockRestore()
 
-    expect(store.getNode('v0').title).toMatch(/\[\u2717 1 attempts\]/)
+    expect(store.getNode('v0').title).toMatch(/\[\u2717 1\u00d7\]/)
   })
 
-  it('appends [\u2717 3 attempts] when retry=2 and all retries fail', async () => {
+  it('appends [\u2717 3\u00d7] when retry=2 and all retries fail', async () => {
     const store = treeWithValidates('/validate criterion :retry=2')
     const validateSpy = alwaysFail()
     const spy = chatSpy()
@@ -224,10 +224,10 @@ describe('runCommand \u2014 /validate: [\u2717 N attempts] suffix on failed vali
     spy.mockRestore()
     validateSpy.mockRestore()
 
-    expect(store.getNode('v0').title).toMatch(/\[\u2717 3 attempts\]/)
+    expect(store.getNode('v0').title).toMatch(/\[\u2717 3\u00d7\]/)
   })
 
-  it('appends [\u2717 N attempts] to ALL sibling nodes when batch fails', async () => {
+  it('appends [\u2717 N\u00d7] to ALL sibling nodes when batch fails', async () => {
     const store = treeWithValidates('/validate criterion-A :retry=0', '/validate criterion-B :retry=0')
     const validateSpy = alwaysFail('criterion-A')
     const spy = chatSpy()
@@ -236,8 +236,8 @@ describe('runCommand \u2014 /validate: [\u2717 N attempts] suffix on failed vali
     spy.mockRestore()
     validateSpy.mockRestore()
 
-    expect(store.getNode('v0').title).toMatch(/\[\u2717 1 attempts\]/)
-    expect(store.getNode('v1').title).toMatch(/\[\u2717 1 attempts\]/)
+    expect(store.getNode('v0').title).toMatch(/\[\u2717 1\u00d7\]/)
+    expect(store.getNode('v1').title).toMatch(/\[\u2717 1\u00d7\]/)
   })
 
   it('failure suffix is present in store at the moment CriteriaFailedError propagates', async () => {
@@ -255,7 +255,7 @@ describe('runCommand \u2014 /validate: [\u2717 N attempts] suffix on failed vali
       validateSpy.mockRestore()
     }
 
-    expect(titleAtThrowTime).toMatch(/\[\u2717 1 attempts\]/)
+    expect(titleAtThrowTime).toMatch(/\[\u2717 1\u00d7\]/)
   })
 
   it('replaces pre-existing reliability suffix on failure (no stacking)', async () => {
@@ -269,13 +269,13 @@ describe('runCommand \u2014 /validate: [\u2717 N attempts] suffix on failed vali
     validateSpy.mockRestore()
 
     const title = store.getNode('v0').title
-    expect(title).toMatch(/\[\u2717 1 attempts\]/)
+    expect(title).toMatch(/\[\u2717 1\u00d7\]/)
     expect(title).not.toMatch(/\[\u2713\]/)
   })
 })
 
 describe('runCommand \u2014 /validate: empty criterion is a configuration error', () => {
-  it('writes [\u2717 invalid] and throws CriteriaFailedError without invoking ValidateCommand.run', async () => {
+  it('writes [\u2717 !] and throws CriteriaFailedError without invoking ValidateCommand.run', async () => {
     const store = treeWithValidates('/validate')
     const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run')
     const spy = chatSpy()
@@ -292,7 +292,9 @@ describe('runCommand \u2014 /validate: empty criterion is a configuration error'
 
     expect(thrown).toBeInstanceOf(CriteriaFailedError)
     expect(validateSpy).not.toHaveBeenCalled()
-    expect(store.getNode('v0').title).toMatch(/\[\u2717 invalid\]/)
+    expect(store.getNode('v0').title).toMatch(/\[\u2717 !\]/)
+    expect(store.getNode('v0').reliabilityMetadata?.mode).toBe('invalid')
+    expect(store.getNode('v0').reliabilityMetadata?.failureCause).toBe('invalid-criteria')
   })
 
   it('does not consume any :retry budget \u2014 zero ValidateCommand.run calls regardless of :retry value', async () => {
@@ -324,10 +326,12 @@ describe('runCommand \u2014 /validate: empty criterion is a configuration error'
 
     expect(thrown).toBeInstanceOf(CriteriaFailedError)
     expect(validateSpy).not.toHaveBeenCalled()
-    expect(store.getNode('v0').title).toMatch(/\[\u2717 invalid\]/)
+    expect(store.getNode('v0').title).toMatch(/\[\u2717 !\]/)
+    expect(store.getNode('v0').reliabilityMetadata?.mode).toBe('invalid')
+    expect(store.getNode('v0').reliabilityMetadata?.failureCause).toBe('invalid-criteria')
   })
 
-  it('only the empty-criterion sibling is marked [\u2717 invalid]; valid-criterion sibling is not pre-rejected', async () => {
+  it('only the empty-criterion sibling is marked [\u2717 !]; valid-criterion sibling is not pre-rejected', async () => {
     const store = treeWithValidates('/validate', '/validate must include numbers :retry=0')
     const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run')
     const spy = chatSpy()
@@ -336,12 +340,15 @@ describe('runCommand \u2014 /validate: empty criterion is a configuration error'
     spy.mockRestore()
     validateSpy.mockRestore()
 
-    expect(store.getNode('v0').title).toMatch(/\[\u2717 invalid\]/)
-    expect(store.getNode('v1').title ?? '').not.toContain('[\u2717 invalid]')
+    expect(store.getNode('v0').title).toMatch(/\[\u2717 !\]/)
+    expect(store.getNode('v0').reliabilityMetadata?.mode).toBe('invalid')
+    expect(store.getNode('v0').reliabilityMetadata?.failureCause).toBe('invalid-criteria')
+    expect(store.getNode('v1').title ?? '').not.toContain('[\u2717 !]')
+    expect(store.getNode('v1').reliabilityMetadata).toBeUndefined()
     expect(validateSpy).not.toHaveBeenCalled()
   })
 
-  it('all siblings receive [\u2717 invalid] when all have empty criterion', async () => {
+  it('all siblings receive [\u2717 !] when all have empty criterion', async () => {
     const store = treeWithValidates('/validate', '/validate')
     const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run')
     const spy = chatSpy()
@@ -350,14 +357,19 @@ describe('runCommand \u2014 /validate: empty criterion is a configuration error'
     spy.mockRestore()
     validateSpy.mockRestore()
 
-    expect(store.getNode('v0').title).toMatch(/\[\u2717 invalid\]/)
-    expect(store.getNode('v1').title).toMatch(/\[\u2717 invalid\]/)
+    expect(store.getNode('v0').title).toMatch(/\[\u2717 !\]/)
+    expect(store.getNode('v0').reliabilityMetadata?.mode).toBe('invalid')
+    expect(store.getNode('v0').reliabilityMetadata?.failureCause).toBe('invalid-criteria')
+    expect(store.getNode('v0').reliabilityMetadata?.remediationHint).toBe('adjust-criteria')
+    expect(store.getNode('v1').title).toMatch(/\[\u2717 !\]/)
+    expect(store.getNode('v1').reliabilityMetadata?.mode).toBe('invalid')
+    expect(store.getNode('v1').reliabilityMetadata?.failureCause).toBe('invalid-criteria')
     expect(validateSpy).not.toHaveBeenCalled()
   })
 })
 
 describe('runCommand \u2014 /validate: each sibling cell receives its own individual verdict', () => {
-  it('first sibling passes, second fails \u2014 first gets [\u2713], second gets [\u2717 N attempts]', async () => {
+  it('first sibling passes, second fails \u2014 first gets [\u2713], second gets [\u2717 N\u00d7]', async () => {
     const store = treeWithValidates('/validate criterion-A :retry=0', '/validate criterion-B :retry=0')
     let call = 0
     const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run').mockImplementation(async () => {
@@ -373,10 +385,10 @@ describe('runCommand \u2014 /validate: each sibling cell receives its own indivi
     validateSpy.mockRestore()
 
     expect(store.getNode('v0').title).toMatch(/\[\u2713\]/)
-    expect(store.getNode('v1').title).toMatch(/\[\u2717 1 attempts\]/)
+    expect(store.getNode('v1').title).toMatch(/\[\u2717 1\u00d7\]/)
   })
 
-  it('first sibling fails, second passes \u2014 first gets [\u2717 N attempts], second gets [\u2713]', async () => {
+  it('first sibling fails, second passes \u2014 first gets [\u2717 N\u00d7], second gets [\u2713]', async () => {
     const store = treeWithValidates('/validate criterion-A :retry=0', '/validate criterion-B :retry=0')
     let call = 0
     const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run').mockImplementation(async () => {
@@ -391,7 +403,7 @@ describe('runCommand \u2014 /validate: each sibling cell receives its own indivi
     spy.mockRestore()
     validateSpy.mockRestore()
 
-    expect(store.getNode('v0').title).toMatch(/\[\u2717 1 attempts\]/)
+    expect(store.getNode('v0').title).toMatch(/\[\u2717 1\u00d7\]/)
     expect(store.getNode('v1').title).toMatch(/\[\u2713\]/)
   })
 })
@@ -434,8 +446,8 @@ describe('runCommand \u2014 /validate retry preserves the best attempt', () => {
     expect(store.getNode('root').prompts).toEqual(['prompt-1'])
     expect(store.getNode('prompt-1')).toBeDefined()
     expect(store.getNode('prompt-2')).toBeUndefined()
-    expect(store.getNode('v0').title).toMatch(/\[✓ retry-1\]/)
-    expect(store.getNode('v1').title).toMatch(/\[✗ 2 attempts\]/)
+    expect(store.getNode('v0').title).toMatch(/\[✓ \+1\]/)
+    expect(store.getNode('v1').title).toMatch(/\[✗ 2×\]/)
   })
 })
 
@@ -460,7 +472,7 @@ describe('runCommand \u2014 /validate with NoopLLM verifier contract', () => {
 
   it.each([
     ['satisfied criterion', 'answer is substantive', false, /\[✓\]/],
-    ['rejected criterion', `${MOCK_VERIFIER_FAIL_KEYWORD} force verifier failure`, true, /\[✗ 1 attempts\]/],
+    ['rejected criterion', `${MOCK_VERIFIER_FAIL_KEYWORD} force verifier failure`, true, /\[✗ 1×\]/],
   ])('maps %s to its visible suffix without changing substrate state', async (_label, criterion, rejects, suffix) => {
     const {root, validate, store} = mockValidatedWorkflow(criterion)
     const execution = runCommand({queryType: 'chat', cell: root, store})
@@ -481,7 +493,7 @@ describe('runCommand \u2014 /validate with NoopLLM verifier contract', () => {
     )
 
     expect(pass.store.getNode(pass.validate.id).title).toMatch(/\[✓\]/)
-    expect(fail.store.getNode(fail.validate.id).title).toMatch(/\[✗ 1 attempts\]/)
+    expect(fail.store.getNode(fail.validate.id).title).toMatch(/\[✗ 1×\]/)
   })
 
   const buildConditionalSentinelStore = (token, chatContent) => {
@@ -506,7 +518,7 @@ describe('runCommand \u2014 /validate with NoopLLM verifier contract', () => {
 
     if (shouldFail) {
       await expect(execution).rejects.toBeInstanceOf(CriteriaFailedError)
-      expect(store.getNode('v').title).toMatch(/\[✗ 1 attempts\]/)
+      expect(store.getNode('v').title).toMatch(/\[✗ 1×\]/)
     } else {
       await expect(execution).resolves.toBeUndefined()
       expect(store.getNode('v').title).toMatch(/\[✓\]/)

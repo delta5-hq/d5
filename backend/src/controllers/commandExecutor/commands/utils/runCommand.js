@@ -27,7 +27,7 @@ import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {WEB_QUERY_TYPE} from '../../constants/web'
 import {YANDEX_QUERY_TYPE} from '../../constants/yandex'
 import ProgressReporter from '../../ProgressReporter'
-import {CommandFactory} from '../../reliability'
+import {CommandFactory, buildInvalidReliabilityMetadata, FAILURE_CAUSE, REMEDIATION_HINT} from '../../reliability'
 import {
   stripReliabilitySuffix,
   appendValidateSuffix,
@@ -49,6 +49,7 @@ import {
   restoreStoreExecutionSnapshot,
 } from '../../reliability/core/StoreExecutionSnapshot'
 import {throwIfAborted, signalOptions, isAbortError} from './executionSignal'
+
 // eslint-disable-next-line no-unused-vars
 import Store from './Store'
 
@@ -189,6 +190,10 @@ function writeModifierRootError(cell, store, queryType) {
   const cellNode = store.getNode(cell.id)
   if (!cellNode) return
   cellNode.title = appendInvalidSuffix(stripReliabilitySuffix(cellNode.title || ''))
+  cellNode.reliabilityMetadata = buildInvalidReliabilityMetadata({
+    failureCause: FAILURE_CAUSE.MISSING_PARENT,
+    remediationHint: REMEDIATION_HINT.NONE,
+  })
   store.importer.createErrorNode(
     `/${queryType} requires a parent cell — it cannot be used as a standalone command`,
     cell.id,
@@ -384,6 +389,10 @@ export const runCommand = async (
           if (emptyCriterionNodes.length > 0) {
             emptyCriterionNodes.forEach(v => {
               v.title = appendInvalidSuffix(v.title || '')
+              v.reliabilityMetadata = buildInvalidReliabilityMetadata({
+                failureCause: FAILURE_CAUSE.INVALID_CRITERIA,
+                remediationHint: REMEDIATION_HINT.ADJUST_CRITERIA,
+              })
               store.saveNodeToOutput(v.id)
             })
             throw new CriteriaFailedError('', 0)

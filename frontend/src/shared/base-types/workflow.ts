@@ -63,6 +63,8 @@ export type JudgeQualityWarning = {
     | 'fallbackWithWeakJudge'
     | 'noReasoningMode'
     | 'allGateFiltered'
+    | 'degradedInput'
+    | 'commodityPartialSuccess'
   severity: 'high' | 'medium' | 'low'
 }
 
@@ -81,15 +83,25 @@ export type DiscardedFork = {
 }
 
 export type ReliabilityMetadata = {
-  winnerForkIndex: number
+  winnerForkIndex: number | null
   perCriterionVerdict: CriterionVerdict[]
-  mode: 'strict' | 'fallback'
+  mode: 'strict' | 'fallback' | 'commodity' | 'invalid'
   selectionLayer: 'primary' | 'fallback'
   noSignal: boolean
   tiebreakUsed?: boolean
+  fallbackUsed?: boolean
+  generatorOnlyJudge?: boolean
+  judgeReasoningRequested?: boolean
   eligible: number
   total: number
-  failureCause?: 'structural-gate' | 'criteria-failed' | 'runtime-failed' | 'no-eligible-forks' | 'no-judge-signal'
+  failureCause?:
+    | 'structural-gate'
+    | 'criteria-failed'
+    | 'runtime-failed'
+    | 'no-eligible-forks'
+    | 'no-judge-signal'
+    | 'missing-parent'
+    | 'invalid-criteria'
   remediationHint?: 'revise-prompt' | 'check-provider' | 'adjust-criteria' | 'none'
   allGateFiltered?: boolean
   judgeInput?: JudgeInputMetadata

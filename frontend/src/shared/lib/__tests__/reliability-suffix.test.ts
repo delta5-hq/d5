@@ -7,7 +7,7 @@ import {
   attachReliabilitySuffix,
 } from '../reliability-suffix'
 
-const LEGACY_SUFFIX_VARIANTS = [
+const HISTORICAL_SUFFIX_VARIANTS = [
   ['bestOfN success', '/chat list [✓ 2/2 best of 2]', '/chat list'],
   ['bestOfN with confidence score', '/chat list [✓ 3/3 best of 3 · 0.92]', '/chat list'],
   ['bestOfN gate failure', '/chat list [✗ 0/2 passed]', '/chat list'],
@@ -15,26 +15,34 @@ const LEGACY_SUFFIX_VARIANTS = [
   ['first-survivor with judge error', '/chat list [✓ 1/2 first-survivor · judge auth error]', '/chat list'],
   ['refined', '/chat list [✓ refined]', '/chat list'],
   ['refine failed', '/chat list [✗ refine failed]', '/chat list'],
+  // v1 shapes superseded by locale-neutral grammar
+  ['validate passed after retry (v1)', '/chat list [✓ retry-2]', '/chat list'],
+  ['validate failed all attempts (v1)', '/chat list [✗ 3 attempts]', '/chat list'],
+  ['refine no judge signal (v1)', '/chat list [⚠ no judge signal]', '/chat list'],
+  ['refine fallback with winner (v1)', '/chat list [⚠ fallback: 0/3 passed; chose fork-1]', '/chat list'],
+  ['refine fallback multi-digit (v1)', '/chat list [⚠ fallback: 0/12 passed; chose fork-11]', '/chat list'],
+  ['invalid empty criterion (v1)', '/chat list [✗ invalid]', '/chat list'],
 ] as const satisfies ReadonlyArray<[string, string, string]>
 
 const ENGINE_SUFFIX_VARIANTS = [
   ['validate passed no retry', '/chat list [✓]', '/chat list'],
-  ['validate passed after retry', '/chat list [✓ retry-2]', '/chat list'],
-  ['validate failed all attempts', '/chat list [✗ 3 attempts]', '/chat list'],
-  ['refine all eligible', '/chat list [✓ 3/3]', '/chat list'],
-  ['refine some eligible', '/chat list [✓ 2/3]', '/chat list'],
-  ['refine none eligible', '/chat list [✗ 0/3]', '/chat list'],
-  ['refine no judge signal', '/chat list [⚠ no judge signal]', '/chat list'],
-  ['refine fallback with winner', '/chat list [⚠ fallback: 0/3 passed; chose fork-1]', '/chat list'],
-  ['refine fallback with multi-digit fork index', '/chat list [⚠ fallback: 0/12 passed; chose fork-11]', '/chat list'],
-  ['invalid empty criterion', '/chat list [✗ invalid]', '/chat list'],
+  ['validate passed after N retries', '/chat list [✓ +2]', '/chat list'],
+  ['validate failed all attempts', '/chat list [✗ 3×]', '/chat list'],
+  ['validate invalid criterion', '/chat list [✗ !]', '/chat list'],
+  ['refine/commodity all succeeded', '/chat list [✓ 3/3]', '/chat list'],
+  ['refine/commodity partial success', '/chat list [✓ 2/3]', '/chat list'],
+  ['refine all forks eligible with degraded judge input', '/chat list [✓ 3/3 ⚠]', '/chat list'],
+  ['commodity partial with warning', '/chat list [✓ 1/3 ⚠]', '/chat list'],
+  ['refine/commodity all failed', '/chat list [✗ 0/3]', '/chat list'],
+  ['refine no judge signal', '/chat list [⚠ ∅]', '/chat list'],
+  ['refine fallback winner committed', '/chat list [⚠ 0/3]', '/chat list'],
 ] as const satisfies ReadonlyArray<[string, string, string]>
 
-const ALL_SUFFIX_VARIANTS = [...LEGACY_SUFFIX_VARIANTS, ...ENGINE_SUFFIX_VARIANTS]
+const ALL_SUFFIX_VARIANTS = [...HISTORICAL_SUFFIX_VARIANTS, ...ENGINE_SUFFIX_VARIANTS]
 
 describe('stripReliabilitySuffix', () => {
-  describe('strips each legacy reliability suffix variant', () => {
-    it.each(LEGACY_SUFFIX_VARIANTS)('%s', (_label, titleWithSuffix, baseTitle) => {
+  describe('strips each historical reliability suffix variant', () => {
+    it.each(HISTORICAL_SUFFIX_VARIANTS)('%s', (_label, titleWithSuffix, baseTitle) => {
       expect(stripReliabilitySuffix(titleWithSuffix)).toBe(baseTitle)
     })
   })
@@ -52,12 +60,12 @@ describe('stripReliabilitySuffix', () => {
   })
 
   describe('strips only the trailing suffix', () => {
-    it('leaves earlier user brackets intact when followed by a legacy suffix', () => {
+    it('leaves earlier user brackets intact when followed by a historical suffix', () => {
       expect(stripReliabilitySuffix('report [Q1] [✓ 2/2 best of 2]')).toBe('report [Q1]')
     })
 
     it('leaves earlier user brackets intact when followed by an engine suffix', () => {
-      expect(stripReliabilitySuffix('report [Q1] [✓ retry-1]')).toBe('report [Q1]')
+      expect(stripReliabilitySuffix('report [Q1] [✓ +1]')).toBe('report [Q1]')
     })
 
     it('reduces a suffix-only title to an empty string', () => {
@@ -79,13 +87,15 @@ describe('stripReliabilitySuffix', () => {
         ['✓ with freeform text', 'My report [✓ approved by manager]', 'My report [✓ approved by manager]'],
         ['✗ with freeform text', 'My analysis [✗ invalid output]', 'My analysis [✗ invalid output]'],
         ['⚠ with freeform text', 'My note [⚠ needs attention]', 'My note [⚠ needs attention]'],
-        ['✓ retry- with no trailing digit', 'Task [✓ retry-]', 'Task [✓ retry-]'],
-        ['✗ lone number without "attempts"', 'Task [✗ 3]', 'Task [✗ 3]'],
+        ['✓ + with no trailing digit', 'Task [✓ +]', 'Task [✓ +]'],
+        ['✗ lone number without ×', 'Task [✗ 3]', 'Task [✗ 3]'],
         [
-          '⚠ fallback with non-zero eligible count',
-          'Task [⚠ fallback: 1/3 passed; chose fork-0]',
-          'Task [⚠ fallback: 1/3 passed; chose fork-0]',
+          '✗ non-zero failure fraction — engine only produces [✗ 0/N], user brackets preserved',
+          'Task [✗ 1/3]',
+          'Task [✗ 1/3]',
         ],
+        ['bare ✗ with no content after symbol', 'Task [✗]', 'Task [✗]'],
+        ['⚠ non-zero fallback eligible count', 'Task [⚠ 1/3]', 'Task [⚠ 1/3]'],
       ] as const satisfies ReadonlyArray<[string, string, string]>)('%s', (_label, titleWithBrackets, expected) => {
         expect(stripReliabilitySuffix(titleWithBrackets)).toBe(expected)
       })
@@ -163,14 +173,14 @@ describe('deriveNodeTitle', () => {
       expect(deriveNodeTitle({ title: 'My analysis', command: '/chat analyse' }, '/chat new')).toBe('My analysis')
     })
 
-    it('user title with a legacy reliability suffix', () => {
+    it('user title with a historical reliability suffix', () => {
       expect(deriveNodeTitle({ title: 'My analysis [✓ 2/2 best of 2]', command: '/chat analyse' }, '/chat new')).toBe(
         'My analysis',
       )
     })
 
     it('user title with an engine suffix', () => {
-      expect(deriveNodeTitle({ title: 'My analysis [✓ retry-1]', command: '/chat analyse' }, '/chat new')).toBe(
+      expect(deriveNodeTitle({ title: 'My analysis [✓ +1]', command: '/chat analyse' }, '/chat new')).toBe(
         'My analysis',
       )
     })
@@ -188,7 +198,7 @@ describe('extractReliabilitySuffix', () => {
     expect(suffix).toBe(titleWithSuffix.slice(base.length).trim())
   })
 
-  it.each(LEGACY_SUFFIX_VARIANTS)('extracts legacy suffix: %s', (_label, titleWithSuffix, base) => {
+  it.each(HISTORICAL_SUFFIX_VARIANTS)('extracts historical suffix: %s', (_label, titleWithSuffix, base) => {
     const { baseTitle, suffix } = extractReliabilitySuffix(titleWithSuffix)
     expect(baseTitle).toBe(base)
     expect(suffix).toBe(titleWithSuffix.slice(base.length).trim())
@@ -198,14 +208,6 @@ describe('extractReliabilitySuffix', () => {
     const { baseTitle, suffix } = extractReliabilitySuffix('Analyze competitors')
     expect(baseTitle).toBe('Analyze competitors')
     expect(suffix).toBeNull()
-  })
-
-  it('extracts long fallback suffix correctly', () => {
-    const { baseTitle, suffix } = extractReliabilitySuffix(
-      'Analyze competitors [⚠ fallback: 0/3 passed; chose fork-1]',
-    )
-    expect(baseTitle).toBe('Analyze competitors')
-    expect(suffix).toBe('[⚠ fallback: 0/3 passed; chose fork-1]')
   })
 
   it('preserves user-authored brackets — not mistaken for engine suffix', () => {
@@ -226,7 +228,7 @@ describe('extractReliabilitySuffix', () => {
     expect(suffix).not.toBeNull()
   })
 
-  it('returns empty baseTitle when title is only a legacy suffix', () => {
+  it('returns empty baseTitle when title is only a historical suffix', () => {
     const { baseTitle, suffix } = extractReliabilitySuffix('[✓ refined]')
     expect(baseTitle).toBe('')
     expect(suffix).toBe('[✓ refined]')
@@ -253,7 +255,7 @@ describe('attachReliabilitySuffix', () => {
   })
 
   it('keeps suffix-only titles valid when the user clears the base title', () => {
-    expect(attachReliabilitySuffix('', '[✗ 3 attempts]')).toBe('[✗ 3 attempts]')
-    expect(attachReliabilitySuffix('   ', '[✗ 3 attempts]')).toBe('[✗ 3 attempts]')
+    expect(attachReliabilitySuffix('', '[✗ 3×]')).toBe('[✗ 3×]')
+    expect(attachReliabilitySuffix('   ', '[✗ 3×]')).toBe('[✗ 3×]')
   })
 })

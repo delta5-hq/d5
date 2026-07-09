@@ -48,6 +48,8 @@ interface NodeDetailPanelProps {
   preExecuteWarnings?: JudgeQualityWarning[]
   autoFocusTitle?: boolean
   autoFocusCommand?: boolean
+  openDrawerForNodeId?: string
+  onDrawerOpened?: () => void
 }
 
 export const NodeDetailPanel = ({
@@ -73,6 +75,8 @@ export const NodeDetailPanel = ({
   preExecuteWarnings,
   autoFocusTitle,
   autoFocusCommand,
+  openDrawerForNodeId,
+  onDrawerOpened,
 }: NodeDetailPanelProps) => {
   const { aliases } = useAliases()
   const genieState = useGenieState(node.id)
@@ -91,6 +95,13 @@ export const NodeDetailPanel = ({
   const [previewOpen, setPreviewOpen] = useState(isPrompt)
   const [verdictOpen, setVerdictOpen] = useState(false)
   const [forksOpen, setForksOpen] = useState(false)
+
+  useEffect(() => {
+    if (openDrawerForNodeId !== node.id) return
+    onDrawerOpened?.()
+    if (!reliabilityMetadata) return
+    setVerdictOpen(true)
+  }, [openDrawerForNodeId, node.id, reliabilityMetadata, onDrawerOpened])
   const previousExecutingRef = useRef(isExecuting)
 
   useEffect(() => {

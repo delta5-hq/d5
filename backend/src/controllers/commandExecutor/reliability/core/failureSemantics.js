@@ -4,6 +4,8 @@ export const FAILURE_CAUSE = Object.freeze({
   RUNTIME_FAILED: 'runtime-failed',
   NO_ELIGIBLE_FORKS: 'no-eligible-forks',
   NO_JUDGE_SIGNAL: 'no-judge-signal',
+  MISSING_PARENT: 'missing-parent',
+  INVALID_CRITERIA: 'invalid-criteria',
 })
 
 export const REMEDIATION_HINT = Object.freeze({

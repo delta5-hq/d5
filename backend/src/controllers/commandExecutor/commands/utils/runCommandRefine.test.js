@@ -231,9 +231,7 @@ describe('/refine :n=3 :fallback — all forks fail criteria, commits highest-ra
 
     const title = store.getNode('refine').title
     expect(title).toMatch(/⚠/)
-    expect(title).toContain('fallback')
     expect(title).toContain('0/3')
-    expect(title).toContain('fork-1')
   })
 
   it('strict mode: no commit when all forks fail criteria — writes error node instead', async () => {
@@ -277,7 +275,7 @@ describe('/refine with absent or below-minimum :n= — parse-time refusal visibl
       await runCommand({queryType: 'chat', cell: store.getNode('parent'), store})
       spy.mockRestore()
 
-      expect(store.getNode('refine').title).toMatch(/\[\u2717 invalid\]/)
+      expect(store.getNode('refine').title).toMatch(/\[\u2717 !\]/)
       expect(mockRunForks).not.toHaveBeenCalled()
     },
   )

@@ -3,7 +3,13 @@ export {default as StoreFork} from './core/StoreFork'
 export {default as CommandFactory} from './CommandFactory'
 export {default as NullProgress} from './core/NullProgress'
 export {default as RefineTopology} from './core/RefineTopology'
-export {readRefineN, readRawRefineN, readFallbackFlag, isValidRefineCell} from './core/refineParams'
+export {
+  readRefineN,
+  readRawRefineN,
+  readFallbackFlag,
+  readJudgeReasoningFlag,
+  isValidRefineCell,
+} from './core/refineParams'
 export {runForks} from './core/SubtreeForkRunner'
 export {
   FORK_LIMIT_SIZES,
@@ -34,6 +40,16 @@ export {
 export {passesStructuralGate, passesCommodityGate} from './core/structuralGate'
 export {readCommodityN, stripCommodityN, COMMODITY_N_MAX} from './core/commodityParams'
 export {FAILURE_CAUSE, REMEDIATION_HINT, classifyNoWinner} from './core/failureSemantics'
+export {
+  buildReliabilityMetadata,
+  buildCommodityReliabilityMetadata,
+  buildInvalidReliabilityMetadata,
+  buildDiscardedFork,
+  buildJudgeInputMetadata,
+  buildJudgeQualityWarning,
+  buildForkRankingEntry,
+  buildPerCriterionVerdictEntry,
+} from './core/reliabilityMetadataFields'
 export {
   stripReliabilitySuffix,
   appendValidateSuffix,

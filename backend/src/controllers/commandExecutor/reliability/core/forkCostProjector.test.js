@@ -71,10 +71,29 @@ describe('projectForkCost', () => {
        * scope = 3, cost = 10 × 3 = 30
        */
       const store = buildStore({
-        parent: {id: 'parent', command: '/chat', children: ['chatA', 'chatB', 'refine']},
-        chatA: {id: 'chatA', parent: 'parent', command: '/chat a', children: []},
-        chatB: {id: 'chatB', parent: 'parent', command: '/chat b', children: []},
-        refine: {id: 'refine', parent: 'parent', command: '/refine :n=10', children: []},
+        parent: {
+          id: 'parent',
+          command: '/chat',
+          children: ['chatA', 'chatB', 'refine'],
+        },
+        chatA: {
+          id: 'chatA',
+          parent: 'parent',
+          command: '/chat a',
+          children: [],
+        },
+        chatB: {
+          id: 'chatB',
+          parent: 'parent',
+          command: '/chat b',
+          children: [],
+        },
+        refine: {
+          id: 'refine',
+          parent: 'parent',
+          command: '/refine :n=10',
+          children: [],
+        },
       })
       expect(projectForkCost(store.getNode('refine'), store)).toBe(30)
     })
@@ -88,7 +107,12 @@ describe('projectForkCost', () => {
        */
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['refine']},
-        refine: {id: 'refine', parent: 'parent', command: '/refine :n=5', children: []},
+        refine: {
+          id: 'refine',
+          parent: 'parent',
+          command: '/refine :n=5',
+          children: [],
+        },
       })
       expect(projectForkCost(store.getNode('refine'), store)).toBe(5)
     })
@@ -103,9 +127,23 @@ describe('projectForkCost', () => {
        * scope = 3, cost = 2 × 3 = 6
        */
       const store = buildStore({
-        parent: {id: 'parent', command: '/chat', children: ['sum', 'mem', 'r']},
-        sum: {id: 'sum', parent: 'parent', command: '/summarize', children: []},
-        mem: {id: 'mem', parent: 'parent', command: '/memorize', children: []},
+        parent: {
+          id: 'parent',
+          command: '/chat',
+          children: ['sum', 'mem', 'r'],
+        },
+        sum: {
+          id: 'sum',
+          parent: 'parent',
+          command: '/summarize',
+          children: [],
+        },
+        mem: {
+          id: 'mem',
+          parent: 'parent',
+          command: '/memorize',
+          children: [],
+        },
         r: {id: 'r', parent: 'parent', command: '/refine :n=2', children: []},
       })
       expect(projectForkCost(store.getNode('r'), store)).toBe(6)
@@ -121,7 +159,12 @@ describe('projectForkCost', () => {
        */
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v', 'r']},
-        v: {id: 'v', parent: 'parent', command: '/validate must include numbers', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate must include numbers',
+          children: [],
+        },
         r: {id: 'r', parent: 'parent', command: '/refine :n=3', children: []},
       })
       expect(projectForkCost(store.getNode('r'), store)).toBe(6)
@@ -138,8 +181,18 @@ describe('projectForkCost', () => {
        */
       const store = buildStore({
         parent: {id: 'parent', command: '/steps', children: ['step1', 'r']},
-        step1: {id: 'step1', parent: 'parent', command: '/chat', children: ['sum']},
-        sum: {id: 'sum', parent: 'step1', command: '/summarize', children: []},
+        step1: {
+          id: 'step1',
+          parent: 'parent',
+          command: '/chat',
+          children: ['sum'],
+        },
+        sum: {
+          id: 'sum',
+          parent: 'step1',
+          command: '/summarize',
+          children: [],
+        },
         r: {id: 'r', parent: 'parent', command: '/refine :n=2', children: []},
       })
       expect(projectForkCost(store.getNode('r'), store)).toBe(6)
@@ -147,8 +200,17 @@ describe('projectForkCost', () => {
 
     it('missing child id in store is skipped without error', () => {
       const store = buildStore({
-        parent: {id: 'parent', command: '/chat', children: ['chatA', 'ghost', 'r']},
-        chatA: {id: 'chatA', parent: 'parent', command: '/chat a', children: []},
+        parent: {
+          id: 'parent',
+          command: '/chat',
+          children: ['chatA', 'ghost', 'r'],
+        },
+        chatA: {
+          id: 'chatA',
+          parent: 'parent',
+          command: '/chat a',
+          children: [],
+        },
         r: {id: 'r', parent: 'parent', command: '/refine :n=4', children: []},
       })
       // scope = parent(1) + chatA(1) = 2, ghost skipped
@@ -168,10 +230,29 @@ describe('projectForkCost', () => {
        * multiplicative would be:       2 × (2 + 3×1) = 10   ← wrong
        */
       const store = buildStore({
-        outerParent: {id: 'outerParent', command: '/steps', children: ['innerParent', 'outerRefine']},
-        innerParent: {id: 'innerParent', parent: 'outerParent', command: '/chat', children: ['innerRefine']},
-        innerRefine: {id: 'innerRefine', parent: 'innerParent', command: '/refine :n=3', children: []},
-        outerRefine: {id: 'outerRefine', parent: 'outerParent', command: '/refine :n=2', children: []},
+        outerParent: {
+          id: 'outerParent',
+          command: '/steps',
+          children: ['innerParent', 'outerRefine'],
+        },
+        innerParent: {
+          id: 'innerParent',
+          parent: 'outerParent',
+          command: '/chat',
+          children: ['innerRefine'],
+        },
+        innerRefine: {
+          id: 'innerRefine',
+          parent: 'innerParent',
+          command: '/refine :n=3',
+          children: [],
+        },
+        outerRefine: {
+          id: 'outerRefine',
+          parent: 'outerParent',
+          command: '/refine :n=2',
+          children: [],
+        },
       })
       expect(projectForkCost(store.getNode('outerRefine'), store)).toBe(7)
     })
@@ -187,11 +268,35 @@ describe('projectForkCost', () => {
        * outer scope = 3, outer cost = 4 × 3 + 3 = 15
        */
       const store = buildStore({
-        outerParent: {id: 'outerParent', command: '/chat', children: ['chatA', 'mid', 'outerR']},
-        chatA: {id: 'chatA', parent: 'outerParent', command: '/chat', children: []},
-        mid: {id: 'mid', parent: 'outerParent', command: '/chat', children: ['innerR']},
-        innerR: {id: 'innerR', parent: 'mid', command: '/refine :n=3', children: []},
-        outerR: {id: 'outerR', parent: 'outerParent', command: '/refine :n=4', children: []},
+        outerParent: {
+          id: 'outerParent',
+          command: '/chat',
+          children: ['chatA', 'mid', 'outerR'],
+        },
+        chatA: {
+          id: 'chatA',
+          parent: 'outerParent',
+          command: '/chat',
+          children: [],
+        },
+        mid: {
+          id: 'mid',
+          parent: 'outerParent',
+          command: '/chat',
+          children: ['innerR'],
+        },
+        innerR: {
+          id: 'innerR',
+          parent: 'mid',
+          command: '/refine :n=3',
+          children: [],
+        },
+        outerR: {
+          id: 'outerR',
+          parent: 'outerParent',
+          command: '/refine :n=4',
+          children: [],
+        },
       })
       expect(projectForkCost(store.getNode('outerR'), store)).toBe(15)
     })
@@ -210,12 +315,41 @@ describe('projectForkCost', () => {
        * Σ Nᵢ × Sᵢ = 4×1 + 3×2 + 2×3 = 4 + 6 + 6 = 16
        */
       const store = buildStore({
-        l1Parent: {id: 'l1Parent', command: '/chat', children: ['l2Parent', 'l1R']},
-        l2Parent: {id: 'l2Parent', parent: 'l1Parent', command: '/chat', children: ['l3Parent', 'l2R']},
-        l3Parent: {id: 'l3Parent', parent: 'l2Parent', command: '/chat', children: ['l3R']},
-        l3R: {id: 'l3R', parent: 'l3Parent', command: '/refine :n=4', children: []},
-        l2R: {id: 'l2R', parent: 'l2Parent', command: '/refine :n=3', children: []},
-        l1R: {id: 'l1R', parent: 'l1Parent', command: '/refine :n=2', children: []},
+        l1Parent: {
+          id: 'l1Parent',
+          command: '/chat',
+          children: ['l2Parent', 'l1R'],
+        },
+        l2Parent: {
+          id: 'l2Parent',
+          parent: 'l1Parent',
+          command: '/chat',
+          children: ['l3Parent', 'l2R'],
+        },
+        l3Parent: {
+          id: 'l3Parent',
+          parent: 'l2Parent',
+          command: '/chat',
+          children: ['l3R'],
+        },
+        l3R: {
+          id: 'l3R',
+          parent: 'l3Parent',
+          command: '/refine :n=4',
+          children: [],
+        },
+        l2R: {
+          id: 'l2R',
+          parent: 'l2Parent',
+          command: '/refine :n=3',
+          children: [],
+        },
+        l1R: {
+          id: 'l1R',
+          parent: 'l1Parent',
+          command: '/refine :n=2',
+          children: [],
+        },
       })
       expect(projectForkCost(store.getNode('l1R'), store)).toBe(16)
     })
@@ -233,12 +367,41 @@ describe('projectForkCost', () => {
        * outer cost  = 5 × 3 + 2 + 3 = 20
        */
       const store = buildStore({
-        parent: {id: 'parent', command: '/steps', children: ['branchA', 'branchB', 'outerR']},
-        branchA: {id: 'branchA', parent: 'parent', command: '/chat', children: ['innerRA']},
-        innerRA: {id: 'innerRA', parent: 'branchA', command: '/refine :n=2', children: []},
-        branchB: {id: 'branchB', parent: 'parent', command: '/chat', children: ['innerRB']},
-        innerRB: {id: 'innerRB', parent: 'branchB', command: '/refine :n=3', children: []},
-        outerR: {id: 'outerR', parent: 'parent', command: '/refine :n=5', children: []},
+        parent: {
+          id: 'parent',
+          command: '/steps',
+          children: ['branchA', 'branchB', 'outerR'],
+        },
+        branchA: {
+          id: 'branchA',
+          parent: 'parent',
+          command: '/chat',
+          children: ['innerRA'],
+        },
+        innerRA: {
+          id: 'innerRA',
+          parent: 'branchA',
+          command: '/refine :n=2',
+          children: [],
+        },
+        branchB: {
+          id: 'branchB',
+          parent: 'parent',
+          command: '/chat',
+          children: ['innerRB'],
+        },
+        innerRB: {
+          id: 'innerRB',
+          parent: 'branchB',
+          command: '/refine :n=3',
+          children: [],
+        },
+        outerR: {
+          id: 'outerR',
+          parent: 'parent',
+          command: '/refine :n=5',
+          children: [],
+        },
       })
       expect(projectForkCost(store.getNode('outerR'), store)).toBe(20)
     })
@@ -257,9 +420,23 @@ describe('projectForkCost', () => {
        * main cost = 5 × 1 = 5
        */
       const store = buildStore({
-        parent: {id: 'parent', command: '/chat', children: ['sibling', 'main']},
-        sibling: {id: 'sibling', parent: 'parent', command: '/refine :n=2', children: []},
-        main: {id: 'main', parent: 'parent', command: '/refine :n=5', children: []},
+        parent: {
+          id: 'parent',
+          command: '/chat',
+          children: ['sibling', 'main'],
+        },
+        sibling: {
+          id: 'sibling',
+          parent: 'parent',
+          command: '/refine :n=2',
+          children: [],
+        },
+        main: {
+          id: 'main',
+          parent: 'parent',
+          command: '/refine :n=5',
+          children: [],
+        },
       })
       expect(projectForkCost(store.getNode('main'), store)).toBe(5)
     })
@@ -275,7 +452,12 @@ describe('projectForkCost', () => {
        */
       const store = buildStore({
         parent: {id: 'parent', command: '/chat :n=5', children: ['refine']},
-        refine: {id: 'refine', parent: 'parent', command: '/refine :n=3', children: []},
+        refine: {
+          id: 'refine',
+          parent: 'parent',
+          command: '/refine :n=3',
+          children: [],
+        },
       })
       expect(projectForkCost(store.getNode('refine'), store)).toBe(15)
     })
@@ -289,9 +471,23 @@ describe('projectForkCost', () => {
        * scope = 3, cost = 3 × 3 = 9
        */
       const store = buildStore({
-        parent: {id: 'parent', command: '/steps', children: ['chatA', 'refine']},
-        chatA: {id: 'chatA', parent: 'parent', command: '/chat :n=2', children: []},
-        refine: {id: 'refine', parent: 'parent', command: '/refine :n=3', children: []},
+        parent: {
+          id: 'parent',
+          command: '/steps',
+          children: ['chatA', 'refine'],
+        },
+        chatA: {
+          id: 'chatA',
+          parent: 'parent',
+          command: '/chat :n=2',
+          children: [],
+        },
+        refine: {
+          id: 'refine',
+          parent: 'parent',
+          command: '/refine :n=3',
+          children: [],
+        },
       })
       expect(projectForkCost(store.getNode('refine'), store)).toBe(9)
     })
@@ -305,7 +501,12 @@ describe('projectForkCost', () => {
        */
       const store = buildStore({
         parent: {id: 'parent', command: '/chat :n=1', children: ['refine']},
-        refine: {id: 'refine', parent: 'parent', command: '/refine :n=3', children: []},
+        refine: {
+          id: 'refine',
+          parent: 'parent',
+          command: '/refine :n=3',
+          children: [],
+        },
       })
       expect(projectForkCost(store.getNode('refine'), store)).toBe(3)
     })
@@ -319,7 +520,12 @@ describe('projectForkCost', () => {
        */
       const store = buildStore({
         parent: {id: 'parent', command: '/chat :n=99', children: ['refine']},
-        refine: {id: 'refine', parent: 'parent', command: '/refine :n=2', children: []},
+        refine: {
+          id: 'refine',
+          parent: 'parent',
+          command: '/refine :n=2',
+          children: [],
+        },
       })
       expect(projectForkCost(store.getNode('refine'), store)).toBe(20)
     })
@@ -334,8 +540,18 @@ describe('projectForkCost', () => {
        */
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v', 'refine']},
-        v: {id: 'v', parent: 'parent', command: '/validate :n=5 must include numbers', children: []},
-        refine: {id: 'refine', parent: 'parent', command: '/refine :n=3', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate :n=5 must include numbers',
+          children: [],
+        },
+        refine: {
+          id: 'refine',
+          parent: 'parent',
+          command: '/refine :n=3',
+          children: [],
+        },
       })
       expect(projectForkCost(store.getNode('refine'), store)).toBe(6)
     })
@@ -350,10 +566,29 @@ describe('projectForkCost', () => {
        * scope = 1 + 3 + 4 = 8, cost = 2 × 8 = 16
        */
       const store = buildStore({
-        parent: {id: 'parent', command: '/steps', children: ['chatA', 'chatB', 'refine']},
-        chatA: {id: 'chatA', parent: 'parent', command: '/chat :n=3', children: []},
-        chatB: {id: 'chatB', parent: 'parent', command: '/chat :n=4', children: []},
-        refine: {id: 'refine', parent: 'parent', command: '/refine :n=2', children: []},
+        parent: {
+          id: 'parent',
+          command: '/steps',
+          children: ['chatA', 'chatB', 'refine'],
+        },
+        chatA: {
+          id: 'chatA',
+          parent: 'parent',
+          command: '/chat :n=3',
+          children: [],
+        },
+        chatB: {
+          id: 'chatB',
+          parent: 'parent',
+          command: '/chat :n=4',
+          children: [],
+        },
+        refine: {
+          id: 'refine',
+          parent: 'parent',
+          command: '/refine :n=2',
+          children: [],
+        },
       })
       expect(projectForkCost(store.getNode('refine'), store)).toBe(16)
     })
@@ -368,10 +603,29 @@ describe('projectForkCost', () => {
        * outer scope = 1 + 2 = 3, outer cost = 2 × 3 + 6 = 12
        */
       const store = buildStore({
-        outerParent: {id: 'outerParent', command: '/steps', children: ['innerParent', 'outerR']},
-        innerParent: {id: 'innerParent', parent: 'outerParent', command: '/chat :n=2', children: ['innerR']},
-        innerR: {id: 'innerR', parent: 'innerParent', command: '/refine :n=3', children: []},
-        outerR: {id: 'outerR', parent: 'outerParent', command: '/refine :n=2', children: []},
+        outerParent: {
+          id: 'outerParent',
+          command: '/steps',
+          children: ['innerParent', 'outerR'],
+        },
+        innerParent: {
+          id: 'innerParent',
+          parent: 'outerParent',
+          command: '/chat :n=2',
+          children: ['innerR'],
+        },
+        innerR: {
+          id: 'innerR',
+          parent: 'innerParent',
+          command: '/refine :n=3',
+          children: [],
+        },
+        outerR: {
+          id: 'outerR',
+          parent: 'outerParent',
+          command: '/refine :n=2',
+          children: [],
+        },
       })
       expect(projectForkCost(store.getNode('outerR'), store)).toBe(12)
     })
@@ -385,7 +639,12 @@ describe('projectForkCost', () => {
        */
       const store = buildStore({
         parent: {id: 'parent', command: '/chat :n=10', children: ['refine']},
-        refine: {id: 'refine', parent: 'parent', command: '/refine :n=3 :limit=xs', children: []},
+        refine: {
+          id: 'refine',
+          parent: 'parent',
+          command: '/refine :n=3 :limit=xs',
+          children: [],
+        },
       })
       expect(projectForkCost(store.getNode('refine'), store)).toBe(30)
     })
@@ -404,8 +663,18 @@ describe('projectForkCost', () => {
        */
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['refine']},
-        refine: {id: 'refine', parent: 'parent', command: '/refine :n=3', children: ['innerChat']},
-        innerChat: {id: 'innerChat', parent: 'refine', command: '/chat :n=5', children: []},
+        refine: {
+          id: 'refine',
+          parent: 'parent',
+          command: '/refine :n=3',
+          children: ['innerChat'],
+        },
+        innerChat: {
+          id: 'innerChat',
+          parent: 'refine',
+          command: '/chat :n=5',
+          children: [],
+        },
       })
       expect(projectForkCost(store.getNode('refine'), store)).toBe(15)
     })
@@ -420,8 +689,18 @@ describe('projectForkCost', () => {
        */
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['refine']},
-        refine: {id: 'refine', parent: 'parent', command: '/refine :n=3 :limit=xs', children: ['innerChat']},
-        innerChat: {id: 'innerChat', parent: 'refine', command: '/chat :n=10', children: []},
+        refine: {
+          id: 'refine',
+          parent: 'parent',
+          command: '/refine :n=3 :limit=xs',
+          children: ['innerChat'],
+        },
+        innerChat: {
+          id: 'innerChat',
+          parent: 'refine',
+          command: '/chat :n=10',
+          children: [],
+        },
       })
       const cost = projectForkCost(store.getNode('refine'), store)
       expect(cost).toBe(30)
@@ -447,7 +726,12 @@ describe('projectForkCost', () => {
           command: '/refine :n=3',
           children: ['innerChat', 'validate'],
         },
-        innerChat: {id: 'innerChat', parent: 'refine', command: '/chat :n=2', children: []},
+        innerChat: {
+          id: 'innerChat',
+          parent: 'refine',
+          command: '/chat :n=2',
+          children: [],
+        },
         validate: {
           id: 'validate',
           parent: 'refine',
@@ -483,6 +767,43 @@ describe('projectForkCost', () => {
         },
       })
       expect(projectForkCost(store.getNode('refine'), store)).toBe(8)
+    })
+  })
+  describe('absent children arrays — null-safe traversal', () => {
+    it('node with no children property in parent scope is treated as a leaf', () => {
+      const store = buildStore({
+        parent: {id: 'parent', command: '/chat', children: ['chat1', 'r']},
+        chat1: {id: 'chat1', parent: 'parent', command: '/chat'},
+        r: {id: 'r', parent: 'parent', command: '/refine :n=2', children: []},
+      })
+      expect(projectForkCost(store.getNode('r'), store)).toBe(4)
+    })
+
+    it('refine node with no children property falls back to parent immediate scope', () => {
+      const store = buildStore({
+        parent: {id: 'parent', command: '/chat', children: ['chat1', 'r']},
+        chat1: {id: 'chat1', parent: 'parent', command: '/chat', children: []},
+        r: {id: 'r', parent: 'parent', command: '/refine :n=3'},
+      })
+      expect(projectForkCost(store.getNode('r'), store)).toBe(6)
+    })
+
+    it('missing child id inside refine children scope is skipped without affecting cost', () => {
+      const store = buildStore({
+        parent: {id: 'parent', command: '/chat', children: ['r']},
+        r: {id: 'r', parent: 'parent', command: '/refine :n=3', children: ['ghost', 'real']},
+        real: {id: 'real', parent: 'r', command: '/chat', children: []},
+      })
+      expect(projectForkCost(store.getNode('r'), store)).toBe(3)
+    })
+
+    it('nested collectAllNestedRefines skips nodes with no children without error', () => {
+      const store = buildStore({
+        parent: {id: 'parent', command: '/chat', children: ['mid', 'r']},
+        mid: {id: 'mid', parent: 'parent', command: '/chat'},
+        r: {id: 'r', parent: 'parent', command: '/refine :n=2', children: []},
+      })
+      expect(projectForkCost(store.getNode('r'), store)).toBe(4)
     })
   })
 })

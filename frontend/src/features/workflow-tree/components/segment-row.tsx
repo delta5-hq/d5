@@ -25,6 +25,7 @@ export const SegmentRow = ({
   onDuplicateNode,
   onRename,
   onRequestRename,
+  onSuffixClick,
   autoEditNodeId,
 }: SegmentRowProps) => {
   if (segment.type === 'node') {
@@ -45,6 +46,7 @@ export const SegmentRow = ({
         onRename={onRename}
         onRequestRename={onRequestRename}
         onSelect={onSelect}
+        onSuffixClick={onSuffixClick}
         onToggle={onToggle}
         style={EMPTY_STYLE}
       />

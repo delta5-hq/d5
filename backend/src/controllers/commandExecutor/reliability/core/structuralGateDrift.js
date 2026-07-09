@@ -25,7 +25,12 @@ export function shouldRecordStructuralGateDrift({content, score, winnerScore}) {
 export function recordStructuralGateDrift({log, forkIndex, content, score, winnerScore, rankingCount}) {
   if (!shouldRecordStructuralGateDrift({content, score, winnerScore})) return null
 
-  const event = buildStructuralGateDriftEvent({forkIndex, score, winnerScore, rankingCount})
+  const event = buildStructuralGateDriftEvent({
+    forkIndex,
+    score,
+    winnerScore,
+    rankingCount,
+  })
   log(
     'structural-gate drift signal: fork-%d passed gate then lost ranking (borda=%d, winner=%d, rankings=%d)',
     event.forkIndex,

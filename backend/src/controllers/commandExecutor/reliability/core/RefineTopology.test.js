@@ -26,8 +26,18 @@ describe('RefineTopology', () => {
     it('tree with only non-refine commands', () => {
       const store = buildStore({
         root: {id: 'root', children: ['chat', 'summarize']},
-        chat: {id: 'chat', parent: 'root', command: '/chat do something', children: []},
-        summarize: {id: 'summarize', parent: 'root', command: '/summarize', children: []},
+        chat: {
+          id: 'chat',
+          parent: 'root',
+          command: '/chat do something',
+          children: [],
+        },
+        summarize: {
+          id: 'summarize',
+          parent: 'root',
+          command: '/summarize',
+          children: [],
+        },
       })
       expect(RefineTopology(store.getNode('root'), store)).toEqual([])
     })
@@ -51,7 +61,12 @@ describe('RefineTopology', () => {
     it('/refinement :n=3 is excluded — word-boundary mismatch', () => {
       const store = buildStore({
         root: {id: 'root', children: ['r']},
-        r: {id: 'r', parent: 'root', command: '/refinement :n=3', children: []},
+        r: {
+          id: 'r',
+          parent: 'root',
+          command: '/refinement :n=3',
+          children: [],
+        },
       })
       expect(RefineTopology(store.getNode('root'), store)).toEqual([])
     })
@@ -100,7 +115,13 @@ describe('RefineTopology', () => {
     it('command field takes precedence over title for command recognition', () => {
       const store = buildStore({
         root: {id: 'root', children: ['r']},
-        r: {id: 'r', parent: 'root', command: '/refine :n=4', title: '/chat something else', children: []},
+        r: {
+          id: 'r',
+          parent: 'root',
+          command: '/refine :n=4',
+          title: '/chat something else',
+          children: [],
+        },
       })
 
       const result = RefineTopology(store.getNode('root'), store)
@@ -122,7 +143,12 @@ describe('RefineTopology', () => {
     it(':fallback flag does not affect n or inclusion', () => {
       const store = buildStore({
         root: {id: 'root', children: ['r']},
-        r: {id: 'r', parent: 'root', command: '/refine :n=3 :fallback', children: []},
+        r: {
+          id: 'r',
+          parent: 'root',
+          command: '/refine :n=3 :fallback',
+          children: [],
+        },
       })
 
       const result = RefineTopology(store.getNode('root'), store)
@@ -176,8 +202,18 @@ describe('RefineTopology', () => {
        */
       const store = buildStore({
         root: {id: 'root', children: ['outer']},
-        outer: {id: 'outer', parent: 'root', command: '/refine :n=2', children: ['inner']},
-        inner: {id: 'inner', parent: 'outer', command: '/refine :n=3', children: []},
+        outer: {
+          id: 'outer',
+          parent: 'root',
+          command: '/refine :n=2',
+          children: ['inner'],
+        },
+        inner: {
+          id: 'inner',
+          parent: 'outer',
+          command: '/refine :n=3',
+          children: [],
+        },
       })
 
       const result = RefineTopology(store.getNode('root'), store)
@@ -194,8 +230,18 @@ describe('RefineTopology', () => {
        */
       const store = buildStore({
         root: {id: 'root', children: ['r1']},
-        r1: {id: 'r1', parent: 'root', command: '/refine :n=2', children: ['r2']},
-        r2: {id: 'r2', parent: 'r1', command: '/refine :n=3', children: ['r3']},
+        r1: {
+          id: 'r1',
+          parent: 'root',
+          command: '/refine :n=2',
+          children: ['r2'],
+        },
+        r2: {
+          id: 'r2',
+          parent: 'r1',
+          command: '/refine :n=3',
+          children: ['r3'],
+        },
         r3: {id: 'r3', parent: 'r2', command: '/refine :n=4', children: []},
       })
 
@@ -215,9 +261,24 @@ describe('RefineTopology', () => {
        */
       const store = buildStore({
         root: {id: 'root', children: ['left', 'mid']},
-        left: {id: 'left', parent: 'root', command: '/refine :n=2', children: []},
-        mid: {id: 'mid', parent: 'root', command: '/chat', children: ['deep']},
-        deep: {id: 'deep', parent: 'mid', command: '/refine :n=5', children: []},
+        left: {
+          id: 'left',
+          parent: 'root',
+          command: '/refine :n=2',
+          children: [],
+        },
+        mid: {
+          id: 'mid',
+          parent: 'root',
+          command: '/chat',
+          children: ['deep'],
+        },
+        deep: {
+          id: 'deep',
+          parent: 'mid',
+          command: '/refine :n=5',
+          children: [],
+        },
       })
 
       const result = RefineTopology(store.getNode('root'), store)
@@ -264,7 +325,12 @@ describe('RefineTopology', () => {
       const store = buildStore({
         root: {id: 'root', children: ['r1', 'chat']},
         r1: {id: 'r1', parent: 'root', command: '/refine :n=2', children: []},
-        chat: {id: 'chat', parent: 'root', command: '/chat', children: ['r2']},
+        chat: {
+          id: 'chat',
+          parent: 'root',
+          command: '/chat',
+          children: ['r2'],
+        },
         r2: {id: 'r2', parent: 'chat', command: '/refine :n=3', children: []},
       })
 
@@ -287,10 +353,30 @@ describe('RefineTopology', () => {
        */
       const store = buildStore({
         root: {id: 'root', children: ['branchA', 'branchB']},
-        branchA: {id: 'branchA', parent: 'root', command: '/chat', children: ['rA']},
-        branchB: {id: 'branchB', parent: 'root', command: '/chat', children: ['rB']},
-        rA: {id: 'rA', parent: 'branchA', command: '/refine :n=2', children: []},
-        rB: {id: 'rB', parent: 'branchB', command: '/refine :n=3', children: []},
+        branchA: {
+          id: 'branchA',
+          parent: 'root',
+          command: '/chat',
+          children: ['rA'],
+        },
+        branchB: {
+          id: 'branchB',
+          parent: 'root',
+          command: '/chat',
+          children: ['rB'],
+        },
+        rA: {
+          id: 'rA',
+          parent: 'branchA',
+          command: '/refine :n=2',
+          children: [],
+        },
+        rB: {
+          id: 'rB',
+          parent: 'branchB',
+          command: '/refine :n=3',
+          children: [],
+        },
       })
 
       const result = RefineTopology(store.getNode('root'), store)
@@ -313,12 +399,42 @@ describe('RefineTopology', () => {
       const store = buildStore({
         root: {id: 'root', children: ['r1', 'chat', 'chat2']},
         r1: {id: 'r1', parent: 'root', command: '/refine :n=2', children: []},
-        chat: {id: 'chat', parent: 'root', command: '/chat', children: ['r2A', 'r2B']},
-        r2A: {id: 'r2A', parent: 'chat', command: '/refine :n=3', children: []},
-        r2B: {id: 'r2B', parent: 'chat', command: '/refine :n=4', children: []},
-        chat2: {id: 'chat2', parent: 'root', command: '/chat', children: ['chat3']},
-        chat3: {id: 'chat3', parent: 'chat2', command: '/chat', children: ['r3']},
-        r3: {id: 'r3', parent: 'chat3', command: '/refine :n=5', children: []},
+        chat: {
+          id: 'chat',
+          parent: 'root',
+          command: '/chat',
+          children: ['r2A', 'r2B'],
+        },
+        r2A: {
+          id: 'r2A',
+          parent: 'chat',
+          command: '/refine :n=3',
+          children: [],
+        },
+        r2B: {
+          id: 'r2B',
+          parent: 'chat',
+          command: '/refine :n=4',
+          children: [],
+        },
+        chat2: {
+          id: 'chat2',
+          parent: 'root',
+          command: '/chat',
+          children: ['chat3'],
+        },
+        chat3: {
+          id: 'chat3',
+          parent: 'chat2',
+          command: '/chat',
+          children: ['r3'],
+        },
+        r3: {
+          id: 'r3',
+          parent: 'chat3',
+          command: '/refine :n=5',
+          children: [],
+        },
       })
 
       const result = RefineTopology(store.getNode('root'), store)
@@ -336,7 +452,12 @@ describe('RefineTopology', () => {
       const store = buildStore({
         root: {id: 'root', children: ['r1', 'chat']},
         r1: {id: 'r1', parent: 'root', command: '/refine :n=2', children: []},
-        chat: {id: 'chat', parent: 'root', command: '/chat', children: ['r2']},
+        chat: {
+          id: 'chat',
+          parent: 'root',
+          command: '/chat',
+          children: ['r2'],
+        },
         r2: {id: 'r2', parent: 'chat', command: '/refine :n=3', children: []},
       })
 
@@ -361,9 +482,24 @@ describe('RefineTopology', () => {
        */
       const store = buildStore({
         root: {id: 'root', children: ['steps']},
-        steps: {id: 'steps', parent: 'root', command: '/steps', children: ['foreach']},
-        foreach: {id: 'foreach', parent: 'steps', command: '/foreach', children: ['chat']},
-        chat: {id: 'chat', parent: 'foreach', command: '/chat', children: ['r']},
+        steps: {
+          id: 'steps',
+          parent: 'root',
+          command: '/steps',
+          children: ['foreach'],
+        },
+        foreach: {
+          id: 'foreach',
+          parent: 'steps',
+          command: '/foreach',
+          children: ['chat'],
+        },
+        chat: {
+          id: 'chat',
+          parent: 'foreach',
+          command: '/chat',
+          children: ['r'],
+        },
         r: {id: 'r', parent: 'chat', command: '/refine :n=2', children: []},
       })
 
@@ -378,7 +514,12 @@ describe('RefineTopology', () => {
       const children = ['r1', 'r2', 'r3', 'r4', 'r5']
       const nodes = {root: {id: 'root', children}}
       children.forEach(id => {
-        nodes[id] = {id, parent: 'root', command: '/refine :n=2', children: []}
+        nodes[id] = {
+          id,
+          parent: 'root',
+          command: '/refine :n=2',
+          children: [],
+        }
       })
 
       const result = RefineTopology(buildStore(nodes).getNode('root'), buildStore(nodes))
@@ -397,10 +538,30 @@ describe('RefineTopology', () => {
        */
       const store = buildStore({
         root: {id: 'root', children: ['branchA', 'branchB']},
-        branchA: {id: 'branchA', parent: 'root', command: '/chat', children: ['rA']},
-        rA: {id: 'rA', parent: 'branchA', command: '/refine :n=2', children: []},
-        branchB: {id: 'branchB', parent: 'root', command: '/chat', children: ['rB']},
-        rB: {id: 'rB', parent: 'branchB', command: '/refine :n=3', children: []},
+        branchA: {
+          id: 'branchA',
+          parent: 'root',
+          command: '/chat',
+          children: ['rA'],
+        },
+        rA: {
+          id: 'rA',
+          parent: 'branchA',
+          command: '/refine :n=2',
+          children: [],
+        },
+        branchB: {
+          id: 'branchB',
+          parent: 'root',
+          command: '/chat',
+          children: ['rB'],
+        },
+        rB: {
+          id: 'rB',
+          parent: 'branchB',
+          command: '/refine :n=3',
+          children: [],
+        },
       })
 
       const result = RefineTopology(store.getNode('root'), store)

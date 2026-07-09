@@ -2,7 +2,7 @@ import StoreFork from './StoreFork'
 import {runForks} from './SubtreeForkRunner'
 import {ForkJudge} from './ForkJudge'
 import OwnershipResolver from './OwnershipResolver'
-import {readRefineN, readRawRefineN, readFallbackFlag} from './refineParams'
+import {readRefineN, readRawRefineN, readFallbackFlag, readJudgeReasoningFlag} from './refineParams'
 import {projectForkCost} from './forkCostProjector'
 import {readForkLimit, exceedsForkLimit, forkLimitRefusalMessage} from './forkLimitParser'
 import {appendRefineSuffix, appendInvalidSuffix, stripReliabilitySuffix} from './reliabilitySuffix'
@@ -70,6 +70,7 @@ export async function resolveRefineCell(
   }
 
   const fallback = readFallbackFlag(query)
+  const judgeReasoningRequested = readJudgeReasoningFlag(query)
   memoMap.set(refineNode.id, 'in-progress')
 
   emitter.forksStarted(refineNode.id, n)
@@ -100,6 +101,7 @@ export async function resolveRefineCell(
     parentNodeId: refineNode.parent,
     fallback,
     signal,
+    judgeReasoningRequested,
   })
 
   const okCount = forkResults.filter(f => f.status === 'ok').length
@@ -167,6 +169,10 @@ export async function resolveRefineCell(
     store.saveNodeToOutput(refineNode.id)
   }
 
-  emitter.refineComplete(refineNode.id, verdict.winnerForkIndex, n)
+  emitter.refineComplete(refineNode.id, verdict.winnerForkIndex, n, {
+    fallbackUsed: verdict.selectionLayer === 'fallback',
+    generatorOnlyJudge: verdict.generatorOnlyJudge ?? false,
+    judgeReasoningRequested: verdict.judgeReasoningRequested ?? false,
+  })
   memoMap.set(refineNode.id, winnerFork.forkStore)
 }

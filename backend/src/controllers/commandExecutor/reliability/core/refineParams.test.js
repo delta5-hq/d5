@@ -1,4 +1,4 @@
-import {readRawRefineN, readRefineN, readFallbackFlag, isValidRefineCell} from './refineParams'
+import {readRawRefineN, readRefineN, readFallbackFlag, readJudgeReasoningFlag, isValidRefineCell} from './refineParams'
 
 describe('readRawRefineN', () => {
   describe('falsy input → null', () => {
@@ -202,6 +202,47 @@ describe('isValidRefineCell', () => {
       '/refine :n=4 :fallback :limit=xs',
     ])('returns true for "%s"', command => {
       expect(isValidRefineCell(command)).toBe(true)
+    })
+  })
+})
+
+describe('readJudgeReasoningFlag', () => {
+  describe('falsy input → false', () => {
+    it.each([null, undefined, ''])('returns false for %p', input => {
+      expect(readJudgeReasoningFlag(input)).toBe(false)
+    })
+  })
+
+  describe(':judge_reasoning token absent → false', () => {
+    it.each(['/refine :n=3', '/refine :n=3 :fallback', '/chat', '/validate criteria'])(
+      'returns false for "%s"',
+      command => {
+        expect(readJudgeReasoningFlag(command)).toBe(false)
+      },
+    )
+  })
+
+  describe(':judge_reasoning present as a standalone token → true', () => {
+    it('detects :judge_reasoning at the end of the string', () => {
+      expect(readJudgeReasoningFlag('/refine :n=3 :judge_reasoning')).toBe(true)
+    })
+
+    it('detects :judge_reasoning when it precedes other parameters', () => {
+      expect(readJudgeReasoningFlag('/refine :judge_reasoning :n=2')).toBe(true)
+    })
+
+    it('detects :judge_reasoning alongside :fallback', () => {
+      expect(readJudgeReasoningFlag('/refine :n=3 :fallback :judge_reasoning')).toBe(true)
+    })
+  })
+
+  describe('word-boundary enforcement: :judge_reasoning as a substring is not matched', () => {
+    it('returns false when :judge_reasoning is a prefix of a longer token', () => {
+      expect(readJudgeReasoningFlag('/refine :n=3 :judge_reasoning_extra')).toBe(false)
+    })
+
+    it('returns false when embedded in another word', () => {
+      expect(readJudgeReasoningFlag('/refine :nojudge_reasoning')).toBe(false)
     })
   })
 })

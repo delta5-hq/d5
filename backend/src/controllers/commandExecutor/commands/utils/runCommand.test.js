@@ -380,7 +380,7 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
     {
       name: 'one refusal and one substantive output',
       outcomes: ['refusal', 'success'],
-      suffix: /\[✓ 1\/2\]/,
+      suffix: /\[✓ 1\/2 ⚠\]/,
       childCount: 1,
     },
     {
@@ -400,7 +400,7 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
     {
       name: 'one machine-tagged error and one substantive output',
       outcomes: ['error', 'success'],
-      suffix: /\[✓ 1\/2\]/,
+      suffix: /\[✓ 1\/2 ⚠\]/,
       childCount: 1,
     },
   ])('classifies commodity fork outcomes: $name', async ({outcomes, suffix, childCount}) => {
@@ -545,7 +545,7 @@ describe('runCommand — modifier commands used as root', () => {
   it.each([
     {queryType: VALIDATE_QUERY_TYPE, command: '/validate criterion'},
     {queryType: REFINE_QUERY_TYPE, command: '/refine :n=2'},
-  ])('writes [✗ invalid] suffix and error node without dispatching ($queryType)', async ({queryType, command}) => {
+  ])('writes [✗ !] suffix and error node without dispatching ($queryType)', async ({queryType, command}) => {
     const root = {id: 'root', parent: 'root', command, children: []}
     const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
     const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
@@ -558,7 +558,7 @@ describe('runCommand — modifier commands used as root', () => {
     expect(createErrorSpy).toHaveBeenCalledTimes(1)
     expect(createErrorSpy.mock.calls[0][0]).toMatch(new RegExp(`/${queryType} requires a parent cell`))
     const outputCell = store.getOutput().nodes.find(n => n.id === root.id)
-    expect(outputCell?.title).toMatch(/\[✗ invalid\]/)
+    expect(outputCell?.title).toMatch(/\[✗ !\]/)
   })
 })
 
@@ -822,6 +822,21 @@ describe('runCommand — signal (AbortController) abort gating', () => {
       },
     },
     {
+      name: 'during main command execution',
+      prepare: () => {
+        const {root, store} = makeChatWithForeachStore()
+        const controller = new AbortController()
+        return {
+          controller,
+          root,
+          store,
+          expectedChatCalls: 1,
+          expectedForeachCalls: 0,
+          abortDuringChat: true,
+        }
+      },
+    },
+    {
       name: 'inside post-processing',
       prepare: () => {
         const {root, store} = makeChatWithForeachStore()
@@ -837,8 +852,12 @@ describe('runCommand — signal (AbortController) abort gating', () => {
       },
     },
   ])('propagates AbortError and stops execution when cancellation occurs $name', async ({prepare}) => {
-    const {controller, root, store, expectedChatCalls, expectedForeachCalls, abortInsideForeach} = prepare()
-    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+    const {controller, root, store, expectedChatCalls, expectedForeachCalls, abortDuringChat, abortInsideForeach} =
+      prepare()
+    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockImplementation(async () => {
+      if (abortDuringChat) controller.abort()
+      return {}
+    })
     const foreachRunSpy = jest.spyOn(ForeachCommand.prototype, 'run').mockImplementation(async () => {
       if (!abortInsideForeach) return {}
       controller.abort()

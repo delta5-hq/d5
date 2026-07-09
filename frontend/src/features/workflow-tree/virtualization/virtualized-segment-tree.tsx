@@ -31,6 +31,7 @@ export const SegmentRowComponent = ({ index, rowProps }: SegmentRowComponentProp
     onDuplicateNode: rowProps.onDuplicateNode,
     onRename: rowProps.onRename,
     onRequestRename: rowProps.onRequestRename,
+    onSuffixClick: rowProps.onSuffixClick,
     autoEditNodeId: rowProps.autoEditNodeId,
   }
 
@@ -62,6 +63,7 @@ export const VirtualizedSegmentTree = ({
   onDuplicateNode,
   onRename,
   onRequestRename,
+  onSuffixClick,
   autoEditNodeId,
   onVisibleOrderChange,
 }: VirtualizedSegmentTreeProps) => {
@@ -101,6 +103,7 @@ export const VirtualizedSegmentTree = ({
       onDuplicateNode,
       onRename,
       onRequestRename,
+      onSuffixClick,
       autoEditNodeId,
     }),
     [
@@ -114,6 +117,7 @@ export const VirtualizedSegmentTree = ({
       onDuplicateNode,
       onRename,
       onRequestRename,
+      onSuffixClick,
       autoEditNodeId,
     ],
   )

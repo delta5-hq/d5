@@ -64,7 +64,9 @@ const allFailVerdict = () => ({
 // ─── judge setup helpers ──────────────────────────────────────────────────────
 
 const setupPassJudge = () => {
-  getLLM.mockReturnValue({llm: {invoke: jest.fn().mockResolvedValue({content: 'YES'})}})
+  getLLM.mockReturnValue({
+    llm: {invoke: jest.fn().mockResolvedValue({content: 'YES'})},
+  })
   ForkJudge.mockImplementation(() => ({
     selectWinner: jest.fn().mockResolvedValue(winnerVerdictFor(0)),
   }))
@@ -72,7 +74,9 @@ const setupPassJudge = () => {
 
 const setupFailJudge = () => {
   getLLM.mockReturnValue({
-    llm: {invoke: jest.fn().mockResolvedValue({content: 'NO: output does not mention revenue'})},
+    llm: {
+      invoke: jest.fn().mockResolvedValue({content: 'NO: output does not mention revenue'}),
+    },
   })
   ForkJudge.mockImplementation(() => ({
     selectWinner: jest.fn().mockResolvedValue(allFailVerdict()),
@@ -86,7 +90,12 @@ const buildDescendantStore = ({validateCommand = DEFAULT_VALIDATE, n = 2} = {}) 
     userId: 'test',
     nodes: {
       root: {id: 'root', children: ['parent']},
-      parent: {id: 'parent', parent: 'root', command: '/chat Analyze competitors', children: ['refine']},
+      parent: {
+        id: 'parent',
+        parent: 'root',
+        command: '/chat Analyze competitors',
+        children: ['refine'],
+      },
       refine: {
         id: 'refine',
         parent: 'parent',
@@ -114,7 +123,12 @@ const buildSiblingStore = ({validateCommand = DEFAULT_VALIDATE, n = 2} = {}) =>
         command: '/chat Analyze competitors',
         children: ['refine', 'validate'],
       },
-      refine: {id: 'refine', parent: 'parent', command: `/refine :n=${n}`, children: []},
+      refine: {
+        id: 'refine',
+        parent: 'parent',
+        command: `/refine :n=${n}`,
+        children: [],
+      },
       validate: {
         id: 'validate',
         parent: 'parent',
@@ -130,9 +144,25 @@ const buildDescendantMultiCriterionStore = () =>
     userId: 'test',
     nodes: {
       root: {id: 'root', children: ['parent']},
-      parent: {id: 'parent', parent: 'root', command: '/chat Analyze competitors', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', command: '/refine :n=2', children: ['v1', 'v2']},
-      v1: {id: 'v1', parent: 'refine', command: DEFAULT_VALIDATE, title: DEFAULT_VALIDATE, children: []},
+      parent: {
+        id: 'parent',
+        parent: 'root',
+        command: '/chat Analyze competitors',
+        children: ['refine'],
+      },
+      refine: {
+        id: 'refine',
+        parent: 'parent',
+        command: '/refine :n=2',
+        children: ['v1', 'v2'],
+      },
+      v1: {
+        id: 'v1',
+        parent: 'refine',
+        command: DEFAULT_VALIDATE,
+        title: DEFAULT_VALIDATE,
+        children: [],
+      },
       v2: {
         id: 'v2',
         parent: 'refine',
@@ -148,8 +178,18 @@ const buildNoValidateStore = () =>
     userId: 'test',
     nodes: {
       root: {id: 'root', children: ['parent']},
-      parent: {id: 'parent', parent: 'root', command: '/chat Analyze competitors', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', command: '/refine :n=2', children: []},
+      parent: {
+        id: 'parent',
+        parent: 'root',
+        command: '/chat Analyze competitors',
+        children: ['refine'],
+      },
+      refine: {
+        id: 'refine',
+        parent: 'parent',
+        command: '/refine :n=2',
+        children: [],
+      },
     },
   })
 
@@ -181,14 +221,19 @@ describe('/validate executes inside each fork', () => {
   describe('ValidateCommand.run call count scales linearly with N forks', () => {
     it('descendant N=2, :retry=0 → exactly 2 calls', async () => {
       setupFailJudge()
-      const store = buildDescendantStore({validateCommand: NO_RETRY_VALIDATE})
+      const store = buildDescendantStore({
+        validateCommand: NO_RETRY_VALIDATE,
+      })
       await resolveRefineCell(store.getNode('refine'), store, new Map())
       expect(validateSpy).toHaveBeenCalledTimes(2)
     })
 
     it('descendant N=3, :retry=0 → exactly 3 calls — linear not constant', async () => {
       setupFailJudge()
-      const store = buildDescendantStore({validateCommand: NO_RETRY_VALIDATE, n: 3})
+      const store = buildDescendantStore({
+        validateCommand: NO_RETRY_VALIDATE,
+        n: 3,
+      })
       await resolveRefineCell(store.getNode('refine'), store, new Map())
       expect(validateSpy).toHaveBeenCalledTimes(3)
     })
@@ -202,7 +247,10 @@ describe('/validate executes inside each fork', () => {
 
     it('sibling N=3, :retry=0 → exactly 3 calls — linear not constant', async () => {
       setupFailJudge()
-      const store = buildSiblingStore({validateCommand: NO_RETRY_VALIDATE, n: 3})
+      const store = buildSiblingStore({
+        validateCommand: NO_RETRY_VALIDATE,
+        n: 3,
+      })
       await resolveRefineCell(store.getNode('refine'), store, new Map())
       expect(validateSpy).toHaveBeenCalledTimes(3)
     })
@@ -233,12 +281,14 @@ describe('/validate executes inside each fork', () => {
       expect(validateOut?.title).toMatch(/\[✓/)
     })
 
-    it('descendant all-fail: validate carries [✗ N attempts] and refine carries [✗ 0/2]', async () => {
+    it('descendant all-fail: validate carries [✗ N×] and refine carries [✗ 0/2]', async () => {
       setupFailJudge()
-      const store = buildDescendantStore({validateCommand: NO_RETRY_VALIDATE})
+      const store = buildDescendantStore({
+        validateCommand: NO_RETRY_VALIDATE,
+      })
       await resolveRefineCell(store.getNode('refine'), store, new Map())
       const out = store.getOutput().nodes
-      expect(out.find(n => n.id === 'validate')?.title).toMatch(/\[✗\s+\d+\s+attempts\]/)
+      expect(out.find(n => n.id === 'validate')?.title).toMatch(/\[✗\s+\d+×\]/)
       expect(out.find(n => n.id === 'refine')?.title).toMatch(/\[✗ 0\/2\]/)
     })
 
@@ -250,12 +300,12 @@ describe('/validate executes inside each fork', () => {
       expect(validateOut?.title).toMatch(/\[✓/)
     })
 
-    it('sibling all-fail: sibling validate carries [✗ N attempts] and refine carries [✗ 0/2]', async () => {
+    it('sibling all-fail: sibling validate carries [✗ N×] and refine carries [✗ 0/2]', async () => {
       setupFailJudge()
       const store = buildSiblingStore({validateCommand: NO_RETRY_VALIDATE})
       await resolveRefineCell(store.getNode('refine'), store, new Map())
       const out = store.getOutput().nodes
-      expect(out.find(n => n.id === 'validate')?.title).toMatch(/\[✗\s+\d+\s+attempts\]/)
+      expect(out.find(n => n.id === 'validate')?.title).toMatch(/\[✗\s+\d+×\]/)
       expect(out.find(n => n.id === 'refine')?.title).toMatch(/\[✗ 0\/2\]/)
     })
   })
@@ -273,14 +323,18 @@ describe('/validate executes inside each fork', () => {
       expect(siblingStore.getOutput().nodes.find(n => n.id === 'validate')?.title).toMatch(/\[✓/)
     })
 
-    it('descendant and sibling both carry [✗ N attempts] after all-fail', async () => {
+    it('descendant and sibling both carry [✗ N×] after all-fail', async () => {
       setupFailJudge()
-      const descendantStore = buildDescendantStore({validateCommand: NO_RETRY_VALIDATE})
+      const descendantStore = buildDescendantStore({
+        validateCommand: NO_RETRY_VALIDATE,
+      })
       await resolveRefineCell(descendantStore.getNode('refine'), descendantStore, new Map())
-      const siblingStore = buildSiblingStore({validateCommand: NO_RETRY_VALIDATE})
+      const siblingStore = buildSiblingStore({
+        validateCommand: NO_RETRY_VALIDATE,
+      })
       await resolveRefineCell(siblingStore.getNode('refine'), siblingStore, new Map())
-      expect(descendantStore.getOutput().nodes.find(n => n.id === 'validate')?.title).toMatch(/\[✗\s+\d+\s+attempts\]/)
-      expect(siblingStore.getOutput().nodes.find(n => n.id === 'validate')?.title).toMatch(/\[✗\s+\d+\s+attempts\]/)
+      expect(descendantStore.getOutput().nodes.find(n => n.id === 'validate')?.title).toMatch(/\[✗\s+\d+×\]/)
+      expect(siblingStore.getOutput().nodes.find(n => n.id === 'validate')?.title).toMatch(/\[✗\s+\d+×\]/)
     })
   })
 
@@ -327,32 +381,41 @@ describe('/validate executes inside each fork', () => {
 
     it('ValidateCommand.run called N times (once per fork) — not zero', async () => {
       setupFailJudge()
-      const store = buildGrandchildStore({validateCommand: NO_RETRY_VALIDATE})
+      const store = buildGrandchildStore({
+        validateCommand: NO_RETRY_VALIDATE,
+      })
       await resolveRefineCell(store.getNode('refine'), store, new Map())
       expect(validateSpy).toHaveBeenCalledTimes(2)
     })
 
     it('N=3 scales linearly — 3 calls not 0', async () => {
       setupFailJudge()
-      const store = buildGrandchildStore({validateCommand: NO_RETRY_VALIDATE, n: 3})
+      const store = buildGrandchildStore({
+        validateCommand: NO_RETRY_VALIDATE,
+        n: 3,
+      })
       await resolveRefineCell(store.getNode('refine'), store, new Map())
       expect(validateSpy).toHaveBeenCalledTimes(3)
     })
 
     it('ChatCommand.run called for innerChat in each fork', async () => {
       setupFailJudge()
-      const store = buildGrandchildStore({validateCommand: NO_RETRY_VALIDATE})
+      const store = buildGrandchildStore({
+        validateCommand: NO_RETRY_VALIDATE,
+      })
       await resolveRefineCell(store.getNode('refine'), store, new Map())
       // chatSpy captures BOTH parent /chat and inner /chat runs; inner chat must fire
       const callNodeIds = chatSpy.mock.calls.map(args => args[0]?.id)
       expect(callNodeIds).toContain('innerChat')
     })
 
-    it('outer store validate title shows [✗ N attempts] after all-fail (strict)', async () => {
+    it('outer store validate title shows [✗ N×] after all-fail (strict)', async () => {
       setupFailJudge()
-      const store = buildGrandchildStore({validateCommand: NO_RETRY_VALIDATE})
+      const store = buildGrandchildStore({
+        validateCommand: NO_RETRY_VALIDATE,
+      })
       await resolveRefineCell(store.getNode('refine'), store, new Map())
-      expect(store.getOutput().nodes.find(n => n.id === 'validate')?.title).toMatch(/\[✗\s+\d+\s+attempts\]/)
+      expect(store.getOutput().nodes.find(n => n.id === 'validate')?.title).toMatch(/\[✗\s+\d+×\]/)
     })
 
     it('outer store validate title shows [✓] after all-pass (strict, winner selected)', async () => {

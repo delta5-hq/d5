@@ -1,0 +1,21 @@
+{
+  "historicalSuffixShapes": [
+    "[✓✗⚠]\\s+(\\d+\\/\\d+\\s+(best\\s+of\\s+\\d+(\\s+·\\s+[\\d.]+)?|first-survivor[^\\]]*|passed)|refined|refine\\s+failed)",
+    "✓\\s+retry-\\d+",
+    "✗\\s+\\d+\\s+attempts",
+    "✗\\s+invalid",
+    "⚠\\s+no\\s+judge\\s+signal",
+    "⚠\\s+fallback:\\s+0\\/\\d+\\s+passed;\\s+chose\\s+fork-\\d+"
+  ],
+  "engineSuffixShapes": [
+    "✓ \\d+/\\d+ ⚠",
+    "✓ \\d+/\\d+",
+    "✓ \\+\\d+",
+    "✓",
+    "✗ 0/\\d+",
+    "✗ \\d+×",
+    "✗ !",
+    "⚠ ∅",
+    "⚠ 0/\\d+"
+  ]
+}

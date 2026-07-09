@@ -196,14 +196,14 @@ describe('/foreach /validate integrated execution contract', () => {
       iterationValidatesInOutput(store).forEach(n => expect(n.title).toMatch(/\[✓\]/))
     })
 
-    it('all iterations fail: every verdict node carries [✗ N attempts]', async () => {
+    it('all iterations fail: every verdict node carries [✗ N×]', async () => {
       const store = buildForeachStore({
         validateCommands: [`/validate :retry=0 ${MOCK_VERIFIER_FAIL_KEYWORD} reject all`],
       })
 
       await runCommand({queryType: FOREACH_QUERY_TYPE, cell: store.getNode('fe'), store}).catch(() => {})
 
-      iterationValidatesInOutput(store).forEach(n => expect(n.title).toMatch(/\[✗\s+\d+\s+attempts\]/))
+      iterationValidatesInOutput(store).forEach(n => expect(n.title).toMatch(/\[✗\s+\d+×\]/))
     })
 
     it.each([
@@ -220,7 +220,7 @@ describe('/foreach /validate integrated execution contract', () => {
 
       const verdicts = iterationValidatesInOutput(store)
       expect(verdicts.filter(n => /\[✓\]/.test(n.title))).toHaveLength(2)
-      expect(verdicts.filter(n => /\[✗\s+\d+\s+attempts\]/.test(n.title))).toHaveLength(1)
+      expect(verdicts.filter(n => /\[✗\s+\d+×\]/.test(n.title))).toHaveLength(1)
     })
 
     it('two template criteria: each criterion is independently stamped per leaf', async () => {
@@ -237,7 +237,7 @@ describe('/foreach /validate integrated execution contract', () => {
       const verdicts = iterationValidatesInOutput(store)
       expect(verdicts).toHaveLength(2)
       expect(verdicts.filter(n => /\[✓\]/.test(n.title))).toHaveLength(1)
-      expect(verdicts.filter(n => /\[✗\s+\d+\s+attempts\]/.test(n.title))).toHaveLength(1)
+      expect(verdicts.filter(n => /\[✗\s+\d+×\]/.test(n.title))).toHaveLength(1)
     })
 
     it('two templates × three leaves: each criterion verdict is content-keyed to its iteration independently', async () => {
@@ -260,11 +260,11 @@ describe('/foreach /validate integrated execution contract', () => {
 
       const betaVerdicts = verdicts.filter(n => n.parent === 'beta')
       expect(betaVerdicts.filter(n => /\[✓\]/.test(n.title))).toHaveLength(1)
-      expect(betaVerdicts.filter(n => /\[✗\s+\d+\s+attempts\]/.test(n.title))).toHaveLength(1)
+      expect(betaVerdicts.filter(n => /\[✗\s+\d+×\]/.test(n.title))).toHaveLength(1)
 
       const gammaVerdicts = verdicts.filter(n => n.parent === 'gamma')
       expect(gammaVerdicts.filter(n => /\[✓\]/.test(n.title))).toHaveLength(1)
-      expect(gammaVerdicts.filter(n => /\[✗\s+\d+\s+attempts\]/.test(n.title))).toHaveLength(1)
+      expect(gammaVerdicts.filter(n => /\[✗\s+\d+×\]/.test(n.title))).toHaveLength(1)
     })
   })
 

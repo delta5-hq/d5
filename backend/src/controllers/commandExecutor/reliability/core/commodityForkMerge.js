@@ -1,5 +1,6 @@
 import {isCommodityForkSuccess} from './commodityForkSuccess'
 import {appendCommoditySuffix} from './reliabilitySuffix'
+import {buildCommodityReliabilityMetadata} from './reliabilityMetadataFields'
 
 const successfulPromptNodes = (forkStore, forkCell, forkIndex) =>
   (forkCell?.prompts ?? [])
@@ -44,7 +45,10 @@ const copySuccessfulPromptNodes = (targetStore, parentId, promptNodesByFork) => 
   const copiedIds = []
 
   promptNodesByFork.flat().forEach(node => {
-    const copied = targetStore.createNode({parent: parentId, title: node.title})
+    const copied = targetStore.createNode({
+      parent: parentId,
+      title: node.title,
+    })
     copiedIds.push(copied.id)
   })
 
@@ -53,10 +57,19 @@ const copySuccessfulPromptNodes = (targetStore, parentId, promptNodesByFork) => 
   }
 }
 
-const appendResultSuffix = (store, cellId, successCount, total) => {
+const applyResultToCell = (store, cellId, forkOutcomes, successCount, total) => {
   const cellNode = store.getNode(cellId)
   if (!cellNode) return
-  cellNode.title = appendCommoditySuffix(cellNode.title || '', {successCount, total})
+
+  cellNode.title = appendCommoditySuffix(cellNode.title || '', {
+    successCount,
+    total,
+  })
+  cellNode.reliabilityMetadata = buildCommodityReliabilityMetadata({
+    successCount,
+    total,
+    forkOutcomes,
+  })
   store.saveNodeToOutput(cellId)
 }
 
@@ -69,11 +82,16 @@ export const mergeCommodityForkOutputs = ({store, forkStores, cellId, total}) =>
     const forkCell = forkStore.getNode(cellId)
     return successfulPromptNodes(forkStore, forkCell, forkIndex)
   })
-  const successCount = successfulPromptNodesByFork.filter(promptNodes => promptNodes.length > 0).length
+
+  const forkOutcomes = successfulPromptNodesByFork.map((promptNodes, forkIndex) => ({
+    forkIndex,
+    succeeded: promptNodes.length > 0,
+  }))
+
+  const successCount = forkOutcomes.filter(f => f.succeeded).length
 
   copySuccessfulPromptNodes(store, cellId, successfulPromptNodesByFork)
-
-  appendResultSuffix(store, cellId, successCount, total)
+  applyResultToCell(store, cellId, forkOutcomes, successCount, total)
 
   return {successCount, total}
 }

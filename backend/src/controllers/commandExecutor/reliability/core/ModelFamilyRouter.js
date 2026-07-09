@@ -60,7 +60,11 @@ export const hasReasoningCapableFamily = settings =>
 export const selfJudgingGuard = (generatorFamily, settings) => {
   const families = getConfiguredFamilies(settings)
   if (families.length === 0) {
-    return {judgeFamily: generatorFamily, sameFamily: true, warning: 'no-providers-configured'}
+    return {
+      judgeFamily: generatorFamily,
+      sameFamily: true,
+      warning: 'no-providers-configured',
+    }
   }
   const crossFamily = families.find(f => f !== generatorFamily)
   if (crossFamily) {
@@ -85,7 +89,10 @@ export const selfJudgingGuard = (generatorFamily, settings) => {
 export const selectJurors = (n, generatorFamily, settings) => {
   const families = getConfiguredFamilies(settings)
   if (families.length === 0) {
-    return Array.from({length: n}, () => ({family: generatorFamily, duplicate: true}))
+    return Array.from({length: n}, () => ({
+      family: generatorFamily,
+      duplicate: true,
+    }))
   }
 
   const jurors = []
