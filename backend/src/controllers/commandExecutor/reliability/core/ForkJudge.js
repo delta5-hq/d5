@@ -22,7 +22,7 @@ import {
 } from './reliabilityMetadataFields'
 import {passesStructuralGate} from './structuralGate'
 import {recordStructuralGateDrift} from './structuralGateDrift'
-import {classifyNoWinner} from './failureSemantics'
+import {classifyNoWinner, JUDGE_WARNING_CONDITION} from './failureSemantics'
 
 const JUDGE_REASONING_BUDGET_TOKENS = 8_000
 
@@ -154,7 +154,7 @@ export class ForkJudge {
         allGateFiltered: true,
         judgeQualityWarnings: [
           buildJudgeQualityWarning({
-            condition: 'allGateFiltered',
+            condition: JUDGE_WARNING_CONDITION.ALL_GATE_FILTERED,
             severity: 'high',
           }),
         ],
@@ -193,21 +193,21 @@ export class ForkJudge {
     if (singleProvider)
       judgeQualityWarnings.push(
         buildJudgeQualityWarning({
-          condition: 'singleProvider',
+          condition: JUDGE_WARNING_CONDITION.SINGLE_PROVIDER,
           severity: 'high',
         }),
       )
     if (lowestTierOnly)
       judgeQualityWarnings.push(
         buildJudgeQualityWarning({
-          condition: 'lowestTierOnly',
+          condition: JUDGE_WARNING_CONDITION.LOWEST_TIER_ONLY,
           severity: 'medium',
         }),
       )
     if (noReasoningMode)
       judgeQualityWarnings.push(
         buildJudgeQualityWarning({
-          condition: 'noReasoningMode',
+          condition: JUDGE_WARNING_CONDITION.NO_REASONING_MODE,
           severity: 'medium',
         }),
       )
@@ -240,7 +240,7 @@ export class ForkJudge {
     if (judgeInput.degradedInput) {
       judgeQualityWarnings.push(
         buildJudgeQualityWarning({
-          condition: 'degradedInput',
+          condition: JUDGE_WARNING_CONDITION.DEGRADED_INPUT,
           severity: 'high',
         }),
       )
@@ -348,14 +348,14 @@ export class ForkJudge {
     if (hadJuryDuplicates)
       judgeQualityWarnings.push(
         buildJudgeQualityWarning({
-          condition: 'juryDuplicates',
+          condition: JUDGE_WARNING_CONDITION.JURY_DUPLICATES,
           severity: 'low',
         }),
       )
     if (selectionLayer === 'fallback' && (singleProvider || lowestTierOnly)) {
       judgeQualityWarnings.push(
         buildJudgeQualityWarning({
-          condition: 'fallbackWithWeakJudge',
+          condition: JUDGE_WARNING_CONDITION.FALLBACK_WITH_WEAK_JUDGE,
           severity: 'high',
         }),
       )

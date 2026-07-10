@@ -1,6 +1,6 @@
 import {ForkJudge} from './ForkJudge'
 import Store from '../../commands/utils/Store'
-import {FAILURE_CAUSE, REMEDIATION_HINT} from './failureSemantics'
+import {FAILURE_CAUSE, REMEDIATION_HINT, JUDGE_WARNING_CONDITION} from './failureSemantics'
 
 jest.mock('debug', () => {
   const fn = jest.fn(() => fn)
@@ -512,8 +512,8 @@ describe('judgeQualityWarnings', () => {
       fallback: false,
     })
     const conditions = warningConditions(result)
-    expect(conditions).toContain('noReasoningMode')
-    const warn = result.judgeQualityWarnings.find(w => w.condition === 'noReasoningMode')
+    expect(conditions).toContain(JUDGE_WARNING_CONDITION.NO_REASONING_MODE)
+    const warn = result.judgeQualityWarnings.find(w => w.condition === JUDGE_WARNING_CONDITION.NO_REASONING_MODE)
     expect(warn.severity).toBe('medium')
   })
 
@@ -528,7 +528,7 @@ describe('judgeQualityWarnings', () => {
       fallback: false,
     })
     const conditions = warningConditions(result)
-    expect(conditions).not.toContain('noReasoningMode')
+    expect(conditions).not.toContain(JUDGE_WARNING_CONDITION.NO_REASONING_MODE)
   })
 
   it('no noReasoningMode warning when Claude is configured', async () => {
@@ -542,7 +542,7 @@ describe('judgeQualityWarnings', () => {
       fallback: false,
     })
     const conditions = warningConditions(result)
-    expect(conditions).not.toContain('noReasoningMode')
+    expect(conditions).not.toContain(JUDGE_WARNING_CONDITION.NO_REASONING_MODE)
   })
 
   it('singleProvider warning when only one family is configured', async () => {
@@ -556,8 +556,8 @@ describe('judgeQualityWarnings', () => {
       fallback: false,
     })
     const conditions = warningConditions(result)
-    expect(conditions).toContain('singleProvider')
-    const warn = result.judgeQualityWarnings.find(w => w.condition === 'singleProvider')
+    expect(conditions).toContain(JUDGE_WARNING_CONDITION.SINGLE_PROVIDER)
+    const warn = result.judgeQualityWarnings.find(w => w.condition === JUDGE_WARNING_CONDITION.SINGLE_PROVIDER)
     expect(warn.severity).toBe('high')
   })
 
@@ -575,9 +575,9 @@ describe('judgeQualityWarnings', () => {
       fallback: false,
     })
     const conditions = warningConditions(result)
-    expect(conditions).toContain('lowestTierOnly')
-    expect(conditions).toContain('noReasoningMode')
-    const warn = result.judgeQualityWarnings.find(w => w.condition === 'lowestTierOnly')
+    expect(conditions).toContain(JUDGE_WARNING_CONDITION.LOWEST_TIER_ONLY)
+    expect(conditions).toContain(JUDGE_WARNING_CONDITION.NO_REASONING_MODE)
+    const warn = result.judgeQualityWarnings.find(w => w.condition === JUDGE_WARNING_CONDITION.LOWEST_TIER_ONLY)
     expect(warn.severity).toBe('medium')
   })
 
@@ -592,8 +592,8 @@ describe('judgeQualityWarnings', () => {
       fallback: false,
     })
     const conditions = warningConditions(result)
-    expect(conditions).toContain('juryDuplicates')
-    const warn = result.judgeQualityWarnings.find(w => w.condition === 'juryDuplicates')
+    expect(conditions).toContain(JUDGE_WARNING_CONDITION.JURY_DUPLICATES)
+    const warn = result.judgeQualityWarnings.find(w => w.condition === JUDGE_WARNING_CONDITION.JURY_DUPLICATES)
     expect(warn.severity).toBe('low')
   })
 
@@ -609,8 +609,8 @@ describe('judgeQualityWarnings', () => {
       fallback: true,
     })
     const conditions = warningConditions(result)
-    expect(conditions).toContain('fallbackWithWeakJudge')
-    const warn = result.judgeQualityWarnings.find(w => w.condition === 'fallbackWithWeakJudge')
+    expect(conditions).toContain(JUDGE_WARNING_CONDITION.FALLBACK_WITH_WEAK_JUDGE)
+    const warn = result.judgeQualityWarnings.find(w => w.condition === JUDGE_WARNING_CONDITION.FALLBACK_WITH_WEAK_JUDGE)
     expect(warn.severity).toBe('high')
   })
 
@@ -645,8 +645,8 @@ describe('judgeQualityWarnings', () => {
       fallback: false,
     })
     const conditions = warningConditions(result)
-    expect(conditions).toContain('degradedInput')
-    const warn = result.judgeQualityWarnings.find(w => w.condition === 'degradedInput')
+    expect(conditions).toContain(JUDGE_WARNING_CONDITION.DEGRADED_INPUT)
+    const warn = result.judgeQualityWarnings.find(w => w.condition === JUDGE_WARNING_CONDITION.DEGRADED_INPUT)
     expect(warn.severity).toBe('high')
   })
 
@@ -661,7 +661,7 @@ describe('judgeQualityWarnings', () => {
       fallback: false,
     })
     const conditions = warningConditions(result)
-    expect(conditions).not.toContain('degradedInput')
+    expect(conditions).not.toContain(JUDGE_WARNING_CONDITION.DEGRADED_INPUT)
   })
 
   it('degradedInput uses the resolved judge model chunkSize, not the provider family default', async () => {
@@ -678,7 +678,7 @@ describe('judgeQualityWarnings', () => {
     })
 
     const conditions = warningConditions(result)
-    expect(conditions).toContain('degradedInput')
+    expect(conditions).toContain(JUDGE_WARNING_CONDITION.DEGRADED_INPUT)
   })
 
   it('judge prompt slices candidate content by resolved model chunkSize', async () => {
@@ -767,7 +767,7 @@ describe('judgeQualityWarnings', () => {
     })
 
     expect(result.judgeInput.resolvedJudgeFamilies).toEqual(['OpenAI'])
-    expect(warningConditions(result)).toContain('juryDuplicates')
+    expect(warningConditions(result)).toContain(JUDGE_WARNING_CONDITION.JURY_DUPLICATES)
   })
 
   it('omits judge input diagnostics when no judge was needed', async () => {
@@ -1083,8 +1083,8 @@ describe('ForkJudge.selectWinner — structural gate on candidate content', () =
       expect(result.noSignal).toBe(false)
       expect(result.tiebreakUsed).toBe(false)
       expect(result.perCriterionVerdict).toEqual([])
-      expect(warningConditions(result)).toContain('allGateFiltered')
-      const warn = result.judgeQualityWarnings.find(w => w.condition === 'allGateFiltered')
+      expect(warningConditions(result)).toContain(JUDGE_WARNING_CONDITION.ALL_GATE_FILTERED)
+      const warn = result.judgeQualityWarnings.find(w => w.condition === JUDGE_WARNING_CONDITION.ALL_GATE_FILTERED)
       expect(warn.severity).toBe('high')
       expect(result.allGateFiltered).toBe(true)
       expect(result.failureCause).toBe(FAILURE_CAUSE.STRUCTURAL_GATE)
@@ -1167,8 +1167,8 @@ describe('ForkJudge.selectWinner — structural gate on candidate content', () =
         parentNodeId: 'parent',
         fallback: false,
       })
-      expect(warningConditions(result)).toContain('singleProvider')
-      expect(warningConditions(result)).not.toContain('allGateFiltered')
+      expect(warningConditions(result)).toContain(JUDGE_WARNING_CONDITION.SINGLE_PROVIDER)
+      expect(warningConditions(result)).not.toContain(JUDGE_WARNING_CONDITION.ALL_GATE_FILTERED)
     })
   })
 
@@ -1375,8 +1375,8 @@ describe('ForkJudge.selectWinner — fallbackWithWeakJudge via lowest-tier-only 
       parentNodeId: 'parent',
       fallback: true,
     })
-    expect(warningConditions(result)).toContain('fallbackWithWeakJudge')
-    const warn = result.judgeQualityWarnings.find(w => w.condition === 'fallbackWithWeakJudge')
+    expect(warningConditions(result)).toContain(JUDGE_WARNING_CONDITION.FALLBACK_WITH_WEAK_JUDGE)
+    const warn = result.judgeQualityWarnings.find(w => w.condition === JUDGE_WARNING_CONDITION.FALLBACK_WITH_WEAK_JUDGE)
     expect(warn.severity).toBe('high')
   })
 })

@@ -1,5 +1,5 @@
 import {isDegradedInput} from './judgeContentBudget'
-import {FAILURE_CAUSE} from './failureSemantics'
+import {FAILURE_CAUSE, JUDGE_WARNING_CONDITION} from './failureSemantics'
 
 export function buildJudgeInputMetadata({candidateCount, perForkBudget, resolvedModels}) {
   return {
@@ -55,7 +55,7 @@ export function buildReliabilityMetadata(verdict, forkResults, okCount, n) {
 }
 
 export const COMMODITY_PARTIAL_SUCCESS_WARNING = Object.freeze({
-  condition: 'commodityPartialSuccess',
+  condition: JUDGE_WARNING_CONDITION.COMMODITY_PARTIAL_SUCCESS,
   severity: 'medium',
 })
 

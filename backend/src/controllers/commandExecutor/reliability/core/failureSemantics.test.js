@@ -1,4 +1,4 @@
-import {classifyNoWinner, FAILURE_CAUSE, REMEDIATION_HINT} from './failureSemantics'
+import {classifyNoWinner, FAILURE_CAUSE, REMEDIATION_HINT, JUDGE_WARNING_CONDITION} from './failureSemantics'
 
 describe('classifyNoWinner', () => {
   it.each([
@@ -10,6 +10,18 @@ describe('classifyNoWinner', () => {
           {forkIndex: 0, status: 'ok'},
           {forkIndex: 1, status: 'criteria-failed'},
         ],
+      },
+      {
+        failureCause: FAILURE_CAUSE.STRUCTURAL_GATE,
+        remediationHint: REMEDIATION_HINT.REVISE_PROMPT,
+      },
+    ],
+    [
+      'allGateFiltered wins over noSignal when both flags are true',
+      {
+        allGateFiltered: true,
+        noSignal: true,
+        forkResults: [],
       },
       {
         failureCause: FAILURE_CAUSE.STRUCTURAL_GATE,
@@ -114,6 +126,20 @@ describe('FAILURE_CAUSE constants', () => {
     const values = Object.values(FAILURE_CAUSE)
     expect(values.length).toBe(new Set(values).size)
   })
+
+  it('contains exactly the 7 canonical cause strings', () => {
+    expect(new Set(Object.values(FAILURE_CAUSE))).toEqual(
+      new Set([
+        'structural-gate',
+        'criteria-failed',
+        'runtime-failed',
+        'no-eligible-forks',
+        'no-judge-signal',
+        'missing-parent',
+        'invalid-criteria',
+      ]),
+    )
+  })
 })
 
 describe('REMEDIATION_HINT constants', () => {
@@ -135,5 +161,52 @@ describe('REMEDIATION_HINT constants', () => {
   it('all values are unique — no two keys map to the same string', () => {
     const values = Object.values(REMEDIATION_HINT)
     expect(values.length).toBe(new Set(values).size)
+  })
+
+  it('contains exactly the 4 canonical hint strings', () => {
+    expect(new Set(Object.values(REMEDIATION_HINT))).toEqual(
+      new Set(['revise-prompt', 'check-provider', 'adjust-criteria', 'none']),
+    )
+  })
+})
+
+describe('JUDGE_WARNING_CONDITION constants', () => {
+  it.each([
+    ['ALL_GATE_FILTERED', 'allGateFiltered'],
+    ['SINGLE_PROVIDER', 'singleProvider'],
+    ['LOWEST_TIER_ONLY', 'lowestTierOnly'],
+    ['NO_REASONING_MODE', 'noReasoningMode'],
+    ['DEGRADED_INPUT', 'degradedInput'],
+    ['JURY_DUPLICATES', 'juryDuplicates'],
+    ['FALLBACK_WITH_WEAK_JUDGE', 'fallbackWithWeakJudge'],
+    ['COMMODITY_PARTIAL_SUCCESS', 'commodityPartialSuccess'],
+  ])('JUDGE_WARNING_CONDITION.%s === %s', (key, value) => {
+    expect(JUDGE_WARNING_CONDITION[key]).toBe(value)
+  })
+
+  it('is frozen — no new keys can be added at runtime', () => {
+    expect(() => {
+      JUDGE_WARNING_CONDITION.NEW_KEY = 'new'
+    }).toThrow()
+  })
+
+  it('all values are unique — no two keys map to the same condition string', () => {
+    const values = Object.values(JUDGE_WARNING_CONDITION)
+    expect(values.length).toBe(new Set(values).size)
+  })
+
+  it('contains exactly the 8 canonical condition strings', () => {
+    expect(new Set(Object.values(JUDGE_WARNING_CONDITION))).toEqual(
+      new Set([
+        'allGateFiltered',
+        'singleProvider',
+        'lowestTierOnly',
+        'noReasoningMode',
+        'degradedInput',
+        'juryDuplicates',
+        'fallbackWithWeakJudge',
+        'commodityPartialSuccess',
+      ]),
+    )
   })
 })

@@ -16,6 +16,7 @@ type SelectionLayer string
 const (
 	SelectionLayerPrimary  SelectionLayer = "primary"
 	SelectionLayerFallback SelectionLayer = "fallback"
+	SelectionLayerNone     SelectionLayer = "none"
 )
 
 // JudgeSeverity classifies the impact of a judge quality warning on selection reliability.

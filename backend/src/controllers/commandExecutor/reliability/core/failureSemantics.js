@@ -1,3 +1,14 @@
+export const JUDGE_WARNING_CONDITION = Object.freeze({
+  ALL_GATE_FILTERED: 'allGateFiltered',
+  SINGLE_PROVIDER: 'singleProvider',
+  LOWEST_TIER_ONLY: 'lowestTierOnly',
+  NO_REASONING_MODE: 'noReasoningMode',
+  DEGRADED_INPUT: 'degradedInput',
+  JURY_DUPLICATES: 'juryDuplicates',
+  FALLBACK_WITH_WEAK_JUDGE: 'fallbackWithWeakJudge',
+  COMMODITY_PARTIAL_SUCCESS: 'commodityPartialSuccess',
+})
+
 export const FAILURE_CAUSE = Object.freeze({
   STRUCTURAL_GATE: 'structural-gate',
   CRITERIA_FAILED: 'criteria-failed',

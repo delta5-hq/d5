@@ -86,7 +86,7 @@ export type ReliabilityMetadata = {
   winnerForkIndex: number | null
   perCriterionVerdict: CriterionVerdict[]
   mode: 'strict' | 'fallback' | 'commodity' | 'invalid'
-  selectionLayer: 'primary' | 'fallback'
+  selectionLayer: 'primary' | 'fallback' | 'none'
   noSignal: boolean
   tiebreakUsed?: boolean
   fallbackUsed?: boolean

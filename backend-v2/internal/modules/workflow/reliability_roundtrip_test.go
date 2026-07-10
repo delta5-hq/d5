@@ -199,6 +199,19 @@ func TestReliabilityMetadata_RequiredFields_RoundTrip(t *testing.T) {
 			},
 			description: "fallback+fallback combination must round-trip correctly",
 		},
+		{
+			name: "allGateFiltered path: selectionLayer none with null winner",
+			metadata: models.ReliabilityMetadata{
+				WinnerForkIndex:     nil,
+				PerCriterionVerdict: []models.CriterionVerdict{},
+				Mode:                models.RefineModeStrict,
+				SelectionLayer:      models.SelectionLayerNone,
+				AllGateFiltered:     boolPtr(true),
+				Eligible:            0,
+				Total:               2,
+			},
+			description: "SelectionLayerNone with null winner must round-trip — allGateFiltered path",
+		},
 	}
 
 	for _, tt := range tests {
@@ -495,6 +508,7 @@ func TestReliabilityMetadata_OptionalFields_PreservedWhenSet(t *testing.T) {
 					{Condition: models.JudgeWarnNoReasoningMode, Severity: models.JudgeSeverityMedium},
 					{Condition: models.JudgeWarnAllGateFiltered, Severity: models.JudgeSeverityHigh},
 					{Condition: models.JudgeWarnDegradedInput, Severity: models.JudgeSeverityMedium},
+					{Condition: models.JudgeWarnCommodityPartialSuccess, Severity: models.JudgeSeverityMedium},
 				}
 				return m
 			}(),
@@ -508,6 +522,7 @@ func TestReliabilityMetadata_OptionalFields_PreservedWhenSet(t *testing.T) {
 					models.JudgeWarnNoReasoningMode,
 					models.JudgeWarnAllGateFiltered,
 					models.JudgeWarnDegradedInput,
+					models.JudgeWarnCommodityPartialSuccess,
 				}
 				if len(rm.JudgeQualityWarnings) != len(want) {
 					t.Fatalf("JudgeQualityWarnings length want %d, got %d", len(want), len(rm.JudgeQualityWarnings))
@@ -518,7 +533,7 @@ func TestReliabilityMetadata_OptionalFields_PreservedWhenSet(t *testing.T) {
 					}
 				}
 			},
-			description: "all seven warning conditions must survive a round-trip in order without any being dropped or mutated",
+			description: "all eight warning conditions must survive a round-trip in order without any being dropped or mutated",
 		},
 	}
 
@@ -532,6 +547,35 @@ func TestReliabilityMetadata_OptionalFields_PreservedWhenSet(t *testing.T) {
 			tt.verify(t, restored.ReliabilityMetadata)
 		})
 	}
+}
+
+func TestJudgeWarningCondition_CanonicalSet(t *testing.T) {
+	canonical := map[models.JudgeWarningCondition]string{
+		models.JudgeWarnSingleProvider:          "singleProvider",
+		models.JudgeWarnLowestTierOnly:          "lowestTierOnly",
+		models.JudgeWarnJuryDuplicates:          "juryDuplicates",
+		models.JudgeWarnFallbackWeakJudge:       "fallbackWithWeakJudge",
+		models.JudgeWarnNoReasoningMode:         "noReasoningMode",
+		models.JudgeWarnAllGateFiltered:         "allGateFiltered",
+		models.JudgeWarnDegradedInput:           "degradedInput",
+		models.JudgeWarnCommodityPartialSuccess: "commodityPartialSuccess",
+	}
+
+	for constVal, wantString := range canonical {
+		t.Run(string(constVal), func(t *testing.T) {
+			if string(constVal) != wantString {
+				t.Errorf("JudgeWarningCondition const value: want %q, got %q", wantString, string(constVal))
+			}
+		})
+	}
+
+	t.Run("count", func(t *testing.T) {
+		const wantCount = 8
+		if len(canonical) != wantCount {
+			t.Errorf("canonical set has %d conditions, want %d — update this test and failureSemantics.js when adding a new condition",
+				len(canonical), wantCount)
+		}
+	})
 }
 
 // Enum constant drift silently breaks the frontend verdict drawer.
@@ -565,6 +609,7 @@ func TestReliabilityMetadata_EnumConstants_SerializeToCanonicalStrings(t *testin
 		}{
 			{models.SelectionLayerPrimary, `"primary"`},
 			{models.SelectionLayerFallback, `"fallback"`},
+			{models.SelectionLayerNone, `"none"`},
 		}
 		for _, tt := range tests {
 			t.Run(string(tt.value), func(t *testing.T) {
@@ -613,6 +658,7 @@ func TestReliabilityMetadata_EnumConstants_SerializeToCanonicalStrings(t *testin
 			{models.JudgeWarnNoReasoningMode, `"noReasoningMode"`},
 			{models.JudgeWarnAllGateFiltered, `"allGateFiltered"`},
 			{models.JudgeWarnDegradedInput, `"degradedInput"`},
+			{models.JudgeWarnCommodityPartialSuccess, `"commodityPartialSuccess"`},
 		}
 		for _, tt := range tests {
 			t.Run(string(tt.value), func(t *testing.T) {
@@ -1052,6 +1098,17 @@ func TestReliabilityFailureCause_InvalidModeConstants(t *testing.T) {
 }
 
 func TestReliabilityMetadata_FallbackUsed_OmitemptyContract(t *testing.T) {
+	t.Run("absent when SelectionLayer is none", func(t *testing.T) {
+		m := minimalReliabilityMetadata()
+		m.SelectionLayer = models.SelectionLayerNone
+		m.FallbackUsed = false
+		node := models.Node{ID: "n", ReliabilityMetadata: &m}
+		rmRaw := extractRawFields(t, node)
+		if _, present := rmRaw["fallbackUsed"]; present {
+			t.Error("fallbackUsed must be absent from JSON when SelectionLayer is none — omitempty contract")
+		}
+	})
+
 	t.Run("absent when SelectionLayer is primary", func(t *testing.T) {
 		m := minimalReliabilityMetadata()
 		m.SelectionLayer = models.SelectionLayerPrimary

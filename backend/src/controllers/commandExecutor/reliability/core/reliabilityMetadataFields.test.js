@@ -1,4 +1,5 @@
 import {DEGRADED_INPUT_THRESHOLD_CHARS} from './judgeContentBudget'
+import {JUDGE_WARNING_CONDITION} from './failureSemantics'
 import {
   buildReliabilityMetadata,
   buildCommodityReliabilityMetadata,
@@ -545,8 +546,8 @@ describe('buildPerCriterionVerdictEntry', () => {
 })
 
 describe('COMMODITY_PARTIAL_SUCCESS_WARNING', () => {
-  it('condition is commodityPartialSuccess', () => {
-    expect(COMMODITY_PARTIAL_SUCCESS_WARNING.condition).toBe('commodityPartialSuccess')
+  it('condition equals JUDGE_WARNING_CONDITION.COMMODITY_PARTIAL_SUCCESS', () => {
+    expect(COMMODITY_PARTIAL_SUCCESS_WARNING.condition).toBe(JUDGE_WARNING_CONDITION.COMMODITY_PARTIAL_SUCCESS)
   })
 
   it('severity is medium', () => {
