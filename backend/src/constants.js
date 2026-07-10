@@ -1,5 +1,6 @@
+const path = require('path')
 const customLLMApiTypes = require('../../shared-contracts/custom-llm-api-types.json')
-const __dotenvResult = require('dotenv').config()
+const __dotenvResult = require('dotenv').config({path: path.resolve(__dirname, '../.env')})
 
 const {env} = process
 
