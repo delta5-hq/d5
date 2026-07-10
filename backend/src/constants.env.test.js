@@ -22,6 +22,11 @@ describe('constants module initialisation', () => {
       const [{path: p}] = dotenvConfig.mock.calls[0]
       expect(p).toBe(path.resolve(__dirname, '../.env'))
     })
+
+    it('calls dotenv.config() without override, so pre-set env vars are never overwritten', () => {
+      const [{override}] = dotenvConfig.mock.calls[0]
+      expect(override).toBeFalsy()
+    })
   })
 
   describe('startup warning guard', () => {

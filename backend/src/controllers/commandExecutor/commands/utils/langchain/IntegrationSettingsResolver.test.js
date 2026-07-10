@@ -1,6 +1,8 @@
+import {readFileSync} from 'fs'
+import path from 'path'
 import {USER_DEFAULT_MODEL} from '../../../../../shared/config/constants'
 import {CLAUDE_DEFAULT_MODEL} from '../../../../../constants'
-import {resolveSettings} from './IntegrationSettingsResolver'
+import {resolveSettings, PROVIDER_CREDENTIAL_ENV_VARS} from './IntegrationSettingsResolver'
 
 const withEnv = (vars, fn) => {
   const originals = Object.fromEntries(Object.keys(vars).map(k => [k, process.env[k]]))
@@ -18,15 +20,9 @@ const withEnv = (vars, fn) => {
   }
 }
 
-const ALL_PROVIDER_ENV_VARS_ABSENT = {
-  OPENAI_API_KEY: undefined,
-  CLAUDE_API_KEY: undefined,
-  PERPLEXITY_API_KEY: undefined,
-  DEEPSEEK_API_KEY: undefined,
-  QWEN_API_KEY: undefined,
-  YANDEX_API_KEY: undefined,
-  YANDEX_FOLDER_ID: undefined,
-}
+const ALL_PROVIDER_ENV_VARS_ABSENT = Object.fromEntries(PROVIDER_CREDENTIAL_ENV_VARS.map(k => [k, undefined]))
+
+const ALL_PROVIDER_ENV_VARS_BLANK = Object.fromEntries(PROVIDER_CREDENTIAL_ENV_VARS.map(k => [k, '']))
 
 const nullDbArgs = {merged: null, workflowDoc: null, userId: 'u1', workflowId: null}
 
@@ -121,12 +117,14 @@ describe('resolveSettings', () => {
         ['deepseek', 'DEEPSEEK_API_KEY'],
         ['qwen', 'QWEN_API_KEY'],
         ['yandex', 'YANDEX_API_KEY'],
-      ])('does not create %s sub-object when its env var is absent', (provider, envVar) => {
-        const merged = {userId: 'u1', model: 'auto'}
-        const {settings} = withEnv({[envVar]: undefined}, () =>
-          resolveSettings({merged, workflowDoc: null, userId: 'u1', workflowId: null}),
-        )
-        expect(settings[provider]).toBeUndefined()
+      ])('does not create %s sub-object for any non-credential env var value', (provider, envVar) => {
+        for (const value of [undefined, '', '   ']) {
+          const merged = {userId: 'u1', model: 'auto'}
+          const {settings} = withEnv({[envVar]: value}, () =>
+            resolveSettings({merged, workflowDoc: null, userId: 'u1', workflowId: null}),
+          )
+          expect(settings[provider]).toBeUndefined()
+        }
       })
 
       it.each([
@@ -266,10 +264,13 @@ describe('resolveSettings', () => {
         expect(settings.claude.model).toBe(expectedModel)
       })
 
-      it('does not create sub-objects for providers whose env vars are absent', () => {
-        const {settings} = withEnv({...ALL_PROVIDER_ENV_VARS_ABSENT, OPENAI_API_KEY: 'sk-openai'}, () =>
-          resolveSettings(nullDbArgs),
-        )
+      it.each([
+        ['absent', undefined],
+        ['blank', ''],
+        ['whitespace-only', '   '],
+      ])('does not create provider sub-objects when unconfigured env vars are %s', (_, value) => {
+        const overrides = Object.fromEntries(PROVIDER_CREDENTIAL_ENV_VARS.map(k => [k, value]))
+        const {settings} = withEnv({...overrides, OPENAI_API_KEY: 'sk-openai'}, () => resolveSettings(nullDbArgs))
         ;['claude', 'perplexity', 'deepseek', 'qwen', 'yandex'].forEach(provider =>
           expect(settings[provider]).toBeUndefined(),
         )
@@ -277,50 +278,36 @@ describe('resolveSettings', () => {
     })
 
     describe('throw condition', () => {
-      it('throws when no provider env vars are set', () => {
-        expect(() => withEnv(ALL_PROVIDER_ENV_VARS_ABSENT, () => resolveSettings(nullDbArgs))).toThrow(
-          'No LLM credentials configured',
-        )
+      it.each([
+        ['no provider env vars are set', ALL_PROVIDER_ENV_VARS_ABSENT],
+        ['all provider env vars are empty string', ALL_PROVIDER_ENV_VARS_BLANK],
+        [
+          'all provider env vars are whitespace-only',
+          Object.fromEntries(PROVIDER_CREDENTIAL_ENV_VARS.map(k => [k, '   '])),
+        ],
+        ['only OPENAI_API_KEY is empty string (others absent)', {...ALL_PROVIDER_ENV_VARS_ABSENT, OPENAI_API_KEY: ''}],
+        [
+          'only OPENAI_API_KEY is whitespace-only (others absent)',
+          {...ALL_PROVIDER_ENV_VARS_ABSENT, OPENAI_API_KEY: '   '},
+        ],
+      ])('throws "No LLM credentials configured" when %s', (_, env) => {
+        expect(() => withEnv(env, () => resolveSettings(nullDbArgs))).toThrow('No LLM credentials configured')
       })
 
-      it('error message names every provider env var including YANDEX_FOLDER_ID', () => {
-        let thrown
+      it('error message names every provider env var', () => {
+        let error
         try {
           withEnv(ALL_PROVIDER_ENV_VARS_ABSENT, () => resolveSettings(nullDbArgs))
         } catch (e) {
-          thrown = e
+          error = e
         }
-        ;[
-          'OPENAI_API_KEY',
-          'CLAUDE_API_KEY',
-          'DEEPSEEK_API_KEY',
-          'QWEN_API_KEY',
-          'PERPLEXITY_API_KEY',
-          'YANDEX_API_KEY',
-          'YANDEX_FOLDER_ID',
-        ].forEach(name => expect(thrown.message).toContain(name))
+        expect(error).toBeDefined()
+        PROVIDER_CREDENTIAL_ENV_VARS.forEach(name => expect(error.message).toContain(name))
       })
 
-      it.each([
-        ['whitespace-only', '   '],
-        ['empty string', ''],
-      ])('throws when only a %s env var value is set', (_, value) => {
+      it.each(PROVIDER_CREDENTIAL_ENV_VARS)('does not throw when only %s is set to a non-blank value', envVar => {
         expect(() =>
-          withEnv({...ALL_PROVIDER_ENV_VARS_ABSENT, OPENAI_API_KEY: value}, () => resolveSettings(nullDbArgs)),
-        ).toThrow('No LLM credentials configured')
-      })
-
-      it.each([
-        ['OPENAI_API_KEY', 'sk-openai'],
-        ['CLAUDE_API_KEY', 'sk-claude'],
-        ['PERPLEXITY_API_KEY', 'sk-perplexity'],
-        ['DEEPSEEK_API_KEY', 'sk-deepseek'],
-        ['QWEN_API_KEY', 'sk-qwen'],
-        ['YANDEX_API_KEY', 'sk-yandex'],
-        ['YANDEX_FOLDER_ID', 'folder-yandex'],
-      ])('does not throw when only %s is set to a non-blank value', (envVar, value) => {
-        expect(() =>
-          withEnv({...ALL_PROVIDER_ENV_VARS_ABSENT, [envVar]: value}, () => resolveSettings(nullDbArgs)),
+          withEnv({...ALL_PROVIDER_ENV_VARS_ABSENT, [envVar]: 'sk-value'}, () => resolveSettings(nullDbArgs)),
         ).not.toThrow()
       })
     })
@@ -349,5 +336,17 @@ describe('resolveSettings', () => {
         ).toThrow(/No LLM credentials configured/)
       },
     )
+  })
+})
+
+describe('e2e launch hermeticity', () => {
+  it('start-backend-e2e target zeros every provider credential env var', () => {
+    const makefileLines = readFileSync(path.resolve(__dirname, '../../../../../../../Makefile'), 'utf8').split('\n')
+    const targetStart = makefileLines.findIndex(l => l.startsWith('start-backend-e2e:'))
+    const targetEnd = makefileLines.findIndex((l, i) => i > targetStart && /^\S/.test(l))
+    const targetBlock = makefileLines.slice(targetStart, targetEnd === -1 ? undefined : targetEnd).join('\n')
+    for (const envVar of PROVIDER_CREDENTIAL_ENV_VARS) {
+      expect(targetBlock).toContain(`${envVar}=`)
+    }
   })
 })

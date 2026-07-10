@@ -279,6 +279,13 @@ start-backend-e2e:
 		MONGO_URI='$(MONGO_E2E_URI)' \
 		JWT_SECRET='$(JWT_SECRET)' \
 		MOCK_EXTERNAL_SERVICES=true \
+		OPENAI_API_KEY= \
+		CLAUDE_API_KEY= \
+		PERPLEXITY_API_KEY= \
+		DEEPSEEK_API_KEY= \
+		QWEN_API_KEY= \
+		YANDEX_API_KEY= \
+		YANDEX_FOLDER_ID= \
 		nohup node backend/build/index.js > backend/backend-e2e.log 2>&1 & \
 		echo $$! > backend/backend-e2e.pid
 	@sleep 3

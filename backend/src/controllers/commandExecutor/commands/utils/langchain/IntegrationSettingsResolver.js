@@ -54,6 +54,8 @@ const buildBaseSettings = (userId, workflowId) => ({
   model: USER_DEFAULT_MODEL,
 })
 
+export const PROVIDER_CREDENTIAL_ENV_VARS = Object.values(PROVIDER_CREDENTIAL_ENV_MAP).flatMap(Object.values)
+
 export const resolveSettings = ({merged, workflowDoc, userId, workflowId}) => {
   const settings = merged ?? buildBaseSettings(userId, workflowId)
 
