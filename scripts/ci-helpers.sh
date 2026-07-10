@@ -107,20 +107,64 @@ lint_node() {
   fi
 }
 
+# Top-level acceptance-test function names that must appear as "pass" in every
+# test_go run. Add an entry when a new mandatory integration or concurrency suite
+# is introduced. Remove an entry only when the corresponding test is deleted.
+_BACKEND_V2_REQUIRED_ACCEPTANCE_TESTS=(
+  "TestAddArrayItem_ScopeDocumentSingularity"
+  "TestAddArrayItem_AliasUniquenessUnderConcurrency"
+  "TestCrossTypeAliasValidation"
+)
+
+# Returns 0 when every name in the required-tests list appears as "pass" in the
+# go-test JSON stream written to <json_file>. Logs each absent or non-passing
+# test to stderr and returns 1 if any are missing, failed, or skipped.
+_assert_acceptance_tests_passed() {
+  local json_file="$1"; shift
+  local all_passed=true
+
+  for test_name in "$@"; do
+    if ! grep -F '"Action":"pass"' "$json_file" | grep -qF '"Test":"'"${test_name}"'"'; then
+      log_error "Acceptance test absent or did not pass: ${test_name}"
+      all_passed=false
+    fi
+  done
+
+  [ "$all_passed" = true ]
+}
+
 test_go() {
   local module_path="${1:-.}"
   cd "$module_path" || exit 1
-  
-  log_info "Running Go unit tests..."
+
+  local capture_file
+  capture_file="$(mktemp)"
+
+  log_info "Running Go tests (tags: integration)..."
+
+  local runner_exit
   if command -v go >/dev/null 2>&1; then
-    go test -v ./...
+    go test -tags integration -json ./... 2>&1 | tee "$capture_file"
+    runner_exit="${PIPESTATUS[0]}"
   else
     log_warning "Go not installed, using Docker..."
     ensure_docker_network
     docker run --rm --network "$DOCKER_NETWORK" \
+      --env TEST_MONGO_URI="${TEST_MONGO_URI:-}" \
       -v "$(pwd)":/app -w /app golang:1.23-alpine \
-      go test -v ./...
+      go test -tags integration -json ./... 2>&1 | tee "$capture_file"
+    runner_exit="${PIPESTATUS[0]}"
   fi
+
+  local assert_exit=0
+  if [ "$runner_exit" -eq 0 ]; then
+    _assert_acceptance_tests_passed "$capture_file" "${_BACKEND_V2_REQUIRED_ACCEPTANCE_TESTS[@]}"
+    assert_exit=$?
+  fi
+
+  rm -f "$capture_file"
+  [ "$runner_exit" -ne 0 ] && return "$runner_exit"
+  return "$assert_exit"
 }
 
 test_node() {

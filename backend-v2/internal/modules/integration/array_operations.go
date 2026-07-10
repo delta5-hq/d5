@@ -1,12 +1,15 @@
 package integration
 
 import (
+	"backend-v2/internal/database"
 	"context"
 	"fmt"
 
 	"github.com/qiniu/qmgo"
 	"go.mongodb.org/mongo-driver/bson"
 )
+
+const addItemMaxAttempts = 4
 
 func (s *Service) AddArrayItem(ctx context.Context, scope ScopeIdentifier, fieldName string, item map[string]interface{}) error {
 	alias, ok := item["alias"].(string)
@@ -31,29 +34,52 @@ func (s *Service) AddArrayItem(ctx context.Context, scope ScopeIdentifier, field
 		return err
 	}
 
-	filter := buildScopeFilter(scope)
-	update := bson.M{"$push": bson.M{fieldName: encryptedItem}}
+	return s.atomicAddItem(ctx, scope, fieldName, alias, encryptedItem)
+}
 
-	var existing map[string]interface{}
-	err = s.collection.Find(ctx, filter).One(&existing)
+func (s *Service) atomicAddItem(ctx context.Context, scope ScopeIdentifier, fieldName, alias string, encryptedItem map[string]interface{}) error {
+	for attempt := 0; attempt < addItemMaxAttempts; attempt++ {
+		if err := s.ensureScopeDocument(ctx, scope); err != nil && !qmgo.IsDup(err) {
+			return err
+		}
 
-	if err == qmgo.ErrNoSuchDocuments {
-		newDoc := bson.M{
+		pushErr := s.conditionalPushArrayItem(ctx, scope, fieldName, alias, encryptedItem)
+		if pushErr == nil {
+			return nil
+		}
+		if pushErr != qmgo.ErrNoSuchDocuments {
+			return pushErr
+		}
+
+		if err := s.validateArrayItemDoesNotExist(ctx, scope, fieldName, alias); err != nil {
+			return err
+		}
+		if err := s.validateCrossTypeAliasUniqueness(ctx, scope, fieldName, alias); err != nil {
+			return err
+		}
+	}
+
+	return fmt.Errorf("concurrent write conflict: could not add '%s' after %d attempts", alias, addItemMaxAttempts)
+}
+
+func (s *Service) ensureScopeDocument(ctx context.Context, scope ScopeIdentifier) error {
+	return database.AtomicUpsertOne(ctx, s.collection, buildScopeFilter(scope), bson.M{
+		"$setOnInsert": bson.M{
 			"userId":     scope.UserID,
 			"workflowId": scope.WorkflowID,
 			"lang":       defaultLanguage,
 			"model":      defaultModel,
-			fieldName:    []interface{}{encryptedItem},
-		}
-		_, insertErr := s.collection.InsertOne(ctx, newDoc)
-		return insertErr
-	}
+		},
+	})
+}
 
-	if err != nil {
-		return err
+func (s *Service) conditionalPushArrayItem(ctx context.Context, scope ScopeIdentifier, fieldName, alias string, encryptedItem map[string]interface{}) error {
+	filter := buildScopeFilter(scope)
+	filter[fieldName+".alias"] = bson.M{"$ne": alias}
+	for _, otherField := range GetOtherArrayFields(fieldName) {
+		filter[otherField+".alias"] = bson.M{"$ne": alias}
 	}
-
-	return s.collection.UpdateOne(ctx, filter, update)
+	return s.collection.UpdateOne(ctx, filter, bson.M{"$push": bson.M{fieldName: encryptedItem}})
 }
 
 func (s *Service) encryptArrayItem(scope ScopeIdentifier, arrayName string, item map[string]interface{}) (map[string]interface{}, error) {
@@ -108,9 +134,7 @@ func (s *Service) UpdateArrayItem(ctx context.Context, scope ScopeIdentifier, fi
 		setFields[fieldName+".$."+key] = encryptedValue
 	}
 
-	update := bson.M{"$set": setFields}
-
-	return s.collection.UpdateOne(ctx, filter, update)
+	return s.collection.UpdateOne(ctx, filter, bson.M{"$set": setFields})
 }
 
 func (s *Service) DeleteArrayItem(ctx context.Context, scope ScopeIdentifier, fieldName, alias string) error {
@@ -129,16 +153,13 @@ func (s *Service) DeleteArrayItem(ctx context.Context, scope ScopeIdentifier, fi
 		return err
 	}
 
-	var updated map[string]interface{}
-	readErr := s.collection.Find(ctx, filter).One(&updated)
-	if readErr != nil && readErr != qmgo.ErrNoSuchDocuments {
-		return readErr
+	removeFilter := buildScopeFilter(scope)
+	for k, v := range s.emptinessChecker.MongoEmptyConditions() {
+		removeFilter[k] = v
 	}
-
-	if readErr == nil && s.emptinessChecker.IsEmpty(updated) {
-		return s.collection.Remove(ctx, filter)
+	if err := s.collection.Remove(ctx, removeFilter); err != nil && err != qmgo.ErrNoSuchDocuments {
+		return err
 	}
-
 	return nil
 }
 
@@ -180,25 +201,8 @@ func (s *Service) validateArrayItemDoesNotExist(ctx context.Context, scope Scope
 	return nil
 }
 
-func isEncryptedField(arrayName, fieldName string) bool {
-	fieldConfigs, exists := GetIntegrationEncryptionConfig().ArrayFields[arrayName]
-	if !exists {
-		return false
-	}
-
-	for _, config := range fieldConfigs {
-		if config.Path == fieldName {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (s *Service) validateCrossTypeAliasUniqueness(ctx context.Context, scope ScopeIdentifier, fieldName, alias string) error {
-	otherFields := GetOtherArrayFields(fieldName)
-
-	for _, otherField := range otherFields {
+	for _, otherField := range GetOtherArrayFields(fieldName) {
 		filter := bson.M{
 			"userId":              scope.UserID,
 			"workflowId":          scope.WorkflowID,
@@ -218,6 +222,21 @@ func (s *Service) validateCrossTypeAliasUniqueness(ctx context.Context, scope Sc
 	}
 
 	return nil
+}
+
+func isEncryptedField(arrayName, fieldName string) bool {
+	fieldConfigs, exists := GetIntegrationEncryptionConfig().ArrayFields[arrayName]
+	if !exists {
+		return false
+	}
+
+	for _, config := range fieldConfigs {
+		if config.Path == fieldName {
+			return true
+		}
+	}
+
+	return false
 }
 
 func validateNoSentinelSecrets(arrayName string, item map[string]interface{}) error {

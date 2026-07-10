@@ -97,6 +97,13 @@ jobs:
 
   test-backend-v2:
     runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:4.2.8
+        ports:
+          - 27017:27017
+    env:
+      TEST_MONGO_URI: mongodb://localhost:27017/delta5_integration_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -104,7 +111,7 @@ jobs:
           go-version: '1.25'
           cache-dependency-path: backend-v2/go.sum
       - run: cd backend-v2 && go mod download
-      - run: cd backend-v2 && go test -v -coverprofile=coverage.out ./...
+      - run: cd backend-v2 && go test -tags integration -v -coverprofile=coverage.out ./...
       - run: cd backend-v2 && go tool cover -func=coverage.out
 
 

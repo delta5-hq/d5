@@ -6,7 +6,9 @@ import (
 	"context"
 
 	"github.com/qiniu/qmgo"
+	qopts "github.com/qiniu/qmgo/options"
 	"go.mongodb.org/mongo-driver/bson"
+	mongoOpts "go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const (
@@ -36,6 +38,7 @@ func NewService(db *qmgo.Database) (*Service, error) {
 	}
 
 	collection := db.Collection("integrations")
+	ensureScopeUniquenessIndex(collection)
 	fallbackFinder := newFallbackFinder(collection, encryptor)
 	secretRedactor := NewSecretRedactor()
 	serviceFieldExtractor := NewServiceFieldExtractor(secretRedactor)
@@ -50,6 +53,16 @@ func NewService(db *qmgo.Database) (*Service, error) {
 		serviceFieldExtractor: serviceFieldExtractor,
 		emptinessChecker:      emptinessChecker,
 	}, nil
+}
+
+func ensureScopeUniquenessIndex(collection *qmgo.Collection) {
+	err := collection.CreateOneIndex(context.Background(), qopts.IndexModel{
+		Key:          []string{"userId", "workflowId"},
+		IndexOptions: mongoOpts.Index().SetUnique(true),
+	})
+	if err != nil {
+		log.Warn("ensureScopeIndex: unique index unavailable; concurrent adds may produce duplicate scope documents: %v", err)
+	}
 }
 
 func (s *Service) FindByUserID(ctx context.Context, userID string) (*models.Integration, error) {
