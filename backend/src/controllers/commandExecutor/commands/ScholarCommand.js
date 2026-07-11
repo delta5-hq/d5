@@ -13,7 +13,7 @@ import {CITATIONS_STRING, calculateMaxChunksFromSize} from '../constants'
 import {referencePatterns} from './references/utils/referencePatterns'
 import {clearReferences} from './references/utils/referenceUtils'
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
-import {throwIfAbortError, throwIfAborted, signalOptions} from './utils/executionSignal'
+import {throwIfAbortError, throwIfAborted} from './utils/executionSignal'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 

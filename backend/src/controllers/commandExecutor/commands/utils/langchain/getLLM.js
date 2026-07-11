@@ -21,13 +21,8 @@ import {QWEN_API_URL, DEEPSEEK_API_URL} from '../../../../../shared/config/const
 import {ChatClaude} from './Anthropic'
 import {CustomLLMChat, CustomEmbeddings} from './CustomLLMChat'
 import {createNoopEmbeddings, createNoopLLM} from './noopLLM'
-import {Model, detectConfiguredProvider, loadIntegrationSettings} from './IntegrationSettingsLoader'
+import {Model, detectConfiguredProvider} from './IntegrationSettingsLoader'
 import {NATIVE_EMBEDDINGS_TYPES, resolveEmbeddingsFallbackType} from './EmbeddingsFallbackResolver'
-import {
-  getCachedIntegrationSettings,
-  hasCachedIntegrationSettings,
-  setCachedIntegrationSettings,
-} from './IntegrationSettingsCache'
 import IntegrationFacade from '../../../../../repositories/IntegrationFacade'
 import {USER_DEFAULT_MODEL} from '../../../../../shared/config/constants'
 import {resolveSettings} from './IntegrationSettingsResolver'

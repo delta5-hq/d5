@@ -19,6 +19,7 @@ import {CHAT_PARAM_PARENTS} from '../constants/chat'
 import {isValidate} from './utils/isCommand'
 import {runCommand} from './utils/runCommand'
 import {runWithErrorNode} from './shared/runWithErrorNode'
+import {CriteriaFailedError} from '../reliability/core/CriteriaFailedError'
 import {StepsCommand} from './StepsCommand'
 import {createDeepClone} from './utils/createDeepClone'
 import {SSHClientPool} from './rpc/SSHClientPool'
@@ -233,8 +234,10 @@ export class ForeachCommand {
           }
         } catch (e) {
           this.logError(e)
-          const message = e instanceof Error ? e.message : String(e)
-          this.store.importer.createNodes(`Error: ${message || 'Unknown error'}`, node.id)
+          if (!(e instanceof CriteriaFailedError)) {
+            const message = e instanceof Error ? e.message : String(e)
+            this.store.importer.createNodes(`Error: ${message || 'Unknown error'}`, node.id)
+          }
         }
       }),
     )
@@ -278,8 +281,10 @@ export class ForeachCommand {
         sequentialProgress.remove(sequentialTracker)
       } catch (e) {
         this.logError(e)
-        const message = e instanceof Error ? e.message : String(e)
-        this.store.importer.createNodes(`Error: ${message || 'Unknown error'}`, nodes[i].node.id)
+        if (!(e instanceof CriteriaFailedError)) {
+          const message = e instanceof Error ? e.message : String(e)
+          this.store.importer.createNodes(`Error: ${message || 'Unknown error'}`, nodes[i].node.id)
+        }
       }
     }
 
@@ -287,19 +292,26 @@ export class ForeachCommand {
   }
 
   runDefault = async (node, command, params, signal) => {
-    const parentNode = this.store.getNode(node.parent) ?? node
-
+    const leafs = []
     const mainCommand = command.replace(FOREACH_PARAM_PARALLEL, '').trim()
-    const leafs = this.findLeafs(parentNode, mainCommand, params.useFile)
+
+    const parentNode = this.store.getNode(node.parent)
+    const isRoot = !parentNode?.parent
 
     const validateTemplateIds = (node.children || []).filter(id => isValidate(this.store.getNode(id)))
 
     try {
-      await this.executePrompts(leafs, params.parallel, signal, validateTemplateIds)
+      if (parentNode && !isRoot) {
+        leafs.push(...this.findLeafs(parentNode, mainCommand, params.useFile))
+
+        await this.executePrompts(leafs, params.parallel, signal, validateTemplateIds)
+      }
     } catch (e) {
       throwIfAbortError(e)
       this.logError(e)
     }
+
+    return {}
   }
 
   async _processLeaf(leaf, matchingNode) {

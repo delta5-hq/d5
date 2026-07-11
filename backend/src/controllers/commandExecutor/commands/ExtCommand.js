@@ -17,7 +17,7 @@ import {translate} from './utils/translate'
 import {referencePatterns} from './references/utils/referencePatterns'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import {clearStepsPrefix} from '../constants/steps'
-import {throwIfAbortError, throwIfAborted, signalOptions} from './utils/executionSignal'
+import {throwIfAbortError, throwIfAborted} from './utils/executionSignal'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 
