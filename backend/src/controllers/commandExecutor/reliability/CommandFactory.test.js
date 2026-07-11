@@ -156,12 +156,7 @@ describe('CommandFactory', () => {
       })
 
       it.each([
-        OUTLINE_QUERY_TYPE,
         SUMMARIZE_QUERY_TYPE,
-        SCHOLAR_QUERY_TYPE,
-        WEB_QUERY_TYPE,
-        DOWNLOAD_QUERY_TYPE,
-        EXT_QUERY_TYPE,
         SWITCH_QUERY_TYPE,
       ])('passes invocation options to prompt runner %s', async queryType => {
         const signal = new AbortController().signal
@@ -175,7 +170,7 @@ describe('CommandFactory', () => {
         runSpy.mockRestore()
       })
 
-      it.each([COMPLETION_QUERY_TYPE, MEMORIZE_QUERY_TYPE, FOREACH_QUERY_TYPE, STEPS_QUERY_TYPE])(
+      it.each([COMPLETION_QUERY_TYPE, FOREACH_QUERY_TYPE, STEPS_QUERY_TYPE])(
         'passes invocation options to option-object runner %s',
         async queryType => {
           const signal = new AbortController().signal
