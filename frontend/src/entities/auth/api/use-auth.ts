@@ -5,13 +5,14 @@ import { toast } from 'sonner'
 import { useIntl } from 'react-intl'
 import { useQueryClient } from '@tanstack/react-query'
 
-export const useAuth = () => {
+export const useAuth = (isBootstrapped: boolean) => {
   const { formatMessage } = useIntl()
   const queryClient = useQueryClient()
 
   const meQuery = useApiQuery<User>({
     queryKey: queryKeys.authMe,
     url: '/users/current',
+    enabled: isBootstrapped,
   })
 
   const loginMutation = useApiMutation<unknown, Error, LoginCredentials>({
@@ -37,7 +38,8 @@ export const useAuth = () => {
   const logoutMutation = useApiMutation<unknown, unknown, void>({
     url: '/auth/logout',
     method: 'POST',
-    onSuccess: async () => {
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: queryKeys.authMe })
       queryClient.clear()
     },
   })
@@ -62,7 +64,13 @@ export const useAuth = () => {
   return {
     user,
     isLoggedIn: !!user,
-    isLoading: meQuery.isLoading || loginMutation.isPending || signupMutation.isPending,
+    isLoading:
+      !isBootstrapped ||
+      meQuery.isLoading ||
+      loginMutation.isPending ||
+      signupMutation.isPending ||
+      logoutMutation.isPending ||
+      (logoutMutation.isSuccess && !!user),
     isSuccessSignup: signupMutation.isSuccess,
 
     isAdmin,

@@ -1,7 +1,7 @@
-import cheerio from 'cheerio'
+import {load} from 'cheerio'
 
 export function stripTags(html) {
-  const $ = cheerio.load(html)
+  const $ = load(html)
 
   const bodyElement = $('body')[0]
   $(bodyElement).find('iframe').remove()
@@ -15,7 +15,7 @@ export function extractTextFromNode(node, textContent = '') {
 
   const nodeType = node.nodeType
   if (nodeType === 3 || nodeType === 4) {
-    textContent += node.data.trim() ? node.data.trim().replace(/\s{2,}/, ' ') + ' ' : ''
+    textContent += node.data.trim() ? node.data.trim().replace(/\s{2,}/g, ' ') + ' ' : ''
   } else if (
     nodeType === 1 &&
     node.childNodes &&

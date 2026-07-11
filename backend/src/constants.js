@@ -1,6 +1,14 @@
-require('dotenv').config()
+const path = require('path')
+const customLLMApiTypes = require('../../shared-contracts/custom-llm-api-types.json')
+const __dotenvResult = require('dotenv').config({path: path.resolve(__dirname, '../.env')})
 
 const {env} = process
+
+if (__dotenvResult.error && !env.JWT_SECRET && !env.MONGO_DATABASE && !env.MONGO_URI) {
+  process.stderr.write(
+    '[STARTUP WARNING] backend started without env. cwd has no .env, shell has no JWT_SECRET / MONGO_*. run via `make dev` from project root.\n',
+  )
+}
 
 export const PORT = process.env.PORT || 3001
 
@@ -9,6 +17,8 @@ export const BASE_URL = process.env.BASE_URL
 export const FRONTEND_PATH = env.FRONTEND_PATH || '../frontend/build'
 
 export const JWT_SECRET = env.JWT_SECRET || 'test-jwt-secret-change-in-production'
+
+export const FIELD_ENCRYPTION_KEY = env.FIELD_ENCRYPTION_KEY
 
 export let JWT_TTL = Number(env.JWT_TTL || 86400)
 
@@ -49,6 +59,18 @@ export const GOOGLE_API_KEY = env.GOOGLE_API_KEY
 export const SERP_API_KEY = env.SERP_API_KEY
 
 export const OPENAI_API_KEY = env.OPENAI_API_KEY
+
+export const CLAUDE_API_KEY = env.CLAUDE_API_KEY
+
+export const PERPLEXITY_API_KEY = env.PERPLEXITY_API_KEY
+
+export const DEEPSEEK_API_KEY = env.DEEPSEEK_API_KEY
+
+export const QWEN_API_KEY = env.QWEN_API_KEY
+
+export const YANDEX_API_KEY = env.YANDEX_API_KEY
+
+export const YANDEX_FOLDER_ID = env.YANDEX_FOLDER_ID
 
 export const OPENAI_API_KEY_EMPTY = 'EMPTY'
 
@@ -153,9 +175,16 @@ export const DEEPSEEK_MODELS = {
 export const DEEPSEEK_DEFAULT_MODEL = DEEPSEEK_MODELS.DEEPSEEK_CHAT
 
 export const CustomLLMApiType = {
-  OpenAI_Compatible: 'OpenAI compatible',
-  OpenAI_Compatible_Chain_Of_Thought: 'OpenAI compatible Chain-of-Thought',
+  OpenAI_Compatible: customLLMApiTypes.OpenAI_Compatible,
+  OpenAI_Compatible_Chain_Of_Thought: customLLMApiTypes.OpenAI_Compatible_Chain_Of_Thought,
 }
+
+export const OPENAI_COMPATIBLE_API_TYPES = new Set([
+  CustomLLMApiType.OpenAI_Compatible,
+  CustomLLMApiType.OpenAI_Compatible_Chain_Of_Thought,
+])
+
+export const CUSTOM_LLM_DEFAULT_MODEL = OPENAI_MODELS.GPT_4o_MINI
 
 export const CUSTOM_LLM_TIMEOUT_MS = 600_000
 

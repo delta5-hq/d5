@@ -164,7 +164,7 @@ jobs:
       - run: cd backend-v2 && go mod tidy
       - run: cd backend-v2 && go build -ldflags="-s -w" -o backend-v2 .
       - run: cd backend-v2 && chmod +x backend-v2
-      - run: cd backend-v2 && go build -o seed-users ./cmd/seed-users/main.go
+      - run: cd backend-v2 && go build -o seed-users ./cmd/seed-users
       - uses: actions/upload-artifact@v4
         with:
           name: backend-v2-binaries
@@ -210,6 +210,7 @@ jobs:
       MONGO_HOST: localhost
       MONGO_PORT: 27017
       MONGO_DB: delta5_${{ github.run_id }}
+      MONGO_DATABASE: delta5_${{ github.run_id }}
       MONGO_URI: mongodb://localhost:27017/delta5_${{ github.run_id }}
       E2E_MONGO_URI: mongodb://localhost:27017/delta5_${{ github.run_id }}
       JWT_SECRET: test-jwt-secret-change-in-production
@@ -265,8 +266,36 @@ jobs:
       JWT_SECRET: test-jwt-secret-change-in-production
       API_ROOT: /api/v2
       BACKEND_PORT: 3002
+      NODEJS_BACKEND_PORT: 3004
     steps:
       - uses: actions/checkout@v4
+      - name: Allow unprivileged user namespaces for bubblewrap
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+      - name: Install bubblewrap sandbox runtime
+        run: sudo apt-get update -qq && sudo apt-get install -y bubblewrap
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - name: Verify bubblewrap can launch sandboxed Node.js
+        run: |
+          bwrap_args=(
+            --unshare-pid
+            --unshare-uts
+            --unshare-ipc
+            --proc /proc
+            --dev /dev
+            --tmpfs /tmp
+          )
+          for sandbox_path in /usr /lib /lib64 /lib32 /opt /etc/ssl /etc/resolv.conf /etc/nsswitch.conf; do
+            if [ -e "$sandbox_path" ]; then
+              bwrap_args+=(--ro-bind "$sandbox_path" "$sandbox_path")
+            fi
+          done
+          /usr/bin/bwrap "${bwrap_args[@]}" -- node -e "process.exit(0)"
+      - run: cd backend && npm ci
+      - run: cd backend && npm run build
       - uses: actions/download-artifact@v4
         with:
           name: backend-v2-binaries
@@ -274,8 +303,17 @@ jobs:
       - run: chmod +x backend-v2/backend-v2 backend-v2/seed-users
       - run: DROP_DB=true bash backend-v2/e2e-db-init.sh
       - run: |
+          cd backend
+          MOCK_EXTERNAL_SERVICES=true PORT="${NODEJS_BACKEND_PORT}" MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" nohup node build/index.js > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
+          sleep 5
+          if ! kill -0 $(cat backend-e2e.pid); then
+            echo "Node.js backend failed to start"
+            cat backend-e2e.log
+            exit 1
+          fi
+      - run: |
           cd backend-v2
-          MONGO_DATABASE="delta5_${{ github.run_id }}" MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" PORT="${BACKEND_PORT}" API_ROOT="${API_ROOT}" MOCK_EXTERNAL_SERVICES=true nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
+          MONGO_DATABASE="delta5_${{ github.run_id }}" MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" PORT="${BACKEND_PORT}" API_ROOT="${API_ROOT}" MOCK_EXTERNAL_SERVICES=true NODEJS_BACKEND_URL="http://localhost:${NODEJS_BACKEND_PORT}" nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
           sleep 5
           if ! kill -0 $(cat backend-e2e.pid); then
             echo "Backend failed to start"
@@ -301,9 +339,10 @@ jobs:
       - run: curl -f http://localhost:5173 || (cat frontend/vite-e2e.log; kill $(cat backend-v2/backend-e2e.pid); exit 1)
       - run: |
           cd frontend
-          E2E_ADMIN_USER=admin E2E_ADMIN_PASS='P@ssw0rd!' E2E_OPEN_API_KEY='mock-openai-key' E2E_DEEPSEEK_API_KEY='mock-deepseek-key' E2E_QWEN_API_KEY='mock-qwen-key' E2E_CLAUDE_API_KEY='mock-claude-key' E2E_PERPLEXITY_API_KEY='mock-perplexity-key' E2E_YANDEX_API_KEY='mock-yandex-key' E2E_YANDEX_FOLDER_ID='mock-folder-id' E2E_CUSTOM_LLM_URL='http://localhost:8080' CI=true pnpm run test:e2e:ci || TEST_EXIT=$?
+          E2E_BASE_URL=http://localhost:5173 E2E_ADMIN_USER=admin E2E_ADMIN_PASS='P@ssw0rd!' E2E_OPEN_API_KEY='mock-openai-key' E2E_DEEPSEEK_API_KEY='mock-deepseek-key' E2E_QWEN_API_KEY='mock-qwen-key' E2E_CLAUDE_API_KEY='mock-claude-key' E2E_PERPLEXITY_API_KEY='mock-perplexity-key' E2E_YANDEX_API_KEY='mock-yandex-key' E2E_YANDEX_FOLDER_ID='mock-folder-id' E2E_CUSTOM_LLM_URL='http://localhost:8080' CI=true pnpm run test:e2e:ci || TEST_EXIT=$?
           kill $(cat vite-e2e.pid) || true
           kill $(cat ../backend-v2/backend-e2e.pid) || true
+          kill $(cat ../backend/backend-e2e.pid) || true
           exit ${TEST_EXIT:-0}
       - run: cd backend-v2 && bash e2e-db-drop.sh 2>/dev/null || true
         if: always()
@@ -315,6 +354,7 @@ jobs:
             frontend/playwright-report
             frontend/test-results
             frontend/vite-e2e.log
+            backend/backend-e2e.log
             backend-v2/backend-e2e.log
 
   time-report:

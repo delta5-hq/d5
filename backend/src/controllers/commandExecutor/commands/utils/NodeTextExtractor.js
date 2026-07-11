@@ -1,9 +1,10 @@
 import {PhraseBuilder} from './../PhraseBuilder'
-import {commandRegExp} from '../../constants/commandRegExp'
 import {clearStepsPrefix} from '../../constants/steps'
 import {CONTENT_TYPES_APPLICATION_PDF, extractTextFromPdf} from '../../../utils/pdf'
 import WorkflowFile from '../../../../models/WorkflowFile'
 import {substituteReferencesAndHashrefsSelf} from '../references/substitution'
+import {isAnyCommand} from './commandRecognition'
+import {composeAllDynamicAliases} from './aliasComposition'
 
 // eslint-disable-next-line no-unused-vars
 import Store from './Store'
@@ -55,10 +56,14 @@ export class NodeTextExtractor {
       return false
     }
 
-    if (node.title && !commandRegExp.any.test(clearStepsPrefix(node.title))) {
-      const nodesContent = substituteReferencesAndHashrefsSelf(node, this.store)
-      const isFull = builder.appendChunks(this.encodeSeparators(nodesContent))
-      if (isFull) return false
+    if (node.title) {
+      const dynamicAliases = composeAllDynamicAliases(this.store._aliases)
+      const clearedTitle = clearStepsPrefix(node.title)
+      if (!isAnyCommand(clearedTitle, dynamicAliases)) {
+        const nodesContent = substituteReferencesAndHashrefsSelf(node, this.store)
+        const isFull = builder.appendChunks(this.encodeSeparators(nodesContent))
+        if (isFull) return false
+      }
     }
 
     if (node.file) {

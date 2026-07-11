@@ -10,9 +10,17 @@ interface IntegrationDialogProps extends DialogProps {
   data: IntegrationSettings | undefined
   refresh: () => Promise<void>
   showDialog: ShowDialogFn
+  workflowId?: string | null
 }
 
-const IntegrationDialog: React.FC<IntegrationDialogProps> = ({ open, onClose, data, refresh, showDialog }) => (
+const IntegrationDialog: React.FC<IntegrationDialogProps> = ({
+  open,
+  onClose,
+  data,
+  refresh,
+  showDialog,
+  workflowId,
+}) => (
   <Dialog onOpenChange={onClose} open={open}>
     <DialogContent>
       <DialogHeader>
@@ -20,7 +28,7 @@ const IntegrationDialog: React.FC<IntegrationDialogProps> = ({ open, onClose, da
           <FormattedMessage id="dialog.integration.title" />
         </DialogTitle>
       </DialogHeader>
-      <IntegrationCategory data={data} refresh={refresh} showAll showDialog={showDialog} />
+      <IntegrationCategory data={data} refresh={refresh} showAll showDialog={showDialog} workflowId={workflowId} />
     </DialogContent>
   </Dialog>
 )

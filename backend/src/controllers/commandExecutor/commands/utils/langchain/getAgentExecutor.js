@@ -7,7 +7,8 @@ import {
   getSimpleStop,
   getSimpleSuffix,
 } from '../../../constants/localizedPrompts/SimpleAgentConstants'
-import {AgentExecutor} from '@langchain/classic/agents'
+import {AgentExecutor, createToolCallingAgent} from '@langchain/classic/agents'
+import {ChatPromptTemplate} from '@langchain/core/prompts'
 import {JSOutliningAgent} from './JSOutliningAgent'
 import {
   getOutlineFinalAnswer,
@@ -48,3 +49,22 @@ export const createOutlineAgentExecutor = (llm, tools, lang) =>
     }),
     tools,
   })
+
+const MCP_AGENT_PROMPT = ChatPromptTemplate.fromMessages([
+  ['system', 'You are a helpful assistant with access to tools. Use the tools to fulfill the user request.'],
+  ['human', '{input}'],
+  ['placeholder', '{agent_scratchpad}'],
+])
+
+export const assertToolCallingCapability = llm => {
+  if (typeof llm?.bindTools !== 'function') {
+    throw new Error(
+      'Agent mode requires an LLM with tool-calling support. Configure OpenAI, Claude, Qwen, or Deepseek as your Default model.',
+    )
+  }
+}
+
+export const createMCPAgentExecutor = (llm, tools) => {
+  const agent = createToolCallingAgent({llm, tools, prompt: MCP_AGENT_PROMPT})
+  return new AgentExecutor({agent, tools, maxIterations: 5})
+}

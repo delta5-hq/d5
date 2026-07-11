@@ -5,6 +5,16 @@ import type { ReactNode } from 'react'
 import messages from '@shared/lib/intl'
 import type { NodeData } from '@shared/base-types'
 import { NodeDetailPanel } from '../node-detail-panel'
+import { AliasProvider } from '@entities/aliases'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+  },
+})
 
 vi.mock('@shared/lib/use-genie-state', () => ({
   useGenieState: () => 'idle',
@@ -18,11 +28,16 @@ vi.mock('@features/workflow-tree/store', () => ({
 vi.mock('@features/workflow-tree/hooks/use-node-preview', () => ({
   useNodePreview: () => ({ previewText: '' }),
 }))
+vi.mock('@entities/auth', () => ({
+  useAuthContext: () => ({ isLoggedIn: false }),
+}))
 
 const wrapper = ({ children }: { children: ReactNode }) => (
-  <IntlProvider locale="en" messages={messages.en}>
-    {children}
-  </IntlProvider>
+  <QueryClientProvider client={queryClient}>
+    <IntlProvider locale="en" messages={messages.en}>
+      <AliasProvider>{children}</AliasProvider>
+    </IntlProvider>
+  </QueryClientProvider>
 )
 
 function makeNode(overrides: Partial<NodeData> = {}): NodeData {
@@ -243,5 +258,143 @@ describe('NodeDetailPanel — preview auto-expand on execution complete', () => 
     const node = makeNode({ title: 'result' })
     renderPanel(node, true, { isExecuting: false })
     expect(screen.getByTestId('preview-trigger')).toHaveAttribute('data-state', 'open')
+  })
+})
+
+describe('NodeDetailPanel — Execute button behavior', () => {
+  describe('queryType resolution for all command types', () => {
+    it('resolves static command to mapped queryType', () => {
+      const node = makeNode({ command: '/web search query' })
+      const onExecute = vi.fn().mockResolvedValue(true)
+      renderPanel(node, false, { onExecute })
+
+      fireEvent.click(screen.getByTestId('execute-node-button'))
+
+      expect(onExecute).toHaveBeenCalledWith(node, 'web')
+    })
+
+    it('resolves control-flow command to mapped queryType', () => {
+      const node = makeNode({ command: '/foreach item in list' })
+      const onExecute = vi.fn().mockResolvedValue(true)
+      renderPanel(node, false, { onExecute })
+
+      fireEvent.click(screen.getByTestId('execute-node-button'))
+
+      expect(onExecute).toHaveBeenCalledWith(node, 'foreach')
+    })
+
+    it('resolves LLM provider command to mapped queryType', () => {
+      const node = makeNode({ command: '/claude explain this' })
+      const onExecute = vi.fn().mockResolvedValue(true)
+      renderPanel(node, false, { onExecute })
+
+      fireEvent.click(screen.getByTestId('execute-node-button'))
+
+      expect(onExecute).toHaveBeenCalledWith(node, 'claude')
+    })
+
+    it('handles command without trailing text', () => {
+      const node = makeNode({ command: '/web' })
+      const onExecute = vi.fn().mockResolvedValue(true)
+      renderPanel(node, false, { onExecute })
+
+      fireEvent.click(screen.getByTestId('execute-node-button'))
+
+      expect(onExecute).toHaveBeenCalledWith(node, 'web')
+    })
+
+    it('handles command with leading whitespace', () => {
+      const node = makeNode({ command: '  /web search' })
+      const onExecute = vi.fn().mockResolvedValue(true)
+      renderPanel(node, false, { onExecute })
+
+      fireEvent.click(screen.getByTestId('execute-node-button'))
+
+      expect(onExecute).toHaveBeenCalledWith(node, 'web')
+    })
+  })
+
+  describe('button state management', () => {
+    it('calls onExecute when enabled', () => {
+      const node = makeNode({ command: '/chat test' })
+      const onExecute = vi.fn().mockResolvedValue(true)
+      renderPanel(node, false, { onExecute, executeDisabled: false })
+
+      fireEvent.click(screen.getByTestId('execute-node-button'))
+
+      expect(onExecute).toHaveBeenCalledTimes(1)
+    })
+
+    it('is enabled for an unregistered slash command when executeDisabled is false', () => {
+      const node = makeNode({ command: '/unregistered-alias task' })
+      const onExecute = vi.fn().mockResolvedValue(true)
+      renderPanel(node, false, { onExecute, executeDisabled: false })
+
+      fireEvent.click(screen.getByTestId('execute-node-button'))
+
+      expect(onExecute).toHaveBeenCalledTimes(1)
+    })
+    it('does not render when node is root', () => {
+      const node = makeNode({ command: '/chat test', parent: null })
+      renderPanel(node, true, {})
+
+      expect(screen.queryByTestId('execute-node-button')).not.toBeInTheDocument()
+    })
+  })
+})
+
+describe('NodeDetailPanel — handleCommandChange title sync', () => {
+  // exhaustive suffix-pattern coverage for all variant types is in reliability-suffix.test.ts
+  const COMMAND_DERIVED_CASES = [
+    ['title exactly equals command', '/chat list colors', '/chat list colors'],
+    ['title is command plus bestOfN suffix', '/chat :n=2 list colors', '/chat :n=2 list colors [✓ 2/2 best of 2]'],
+    ['title is command plus refined suffix', '/chat list', '/chat list [✓ refined]'],
+  ] as const
+
+  it.each(COMMAND_DERIVED_CASES)('syncs both command and title to new command when %s', (_label, command, title) => {
+    const node = makeNode({ command, title })
+    const onUpdateNode = vi.fn()
+    renderPanel(node, false, { onUpdateNode })
+
+    const textarea = screen.getByPlaceholderText(/command/i)
+    fireEvent.change(textarea, { target: { value: '/chat list fruits' } })
+    fireEvent.blur(textarea)
+
+    expect(onUpdateNode).toHaveBeenCalledWith('n1', {
+      command: '/chat list fruits',
+      title: '/chat list fruits',
+    })
+  })
+
+  it('syncs title to new command when node has no title', () => {
+    const node = makeNode({ command: '/chat list colors', title: undefined })
+    const onUpdateNode = vi.fn()
+    renderPanel(node, false, { onUpdateNode })
+
+    const textarea = screen.getByPlaceholderText(/command/i)
+    fireEvent.change(textarea, { target: { value: '/chat list fruits' } })
+    fireEvent.blur(textarea)
+
+    expect(onUpdateNode).toHaveBeenCalledWith('n1', {
+      command: '/chat list fruits',
+      title: '/chat list fruits',
+    })
+  })
+
+  const USER_AUTHORED_CASES = [
+    ['user-authored title with a reliability suffix', '/chat analyse', 'My competitor analysis [✓ 2/2 best of 2]'],
+    ['user-authored title without any suffix', '/chat analyse', 'My competitor analysis'],
+  ] as const
+
+  it.each(USER_AUTHORED_CASES)('updates only command when node has %s', (_label, command, title) => {
+    const node = makeNode({ command, title })
+    const onUpdateNode = vi.fn()
+    renderPanel(node, false, { onUpdateNode })
+
+    const textarea = screen.getByPlaceholderText(/command/i)
+    fireEvent.change(textarea, { target: { value: '/chat list fruits' } })
+    fireEvent.blur(textarea)
+
+    expect(onUpdateNode).toHaveBeenCalledWith('n1', { command: '/chat list fruits' })
   })
 })

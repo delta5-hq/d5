@@ -2,7 +2,6 @@ import { apiFetch } from '@shared/lib/base-api'
 import { normalizeToRecord } from '@shared/lib/normalize-to-record'
 import { enrichNodesWithParents } from '@entities/workflow/lib'
 import type { NodeData, EdgeData } from '@shared/base-types'
-import { toast } from 'sonner'
 
 interface ExecuteRequest {
   queryType: string
@@ -49,7 +48,6 @@ export const executeWorkflowCommand = async ({ signal, ...request }: ExecuteRequ
     }
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') throw error
-    toast.error(`Execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     throw error
   }
 }

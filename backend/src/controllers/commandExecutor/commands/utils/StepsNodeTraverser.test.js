@@ -552,4 +552,130 @@ describe('StepsNodeTraverser', () => {
       ).toBeTruthy()
     }
   })
+
+  describe('dynamic alias support', () => {
+    const mkAlias = alias => ({alias})
+
+    it('recognizes dynamic aliases without order prefix', () => {
+      const aliases = [mkAlias('/coder1'), mkAlias('/agent')]
+      const nodes = {
+        child1: {id: 'child1', command: '/coder1 fix bug'},
+        child2: {id: 'child2', command: '/agent analyze'},
+        child3: {id: 'child3', command: '/chatgpt summarize'},
+        root: {id: 'root', command: '/steps', children: ['child1', 'child2', 'child3']},
+      }
+
+      const traverser = new StepsNodeTraverser(nodes, aliases)
+      traverser.traverse(nodes.root)
+
+      expect(traverser.nodesWithoutOrder).toHaveLength(3)
+      const ids = traverser.nodesWithoutOrder.map(n => n.node.id)
+      expect(ids).toContain('child1')
+      expect(ids).toContain('child2')
+      expect(ids).toContain('child3')
+    })
+
+    it('ignores unknown dynamic aliases', () => {
+      const aliases = [mkAlias('/known')]
+      const nodes = {
+        child1: {id: 'child1', command: '/unknown command'},
+        child2: {id: 'child2', command: '/chatgpt hello'},
+        root: {id: 'root', command: '/steps', children: ['child1', 'child2']},
+      }
+
+      const traverser = new StepsNodeTraverser(nodes, aliases)
+      traverser.traverse(nodes.root)
+
+      expect(traverser.nodesWithoutOrder).toHaveLength(1)
+      expect(traverser.nodesWithoutOrder[0].node.id).toBe('child2')
+    })
+
+    it('works without dynamic aliases parameter (backward compatibility)', () => {
+      const nodes = {
+        child1: {id: 'child1', command: '/chatgpt hello'},
+        child2: {id: 'child2', command: '/web search'},
+        root: {id: 'root', command: '/steps', children: ['child1', 'child2']},
+      }
+
+      const traverser = new StepsNodeTraverser(nodes)
+      traverser.traverse(nodes.root)
+
+      expect(traverser.nodesWithoutOrder).toHaveLength(2)
+    })
+
+    it('prioritizes built-in commands over conflicting aliases', () => {
+      const aliases = [mkAlias('/chatgpt')]
+      const nodes = {
+        child1: {id: 'child1', command: '/chatgpt test'},
+        root: {id: 'root', command: '/steps', children: ['child1']},
+      }
+
+      const traverser = new StepsNodeTraverser(nodes, aliases)
+      traverser.traverse(nodes.root)
+
+      expect(traverser.nodesWithoutOrder).toHaveLength(1)
+    })
+
+    it('handles empty dynamic aliases array', () => {
+      const nodes = {
+        child1: {id: 'child1', command: '/chatgpt test'},
+        root: {id: 'root', command: '/steps', children: ['child1']},
+      }
+
+      const traverser = new StepsNodeTraverser(nodes, [])
+      traverser.traverse(nodes.root)
+
+      expect(traverser.nodesWithoutOrder).toHaveLength(1)
+    })
+
+    it('handles mixed built-in and dynamic commands in traversal', () => {
+      const aliases = [mkAlias('/coder1'), mkAlias('/vm3')]
+      const nodes = {
+        builtin: {id: 'builtin', command: '/chatgpt task1'},
+        dynamic1: {id: 'dynamic1', command: '/coder1 task2'},
+        dynamic2: {id: 'dynamic2', command: '/vm3 task3'},
+        unknown: {id: 'unknown', title: 'regular text'},
+        root: {id: 'root', command: '/steps', children: ['builtin', 'dynamic1', 'dynamic2', 'unknown']},
+      }
+
+      const traverser = new StepsNodeTraverser(nodes, aliases)
+      traverser.traverse(nodes.root)
+
+      expect(traverser.nodesWithoutOrder).toHaveLength(3)
+      const ids = traverser.nodesWithoutOrder.map(n => n.node.id)
+      expect(ids).toContain('builtin')
+      expect(ids).toContain('dynamic1')
+      expect(ids).toContain('dynamic2')
+      expect(ids).not.toContain('unknown')
+    })
+
+    it('handles dynamic aliases in nested structures', () => {
+      const aliases = [mkAlias('/agent')]
+      const nodes = {
+        nested: {id: 'nested', command: '/agent process'},
+        parent: {id: 'parent', title: 'Container', children: ['nested']},
+        root: {id: 'root', command: '/steps', children: ['parent']},
+      }
+
+      const traverser = new StepsNodeTraverser(nodes, aliases)
+      traverser.traverse(nodes.root)
+
+      expect(traverser.nodesWithoutOrder.some(n => n.node.id === 'nested')).toBe(true)
+    })
+
+    it('handles dynamic aliases with special characters', () => {
+      const aliases = [mkAlias('/my-tool'), mkAlias('/my_tool'), mkAlias('/tool123')]
+      const nodes = {
+        dash: {id: 'dash', command: '/my-tool cmd'},
+        underscore: {id: 'underscore', command: '/my_tool cmd'},
+        numeric: {id: 'numeric', command: '/tool123 cmd'},
+        root: {id: 'root', command: '/steps', children: ['dash', 'underscore', 'numeric']},
+      }
+
+      const traverser = new StepsNodeTraverser(nodes, aliases)
+      traverser.traverse(nodes.root)
+
+      expect(traverser.nodesWithoutOrder).toHaveLength(3)
+    })
+  })
 })

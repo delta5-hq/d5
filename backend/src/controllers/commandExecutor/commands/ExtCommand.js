@@ -12,7 +12,6 @@ import {
 import {determineLLMType, getEmbeddings, getIntegrationSettings, getLLM} from './utils/langchain/getLLM'
 import {ExtVectorStore} from './utils/langchain/vectorStore/ExtVectorStore'
 import {JSKnowledgeMapWebScholarSearch} from './utils/langchain/JSKnowledgeMapWebScholarSearch'
-import {createSimpleAgentExecutor} from './utils/langchain/getAgentExecutor'
 import {readExtContextParam} from '../constants/ext'
 import {translate} from './utils/translate'
 import {referencePatterns} from './references/utils/referencePatterns'
@@ -51,53 +50,44 @@ export class ExtCommand {
   }
 
   async createResponseExt(node, userInput, params) {
-    try {
-      const lang = params?.lang
-      const settings = await getIntegrationSettings(this.userId)
-      const llmType = determineLLMType(node?.command, settings)
-      const {llm, chunkSize} = getLLM({settings, type: llmType, log: this.log})
-      const {storageType, ...extStoreData} = getEmbeddings({settings, type: llmType})
-      const vectorStore = new ExtVectorStore({
-        ...extStoreData,
-        log: this.log,
-        userId: this.userId,
-        contextName: params?.context,
-        storageType,
-      })
+    const lang = params?.lang
+    const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
+    const llmType = determineLLMType(settings)
+    const {llm, chunkSize} = getLLM({settings, type: llmType, log: this.log})
+    const {storageType, ...extStoreData} = getEmbeddings({settings, type: llmType})
+    const vectorStore = new ExtVectorStore({
+      ...extStoreData,
+      log: this.log,
+      userId: this.userId,
+      contextName: params?.context,
+      storageType,
+    })
 
-      await vectorStore.setVectors()
+    await vectorStore.setVectors()
 
-      const citations = []
+    const citations = []
 
-      const searchTool = new JSKnowledgeMapWebScholarSearch(llm, vectorStore, {
-        maxChunks: params?.maxChunks,
-        disableSearchScrape: true,
-        chunkSize,
-        citations: params?.citations ? citations : undefined,
-        userInput,
-        onError: this.logError,
-        convertOutputToOutline: false,
-      }).asTool()
+    const searchTool = new JSKnowledgeMapWebScholarSearch(llm, vectorStore, {
+      maxChunks: params?.maxChunks,
+      disableSearchScrape: true,
+      chunkSize,
+      citations: params?.citations ? citations : undefined,
+      userInput,
+      onError: this.logError,
+      convertOutputToOutline: false,
+    })
 
-      const tools = [searchTool]
+    let result = await searchTool.getKnowledgeMapWebExt(userInput)
 
-      const executor = createSimpleAgentExecutor(llm, tools, lang)
-
-      let result = (await executor.invoke({input: userInput})).output
-
-      if (lang && result) {
-        result = await this.translate(result, llm, lang)
-      }
-
-      if (params?.citations) {
-        result += `\n\nCitations:\n    ${citations.join('\n    ')}`
-      }
-
-      return result
-    } catch (e) {
-      this.logError(e)
-      return ''
+    if (lang && result) {
+      result = await this.translate(result, llm, lang)
     }
+
+    if (params?.citations) {
+      result += `\n\nCitations:\n    ${citations.join('\n    ')}`
+    }
+
+    return result
   }
 
   getParams = title => {
@@ -117,20 +107,25 @@ export class ExtCommand {
   }
 
   async run(node, originalPrompt) {
-    let prompt = originalPrompt
-    const command = node?.command || node?.title
+    try {
+      let prompt = originalPrompt
+      const command = node?.command || node?.title
 
-    if (!prompt || referencePatterns.withAssignmentPrefix().test(command)) {
-      prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
-    } else {
-      prompt = clearCommandsWithParams(
-        clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
-      )
+      if (!prompt || referencePatterns.withAssignmentPrefix().test(command)) {
+        prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
+      } else {
+        prompt = clearCommandsWithParams(
+          clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+        )
+      }
+
+      const params = this.getParams(command)
+      const text = await this.createResponseExt(node, prompt, params)
+
+      this.store.importer.createNodes(text, node.id)
+    } catch (e) {
+      this.logError(e)
+      this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }
-
-    const params = this.getParams(command)
-    const text = await this.createResponseExt(node, prompt, params)
-
-    this.store.importer.createNodes(text, node.id)
   }
 }

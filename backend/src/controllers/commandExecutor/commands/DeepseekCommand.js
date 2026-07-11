@@ -8,7 +8,7 @@ import {HumanMessage} from '@langchain/core/messages'
 import {DEEPSEEK_API_URL} from '../../../shared/config/constants'
 import {DEEPSEEK_DEFAULT_MODEL} from '../../../constants'
 import {referencePatterns} from './references/utils/referencePatterns'
-import {clearReferences} from './references/utils/referenceUtils' // Direct import
+import {clearReferences} from './references/utils/referenceUtils'
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
@@ -16,16 +16,7 @@ import {createContextForChat} from './utils/createContextForChat'
 
 const log = debug('delta5:app:Command:Deepseek')
 
-/**
- * Class representing a Deepseek Command.
- */
 export class DeepseekCommand {
-  /**
-   * Creates an instance of DeepseekCommand
-   * @param {string} userId - The unique identifier for the user
-   * @param {string} workflowId - The unique identifier for the workflow (optional)
-   * @param {Store} store - The store object
-   */
   constructor(userId, workflowId, store) {
     this.store = store
     this.userId = userId
@@ -37,45 +28,51 @@ export class DeepseekCommand {
     this.logError = this.log.extend('ERROR*', '::')
   }
 
-  async replyDeepseek(message, userId) {
-    try {
-      const settings = await getIntegrationSettings(userId)
-      const {apiKey, model} = settings?.deepseek || {}
+  async replyDeepseek(message, userId, workflowId, store) {
+    const settings = await getIntegrationSettings(userId, workflowId, store)
+    const {apiKey, model} = settings?.deepseek || {}
 
-      const llm = new ChatOpenAI({
-        openAIApiKey: apiKey,
-        modelName: model || DEEPSEEK_DEFAULT_MODEL,
-        configuration: {
-          basePath: DEEPSEEK_API_URL,
-        },
-        maxRetries: 1,
-      })
-
-      const result = await llm.invoke([new HumanMessage(message)])
-
-      return result.content
-    } catch (e) {
-      this.logError(e)
-      return ''
-    }
-  }
-
-  async run(node, context, originalPrompt) {
-    let prompt = originalPrompt
-    const title = node?.command || node?.title
-
-    if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
-      prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
-    } else {
-      prompt = clearCommandsWithParams(
-        clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+    if (!apiKey) {
+      throw new Error(
+        'Deepseek API key not configured. Set it in Integration Settings or set the DEEPSEEK_API_KEY environment variable.',
       )
     }
 
-    prompt = context ? context + prompt : createContextForChat(node, {allNodes: this.store._nodes}) + prompt
+    const llm = new ChatOpenAI({
+      apiKey,
+      model: model || DEEPSEEK_DEFAULT_MODEL,
+      configuration: {
+        baseURL: DEEPSEEK_API_URL,
+      },
+      maxRetries: 1,
+    })
 
-    const text = (await this.replyDeepseek(prompt, this.userId))?.replaceAll('**', '')
+    const result = await llm.invoke([new HumanMessage(message)])
 
-    this.store.importer.createNodes(text, node.id)
+    return result.content
+  }
+
+  async run(node, context, originalPrompt) {
+    try {
+      let prompt = originalPrompt
+      const title = node?.command || node?.title
+
+      if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
+        prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
+      } else {
+        prompt = clearCommandsWithParams(
+          clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+        )
+      }
+
+      prompt = context ? context + prompt : createContextForChat(node, {store: this.store}) + prompt
+
+      const text = (await this.replyDeepseek(prompt, this.userId, this.workflowId, this.store))?.replaceAll('**', '')
+
+      this.store.importer.createNodes(text, node.id)
+    } catch (e) {
+      this.logError(e)
+      this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
+    }
   }
 }

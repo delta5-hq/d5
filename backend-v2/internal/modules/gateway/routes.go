@@ -25,6 +25,7 @@ func (r *RouteRegistry) RegisterNodeJSRoutes(router fiber.Router) {
 
 func (r *RouteRegistry) registerExecuteRoutes(router fiber.Router) {
 	router.All("/execute", r.proxy.Forward("/execute"))
+	router.Get("/execute/stream", r.proxy.ForwardStream("/execute/stream"))
 }
 
 func (r *RouteRegistry) registerScrapingRoutes(router fiber.Router) {

@@ -13,10 +13,11 @@ import {
   CancelNavigationLink,
 } from '@entities/auth/ui/login-dialog/components'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { FormattedMessage } from 'react-intl'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
+import { StatusPlaceholder } from '@shared/ui/status-placeholder'
 import * as z from 'zod'
 
 const recoverySchema = z.object({
@@ -27,14 +28,8 @@ type RecoveryFormValues = z.infer<typeof recoverySchema>
 
 const ForgotPassword = () => {
   const navigate = useNavigate()
-  const { isLoggedIn } = useAuthContext()
+  const { isLoggedIn, isLoading: isAuthLoading } = useAuthContext()
   const [showEmailSentDialog, setShowEmailSentDialog] = useState(false)
-
-  useEffect(() => {
-    if (isLoggedIn) {
-      navigate('/')
-    }
-  }, [isLoggedIn, navigate])
 
   const { requestRecover } = usePasswordRecovery()
 
@@ -58,6 +53,9 @@ const ForgotPassword = () => {
     setShowEmailSentDialog(false)
     navigate('/')
   }
+
+  if (isAuthLoading) return <StatusPlaceholder loading />
+  if (isLoggedIn) return <Navigate replace to="/" />
 
   return (
     <AuthPageLayout maxWidth="md">

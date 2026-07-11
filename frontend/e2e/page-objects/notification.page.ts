@@ -11,18 +11,29 @@ export class NotificationPage {
     this.alertContainer = page.locator('[role="alert"]')
   }
 
-  async hasErrorWithText(pattern: RegExp): Promise<boolean> {
-    const hasToast = await this.toastContainer.count() > 0
-    const hasAlert = await this.alertContainer.count() > 0
-    const hasTextMatch = await this.page.getByText(pattern).count() > 0
-    
-    return hasToast || hasAlert || hasTextMatch
+  async hasErrorWithText(pattern: RegExp, timeout = 3000): Promise<boolean> {
+    try {
+      await this.page.waitForFunction(
+        ({ toastSel, alertSel, patternStr, patternFlags }) => {
+          const re = new RegExp(patternStr, patternFlags)
+          const toasts = document.querySelectorAll(toastSel)
+          const alerts = document.querySelectorAll(alertSel)
+          const all = [...toasts, ...alerts]
+          return all.some(el => re.test(el.textContent || ''))
+        },
+        { toastSel: '[data-sonner-toast]', alertSel: '[role="alert"]', patternStr: pattern.source, patternFlags: pattern.flags },
+        { timeout },
+      )
+      return true
+    } catch {
+      return false
+    }
   }
 
   async waitForError(timeout = 3000): Promise<void> {
-    await this.page.waitForSelector('[data-sonner-toast], [role="alert"]', { 
+    await this.page.waitForSelector('[data-sonner-toast], [role="alert"]', {
       timeout,
-      state: 'visible' 
+      state: 'visible',
     })
   }
 

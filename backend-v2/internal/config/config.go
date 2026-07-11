@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -22,15 +23,11 @@ var (
 )
 
 func init() {
-	/* Load .env if exists - optional, environment variables take precedence */
-	if err := godotenv.Load(".env"); err != nil {
-		log.Printf("[DEBUG] .env file not loaded (optional): %v", err)
-	}
+	_ = godotenv.Load(".env")
 
 	Port = getEnv("PORT", "8080")
 	MongoUsername = getEnv("MONGO_USERNAME", "delta5")
 	MongoPassword = getEnv("MONGO_PASSWORD", "")
-	MongoDatabase = getEnv("MONGO_DATABASE", "delta5")
 	MongoHost = getEnv("MONGO_HOST", "localhost")
 	MongoPort = getEnv("MONGO_PORT", "27017")
 	JwtSecret = getEnv("JWT_SECRET", "test-jwt-secret-change-in-production")
@@ -47,14 +44,30 @@ func init() {
 		MongoURI = fmt.Sprintf("mongodb://%s%s:%s", auth, MongoHost, MongoPort)
 	}
 
-	log.Printf("CONFIGURATION:\n")
-	log.Printf("PORT=%s", Port)
-	log.Printf("API_ROOT=%s", ApiRoot)
-	log.Printf("MONGO_USERNAME=%s", MongoUsername)
-	log.Printf("MONGO_DATABASE=%s", MongoDatabase)
-	log.Printf("MONGO_HOST=%s", MongoHost)
-	log.Printf("MONGO_PORT=%s", MongoPort)
-	log.Printf("MONGO_URI=%s", MongoURI)
+	MongoDatabase = resolveMongoDatabase(getEnv("MONGO_DATABASE", ""), MongoURI)
+
+	log.Printf("PORT=%s API_ROOT=%s MONGO_HOST=%s MONGO_PORT=%s MONGO_DATABASE=%s MONGO_USERNAME=%s",
+		Port, ApiRoot, MongoHost, MongoPort, MongoDatabase, MongoUsername)
+}
+
+const defaultDatabase = "delta5"
+
+func resolveMongoDatabase(envDB, mongoURI string) string {
+	if envDB != "" {
+		return envDB
+	}
+	return dbNameFromURI(mongoURI)
+}
+
+func dbNameFromURI(mongoURI string) string {
+	parsed, err := url.Parse(mongoURI)
+	if err != nil {
+		return defaultDatabase
+	}
+	if name := parsed.Path; len(name) > 1 {
+		return name[1:]
+	}
+	return defaultDatabase
 }
 
 func getEnv(key, fallback string) string {

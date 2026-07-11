@@ -102,6 +102,10 @@ class ImportHandler {
   createJoinNode(text, parentId) {
     this.store.createNode({parent: parentId, title: text}, true)
   }
+
+  createErrorNode(errorMessage, parentId) {
+    this.store.createNode({parent: parentId, title: errorMessage}, true)
+  }
 }
 
 export default ImportHandler

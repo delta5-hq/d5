@@ -91,6 +91,8 @@ export const getYandexModelSettings = modelName => {
       return {model: YANDEX_MODELS.GPT_32K_LATEST, chunkSize: YANDEX_4_GEN_MAX_TOKENS}
     case YANDEX_MODELS.GPT_32K_RC:
       return {model: YANDEX_MODELS.GPT_32K_RC, chunkSize: YANDEX_4_GEN_MAX_TOKENS}
+    case YANDEX_MODELS.GPT_32K_DEPRECATED:
+      return {model: YANDEX_MODELS.GPT_32K_DEPRECATED, chunkSize: YANDEX_4_GEN_MAX_TOKENS}
     case YANDEX_MODELS.LLAMA_70B_LATEST:
       return {model: YANDEX_MODELS.LLAMA_70B_LATEST, chunkSize: LLAMA_70B_GEN_MAX_TOKENS}
     case YANDEX_MODELS.LLAMA_8B_LATEST:
@@ -104,7 +106,7 @@ const CLAUDE_4_5_MAX_OUTPUT = 64000
 const CLAUDE_4_1_MAX_OUTPUT = 32000
 
 export function getClaudeMaxOutput(model) {
-  if (model.includes('opus-4')) return CLAUDE_4_1_MAX_OUTPUT
+  if (model?.includes('opus-4')) return CLAUDE_4_1_MAX_OUTPUT
   return CLAUDE_4_5_MAX_OUTPUT
 }
 

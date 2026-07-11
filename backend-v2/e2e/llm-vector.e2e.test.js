@@ -7,7 +7,7 @@ const subscriberUserId = subscriber.name
 
 describe('LLM Vector E2E', () => {
   beforeAll(async () => {
-    await testOrchestrator.prepareTestEnvironment()
+    await testOrchestrator.cleanupLLMVectors()
   })
   afterAll(async () => {
     await testOrchestrator.cleanupTestEnvironment()
@@ -219,7 +219,7 @@ describe('LLM Vector E2E - Subscriber Tests', () => {
   let contextName
 
   beforeAll(async () => {
-    await testOrchestrator.prepareTestEnvironment()
+    await testOrchestrator.cleanupLLMVectors()
   })
 
   afterAll(async () => {

@@ -34,6 +34,7 @@ import {REF_DEF_PREFIX, REF_PREFIX, HASHREF_DEF_PREFIX, HASHREF_PREFIX} from '..
 import {clearReferences} from '../commands/references/utils/referenceUtils'
 import {CUSTOM_LLM_CHAT_QUERY, CUSTOM_LLM_CHAT_QUERY_TYPE} from './custom_llm'
 import {REFINE_QUERY, REFINE_QUERY_TYPE} from './refine'
+import {VALIDATE_QUERY, VALIDATE_QUERY_TYPE} from './validate'
 import {COMPLETION_QUERY, COMPLETION_QUERY_TYPE} from './completion'
 import {
   MEMORIZE_PARAM_KEEP_REGEX,
@@ -42,50 +43,136 @@ import {
   MEMORIZE_QUERY,
   MEMORIZE_QUERY_TYPE,
 } from './memorize'
+import {MCP_FUSION_QUERY, MCP_FUSION_QUERY_TYPE} from './mcpFusion'
 import {queryCommands} from './commandRegExp'
+import {matchesCommand} from './matchesCommand'
+
+export {matchesCommand}
 
 export const getQueryType = title => {
   const clearedTitle = clearStepsPrefix(title)
 
-  if (clearedTitle.startsWith(YANDEX_QUERY)) {
+  if (matchesCommand(clearedTitle, YANDEX_QUERY)) {
     return YANDEX_QUERY_TYPE
-  } else if (clearedTitle.startsWith(WEB_QUERY)) {
+  } else if (matchesCommand(clearedTitle, WEB_QUERY)) {
     return WEB_QUERY_TYPE
-  } else if (clearedTitle.startsWith(OUTLINE_QUERY)) {
+  } else if (matchesCommand(clearedTitle, OUTLINE_QUERY)) {
     return OUTLINE_QUERY_TYPE
-  } else if (clearedTitle.startsWith(SCHOLAR_QUERY)) {
+  } else if (matchesCommand(clearedTitle, SCHOLAR_QUERY)) {
     return SCHOLAR_QUERY_TYPE
-  } else if (clearedTitle.startsWith(STEPS_QUERY)) {
+  } else if (matchesCommand(clearedTitle, STEPS_QUERY)) {
     return STEPS_QUERY_TYPE
-  } else if (clearedTitle.startsWith(FOREACH_QUERY)) {
+  } else if (matchesCommand(clearedTitle, FOREACH_QUERY)) {
     return FOREACH_QUERY_TYPE
-  } else if (clearedTitle.startsWith(SUMMARIZE_QUERY)) {
+  } else if (matchesCommand(clearedTitle, SUMMARIZE_QUERY)) {
     return SUMMARIZE_QUERY_TYPE
-  } else if (clearedTitle.startsWith(CHAT_QUERY)) {
+  } else if (matchesCommand(clearedTitle, CHAT_QUERY)) {
     return CHAT_QUERY_TYPE
-  } else if (clearedTitle.startsWith(SWITCH_QUERY)) {
+  } else if (matchesCommand(clearedTitle, SWITCH_QUERY)) {
     return SWITCH_QUERY_TYPE
-  } else if (clearedTitle.startsWith(CLAUDE_QUERY)) {
+  } else if (matchesCommand(clearedTitle, CLAUDE_QUERY)) {
     return CLAUDE_QUERY_TYPE
-  } else if (clearedTitle.startsWith(QWEN_QUERY)) {
+  } else if (matchesCommand(clearedTitle, QWEN_QUERY)) {
     return QWEN_QUERY_TYPE
-  } else if (clearedTitle.startsWith(PERPLEXITY_QUERY)) {
+  } else if (matchesCommand(clearedTitle, PERPLEXITY_QUERY)) {
     return PERPLEXITY_QUERY_TYPE
-  } else if (clearedTitle.startsWith(EXT_QUERY)) {
+  } else if (matchesCommand(clearedTitle, EXT_QUERY)) {
     return EXT_QUERY_TYPE
-  } else if (clearedTitle.startsWith(DOWNLOAD_QUERY)) {
+  } else if (matchesCommand(clearedTitle, DOWNLOAD_QUERY)) {
     return DOWNLOAD_QUERY_TYPE
-  } else if (clearedTitle.startsWith(DEEPSEEK_QUERY)) {
+  } else if (matchesCommand(clearedTitle, DEEPSEEK_QUERY)) {
     return DEEPSEEK_QUERY_TYPE
-  } else if (clearedTitle.startsWith(CUSTOM_LLM_CHAT_QUERY)) {
+  } else if (matchesCommand(clearedTitle, CUSTOM_LLM_CHAT_QUERY)) {
     return CUSTOM_LLM_CHAT_QUERY_TYPE
-  } else if (clearedTitle.startsWith(REFINE_QUERY)) {
+  } else if (matchesCommand(clearedTitle, REFINE_QUERY)) {
     return REFINE_QUERY_TYPE
-  } else if (clearedTitle.startsWith(COMPLETION_QUERY)) {
+  } else if (matchesCommand(clearedTitle, VALIDATE_QUERY)) {
+    return VALIDATE_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, COMPLETION_QUERY)) {
     return COMPLETION_QUERY_TYPE
-  } else if (clearedTitle.startsWith(MEMORIZE_QUERY)) {
+  } else if (matchesCommand(clearedTitle, MEMORIZE_QUERY)) {
     return MEMORIZE_QUERY_TYPE
   }
+}
+
+export const CONTROL_FLOW_COMMANDS = new Set([
+  STEPS_QUERY_TYPE,
+  FOREACH_QUERY_TYPE,
+  SWITCH_QUERY_TYPE,
+  SUMMARIZE_QUERY_TYPE,
+  REFINE_QUERY_TYPE,
+  VALIDATE_QUERY_TYPE,
+  MEMORIZE_QUERY_TYPE,
+])
+
+export const DETERMINISTIC_COMMANDS = new Set([DOWNLOAD_QUERY_TYPE, EXT_QUERY_TYPE])
+
+export const DELEGATING_COMMANDS = new Set([COMPLETION_QUERY_TYPE])
+
+/**
+ * @param {string} title
+ * @returns {string|undefined}
+ */
+export const getControlFlowQueryType = title => {
+  const clearedTitle = clearStepsPrefix(title)
+
+  if (matchesCommand(clearedTitle, STEPS_QUERY)) {
+    return STEPS_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, FOREACH_QUERY)) {
+    return FOREACH_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, SWITCH_QUERY)) {
+    return SWITCH_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, SUMMARIZE_QUERY)) {
+    return SUMMARIZE_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, REFINE_QUERY)) {
+    return REFINE_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, VALIDATE_QUERY)) {
+    return VALIDATE_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, MEMORIZE_QUERY)) {
+    return MEMORIZE_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, MCP_FUSION_QUERY)) {
+    return MCP_FUSION_QUERY_TYPE
+  }
+
+  return undefined
+}
+
+/**
+ * @param {string} title
+ * @returns {string|undefined}
+ */
+export const getLLMQueryType = title => {
+  const clearedTitle = clearStepsPrefix(title)
+
+  if (matchesCommand(clearedTitle, YANDEX_QUERY)) {
+    return YANDEX_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, WEB_QUERY)) {
+    return WEB_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, OUTLINE_QUERY)) {
+    return OUTLINE_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, SCHOLAR_QUERY)) {
+    return SCHOLAR_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, CHAT_QUERY)) {
+    return CHAT_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, CLAUDE_QUERY)) {
+    return CLAUDE_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, QWEN_QUERY)) {
+    return QWEN_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, PERPLEXITY_QUERY)) {
+    return PERPLEXITY_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, EXT_QUERY)) {
+    return EXT_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, DOWNLOAD_QUERY)) {
+    return DOWNLOAD_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, DEEPSEEK_QUERY)) {
+    return DEEPSEEK_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, CUSTOM_LLM_CHAT_QUERY)) {
+    return CUSTOM_LLM_CHAT_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, COMPLETION_QUERY)) {
+    return COMPLETION_QUERY_TYPE
+  }
+
+  return undefined
 }
 
 export {REF_DEF_PREFIX, REF_PREFIX, HASHREF_DEF_PREFIX, HASHREF_PREFIX, clearReferences}
@@ -106,8 +193,11 @@ export const allowedCommands = [
   DEEPSEEK_QUERY_TYPE,
   CUSTOM_LLM_CHAT_QUERY_TYPE,
   REFINE_QUERY_TYPE,
+  VALIDATE_QUERY_TYPE,
   EXT_QUERY_TYPE,
   MEMORIZE_QUERY_TYPE,
+  DOWNLOAD_QUERY_TYPE,
+  COMPLETION_QUERY_TYPE,
 ]
 
 export const LANG_PARAM = '--lang'

@@ -6,6 +6,8 @@ import {FOREACH_QUERY_TYPE} from '../constants/foreach'
 import {DEFAULT_CONTEXT_NAME, readExtContextParam} from '../constants/ext'
 import {readMaxChunksParam} from '../constants'
 import {NodeTextExtractor} from './utils/NodeTextExtractor'
+import {runWithErrorNode} from './shared/runWithErrorNode'
+import {getNodeCommand} from './utils/isCommand'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 
@@ -145,9 +147,9 @@ export class MemorizeCommand {
     await vectorStore.load(chunks, keep)
   }
 
-  async _getVectorStore(command, context) {
-    const settings = await getIntegrationSettings(this.userId)
-    const llmType = determineLLMType(command, settings)
+  async _getVectorStore(context) {
+    const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
+    const llmType = determineLLMType(settings)
     const {storageType, ...embeddings} = getEmbeddings({type: llmType, settings})
     return new ExtVectorStore({
       ...embeddings,
@@ -158,18 +160,27 @@ export class MemorizeCommand {
     })
   }
 
-  async run(node) {
-    try {
-      const {context, rechunk, keep, split} = this.getParams(node.command)
-      const vectorStore = await this._getVectorStore(node.command, context)
+  async run(node, options = {}) {
+    const {signal} = options || {}
+    if (signal?.aborted) return
+    if (!node) return
 
+    await runWithErrorNode(this.store, node, this.logError.bind(this), async () => {
       const startNode = this.store.getNode(node.parent)
-      if (!startNode) return
+      if (!startNode) {
+        throw new Error('/memorize requires a parent node containing content to store')
+      }
 
+      const command = getNodeCommand(node)
+      const {context, rechunk, keep, split} = this.getParams(command)
+      const vectorStore = await this._getVectorStore(context)
       const chunks = await this.processChunks(startNode, rechunk, {split})
       await this.saveEmbeddings(vectorStore, chunks, keep)
-    } catch (e) {
-      this.logError(e)
-    }
+      const contextLabel = context && context !== DEFAULT_CONTEXT_NAME ? ` (context: ${context})` : ''
+      this.store.importer.createNodes(
+        `Memorized ${chunks.length} chunk${chunks.length === 1 ? '' : 's'}${contextLabel}`,
+        node.id,
+      )
+    })
   }
 }

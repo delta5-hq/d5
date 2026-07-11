@@ -8,6 +8,7 @@ import (
 
 type CreateWorkflowDto struct {
 	UserID string
+	Title  string
 	Auth   *types.JwtPayload
 	Share  *models.Share
 }

@@ -4,7 +4,7 @@
   "description": "E2E tests for Go backend-v2 using Node.js/Jest",
   "type": "module",
   "scripts": {
-    "test": "E2E_SERVER_URL=${E2E_SERVER_URL:-http://localhost:3002} E2E_API_BASE_PATH=${E2E_API_BASE_PATH:-/api/v2} E2E_MONGO_URI=${E2E_MONGO_URI:-mongodb://localhost:27018/delta5} jest --verbose --maxWorkers=2"
+    "test": "E2E_SERVER_URL=${E2E_SERVER_URL:-http://localhost:3002} E2E_API_BASE_PATH=${E2E_API_BASE_PATH:-/api/v2} E2E_MONGO_URI=${E2E_MONGO_URI:-mongodb://localhost:27017/delta5} jest --verbose --ci --forceExit"
   },
   "devDependencies": {
     "@babel/core": "^7.17.9",

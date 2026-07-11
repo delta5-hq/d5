@@ -1,13 +1,31 @@
 import googleTranslate from '@iamtraction/google-translate'
-import Integration from '../models/Integration'
+import Integration, {INTEGRATION_ENCRYPTION_CONFIG} from '../models/Integration'
 import {SERP_API_KEY} from '../constants'
 import querystring from 'querystring'
 import fetch from 'node-fetch'
 import sharp from 'sharp'
 import {validateLang} from './utils/validateLang'
+import {encryptFields} from '../models/utils/fieldEncryption'
 import {LANGUAGES, MODELS, USER_DEFAULT_LANGUAGE, USER_DEFAULT_MODEL} from '../shared/config/constants'
 import {PhraseChunkBuilderV2, scrapeFiles, fetchAsString} from './utils/scrape'
 import LLMVector from '../models/LLMVector'
+import IntegrationRepository from '../repositories/IntegrationRepository'
+import IntegrationFacade from '../repositories/IntegrationFacade'
+import {normalizeWorkflowId} from './utils/normalizeWorkflowId'
+import AliasValidator from './commandExecutor/commands/aliases/AliasValidator'
+import EffectiveAliasResolver from './commandExecutor/commands/aliases/EffectiveAliasResolver'
+import IntegrationSessionRepository from '../repositories/IntegrationSessionRepository'
+
+const buildSecretsMeta = integration => {
+  const providers = ['openai', 'yandex', 'claude', 'perplexity', 'qwen', 'deepseek', 'custom_llm']
+  const meta = {}
+  for (const p of providers) {
+    if (integration?.[p]?.apiKey !== undefined && integration[p].apiKey !== null) {
+      meta[p] = {apiKey: !!integration[p].apiKey}
+    }
+  }
+  return meta
+}
 
 const IntegrationController = {
   authorization: async (ctx, next) => {
@@ -21,30 +39,61 @@ const IntegrationController = {
   },
   getAll: async ctx => {
     const {userId} = ctx.state
+    const workflowId = normalizeWorkflowId(ctx.query.workflowId)
 
-    const integration = await Integration.findOne({userId})
+    const [integration, sessions] = await Promise.all([
+      IntegrationFacade.findMergedDecrypted(userId, workflowId),
+      IntegrationSessionRepository.findAllSessionsForUser(userId),
+    ])
     if (!integration) {
       ctx.throw(404, 'Integration not found')
     }
-    ctx.body = integration
+
+    const sessionMap = new Map(sessions.map(s => [`${s.alias}:${s.protocol}`, s.lastSessionId]))
+    const attachSessionId = (items, protocol) =>
+      (items ?? []).map(item => ({...item, lastSessionId: sessionMap.get(`${item.alias}:${protocol}`) ?? null}))
+
+    const secretsMeta = buildSecretsMeta(integration)
+    ctx.body = {
+      ...integration,
+      rpc: attachSessionId(integration.rpc, 'rpc'),
+      mcp: attachSessionId(integration.mcp, 'mcp'),
+      secretsMeta,
+    }
   },
   getService: async ctx => {
     const {userId} = ctx.state
     const {service} = ctx.params
+    const workflowId = normalizeWorkflowId(ctx.query.workflowId)
 
-    const integration = await Integration.findOne({userId}, {[service]: 1, _id: 0})
-    if (!integration) {
+    const integration = await IntegrationFacade.findMergedDecrypted(userId, workflowId)
+    if (!integration || !integration[service]) {
       ctx.throw(404, 'Integration for the called application was not found')
     }
-    ctx.body = integration
+
+    ctx.body = {[service]: integration[service]}
   },
   updateService: async ctx => {
     const {userId} = ctx.state
     const {service} = ctx.params
+    const workflowId = normalizeWorkflowId(ctx.query.workflowId)
     const integration = await ctx.request.json()
 
     if (!integration) {
       ctx.throw(400, 'Something is wrong with the provided data')
+    }
+
+    if (service === 'mcp' || service === 'rpc') {
+      try {
+        const {appWide, workflow} = await IntegrationRepository.findBothDocs(userId, workflowId)
+        const effectiveOpposite = EffectiveAliasResolver.resolveOtherType(service, {appWide, workflow})
+        AliasValidator.validateSubmittedAgainstEffective(integration, service, effectiveOpposite)
+      } catch (error) {
+        if (error.name === 'AliasValidationError') {
+          ctx.throw(400, error.message)
+        }
+        throw error
+      }
     }
 
     let updateVectors = false
@@ -70,9 +119,15 @@ const IntegrationController = {
       await vectors.save()
     }
 
-    const update = {$set: {userId, [service]: integration}}
+    const encryptionContext = {
+      userId,
+      workflowId,
+    }
+
+    const encryptedData = encryptFields({[service]: integration}, INTEGRATION_ENCRYPTION_CONFIG, encryptionContext)
+    const update = {$set: {userId, workflowId, ...encryptedData}}
     const options = {upsert: true}
-    await Integration.updateOne({userId}, update, options)
+    await Integration.updateOne({userId, workflowId}, update, options)
 
     ctx.body = {vectors}
   },
@@ -167,18 +222,21 @@ const IntegrationController = {
   setLanguage: async ctx => {
     try {
       const {userId} = ctx.state
-      const {lang: newLang} = await ctx.request.json()
+      const {lang: newLang, workflowId} = await ctx.request.json()
+      const normalizedWorkflowId = normalizeWorkflowId(workflowId)
 
       if (!newLang) {
         ctx.throw('Lang not specified')
       }
 
-      const integration = await Integration.findOne({userId})
+      const integration = await IntegrationRepository.findWithFallback(userId, normalizedWorkflowId)
 
-      if (integration.lang !== newLang && (newLang === USER_DEFAULT_LANGUAGE || validateLang(newLang))) {
-        const update = {$set: {userId, lang: newLang}}
-        const options = {upsert: true}
-        await Integration.updateOne({userId}, update, options)
+      if (!integration || integration.lang !== newLang) {
+        if (newLang === USER_DEFAULT_LANGUAGE || validateLang(newLang)) {
+          const update = {$set: {userId, workflowId: normalizedWorkflowId, lang: newLang}}
+          const options = {upsert: true}
+          await Integration.updateOne({userId, workflowId: normalizedWorkflowId}, update, options)
+        }
       }
 
       ctx.body = {lang: newLang}
@@ -192,18 +250,21 @@ const IntegrationController = {
   setModel: async ctx => {
     try {
       const {userId} = ctx.state
-      const {model: newModel} = await ctx.request.json()
+      const {model: newModel, workflowId} = await ctx.request.json()
+      const normalizedWorkflowId = normalizeWorkflowId(workflowId)
 
       if (!newModel) {
         ctx.throw('Model not specified')
       }
 
-      const integration = await Integration.findOne({userId})
+      const integration = await IntegrationRepository.findWithFallback(userId, normalizedWorkflowId)
 
-      if (integration.model !== newModel && (newModel === USER_DEFAULT_MODEL || MODELS.includes(newModel))) {
-        const update = {$set: {userId, model: newModel}}
-        const options = {upsert: true}
-        await Integration.updateOne({userId}, update, options)
+      if (!integration || integration.model !== newModel) {
+        if (newModel === USER_DEFAULT_MODEL || MODELS.includes(newModel)) {
+          const update = {$set: {userId, workflowId: normalizedWorkflowId, model: newModel}}
+          const options = {upsert: true}
+          await Integration.updateOne({userId, workflowId: normalizedWorkflowId}, update, options)
+        }
       }
 
       ctx.body = {model: newModel}
@@ -227,8 +288,9 @@ const IntegrationController = {
   },
   deleteIntegration: async ctx => {
     const {userId} = ctx.state
+    const workflowId = normalizeWorkflowId(ctx.query.workflowId)
 
-    await Integration.deleteOne({userId})
+    await Integration.deleteOne({userId, workflowId})
 
     ctx.status = 204
     ctx.body = null

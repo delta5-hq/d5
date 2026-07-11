@@ -1,0 +1,66 @@
+import debug from 'debug'
+import {z} from 'zod'
+import {MemorizeCommand} from '../../../controllers/commandExecutor/commands/MemorizeCommand'
+import {DEFAULT_CONTEXT_NAME} from '../../../controllers/commandExecutor/constants/ext'
+
+const log = debug('delta5:mcp:research-rag:memorize-content')
+
+export class MemorizeContentTool {
+  constructor(userContextProvider, commandContextAdapter) {
+    this.userContextProvider = userContextProvider
+    this.commandContextAdapter = commandContextAdapter
+    this.logError = log.extend('ERROR*', '::')
+  }
+
+  getName() {
+    return 'memorize_content'
+  }
+
+  getDescription() {
+    return 'Store text content in the user knowledge base for later retrieval'
+  }
+
+  getZodShape() {
+    return {
+      text: z.string().describe('The text content to memorize'),
+      context: z.string().optional().describe('Knowledge base context name.'),
+      keep: z.boolean().optional().describe('Keep existing vectors in the context. Defaults to true.'),
+      split: z.string().optional().describe('Delimiter to split text into chunks.'),
+    }
+  }
+
+  async execute(args) {
+    try {
+      const params = this.commandContextAdapter.parseMemorizeParams(args)
+      const userId = this.userContextProvider.getUserId()
+      const workflowId = this.userContextProvider.getWorkflowId()
+
+      const memorizeCommand = new MemorizeCommand(userId, workflowId, null)
+      const contextName = params.context || DEFAULT_CONTEXT_NAME
+      const vectorStore = await memorizeCommand._getVectorStore(contextName)
+
+      const chunks = memorizeCommand.createChunks(params.text, 'mcp-memorize', params.split || null)
+
+      if (chunks.length === 0) {
+        throw new Error('No content to memorize after processing')
+      }
+
+      await memorizeCommand.saveEmbeddings(vectorStore, chunks, params.keep)
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Memorized ${chunks.length} chunk(s) in context "${contextName}"`,
+          },
+        ],
+      }
+    } catch (error) {
+      this.logError('Memorize content error:', error)
+      return {
+        content: [{type: 'text', text: `Error: ${error.message}`}],
+        isError: true,
+      }
+    }
+  }
+}

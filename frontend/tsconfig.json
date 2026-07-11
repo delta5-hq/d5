@@ -3,6 +3,7 @@
   "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }],
   "compilerOptions": {
     "baseUrl": "src",
+    "resolveJsonModule": true,
     "paths": {
       "@app/*": ["app/*"],
       "@entities/*": ["entities/*"],
@@ -11,6 +12,7 @@
       "@pages/*": ["pages/*"],
       "@widgets/*": ["widgets/*"],
       "@processes/*": ["processes/*"],
+      "@contracts/*": ["../../shared-contracts/*"],
       "@/components/*": ["shared/components/*"],
       "@/*": ["*"]
     }

@@ -1,6 +1,7 @@
 import ProgressReporter from '../ProgressReporter'
 import {ChatCommand} from './ChatCommand'
 import {StepsCommand} from './StepsCommand'
+import {SSHClientPool} from './rpc/SSHClientPool'
 import {runCommand} from './utils/runCommand'
 import Store from './utils/Store'
 import {YandexCommand} from './YandexCommand'
@@ -39,10 +40,38 @@ describe('StepsCommand', () => {
   })
   const command = new StepsCommand(userId, workflowId, mockStore)
 
+  let createNodesSpy
+
   beforeEach(() => {
     jest.clearAllMocks()
-
     runCommand.mockImplementation(() => jest.fn())
+    createNodesSpy = jest.spyOn(mockStore.importer, 'createNodes').mockImplementation(() => {})
+  })
+
+  it('creates error node when node has no command children to execute', async () => {
+    const child1 = {id: 'c1', title: 'plain text, no command'}
+    const child2 = {id: 'c2', title: 'also plain text'}
+    const node = {id: 'n', command: '/steps', children: [child1.id, child2.id]}
+    mockStore._nodes = {[child1.id]: child1, [child2.id]: child2, [node.id]: node}
+
+    await command.run(node)
+
+    expect(createNodesSpy).toHaveBeenCalledWith(
+      'Error: /steps requires child nodes containing commands to execute',
+      'n',
+    )
+  })
+
+  it('creates error node when node has no children', async () => {
+    const node = {id: 'n', command: '/steps', children: []}
+    mockStore._nodes = {[node.id]: node}
+
+    await command.run(node)
+
+    expect(createNodesSpy).toHaveBeenCalledWith(
+      'Error: /steps requires child nodes containing commands to execute',
+      'n',
+    )
   })
 
   it('should find node with order and not', async () => {
@@ -56,7 +85,7 @@ describe('StepsCommand', () => {
       [node.id]: node,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(node)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(node)
 
     expect(nodesByOrder).toEqual({1: [{node: child1, promptString: child1.command}]})
     expect(nodesWithoutOrder).toEqual([{node: child2, promptString: child2.command}])
@@ -73,7 +102,7 @@ describe('StepsCommand', () => {
       [node.id]: node,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(node)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(node)
 
     expect(nodesByOrder).toEqual({1: [{node: child1, promptString: child1.title}]})
     expect(nodesWithoutOrder).toEqual([{node: child2, promptString: child2.command}])
@@ -94,7 +123,7 @@ describe('StepsCommand', () => {
       [node.id]: node,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(node)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(node)
 
     const first = [{node: child1, promptString: child1.command}]
     const second = [{node: child2, promptString: child2.command}]
@@ -246,7 +275,7 @@ describe('StepsCommand', () => {
       [node.id]: node,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(node)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(node)
 
     expect(nodesByOrder).toEqual({1: [{node: child1, promptString: child1.command}]})
     expect(nodesWithoutOrder).toEqual([])
@@ -263,7 +292,7 @@ describe('StepsCommand', () => {
       [node.id]: node,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(node, mockStore._nodes)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(node, mockStore._nodes)
 
     expect(nodesByOrder).toEqual({1: [{node: child1, promptString: child1.command}]})
     expect(nodesWithoutOrder).toEqual([])
@@ -280,7 +309,7 @@ describe('StepsCommand', () => {
       [node.id]: node,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(node)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(node)
 
     expect(nodesByOrder).toEqual({
       1: [{node: child1, promptString: child1.command}],
@@ -300,7 +329,7 @@ describe('StepsCommand', () => {
       [node.id]: node,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(node)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(node)
 
     expect(nodesByOrder).toEqual({
       1: [{node: child1, promptString: child1.command}],
@@ -327,7 +356,7 @@ describe('StepsCommand', () => {
       [node.id]: node,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(node)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(node)
 
     expect(nodesByOrder).toEqual({1: [{node: node1, promptString: node1.command}]})
     expect(nodesWithoutOrder).toEqual([{node: node2, promptString: node2.command}])
@@ -371,7 +400,7 @@ describe('StepsCommand', () => {
       },
     ]
 
-    expect(yandexSpy).toHaveBeenCalledWith(yandexParams, expect.anything())
+    expect(yandexSpy).toHaveBeenCalledWith(yandexParams, expect.anything(), expect.anything(), expect.anything())
     yandexSpy.mockRestore()
   })
 
@@ -386,7 +415,7 @@ describe('StepsCommand', () => {
       [node.id]: node,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(node)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(node)
 
     expect(nodesByOrder).toEqual({1: [{node: child, promptString: child.command}]})
     expect(nodesWithoutOrder).toEqual([])
@@ -403,7 +432,7 @@ describe('StepsCommand', () => {
       [root.id]: root,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(root)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(root)
 
     expect(nodesByOrder).toEqual({})
     expect(nodesWithoutOrder).toEqual([{node: grandchild, promptString: grandchild.command}])
@@ -425,7 +454,7 @@ describe('StepsCommand', () => {
       [root.id]: root,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(root)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(root)
 
     expect(nodesByOrder).toEqual({
       10: [{node: grandchild1, promptString: grandchild1.command}],
@@ -449,7 +478,7 @@ describe('StepsCommand', () => {
       [root.id]: root,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(root)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(root)
 
     expect(nodesByOrder).toEqual({
       10: [{node: grandchild1, promptString: grandchild1.command}],
@@ -479,7 +508,7 @@ describe('StepsCommand', () => {
       [root.id]: root,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(root)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(root)
 
     expect(nodesByOrder).toEqual({})
     expect(nodesWithoutOrder).toEqual([{node: grandchild, promptString: grandchild.command}])
@@ -510,7 +539,7 @@ describe('StepsCommand', () => {
       [root.id]: root,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(root)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(root)
 
     expect(nodesByOrder).toEqual({})
     expect(nodesWithoutOrder).toEqual([{node: grandchild, promptString: grandchild.command}])
@@ -541,7 +570,7 @@ describe('StepsCommand', () => {
       [root.id]: root,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(root)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(root)
 
     expect(nodesByOrder).toEqual({})
     expect(nodesWithoutOrder).toEqual([{node: grandchild, promptString: grandchild.command}])
@@ -577,7 +606,7 @@ describe('StepsCommand', () => {
       [root.id]: root,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(root)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(root)
 
     // traverse only those children, which it is a closest parent to
     expect(nodesByOrder).toEqual({})
@@ -615,7 +644,7 @@ describe('StepsCommand', () => {
       [root.id]: root,
     }
 
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(root)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(root)
 
     // traverse only those children, which it is a closest parent to
     expect(nodesByOrder).toEqual({})
@@ -693,7 +722,7 @@ describe('StepsCommand', () => {
     }
 
     // Execute the test
-    const {nodesByOrder, nodesWithoutOrder} = command.findMatchingNodes(swotNode)
+    const {nodesByOrder, nodesWithoutOrder} = await command.findMatchingNodes(swotNode)
 
     // Verify nodes were found with correct orders
     expect(Object.keys(nodesByOrder)).toContain('1')
@@ -774,5 +803,128 @@ describe('StepsCommand', () => {
     ])
 
     chatRunSpy.mockRestore()
+  })
+
+  describe('constructor', () => {
+    it('initializes without workflowId', () => {
+      const cmd = new StepsCommand('user-1', null, mockStore)
+      expect(cmd.userId).toBe('user-1')
+      expect(cmd.workflowId).toBeNull()
+    })
+
+    it('initializes with workflowId', () => {
+      const cmd = new StepsCommand('user-1', 'wf-1', mockStore)
+      expect(cmd.userId).toBe('user-1')
+      expect(cmd.workflowId).toBe('wf-1')
+    })
+  })
+
+  describe('run — error handling and cleanup', () => {
+    it('calls logError and creates error node when executePrompts rejects', async () => {
+      const child = {id: 'child', command: '/chatgpt prompt'}
+      const node = {id: 'node', command: '/steps', children: [child.id]}
+      mockStore._nodes = {[child.id]: child, [node.id]: node}
+
+      const cmd = new StepsCommand(userId, workflowId, mockStore)
+      cmd.logError = jest.fn()
+
+      runCommand.mockRejectedValue(new Error('executor failure'))
+
+      await cmd.run(node)
+
+      expect(cmd.logError).toHaveBeenCalled()
+      expect(createNodesSpy).toHaveBeenCalledWith(expect.stringMatching(/^Error:/), 'node')
+    })
+
+    it('does not throw to caller when execution fails', async () => {
+      const child = {id: 'child', command: '/chatgpt prompt'}
+      const node = {id: 'node', command: '/steps', children: [child.id]}
+      mockStore._nodes = {[child.id]: child, [node.id]: node}
+
+      runCommand.mockRejectedValue(new Error('executor failure'))
+
+      await expect(command.run(node)).resolves.toBeUndefined()
+    })
+
+    it('does not throw to caller when node has no command children', async () => {
+      const node = {id: 'n', command: '/steps', children: []}
+      mockStore._nodes = {[node.id]: node}
+
+      await expect(command.run(node)).resolves.toBeUndefined()
+    })
+
+    it('disposes SSH pool even when validation fails', async () => {
+      const node = {id: 'n', command: '/steps', children: []}
+      mockStore._nodes = {[node.id]: node}
+
+      const disposeAllSpy = jest.spyOn(SSHClientPool.prototype, 'disposeAll')
+
+      await command.run(node)
+
+      expect(disposeAllSpy).toHaveBeenCalledTimes(1)
+      disposeAllSpy.mockRestore()
+    })
+
+    it('always disposes the SSH client pool regardless of execution outcome', async () => {
+      const child = {id: 'child', command: '/chatgpt prompt'}
+      const node = {id: 'node', command: '/steps', children: [child.id]}
+      mockStore._nodes = {[child.id]: child, [node.id]: node}
+
+      const disposeAllSpy = jest.spyOn(SSHClientPool.prototype, 'disposeAll')
+      runCommand.mockRejectedValue(new Error('failure'))
+
+      await command.run(node)
+
+      expect(disposeAllSpy).toHaveBeenCalledTimes(1)
+      disposeAllSpy.mockRestore()
+    })
+
+    it('disposes the SSH client pool on successful execution', async () => {
+      const child = {id: 'child', command: '/chatgpt prompt'}
+      const node = {id: 'node', command: '/steps', children: [child.id]}
+      mockStore._nodes = {[child.id]: child, [node.id]: node}
+
+      const disposeAllSpy = jest.spyOn(SSHClientPool.prototype, 'disposeAll')
+      runCommand.mockResolvedValue({nodes: []})
+
+      await command.run(node)
+
+      expect(disposeAllSpy).toHaveBeenCalledTimes(1)
+      disposeAllSpy.mockRestore()
+    })
+  })
+
+  describe('run — abort signal propagation', () => {
+    it('stops processing ordered groups when signal is aborted between groups', async () => {
+      const child1 = {id: 'c1', command: '#1 /chatgpt first'}
+      const child2 = {id: 'c2', command: '#2 /chatgpt second'}
+      const node = {id: 'node', command: '/steps', children: [child1.id, child2.id]}
+      mockStore._nodes = {[child1.id]: child1, [child2.id]: child2, [node.id]: node}
+
+      const controller = new AbortController()
+
+      runCommand.mockImplementationOnce(() => {
+        controller.abort()
+        return Promise.resolve({nodes: []})
+      })
+
+      await command.run(node, {signal: controller.signal})
+
+      expect(runCommand).toHaveBeenCalledTimes(1)
+    })
+
+    it('executes all unordered nodes when signal is not aborted', async () => {
+      const child1 = {id: 'c1', command: '/chatgpt first'}
+      const child2 = {id: 'c2', command: '/chatgpt second'}
+      const node = {id: 'node', command: '/steps', children: [child1.id, child2.id]}
+      mockStore._nodes = {[child1.id]: child1, [child2.id]: child2, [node.id]: node}
+
+      const controller = new AbortController()
+      runCommand.mockResolvedValue({nodes: []})
+
+      await command.run(node, {signal: controller.signal})
+
+      expect(runCommand).toHaveBeenCalledTimes(2)
+    })
   })
 })

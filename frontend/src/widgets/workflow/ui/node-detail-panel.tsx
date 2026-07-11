@@ -7,12 +7,15 @@ import { getColorForRole } from '@shared/ui/genie/role-colors'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import { canExecuteNode } from '@shared/lib/commands/command-validator'
+import { useAliases } from '@entities/aliases'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@shared/ui/collapsible'
 import { Eye, FileText, Folder, Play, Loader2, Square, Copy, Trash2, Plus, ChevronRight, ArrowLeft } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
+import { isTitleDerivedFromCommand } from '@shared/lib/reliability-suffix'
 import { NodeTitleEditor } from './node-title-editor'
 import { NodePreviewSection } from './node-preview-section'
+import { McpFusionReportPanel } from './mcp-fusion-report-panel'
 import { CommandField } from './command-field'
 
 interface NodeDetailPanelProps {
@@ -54,6 +57,7 @@ export const NodeDetailPanel = ({
   autoFocusTitle,
   autoFocusCommand,
 }: NodeDetailPanelProps) => {
+  const { aliases } = useAliases()
   const genieState = useGenieState(node.id)
   const hasChildren = Boolean(node.children?.length)
   const isRoot = !node.parent
@@ -90,15 +94,16 @@ export const NodeDetailPanel = ({
 
   const handleCommandChange = useCallback(
     (command: string) => {
-      onUpdateNode(node.id, { command })
+      const titleIsDerived = !node.title || isTitleDerivedFromCommand(node.title, node.command ?? '')
+      onUpdateNode(node.id, titleIsDerived ? { command, title: command } : { command })
     },
-    [node.id, onUpdateNode],
+    [node, onUpdateNode],
   )
 
   const handleExecute = useCallback(async () => {
-    const queryType = extractQueryTypeFromCommand(node.command)
+    const queryType = extractQueryTypeFromCommand(node.command, aliases)
     await onExecute(node, queryType)
-  }, [node, onExecute])
+  }, [node, onExecute, aliases])
 
   const handleAbort = useCallback(() => {
     onAbort(node.id)
@@ -137,7 +142,9 @@ export const NodeDetailPanel = ({
 
   const hasCommand = Boolean(node.command?.trim())
   const genieVariant = hasCommand ? 'full' : 'clipboard'
-  const genieColor = hasCommand ? getColorForRole(getCommandRole(extractQueryTypeFromCommand(node.command))) : '#9e9e9e'
+  const genieColor = hasCommand
+    ? getColorForRole(getCommandRole(extractQueryTypeFromCommand(node.command, aliases)))
+    : '#9e9e9e'
   const genieShowHandRibs = hasCommand
 
   return (
@@ -293,6 +300,11 @@ export const NodeDetailPanel = ({
           </CollapsibleTrigger>
           <CollapsibleContent data-testid="node-preview-section">
             <NodePreviewSection nodeId={node.id} />
+            {node.mcpFusionReport ? (
+              <div className="mt-2">
+                <McpFusionReportPanel report={node.mcpFusionReport} />
+              </div>
+            ) : null}
           </CollapsibleContent>
         </Collapsible>
       ) : null}

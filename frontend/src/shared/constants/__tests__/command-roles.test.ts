@@ -73,9 +73,9 @@ describe('command-roles', () => {
       expect(getCommandRole(undefined)).toBeUndefined()
     })
 
-    it('should return undefined for unknown query type', () => {
-      expect(getCommandRole('unknown')).toBeUndefined()
-      expect(getCommandRole('invalid-command')).toBeUndefined()
+    it('should return utility for unknown query type (MCP aliases)', () => {
+      expect(getCommandRole('unknown')).toBe('utility')
+      expect(getCommandRole('invalid-command')).toBe('utility')
       expect(getCommandRole('')).toBeUndefined()
     })
 
@@ -84,8 +84,8 @@ describe('command-roles', () => {
     })
 
     it('should be case-sensitive', () => {
-      expect(getCommandRole('CHAT')).toBeUndefined()
-      expect(getCommandRole('Chat')).toBeUndefined()
+      expect(getCommandRole('CHAT')).toBe('utility')
+      expect(getCommandRole('Chat')).toBe('utility')
       expect(getCommandRole('chat')).toBe('llm')
     })
   })
@@ -146,20 +146,20 @@ describe('command-roles', () => {
 
   describe('edge cases', () => {
     it('should handle whitespace in query type', () => {
-      expect(getCommandRole(' chat ')).toBeUndefined()
-      expect(getCommandRole('chat ')).toBeUndefined()
-      expect(getCommandRole(' chat')).toBeUndefined()
+      expect(getCommandRole(' chat ')).toBe('utility')
+      expect(getCommandRole('chat ')).toBe('utility')
+      expect(getCommandRole(' chat')).toBe('utility')
     })
 
     it('should handle special characters', () => {
-      expect(getCommandRole('chat!')).toBeUndefined()
-      expect(getCommandRole('chat?')).toBeUndefined()
-      expect(getCommandRole('/instruct/')).toBeUndefined()
+      expect(getCommandRole('chat!')).toBe('utility')
+      expect(getCommandRole('chat?')).toBe('utility')
+      expect(getCommandRole('/instruct/')).toBe('utility')
     })
 
     it('should handle numbers', () => {
-      expect(getCommandRole('123')).toBeUndefined()
-      expect(getCommandRole('chat123')).toBeUndefined()
+      expect(getCommandRole('123')).toBe('utility')
+      expect(getCommandRole('chat123')).toBe('utility')
     })
 
     it('should return same result for repeated calls', () => {

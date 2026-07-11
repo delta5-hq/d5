@@ -18,27 +18,40 @@ test.describe('Workflow CRUD', () => {
     await page.goto('/workflows')
     await adminLogin(page)
 
-    // Create a workflow first
     const createdWorkflowId = await createWorkflow(page)
 
-    // Navigate back to workflows list
     await page.goto('/workflows')
-    
-    // Wait for backend API response confirming workflows loaded
-    await page.waitForResponse(
-      resp => resp.url().includes('/api/v2/workflow') && resp.status() === 200,
-      { timeout: 10000 }
-    )
-    
-    // Wait additional time for UI to render workflow cards
+
+    await page.waitForResponse(resp => resp.url().includes('/api/v2/workflow') && resp.status() === 200, {
+      timeout: 10000,
+    })
+
     await page.waitForTimeout(2000)
-    
-    // Wait for the specific workflow to appear in DOM
+
     await page.waitForSelector(`[data-workflow-id="${createdWorkflowId}"]`, { timeout: 15000 })
-    
-    // Click on the created workflow
+
     await page.locator(`[data-workflow-id="${createdWorkflowId}"]`).click()
 
     await expect(page).toHaveURL(`/workflow/${createdWorkflowId}`)
+  })
+
+  test('List endpoint returns workflowId field for all workflows', async ({ page }) => {
+    await page.goto('/workflows')
+    await adminLogin(page)
+
+    await createWorkflow(page)
+
+    const response = await page.request.get('/api/v2/workflow?public=false')
+    expect(response.ok()).toBeTruthy()
+
+    const { data } = await response.json()
+    expect(Array.isArray(data)).toBeTruthy()
+    expect(data.length).toBeGreaterThan(0)
+
+    data.forEach((workflow: any) => {
+      expect(workflow).toHaveProperty('workflowId')
+      expect(typeof workflow.workflowId).toBe('string')
+      expect(workflow.workflowId.length).toBeGreaterThan(0)
+    })
   })
 })

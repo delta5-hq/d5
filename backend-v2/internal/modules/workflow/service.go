@@ -120,7 +120,7 @@ func (s *WorkflowService) GetWorkflows(ctx context.Context, dto GetWorkflowsQuer
 	if dto.IsPublic {
 		project = qmgo.M{"nodes": 0, "edges": 0, "share": 0}
 	} else {
-		project = qmgo.M{"nodes": 0, "edges": 0}
+		project = qmgo.M{"edges": 0}
 	}
 
 	total, err := s.Collection.Find(ctx, query).Count()
@@ -183,7 +183,7 @@ func (s *WorkflowService) CreateWorkflow(ctx context.Context, dto CreateWorkflow
 	data := models.Workflow{
 		UserID:     dto.UserID,
 		WorkflowID: workflowId,
-		Title:      "",
+		Title:      dto.Title,
 		UpdatedAt:  time.Now().Unix() * 1000, // Milliseconds timestamp for frontend compatibility
 		Share:      share,
 	}

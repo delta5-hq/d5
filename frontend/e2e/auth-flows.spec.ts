@@ -1,5 +1,6 @@
-import { test, expect, Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { adminLogin, approveUser, login, logout, rejectUser, signup } from './utils'
+import { waitForUnauthenticatedState } from './helpers'
 
 function testUUID() {
   return Math.random().toString(36).slice(2, 10)
@@ -32,6 +33,7 @@ test.describe.serial('Auth flows', () => {
 
     await signup(page, userA.name, userA.mail, userA.password)
     await signup(page, userB.name, userB.mail, userB.password)
+    await waitForUnauthenticatedState(page)
 
     await adminLogin(page)
     await rejectUser(page, userA.name)
@@ -41,14 +43,21 @@ test.describe.serial('Auth flows', () => {
 
     await login(page, userA.mail, userA.password, false)
 
-    await expect(page.locator('[data-sonner-toast]').getByText(/User not found|Account pending activation/i)).toBeVisible({ timeout: 10000 })
+    await expect(
+      page.locator('[data-sonner-toast]').getByText(/User not found|Account pending activation/i),
+    ).toBeVisible({ timeout: 10000 })
     await expect(page.getByText('Account Settings')).toHaveCount(0)
 
     await page.getByRole('button', { name: /cancel/i }).click()
 
     await login(page, userB.mail, userB.password, false)
 
-    await expect(page.locator('[data-sonner-toast]').getByText(/User not found|Account pending activation/i).first()).toBeVisible({ timeout: 10000 })
+    await expect(
+      page
+        .locator('[data-sonner-toast]')
+        .getByText(/User not found|Account pending activation/i)
+        .first(),
+    ).toBeVisible({ timeout: 10000 })
     await expect(page.getByText('Account Settings')).toHaveCount(0)
   })
 
@@ -61,6 +70,7 @@ test.describe.serial('Auth flows', () => {
 
     await signup(page, userA.name, userA.mail, userA.password)
     await signup(page, userB.name, userB.mail, userB.password)
+    await waitForUnauthenticatedState(page)
 
     await adminLogin(page)
     await approveUser(page, userB.name)
@@ -68,7 +78,9 @@ test.describe.serial('Auth flows', () => {
     await logout(page)
 
     await login(page, userA.mail, userA.password, false)
-    await expect(page.locator('[data-sonner-toast]').getByText(/User not found|Account pending activation|Invalid login/i)).toBeVisible({ timeout: 10000 })
+    await expect(
+      page.locator('[data-sonner-toast]').getByText(/User not found|Account pending activation|Invalid login/i),
+    ).toBeVisible({ timeout: 10000 })
     await expect(page.getByText('Account Settings')).toHaveCount(0)
 
     await page.getByRole('button', { name: /cancel/i }).click()

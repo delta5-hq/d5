@@ -1,25 +1,6 @@
-export const D5_COMMANDS = [
-  '/instruct',
-  '/reason',
-  '/chatgpt',
-  '/chat',
-  '/web',
-  '/scholar',
-  '/refine',
-  '/foreach',
-  '/steps',
-  '/outline',
-  '/summarize',
-  '/switch',
-  '/claude',
-  '/qwen',
-  '/perplexity',
-  '/deepseek',
-  '/custom',
-  '/memorize',
-  '/ext',
-  '/yandexgpt',
-] as const
+import { BUILTIN_COMMAND_ALIASES } from '../builtin-command-aliases'
+
+export const D5_COMMANDS = BUILTIN_COMMAND_ALIASES
 
 export type D5Command = (typeof D5_COMMANDS)[number]
 

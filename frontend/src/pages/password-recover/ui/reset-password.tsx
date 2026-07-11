@@ -15,11 +15,12 @@ import {
 import { useDialog } from '@entities/dialog'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { PasswordFieldWithStrength } from '@shared/ui/form-fields'
+import { StatusPlaceholder } from '@shared/ui/status-placeholder'
 import { Spinner } from '@shared/ui/spinner'
-import { useCallback, useEffect } from 'react'
+import { useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { FormattedMessage } from 'react-intl'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import * as z from 'zod'
 
 const resetPasswordSchema = z.object({
@@ -34,15 +35,11 @@ type ResetPasswordForm = z.infer<typeof resetPasswordSchema>
 const ResetPassword = () => {
   const navigate = useNavigate()
   const { pwdResetToken } = useParams<{ pwdResetToken: string }>()
-  const { isLoggedIn } = useAuthContext()
+  const { isLoggedIn, isLoading: isAuthLoading } = useAuthContext()
   const { showDialog } = useDialog()
 
   const { isValid, isLoading } = useResetTokenCheck(pwdResetToken)
   const { resetPassword } = usePasswordRecovery()
-
-  useEffect(() => {
-    if (isLoggedIn) navigate('/')
-  }, [isLoggedIn, navigate])
 
   const {
     register,
@@ -64,6 +61,9 @@ const ResetPassword = () => {
     },
     [resetPassword, pwdResetToken, showDialog, navigate],
   )
+
+  if (isAuthLoading) return <StatusPlaceholder loading />
+  if (isLoggedIn) return <Navigate replace to="/" />
 
   return (
     <AuthPageLayout maxWidth="md" showFooter={false}>

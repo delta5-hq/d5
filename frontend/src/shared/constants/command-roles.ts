@@ -30,5 +30,5 @@ export const QUERY_TYPE_ROLES: Record<string, CommandRole> = {
 
 export function getCommandRole(queryType: string | undefined): CommandRole | undefined {
   if (!queryType) return undefined
-  return QUERY_TYPE_ROLES[queryType]
+  return QUERY_TYPE_ROLES[queryType] ?? 'utility'
 }
