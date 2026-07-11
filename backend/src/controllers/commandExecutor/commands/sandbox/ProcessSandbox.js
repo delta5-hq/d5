@@ -11,8 +11,21 @@ export class SandboxUnavailableError extends Error {
   }
 }
 
+// Secure by default: the subprocess sandbox is REQUIRED. A trusted environment that
+// cannot provide unprivileged user namespaces (e.g. CI on a runner without userns,
+// spawning fixed in-repo test fixtures) may explicitly opt out with
+// D5_ALLOW_UNSANDBOXED_SPAWN=true. Production never sets it, so its behaviour is
+// unchanged and the sandbox requirement cannot be silently lost.
+const unsandboxedSpawnAllowed = () => process.env.D5_ALLOW_UNSANDBOXED_SPAWN === 'true'
+
 export const sandboxSpawn = (command, args, env, {allowNetwork = false} = {}) => {
-  if (!bwrapAvailable) throw new SandboxUnavailableError()
+  if (!bwrapAvailable) {
+    if (!unsandboxedSpawnAllowed()) throw new SandboxUnavailableError()
+    console.warn(
+      `[sandbox] bwrap unavailable and D5_ALLOW_UNSANDBOXED_SPAWN=true — spawning "${command}" without a sandbox (trusted-environment override)`,
+    )
+    return {command, args: args ?? [], env}
+  }
 
   const systemDirArgs = buildSystemDirArgs(existsSync)
   const bindPaths = resolveNodeCommandBindPaths(command, args, existsSync)
