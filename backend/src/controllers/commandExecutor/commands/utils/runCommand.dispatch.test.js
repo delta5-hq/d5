@@ -2491,3 +2491,135 @@ describe('/download dispatch routing', () => {
     await expect(runCommand({cell: node, queryType: DOWNLOAD_QUERY_TYPE, store: mockStore})).resolves.not.toThrow()
   })
 })
+
+describe('commodity :n=N × MCP alias', () => {
+  const mcpSeamAlias = {
+    alias: '/qa-mcp',
+    serverUrl: 'http://localhost:3100/mcp',
+    transport: 'streamable-http',
+    toolName: 'run',
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it.each([2, 3, 5])(
+    'invokes the MCP tool exactly %i times and creates exactly %i output nodes for /qa-mcp :n=%i',
+    async n => {
+      const node = {id: 'node', parent: 'root', command: `/qa-mcp :n=${n} task-prompt`, children: []}
+      const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+      const store = new Store({userId, workflowId, nodes: {node, root}})
+
+      MCPClientManager.callTool.mockResolvedValue({content: 'result', isError: false})
+
+      await runCommand({cell: node, store, mcpAlias: mcpSeamAlias})
+
+      expect(MCPClientManager.callTool).toHaveBeenCalledTimes(n)
+      expect(store.getOutput().nodes.filter(m => m.parent === node.id)).toHaveLength(n)
+    },
+  )
+
+  it.each([1, 2, 3])(':n=%i token is absent from the MCP tool payload on both fork and non-fork paths', async n => {
+    const node = {id: 'node', parent: 'root', command: `/qa-mcp :n=${n} task-prompt`, children: []}
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    MCPClientManager.callTool.mockResolvedValue({content: 'result', isError: false})
+
+    await runCommand({cell: node, store, mcpAlias: mcpSeamAlias})
+
+    MCPClientManager.callTool.mock.calls.forEach(([callArgs]) => {
+      expect(callArgs.toolArguments.prompt).not.toMatch(/:n=/)
+      expect(callArgs.toolArguments.prompt).toContain('task-prompt')
+    })
+  })
+
+  it('@@ and ## references are resolved within MCP payload after :n=N is stripped', async () => {
+    const {commandNode, nodes} = createReferenceWorkflow({
+      nodeId: 'mcpNode',
+      command: '/qa-mcp :n=2 @@topic and ##_source',
+      refDefinition: '@topic seam-topic',
+      hashDefinition: '#_source seam-source',
+    })
+    const store = new Store({userId, workflowId, nodes})
+
+    MCPClientManager.callTool.mockResolvedValue({content: 'r', isError: false})
+
+    await runCommand({cell: commandNode, store, mcpAlias: mcpSeamAlias})
+
+    expect(MCPClientManager.callTool).toHaveBeenCalledTimes(2)
+    MCPClientManager.callTool.mock.calls.forEach(([callArgs]) => {
+      expect(callArgs.toolArguments.prompt).not.toMatch(/:n=/)
+      expectResolvedExternalPrompt(callArgs.toolArguments.prompt, ['seam-topic', 'seam-source'])
+    })
+  })
+})
+
+describe('commodity :n=N × RPC alias', () => {
+  const rpcSeamAlias = {
+    alias: '/qa-rpc',
+    protocol: 'ssh',
+    host: 'vm1.example.com',
+    port: 22,
+    username: 'deploy',
+    privateKey: 'fake-key',
+    commandTemplate: '{{prompt}}',
+    outputFormat: 'text',
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it.each([2, 3, 5])(
+    'executes the SSH command exactly %i times and creates exactly %i output nodes for /qa-rpc :n=%i',
+    async n => {
+      const node = {id: 'node', parent: 'root', command: `/qa-rpc :n=${n} task-prompt`, children: []}
+      const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+      const store = new Store({userId, workflowId, nodes: {node, root}})
+
+      mockSSHExecute.mockResolvedValue({stdout: 'rpc-result', stderr: '', exitCode: 0})
+
+      await runCommand({cell: node, store, rpcAlias: rpcSeamAlias})
+
+      expect(mockSSHExecute).toHaveBeenCalledTimes(n)
+      expect(store.getOutput().nodes.filter(m => m.parent === node.id)).toHaveLength(n)
+    },
+  )
+
+  it.each([1, 2, 3])(':n=%i token is absent from the SSH command string on both fork and non-fork paths', async n => {
+    const node = {id: 'node', parent: 'root', command: `/qa-rpc :n=${n} task-prompt`, children: []}
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    mockSSHExecute.mockResolvedValue({stdout: 'rpc-result', stderr: '', exitCode: 0})
+
+    await runCommand({cell: node, store, rpcAlias: rpcSeamAlias})
+
+    mockSSHExecute.mock.calls.forEach(([params]) => {
+      expect(params.command).not.toMatch(/:n=/)
+      expect(params.command).toContain('task-prompt')
+    })
+  })
+
+  it('@@ and ## references are resolved within RPC command string after :n=N is stripped', async () => {
+    const {commandNode, nodes} = createReferenceWorkflow({
+      nodeId: 'rpcNode',
+      command: '/qa-rpc :n=2 @@topic and ##_source',
+      refDefinition: '@topic seam-topic',
+      hashDefinition: '#_source seam-source',
+    })
+    const store = new Store({userId, workflowId, nodes})
+
+    mockSSHExecute.mockResolvedValue({stdout: 'r', stderr: '', exitCode: 0})
+
+    await runCommand({cell: commandNode, store, rpcAlias: rpcSeamAlias})
+
+    expect(mockSSHExecute).toHaveBeenCalledTimes(2)
+    mockSSHExecute.mock.calls.forEach(([params]) => {
+      expect(params.command).not.toMatch(/:n=/)
+      expectResolvedExternalPrompt(params.command, ['seam-topic', 'seam-source'])
+    })
+  })
+})

@@ -49,7 +49,7 @@ import {MCPFusionCommand} from '../MCPFusionCommand'
 import {RPCCommand} from '../RPCCommand'
 import {createUnknownCommandNode} from './unknownCommandNode'
 import StoreFork from '../../reliability/core/StoreFork'
-import {readCommodityN, stripCommodityN} from '../../reliability/core/commodityParams'
+import {readCommodityN, stripCommodityN, stripCommodityToken} from '../../reliability/core/commodityParams'
 import {
   captureStoreExecutionSnapshot,
   restoreStoreExecutionSnapshot,
@@ -145,7 +145,19 @@ function isBetterValidateAttempt(candidate, best) {
  *
  * @private
  */
-async function runCommodityForks({queryType, context, prompt, cell, store, progress, n, mcpAlias, rpcAlias, signal, memoMap}) {
+async function runCommodityForks({
+  queryType,
+  context,
+  prompt,
+  cell,
+  store,
+  progress,
+  n,
+  mcpAlias,
+  rpcAlias,
+  signal,
+  memoMap,
+}) {
   throwIfAborted(signal)
   const cleanPrompt = stripCommodityN(prompt || '')
   const forkStores = Array.from({length: n}, () => StoreFork.createFork(store))
@@ -221,6 +233,17 @@ function writeModifierRootError(cell, store, queryType) {
   store.saveNodeToOutput(cell.id)
 }
 
+function sanitizeAliasDispatchInputs(cell, prompt) {
+  return {
+    sanitizedCell: {
+      ...cell,
+      command: stripCommodityToken(cell.command),
+      title: stripCommodityToken(cell.title),
+    },
+    sanitizedPrompt: stripCommodityToken(prompt),
+  }
+}
+
 export const runCommand = async (
   {
     queryType,
@@ -248,8 +271,7 @@ export const runCommand = async (
     cellNode.title = stripReliabilitySuffix(cellNode.title || '')
   }
 
-  const commodityN =
-    preventCommodityForks || store.withinForkExecution ? 1 : readCommodityN(getNodeCommand(cell))
+  const commodityN = preventCommodityForks || store.withinForkExecution ? 1 : readCommodityN(getNodeCommand(cell))
 
   if (commodityN > 1) {
     await runCommodityForks({
@@ -266,11 +288,13 @@ export const runCommand = async (
       memoMap,
     })
   } else if (mcpAlias) {
+    const {sanitizedCell, sanitizedPrompt} = sanitizeAliasDispatchInputs(cell, prompt)
     const command = new MCPCommand(store._userId, store._workflowId, store, mcpAlias)
-    await command.run(cell, context, prompt, {signal})
+    await command.run(sanitizedCell, context, sanitizedPrompt, {signal})
   } else if (rpcAlias) {
+    const {sanitizedCell, sanitizedPrompt} = sanitizeAliasDispatchInputs(cell, prompt)
     const command = new RPCCommand(store._userId, store._workflowId, store, rpcAlias, progress, sshClientPool)
-    await command.run(cell, context, prompt, {signal})
+    await command.run(sanitizedCell, context, sanitizedPrompt, {signal})
   } else if (queryType === MCP_FUSION_QUERY_TYPE) {
     const command = new MCPFusionCommand(store._userId, store._workflowId, store)
     await command.run(cell, context, prompt, {signal})

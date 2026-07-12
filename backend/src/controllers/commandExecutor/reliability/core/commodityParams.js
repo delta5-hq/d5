@@ -9,6 +9,8 @@ import {OUTLINE_QUERY} from '../../constants/outline'
 
 const COMMODITY_N_RE = /:n=(\d+)/
 
+const COMMODITY_TOKEN_RE = new RegExp(`[ \\t]*${COMMODITY_N_RE.source}[ \\t]*`)
+
 export const COMMODITY_N_MAX = 10
 
 const NON_COMMODITY_PREFIXES = [
@@ -38,4 +40,14 @@ export const readCommodityN = command => {
 export const stripCommodityN = text => {
   if (!text) return ''
   return text.replace(COMMODITY_N_RE, '').replace(/\s+/g, ' ').trim()
+}
+
+export const stripCommodityToken = text => {
+  if (typeof text !== 'string') return text
+  return text.replace(COMMODITY_TOKEN_RE, (match, _n, offset, str) => {
+    const before = offset > 0 ? str[offset - 1] : ''
+    const after = str[offset + match.length] || ''
+    const isBetweenWords = before && !/\s/.test(before) && after && !/\s/.test(after)
+    return isBetweenWords ? ' ' : ''
+  })
 }

@@ -1,4 +1,4 @@
-import {readCommodityN, stripCommodityN, COMMODITY_N_MAX} from './commodityParams'
+import {readCommodityN, stripCommodityN, stripCommodityToken, COMMODITY_N_MAX} from './commodityParams'
 
 describe('readCommodityN', () => {
   describe('absent or non-activating :n= returns 1 (single-run default)', () => {
@@ -105,6 +105,59 @@ describe('stripCommodityN', () => {
 
   it.each([null, undefined, ''])('returns empty string for %p', input => {
     expect(stripCommodityN(input)).toBe('')
+  })
+})
+
+describe('stripCommodityToken', () => {
+  describe('strips :n=N token leaving surrounding text clean', () => {
+    it.each([
+      ['/qa-mcp :n=2 hello-seam', '/qa-mcp hello-seam'],
+      ['/qa-rpc :n=2 hello-rpc-seam', '/qa-rpc hello-rpc-seam'],
+      ['/alias :n=10 hello', '/alias hello'],
+      ['/alias :n=1 hello', '/alias hello'],
+      ['/alias :n=0 hello', '/alias hello'],
+      ['/alias :n=2', '/alias'],
+      [':n=2 hello', 'hello'],
+      [':n=1 payload', 'payload'],
+      ['/alias :n=2\nline1\nline2', '/alias\nline1\nline2'],
+    ])('"%s" → "%s"', (input, expected) => {
+      expect(stripCommodityToken(input)).toBe(expected)
+    })
+  })
+
+  describe('removal grammar equals detection grammar — every token readCommodityN detects is removed', () => {
+    it.each([
+      ':n=2 hello',
+      '/qa-mcp:n=2 hello',
+      '/qa-mcp hello:n=2',
+      '/qa-mcp\n:n=2 hello',
+      '\t:n=3 hello',
+      '/qa-mcp :n=12 hello',
+    ])('"%s": detected as fork yet leaves zero :n= residue', input => {
+      expect(readCommodityN(input)).toBeGreaterThan(1)
+      expect(stripCommodityToken(input)).not.toMatch(/:n=\d/)
+    })
+  })
+
+  describe('first-occurrence only — second and later :n=N literals survive', () => {
+    it('strips only the first :n=N token and leaves subsequent occurrences intact', () => {
+      expect(stripCommodityToken('hello :n=2 world :n=3 more')).toBe('hello world :n=3 more')
+    })
+  })
+
+  describe('leaves text unchanged when no :n=N token is present', () => {
+    it.each(['/alias plain prompt', '/alias plain prompt\n', 'hello world', ':n=abc', ':n='])(
+      '"%s" is returned unchanged',
+      text => {
+        expect(stripCommodityToken(text)).toBe(text)
+      },
+    )
+  })
+
+  describe('handles non-string inputs safely', () => {
+    it.each([null, undefined, 42, {}, []])('returns %p as-is', input => {
+      expect(stripCommodityToken(input)).toBe(input)
+    })
   })
 })
 
