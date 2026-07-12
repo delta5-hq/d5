@@ -44,15 +44,20 @@ export const getIntegrationSettings = async (userId, workflowId = null, store = 
     return store._integrationSettingsCache
   }
 
-  if (canUseMockExternalServices()) {
-    const {settings} = resolveSettings({merged: null, workflowDoc: null, userId, workflowId})
-    if (store) {
-      store._integrationSettingsCache = settings
+  // Resolve real integration settings even under a mock runtime: only the LLM
+  // *transport* is mocked (NoopChatModel / container Noop*Service), not settings
+  // resolution — so a genuinely-configured provider key must still be honored.
+  // When no integrations store is reachable (pure unit runs), fall back to
+  // deterministic defaults instead of failing.
+  let fetched = {merged: null, workflowDoc: null}
+  try {
+    fetched = await IntegrationFacade.findMergedDecryptedWithMetadata(userId, workflowId)
+  } catch (e) {
+    if (!canUseMockExternalServices()) {
+      throw e
     }
-    return settings
   }
 
-  const fetched = await IntegrationFacade.findMergedDecryptedWithMetadata(userId, workflowId)
   const {settings, workflowDoc} = resolveSettings({...fetched, userId, workflowId})
 
   if (workflowDoc && settings.model === USER_DEFAULT_MODEL) {

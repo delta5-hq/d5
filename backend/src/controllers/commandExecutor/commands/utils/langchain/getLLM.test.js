@@ -307,19 +307,25 @@ describe('getIntegrationSettings', () => {
     )
   })
 
-  it('returns synthetic settings without DB lookup under MOCK_EXTERNAL_SERVICES=true', async () => {
+  it('resolves settings under MOCK_EXTERNAL_SERVICES=true, still consulting the store so configured keys are honored', async () => {
+    // Under a mock runtime only the LLM transport is mocked, not settings
+    // resolution: a genuinely-configured provider key must still be honored,
+    // which requires the integration lookup. When it yields no record the
+    // resolver falls back to synthetic/env settings.
+    IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged: null, workflowDoc: null})
     const store = {}
 
     const result = await withEnv({...ALL_PROVIDER_ENV_VARS, MOCK_EXTERNAL_SERVICES: 'true'}, () =>
       getIntegrationSettings('user-1', 'workflow-1', store),
     )
 
-    expect(IntegrationFacade.findMergedDecryptedWithMetadata).not.toHaveBeenCalled()
+    expect(IntegrationFacade.findMergedDecryptedWithMetadata).toHaveBeenCalledWith('user-1', 'workflow-1')
     expect(result).toMatchObject({userId: 'user-1', workflowId: 'workflow-1'})
     expect(store._integrationSettingsCache).toBe(result)
   })
 
-  it('mock settings path still applies environment credential fallback without DB lookup', async () => {
+  it('applies environment credential fallback under mock when the integration lookup yields no record', async () => {
+    IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged: null, workflowDoc: null})
     const store = {}
 
     const result = await withEnv(
@@ -332,7 +338,7 @@ describe('getIntegrationSettings', () => {
       () => getIntegrationSettings('user-1', 'workflow-1', store),
     )
 
-    expect(IntegrationFacade.findMergedDecryptedWithMetadata).not.toHaveBeenCalled()
+    expect(IntegrationFacade.findMergedDecryptedWithMetadata).toHaveBeenCalled()
     expect(result.openai.apiKey).toBe('sk-openai-env')
     expect(result.claude.apiKey).toBe('sk-claude-env')
     expect(store._integrationSettingsCache).toBe(result)
