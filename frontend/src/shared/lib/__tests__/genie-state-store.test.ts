@@ -626,6 +626,18 @@ describe('GenieStateStore', () => {
       expect(store.getSnapshot('node-1')).toBe('idle')
     })
 
+    it('uses a custom done-state reset delay when configured', () => {
+      const customStore = new GenieStateStore({ doneStateResetDelayMs: 5000 })
+      customStore.connectToProgressStream('http://localhost')
+      capturedProgressCallback?.('node-1', 'done-success')
+
+      vi.advanceTimersByTime(3000)
+      expect(customStore.getSnapshot('node-1')).toBe('done-success')
+
+      vi.advanceTimersByTime(2000)
+      expect(customStore.getSnapshot('node-1')).toBe('idle')
+    })
+
     it('timer does not reset if state changed before it fires', () => {
       const onProgress = connectAndGetCallback()
       onProgress('node-1', 'done-success')

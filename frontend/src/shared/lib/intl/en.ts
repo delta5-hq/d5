@@ -420,6 +420,7 @@ export default {
       abort: 'Abort',
       addChild: 'Add Child',
       addSibling: 'Add Sibling',
+      importTextAsPrompts: 'Render text to map',
       close: 'Back',
       duplicate: 'Duplicate',
       untitled: 'Untitled',

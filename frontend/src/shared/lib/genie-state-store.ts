@@ -6,13 +6,24 @@ export type { GenieState }
 type Listener = () => void
 type Unsubscribe = () => void
 
+export interface GenieStateStoreOptions {
+  doneStateResetDelayMs?: number
+}
+
+const DEFAULT_DONE_STATE_RESET_DELAY_MS = 3000
+
 export class GenieStateStore {
+  private readonly doneStateResetDelayMs: number
   private stateMap = new Map<string, GenieState>()
   private errorMap = new Map<string, string>()
   private listenersByNodeId = new Map<string, Set<Listener>>()
   private globalListeners = new Set<Listener>()
   private streamClient: ProgressStreamClient | null = null
   private suppressedNodes = new Set<string>()
+
+  constructor(options: GenieStateStoreOptions = {}) {
+    this.doneStateResetDelayMs = options.doneStateResetDelayMs ?? DEFAULT_DONE_STATE_RESET_DELAY_MS
+  }
 
   suppressNode(nodeId: string): void {
     this.suppressedNodes.add(nodeId)
@@ -40,7 +51,7 @@ export class GenieStateStore {
           if (this.stateMap.get(nodeId) === state) {
             this.setState(nodeId, 'idle')
           }
-        }, 3000)
+        }, this.doneStateResetDelayMs)
       }
     })
 

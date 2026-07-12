@@ -22,6 +22,10 @@ export class NodeDetailPanelPage extends PageComponent {
     return this.page.getByTestId('duplicate-node-button')
   }
 
+  get importTextAsPromptsButton(): Locator {
+    return this.page.getByTestId('import-text-as-prompts-button')
+  }
+
   get deleteButton(): Locator {
     return this.page.getByTestId('delete-node-button')
   }
@@ -74,5 +78,9 @@ export class NodeDetailPanelPage extends PageComponent {
 
   async addChild(): Promise<void> {
     await this.addChildButton.click()
+  }
+
+  async importTextAsPrompts(): Promise<void> {
+    await this.importTextAsPromptsButton.click()
   }
 }

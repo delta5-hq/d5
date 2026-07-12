@@ -868,6 +868,68 @@ describe('bindMutationActions', () => {
     })
   })
 
+  describe('importTextAsPrompts', () => {
+    it('imports non-empty paragraphs as prompt children while preserving regular children', () => {
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', title: 'Root', children: ['regular'] },
+          regular: { id: 'regular', title: 'Regular child', parent: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+      })
+      const persister = makePersister()
+      const { importTextAsPrompts } = bindMutationActions(store, persister, mockFormatMessage)
+
+      const imported = importTextAsPrompts('root', 'First paragraph\n\n\nSecond paragraph')
+      const nodes = store.getState().nodes
+      const root = nodes.root
+      const promptTitles = (root.prompts ?? []).map(id => nodes[id]?.title)
+
+      expect(imported).toBe(2)
+      expect(root.children).toContain('regular')
+      expect(promptTitles).toEqual(['First paragraph', 'Second paragraph'])
+      expect(store.getState().isDirty).toBe(true)
+      expect(persister.schedule).toHaveBeenCalled()
+    })
+
+    it('replaces previous prompt children without removing regular children', () => {
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['regular', 'old-prompt'], prompts: ['old-prompt'] },
+          regular: { id: 'regular', title: 'Regular child', parent: 'root', children: [] },
+          'old-prompt': { id: 'old-prompt', title: 'Old prompt', parent: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+      })
+      const persister = makePersister()
+      const { importTextAsPrompts } = bindMutationActions(store, persister, mockFormatMessage)
+
+      const imported = importTextAsPrompts('root', 'Replacement prompt')
+      const nodes = store.getState().nodes
+      const root = nodes.root
+
+      expect(imported).toBe(1)
+      expect(nodes['old-prompt']).toBeUndefined()
+      expect(root.children).toContain('regular')
+      expect(root.children).not.toContain('old-prompt')
+      expect((root.prompts ?? []).map(id => nodes[id]?.title)).toEqual(['Replacement prompt'])
+    })
+
+    it('does not mutate or persist blank text', () => {
+      const initialNodes = {
+        root: { id: 'root', children: [] },
+      } as WorkflowStoreState['nodes']
+      const store = makeStore({ nodes: initialNodes })
+      const persister = makePersister()
+      const { importTextAsPrompts } = bindMutationActions(store, persister, mockFormatMessage)
+
+      const imported = importTextAsPrompts('root', '  \n\n  ')
+
+      expect(imported).toBe(0)
+      expect(store.getState().nodes).toBe(initialNodes)
+      expect(store.getState().isDirty).toBe(false)
+      expect(persister.schedule).not.toHaveBeenCalled()
+    })
+  })
+
   it('duplicateNode returns new root id', () => {
     const store = makeStore({
       nodes: { n1: { id: 'n1' } } as WorkflowStoreState['nodes'],
