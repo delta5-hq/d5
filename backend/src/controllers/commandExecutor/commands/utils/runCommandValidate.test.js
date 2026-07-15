@@ -2,6 +2,7 @@ import {runCommand} from './runCommand'
 import {CriteriaFailedError} from '../../reliability/core/CriteriaFailedError'
 import {ValidateCommand} from '../../reliability/core/ValidateCommand'
 import Store from './Store'
+import {writeCachedIntegrationSettings} from './langchain/getLLM'
 import {MOCK_VERIFIER_FAIL_KEYWORD, MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX} from './langchain/noopLLM/ResponsePlanner'
 
 jest.mock('debug', () => {
@@ -22,6 +23,7 @@ jest.mock('../../ProgressReporter', () => ({
 
 jest.mock('../../reliability/core/resolveRefineCell', () => ({resolveRefineCell: jest.fn()}))
 jest.mock('../../reliability/core/RefineTopology', () => jest.fn(() => []))
+jest.mock('../internalResearch/MemorizeDispatcher', () => ({dispatchMemorize: jest.fn()}))
 
 const buildStore = nodeMap => new Store({userId: 'user1', nodes: nodeMap})
 
@@ -457,7 +459,7 @@ describe('runCommand \u2014 /validate with NoopLLM verifier contract', () => {
     const root = {id: 'root', parent: null, command: '/chat produce a short substantive answer', children: ['validate']}
     const validate = {id: 'validate', parent: 'root', command: `/validate ${criterion} :retry=0`, children: []}
     const store = buildStore({root, validate})
-    store._integrationSettingsCache = {}
+    writeCachedIntegrationSettings(store, store._userId, null, {})
     return {root, validate, store}
   }
 
@@ -505,7 +507,7 @@ describe('runCommand \u2014 /validate with NoopLLM verifier contract', () => {
       children: [],
     }
     const store = buildStore({root, v})
-    store._integrationSettingsCache = {}
+    writeCachedIntegrationSettings(store, store._userId, null, {})
     return {root, store}
   }
 
@@ -547,11 +549,11 @@ describe('post-processor sort order: /validate runs after all other recognized p
   it('enforces full priority chain: summarize \u2192 memorize \u2192 validate', async () => {
     const callOrder = []
     const {SummarizeCommand} = require('../SummarizeCommand')
-    const {MemorizeCommand} = require('../MemorizeCommand')
     const summarizeSpy = jest.spyOn(SummarizeCommand.prototype, 'run').mockImplementation(async () => {
       callOrder.push('summarize')
     })
-    const memSpy = jest.spyOn(MemorizeCommand.prototype, 'run').mockImplementation(async () => {
+    const {dispatchMemorize} = require('../internalResearch/MemorizeDispatcher')
+    const memSpy = dispatchMemorize.mockImplementation(async () => {
       callOrder.push('memorize')
     })
     const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run').mockImplementation(async () => {
@@ -571,7 +573,7 @@ describe('post-processor sort order: /validate runs after all other recognized p
     } finally {
       spy.mockRestore()
       summarizeSpy.mockRestore()
-      memSpy.mockRestore()
+      memSpy.mockReset()
       validateSpy.mockRestore()
     }
 

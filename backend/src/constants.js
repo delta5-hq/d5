@@ -1,5 +1,4 @@
 const path = require('path')
-const customLLMApiTypes = require('../../shared-contracts/custom-llm-api-types.json')
 const __dotenvResult = require('dotenv').config({path: path.resolve(__dirname, '../.env')})
 
 const {env} = process
@@ -175,8 +174,8 @@ export const DEEPSEEK_MODELS = {
 export const DEEPSEEK_DEFAULT_MODEL = DEEPSEEK_MODELS.DEEPSEEK_CHAT
 
 export const CustomLLMApiType = {
-  OpenAI_Compatible: customLLMApiTypes.OpenAI_Compatible,
-  OpenAI_Compatible_Chain_Of_Thought: customLLMApiTypes.OpenAI_Compatible_Chain_Of_Thought,
+  OpenAI_Compatible: 'OpenAI compatible',
+  OpenAI_Compatible_Chain_Of_Thought: 'OpenAI compatible Chain-of-Thought',
 }
 
 export const OPENAI_COMPATIBLE_API_TYPES = new Set([

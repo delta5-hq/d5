@@ -31,6 +31,41 @@ import {resolveCustomLLMSettings} from './customLLMSettings'
 
 export {Model}
 
+const integrationSettingsCacheKeyPart = value => {
+  if (value === null) return 'null'
+  if (value === undefined) return 'undefined'
+
+  const stringValue = String(value)
+  return `${typeof value}:${stringValue.length}:${stringValue}`
+}
+
+const integrationSettingsCacheKey = (userId, workflowId) =>
+  `${integrationSettingsCacheKeyPart(userId)}|${integrationSettingsCacheKeyPart(workflowId)}`
+
+const readCachedIntegrationSettings = (store, userId, workflowId) => {
+  if (!store?._integrationSettingsCache) return null
+
+  const key = integrationSettingsCacheKey(userId, workflowId)
+  if (store._integrationSettingsCache instanceof Map) {
+    return store._integrationSettingsCache.get(key) || null
+  }
+
+  if (store._integrationSettingsCache.key === key) {
+    return store._integrationSettingsCache.settings
+  }
+
+  return null
+}
+
+export const writeCachedIntegrationSettings = (store, userId, workflowId = null, settings) => {
+  if (!store) return
+
+  const key = integrationSettingsCacheKey(userId, workflowId)
+  const cache = store._integrationSettingsCache instanceof Map ? store._integrationSettingsCache : new Map()
+  cache.set(key, settings)
+  store._integrationSettingsCache = cache
+}
+
 export const determineLLMType = settings => {
   const {model = 'auto'} = settings || {}
 
@@ -40,15 +75,11 @@ export const determineLLMType = settings => {
 }
 
 export const getIntegrationSettings = async (userId, workflowId = null, store = null) => {
-  if (store?._integrationSettingsCache) {
-    return store._integrationSettingsCache
+  const cachedSettings = readCachedIntegrationSettings(store, userId, workflowId)
+  if (cachedSettings) {
+    return cachedSettings
   }
 
-  // Resolve real integration settings even under a mock runtime: only the LLM
-  // *transport* is mocked (NoopChatModel / container Noop*Service), not settings
-  // resolution — so a genuinely-configured provider key must still be honored.
-  // When no integrations store is reachable (pure unit runs), fall back to
-  // deterministic defaults instead of failing.
   let fetched = {merged: null, workflowDoc: null}
   try {
     fetched = await IntegrationFacade.findMergedDecryptedWithMetadata(userId, workflowId)
@@ -67,9 +98,7 @@ export const getIntegrationSettings = async (userId, workflowId = null, store = 
     }
   }
 
-  if (store) {
-    store._integrationSettingsCache = settings
-  }
+  writeCachedIntegrationSettings(store, userId, workflowId, settings)
 
   return settings
 }

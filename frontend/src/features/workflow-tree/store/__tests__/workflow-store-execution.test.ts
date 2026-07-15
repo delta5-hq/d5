@@ -4,7 +4,7 @@ import type { WorkflowStoreState } from '../workflow-store-types'
 import { INITIAL_WORKFLOW_STATE } from '../workflow-store-types'
 import { bindExecuteAction, type ExecuteActionOptions } from '../workflow-store-execution'
 import type { DebouncedPersister } from '../workflow-store-persistence'
-import type { NodeData } from '@shared/base-types'
+import type { EdgeData, NodeData } from '@shared/base-types'
 
 vi.mock('@entities/workflow/lib', () => ({
   mergeWorkflowChanges: vi.fn(),
@@ -53,6 +53,22 @@ const ZERO_DELAY: ExecuteActionOptions = { minExecutingVisibleMs: 0 }
 
 function makeExecute(store: ReturnType<typeof makeStore>, persister: DebouncedPersister) {
   return bindExecuteAction(store, persister, ZERO_DELAY).executeCommand
+}
+
+type ExecuteWorkflowResponse = Awaited<ReturnType<typeof executeWorkflowCommand>>
+
+function expectWorkflowStateReferencesPreserved(
+  store: ReturnType<typeof makeStore>,
+  stateBefore: WorkflowStoreState,
+): void {
+  expect(store.getState().nodes).toBe(stateBefore.nodes)
+  expect(store.getState().edges).toBe(stateBefore.edges)
+  expect(store.getState().root).toBe(stateBefore.root)
+  expect(store.getState().expandedIds).toBe(stateBefore.expandedIds)
+  expect(store.getState().selectedId).toBe(stateBefore.selectedId)
+  expect(store.getState().selectedIds).toBe(stateBefore.selectedIds)
+  expect(store.getState().anchorId).toBe(stateBefore.anchorId)
+  expect(store.getState().isDirty).toBe(stateBefore.isDirty)
 }
 
 function mockIdentityExecution(nodes: WorkflowStoreState['nodes']) {
@@ -606,13 +622,8 @@ describe('bindExecuteAction', () => {
   })
 
   describe('store state immutability on execution failure', () => {
-    it.each([
-      ['AbortError', new DOMException('aborted', 'AbortError')],
-      ['network Error', new Error('network error')],
-      ['TypeError', new TypeError('unexpected response')],
-      ['non-AbortError DOMException', new DOMException('not allowed', 'NotAllowedError')],
-    ])('does not mutate workflow nodes or invoke merge when the API rejects with %s', async (_label, error) => {
-      vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(error)
+    it('does not mutate workflow nodes or invoke merge when the API rejects with AbortError', async () => {
+      vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(new DOMException('aborted', 'AbortError'))
 
       const store = makeStore({ nodes: N1, root: 'n1' })
       const nodesBefore = { ...store.getState().nodes }
@@ -621,6 +632,27 @@ describe('bindExecuteAction', () => {
       expect(store.getState().nodes).toEqual(nodesBefore)
       expect(mergeWorkflowChanges).not.toHaveBeenCalled()
     })
+
+    it.each([
+      ['network Error', new Error('network error'), 'Error: network error'],
+      ['TypeError', new TypeError('unexpected response'), 'Error: unexpected response'],
+      ['non-AbortError DOMException', new DOMException('not allowed', 'NotAllowedError'), 'Error: Unknown error'],
+    ])(
+      'creates a visible local error node without invoking merge when the API rejects with %s',
+      async (_label, error, expectedTitle) => {
+        vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(error)
+
+        const store = makeStore({ nodes: N1, root: 'n1' })
+        await makeExecute(store, makePersister())(stubNode, 'query')
+
+        const parentChildren = store.getState().nodes['n1']?.children ?? []
+        expect(parentChildren).toHaveLength(1)
+        const errorNodeId = parentChildren[0]
+        expect(store.getState().nodes[errorNodeId]).toMatchObject({ parent: 'n1', title: expectedTitle })
+        expect(store.getState().selectedId).toBe(errorNodeId)
+        expect(mergeWorkflowChanges).not.toHaveBeenCalled()
+      },
+    )
   })
 
   it('returns true on successful execution', async () => {
@@ -735,8 +767,14 @@ describe('bindExecuteAction', () => {
     })
 
     it('notifies bridge of failed completion when post-persist throws', async () => {
-      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
-      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({ nodes: N1, edges: {}, root: 'n1', share: { access: [] } })
+      const updatedNodes = { n1: { id: 'n1', title: 'Updated' } } as WorkflowStoreState['nodes']
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: updatedNodes })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: updatedNodes,
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
 
       const store = makeStore({ nodes: N1, root: 'n1' })
       const persister = makePersister()
@@ -1388,67 +1426,72 @@ describe('bindExecuteAction', () => {
     })
   })
 
-  describe('(no output) node creation on empty response', () => {
-    it('creates a (no output) child node when backend returns empty nodesChanged', async () => {
-      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+  describe('empty successful response handling', () => {
+    const emptyChangeResponses: [string, ExecuteWorkflowResponse][] = [
+      ['absent change payload', {}],
+      ['empty node changes only', { nodesChanged: {} }],
+      ['empty edge changes only', { edgesChanged: {} }],
+      ['empty node and edge changes', { nodesChanged: {}, edgesChanged: {} }],
+    ]
 
-      const store = makeStore({ nodes: { n1: { id: 'n1' } }, root: 'n1' })
-      await makeExecute(store, makePersister())({ id: 'n1', title: 'Node 1', children: [] }, 'query')
+    it.each(emptyChangeResponses)('treats %s as a successful workflow no-op', async (_label, response) => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce(response)
 
-      const children = store.getState().nodes['n1'].children ?? []
-      expect(children).toHaveLength(1)
-      expect(store.getState().nodes[children[0]].title).toBe('(no output)')
-      expect(store.getState().nodes[children[0]].parent).toBe('n1')
-    })
-
-    it('auto-selects the (no output) child when backend returns empty nodesChanged', async () => {
-      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
-
-      const store = makeStore({ nodes: { n1: { id: 'n1' } }, root: 'n1' })
-      await makeExecute(store, makePersister())({ id: 'n1', title: 'Node 1', children: [] }, 'query')
-
-      const children = store.getState().nodes['n1'].children ?? []
-      expect(store.getState().selectedId).toBe(children[0])
-    })
-
-    it('expands the executed node when backend returns empty nodesChanged', async () => {
-      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
-
-      const store = makeStore({ nodes: { n1: { id: 'n1' } }, root: 'n1', expandedIds: new Set<string>() })
-      await makeExecute(store, makePersister())({ id: 'n1', title: 'Node 1', children: [] }, 'query')
-
-      expect(store.getState().expandedIds.has('n1')).toBe(true)
-    })
-
-    it('creates a (no output) child when nodesChanged is absent from response', async () => {
-      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({})
-
-      const store = makeStore({ nodes: { n1: { id: 'n1' } }, root: 'n1' })
-      await makeExecute(store, makePersister())({ id: 'n1', title: 'Node 1', children: [] }, 'query')
-
-      const children = store.getState().nodes['n1'].children ?? []
-      expect(children).toHaveLength(1)
-      expect(store.getState().nodes[children[0]].title).toBe('(no output)')
-    })
-
-    it('marks store dirty and persists after creating the (no output) node', async () => {
-      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
-
-      const store = makeStore({ nodes: { n1: { id: 'n1' } }, root: 'n1', isDirty: false })
+      const store = makeStore({
+        nodes: { n1: { id: 'n1', children: [] } },
+        edges: { e1: { id: 'e1', start: 'n1', end: 'n1' } as EdgeData },
+        root: 'n1',
+        expandedIds: new Set<string>(['n1']),
+        selectedId: 'n1',
+        selectedIds: new Set<string>(['n1']),
+        anchorId: 'n1',
+        isDirty: false,
+      })
       const persister = makePersister()
-      await makeExecute(store, persister)({ id: 'n1', title: 'Node 1', children: [] }, 'query')
+      const stateBefore = store.getState()
 
-      expect(store.getState().isDirty).toBe(true)
-      expect(persister.flush).toHaveBeenCalled()
-    })
-
-    it('returns true when backend returns empty nodesChanged', async () => {
-      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
-
-      const store = makeStore({ nodes: { n1: { id: 'n1' } }, root: 'n1' })
-      const result = await makeExecute(store, makePersister())({ id: 'n1', title: 'Node 1', children: [] }, 'query')
+      const result = await makeExecute(store, persister)(stubNode, 'query')
 
       expect(result).toBe(true)
+      expectWorkflowStateReferencesPreserved(store, stateBefore)
+      expect(mergeWorkflowChanges).not.toHaveBeenCalled()
+      expect(persister.flush).not.toHaveBeenCalled()
+    })
+
+    it('keeps the pre-execution flush boundary when an already-dirty workflow gets no changes back', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {}, edgesChanged: {} })
+
+      const store = makeStore({ nodes: { n1: { id: 'n1', children: [] } }, root: 'n1', isDirty: true })
+      const persister = makePersister()
+      const result = await makeExecute(store, persister)({ id: 'n1', title: 'Node 1', children: [] }, 'query')
+
+      expect(result).toBe(true)
+      expect(persister.flush).toHaveBeenCalledTimes(1)
+      expect(mergeWorkflowChanges).not.toHaveBeenCalled()
+    })
+
+    it('merges edge-only successful responses', async () => {
+      const edge = { id: 'e1', start: 'n1', end: 'n2' } as EdgeData
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {}, edgesChanged: { e1: edge } })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: N2,
+        edges: { e1: edge },
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: N2, root: 'n1', isDirty: false })
+      const persister = makePersister()
+      const result = await makeExecute(store, persister)(stubNode, 'query')
+
+      expect(result).toBe(true)
+      expect(mergeWorkflowChanges).toHaveBeenCalledWith(expect.any(Object), {
+        nodesChanged: {},
+        edgesChanged: { e1: edge },
+      })
+      expect(store.getState().edges).toEqual({ e1: edge })
+      expect(store.getState().isDirty).toBe(true)
+      expect(persister.flush).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -1638,7 +1681,7 @@ describe('bindExecuteAction', () => {
       it('indicator clears without extra delay when the API call itself outlasts the min window', async () => {
         vi.useFakeTimers()
 
-        let resolveApi!: (value: { nodesChanged: Record<string, never> }) => void
+        let resolveApi!: (value: { nodesChanged: WorkflowStoreState['nodes'] }) => void
         vi.mocked(executeWorkflowCommand).mockImplementationOnce(
           () =>
             new Promise(resolve => {
@@ -1672,7 +1715,7 @@ describe('bindExecuteAction', () => {
       it('result data is committed to the store before the min window elapses', async () => {
         vi.useFakeTimers()
 
-        let resolveApi!: (value: { nodesChanged: Record<string, never> }) => void
+        let resolveApi!: (value: { nodesChanged: WorkflowStoreState['nodes'] }) => void
         vi.mocked(executeWorkflowCommand).mockImplementationOnce(
           () =>
             new Promise(resolve => {
@@ -1693,7 +1736,7 @@ describe('bindExecuteAction', () => {
           'query',
         )
 
-        resolveApi({ nodesChanged: {} })
+        resolveApi({ nodesChanged: updatedNodes })
         await vi.advanceTimersByTimeAsync(50)
 
         // Node data is already visible while the indicator is still up

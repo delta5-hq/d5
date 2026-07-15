@@ -673,5 +673,97 @@ describe('jsonSchemaToZod', () => {
       expect(result.success).toBe(true)
       expect(result.data.lang).toBe('fr')
     })
+
+    it.each([
+      [
+        'required parent applies all defaulted children',
+        {
+          type: 'object',
+          properties: {
+            config: {
+              type: 'object',
+              properties: {
+                lang: {type: 'string', default: 'en'},
+                limit: {type: 'integer', default: 3},
+              },
+              required: ['lang'],
+            },
+          },
+          required: ['config'],
+        },
+        {config: {}},
+        {config: {lang: 'en', limit: 3}},
+      ],
+      [
+        'optional parent omitted is not synthesized',
+        {
+          type: 'object',
+          properties: {
+            config: {
+              type: 'object',
+              properties: {
+                lang: {type: 'string', default: 'en'},
+              },
+            },
+          },
+        },
+        {},
+        {},
+      ],
+      [
+        'optional parent present applies defaulted child',
+        {
+          type: 'object',
+          properties: {
+            config: {
+              type: 'object',
+              properties: {
+                lang: {type: 'string', default: 'en'},
+              },
+            },
+          },
+        },
+        {config: {}},
+        {config: {lang: 'en'}},
+      ],
+      [
+        'explicit child value overrides default',
+        {
+          type: 'object',
+          properties: {
+            config: {
+              type: 'object',
+              properties: {
+                lang: {type: 'string', default: 'en'},
+              },
+            },
+          },
+        },
+        {config: {lang: 'fr'}},
+        {config: {lang: 'fr'}},
+      ],
+      [
+        'explicit undefined child receives default',
+        {
+          type: 'object',
+          properties: {
+            config: {
+              type: 'object',
+              properties: {
+                lang: {type: 'string', default: 'en'},
+              },
+            },
+          },
+        },
+        {config: {lang: undefined}},
+        {config: {lang: 'en'}},
+      ],
+    ])('handles nested object defaults: %s', (_label, inputSchema, input, expectedData) => {
+      const schema = jsonSchemaToZod(inputSchema)
+
+      const result = schema.safeParse(input)
+      expect(result.success).toBe(true)
+      expect(result.data).toEqual(expectedData)
+    })
   })
 })

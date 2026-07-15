@@ -5,6 +5,7 @@ import {
   MOCK_VERIFIER_FAIL_KEYWORD,
   MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX,
 } from './utils/langchain/noopLLM/ResponsePlanner'
+import {writeCachedIntegrationSettings} from './utils/langchain/getLLM'
 import Store from './utils/Store'
 
 jest.mock('debug', () => {
@@ -52,7 +53,7 @@ function buildForeachStore({
       ...leafNodes,
     },
   })
-  store._integrationSettingsCache = {}
+  writeCachedIntegrationSettings(store, store._userId, null, {})
   return store
 }
 
@@ -343,7 +344,7 @@ describe('/foreach /validate integrated execution contract', () => {
           },
         },
       })
-      store._integrationSettingsCache = {}
+      writeCachedIntegrationSettings(store, store._userId, null, {})
 
       await runCommand({queryType: CHAT_QUERY_TYPE, cell: store.getNode('chat'), store})
 

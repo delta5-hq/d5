@@ -57,21 +57,21 @@ describe('MemorizeDispatcher', () => {
     it('creates an error node when the memorize cell has no parent', async () => {
       const cell = {...makeMemorizeCell('/memorize'), parent: undefined}
       const store = buildStore({memorizeNode: cell})
-      const createNodesSpy = jest.spyOn(store.importer, 'createNodes')
+      const createErrorNodeSpy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
 
       await dispatchMemorize(cell, store, undefined)
 
-      expect(createNodesSpy).toHaveBeenCalledWith(expect.stringContaining('requires a parent node'), cell.id)
+      expect(createErrorNodeSpy).toHaveBeenCalledWith(expect.stringContaining('requires a parent node'), cell.id)
     })
 
     it('creates an error node when the parent node does not exist in the store', async () => {
       const cell = makeMemorizeCell('/memorize', 'missingParent')
       const store = buildStore({memorizeNode: cell})
-      const createNodesSpy = jest.spyOn(store.importer, 'createNodes')
+      const createErrorNodeSpy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
 
       await dispatchMemorize(cell, store, undefined)
 
-      expect(createNodesSpy).toHaveBeenCalledWith(expect.stringContaining('requires a parent node'), cell.id)
+      expect(createErrorNodeSpy).toHaveBeenCalledWith(expect.stringContaining('requires a parent node'), cell.id)
     })
 
     it('creates an error node when extracted content is empty', async () => {
@@ -83,11 +83,11 @@ describe('MemorizeDispatcher', () => {
       const cell = makeMemorizeCell('/memorize')
       const parent = makeParent()
       const store = buildStore({memorizeNode: cell, parentNode: parent})
-      const createNodesSpy = jest.spyOn(store.importer, 'createNodes')
+      const createErrorNodeSpy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
 
       await dispatchMemorize(cell, store, undefined)
 
-      expect(createNodesSpy).toHaveBeenCalledWith(expect.stringContaining('No content to memorize'), cell.id)
+      expect(createErrorNodeSpy).toHaveBeenCalledWith(expect.stringContaining('No content to memorize'), cell.id)
     })
 
     it('creates an error node when extracted content is null', async () => {
@@ -99,11 +99,11 @@ describe('MemorizeDispatcher', () => {
       const cell = makeMemorizeCell('/memorize')
       const parent = makeParent()
       const store = buildStore({memorizeNode: cell, parentNode: parent})
-      const createNodesSpy = jest.spyOn(store.importer, 'createNodes')
+      const createErrorNodeSpy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
 
       await dispatchMemorize(cell, store, undefined)
 
-      expect(createNodesSpy).toHaveBeenCalledWith(expect.stringContaining('No content to memorize'), cell.id)
+      expect(createErrorNodeSpy).toHaveBeenCalledWith(expect.stringContaining('No content to memorize'), cell.id)
     })
 
     it('creates an error node when MCP tool returns isError=true', async () => {
@@ -112,11 +112,11 @@ describe('MemorizeDispatcher', () => {
       const cell = makeMemorizeCell('/memorize')
       const parent = makeParent()
       const store = buildStore({memorizeNode: cell, parentNode: parent})
-      const createNodesSpy = jest.spyOn(store.importer, 'createNodes')
+      const createErrorNodeSpy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
 
       await dispatchMemorize(cell, store, undefined)
 
-      expect(createNodesSpy).toHaveBeenCalledWith(expect.stringContaining('Tool failed'), cell.id)
+      expect(createErrorNodeSpy).toHaveBeenCalledWith(expect.stringContaining('Tool failed'), cell.id)
     })
 
     it('creates an error node with fallback message when MCP error content is empty', async () => {
@@ -125,11 +125,11 @@ describe('MemorizeDispatcher', () => {
       const cell = makeMemorizeCell('/memorize')
       const parent = makeParent()
       const store = buildStore({memorizeNode: cell, parentNode: parent})
-      const createNodesSpy = jest.spyOn(store.importer, 'createNodes')
+      const createErrorNodeSpy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
 
       await dispatchMemorize(cell, store, undefined)
 
-      expect(createNodesSpy).toHaveBeenCalledWith(expect.stringContaining('MCP tool returned an error'), cell.id)
+      expect(createErrorNodeSpy).toHaveBeenCalledWith(expect.stringContaining('MCP tool returned an error'), cell.id)
     })
 
     it('creates an error node when MCP tool rejects', async () => {
@@ -138,11 +138,11 @@ describe('MemorizeDispatcher', () => {
       const cell = makeMemorizeCell('/memorize')
       const parent = makeParent()
       const store = buildStore({memorizeNode: cell, parentNode: parent})
-      const createNodesSpy = jest.spyOn(store.importer, 'createNodes')
+      const createErrorNodeSpy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
 
       await dispatchMemorize(cell, store, undefined)
 
-      expect(createNodesSpy).toHaveBeenCalledWith(expect.stringContaining('Connection refused'), cell.id)
+      expect(createErrorNodeSpy).toHaveBeenCalledWith(expect.stringContaining('Connection refused'), cell.id)
     })
 
     it('never throws — always resolves', async () => {

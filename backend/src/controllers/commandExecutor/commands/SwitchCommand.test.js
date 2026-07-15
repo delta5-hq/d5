@@ -287,7 +287,7 @@ describe('SwitchCommand', () => {
     })
 
     describe('case-child error handling', () => {
-      let child1, child2, option1, switchNode, createNodesSpy
+      let child1, child2, option1, switchNode, createErrorNodeSpy
 
       beforeEach(() => {
         jest.spyOn(command, 'processPromptAndExecuteCase').mockRestore()
@@ -303,7 +303,8 @@ describe('SwitchCommand', () => {
         }
         jest.spyOn(command, 'executeSwitch').mockResolvedValue('option1')
         getIntegrationSettings.mockResolvedValue({model: 'OpenAI', openai: {apiKey: 'apiKey', model: 'modelName'}})
-        createNodesSpy = jest.spyOn(mockStore.importer, 'createNodes').mockImplementation(() => {})
+        jest.spyOn(mockStore.importer, 'createNodes').mockImplementation(() => {})
+        createErrorNodeSpy = jest.spyOn(mockStore.importer, 'createErrorNode').mockImplementation(() => {})
       })
 
       it('creates error node on the failing child node when a case-child command throws', async () => {
@@ -311,7 +312,7 @@ describe('SwitchCommand', () => {
 
         await command.processPromptAndExecuteCase(switchNode, 'prompt')
 
-        expect(createNodesSpy).toHaveBeenCalledWith('Error: child1 failed', child1.id)
+        expect(createErrorNodeSpy).toHaveBeenCalledWith('Error: child1 failed', child1.id)
       })
 
       it('continues executing remaining case-children after one fails', async () => {

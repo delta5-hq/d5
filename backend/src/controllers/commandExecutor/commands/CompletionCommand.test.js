@@ -15,7 +15,7 @@ jest.mock('./utils/runCommand')
 const mockCell = {id: 'cell1'}
 
 const makeStore = () => ({
-  importer: {createNodes: jest.fn()},
+  importer: {createNodes: jest.fn(), createErrorNode: jest.fn()},
   _integrationSettingsCache: null,
 })
 
@@ -115,7 +115,7 @@ describe('CompletionCommand', () => {
       const command = new CompletionCommand(userId, workflowId, store)
       await command.run(mockCell)
       expect(runCommand).not.toHaveBeenCalled()
-      expect(store.importer.createNodes).toHaveBeenCalledWith('Error: No integration enabled', mockCell.id)
+      expect(store.importer.createErrorNode).toHaveBeenCalledWith('Error: No integration enabled', mockCell.id)
     })
 
     it.each([
@@ -131,7 +131,7 @@ describe('CompletionCommand', () => {
       const command = new CompletionCommand(userId, workflowId, store)
       await command.run(mockCell)
       expect(runCommand).not.toHaveBeenCalled()
-      expect(store.importer.createNodes).toHaveBeenCalledWith(
+      expect(store.importer.createErrorNode).toHaveBeenCalledWith(
         expect.stringMatching(/^Error: No LLM provider/),
         mockCell.id,
       )
@@ -142,7 +142,7 @@ describe('CompletionCommand', () => {
       runCommand.mockRejectedValue(new Error('downstream failure'))
       const command = new CompletionCommand(userId, workflowId, store)
       await command.run(mockCell)
-      expect(store.importer.createNodes).toHaveBeenCalledWith('Error: downstream failure', mockCell.id)
+      expect(store.importer.createErrorNode).toHaveBeenCalledWith('Error: downstream failure', mockCell.id)
     })
 
     it('resolves without throwing when store is present, regardless of error type', async () => {

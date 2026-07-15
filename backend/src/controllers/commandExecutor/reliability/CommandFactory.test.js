@@ -34,7 +34,6 @@ describe('CommandFactory', () => {
     [COMPLETION_QUERY_TYPE]: ['../commands/CompletionCommand', 'CompletionCommand'],
     [CUSTOM_LLM_CHAT_QUERY_TYPE]: ['../commands/CustomLLMChatCommand', 'CustomLLMChatCommand'],
     [DEEPSEEK_QUERY_TYPE]: ['../commands/DeepseekCommand', 'DeepseekCommand'],
-    [DOWNLOAD_QUERY_TYPE]: ['../commands/DownloadCommand', 'DownloadCommand'],
     [EXT_QUERY_TYPE]: ['../commands/ExtCommand', 'ExtCommand'],
     [FOREACH_QUERY_TYPE]: ['../commands/ForeachCommand', 'ForeachCommand'],
     [MEMORIZE_QUERY_TYPE]: ['../commands/MemorizeCommand', 'MemorizeCommand'],
@@ -155,20 +154,20 @@ describe('CommandFactory', () => {
         runSpy.mockRestore()
       })
 
-      it.each([
-        SUMMARIZE_QUERY_TYPE,
-        SWITCH_QUERY_TYPE,
-      ])('passes invocation options to prompt runner %s', async queryType => {
-        const signal = new AbortController().signal
-        const runSpy = spyOnRun(queryType)
-        const runner = CommandFactory.createRunner(queryType, mockCell, mockContext, mockPrompt, {signal})
+      it.each([SUMMARIZE_QUERY_TYPE, SWITCH_QUERY_TYPE])(
+        'passes invocation options to prompt runner %s',
+        async queryType => {
+          const signal = new AbortController().signal
+          const runSpy = spyOnRun(queryType)
+          const runner = CommandFactory.createRunner(queryType, mockCell, mockContext, mockPrompt, {signal})
 
-        await runner(mockStore)
+          await runner(mockStore)
 
-        expect(runSpy).toHaveBeenCalledWith(expect.any(Object), mockPrompt, {signal})
+          expect(runSpy).toHaveBeenCalledWith(expect.any(Object), mockPrompt, {signal})
 
-        runSpy.mockRestore()
-      })
+          runSpy.mockRestore()
+        },
+      )
 
       it.each([COMPLETION_QUERY_TYPE, FOREACH_QUERY_TYPE, STEPS_QUERY_TYPE])(
         'passes invocation options to option-object runner %s',

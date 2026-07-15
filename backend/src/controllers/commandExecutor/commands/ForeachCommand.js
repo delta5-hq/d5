@@ -20,12 +20,12 @@ import {isValidate} from './utils/isCommand'
 import {runCommand} from './utils/runCommand'
 import {runWithErrorNode} from './shared/runWithErrorNode'
 import {CriteriaFailedError} from '../reliability/core/CriteriaFailedError'
+import {isAbortError, throwIfAbortError, throwIfAborted} from './utils/executionSignal'
 import {StepsCommand} from './StepsCommand'
 import {createDeepClone} from './utils/createDeepClone'
 import {SSHClientPool} from './rpc/SSHClientPool'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
-import {throwIfAbortError} from './utils/executionSignal'
 // eslint-disable-next-line no-unused-vars
 import ProgressReporter from '../ProgressReporter'
 
@@ -195,6 +195,15 @@ export class ForeachCommand {
     }
   }
 
+  _handleLeafError(e, nodeId) {
+    throwIfAbortError(e)
+    this.logError(e)
+    if (!(e instanceof CriteriaFailedError)) {
+      const message = e instanceof Error ? e.message : String(e)
+      this.store.importer.createErrorNode(`Error: ${message || 'Unknown error'}`, nodeId)
+    }
+  }
+
   _cloneValidateTemplatesUnder(leafNodeId, validateTemplateIds) {
     validateTemplateIds.forEach(templateId => {
       const template = this.store.getNode(templateId)
@@ -206,8 +215,9 @@ export class ForeachCommand {
 
   async _executePromptsParallel(nodes, sshClientPool, signal, validateTemplateIds = []) {
     const parallelProgress = new ProgressReporter({title: 'parallel'}, this.progress)
+    throwIfAborted(signal)
 
-    await Promise.allSettled(
+    const results = await Promise.allSettled(
       nodes.map(async ({node, promptString}) => {
         try {
           const parallelTracker = await parallelProgress.add('child')
@@ -233,23 +243,22 @@ export class ForeachCommand {
             parallelProgress.remove(parallelTracker)
           }
         } catch (e) {
-          this.logError(e)
-          if (!(e instanceof CriteriaFailedError)) {
-            const message = e instanceof Error ? e.message : String(e)
-            this.store.importer.createNodes(`Error: ${message || 'Unknown error'}`, node.id)
-          }
+          this._handleLeafError(e, node.id)
         }
       }),
     )
 
     parallelProgress.dispose()
+
+    const abortResult = results.find(r => r.status === 'rejected' && isAbortError(r.reason))
+    if (abortResult) throw abortResult.reason
   }
 
   async _executePromptsSequential(nodes, sshClientPool, signal, validateTemplateIds = []) {
     const sequentialProgress = new ProgressReporter({title: 'sequential'}, this.progress)
 
     for (let i = 0; i < nodes.length; i += 1) {
-      if (signal?.aborted) break
+      throwIfAborted(signal)
 
       try {
         const sequentialTracker = await sequentialProgress.add('child')
@@ -280,11 +289,7 @@ export class ForeachCommand {
 
         sequentialProgress.remove(sequentialTracker)
       } catch (e) {
-        this.logError(e)
-        if (!(e instanceof CriteriaFailedError)) {
-          const message = e instanceof Error ? e.message : String(e)
-          this.store.importer.createNodes(`Error: ${message || 'Unknown error'}`, nodes[i].node.id)
-        }
+        this._handleLeafError(e, nodes[i].node.id)
       }
     }
 
@@ -295,20 +300,19 @@ export class ForeachCommand {
     const leafs = []
     const mainCommand = command.replace(FOREACH_PARAM_PARALLEL, '').trim()
 
-    const parentNode = this.store.getNode(node.parent)
-    const isRoot = !parentNode?.parent
+    const parentNode = node.parent ? this.store.getNode(node.parent) : node
+    const isRoot = !node.parent || !parentNode?.parent
 
     const validateTemplateIds = (node.children || []).filter(id => isValidate(this.store.getNode(id)))
 
-    try {
-      if (parentNode && !isRoot) {
-        leafs.push(...this.findLeafs(parentNode, mainCommand, params.useFile))
+    if (node.parent && !parentNode) {
+      throw new Error('Foreach parent node not found')
+    }
 
-        await this.executePrompts(leafs, params.parallel, signal, validateTemplateIds)
-      }
-    } catch (e) {
-      throwIfAbortError(e)
-      this.logError(e)
+    if (parentNode && !isRoot) {
+      leafs.push(...this.findLeafs(parentNode, mainCommand, params.useFile))
+
+      await this.executePrompts(leafs, params.parallel, signal, validateTemplateIds)
     }
 
     return {}

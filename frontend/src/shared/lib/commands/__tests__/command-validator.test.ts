@@ -149,7 +149,15 @@ describe('command-validator', () => {
 
     describe('algebraic identity with isSlashCommand', () => {
       it('canExecuteNode(x, false) equals isSlashCommand(x) for a representative set', () => {
-        const inputs: Array<string | null | undefined> = ['/chatgpt hello', '/unknown', '#1 /tool', '', null, undefined, 'text']
+        const inputs: Array<string | null | undefined> = [
+          '/chatgpt hello',
+          '/unknown',
+          '#1 /tool',
+          '',
+          null,
+          undefined,
+          'text',
+        ]
         inputs.forEach(x => {
           expect(canExecuteNode(x, false)).toBe(isSlashCommand(x))
         })

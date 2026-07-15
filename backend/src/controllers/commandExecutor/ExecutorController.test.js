@@ -1051,71 +1051,115 @@ describe('ExecutorController', () => {
           queryType: 'mcp:custom',
         })
       })
+    })
 
-      it.each([
-        ['generic Error', 'tool schema invalid', new Error('tool schema invalid')],
-        [
-          'AbortError',
-          'The operation was aborted',
-          Object.assign(new Error('The operation was aborted'), {name: 'AbortError'}),
-        ],
-      ])(
-        'should return 200 with error node for %s thrown after store is created',
-        async (_errorType, expectedMessage, thrownError) => {
-          loadUserAliases.mockResolvedValueOnce({
-            mcp: [{alias: '/fail', name: 'FailAgent'}],
-            rpc: [],
-          })
-          MCPCommand.prototype.run = jest.fn().mockRejectedValue(thrownError)
+    describe('error handling and execution cancellation', () => {
+      const findErrorNode = nodesChanged => Object.values(nodesChanged ?? {}).find(n => n.title?.startsWith('Error:'))
 
-          const body = {
-            ...createTestWorkflow('cell13', '/fail test'),
+      describe('non-abort runtime errors', () => {
+        it('mints an error node parented to the cell when the command throws after store initialization', async () => {
+          loadUserAliases.mockResolvedValueOnce({mcp: [{alias: '/fail', name: 'FailAgent'}], rpc: []})
+          MCPCommand.prototype.run = jest.fn().mockRejectedValue(new Error('tool schema invalid'))
+
+          const response = await customerRequest.post(apiEndpoint).send({
+            ...createTestWorkflow('cell-err-post', '/fail test'),
             queryType: 'mcp:fail',
-          }
-
-          const response = await customerRequest.post(apiEndpoint).send(body)
+          })
 
           expect(response.status).toBe(200)
-          const errorNode = Object.values(response.body.nodesChanged ?? {}).find(n => n.title?.startsWith('Error:'))
+          const errorNode = findErrorNode(response.body.nodesChanged)
           expect(errorNode).toBeDefined()
-          expect(errorNode.title).toContain(expectedMessage)
-          expect(errorNode.parent).toBe('cell13')
-        },
-      )
+          expect(errorNode.title).toContain('tool schema invalid')
+          expect(errorNode.parent).toBe('cell-err-post')
+        })
 
-      it('should return 200 with error node when getWorkflowData fails before store is initialized', async () => {
-        getWorkflowData.mockRejectedValueOnce(new Error('database unavailable'))
-        generateNodeId.mockReturnValueOnce('pre-store-error-node-id')
+        it('mints a pre-store error node parented to the cell when workflow data cannot be loaded', async () => {
+          getWorkflowData.mockRejectedValueOnce(new Error('database unavailable'))
+          generateNodeId.mockReturnValueOnce('pre-store-error-node-id')
 
-        const {workflowNodes: _wn, ...bodyWithoutNodes} = createTestWorkflow('cell15', '/chatgpt test')
-        const body = {...bodyWithoutNodes, workflowNodes: undefined}
+          const {workflowNodes: _wn, ...body} = createTestWorkflow('cell-err-pre', '/chatgpt test')
+          const response = await customerRequest.post(apiEndpoint).send({...body, workflowNodes: undefined})
 
-        const response = await customerRequest.post(apiEndpoint).send(body)
+          expect(response.status).toBe(200)
+          const errorNode = findErrorNode(response.body.nodesChanged)
+          expect(errorNode).toBeDefined()
+          expect(errorNode.title).toContain('database unavailable')
+          expect(errorNode.parent).toBe('cell-err-pre')
+          expect(response.body.workflowId).toBe('test-workflow')
+          expect(response.body.cell).toBeDefined()
+        })
 
-        expect(response.status).toBe(200)
-        const errorNode = Object.values(response.body.nodesChanged ?? {}).find(n => n.title?.startsWith('Error:'))
-        expect(errorNode).toBeDefined()
-        expect(errorNode.title).toContain('database unavailable')
-        expect(errorNode.parent).toBe('cell15')
-        expect(response.body.workflowId).toBe('test-workflow')
-        expect(response.body.cell).toBeDefined()
+        it('mints a pre-store error node parented to the cell when store initialization fails', async () => {
+          generateNodeId.mockReturnValueOnce('store-ctor-error-node-id')
+
+          const response = await customerRequest.post(apiEndpoint).send({
+            ...createTestWorkflow('cell-err-ctor', '/chatgpt test'),
+            workflowNodes: [],
+          })
+
+          expect(response.status).toBe(200)
+          const errorNode = findErrorNode(response.body.nodesChanged)
+          expect(errorNode).toBeDefined()
+          expect(errorNode.parent).toBe('cell-err-ctor')
+          expect(response.body.workflowId).toBe('test-workflow')
+        })
       })
 
-      it('should return 200 with error node when Store constructor fails before store is initialized', async () => {
-        generateNodeId.mockReturnValueOnce('store-ctor-error-node-id')
+      describe('execution cancellation', () => {
+        const makeAbortError = () => Object.assign(new Error('Operation cancelled'), {name: 'AbortError'})
 
-        const body = {
-          ...createTestWorkflow('cell16', '/chatgpt test'),
-          workflowNodes: [],
-        }
+        it('does not add an error node to the workflow when execution is cancelled mid-run', async () => {
+          loadUserAliases.mockResolvedValueOnce({mcp: [{alias: '/fail', name: 'FailAgent'}], rpc: []})
+          MCPCommand.prototype.run = jest.fn().mockRejectedValue(makeAbortError())
 
-        const response = await customerRequest.post(apiEndpoint).send(body)
+          const response = await customerRequest.post(apiEndpoint).send({
+            ...createTestWorkflow('cell-cancel-mid', '/fail test'),
+            queryType: 'mcp:fail',
+          })
 
-        expect(response.status).toBe(200)
-        const errorNode = Object.values(response.body.nodesChanged ?? {}).find(n => n.title?.startsWith('Error:'))
-        expect(errorNode).toBeDefined()
-        expect(errorNode.parent).toBe('cell16')
-        expect(response.body.workflowId).toBe('test-workflow')
+          expect(response.status).toBe(200)
+          expect(findErrorNode(response.body.nodesChanged)).toBeUndefined()
+        })
+
+        it('does not add an error node to the workflow when execution is cancelled before the store is ready', async () => {
+          getWorkflowData.mockRejectedValueOnce(makeAbortError())
+
+          const {workflowNodes: _wn, ...body} = createTestWorkflow('cell-cancel-early', '/chatgpt test')
+          const response = await customerRequest.post(apiEndpoint).send({...body, workflowNodes: undefined})
+
+          expect(response.status).toBe(200)
+          expect(findErrorNode(response.body.nodesChanged)).toBeUndefined()
+          expect(response.body.workflowId).toBe('test-workflow')
+        })
+
+        it('signals idle state to all viewers when execution is cancelled mid-run', async () => {
+          const {progressEventEmitter} = require('../../services/progress-event-emitter')
+          loadUserAliases.mockResolvedValueOnce({mcp: [{alias: '/fail', name: 'FailAgent'}], rpc: []})
+          MCPCommand.prototype.run = jest.fn().mockRejectedValue(makeAbortError())
+
+          await customerRequest.post(apiEndpoint).send({
+            ...createTestWorkflow('cell-cancel-idle-mid', '/fail test'),
+            queryType: 'mcp:fail',
+          })
+
+          expect(progressEventEmitter.emitComplete).toHaveBeenCalledWith('cell-cancel-idle-mid', {
+            queryType: 'mcp:fail',
+          })
+          expect(progressEventEmitter.emitError).not.toHaveBeenCalled()
+        })
+
+        it('signals idle state to all viewers when execution is cancelled before the store is ready', async () => {
+          const {progressEventEmitter} = require('../../services/progress-event-emitter')
+          getWorkflowData.mockRejectedValueOnce(makeAbortError())
+
+          const {workflowNodes: _wn, ...body} = createTestWorkflow('cell-cancel-idle-early', '/chatgpt test')
+          await customerRequest.post(apiEndpoint).send({...body, workflowNodes: undefined})
+
+          expect(progressEventEmitter.emitComplete).toHaveBeenCalledWith('cell-cancel-idle-early', {
+            queryType: undefined,
+          })
+          expect(progressEventEmitter.emitError).not.toHaveBeenCalled()
+        })
       })
     })
 
@@ -1159,6 +1203,16 @@ describe('ExecutorController', () => {
         const body = {...createTestWorkflow('cell-cause', '/err test'), queryType: 'mcp:err'}
         await customerRequest.post(apiEndpoint).send(body)
         expect(consoleErrorSpy).toHaveBeenCalledWith(cause)
+      })
+
+      it('does not call console.error when execution is cancelled', async () => {
+        loadUserAliases.mockResolvedValueOnce({mcp: [{alias: '/fail', name: 'FailAgent'}], rpc: []})
+        MCPCommand.prototype.run = jest
+          .fn()
+          .mockRejectedValue(Object.assign(new Error('Operation cancelled'), {name: 'AbortError'}))
+        const body = {...createTestWorkflow('cell-abort-quiet', '/fail test'), queryType: 'mcp:fail'}
+        await customerRequest.post(apiEndpoint).send(body)
+        expect(consoleErrorSpy).not.toHaveBeenCalled()
       })
     })
   })

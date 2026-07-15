@@ -81,6 +81,17 @@ function firstAnchoredNewNodeId(
   return newNode?.id
 }
 
+function hasRecordEntries(record: Record<string, unknown> | undefined): boolean {
+  return Object.keys(record ?? {}).length > 0
+}
+
+function hasWorkflowChanges(response: {
+  nodesChanged?: Record<string, NodeData>
+  edgesChanged?: Record<string, unknown>
+}): boolean {
+  return hasRecordEntries(response.nodesChanged) || hasRecordEntries(response.edgesChanged)
+}
+
 function removeExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): void {
   store.setState(prev => {
     const next = new Set(prev.executingNodeIds)
@@ -153,21 +164,7 @@ export function bindExecuteAction(
         clearForkPreviews(store, seenRefineIds)
       }
 
-      if (Object.keys(response.nodesChanged ?? {}).length === 0) {
-        const emptyNodeId = generateNodeId()
-        store.setState(prev => {
-          const parent = prev.nodes[node.id]
-          if (!parent) return prev
-          const emptyNode: NodeData = { id: emptyNodeId, title: '(no output)', parent: node.id }
-          const updatedParent: NodeData = { ...parent, children: [...(parent.children ?? []), emptyNodeId] }
-          return {
-            nodes: { ...prev.nodes, [node.id]: updatedParent, [emptyNodeId]: emptyNode },
-            expandedIds: new Set([...prev.expandedIds, node.id]),
-            selectedId: emptyNodeId,
-            isDirty: true,
-          }
-        })
-        await persister.flush()
+      if (!hasWorkflowChanges(response)) {
         notifyExecutionCompleted(node.id, true)
         return true
       }

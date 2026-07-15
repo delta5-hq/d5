@@ -10,8 +10,8 @@ import StreamBridge from './streaming/StreamBridge'
 import {StreamEvent} from './streaming/StreamEvent'
 import {progressEventEmitter} from '../../services/progress-event-emitter'
 import {buildExecutionResult, buildPreStoreErrorResult} from './ExecutorResponse'
-
 import {CriteriaFailedError} from './reliability/core/CriteriaFailedError'
+import {isAbortError} from './commands/utils/executionSignal'
 
 const logError = debug('delta5:app:ExecutorController')
 
@@ -123,11 +123,22 @@ const ExecutorController = {
           progressEventEmitter.emitError(nodeId, e, {queryType})
         }
         ctx.throw(422, e.message || 'All criteria failed')
+      } else if (isAbortError(e)) {
+        if (streamSessionId) {
+          StreamBridge.closeSession(streamSessionId)
+        }
+        if (nodeId) {
+          progressEventEmitter.emitComplete(nodeId, {queryType})
+        }
+        ctx.body =
+          store && otherData
+            ? buildExecutionResult(otherData, store, workflowId)
+            : {nodesChanged: [], edgesChanged: [], workflowId, cell}
       } else {
         console.error(e)
 
         if (store && otherData) {
-          store.importer.createNodes(`Error: ${e.message}`, cell.id)
+          store.importer.createErrorNode(`Error: ${e.message}`, cell.id)
           const result = buildExecutionResult(otherData, store, workflowId)
 
           if (streamSessionId) {

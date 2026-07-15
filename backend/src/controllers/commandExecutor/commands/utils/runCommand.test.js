@@ -9,6 +9,7 @@ import {ValidateCommand} from '../../reliability/core/ValidateCommand'
 import * as unknownCommandNode from './unknownCommandNode'
 import {VALIDATE_QUERY_TYPE} from '../../constants/validate'
 import {REFINE_QUERY_TYPE} from '../../constants/refine'
+import {writeCachedIntegrationSettings} from './langchain/getLLM'
 
 jest.useFakeTimers()
 jest.mock('../../ProgressReporter', () => {
@@ -254,7 +255,7 @@ describe('runCommand', () => {
   })
 
   describe('direct validate execution', () => {
-    it('dispatches /validate through the command runner so a visible artifact can be created', async () => {
+    it('marks /validate as invalid when invoked as a standalone root command', async () => {
       const cell = {id: 'validate-node', parent: 'root', command: '/validate answer is useful', children: []}
       const parent = {id: 'root', parent: 'root', title: 'answer text', children: ['validate-node']}
       const store = new Store({userId: 'user-id', nodes: {root: parent, 'validate-node': cell}})
@@ -262,7 +263,8 @@ describe('runCommand', () => {
 
       await runCommand({queryType: 'validate', cell, store})
 
-      expect(runSpy).toHaveBeenCalledWith(expect.objectContaining({id: 'validate-node'}))
+      expect(runSpy).not.toHaveBeenCalled()
+      expect(cell.title).toMatch(/\[✗ !\]/)
       runSpy.mockRestore()
     })
   })
@@ -282,21 +284,21 @@ describe('runCommand', () => {
     it('error node title contains the alias extracted from the unrecognized command', async () => {
       const cell = {id: 'root', parent: 'root', command: '/ghost-alias run task', children: []}
       const store = new Store({userId: 'user-id', nodes: {root: cell}})
-      jest.spyOn(store.importer, 'createNodes')
+      jest.spyOn(store.importer, 'createErrorNode')
 
       await runCommand({queryType: undefined, mcpAlias: undefined, rpcAlias: undefined, cell, store})
 
-      expect(store.importer.createNodes).toHaveBeenCalledWith('Error: Unknown command "/ghost-alias"', 'root')
+      expect(store.importer.createErrorNode).toHaveBeenCalledWith('Error: Unknown command "/ghost-alias"', 'root')
     })
 
     it('error node title contains (unknown) when cell command is absent', async () => {
       const cell = {id: 'root', parent: 'root', command: undefined, children: []}
       const store = new Store({userId: 'user-id', nodes: {root: cell}})
-      jest.spyOn(store.importer, 'createNodes')
+      jest.spyOn(store.importer, 'createErrorNode')
 
       await runCommand({queryType: undefined, mcpAlias: undefined, rpcAlias: undefined, cell, store})
 
-      expect(store.importer.createNodes).toHaveBeenCalledWith('Error: Unknown command "(unknown)"', 'root')
+      expect(store.importer.createErrorNode).toHaveBeenCalledWith('Error: Unknown command "(unknown)"', 'root')
     })
   })
 })
@@ -306,14 +308,23 @@ const SUBSTANTIVE_OUTPUT = 'Substantive analysis output that passes the structur
 describe('runCommand — commodity :n=N on plain LLM cells', () => {
   const makeRoot = command => ({
     id: 'root',
-    parent: 'root',
+    parent: 'workflow-root',
     command,
     children: [],
   })
 
+  const makeStore = root =>
+    new Store({
+      userId: 'userId',
+      nodes: {
+        'workflow-root': {id: 'workflow-root', parent: 'workflow-root', children: [root.id]},
+        [root.id]: root,
+      },
+    })
+
   const runWithCount = async command => {
     const root = makeRoot(command)
-    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+    const store = makeStore(root)
     let callCount = 0
     const spy = jest
       .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
@@ -344,7 +355,7 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
 
   it(':n=1 (explicit minimum) runs once', async () => {
     const root = makeRoot('/chat :n=1 List 3 colors')
-    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+    const store = makeStore(root)
     let callCount = 0
     const spy = jest
       .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
@@ -358,7 +369,7 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
 
   it('no :n= token (default) runs once — existing behavior unchanged', async () => {
     const root = makeRoot('/chat List 3 colors')
-    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+    const store = makeStore(root)
     let callCount = 0
     const spy = jest
       .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
@@ -372,7 +383,7 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
 
   const runCommodityOutcomes = async outcomes => {
     const root = makeRoot(`/chat :n=${outcomes.length} List 3 colors`)
-    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+    const store = makeStore(root)
     let callCount = 0
     const spy = jest
       .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
@@ -463,7 +474,7 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
 
   it('no :n= token — no suffix written on root cell', async () => {
     const root = makeRoot('/chat List 3 colors')
-    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+    const store = makeStore(root)
     const spy = jest
       .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
       .mockImplementation(async function () {
@@ -479,11 +490,17 @@ describe('runCommand — commodity :n=N on legacy node (command in title, not co
   it(':n=2 triggers commodity forks when command is stored in title field', async () => {
     const root = {
       id: 'root',
-      parent: 'root',
+      parent: 'workflow-root',
       title: '/chat :n=2 List 3 colors',
       children: [],
     }
-    const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
+    const store = new Store({
+      userId: 'userId',
+      nodes: {
+        'workflow-root': {id: 'workflow-root', parent: 'workflow-root', children: [root.id]},
+        [root.id]: root,
+      },
+    })
     let callCount = 0
     const spy = jest
       .spyOn(require('../ChatCommand').ChatCommand.prototype, 'run')
@@ -524,7 +541,7 @@ describe('runCommand — commodity :n=N with real ChatCommand + NoopLLM (MOCK_EX
   ])('produces exactly %i children and matching success suffix via real importer (NoopLLM)', async (n, command) => {
     const root = {id: 'root', parent: null, command, children: []}
     const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
-    store._integrationSettingsCache = {}
+    writeCachedIntegrationSettings(store, store._userId, null, {})
 
     await runCommand({queryType: 'chat', cell: root, store})
 

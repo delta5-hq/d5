@@ -40,12 +40,13 @@ describe('StepsCommand', () => {
   })
   const command = new StepsCommand(userId, workflowId, mockStore)
 
-  let createNodesSpy
+  let createErrorNodeSpy
 
   beforeEach(() => {
     jest.clearAllMocks()
     runCommand.mockImplementation(() => jest.fn())
-    createNodesSpy = jest.spyOn(mockStore.importer, 'createNodes').mockImplementation(() => {})
+    jest.spyOn(mockStore.importer, 'createNodes').mockImplementation(() => {})
+    createErrorNodeSpy = jest.spyOn(mockStore.importer, 'createErrorNode').mockImplementation(() => {})
   })
 
   it('creates error node when node has no command children to execute', async () => {
@@ -56,7 +57,7 @@ describe('StepsCommand', () => {
 
     await command.run(node)
 
-    expect(createNodesSpy).toHaveBeenCalledWith(
+    expect(createErrorNodeSpy).toHaveBeenCalledWith(
       'Error: /steps requires child nodes containing commands to execute',
       'n',
     )
@@ -68,7 +69,7 @@ describe('StepsCommand', () => {
 
     await command.run(node)
 
-    expect(createNodesSpy).toHaveBeenCalledWith(
+    expect(createErrorNodeSpy).toHaveBeenCalledWith(
       'Error: /steps requires child nodes containing commands to execute',
       'n',
     )
@@ -833,7 +834,7 @@ describe('StepsCommand', () => {
       await cmd.run(node)
 
       expect(cmd.logError).toHaveBeenCalled()
-      expect(createNodesSpy).toHaveBeenCalledWith(expect.stringMatching(/^Error:/), 'node')
+      expect(createErrorNodeSpy).toHaveBeenCalledWith(expect.stringMatching(/^Error:/), 'node')
     })
 
     it('does not throw to caller when execution fails', async () => {

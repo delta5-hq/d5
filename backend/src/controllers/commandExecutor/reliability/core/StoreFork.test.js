@@ -95,6 +95,19 @@ describe('StoreFork', () => {
       expect(fork._output.edges).toEqual([])
     })
 
+    it.each([
+      ['empty cache', null],
+      ['map cache', new Map([['scope-key', {model: 'OpenAI'}]])],
+      ['keyed object cache', {key: 'scope-key', settings: {model: 'OpenAI'}}],
+    ])('should preserve the request-scoped integration settings cache: %s', (_caseName, cache) => {
+      const original = new Store({userId: 'user1', workflowId: 'wf1'})
+      original._integrationSettingsCache = cache
+
+      const fork = StoreFork.createFork(original)
+
+      expect(fork._integrationSettingsCache).toBe(cache)
+    })
+
     it('should preserve ImportHandler binding to forked store', () => {
       const original = new Store({
         userId: 'user1',

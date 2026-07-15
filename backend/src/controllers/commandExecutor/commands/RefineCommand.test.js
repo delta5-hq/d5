@@ -18,9 +18,10 @@ const buildStore = () => new Store({userId: 'user1', workflowId: 'wf1', nodes: {
 const runRefine = async (options = {}) => {
   const store = buildStore()
   const createNodesSpy = jest.spyOn(store.importer, 'createNodes')
+  const createErrorNodeSpy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
   const command = new RefineCommand('user1', 'wf1', store)
   await command.run(store.getNode('r'), options)
-  return {store, createNodesSpy}
+  return {store, createNodesSpy, createErrorNodeSpy}
 }
 
 describe('RefineCommand', () => {
@@ -49,9 +50,9 @@ describe('RefineCommand', () => {
   ])('creates one error node when the refine resolver throws a %s', async (_label, error) => {
     resolveRefineCell.mockRejectedValueOnce(error)
 
-    const {createNodesSpy} = await runRefine()
+    const {createErrorNodeSpy} = await runRefine()
 
-    expect(createNodesSpy).toHaveBeenCalledWith(`Error: ${error.message}`, 'r')
-    expect(createNodesSpy).toHaveBeenCalledTimes(1)
+    expect(createErrorNodeSpy).toHaveBeenCalledWith(`Error: ${error.message}`, 'r')
+    expect(createErrorNodeSpy).toHaveBeenCalledTimes(1)
   })
 })

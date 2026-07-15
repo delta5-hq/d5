@@ -10,7 +10,6 @@ import {runWithErrorNode} from './shared/runWithErrorNode'
 import {getNodeCommand} from './utils/isCommand'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
-import {throwIfAbortError} from './utils/executionSignal'
 
 const log = debug('app:Command:Memorize')
 

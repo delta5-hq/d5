@@ -999,7 +999,7 @@ describe('SummarizeCommand run test', () => {
     const llmSpy = jest.spyOn(LLMChain.prototype, 'invoke').mockResolvedValue({output_text: ''})
     const translateSpy = jest.spyOn(require('./translate'), 'translate')
 
-    const errorSpy = jest.spyOn(mockStore.importer, 'createNodes')
+    const errorSpy = jest.spyOn(mockStore.importer, 'createErrorNode').mockImplementation(() => {})
 
     await runCommand({
       cell: summarizeNode,
@@ -1985,7 +1985,7 @@ describe('MCPCommand run test', () => {
     })
 
     MCPClientManager.callTool.mockRejectedValueOnce(new Error('Connection refused'))
-    const errorSpy = jest.spyOn(mockStore.importer, 'createNodes')
+    const errorSpy = jest.spyOn(mockStore.importer, 'createErrorNode').mockImplementation(() => {})
 
     await runCommand({
       cell: mcpNode,
@@ -2011,7 +2011,7 @@ describe('MCPCommand run test', () => {
     })
 
     MCPClientManager.callTool.mockResolvedValueOnce({content: 'Tool execution failed', isError: true})
-    const errorSpy = jest.spyOn(mockStore.importer, 'createNodes')
+    const errorSpy = jest.spyOn(mockStore.importer, 'createErrorNode').mockImplementation(() => {})
 
     await runCommand({
       cell: mcpNode,

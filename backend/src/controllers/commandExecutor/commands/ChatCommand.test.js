@@ -278,64 +278,15 @@ describe('ChatCommand', () => {
   })
 
   describe('ChatOpenAI constructor arguments', () => {
-    it('passes apiKey (not the deprecated openAIApiKey) to ChatOpenAI', async () => {
-      const {ChatOpenAI} = jest.requireActual('@langchain/openai')
-      const spy = jest.spyOn(ChatOpenAI.prototype, 'invoke').mockResolvedValue({content: 'ok'})
-
-      getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'test-key', model: 'gpt-4o'}})
-
-      const cmd = new ChatCommand('u', 'w', new Store({userId: 'u', nodes: {}}))
-      await cmd.replyChatOpenAIAPI([{role: 'user', content: 'hi'}])
-
-      expect(spy.mock.instances[0].apiKey).toBe('test-key')
-      spy.mockRestore()
-    })
-
-    it('uses the user-configured model name', async () => {
-      const {ChatOpenAI} = jest.requireActual('@langchain/openai')
-      const spy = jest.spyOn(ChatOpenAI.prototype, 'invoke').mockResolvedValue({content: 'ok'})
-
-      getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k', model: 'gpt-4-turbo'}})
+    it('delegates provider constructor policy to getLLM with the resolved settings', async () => {
+      const settings = {openai: {apiKey: 'test-key', model: 'gpt-4o'}}
+      getIntegrationSettings.mockResolvedValue(settings)
+      callSpy.mockResolvedValue({content: 'ok'})
 
       const cmd = new ChatCommand('u', 'w', new Store({userId: 'u', nodes: {}}))
       await cmd.replyChatOpenAIAPI([{role: 'user', content: 'hi'}])
 
-      expect(spy.mock.instances[0].model).toBe('gpt-4-turbo')
-      spy.mockRestore()
-    })
-
-    it('throws when openai apiKey is absent from settings', async () => {
-      getIntegrationSettings.mockResolvedValue({openai: {}})
-      const cmd = new ChatCommand('u', 'w', new Store({userId: 'u', nodes: {}}))
-      await expect(cmd.replyChatOpenAIAPI([{role: 'user', content: 'hi'}])).rejects.toThrow(
-        'OpenAI API key not configured',
-      )
-    })
-
-    it('throws when openai settings block is absent entirely', async () => {
-      getIntegrationSettings.mockResolvedValue({claude: {apiKey: 'k'}})
-      const cmd = new ChatCommand('u', 'w', new Store({userId: 'u', nodes: {}}))
-      await expect(cmd.replyChatOpenAIAPI([{role: 'user', content: 'hi'}])).rejects.toThrow(
-        'OpenAI API key not configured',
-      )
-    })
-
-    it.each([
-      ['an empty string', {apiKey: 'k', model: ''}],
-      ['null', {apiKey: 'k', model: null}],
-      ['undefined', {apiKey: 'k', model: undefined}],
-      ['absent from the settings block', {apiKey: 'k'}],
-    ])('resolves to gpt-4o when model is %s', async (_label, openaiSettings) => {
-      const {ChatOpenAI} = jest.requireActual('@langchain/openai')
-      const spy = jest.spyOn(ChatOpenAI.prototype, 'invoke').mockResolvedValue({content: 'ok'})
-
-      getIntegrationSettings.mockResolvedValue({openai: openaiSettings})
-
-      const cmd = new ChatCommand('u', 'w', new Store({userId: 'u', nodes: {}}))
-      await cmd.replyChatOpenAIAPI([{role: 'user', content: 'hi'}])
-
-      expect(spy.mock.instances[0].model).toBe('gpt-4o')
-      spy.mockRestore()
+      expect(getLLM).toHaveBeenCalledWith(expect.objectContaining({type: Model.OpenAI, settings}))
     })
   })
 })

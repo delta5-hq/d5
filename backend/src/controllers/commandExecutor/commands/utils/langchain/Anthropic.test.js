@@ -1,4 +1,6 @@
 import {ChatClaude, _parseChatHistory} from './Anthropic'
+import {AIMessage, HumanMessage, SystemMessage} from '@langchain/core/messages'
+import fetch from 'node-fetch'
 
 jest.mock('node-fetch')
 
@@ -86,7 +88,7 @@ describe('ChatClaude._generate', () => {
       expect(result.generations[0].text).toBe('hello')
     })
 
-    it('resolves with multiple generations when the response has multiple text blocks', async () => {
+    it('resolves with one concatenated generation when the response has multiple text blocks', async () => {
       fetchMock.mockResolvedValue(
         makeSuccessResponse({
           json: async () => ({
@@ -101,8 +103,8 @@ describe('ChatClaude._generate', () => {
         }),
       )
       const result = await makeInstance()._generate([humanMsg('hi')], {})
-      expect(result.generations).toHaveLength(2)
-      expect(result.generations.map(g => g.text)).toEqual(['first', 'second'])
+      expect(result.generations).toHaveLength(1)
+      expect(result.generations[0].text).toBe('firstsecond')
     })
 
     it('filters out non-text content blocks — only type:text produces a generation', async () => {
@@ -124,7 +126,7 @@ describe('ChatClaude._generate', () => {
       expect(result.generations[0].text).toBe('visible answer')
     })
 
-    it('returns an empty generations array when the response has no text blocks', async () => {
+    it('returns one empty generation when the response has no text blocks', async () => {
       fetchMock.mockResolvedValue(
         makeSuccessResponse({
           json: async () => ({
@@ -136,7 +138,8 @@ describe('ChatClaude._generate', () => {
         }),
       )
       const result = await makeInstance()._generate([humanMsg('hi')], {})
-      expect(result.generations).toHaveLength(0)
+      expect(result.generations).toHaveLength(1)
+      expect(result.generations[0].text).toBe('')
     })
   })
 
@@ -260,7 +263,7 @@ describe('_parseChatHistory', () => {
 
   it('throws when a message has non-string content', () => {
     expect(() => _parseChatHistory([{content: ['array'], _getType: () => 'human'}])).toThrow(
-      'Chat does not support non-string message content.',
+      'Chat does not support non-string content in human messages.',
     )
   })
 

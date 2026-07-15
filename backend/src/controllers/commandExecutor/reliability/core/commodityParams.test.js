@@ -127,14 +127,14 @@ describe('stripCommodityToken', () => {
 
   describe('removal grammar equals detection grammar — every token readCommodityN detects is removed', () => {
     it.each([
-      ':n=2 hello',
-      '/qa-mcp:n=2 hello',
-      '/qa-mcp hello:n=2',
-      '/qa-mcp\n:n=2 hello',
-      '\t:n=3 hello',
-      '/qa-mcp :n=12 hello',
-    ])('"%s": detected as fork yet leaves zero :n= residue', input => {
-      expect(readCommodityN(input)).toBeGreaterThan(1)
+      [':n=2 hello', 2],
+      ['/qa-mcp:n=2 hello', 2],
+      ['/qa-mcp hello:n=2', 2],
+      ['/qa-mcp\n:n=2 hello', 2],
+      ['\t:n=3 hello', 3],
+      ['/qa-mcp :n=12 hello', COMMODITY_N_MAX],
+    ])('"%s": detected as fork yet leaves zero :n= residue', (input, expected) => {
+      expect(readCommodityN(input)).toBe(expected)
       expect(stripCommodityToken(input)).not.toMatch(/:n=\d/)
     })
   })

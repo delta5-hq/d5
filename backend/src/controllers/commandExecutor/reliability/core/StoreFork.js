@@ -26,6 +26,7 @@ class StoreFork {
     })
 
     forked.withinForkExecution = true
+    forked._integrationSettingsCache = sourceStore._integrationSettingsCache
     return forked
   }
 

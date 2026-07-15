@@ -81,6 +81,7 @@ describe('MCPCommand', () => {
     jest.clearAllMocks()
     mockStore = makeStore()
     mockStore.importer.createNodes = jest.fn()
+    mockStore.importer.createErrorNode = jest.fn()
     MCPClientManager.callTool.mockResolvedValue({
       isError: false,
       content: 'MCP result text',
@@ -286,7 +287,7 @@ describe('MCPCommand', () => {
         const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
 
         await cmd.run(node, undefined, '/coder1 test')
-        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: tool error detail', 'node')
+        expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: tool error detail', 'node')
       })
 
       it('does not throw to caller when the tool reports isError', async () => {
@@ -317,7 +318,7 @@ describe('MCPCommand', () => {
 
         await cmd.run(node, undefined, '/coder1 test')
 
-        expect(mockStore.importer.createNodes).toHaveBeenCalledWith(`Error: ${err.message}`, node.id)
+        expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(`Error: ${err.message}`, node.id)
       })
     })
   })
@@ -408,7 +409,7 @@ describe('MCPCommand', () => {
         const cmd = new MCPCommand(userId, workflowId, mockStore, autoConfig)
 
         await cmd.run(node, undefined, '/coder1 build')
-        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: server unreachable', 'node')
+        expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: server unreachable', 'node')
       })
 
       it('does not throw to caller when the agent run throws', async () => {
@@ -444,7 +445,7 @@ describe('MCPCommand', () => {
         await cmd.run(node, undefined, '/coder1 task')
 
         expect(MCPClientManager.withClient).not.toHaveBeenCalled()
-        expect(mockStore.importer.createNodes).toHaveBeenCalledWith(expect.stringContaining('Error:'), node.id)
+        expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(expect.stringContaining('Error:'), node.id)
       })
     })
   })
