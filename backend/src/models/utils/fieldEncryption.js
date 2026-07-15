@@ -3,6 +3,7 @@ import {JWT_SECRET, FIELD_ENCRYPTION_KEY} from '../../constants'
 import adBuilder from './adBuilder'
 import {EncryptionContextValidator, ADContextBuilder} from './encryptionContext'
 import {FallbackDecrypt} from './decryptStrategy'
+import {parseAadMigrationDeadline, isDeadlineExceeded} from './aadMigrationDeadline'
 import {EncryptionKeyManager} from './encryptionKeyManager'
 import {DualKeyDecryptStrategy} from './dualKeyDecryptStrategy'
 
@@ -97,12 +98,14 @@ const getEncryptionService = () => {
     const cipher = new AESCipher()
     const primaryKey = keyManager.getPrimaryKey()
     const legacyKey = keyManager.getLegacyKey()
+    const deadlineMs = parseAadMigrationDeadline(process.env.AAD_MIGRATION_DEADLINE)
+    const enforceAadBinding = isDeadlineExceeded(deadlineMs)
 
     let decryptStrategy
     if (keyManager.requiresDualKeyDecryption()) {
-      decryptStrategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey)
+      decryptStrategy = new DualKeyDecryptStrategy(cipher, primaryKey, legacyKey, enforceAadBinding)
     } else {
-      decryptStrategy = new FallbackDecrypt(cipher)
+      decryptStrategy = new FallbackDecrypt(cipher, enforceAadBinding)
     }
 
     serviceInstance = new EncryptionService({getKey: () => primaryKey}, cipher, decryptStrategy)

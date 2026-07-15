@@ -12,13 +12,16 @@ interface LLMEndpointConfig {
   externalAPI?: string
 }
 
+// LangChain ChatOpenAI appends /chat/completions to baseURL which is set to
+// .../integration (no provider segment), so the intercepted path has no /openai/ segment.
+// Qwen is the sole provider that calls an external API directly instead of the backend proxy.
 const ENDPOINT_MAP: Record<LLMProvider, LLMEndpointConfig> = {
-  openai: { backendProxy: '**/api/v2/integration/openai/chat/completions' },
-  deepseek: { backendProxy: '**/api/v2/integration/deepseek/chat/completions', externalAPI: '**/api.deepseek.com/**' },
-  claude: { backendProxy: '**/api/v2/integration/claude/messages', externalAPI: '**/api.anthropic.com/**' },
-  qwen: { backendProxy: '**/api/v2/integration/qwen/chat/completions', externalAPI: '**/dashscope.aliyuncs.com/**' },
-  yandex: { backendProxy: '**/api/v2/integration/yandex/completion', externalAPI: '**/llm.api.cloud.yandex.net/**' },
-  perplexity: { backendProxy: '**/api/v2/integration/perplexity/chat/completions', externalAPI: '**/api.perplexity.ai/**' },
+  openai: { backendProxy: '**/api/v2/integration/chat/completions' },
+  deepseek: { backendProxy: '**/api/v2/integration/deepseek/chat/completions' },
+  claude: { backendProxy: '**/api/v2/integration/claude/messages' },
+  qwen: { externalAPI: '**/dashscope-intl.aliyuncs.com/**' },
+  yandex: { backendProxy: '**/api/v2/integration/yandex/completion' },
+  perplexity: { backendProxy: '**/api/v2/integration/perplexity/chat/completions' },
   custom_llm: { backendProxy: '**/api/v2/integration/custom_llm/chat/completions' },
 }
 
@@ -119,7 +122,10 @@ export async function mockAllLLMValidations(page: Page, mockResponse = 'Mock res
 /**
  * Removes LLM validation mock to allow real API calls.
  */
-export async function unmockLLMValidation(page: Page, { provider }: Pick<LLMValidationMockOptions, 'provider'>): Promise<void> {
+export async function unmockLLMValidation(
+  page: Page,
+  { provider }: Pick<LLMValidationMockOptions, 'provider'>,
+): Promise<void> {
   const config = ENDPOINT_MAP[provider]
   if (!config) return
 

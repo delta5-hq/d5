@@ -25,6 +25,7 @@ export const CUSTOM_LLM_CHAT_QUERY = '/custom'
 export const REFINE_QUERY = '/refine'
 export const VALIDATE_QUERY = '/validate'
 export const COMPLETION_QUERY = '/chat'
+export const MCP_FUSION_QUERY = '/mcp'
 export const MEMORIZE_QUERY = '/memorize'
 
 export const SUPPORTED_COMMANDS = Object.keys(COMMAND_TO_QUERYTYPE_MAP) as (keyof typeof COMMAND_TO_QUERYTYPE_MAP)[]

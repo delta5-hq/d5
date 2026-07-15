@@ -117,6 +117,41 @@ describe('MCPToolAdapter', () => {
     })
   })
 
+  describe('call events', () => {
+    it.each([
+      ['successful result', {content: [{type: 'text', text: 'ok'}], isError: false}, 'success'],
+      ['MCP error result', {content: [{type: 'text', text: 'bad'}], isError: true}, 'error'],
+    ])('emits status for %s', async (_label, toolResult, status) => {
+      const onCall = jest.fn()
+      const client = makeClient(toolResult)
+      const adapter = new MCPToolAdapter({toolDescriptor: makeDescriptor(), client, onCall})
+      const input = {prompt: 'q'}
+
+      await adapter.call(input)
+
+      expect(onCall).toHaveBeenCalledWith({status, input, result: toolResult})
+    })
+
+    it('emits error event and rethrows when the MCP client rejects', async () => {
+      const error = new Error('transport failed')
+      const onCall = jest.fn()
+      const client = {callTool: jest.fn().mockRejectedValue(error)}
+      const adapter = new MCPToolAdapter({toolDescriptor: makeDescriptor(), client, onCall})
+      const input = {prompt: 'q'}
+
+      await expect(adapter.call(input)).rejects.toThrow('transport failed')
+
+      expect(onCall).toHaveBeenCalledWith({status: 'error', input, error})
+    })
+
+    it('does not require a call listener', async () => {
+      const client = makeClient()
+      const adapter = new MCPToolAdapter({toolDescriptor: makeDescriptor(), client})
+
+      await expect(adapter.call({prompt: 'q'})).resolves.toBe('ok')
+    })
+  })
+
   describe('result handling', () => {
     it('returns the string content produced by formatToolResult', async () => {
       const client = makeClient({content: [{type: 'text', text: 'the answer'}], isError: false})

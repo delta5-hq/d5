@@ -1,58 +1,14 @@
-export const COMMAND_TO_QUERYTYPE_MAP = {
-  '/instruct': 'chat',
-  '/reason': 'chat',
-  '/chatgpt': 'chat',
-  '/chat': 'chat',
-  '/completion': 'completion',
-  '/web': 'web',
-  '/scholar': 'scholar',
-  '/refine': 'refine',
-  '/validate': 'validate',
-  '/foreach': 'foreach',
-  '/steps': 'steps',
-  '/outline': 'outline',
-  '/summarize': 'summarize',
-  '/switch': 'switch',
-  '/case': 'switch',
-  '/claude': 'claude',
-  '/qwen': 'qwen',
-  '/perplexity': 'perplexity',
-  '/deepseek': 'deepseek',
-  '/custom': 'custom_llm',
-  '/memorize': 'memorize',
-  '/ext': 'ext',
-  '/yandexgpt': 'yandex',
-  '/download': 'download',
-} satisfies Record<string, string>
+import { BUILTIN_COMMANDS } from './builtin-command-aliases'
+
+export const COMMAND_TO_QUERYTYPE_MAP: Record<string, string> = Object.fromEntries(
+  BUILTIN_COMMANDS.map(command => [command.alias, command.queryType]),
+)
 
 export type CommandQuery = keyof typeof COMMAND_TO_QUERYTYPE_MAP
 
-export const COMMAND_DESCRIPTIONS: Record<string, string> = {
-  '/instruct': 'Send instruction to LLM with system prompt',
-  '/reason': 'Step-by-step reasoning with LLM',
-  '/chatgpt': 'ChatGPT conversation',
-  '/chat': 'Chat with LLM',
-  '/completion': 'Text completion without chat formatting',
-  '/web': 'Search web with Perplexity',
-  '/scholar': 'Search academic papers',
-  '/refine': 'Iteratively refine text with LLM',
-  '/validate': 'Verify output satisfies stated criteria',
-  '/foreach': 'Loop over items with command template',
-  '/steps': 'Execute multiple commands sequentially',
-  '/outline': 'Generate hierarchical outline',
-  '/summarize': 'Summarize text content',
-  '/switch': 'Conditional branching logic',
-  '/case': 'Switch case branch',
-  '/claude': 'Use Claude AI model',
-  '/qwen': 'Use Qwen AI model',
-  '/perplexity': 'Use Perplexity AI model',
-  '/deepseek': 'Use DeepSeek AI model',
-  '/custom': 'Custom LLM endpoint',
-  '/memorize': 'Store content in memory',
-  '/ext': 'Extract structured data with LLM',
-  '/yandexgpt': 'Use YandexGPT model',
-  '/download': 'Download file from URL',
-}
+export const COMMAND_DESCRIPTIONS: Record<string, string> = Object.fromEntries(
+  BUILTIN_COMMANDS.map(command => [command.alias, command.description]),
+)
 
 export interface DynamicAlias {
   alias: string
@@ -84,13 +40,11 @@ export const extractQueryTypeFromCommand = (command: string | undefined, dynamic
   const trimmed = command.trim()
   const firstWord = trimmed.split(/\s+/)[0]
 
+  if (!firstWord.startsWith('/')) return 'chat'
+
   const fullMap = getFullCommandMap(dynamicAliases)
   const mappedQueryType = fullMap[firstWord]
   if (mappedQueryType) return mappedQueryType
 
-  if (firstWord.startsWith('/')) {
-    return firstWord.substring(1)
-  }
-
-  return firstWord || 'chat'
+  return 'unknown'
 }

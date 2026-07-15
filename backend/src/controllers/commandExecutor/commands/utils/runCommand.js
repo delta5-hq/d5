@@ -5,18 +5,15 @@ import {COMPLETION_QUERY_TYPE} from '../../constants/completion'
 import {CUSTOM_LLM_CHAT_QUERY_TYPE} from '../../constants/custom_llm'
 import {DEEPSEEK_QUERY_TYPE} from '../../constants/deepseek'
 import {DOWNLOAD_QUERY_TYPE} from '../../constants/download'
-import {EXT_QUERY_TYPE} from '../../constants/ext'
 import {FOREACH_QUERY, FOREACH_QUERY_TYPE} from '../../constants/foreach'
 import {MEMORIZE_QUERY, MEMORIZE_QUERY_TYPE} from '../../constants/memorize'
 import {OUTLINE_QUERY, OUTLINE_QUERY_TYPE, readSummarizeParam} from '../../constants/outline'
 import {PERPLEXITY_QUERY_TYPE} from '../../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../../constants/qwen'
 import {REFINE_QUERY} from '../../constants/refine'
-import {SCHOLAR_QUERY_TYPE} from '../../constants/scholar'
 import {STEPS_QUERY_TYPE} from '../../constants/steps'
 import {SUMMARIZE_QUERY, SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
 import {VALIDATE_QUERY} from '../../constants/validate'
-import {modifierQueryTypes} from '../../constants'
 import {ValidateCommand} from '../../reliability/core/ValidateCommand'
 import {readValidateRetry, hasValidCriterion} from '../../reliability/core/validateParams'
 import {CriteriaFailedError} from '../../reliability/core/CriteriaFailedError'
@@ -24,8 +21,9 @@ import {resolveRefineCell} from '../../reliability/core/resolveRefineCell'
 import {createForkProgressEmitter} from '../../reliability/core/ForkProgressEmitter'
 import RefineTopology from '../../reliability/core/RefineTopology'
 import {SWITCH_QUERY_TYPE} from '../../constants/switch'
-import {WEB_QUERY_TYPE} from '../../constants/web'
+import {MCP_FUSION_QUERY_TYPE} from '../../constants/mcpFusion'
 import {YANDEX_QUERY_TYPE} from '../../constants/yandex'
+import {CONTROL_FLOW_COMMANDS, modifierQueryTypes} from '../../constants'
 import ProgressReporter from '../../ProgressReporter'
 import {CommandFactory, buildInvalidReliabilityMetadata, FAILURE_CAUSE, REMEDIATION_HINT} from '../../reliability'
 import {
@@ -33,15 +31,23 @@ import {
   appendValidateSuffix,
   appendInvalidSuffix,
 } from '../../reliability/core/reliabilitySuffix'
-import {getNodeCommand, isValidate} from './isCommand'
+import {getNodeCommand, isValidate, isOutlineSummarize} from './isCommand'
 import {mergeCommodityForkOutputs} from '../../reliability/core/commodityForkMerge'
 import {resolveCommand} from './queryTypeResolver'
 import {ForeachCommand} from '../ForeachCommand'
-import {MemorizeCommand} from '../MemorizeCommand'
-import {OutlineCommand} from '../OutlineCommand'
 import {SummarizeCommand} from '../SummarizeCommand'
+import {dispatchDownload} from '../internalResearch/DownloadDispatcher'
+import {dispatchMemorize} from '../internalResearch/MemorizeDispatcher'
+import {dispatchOutlineSummarize} from '../internalResearch/OutlineSummarizeDispatcher'
+import {INTERNAL_RESEARCH_QUERY_TYPES, getResearchAlias} from '../internalResearch/InternalResearchAliasMap'
+import {
+  buildInternalResearchToolStaticArgs,
+  cleanInternalResearchPrompt,
+} from '../internalResearch/ResearchToolStaticArgs'
 import {MCPCommand} from '../MCPCommand'
+import {MCPFusionCommand} from '../MCPFusionCommand'
 import {RPCCommand} from '../RPCCommand'
+import {createUnknownCommandNode} from './unknownCommandNode'
 import StoreFork from '../../reliability/core/StoreFork'
 import {readCommodityN, stripCommodityN} from '../../reliability/core/commodityParams'
 import {
@@ -58,10 +64,8 @@ const logError = debug('delta5:app:runCommand:error')
 /** @private */
 function getCommandName(queryType) {
   const nameMap = {
+    [MCP_FUSION_QUERY_TYPE]: 'MCPFusionCommand',
     [YANDEX_QUERY_TYPE]: 'YandexCommand',
-    [WEB_QUERY_TYPE]: 'WebCommand',
-    [SCHOLAR_QUERY_TYPE]: 'ScholarCommand',
-    [OUTLINE_QUERY_TYPE]: 'OutlineCommand',
     [STEPS_QUERY_TYPE]: 'StepsCommand',
     [CHAT_QUERY_TYPE]: 'ChatCommand',
     [SUMMARIZE_QUERY_TYPE]: 'SummarizeCommand',
@@ -71,11 +75,8 @@ function getCommandName(queryType) {
     [PERPLEXITY_QUERY_TYPE]: 'PerplexityCommand',
     [QWEN_QUERY_TYPE]: 'QwenCommand',
     [DEEPSEEK_QUERY_TYPE]: 'DeepseekCommand',
-    [DOWNLOAD_QUERY_TYPE]: 'DownloadCommand',
     [CUSTOM_LLM_CHAT_QUERY_TYPE]: 'CustomLLMChatCommand',
-    [EXT_QUERY_TYPE]: 'ExtCommand',
     [COMPLETION_QUERY_TYPE]: 'CompletionCommand',
-    [MEMORIZE_QUERY_TYPE]: 'MemorizeCommand',
   }
   return nameMap[queryType]
 }
@@ -131,25 +132,44 @@ function isBetterValidateAttempt(candidate, best) {
   return candidate.passedCount > best.passedCount
 }
 
-/** @private */
-async function runCommodityForks(queryType, context, prompt, cell, store, progress, n, options = {}) {
-  throwIfAborted(options.signal)
+/**
+ * Runs N independent forks of a commodity cell and merges their outcomes back
+ * into `store` (success-gated prompt nodes + commodity reliabilityMetadata/suffix).
+ *
+ * Each fork executes through the full `runCommand` dispatch so MCP/RPC aliases
+ * and internal-research verbs route correctly; `mcpAlias`/`rpcAlias` are threaded
+ * through. Fork stores carry `withinForkExecution = true` (set by
+ * StoreFork.createFork) and `preventCommodityForks: true`, which is the re-entry
+ * guard preventing a fork from recursively re-forking. Forks skip post-processing
+ * (`preventPostProcess: true`); post-processing runs once on the merged result.
+ *
+ * @private
+ */
+async function runCommodityForks({queryType, context, prompt, cell, store, progress, n, mcpAlias, rpcAlias, signal, memoMap}) {
+  throwIfAborted(signal)
   const cleanPrompt = stripCommodityN(prompt || '')
   const forkStores = Array.from({length: n}, () => StoreFork.createFork(store))
   await Promise.allSettled(
     forkStores.map(forkStore =>
-      executeCommandWithProgress(
-        queryType,
-        context,
-        cleanPrompt,
-        forkStore.getNode(cell.id) || cell,
-        forkStore,
+      runCommand(
+        {
+          queryType,
+          context,
+          prompt: cleanPrompt,
+          cell: forkStore.getNode(cell.id) || cell,
+          store: forkStore,
+          mcpAlias,
+          rpcAlias,
+          signal,
+          memoMap,
+          preventCommodityForks: true,
+          preventPostProcess: true,
+        },
         progress,
-        options,
       ),
     ),
   )
-  throwIfAborted(options.signal)
+  throwIfAborted(signal)
 
   mergeCommodityForkOutputs({store, forkStores, cellId: cell.id, total: n})
 }
@@ -228,28 +248,51 @@ export const runCommand = async (
     cellNode.title = stripReliabilitySuffix(cellNode.title || '')
   }
 
-  if (mcpAlias) {
+  const commodityN =
+    preventCommodityForks || store.withinForkExecution ? 1 : readCommodityN(getNodeCommand(cell))
+
+  if (commodityN > 1) {
+    await runCommodityForks({
+      queryType,
+      context,
+      prompt,
+      cell,
+      store,
+      progress,
+      n: commodityN,
+      mcpAlias,
+      rpcAlias,
+      signal,
+      memoMap,
+    })
+  } else if (mcpAlias) {
     const command = new MCPCommand(store._userId, store._workflowId, store, mcpAlias)
     await command.run(cell, context, prompt, {signal})
   } else if (rpcAlias) {
     const command = new RPCCommand(store._userId, store._workflowId, store, rpcAlias, progress, sshClientPool)
     await command.run(cell, context, prompt, {signal})
-  } else {
-    const commodityN = preventCommodityForks || store.withinForkExecution ? 1 : readCommodityN(getNodeCommand(cell))
-    if (commodityN > 1) {
-      await runCommodityForks(
-        queryType,
-        context,
-        prompt,
-        cell,
-        store,
-        progress,
-        commodityN,
-        buildExecutionOptions(signal),
-      )
-    } else {
-      await executeCommandWithProgress(queryType, context, prompt, cell, store, progress, buildExecutionOptions(signal))
+  } else if (queryType === MCP_FUSION_QUERY_TYPE) {
+    const command = new MCPFusionCommand(store._userId, store._workflowId, store)
+    await command.run(cell, context, prompt, {signal})
+  } else if (queryType === DOWNLOAD_QUERY_TYPE) {
+    await dispatchDownload(cell, store, signal)
+  } else if (queryType === MEMORIZE_QUERY_TYPE) {
+    await dispatchMemorize(cell, store, signal)
+  } else if (queryType === OUTLINE_QUERY_TYPE && isOutlineSummarize(getNodeCommand(cell))) {
+    await dispatchOutlineSummarize(cell, store, signal)
+  } else if (INTERNAL_RESEARCH_QUERY_TYPES.has(queryType)) {
+    const nodeCommand = getNodeCommand(cell) || ''
+    const alias = {
+      ...getResearchAlias(queryType),
+      toolStaticArgs: buildInternalResearchToolStaticArgs(queryType, nodeCommand),
     }
+    const researchPrompt = cleanInternalResearchPrompt(prompt || nodeCommand)
+    const command = new MCPCommand(store._userId, store._workflowId, store, alias)
+    await command.run(cell, context, researchPrompt, {signal})
+  } else if (getCommandName(queryType) || CONTROL_FLOW_COMMANDS.has(queryType)) {
+    await executeCommandWithProgress(queryType, context, prompt, cell, store, progress, buildExecutionOptions(signal))
+  } else {
+    createUnknownCommandNode(store, cell)
   }
 
   let runPostProccess = !preventPostProcess
@@ -312,17 +355,10 @@ export const runCommand = async (
 
           flag = true
         } else if (query?.startsWith(MEMORIZE_QUERY)) {
-          const command = new MemorizeCommand(store._userId, store._workflowId, store)
-
-          postProcessTracker = await postProcessProgress.add('MemorizeCommand.run')
-          await command.run(childNode, {signal})
-
+          await dispatchMemorize(childNode, store, signal)
           flag = true
         } else if (query?.startsWith(OUTLINE_QUERY) && readSummarizeParam(query)) {
-          const command = new OutlineCommand(store._userId, store._workflowId, store)
-
-          postProcessTracker = await postProcessProgress.add('OutlineCommand.run')
-          flag = await command.run(childNode, undefined, {signal})
+          await dispatchOutlineSummarize(childNode, store, signal)
         } else if (query?.startsWith(REFINE_QUERY)) {
           if (!memoMap?.has(childNode.id)) {
             if (!memoMap) memoMap = new Map()

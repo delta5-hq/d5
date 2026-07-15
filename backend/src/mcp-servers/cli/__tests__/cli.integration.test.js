@@ -5,7 +5,7 @@ import path from 'path'
 const itWithNetwork = process.env.NETWORK_TESTS === 'true' ? it : it.skip
 
 describe('CLI integration', () => {
-  const scraperServerPath = path.resolve(__dirname, '../../scraper/server.js')
+  const scraperServerPath = path.resolve(__dirname, '../../../../build/mcp-servers/scraper/server.js')
 
   itWithNetwork(
     'invokes scraper server scrape_web_pages tool via stdio',

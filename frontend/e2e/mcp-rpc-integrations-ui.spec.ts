@@ -1,41 +1,17 @@
-import { expect, test as base } from '@playwright/test'
-import { adminLogin, subscriberLogin } from './utils'
-import * as path from 'path'
-import * as fs from 'fs'
+import { expect } from '@playwright/test'
 import { cleanArrayIntegrations } from './helpers/array-integration-helpers'
 import { ArrayIntegrationPage } from './pages/ArrayIntegrationPage'
+import { createParallelUserTest, credentialsForWorker } from './fixtures/parallel-user-test'
 import { selectRadixOption } from './helpers/radix-select-helper'
+import { selectWorkflowScope } from './helpers/wait-helpers'
+import {
+  addMCPItemAtScope,
+  cleanAllIntegrationsAcrossScopes,
+  type ScopeDescriptor,
+} from './helpers/workflow-scoped-cleanup'
+import { authenticateViaAPI } from './helpers/api-auth'
 
-const test = base.extend<{}, { workerStorageState: string }>({
-  storageState: ({ workerStorageState }, use) => use(workerStorageState),
-  workerStorageState: [
-    async ({ browser }, use, workerInfo) => {
-      const id = workerInfo.parallelIndex
-      const dir = path.resolve(process.cwd(), 'playwright/.auth')
-
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-
-      const fileName = path.join(dir, `mcp-rpc-ui-user.${id}.json`)
-      const context = await browser.newContext({
-        storageState: undefined,
-        baseURL: workerInfo.project.use.baseURL,
-      })
-      const page = await context.newPage()
-
-      if (workerInfo.parallelIndex === 0) {
-        await adminLogin(page)
-      } else {
-        await subscriberLogin(page)
-      }
-
-      await context.storageState({ path: fileName })
-      await context.close()
-
-      await use(fileName)
-    },
-    { scope: 'worker' },
-  ],
-})
+const test = createParallelUserTest('mcp-rpc-ui-user')
 
 test.describe.serial('MCP Integration UI Flow', () => {
   test.beforeEach(async ({ page }) => {
@@ -658,8 +634,7 @@ test.describe.serial('Cross-Field Alias Uniqueness', () => {
       description: 'Updated MCP description',
     })
 
-    await page.reload()
-    await page.waitForLoadState('networkidle')
+    await arrayPage.goto()
 
     await arrayPage.verifyCardVisible('/mcp-ind')
     await arrayPage.verifyCardVisible('/rpc-ind')
@@ -1267,5 +1242,120 @@ test.describe.serial('Integration Tile Interaction', () => {
     await tile1.click({ position: { x: 40, y: 40 } })
     await expect(dialog).toBeVisible()
     await expect(page.locator('#alias')).toHaveValue('/tile1')
+  })
+})
+
+test.describe.serial('Cross-Scope Inherited Alias Conflict (15.3, 15.3.1)', () => {
+  let workflowId: string
+
+  test.beforeAll(async ({ browser }, testInfo) => {
+    const context = await browser.newContext({ baseURL: testInfo.project.use.baseURL })
+    const page = await context.newPage()
+    const authResult = await authenticateViaAPI(page.request, credentialsForWorker(testInfo.parallelIndex))
+    if (!authResult.ok) {
+      throw new Error(authResult.error || `Auth failed: ${authResult.status}`)
+    }
+    const response = await page.request.post('/api/v2/workflow', { data: { title: 'Alias Conflict Test Workflow' } })
+    workflowId = (await response.json()).workflowId
+    await context.close()
+  })
+
+  test.afterAll(async ({ browser }, testInfo) => {
+    const context = await browser.newContext({ baseURL: testInfo.project.use.baseURL })
+    const page = await context.newPage()
+    const authResult = await authenticateViaAPI(page.request, credentialsForWorker(testInfo.parallelIndex))
+    if (!authResult.ok) {
+      throw new Error(authResult.error || `Auth failed: ${authResult.status}`)
+    }
+    const scopes: ScopeDescriptor[] = [
+      { label: 'global', workflowId: undefined },
+      { label: 'workflow', workflowId },
+    ]
+    await cleanAllIntegrationsAcrossScopes(page, scopes)
+    await page.request.delete(`/api/v2/workflow/${workflowId}`)
+    await context.close()
+  })
+
+  test.beforeEach(async ({ page }) => {
+    const scopes: ScopeDescriptor[] = [
+      { label: 'global', workflowId: undefined },
+      { label: 'workflow', workflowId },
+    ]
+    await page.goto('/settings')
+    await page.waitForLoadState('networkidle')
+    await cleanAllIntegrationsAcrossScopes(page, scopes)
+    await page.reload()
+    await page.waitForLoadState('networkidle')
+  })
+
+  test('dialog blocks workflow-scope RPC when global-scope MCP has the same alias', async ({ page }) => {
+    await addMCPItemAtScope(page, {
+      alias: '/shared',
+      transport: 'stdio',
+      command: 'node',
+      toolName: 'global-tool',
+    })
+
+    await page.goto('/settings')
+    await page.waitForLoadState('networkidle')
+
+    const integrationsTab = page.locator('[role="tab"]:has-text("Integrations")')
+    if ((await integrationsTab.count()) > 0) await integrationsTab.click()
+
+    await selectWorkflowScope(page, workflowId)
+
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.openAddDialog('rpc')
+    await arrayPage.fillRPCForm({
+      alias: '/shared',
+      protocol: 'ssh',
+      host: '127.0.0.1',
+      username: 'test',
+      privateKey: 'key',
+      commandTemplate: 'echo "{{prompt}}"',
+    })
+
+    await page.locator('button[type="submit"]').click()
+
+    await expect(page.locator('text=Alias already in use by another integration')).toBeVisible({ timeout: 5000 })
+
+    const rpcCard = page.locator('[data-alias="/shared"][data-field="rpc"]')
+    await expect(rpcCard).toHaveCount(0)
+  })
+
+  test('dialog allows workflow-scope MCP when global-scope MCP has the same alias (same-type override)', async ({
+    page,
+  }) => {
+    await addMCPItemAtScope(page, {
+      alias: '/shared',
+      transport: 'stdio',
+      command: 'node',
+      toolName: 'global-tool',
+    })
+
+    await page.goto('/settings')
+    await page.waitForLoadState('networkidle')
+
+    const integrationsTab = page.locator('[role="tab"]:has-text("Integrations")')
+    if ((await integrationsTab.count()) > 0) await integrationsTab.click()
+
+    await selectWorkflowScope(page, workflowId)
+
+    const arrayPage = new ArrayIntegrationPage(page)
+    await arrayPage.openAddDialog('mcp')
+    await arrayPage.fillMCPForm({
+      alias: '/shared',
+      transport: 'stdio',
+      command: 'node',
+      toolName: 'workflow-override',
+    })
+
+    await page.locator('button[type="submit"]').click()
+
+    const dialog = page.locator('[data-dialog-name="mcp"]')
+    await dialog.waitFor({ state: 'hidden', timeout: 5000 })
+
+    const workflowMcpCard = page.locator('[data-alias="/shared"][data-field="mcp"]')
+    await expect(workflowMcpCard).toBeVisible({ timeout: 5000 })
   })
 })

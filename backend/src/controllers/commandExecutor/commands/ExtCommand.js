@@ -12,7 +12,6 @@ import {
 import {determineLLMType, getEmbeddings, getIntegrationSettings, getLLM} from './utils/langchain/getLLM'
 import {ExtVectorStore} from './utils/langchain/vectorStore/ExtVectorStore'
 import {JSKnowledgeMapWebScholarSearch} from './utils/langchain/JSKnowledgeMapWebScholarSearch'
-import {createSimpleAgentExecutor} from './utils/langchain/getAgentExecutor'
 import {readExtContextParam} from '../constants/ext'
 import {translate} from './utils/translate'
 import {referencePatterns} from './references/utils/referencePatterns'
@@ -55,7 +54,7 @@ export class ExtCommand {
     throwIfAborted(params?.signal)
     const lang = params?.lang
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
-    const llmType = determineLLMType(node?.command, settings)
+    const llmType = determineLLMType(settings)
     const {llm, chunkSize} = getLLM({settings, type: llmType, log: this.log})
     const {storageType, ...extStoreData} = getEmbeddings({settings, type: llmType})
     const vectorStore = new ExtVectorStore({
@@ -78,13 +77,9 @@ export class ExtCommand {
       userInput,
       onError: this.logError,
       convertOutputToOutline: false,
-    }).asTool()
+    })
 
-    const tools = [searchTool]
-
-    const executor = createSimpleAgentExecutor(llm, tools, lang)
-
-    let result = (await executor.invoke({input: userInput}, signalOptions(params?.signal))).output
+    let result = await searchTool.getKnowledgeMapWebExt(userInput)
 
     throwIfAborted(params?.signal)
 

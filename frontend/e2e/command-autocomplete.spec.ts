@@ -1,24 +1,29 @@
-import { test, expect } from '@playwright/test'
-import { adminLogin, createWorkflow } from './utils'
+import { expect } from '@playwright/test'
+import { createWorkflow } from './utils'
 import { cleanArrayIntegrations, addArrayItem } from './helpers/array-integration-helpers'
-import { setupWorkflowWithCommandField } from './helpers/workflow-node-setup'
+import { createParallelUserTest } from './fixtures/parallel-user-test'
+import { setupWorkflowWithCommandField, reloadAndGetExistingSetup } from './helpers/workflow-node-setup'
+
+const test = createParallelUserTest('command-autocomplete-user')
 
 test.describe('Command Autocomplete', () => {
   test.describe.configure({ mode: 'serial' })
-  let workflowId: string
+
+  let createdWorkflowId = ''
 
   test.beforeEach(async ({ page }) => {
     await page.goto('/workflows')
-    await adminLogin(page)
     await cleanArrayIntegrations(page)
-    workflowId = await createWorkflow(page)
-    await page.waitForLoadState('networkidle')
-
+    createdWorkflowId = await createWorkflow(page)
     await setupWorkflowWithCommandField(page)
   })
 
   test.afterEach(async ({ page }) => {
     await cleanArrayIntegrations(page)
+    if (createdWorkflowId) {
+      await page.request.delete(`/api/v2/workflow/${createdWorkflowId}`)
+      createdWorkflowId = ''
+    }
   })
 
   test('popover appears when / typed at start of field', async ({ page }) => {
@@ -117,9 +122,7 @@ test.describe('Command Autocomplete', () => {
       args: ['server.js'],
     })
 
-    await page.reload()
-    await page.waitForLoadState('networkidle')
-    await setupWorkflowWithCommandField(page)
+    await reloadAndGetExistingSetup(page)
 
     const commandField = page.locator('textarea[data-type="command-field"]').first()
     await commandField.click()
@@ -144,9 +147,7 @@ test.describe('Command Autocomplete', () => {
       commandTemplate: 'echo "{{prompt}}"',
     })
 
-    await page.reload()
-    await page.waitForLoadState('networkidle')
-    await setupWorkflowWithCommandField(page)
+    await reloadAndGetExistingSetup(page)
 
     const commandField = page.locator('textarea[data-type="command-field"]').first()
     await commandField.click()
@@ -191,6 +192,15 @@ test.describe('Command Autocomplete', () => {
     await expect(autocomplete).not.toBeVisible()
   })
 
+  test('autocomplete does not trigger when slash is not at start of first line', async ({ page }) => {
+    const commandField = page.locator('textarea[data-type="command-field"]').first()
+    await commandField.click()
+    await commandField.fill('hello /')
+
+    const autocomplete = page.locator('[data-type="autocomplete-suggestions"]')
+    await expect(autocomplete).not.toBeVisible()
+  })
+
   test('autocomplete shows description for MCP alias', async ({ page }) => {
     const testDescription = 'Custom MCP tool description'
     await addArrayItem(page, 'mcp', {
@@ -202,9 +212,7 @@ test.describe('Command Autocomplete', () => {
       args: ['server.js'],
     })
 
-    await page.reload()
-    await page.waitForLoadState('networkidle')
-    await setupWorkflowWithCommandField(page)
+    await reloadAndGetExistingSetup(page)
 
     const commandField = page.locator('textarea[data-type="command-field"]').first()
     await commandField.click()

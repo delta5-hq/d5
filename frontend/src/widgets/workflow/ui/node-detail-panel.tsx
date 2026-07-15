@@ -19,6 +19,7 @@ import {
 } from '@shared/lib/reliability-suffix'
 import { NodeTitleEditor } from './node-title-editor'
 import { NodePreviewSection } from './node-preview-section'
+import { McpFusionReportPanel } from './mcp-fusion-report-panel'
 import { CommandField } from './command-field'
 import { CriterionVerdictDrawer } from './criterion-verdict-drawer'
 import { DiscardedForksDrawer } from './discarded-forks-drawer'
@@ -85,7 +86,7 @@ export const NodeDetailPanel = ({
   const mutationDisabled = isExecuting
   const { formatMessage } = useIntl()
   const showPreview = isPrompt || Boolean(node.command) || Boolean(node.title)
-  const canExecute = canExecuteNode(node.command, executeDisabled || refineCostExceedsLimit === true, aliases)
+  const canExecute = canExecuteNode(node.command, executeDisabled || refineCostExceedsLimit === true)
   const siblingActionsEnabled = !isRoot && canExecute
 
   const commodityN = readCommodityN(node.command ?? '')
@@ -385,6 +386,11 @@ export const NodeDetailPanel = ({
           </CollapsibleTrigger>
           <CollapsibleContent data-testid="node-preview-section">
             <NodePreviewSection nodeId={node.id} />
+            {node.mcpFusionReport ? (
+              <div className="mt-2">
+                <McpFusionReportPanel report={node.mcpFusionReport} />
+              </div>
+            ) : null}
           </CollapsibleContent>
         </Collapsible>
       ) : null}

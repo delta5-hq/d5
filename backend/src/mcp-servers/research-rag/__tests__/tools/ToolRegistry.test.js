@@ -76,14 +76,6 @@ describe('ToolRegistry', () => {
       expect(tools1).toEqual(tools2)
     })
 
-    it('returned array contains tool instances with getSchema method', () => {
-      const tools = registry.getAllTools()
-
-      tools.forEach(tool => {
-        expect(typeof tool.getSchema).toBe('function')
-      })
-    })
-
     it('returned array contains tool instances with execute method', () => {
       const tools = registry.getAllTools()
 
@@ -98,60 +90,58 @@ describe('ToolRegistry', () => {
 
     beforeEach(() => {
       mockMcpServer = {
-        registerTool: jest.fn(),
+        tool: jest.fn(),
       }
     })
 
     it('registers all 4 tools with MCP server', () => {
       registry.registerAll(mockMcpServer)
 
-      expect(mockMcpServer.registerTool).toHaveBeenCalledTimes(4)
+      expect(mockMcpServer.tool).toHaveBeenCalledTimes(4)
     })
 
     it('registers web_search_qa tool', () => {
       registry.registerAll(mockMcpServer)
 
-      const call = mockMcpServer.registerTool.mock.calls.find(c => c[0] === 'web_search_qa')
+      const call = mockMcpServer.tool.mock.calls.find(c => c[0] === 'web_search_qa')
       expect(call).toBeDefined()
     })
 
     it('registers scholar_search_qa tool', () => {
       registry.registerAll(mockMcpServer)
 
-      const call = mockMcpServer.registerTool.mock.calls.find(c => c[0] === 'scholar_search_qa')
+      const call = mockMcpServer.tool.mock.calls.find(c => c[0] === 'scholar_search_qa')
       expect(call).toBeDefined()
     })
 
     it('registers kb_query tool', () => {
       registry.registerAll(mockMcpServer)
 
-      const call = mockMcpServer.registerTool.mock.calls.find(c => c[0] === 'kb_query')
+      const call = mockMcpServer.tool.mock.calls.find(c => c[0] === 'kb_query')
       expect(call).toBeDefined()
     })
 
     it('registers memorize_content tool', () => {
       registry.registerAll(mockMcpServer)
 
-      const call = mockMcpServer.registerTool.mock.calls.find(c => c[0] === 'memorize_content')
+      const call = mockMcpServer.tool.mock.calls.find(c => c[0] === 'memorize_content')
       expect(call).toBeDefined()
     })
 
-    it('passes tool schema as second argument', () => {
+    it('passes description as second argument and zod shape as third', () => {
       registry.registerAll(mockMcpServer)
 
-      mockMcpServer.registerTool.mock.calls.forEach(call => {
-        const schema = call[1]
-        expect(schema).toHaveProperty('name')
-        expect(schema).toHaveProperty('description')
-        expect(schema).toHaveProperty('inputSchema')
+      mockMcpServer.tool.mock.calls.forEach(call => {
+        expect(typeof call[1]).toBe('string')
+        expect(typeof call[2]).toBe('object')
       })
     })
 
-    it('passes execute handler as third argument', () => {
+    it('passes execute handler as fourth argument', () => {
       registry.registerAll(mockMcpServer)
 
-      mockMcpServer.registerTool.mock.calls.forEach(call => {
-        const handler = call[2]
+      mockMcpServer.tool.mock.calls.forEach(call => {
+        const handler = call[3]
         expect(typeof handler).toBe('function')
       })
     })
@@ -159,8 +149,8 @@ describe('ToolRegistry', () => {
     it('execute handler calls tool.execute with args', async () => {
       registry.registerAll(mockMcpServer)
 
-      const webSearchCall = mockMcpServer.registerTool.mock.calls.find(c => c[0] === 'web_search_qa')
-      const handler = webSearchCall[2]
+      const webSearchCall = mockMcpServer.tool.mock.calls.find(c => c[0] === 'web_search_qa')
+      const handler = webSearchCall[3]
 
       const webTool = registry.tools.find(t => t instanceof WebSearchQATool)
       webTool.execute = jest.fn().mockResolvedValue({content: [{type: 'text', text: 'result'}]})
@@ -175,13 +165,13 @@ describe('ToolRegistry', () => {
       registry.registerAll(mockMcpServer)
       registry.registerAll(mockMcpServer)
 
-      expect(mockMcpServer.registerTool).toHaveBeenCalledTimes(8)
+      expect(mockMcpServer.tool).toHaveBeenCalledTimes(8)
     })
 
     it('preserves tool registration order', () => {
       registry.registerAll(mockMcpServer)
 
-      const names = mockMcpServer.registerTool.mock.calls.map(call => call[0])
+      const names = mockMcpServer.tool.mock.calls.map(call => call[0])
       expect(names).toEqual(['web_search_qa', 'scholar_search_qa', 'kb_query', 'memorize_content'])
     })
   })

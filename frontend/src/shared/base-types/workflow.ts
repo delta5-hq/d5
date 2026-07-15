@@ -1,5 +1,30 @@
 import type React from 'react'
 
+export type MCPToolCallRecord = {
+  alias: string
+  exposedName: string
+  toolName: string
+  status: string
+  reason?: string
+}
+
+export type MCPAvailabilityRecord = {
+  alias: string
+  toolNames: string[]
+}
+
+export type MCPUnavailabilityRecord = {
+  alias: string
+  phase: string
+  reason: string
+}
+
+export type MCPFusionReportData = {
+  available: MCPAvailabilityRecord[]
+  unavailable: MCPUnavailabilityRecord[]
+  toolCalls: MCPToolCallRecord[]
+}
+
 export type WorkflowId = string
 
 export type NodeId = string
@@ -31,6 +56,7 @@ export type NodeContent = {
   command?: string
   collapsed?: boolean
   parent?: NodeId
+  mcpFusionReport?: MCPFusionReportData
   reliabilityMetadata?: ReliabilityMetadata
   executionStatus?: 'error'
   /** Container config for grouping children */

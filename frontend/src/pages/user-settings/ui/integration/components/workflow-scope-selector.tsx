@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { FormattedMessage } from 'react-intl'
+import { FormattedMessage, useIntl } from 'react-intl'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
 import { useUserWorkflowsList } from '@pages/user-settings/api/use-user-workflows-list'
 
@@ -11,12 +11,19 @@ interface WorkflowScopeSelectorProps {
 
 export const WorkflowScopeSelector: React.FC<WorkflowScopeSelectorProps> = ({ value, onChange, disabled }) => {
   const { workflows, isLoading } = useUserWorkflowsList()
+  const intl = useIntl()
 
   const handleValueChange = (newValue: string) => {
     onChange(newValue === 'user-level' ? null : newValue)
   }
 
   const displayValue = value ?? 'user-level'
+
+  const selectedWorkflow = value !== null ? workflows.find(w => w.workflowId === value) : undefined
+  const triggerLabel =
+    value === null
+      ? intl.formatMessage({ id: 'integration.workflowScope.userLevel' })
+      : (selectedWorkflow?.displayTitle ?? value)
 
   return (
     <div className="space-y-2">
@@ -25,7 +32,7 @@ export const WorkflowScopeSelector: React.FC<WorkflowScopeSelectorProps> = ({ va
       </label>
       <Select disabled={disabled || isLoading} onValueChange={handleValueChange} value={displayValue}>
         <SelectTrigger data-type="workflow-scope-selector">
-          <SelectValue />
+          <SelectValue>{triggerLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem data-type="scope-user-level" value="user-level">
@@ -37,7 +44,10 @@ export const WorkflowScopeSelector: React.FC<WorkflowScopeSelectorProps> = ({ va
               key={workflow.workflowId}
               value={workflow.workflowId}
             >
-              {workflow.title || workflow.workflowId}
+              <span>{workflow.displayTitle}</span>
+              {workflow.displayTitle !== workflow.workflowId ? (
+                <span className="ml-2 text-xs text-muted-foreground font-mono">{workflow.workflowId}</span>
+              ) : null}
             </SelectItem>
           ))}
         </SelectContent>

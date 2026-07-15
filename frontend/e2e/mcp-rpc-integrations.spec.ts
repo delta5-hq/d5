@@ -1,7 +1,4 @@
-import { expect, test as base } from '@playwright/test'
-import { adminLogin, subscriberLogin } from './utils'
-import * as path from 'path'
-import * as fs from 'fs'
+import { expect } from '@playwright/test'
 import {
   addArrayItem,
   cleanArrayIntegrations,
@@ -9,38 +6,9 @@ import {
   getIntegration,
   updateArrayItem,
 } from './helpers/array-integration-helpers'
+import { createParallelUserTest } from './fixtures/parallel-user-test'
 
-const test = base.extend<{}, { workerStorageState: string }>({
-  storageState: ({ workerStorageState }, use) => use(workerStorageState),
-  workerStorageState: [
-    async ({ browser }, use, workerInfo) => {
-      const id = workerInfo.parallelIndex
-      const dir = path.resolve(process.cwd(), 'playwright/.auth')
-
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-
-      const fileName = path.join(dir, `mcp-rpc-user.${id}.json`)
-      const page = await browser.newPage({
-        baseURL: workerInfo.project.use.baseURL,
-      })
-
-      // Use a different user per worker to isolate integration documents in MongoDB.
-      // Both browsers (chromium=0, firefox=1) run the serial suite concurrently; giving
-      // each its own user prevents race conditions on POST /integration/:field/items.
-      if (workerInfo.parallelIndex === 0) {
-        await adminLogin(page)
-      } else {
-        await subscriberLogin(page)
-      }
-
-      await page.context().storageState({ path: fileName })
-      await page.close()
-
-      await use(fileName)
-    },
-    { scope: 'worker' },
-  ],
-})
+const test = createParallelUserTest('mcp-rpc-user')
 
 test.describe.serial('Array Integration CRUD', () => {
   test.beforeEach(async ({ page }) => {
@@ -255,6 +223,32 @@ test.describe.serial('Array Integration CRUD', () => {
     expect(integration.rpc[0].autoApprove).toBe('whitelist')
   })
 
+  test('Cross-type alias conflict: MCP then RPC with same alias returns 400', async ({ page }) => {
+    const mcp = await addArrayItem(page, 'mcp', { alias: '/qa', transport: 'stdio', toolName: 'test' })
+    expect(mcp.ok).toBe(true)
+
+    const rpc = await addArrayItem(page, 'rpc', { alias: '/qa', protocol: 'ssh', host: '127.0.0.1' })
+    expect(rpc.ok).toBe(false)
+    expect(rpc.status).toBe(400)
+
+    const integration = await getIntegration(page)
+    expect(integration.mcp).toHaveLength(1)
+    expect(integration.rpc ?? []).toHaveLength(0)
+  })
+
+  test('Cross-type alias conflict: RPC then MCP with same alias returns 400', async ({ page }) => {
+    const rpc = await addArrayItem(page, 'rpc', { alias: '/qa', protocol: 'ssh', host: '127.0.0.1' })
+    expect(rpc.ok).toBe(true)
+
+    const mcp = await addArrayItem(page, 'mcp', { alias: '/qa', transport: 'stdio', toolName: 'test' })
+    expect(mcp.ok).toBe(false)
+    expect(mcp.status).toBe(400)
+
+    const integration = await getIntegration(page)
+    expect(integration.rpc).toHaveLength(1)
+    expect(integration.mcp ?? []).toHaveLength(0)
+  })
+
   test('MCP and RPC fields are independent arrays', async ({ page }) => {
     const mcpResult = await addArrayItem(page, 'mcp', { alias: '/mcp-item', transport: 'stdio', toolName: 'mcp_tool' })
     const rpcResult = await addArrayItem(page, 'rpc', { alias: '/rpc-item', protocol: 'ssh', host: '127.0.0.1' })
@@ -280,14 +274,12 @@ test.describe.serial('Array Integration CRUD', () => {
     expect(integration.mcp[0].description).toBe('updated')
   })
 
-  test('Alias with special characters URL-encodes correctly', async ({ page }) => {
+  test('Alias with nested path separator is rejected by canonical alias contract', async ({ page }) => {
     const alias = '/test/nested'
 
     const add = await addArrayItem(page, 'mcp', { alias, transport: 'stdio', toolName: 'test' })
-    expect(add.ok).toBe(true)
-
-    const del = await deleteArrayItem(page, 'mcp', alias)
-    expect(del.status).toBe(204)
+    expect(add.ok).toBe(false)
+    expect(add.status).toBe(400)
 
     const integration = await getIntegration(page)
     expect(integration.mcp || []).toHaveLength(0)

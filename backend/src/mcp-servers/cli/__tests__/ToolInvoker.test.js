@@ -23,8 +23,8 @@ describe('ToolInvoker', () => {
 
       expect(callTool).toHaveBeenCalledWith({
         transport: MCP_TRANSPORT.STDIO,
-        command: 'npx',
-        args: ['babel-node', './server.js'],
+        command: 'node',
+        args: ['./server.js'],
         env: {VAR: 'value'},
         toolName: 'test_tool',
         toolArguments: {arg: 'value'},
@@ -32,7 +32,7 @@ describe('ToolInvoker', () => {
       })
     })
 
-    it('uses npx babel-node for server execution', async () => {
+    it('uses node to execute compiled server directly', async () => {
       callTool.mockResolvedValue({isError: false, content: 'result'})
 
       const invoker = new ToolInvoker()
@@ -44,8 +44,8 @@ describe('ToolInvoker', () => {
       })
 
       const callArgs = callTool.mock.calls[0][0]
-      expect(callArgs.command).toBe('npx')
-      expect(callArgs.args).toEqual(['babel-node', './outliner/server.js'])
+      expect(callArgs.command).toBe('node')
+      expect(callArgs.args).toEqual(['./outliner/server.js'])
     })
 
     it('forwards environment variables to child process', async () => {

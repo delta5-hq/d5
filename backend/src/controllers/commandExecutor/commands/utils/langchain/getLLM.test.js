@@ -26,7 +26,7 @@ describe('determineLLMType', () => {
       'returns %s when explicitly set',
       model => {
         const settings = {model}
-        expect(determineLLMType(undefined, settings)).toBe(model)
+        expect(determineLLMType(settings)).toBe(model)
       },
     )
 
@@ -36,7 +36,7 @@ describe('determineLLMType', () => {
         openai: {apiKey: 'openai-key'},
         qwen: {apiKey: 'qwen-key'},
       }
-      expect(determineLLMType(undefined, settings)).toBe(Model.Claude)
+      expect(determineLLMType(settings)).toBe(Model.Claude)
     })
 
     it('ignores lang when model explicitly set', () => {
@@ -44,43 +44,7 @@ describe('determineLLMType', () => {
         model: Model.Claude,
         lang: 'ru',
       }
-      expect(determineLLMType(undefined, settings)).toBe(Model.Claude)
-    })
-
-    it('ignores command --lang when model explicitly set', () => {
-      const settings = {model: Model.Claude}
-      expect(determineLLMType('/web prompt --lang=ru', settings)).toBe(Model.Claude)
-    })
-  })
-
-  describe('language-based selection (second priority)', () => {
-    it('returns YandexGPT when lang=ru in settings', () => {
-      const settings = {lang: 'ru'}
-      expect(determineLLMType(undefined, settings)).toBe(Model.YandexGPT)
-    })
-
-    it('returns OpenAI when lang is not ru in settings', () => {
-      const settings = {lang: 'en'}
-      expect(determineLLMType(undefined, settings)).toBe(Model.OpenAI)
-    })
-
-    it('returns YandexGPT when command has --lang=ru flag', () => {
-      expect(determineLLMType('/web prompt --lang=ru', {})).toBe(Model.YandexGPT)
-    })
-
-    it('prefers settings lang over credentials', () => {
-      const settings = {
-        lang: 'ru',
-        claude: {apiKey: 'claude-key'},
-      }
-      expect(determineLLMType(undefined, settings)).toBe(Model.YandexGPT)
-    })
-
-    it('prefers command --lang over credentials', () => {
-      const settings = {
-        claude: {apiKey: 'claude-key'},
-      }
-      expect(determineLLMType('/web prompt --lang=ru', settings)).toBe(Model.YandexGPT)
+      expect(determineLLMType(settings)).toBe(Model.Claude)
     })
   })
 
@@ -98,7 +62,7 @@ describe('determineLLMType', () => {
           model: 'auto',
           [providerKey]: {[credentialKey]: 'test-credential'},
         }
-        expect(determineLLMType(undefined, settings)).toBe(expected)
+        expect(determineLLMType(settings)).toBe(expected)
       })
     })
 
@@ -113,7 +77,7 @@ describe('determineLLMType', () => {
           custom_llm: {apiRootUrl: 'http://localhost:8080'},
           yandex: {apiKey: 'yandex-key'},
         }
-        expect(determineLLMType(undefined, settings)).toBe(Model.OpenAI)
+        expect(determineLLMType(settings)).toBe(Model.OpenAI)
       })
 
       it('prefers Claude over Qwen, Deepseek, CustomLLM, Yandex', () => {
@@ -125,7 +89,7 @@ describe('determineLLMType', () => {
           custom_llm: {apiRootUrl: 'http://localhost:8080'},
           yandex: {apiKey: 'yandex-key'},
         }
-        expect(determineLLMType(undefined, settings)).toBe(Model.Claude)
+        expect(determineLLMType(settings)).toBe(Model.Claude)
       })
 
       it('prefers Qwen over Deepseek, CustomLLM, Yandex', () => {
@@ -136,7 +100,7 @@ describe('determineLLMType', () => {
           custom_llm: {apiRootUrl: 'http://localhost:8080'},
           yandex: {apiKey: 'yandex-key'},
         }
-        expect(determineLLMType(undefined, settings)).toBe(Model.Qwen)
+        expect(determineLLMType(settings)).toBe(Model.Qwen)
       })
 
       it('prefers Deepseek over CustomLLM, Yandex', () => {
@@ -146,7 +110,7 @@ describe('determineLLMType', () => {
           custom_llm: {apiRootUrl: 'http://localhost:8080'},
           yandex: {apiKey: 'yandex-key'},
         }
-        expect(determineLLMType(undefined, settings)).toBe(Model.Deepseek)
+        expect(determineLLMType(settings)).toBe(Model.Deepseek)
       })
 
       it('prefers CustomLLM over Yandex', () => {
@@ -155,7 +119,7 @@ describe('determineLLMType', () => {
           custom_llm: {apiRootUrl: 'http://localhost:8080'},
           yandex: {apiKey: 'yandex-key'},
         }
-        expect(determineLLMType(undefined, settings)).toBe(Model.CustomLLM)
+        expect(determineLLMType(settings)).toBe(Model.CustomLLM)
       })
     })
 
@@ -166,7 +130,7 @@ describe('determineLLMType', () => {
           openai: {},
           claude: {apiKey: 'claude-key'},
         }
-        expect(determineLLMType(undefined, settings)).toBe(Model.Claude)
+        expect(determineLLMType(settings)).toBe(Model.Claude)
       })
 
       it('ignores null credentials', () => {
@@ -175,7 +139,7 @@ describe('determineLLMType', () => {
           openai: {apiKey: null},
           claude: {apiKey: 'claude-key'},
         }
-        expect(determineLLMType(undefined, settings)).toBe(Model.Claude)
+        expect(determineLLMType(settings)).toBe(Model.Claude)
       })
 
       it('ignores undefined credentials', () => {
@@ -184,7 +148,7 @@ describe('determineLLMType', () => {
           openai: {apiKey: undefined},
           claude: {apiKey: 'claude-key'},
         }
-        expect(determineLLMType(undefined, settings)).toBe(Model.Claude)
+        expect(determineLLMType(settings)).toBe(Model.Claude)
       })
 
       it('ignores empty string credentials', () => {
@@ -193,7 +157,7 @@ describe('determineLLMType', () => {
           openai: {apiKey: ''},
           claude: {apiKey: 'claude-key'},
         }
-        expect(determineLLMType(undefined, settings)).toBe(Model.Claude)
+        expect(determineLLMType(settings)).toBe(Model.Claude)
       })
 
       it('treats whitespace-only credentials as invalid', () => {
@@ -202,7 +166,7 @@ describe('determineLLMType', () => {
           openai: {apiKey: '   '},
           claude: {apiKey: 'claude-key'},
         }
-        expect(determineLLMType(undefined, settings)).toBe(Model.Claude)
+        expect(determineLLMType(settings)).toBe(Model.Claude)
       })
     })
   })
@@ -210,23 +174,40 @@ describe('determineLLMType', () => {
   describe('ultimate fallback (lowest priority)', () => {
     it('returns OpenAI when model=auto and no credentials', () => {
       const settings = {model: 'auto'}
-      expect(determineLLMType(undefined, settings)).toBe(Model.OpenAI)
+      expect(determineLLMType(settings)).toBe(Model.OpenAI)
     })
 
     it('returns OpenAI when settings is empty object', () => {
-      expect(determineLLMType('/web prompt', {})).toBe(Model.OpenAI)
+      expect(determineLLMType({})).toBe(Model.OpenAI)
     })
 
     it('returns OpenAI when settings is null', () => {
-      expect(determineLLMType('/web prompt', null)).toBe(Model.OpenAI)
+      expect(determineLLMType(null)).toBe(Model.OpenAI)
     })
 
     it('returns OpenAI when settings is undefined', () => {
-      expect(determineLLMType('/web prompt', undefined)).toBe(Model.OpenAI)
+      expect(determineLLMType(undefined)).toBe(Model.OpenAI)
+    })
+  })
+
+  describe('lang field does not influence provider selection', () => {
+    it('selects by credential priority when model=auto and lang=ru both set', () => {
+      const settings = {
+        model: 'auto',
+        lang: 'ru',
+        openai: {apiKey: 'openai-key'},
+        yandex: {apiKey: 'yandex-key'},
+      }
+      expect(determineLLMType(settings)).toBe(Model.OpenAI)
     })
 
-    it('returns OpenAI when command is null and settings is empty', () => {
-      expect(determineLLMType(null, {})).toBe(Model.OpenAI)
+    it('produces identical result with and without lang field present', () => {
+      const base = {model: 'auto', openai: {apiKey: 'openai-key'}}
+      expect(determineLLMType({...base, lang: 'ru'})).toBe(determineLLMType(base))
+    })
+
+    it('lang field alone with no credentials still falls back to OpenAI', () => {
+      expect(determineLLMType({model: 'auto', lang: 'ru'})).toBe(Model.OpenAI)
     })
   })
 })
@@ -316,7 +297,10 @@ describe('getIntegrationSettings', () => {
   })
 
   it('throws when no DB record exists and no env vars are set', async () => {
-    IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged: null, workflowDoc: null})
+    IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
+      merged: null,
+      workflowDoc: null,
+    })
 
     await expect(withEnv(ALL_PROVIDER_ENV_VARS, () => getIntegrationSettings('user-1'))).rejects.toThrow(
       'No LLM credentials configured',
@@ -367,8 +351,16 @@ describe('getIntegrationSettings', () => {
   })
 
   it('returns merged settings when workflowId is null', async () => {
-    const merged = {userId: 'user-1', workflowId: null, openai: {apiKey: 'sk-key'}, model: 'auto'}
-    IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged, workflowDoc: null})
+    const merged = {
+      userId: 'user-1',
+      workflowId: null,
+      openai: {apiKey: 'sk-key'},
+      model: 'auto',
+    }
+    IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
+      merged,
+      workflowDoc: null,
+    })
 
     const result = await getIntegrationSettings('user-1', null)
 
@@ -384,9 +376,16 @@ describe('getIntegrationSettings', () => {
       claude: {apiKey: 'sk-workflow'},
       model: Model.OpenAI,
     }
-    const workflowDoc = {userId: 'user-1', workflowId: 'wf-1', claude: {apiKey: 'sk-workflow'}}
+    const workflowDoc = {
+      userId: 'user-1',
+      workflowId: 'wf-1',
+      claude: {apiKey: 'sk-workflow'},
+    }
 
-    IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged, workflowDoc})
+    IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
+      merged,
+      workflowDoc,
+    })
 
     const result = await getIntegrationSettings('user-1', 'wf-1')
 
@@ -409,9 +408,16 @@ describe('getIntegrationSettings', () => {
         [providerKey]: credentials,
         model: 'auto',
       }
-      const workflowDoc = {userId: 'user-1', workflowId: 'wf-1', [providerKey]: credentials}
+      const workflowDoc = {
+        userId: 'user-1',
+        workflowId: 'wf-1',
+        [providerKey]: credentials,
+      }
 
-      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged, workflowDoc})
+      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
+        merged,
+        workflowDoc,
+      })
 
       const result = await getIntegrationSettings('user-1', 'wf-1')
 
@@ -428,7 +434,10 @@ describe('getIntegrationSettings', () => {
     }
     const workflowDoc = {userId: 'user-1', workflowId: 'wf-1'}
 
-    IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged, workflowDoc})
+    IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
+      merged,
+      workflowDoc,
+    })
 
     const result = await getIntegrationSettings('user-1', 'wf-1')
 
@@ -443,7 +452,10 @@ describe('getIntegrationSettings', () => {
       model: 'auto',
     }
 
-    IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged, workflowDoc: null})
+    IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
+      merged,
+      workflowDoc: null,
+    })
 
     const result = await getIntegrationSettings('user-1', 'wf-1')
 
@@ -465,7 +477,10 @@ describe('getIntegrationSettings', () => {
       claude: {apiKey: 'sk-workflow-claude'},
     }
 
-    IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged, workflowDoc})
+    IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
+      merged,
+      workflowDoc,
+    })
 
     const result = await getIntegrationSettings('user-1', 'wf-1')
 
@@ -481,9 +496,16 @@ describe('getIntegrationSettings', () => {
         claude: {apiKey: ''},
         model: 'auto',
       }
-      const workflowDoc = {userId: 'user-1', workflowId: 'wf-1', claude: {apiKey: ''}}
+      const workflowDoc = {
+        userId: 'user-1',
+        workflowId: 'wf-1',
+        claude: {apiKey: ''},
+      }
 
-      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged, workflowDoc})
+      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
+        merged,
+        workflowDoc,
+      })
 
       const result = await getIntegrationSettings('user-1', 'wf-1')
 
@@ -498,16 +520,23 @@ describe('getIntegrationSettings', () => {
         claude: {apiKey: '   '},
         model: 'auto',
       }
-      const workflowDoc = {userId: 'user-1', workflowId: 'wf-1', claude: {apiKey: '   '}}
+      const workflowDoc = {
+        userId: 'user-1',
+        workflowId: 'wf-1',
+        claude: {apiKey: '   '},
+      }
 
-      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged, workflowDoc})
+      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
+        merged,
+        workflowDoc,
+      })
 
       const result = await getIntegrationSettings('user-1', 'wf-1')
 
       expect(result.model).toBe('auto')
     })
 
-    it('sets model when workflow provider object exists but with undefined credential', async () => {
+    it('does not modify model when workflow provider credential is undefined', async () => {
       const merged = {
         userId: 'user-1',
         workflowId: 'wf-1',
@@ -515,9 +544,16 @@ describe('getIntegrationSettings', () => {
         claude: {apiKey: undefined},
         model: 'auto',
       }
-      const workflowDoc = {userId: 'user-1', workflowId: 'wf-1', claude: {apiKey: undefined}}
+      const workflowDoc = {
+        userId: 'user-1',
+        workflowId: 'wf-1',
+        claude: {apiKey: undefined},
+      }
 
-      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged, workflowDoc})
+      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
+        merged,
+        workflowDoc,
+      })
 
       const result = await getIntegrationSettings('user-1', 'wf-1')
 
@@ -531,9 +567,17 @@ describe('getIntegrationSettings', () => {
         claude: {apiKey: 'sk-workflow'},
         model: 'auto',
       }
-      const workflowDoc = {userId: 'user-1', workflowId: 'wf-1', claude: {apiKey: 'sk-workflow'}, model: 'auto'}
+      const workflowDoc = {
+        userId: 'user-1',
+        workflowId: 'wf-1',
+        claude: {apiKey: 'sk-workflow'},
+        model: 'auto',
+      }
 
-      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged, workflowDoc})
+      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
+        merged,
+        workflowDoc,
+      })
 
       const result = await getIntegrationSettings('user-1', 'wf-1')
 
@@ -548,9 +592,17 @@ describe('getIntegrationSettings', () => {
         claude: {apiKey: 'sk-workflow'},
         model: Model.Qwen,
       }
-      const workflowDoc = {userId: 'user-1', workflowId: 'wf-1', claude: {apiKey: 'sk-workflow'}, model: Model.Qwen}
+      const workflowDoc = {
+        userId: 'user-1',
+        workflowId: 'wf-1',
+        claude: {apiKey: 'sk-workflow'},
+        model: Model.Qwen,
+      }
 
-      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged, workflowDoc})
+      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
+        merged,
+        workflowDoc,
+      })
 
       const result = await getIntegrationSettings('user-1', 'wf-1')
 
@@ -564,9 +616,16 @@ describe('getIntegrationSettings', () => {
         claude: {apiKey: 'sk-workflow'},
         model: 'auto',
       }
-      const workflowDoc = {userId: 'user-1', workflowId: 'wf-1', claude: {apiKey: 'sk-workflow'}}
+      const workflowDoc = {
+        userId: 'user-1',
+        workflowId: 'wf-1',
+        claude: {apiKey: 'sk-workflow'},
+      }
 
-      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged, workflowDoc})
+      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
+        merged,
+        workflowDoc,
+      })
 
       await getIntegrationSettings('user-1', 'wf-1')
 
@@ -577,7 +636,10 @@ describe('getIntegrationSettings', () => {
   describe('environment variable fallback behavior', () => {
     it('fills absent provider credential from env when DB record exists', async () => {
       const merged = {userId: 'user-1', workflowId: null, model: 'auto'}
-      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged, workflowDoc: null})
+      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
+        merged,
+        workflowDoc: null,
+      })
 
       const result = await withEnv({OPENAI_API_KEY: 'sk-env-only'}, () => getIntegrationSettings('user-1', null))
 
@@ -585,7 +647,10 @@ describe('getIntegrationSettings', () => {
     })
 
     it('builds synthetic settings from env when DB returns null', async () => {
-      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged: null, workflowDoc: null})
+      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
+        merged: null,
+        workflowDoc: null,
+      })
 
       const result = await withEnv({OPENAI_API_KEY: 'sk-env-synthetic'}, () => getIntegrationSettings('user-1', null))
 
@@ -601,12 +666,144 @@ describe('getIntegrationSettings', () => {
       }
       IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
         merged,
-        workflowDoc: {userId: 'user-1', workflowId: 'wf-1', claude: {apiKey: 'sk-workflow-claude'}},
+        workflowDoc: {
+          userId: 'user-1',
+          workflowId: 'wf-1',
+          claude: {apiKey: 'sk-workflow-claude'},
+        },
       })
 
       const result = await getIntegrationSettings('user-1', 'wf-1')
 
       expect(result.claude.apiKey).toBe('sk-workflow-claude')
+    })
+  })
+
+  describe('store cache scope isolation', () => {
+    const settingsFor = (userId, workflowId, providerKey, providerSettings) => ({
+      userId,
+      workflowId,
+      [providerKey]: providerSettings,
+      model: 'auto',
+    })
+
+    const mockSettingsSequence = requests => {
+      requests.forEach(({userId, workflowId, providerKey, providerSettings}) => {
+        const settings = settingsFor(userId, workflowId, providerKey, providerSettings)
+        IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValueOnce({
+          merged: settings,
+          workflowDoc: workflowId ? settings : null,
+        })
+      })
+    }
+
+    it.each([
+      [
+        'user scope and workflow scope',
+        [
+          {
+            userId: 'user-1',
+            workflowId: null,
+            providerKey: 'openai',
+            providerSettings: {apiKey: 'sk-user'},
+          },
+          {
+            userId: 'user-1',
+            workflowId: 'wf-1',
+            providerKey: 'custom_llm',
+            providerSettings: {apiRootUrl: 'https://custom.workflow.test'},
+          },
+        ],
+        'custom_llm',
+        'apiRootUrl',
+        'https://custom.workflow.test',
+      ],
+      [
+        'two workflow scopes',
+        [
+          {
+            userId: 'user-1',
+            workflowId: 'wf-1',
+            providerKey: 'custom_llm',
+            providerSettings: {apiRootUrl: 'https://custom.first.test'},
+          },
+          {
+            userId: 'user-1',
+            workflowId: 'wf-2',
+            providerKey: 'custom_llm',
+            providerSettings: {apiRootUrl: 'https://custom.second.test'},
+          },
+        ],
+        'custom_llm',
+        'apiRootUrl',
+        'https://custom.second.test',
+      ],
+      [
+        'two users sharing the same workflow id',
+        [
+          {
+            userId: 'user-1',
+            workflowId: 'wf-1',
+            providerKey: 'openai',
+            providerSettings: {apiKey: 'sk-user-1'},
+          },
+          {
+            userId: 'user-2',
+            workflowId: 'wf-1',
+            providerKey: 'openai',
+            providerSettings: {apiKey: 'sk-user-2'},
+          },
+        ],
+        'openai',
+        'apiKey',
+        'sk-user-2',
+      ],
+    ])(
+      'does not reuse cached settings across %s',
+      async (_caseName, requests, providerKey, fieldKey, expectedValue) => {
+        const store = {}
+        mockSettingsSequence(requests)
+
+        await getIntegrationSettings(requests[0].userId, requests[0].workflowId, store)
+        const result = await getIntegrationSettings(requests[1].userId, requests[1].workflowId, store)
+
+        expect(result[providerKey][fieldKey]).toBe(expectedValue)
+        expect(IntegrationFacade.findMergedDecryptedWithMetadata).toHaveBeenCalledTimes(2)
+        requests.forEach((request, index) => {
+          expect(IntegrationFacade.findMergedDecryptedWithMetadata).toHaveBeenNthCalledWith(
+            index + 1,
+            request.userId,
+            request.workflowId,
+          )
+        })
+      },
+    )
+
+    it.each([
+      ['user scope', 'user-1', null],
+      ['workflow scope', 'user-1', 'wf-1'],
+      ['second user workflow scope', 'user-2', 'wf-1'],
+    ])('reuses cached settings for the same %s', async (_caseName, userId, workflowId) => {
+      const store = {}
+      const settings = {
+        userId,
+        workflowId,
+        custom_llm: {
+          apiRootUrl: `https://${userId}-${workflowId || 'global'}.test`,
+        },
+        model: 'auto',
+      }
+
+      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
+        merged: settings,
+        workflowDoc: workflowId ? settings : null,
+      })
+
+      const firstResult = await getIntegrationSettings(userId, workflowId, store)
+      const secondResult = await getIntegrationSettings(userId, workflowId, store)
+
+      expect(secondResult).toBe(firstResult)
+      expect(IntegrationFacade.findMergedDecryptedWithMetadata).toHaveBeenCalledTimes(1)
     })
   })
 })
@@ -641,13 +838,23 @@ describe('getLLM error handling for missing API keys', () => {
     })
 
     it('throws for YandexGPT when apiKey absent', () => {
-      expect(() => getLLM({type: Model.YandexGPT, settings: {yandex: {folder_id: 'folder-123'}}})).toThrow(
+      expect(() =>
+        getLLM({
+          type: Model.YandexGPT,
+          settings: {yandex: {folder_id: 'folder-123'}},
+        }),
+      ).toThrow(
         'YandexGPT API key and folder ID not configured. Set them in Integration Settings or set the YANDEX_API_KEY and YANDEX_FOLDER_ID environment variables.',
       )
     })
 
     it('throws for YandexGPT when folder_id absent', () => {
-      expect(() => getLLM({type: Model.YandexGPT, settings: {yandex: {apiKey: 'sk-key'}}})).toThrow(
+      expect(() =>
+        getLLM({
+          type: Model.YandexGPT,
+          settings: {yandex: {apiKey: 'sk-key'}},
+        }),
+      ).toThrow(
         'YandexGPT API key and folder ID not configured. Set them in Integration Settings or set the YANDEX_API_KEY and YANDEX_FOLDER_ID environment variables.',
       )
     })
@@ -675,54 +882,85 @@ describe('getLLM error handling for missing API keys', () => {
 
   describe('succeeds when apiKey present', () => {
     it('does not throw for OpenAI when apiKey present', () => {
-      expect(() => getLLM({type: Model.OpenAI, settings: {openai: {apiKey: 'sk-key'}}})).not.toThrow()
+      expect(() =>
+        getLLM({
+          type: Model.OpenAI,
+          settings: {openai: {apiKey: 'sk-key'}},
+        }),
+      ).not.toThrow()
     })
 
     it('does not throw for YandexGPT when both apiKey and folder_id present', () => {
       expect(() =>
-        getLLM({type: Model.YandexGPT, settings: {yandex: {apiKey: 'sk-key', folder_id: 'folder-123'}}}),
+        getLLM({
+          type: Model.YandexGPT,
+          settings: {yandex: {apiKey: 'sk-key', folder_id: 'folder-123'}},
+        }),
       ).not.toThrow()
     })
   })
 
-  describe('CustomLLM endpoint validation', () => {
-    it('does not require apiKey when apiRootUrl is present', () => {
+  describe('CustomLLM URL validation', () => {
+    it('does not throw when apiRootUrl is a valid URL (apiKey not required)', () => {
       expect(() =>
-        getLLM({type: Model.CustomLLM, settings: {custom_llm: {apiRootUrl: 'https://api.custom.com'}}}),
+        getLLM({
+          type: Model.CustomLLM,
+          settings: {custom_llm: {apiRootUrl: 'https://api.custom.com'}},
+        }),
       ).not.toThrow()
     })
 
-    it.each([undefined, {}, {custom_llm: {}}, {custom_llm: {apiRootUrl: '   '}}])(
-      'throws descriptive CustomLLM configuration error for settings %p',
-      settings => {
-        expect(() => getLLM({type: Model.CustomLLM, settings})).toThrow('Custom LLM API root URL not configured')
-      },
-    )
+    it.each([
+      ['empty string', {custom_llm: {apiRootUrl: ''}}],
+      ['absent from custom_llm object', {custom_llm: {}}],
+      ['custom_llm absent', {}],
+      ['settings is null', null],
+    ])('throws when apiRootUrl is %s', (_label, settings) => {
+      expect(() => getLLM({type: Model.CustomLLM, settings})).toThrow('Custom LLM API URL not configured')
+    })
+  })
 
-    it.each(['localhost:8000', 'ftp://api.custom.com', '://broken'])(
-      'throws descriptive CustomLLM URL error for %s',
-      apiRootUrl => {
-        expect(() => getLLM({type: Model.CustomLLM, settings: {custom_llm: {apiRootUrl}}})).toThrow(
-          /Custom LLM API root URL/,
-        )
-      },
-    )
-
-    it('normalizes CustomLLM root URL and forwards optional apiKey', () => {
-      const {llm, chunkSize} = getLLM({
+  describe('CustomLLM chunk size', () => {
+    it('returns default maxTokens (30000) as chunkSize when maxTokens absent from settings', () => {
+      const {chunkSize} = getLLM({
         type: Model.CustomLLM,
-        settings: {
-          custom_llm: {
-            apiRootUrl: ' https://api.custom.com/v1/ ',
-            apiKey: ' token ',
-            maxTokens: 1234,
-          },
-        },
+        settings: {custom_llm: {apiRootUrl: 'https://api.custom.com'}},
       })
+      expect(chunkSize).toBe(30000)
+    })
 
-      expect(llm.apiRootUrl).toBe('https://api.custom.com/v1')
-      expect(llm.apiKey).toBe('token')
-      expect(chunkSize).toBe(1234)
+    it('returns the configured maxTokens as chunkSize', () => {
+      const {chunkSize} = getLLM({
+        type: Model.CustomLLM,
+        settings: {custom_llm: {apiRootUrl: 'https://api.custom.com', maxTokens: 8192}},
+      })
+      expect(chunkSize).toBe(8192)
+    })
+  })
+
+  describe('CustomLLM credential passthrough', () => {
+    it('passes apiKey to CustomLLMChat when provided', () => {
+      const {llm} = getLLM({
+        type: Model.CustomLLM,
+        settings: {custom_llm: {apiRootUrl: 'https://api.custom.com', apiKey: 'sk-custom-key'}},
+      })
+      expect(llm.apiKey).toBe('sk-custom-key')
+    })
+
+    it('passes model to CustomLLMChat when provided', () => {
+      const {llm} = getLLM({
+        type: Model.CustomLLM,
+        settings: {custom_llm: {apiRootUrl: 'https://api.custom.com', model: 'llama-3.1-8b'}},
+      })
+      expect(llm.model).toBe('llama-3.1-8b')
+    })
+
+    it('defaults model to gpt-4o-mini on CustomLLMChat when absent from OpenAI-compatible settings', () => {
+      const {llm} = getLLM({
+        type: Model.CustomLLM,
+        settings: {custom_llm: {apiRootUrl: 'https://api.custom.com'}},
+      })
+      expect(llm.model).toBe('gpt-4o-mini')
     })
   })
 })
@@ -734,7 +972,9 @@ describe('getLLM thinkingBudgetTokens passthrough', () => {
     it.each([500, 1000, 2000, 10000])('passes thinkingBudgetTokens=%i to ChatClaude', budget => {
       const {llm} = getLLM({
         type: Model.Claude,
-        settings: {claude: {apiKey: 'sk-ant-test', model: 'claude-sonnet-4-6'}},
+        settings: {
+          claude: {apiKey: 'sk-ant-test', model: 'claude-sonnet-4-6'},
+        },
         thinkingBudgetTokens: budget,
       })
       expect(llm.thinkingBudgetTokens).toBe(budget)
@@ -743,7 +983,9 @@ describe('getLLM thinkingBudgetTokens passthrough', () => {
     it('leaves thinkingBudgetTokens null on ChatClaude when not provided', () => {
       const {llm} = getLLM({
         type: Model.Claude,
-        settings: {claude: {apiKey: 'sk-ant-test', model: 'claude-sonnet-4-6'}},
+        settings: {
+          claude: {apiKey: 'sk-ant-test', model: 'claude-sonnet-4-6'},
+        },
       })
       expect(llm.thinkingBudgetTokens).toBeNull()
     })
@@ -751,7 +993,9 @@ describe('getLLM thinkingBudgetTokens passthrough', () => {
     it('leaves thinkingBudgetTokens null on ChatClaude when explicitly passed null', () => {
       const {llm} = getLLM({
         type: Model.Claude,
-        settings: {claude: {apiKey: 'sk-ant-test', model: 'claude-sonnet-4-6'}},
+        settings: {
+          claude: {apiKey: 'sk-ant-test', model: 'claude-sonnet-4-6'},
+        },
         thinkingBudgetTokens: null,
       })
       expect(llm.thinkingBudgetTokens).toBeNull()
@@ -781,22 +1025,33 @@ describe('getEmbeddings error handling for missing API keys', () => {
     })
 
     it('throws for OpenAI when apiKey is empty string', () => {
-      expect(() => getEmbeddings({type: Model.OpenAI, settings: {openai: {apiKey: ''}}})).toThrow(
-        'OpenAI API key not configured for embeddings',
-      )
+      expect(() =>
+        getEmbeddings({
+          type: Model.OpenAI,
+          settings: {openai: {apiKey: ''}},
+        }),
+      ).toThrow('OpenAI API key not configured for embeddings')
     })
   })
 
   describe('succeeds when apiKey present', () => {
     it('does not throw for OpenAI when apiKey present', () => {
-      expect(() => getEmbeddings({type: Model.OpenAI, settings: {openai: {apiKey: 'sk-key'}}})).not.toThrow()
+      expect(() =>
+        getEmbeddings({
+          type: Model.OpenAI,
+          settings: {openai: {apiKey: 'sk-key'}},
+        }),
+      ).not.toThrow()
     })
   })
 
   describe('providers without apiKey requirement', () => {
     it('does not throw for CustomLLM (uses apiRootUrl)', () => {
       expect(() =>
-        getEmbeddings({type: Model.CustomLLM, settings: {custom_llm: {apiRootUrl: 'https://api.custom.com'}}}),
+        getEmbeddings({
+          type: Model.CustomLLM,
+          settings: {custom_llm: {apiRootUrl: 'https://api.custom.com'}},
+        }),
       ).not.toThrow()
     })
   })
@@ -853,4 +1108,116 @@ describe('getLLM MOCK_EXTERNAL_SERVICES gate', () => {
       )
     },
   )
+})
+
+describe('getEmbeddings MOCK_EXTERNAL_SERVICES gate', () => {
+  it.each([Model.OpenAI, Model.Claude, Model.Deepseek, Model.Qwen, Model.YandexGPT, Model.CustomLLM])(
+    'returns NoopEmbeddings regardless of declared type (%s) and never consults provider credentials',
+    async type => {
+      await withEnv({MOCK_EXTERNAL_SERVICES: 'true'}, async () => {
+        const {embeddings, chunkSize, similarityThreshold, storageType} = getEmbeddings({type, settings: {}})
+        const documents = await embeddings.embedDocuments(['D5 MCP command'])
+        const query = await embeddings.embedQuery('D5 MCP command')
+
+        expect(documents).toHaveLength(1)
+        expect(documents[0]).toHaveLength(query.length)
+        expect(chunkSize).toBeGreaterThan(0)
+        expect(similarityThreshold).toBe(0)
+        expect(storageType).toBe(EmbStorageType.openai)
+      })
+    },
+  )
+
+  it.each(['false', '', '1', 'yes', 'TRUE', undefined])(
+    'does NOT activate mock embeddings when MOCK_EXTERNAL_SERVICES=%s (strict "true" gate)',
+    value => {
+      withEnv({MOCK_EXTERNAL_SERVICES: value}, () => {
+        expect(() => getEmbeddings({type: Model.OpenAI, settings: {}})).toThrow(/OpenAI API key not configured/)
+      })
+    },
+  )
+})
+
+describe('getEmbeddings — fallback resolution for non-native embeddings providers', () => {
+  const {getEmbeddings} = require('./getLLM')
+
+  describe('non-native type resolves to best available native embeddings provider', () => {
+    it.each([Model.Claude, Model.Deepseek])('%s with OpenAI credentials resolves to OpenAI embeddings', type => {
+      const result = getEmbeddings({
+        type,
+        settings: {openai: {apiKey: 'sk-openai'}},
+      })
+      expect(result.storageType).toBe(EmbStorageType.openai)
+      expect(result.embeddings.constructor.name).toBe('OpenAIEmbeddings')
+    })
+
+    it.each([Model.Claude, Model.Deepseek])('%s with Qwen credentials resolves to Qwen embeddings', type => {
+      const result = getEmbeddings({
+        type,
+        settings: {qwen: {apiKey: 'qk'}},
+      })
+      expect(result.storageType).toBe(EmbStorageType.qwen)
+    })
+
+    it.each([Model.Claude, Model.Deepseek])('%s with CustomLLM credentials resolves to CustomLLM embeddings', type => {
+      const result = getEmbeddings({
+        type,
+        settings: {custom_llm: {apiRootUrl: 'https://api.custom.com'}},
+      })
+      expect(result.storageType).toBe(EmbStorageType.custom_llm)
+    })
+
+    it.each([Model.Claude, Model.Deepseek])('%s with Yandex credentials resolves to Yandex embeddings', type => {
+      const result = getEmbeddings({
+        type,
+        settings: {yandex: {apiKey: 'yk', folder_id: 'fid'}},
+      })
+      expect(result.storageType).toBe(EmbStorageType.yandex)
+    })
+
+    it('fallback follows the same priority order as resolveEmbeddingsFallbackType (OpenAI before Qwen)', () => {
+      const result = getEmbeddings({
+        type: Model.Claude,
+        settings: {
+          openai: {apiKey: 'sk'},
+          qwen: {apiKey: 'qk'},
+          yandex: {apiKey: 'yk', folder_id: 'fid'},
+        },
+      })
+      expect(result.storageType).toBe(EmbStorageType.openai)
+    })
+  })
+
+  describe('throws when a non-native type has no embeddings-capable provider configured', () => {
+    it.each([Model.Claude, Model.Deepseek])('throws for %s when settings is empty', type => {
+      expect(() => getEmbeddings({type, settings: {}})).toThrow(/No embeddings provider configured/)
+    })
+
+    it.each([Model.Claude, Model.Deepseek])('throws for %s when settings is null', type => {
+      expect(() => getEmbeddings({type, settings: null})).toThrow(/No embeddings provider configured/)
+    })
+
+    it.each([Model.Claude, Model.Deepseek])(
+      'throws for %s when only its own credentials are present (no embeddings-capable provider)',
+      type => {
+        const providerKey = type.toLowerCase()
+        expect(() => getEmbeddings({type, settings: {[providerKey]: {apiKey: 'sk'}}})).toThrow(
+          /No embeddings provider configured/,
+        )
+      },
+    )
+
+    it.each([Model.Claude, Model.Deepseek])('throws for %s when all native provider credentials are blank', type => {
+      expect(() =>
+        getEmbeddings({
+          type,
+          settings: {
+            openai: {apiKey: ''},
+            qwen: {apiKey: '  '},
+            custom_llm: {apiRootUrl: null},
+          },
+        }),
+      ).toThrow(/No embeddings provider configured/)
+    })
+  })
 })

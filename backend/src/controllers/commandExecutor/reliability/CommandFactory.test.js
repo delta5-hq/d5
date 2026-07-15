@@ -8,16 +8,18 @@ import {DEEPSEEK_QUERY_TYPE} from '../constants/deepseek'
 import {DOWNLOAD_QUERY_TYPE} from '../constants/download'
 import {EXT_QUERY_TYPE} from '../constants/ext'
 import {FOREACH_QUERY_TYPE} from '../constants/foreach'
-import {MEMORIZE_QUERY_TYPE} from '../constants/memorize'
-import {OUTLINE_QUERY_TYPE} from '../constants/outline'
 import {PERPLEXITY_QUERY_TYPE} from '../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../constants/qwen'
-import {SCHOLAR_QUERY_TYPE} from '../constants/scholar'
+import {REFINE_QUERY_TYPE} from '../constants/refine'
 import {STEPS_QUERY_TYPE} from '../constants/steps'
 import {SUMMARIZE_QUERY_TYPE} from '../constants/summarize'
+import {VALIDATE_QUERY_TYPE} from '../constants/validate'
 import {SWITCH_QUERY_TYPE} from '../constants/switch'
 import {WEB_QUERY_TYPE} from '../constants/web'
 import {YANDEX_QUERY_TYPE} from '../constants/yandex'
+import {SCHOLAR_QUERY_TYPE} from '../constants/scholar'
+import {OUTLINE_QUERY_TYPE} from '../constants/outline'
+import {MEMORIZE_QUERY_TYPE} from '../constants/memorize'
 
 jest.mock('debug', () => {
   const fn = jest.fn(() => fn)
@@ -240,6 +242,8 @@ describe('CommandFactory', () => {
         [STEPS_QUERY_TYPE, 'steps'],
         [FOREACH_QUERY_TYPE, 'foreach'],
         [SWITCH_QUERY_TYPE, 'switch'],
+        [REFINE_QUERY_TYPE, 'refine'],
+        [VALIDATE_QUERY_TYPE, 'validate'],
         [WEB_QUERY_TYPE, 'web'],
       ])('creates runner for %s (%s) command', queryType => {
         const runner = CommandFactory.createRunner(queryType, mockCell, mockContext, mockPrompt)
@@ -297,6 +301,34 @@ describe('CommandFactory', () => {
         expect(typeof chatRunner).toBe('function')
         expect(typeof refineRunner).toBe('function')
         expect(chatRunner).not.toBe(refineRunner)
+      })
+    })
+  })
+
+  describe('severed research types — R1 boundary', () => {
+    const SEVERED_TYPES = [
+      [WEB_QUERY_TYPE, '/web'],
+      [SCHOLAR_QUERY_TYPE, '/scholar'],
+      [EXT_QUERY_TYPE, '/ext'],
+      [OUTLINE_QUERY_TYPE, '/outline'],
+      [DOWNLOAD_QUERY_TYPE, '/download'],
+      [MEMORIZE_QUERY_TYPE, '/memorize'],
+    ]
+
+    describe('createCommand', () => {
+      it.each(SEVERED_TYPES)('returns null for %s (%s)', queryType => {
+        const store = {_userId: 'u', _workflowId: 'wf'}
+        expect(CommandFactory.createCommand(queryType, store)).toBeNull()
+      })
+    })
+
+    describe('createRunner', () => {
+      it.each(SEVERED_TYPES)('throws UnknownQueryTypeError for %s (%s)', async queryType => {
+        const cell = {id: 'cell', command: `${queryType} test`}
+        const store = new Store({userId: 'u', nodes: {}})
+        const runner = CommandFactory.createRunner(queryType, cell, 'ctx', 'prompt')
+
+        await expect(runner(store)).rejects.toThrow('Unknown queryType')
       })
     })
   })

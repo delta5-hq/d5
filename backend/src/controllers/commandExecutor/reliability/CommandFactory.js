@@ -3,37 +3,30 @@ import {ClaudeCommand} from '../commands/ClaudeCommand'
 import {CompletionCommand} from '../commands/CompletionCommand'
 import {CustomLLMChatCommand} from '../commands/CustomLLMChatCommand'
 import {DeepseekCommand} from '../commands/DeepseekCommand'
-import {DownloadCommand} from '../commands/DownloadCommand'
-import {ExtCommand} from '../commands/ExtCommand'
 import {ForeachCommand} from '../commands/ForeachCommand'
-import {MemorizeCommand} from '../commands/MemorizeCommand'
-import {OutlineCommand} from '../commands/OutlineCommand'
 import {PerplexityCommand} from '../commands/PerplexityCommand'
 import {QwenCommand} from '../commands/QwenCommand'
-import {ScholarCommand} from '../commands/ScholarCommand'
+import {RefineCommand} from '../commands/RefineCommand'
 import {StepsCommand} from '../commands/StepsCommand'
 import {SummarizeCommand} from '../commands/SummarizeCommand'
+import {ValidateCommand} from '../commands/ValidateCommand'
 import {SwitchCommand} from '../commands/SwitchCommand'
-import {WebCommand} from '../commands/WebCommand'
 import {YandexCommand} from '../commands/YandexCommand'
+import {UnknownQueryTypeError} from './UnknownQueryTypeError'
 
 import {CHAT_QUERY_TYPE} from '../constants/chat'
 import {CLAUDE_QUERY_TYPE} from '../constants/claude'
 import {COMPLETION_QUERY_TYPE} from '../constants/completion'
 import {CUSTOM_LLM_CHAT_QUERY_TYPE} from '../constants/custom_llm'
 import {DEEPSEEK_QUERY_TYPE} from '../constants/deepseek'
-import {DOWNLOAD_QUERY_TYPE} from '../constants/download'
-import {EXT_QUERY_TYPE} from '../constants/ext'
 import {FOREACH_QUERY_TYPE} from '../constants/foreach'
-import {MEMORIZE_QUERY_TYPE} from '../constants/memorize'
-import {OUTLINE_QUERY_TYPE} from '../constants/outline'
 import {PERPLEXITY_QUERY_TYPE} from '../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../constants/qwen'
-import {SCHOLAR_QUERY_TYPE} from '../constants/scholar'
+import {REFINE_QUERY_TYPE} from '../constants/refine'
 import {STEPS_QUERY_TYPE} from '../constants/steps'
 import {SUMMARIZE_QUERY_TYPE} from '../constants/summarize'
+import {VALIDATE_QUERY_TYPE} from '../constants/validate'
 import {SWITCH_QUERY_TYPE} from '../constants/switch'
-import {WEB_QUERY_TYPE} from '../constants/web'
 import {YANDEX_QUERY_TYPE} from '../constants/yandex'
 
 /**
@@ -47,12 +40,6 @@ class CommandFactory {
     switch (queryType) {
       case YANDEX_QUERY_TYPE:
         return new YandexCommand(userId, workflowId, store)
-      case WEB_QUERY_TYPE:
-        return new WebCommand(userId, workflowId, store)
-      case SCHOLAR_QUERY_TYPE:
-        return new ScholarCommand(userId, workflowId, store)
-      case OUTLINE_QUERY_TYPE:
-        return new OutlineCommand(userId, workflowId, store)
       case STEPS_QUERY_TYPE:
         return new StepsCommand(userId, workflowId, store, progress)
       case CHAT_QUERY_TYPE:
@@ -71,16 +58,14 @@ class CommandFactory {
         return new QwenCommand(userId, workflowId, store)
       case DEEPSEEK_QUERY_TYPE:
         return new DeepseekCommand(userId, workflowId, store)
-      case DOWNLOAD_QUERY_TYPE:
-        return new DownloadCommand(userId, workflowId, store)
       case CUSTOM_LLM_CHAT_QUERY_TYPE:
         return new CustomLLMChatCommand(userId, workflowId, store)
-      case EXT_QUERY_TYPE:
-        return new ExtCommand(userId, workflowId, store)
       case COMPLETION_QUERY_TYPE:
         return new CompletionCommand(userId, workflowId, store, progress)
-      case MEMORIZE_QUERY_TYPE:
-        return new MemorizeCommand(userId, workflowId, store, progress)
+      case REFINE_QUERY_TYPE:
+        return new RefineCommand(userId, workflowId, store)
+      case VALIDATE_QUERY_TYPE:
+        return new ValidateCommand(userId, workflowId, store)
       default:
         return null
     }
@@ -111,23 +96,21 @@ class CommandFactory {
         case YANDEX_QUERY_TYPE:
           return command.run(resolvedCell, context, prompt, options)
 
-        case OUTLINE_QUERY_TYPE:
         case SUMMARIZE_QUERY_TYPE:
-        case SCHOLAR_QUERY_TYPE:
-        case WEB_QUERY_TYPE:
-        case DOWNLOAD_QUERY_TYPE:
-        case EXT_QUERY_TYPE:
         case SWITCH_QUERY_TYPE:
           return command.run(resolvedCell, prompt, options)
 
         case COMPLETION_QUERY_TYPE:
-        case MEMORIZE_QUERY_TYPE:
         case FOREACH_QUERY_TYPE:
         case STEPS_QUERY_TYPE:
           return command.run(resolvedCell, options)
 
+        case REFINE_QUERY_TYPE:
+        case VALIDATE_QUERY_TYPE:
+          return command.run(resolvedCell)
+
         default:
-          throw new Error(`Unknown queryType: ${queryType}`)
+          throw new UnknownQueryTypeError(queryType)
       }
     }
   }

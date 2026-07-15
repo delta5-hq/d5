@@ -12,7 +12,12 @@ import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstant
 import {throwIfAbortError, throwIfAborted} from './utils/executionSignal'
 
 const log = debug('app:Command:Download')
-const logError = log.extend('ERROR*', '::')
+
+const formatDownloadConfirmation = files => {
+  const names = files.map(file => file.title).filter(Boolean)
+  if (!names.length) return 'Downloaded content is already attached to this node'
+  return `Downloaded content already attached: ${names.join(', ')}`
+}
 
 const summarizeUrls = urls => urls.join(', ')
 
@@ -80,7 +85,6 @@ export class DownloadCommand {
 
     try {
       const result = await this.upload(file)
-
       const fileId = result._id.toString()
       const fileNode = this.store.createNode({
         file: fileId,
@@ -91,7 +95,7 @@ export class DownloadCommand {
       return {fileNode, fileId}
     } catch (e) {
       throwIfAbortError(e)
-      logError('Error when trying to create file', e)
+      this.logError('Error when trying to create file', e)
       return {error: e}
     }
   }
@@ -168,6 +172,11 @@ export class DownloadCommand {
       return {urls, createdNodes: [], duplicatedNodes: [], failures: [error]}
     }
 
+    if (!Array.isArray(parsed) || !parsed.length) {
+      this.writeFailure(node, `No downloadable content returned for ${urls.join(', ')}`)
+      return {urls, createdNodes: [], duplicatedNodes: [], failures: []}
+    }
+
     const filesMap = this.getNodeFiles(node)
     const nodeFiles = Object.keys(filesMap)
 
@@ -236,13 +245,13 @@ export class DownloadCommand {
     let prompt = originalPrompt
     const command = node?.command || node?.title
 
-    if (!prompt || referencePatterns.withAssignmentPrefix().test(command)) {
-      prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
-    } else {
-      prompt = clearCommandsWithParams(
-        clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
-      )
-    }
+      if (!prompt || referencePatterns.withAssignmentPrefix().test(command)) {
+        prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
+      } else {
+        prompt = clearCommandsWithParams(
+          clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+        )
+      }
 
     throwIfAborted(options.signal)
 

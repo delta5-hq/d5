@@ -1,5 +1,6 @@
 import {scrapeFiles} from '../../utils/scrape'
 import {DownloadCommand} from './DownloadCommand'
+import WorkflowFile from '../../../models/WorkflowFile'
 
 jest.mock('./references/utils/referencePatterns', () => ({
   referencePatterns: {
@@ -24,7 +25,6 @@ import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/subst
 import {clearStepsPrefix} from '../constants/steps'
 import {referencePatterns} from './references/utils/referencePatterns'
 import Store from './utils/Store'
-import WorkflowFile from '../../../models/WorkflowFile'
 import {generateNodeId} from '../../../shared/utils/generateId'
 
 jest.mock('../../utils/scrape')
@@ -211,13 +211,52 @@ describe('DownloadCommand', () => {
       expect(result.failures).toEqual([{file: 'failed.txt', error: expect.any(Error)}])
       expect(visibleFailureTitles(parent)).toEqual(['Download failed to persist failed.txt'])
     })
+
+    it('rejects when file upload fails instead of logging a silent no-op', async () => {
+      WorkflowFile.write.mockRejectedValue(new Error('gridfs unavailable'))
+      scrapeFiles.mockResolvedValue([{filename: 'test.txt', content: 'file content'}])
+
+      await expect(command.insertFileToWorkflow({id: 'parent'}, 'https://test.com')).rejects.toThrow(
+        'gridfs unavailable',
+      )
+    })
+
+    it('rejects when downloaded content is already attached to the target node', async () => {
+      mockStore._nodes = {
+        parent: {id: 'parent', children: ['existing']},
+        existing: {id: 'existing', parent: 'parent', file: 'file-1', title: 'test.txt'},
+      }
+      mockStore._files = {'file-1': 'file content'}
+      scrapeFiles.mockResolvedValue([{filename: 'test.txt', content: 'file content'}])
+
+      await expect(command.insertFileToWorkflow({id: 'parent'}, 'https://test.com')).rejects.toThrow(
+        'Downloaded content already exists on this node for https://test.com',
+      )
+    })
+
+    it('creates a confirmation node when downloaded content already exists elsewhere in the workflow', async () => {
+      mockStore._nodes = {
+        parent: {id: 'parent', children: []},
+        source: {id: 'source', parent: 'other-parent', file: 'file-1', title: 'test.txt'},
+      }
+      mockStore._files = {'file-1': 'file content'}
+      scrapeFiles.mockResolvedValue([{filename: 'test.txt', content: 'file content'}])
+      const createNodesSpy = jest.spyOn(mockStore.importer, 'createNodes').mockImplementation(() => {})
+
+      await command.insertFileToWorkflow({id: 'parent'}, 'https://test.com')
+
+      expect(createNodesSpy).toHaveBeenCalledWith('Downloaded content already attached: test.txt', 'parent')
+      createNodesSpy.mockRestore()
+    })
   })
 
   describe('run', () => {
     let downloadAndInsertSpy
+    let createNodesSpy
 
     beforeEach(() => {
       downloadAndInsertSpy = jest.spyOn(command, 'insertFileToWorkflow').mockResolvedValue([])
+      createNodesSpy = jest.spyOn(mockStore.importer, 'createNodes').mockImplementation(() => {})
     })
 
     afterEach(() => {
@@ -300,6 +339,43 @@ describe('DownloadCommand', () => {
       expect(substituteReferencesAndHashrefsChildrenAndSelf).not.toHaveBeenCalled()
       expect(clearStepsPrefix).toHaveBeenCalledWith(originalPrompt)
       expect(downloadAndInsertSpy.mock.calls[0][1]).toBe('cleared https://example.com')
+    })
+
+    it('creates error node on the download node when insertFileToWorkflow throws', async () => {
+      const node = {id: 'download-node', title: '/download https://example.com'}
+      downloadAndInsertSpy.mockRejectedValue(new Error('network timeout'))
+
+      await command.run(node, 'https://example.com')
+
+      expect(createNodesSpy).toHaveBeenCalledWith('Error: network timeout', 'download-node')
+    })
+
+    it('logs the error when insertFileToWorkflow throws', async () => {
+      const node = {id: 'download-node', title: '/download https://example.com'}
+      const err = new Error('network timeout')
+      downloadAndInsertSpy.mockRejectedValue(err)
+      const logSpy = jest.spyOn(command, 'logError')
+
+      await command.run(node, 'https://example.com')
+
+      expect(logSpy).toHaveBeenCalledWith(err)
+      logSpy.mockRestore()
+    })
+
+    it('does not throw to caller when insertFileToWorkflow rejects', async () => {
+      const node = {id: 'download-node', title: '/download https://example.com'}
+      downloadAndInsertSpy.mockRejectedValue(new Error('fetch failed'))
+
+      await expect(command.run(node, 'https://example.com')).resolves.toBeUndefined()
+    })
+
+    it('creates exactly one error node per download failure', async () => {
+      const node = {id: 'download-node', title: '/download https://example.com'}
+      downloadAndInsertSpy.mockRejectedValue(new Error('fetch failed'))
+
+      await command.run(node, 'https://example.com')
+
+      expect(createNodesSpy).toHaveBeenCalledTimes(1)
     })
   })
 })

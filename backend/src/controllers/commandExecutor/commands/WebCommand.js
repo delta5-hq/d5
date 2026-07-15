@@ -12,7 +12,6 @@ import {
   CITATIONS_STRING,
 } from '../constants'
 import {getEmbeddings, determineLLMType, getIntegrationSettings, getLLM} from './utils/langchain/getLLM'
-import {createSimpleAgentExecutor} from './utils/langchain/getAgentExecutor'
 import {JSKnowledgeMapWebScholarSearch} from './utils/langchain/JSKnowledgeMapWebScholarSearch'
 import {referencePatterns} from './references/utils/referencePatterns'
 import {clearReferences} from './references/utils/referenceUtils' // Direct import
@@ -48,7 +47,7 @@ export class WebCommand {
     const lang = params?.lang
 
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
-    const llmType = determineLLMType(node?.command, settings)
+    const llmType = determineLLMType(settings)
     const {llm, chunkSize} = getLLM({settings, type: llmType})
     const embeddings = getEmbeddings({settings, type: llmType})
 
@@ -67,13 +66,9 @@ export class WebCommand {
       userInput,
       onError: this.logError,
       convertOutputToOutline: false,
-    }).asTool()
+    })
 
-    const tools = [searchTool]
-
-    const executor = createSimpleAgentExecutor(llm, tools, lang)
-
-    let result = (await executor.invoke({input: userInput}, signalOptions(params?.signal))).output
+    let result = await searchTool.getKnowledgeMapWebExt(userInput)
 
     throwIfAborted(params?.signal)
 

@@ -17,6 +17,10 @@ export class IntegrationSessionRepository {
     const session = await this.findSession(userId, alias, protocol)
     return session?.lastSessionId || null
   }
+
+  async findAllSessionsForUser(userId) {
+    return IntegrationSession.find({userId}).lean()
+  }
 }
 
 export default new IntegrationSessionRepository()

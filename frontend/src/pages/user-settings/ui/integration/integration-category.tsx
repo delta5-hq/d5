@@ -26,6 +26,7 @@ import CustomLLMDialog from './dialogs/custom-llm-dialog'
 import MCPDialog from './dialogs/mcp-dialog'
 import RPCDialog from './dialogs/rpc-dialog'
 import ArrayIntegrationSection from './components/array-integration-section'
+import { computeDialogAliases } from './utils/compute-dialog-aliases'
 
 interface IntegrationCategoryProps {
   showDialog: ShowDialogFn
@@ -92,9 +93,9 @@ const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({
   refresh,
   workflowId,
 }) => {
-  const allAliases = React.useMemo(
-    () => [...(data?.mcp || []).map(m => m.alias), ...(data?.rpc || []).map(r => r.alias)],
-    [data?.mcp, data?.rpc],
+  const { mcpDialogAliases, rpcDialogAliases } = React.useMemo(
+    () => computeDialogAliases(data, inheritedData),
+    [data, inheritedData],
   )
 
   const hasInheritedData =
@@ -112,12 +113,12 @@ const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({
           <ArrayIntegrationSection
             fieldName="mcp"
             items={data?.mcp || []}
-            onAdd={() => showDialog(MCPDialog, { refresh, existingAliases: allAliases, workflowId })}
+            onAdd={() => showDialog(MCPDialog, { refresh, existingAliases: mcpDialogAliases, workflowId })}
             onEdit={item =>
               showDialog(MCPDialog, {
                 refresh,
                 data: item,
-                existingAliases: allAliases,
+                existingAliases: mcpDialogAliases,
                 isEdit: true,
                 workflowId,
               })
@@ -131,12 +132,12 @@ const IntegrationCategory: React.FC<IntegrationCategoryProps> = ({
           <ArrayIntegrationSection
             fieldName="rpc"
             items={data?.rpc || []}
-            onAdd={() => showDialog(RPCDialog, { refresh, existingAliases: allAliases, workflowId })}
+            onAdd={() => showDialog(RPCDialog, { refresh, existingAliases: rpcDialogAliases, workflowId })}
             onEdit={item =>
               showDialog(RPCDialog, {
                 refresh,
                 data: item,
-                existingAliases: allAliases,
+                existingAliases: rpcDialogAliases,
                 isEdit: true,
                 workflowId,
               })

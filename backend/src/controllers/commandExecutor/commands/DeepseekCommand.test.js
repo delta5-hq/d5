@@ -92,4 +92,59 @@ describe('DeepseekCommand', () => {
       createSpy.mockRestore()
     })
   })
+
+  describe('ChatOpenAI constructor arguments', () => {
+    const node = {id: 'node', title: '/deepseek test'}
+
+    beforeEach(async () => {
+      await command.run(node, null, 'test prompt')
+    })
+
+    it('passes apiKey (not the deprecated openAIApiKey) to ChatOpenAI', () => {
+      expect(ChatOpenAI).toHaveBeenCalledWith(expect.objectContaining({apiKey: 'apiKey'}))
+    })
+
+    it('does not pass deprecated openAIApiKey', () => {
+      expect(ChatOpenAI).not.toHaveBeenCalledWith(expect.objectContaining({openAIApiKey: expect.anything()}))
+    })
+
+    it('passes model from settings', () => {
+      expect(ChatOpenAI).toHaveBeenCalledWith(expect.objectContaining({model: 'model'}))
+    })
+
+    it('passes Deepseek baseURL in configuration', () => {
+      expect(ChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          configuration: expect.objectContaining({baseURL: 'https://api.deepseek.com'}),
+        }),
+      )
+    })
+
+    it('does not pass deprecated basePath in configuration', () => {
+      const call = ChatOpenAI.mock.calls[0][0]
+      expect(call.configuration).not.toHaveProperty('basePath')
+    })
+  })
+
+  describe('error handling', () => {
+    it('creates error node when deepseek apiKey is absent from settings', async () => {
+      getIntegrationSettings.mockResolvedValueOnce({deepseek: {}})
+      const createSpy = jest.spyOn(mockStore.importer, 'createErrorNode')
+      const cmd = new DeepseekCommand('u', 'w', mockStore)
+      const node = {id: 'node', title: '/deepseek test'}
+      await cmd.run(node, null, 'test')
+      expect(createSpy).toHaveBeenCalledWith(expect.stringContaining('Error:'), node.id)
+      createSpy.mockRestore()
+    })
+
+    it('creates error node when deepseek settings block is absent entirely', async () => {
+      getIntegrationSettings.mockResolvedValueOnce({openai: {apiKey: 'k'}})
+      const createSpy = jest.spyOn(mockStore.importer, 'createErrorNode')
+      const cmd = new DeepseekCommand('u', 'w', mockStore)
+      const node = {id: 'node', title: '/deepseek test'}
+      await cmd.run(node, null, 'test')
+      expect(createSpy).toHaveBeenCalledWith(expect.stringContaining('Error:'), node.id)
+      createSpy.mockRestore()
+    })
+  })
 })

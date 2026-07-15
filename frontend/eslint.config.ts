@@ -129,4 +129,13 @@ export default tseslint.config([
       'no-restricted-syntax': ['error', ...hardcodedVersionRestrictions],
     },
   },
+  {
+    files: ['e2e/**/*.{ts,tsx}'],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.browser },
+    },
+    rules: {
+      'react-hooks/rules-of-hooks': 'off',
+    },
+  },
 ])

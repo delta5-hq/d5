@@ -1,3 +1,4 @@
+import {z} from 'zod'
 import {OutlineTool} from '../../tools/OutlineTool'
 import {OutlineCommand} from '../../../../controllers/commandExecutor/commands/OutlineCommand'
 
@@ -11,6 +12,7 @@ describe('OutlineTool', () => {
   beforeEach(() => {
     mockUserContextProvider = {
       getUserId: jest.fn().mockReturnValue('test-user-123'),
+      getWorkflowId: jest.fn().mockReturnValue('test-workflow-456'),
     }
 
     mockOutlineCommand = {
@@ -26,30 +28,29 @@ describe('OutlineTool', () => {
     jest.clearAllMocks()
   })
 
-  describe('getSchema', () => {
-    it('returns valid MCP tool schema', () => {
-      const schema = tool.getSchema()
-
-      expect(schema.name).toBe('generate_outline')
-      expect(schema.description).toBeDefined()
-      expect(schema.inputSchema.type).toBe('object')
-      expect(schema.inputSchema.properties.query).toBeDefined()
-      expect(schema.inputSchema.required).toContain('query')
+  describe('Zod API', () => {
+    it('getName() returns expected name', () => {
+      expect(tool.getName()).toBe('generate_outline')
     })
 
-    it('schema includes all mode parameters', () => {
-      const schema = tool.getSchema()
-      const props = schema.inputSchema.properties
+    it('getDescription() returns non-empty description', () => {
+      expect(typeof tool.getDescription()).toBe('string')
+      expect(tool.getDescription().length).toBeGreaterThan(20)
+    })
 
-      expect(props.web).toBeDefined()
-      expect(props.scholar).toBeDefined()
-      expect(props.ext).toBeDefined()
-      expect(props.context).toBeDefined()
-      expect(props.href).toBeDefined()
-      expect(props.minYear).toBeDefined()
-      expect(props.lang).toBeDefined()
-      expect(props.citations).toBeDefined()
-      expect(props.maxChunks).toBeDefined()
+    it('getZodShape() exposes all mode parameters', () => {
+      const shape = tool.getZodShape()
+
+      expect(shape.query).toBeDefined()
+      expect(shape.web).toBeDefined()
+      expect(shape.scholar).toBeDefined()
+      expect(shape.ext).toBeDefined()
+      expect(shape.context).toBeDefined()
+      expect(shape.href).toBeDefined()
+      expect(shape.minYear).toBeDefined()
+      expect(shape.lang).toBeDefined()
+      expect(shape.citations).toBeDefined()
+      expect(shape.maxChunks).toBeDefined()
     })
   })
 
@@ -59,7 +60,7 @@ describe('OutlineTool', () => {
 
       const result = await tool.execute({query: 'AI research', web: 's'})
 
-      expect(OutlineCommand).toHaveBeenCalledWith('test-user-123', null, null)
+      expect(OutlineCommand).toHaveBeenCalledWith('test-user-123', 'test-workflow-456', null)
       expect(mockOutlineCommand.createResponseOutline).toHaveBeenCalledWith(
         expect.objectContaining({command: expect.stringContaining('--max-chunks=')}),
         'AI research',
@@ -191,6 +192,39 @@ describe('OutlineTool', () => {
         'Test',
         expect.any(Object),
       )
+    })
+  })
+
+  describe('Zod shape semantics', () => {
+    it('getZodShape() returns ZodType values', () => {
+      const shape = tool.getZodShape()
+
+      Object.values(shape).forEach(value => {
+        expect(typeof value.safeParse).toBe('function')
+        expect(typeof value.parse).toBe('function')
+      })
+    })
+
+    it('getZodShape() query field rejects missing value', () => {
+      const shape = tool.getZodShape()
+      const schema = z.object({query: shape.query})
+      expect(schema.safeParse({}).success).toBe(false)
+    })
+
+    it('getZodShape() optional fields accept missing values', () => {
+      const shape = tool.getZodShape()
+      const optionalFields = Object.keys(shape).filter(f => f !== 'query')
+
+      optionalFields.forEach(field => {
+        const schema = z.object({[field]: shape[field]})
+        expect(schema.safeParse({}).success).toBe(true)
+      })
+    })
+
+    it('getZodShape returns consistent field set across multiple calls', () => {
+      const shape1 = tool.getZodShape()
+      const shape2 = tool.getZodShape()
+      expect(Object.keys(shape1).sort()).toEqual(Object.keys(shape2).sort())
     })
   })
 })

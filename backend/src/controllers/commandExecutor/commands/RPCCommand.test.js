@@ -223,6 +223,25 @@ describe('RPCCommand', () => {
       expect(result).toBe('{"result":{"data":"http response"}}')
     })
 
+    it.each([
+      [400, 'bad request', 'HTTP RPC failed with status 400: bad request'],
+      [404, 'not found', 'HTTP RPC failed with status 404: not found'],
+      [500, 'upstream failure', 'HTTP RPC failed with status 500: upstream failure'],
+      [502, '', 'HTTP RPC failed with status 502'],
+      [503, '  gateway\n\nunavailable  ', 'HTTP RPC failed with status 503: gateway unavailable'],
+      [504, 'x'.repeat(600), `HTTP RPC failed with status 504: ${'x'.repeat(500)}…`],
+      [520, '   ', 'HTTP RPC failed with status 520'],
+    ])('rejects HTTP status %s with a normalized safe error message', async (status, body, expectedMessage) => {
+      mockHTTPExecutor.execute.mockResolvedValue({
+        body,
+        status,
+        isError: true,
+      })
+      const command = new RPCCommand(userId, workflowId, mockStore, httpAliasConfig)
+
+      await expect(command.executeHTTP('test')).rejects.toThrow(expectedMessage)
+    })
+
     it('omits body when no bodyTemplate specified', async () => {
       const config = {...httpAliasConfig, bodyTemplate: undefined}
       const command = new RPCCommand(userId, workflowId, mockStore, config)
@@ -256,6 +275,24 @@ describe('RPCCommand', () => {
 
       expect(mockHTTPExecutor.execute).toHaveBeenCalled()
       expect(mockStore.importer.createNodes).toHaveBeenCalledWith('http response', 'node2')
+    })
+
+    it('creates an error node for non-2xx HTTP responses', async () => {
+      mockHTTPExecutor.execute.mockResolvedValue({
+        body: 'upstream unavailable',
+        status: 503,
+        isError: true,
+      })
+      const command = new RPCCommand(userId, workflowId, mockStore, httpAliasConfig)
+      const node = {id: 'node-http-error', command: '/webhook1 execute'}
+
+      await command.run(node, null, null)
+
+      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(
+        'Error: HTTP RPC failed with status 503: upstream unavailable',
+        'node-http-error',
+      )
+      expect(mockStore.importer.createNodes).not.toHaveBeenCalled()
     })
 
     it('parses JSON output when outputFormat is json', async () => {
@@ -1013,6 +1050,81 @@ describe('RPCCommand', () => {
           signal: expect.anything(),
         }),
       )
+    })
+  })
+
+  describe('run — acp-local protocol', () => {
+    const acpAliasConfig = {
+      alias: '/agent1',
+      protocol: 'acp-local',
+      command: 'npx',
+      args: ['-y', '@scope/agent'],
+      env: {},
+      outputFormat: 'text',
+    }
+
+    const node = {id: 'acp-node', command: '/agent1 do work'}
+
+    it('creates output node from ACP executor result', async () => {
+      const command = new RPCCommand(userId, workflowId, mockStore, acpAliasConfig)
+      jest.spyOn(command, 'executeACP').mockResolvedValue({output: 'agent output', sessionId: null, exitCode: 0})
+
+      await command.run(node, null, '/agent1 do work')
+
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('agent output', node.id)
+    })
+
+    it('creates fallback node when ACP output is empty', async () => {
+      const command = new RPCCommand(userId, workflowId, mockStore, acpAliasConfig)
+      jest.spyOn(command, 'executeACP').mockResolvedValue({output: '', sessionId: null, exitCode: 0})
+
+      await command.run(node, null, '/agent1 do work')
+
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('(empty RPC response)', node.id)
+    })
+
+    it('does not throw to caller when executeACP throws', async () => {
+      const command = new RPCCommand(userId, workflowId, mockStore, acpAliasConfig)
+      jest.spyOn(command, 'executeACP').mockRejectedValue(new Error('spawn failed'))
+
+      await expect(command.run(node, null, '/agent1 do work')).resolves.toBeUndefined()
+    })
+
+    it.each([
+      ['Error', new Error('spawn failed')],
+      ['TypeError', new TypeError('type mismatch in spawn args')],
+      ['RangeError', new RangeError('timeout out of range')],
+      ['named Error subclass', Object.assign(new Error('bwrap is not available'), {name: 'SandboxUnavailableError'})],
+    ])('surfaces .message of %s thrown by executeACP as the error node content', async (_label, err) => {
+      const command = new RPCCommand(userId, workflowId, mockStore, acpAliasConfig)
+      jest.spyOn(command, 'executeACP').mockRejectedValue(err)
+
+      await command.run(node, null, '/agent1 do work')
+
+      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(`Error: ${err.message}`, node.id)
+    })
+
+    it('persists session ID returned by executeACP', async () => {
+      const command = new RPCCommand(userId, workflowId, mockStore, acpAliasConfig)
+      jest.spyOn(command, 'executeACP').mockResolvedValue({output: 'done', sessionId: 'acp-session-1', exitCode: 0})
+
+      await command.run(node, null, '/agent1 do work')
+
+      expect(IntegrationSessionRepository.upsertSessionId).toHaveBeenCalledWith(
+        userId,
+        acpAliasConfig.alias,
+        'rpc',
+        'acp-session-1',
+      )
+    })
+
+    it('does not attempt to persist session when executeACP returns null sessionId', async () => {
+      const command = new RPCCommand(userId, workflowId, mockStore, acpAliasConfig)
+      jest.spyOn(command, 'executeACP').mockResolvedValue({output: 'done', sessionId: null, exitCode: 0})
+
+      await command.run(node, null, '/agent1 do work')
+
+      expect(IntegrationSessionRepository.upsertSessionId).not.toHaveBeenCalled()
     })
   })
 })

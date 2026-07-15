@@ -15,7 +15,7 @@ func Register(router fiber.Router, db *qmgo.Database, services *container.Servic
 	}
 
 	/* Core integration CRUD controller */
-	baseCtrl := NewController(service, db)
+	baseCtrl := NewController(service, db, newCustomLLMValidatorForMode(services.MockMode))
 
 	/* Service-specific controllers (non-LLM only) */
 	midjourneyCtrl := NewMidjourneyController(services.Midjourney)

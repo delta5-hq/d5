@@ -1,7 +1,4 @@
-import { expect, test as base } from '@playwright/test'
-import { e2eEnv } from './utils/e2e-env-vars'
-import path from 'path'
-import * as fs from 'fs'
+import { expect } from '@playwright/test'
 import {
   cleanAllIntegrationsAcrossScopes,
   getIntegrationAtScope,
@@ -14,36 +11,11 @@ import {
 import { ArrayIntegrationPage } from './pages/ArrayIntegrationPage'
 import { TIMEOUTS } from './config/test-timeouts'
 import { authenticateViaAPI } from './helpers/api-auth'
-import { adminLogin } from './utils'
+import { createCustomerTest, customerCredentials } from './fixtures/parallel-user-test'
 import { selectWorkflowScope } from './helpers/wait-helpers'
 import { mockLLMValidation } from './helpers/llm-validation-mock'
 
-const test = base.extend<{}, { workerStorageState: string }>({
-  storageState: ({ workerStorageState }, use) => use(workerStorageState),
-  workerStorageState: [
-    async ({ browser }, use, workerInfo) => {
-      const id = workerInfo.parallelIndex
-      const dir = path.resolve(process.cwd(), 'playwright/.auth')
-
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-
-      const fileName = path.join(dir, `workflow-scoped-user.${id}.json`)
-      const context = await browser.newContext({
-        storageState: undefined,
-        baseURL: workerInfo.project.use.baseURL,
-      })
-      const page = await context.newPage()
-
-      await adminLogin(page)
-
-      await context.storageState({ path: fileName })
-      await context.close()
-
-      await use(fileName)
-    },
-    { scope: 'worker' },
-  ],
-})
+const test = createCustomerTest('workflow-scoped-integration-user')
 
 test.describe.serial('Workflow-scoped integrations', () => {
   let workflow1Id: string
@@ -56,10 +28,7 @@ test.describe.serial('Workflow-scoped integrations', () => {
     })
     const page = await context.newPage()
 
-    const authResult = await authenticateViaAPI(page.request, {
-      usernameOrEmail: e2eEnv.E2E_ADMIN_USER,
-      password: e2eEnv.E2E_ADMIN_PASS,
-    })
+    const authResult = await authenticateViaAPI(page.request, customerCredentials())
 
     if (!authResult.ok) {
       throw new Error(authResult.error || `Auth failed: ${authResult.status}`)
@@ -85,10 +54,7 @@ test.describe.serial('Workflow-scoped integrations', () => {
     })
     const page = await context.newPage()
 
-    const authResult = await authenticateViaAPI(page.request, {
-      usernameOrEmail: e2eEnv.E2E_ADMIN_USER,
-      password: e2eEnv.E2E_ADMIN_PASS,
-    })
+    const authResult = await authenticateViaAPI(page.request, customerCredentials())
 
     if (!authResult.ok) {
       throw new Error(authResult.error || `Auth failed: ${authResult.status}`)
@@ -567,7 +533,7 @@ test.describe.serial('Workflow-scoped integrations', () => {
     const userIntegration = await getIntegrationAtScope(page)
     const workflow1Integration = await getIntegrationAtScope(page, workflow1Id)
 
-    expect(userIntegration.mcp || []).toHaveLength(0)
+    expect((userIntegration.mcp || []).some((m: any) => m.alias === alias)).toBe(false)
     expect(workflow1Integration.mcp.find((m: any) => m.alias === alias)?.toolName).toBe('workflow1-tool')
   })
 
@@ -617,11 +583,11 @@ test.describe.serial('Workflow-scoped integrations', () => {
     const userIntegration = await getIntegrationAtScope(page)
     const workflow1Integration = await getIntegrationAtScope(page, workflow1Id)
 
-    expect(userIntegration.mcp).toHaveLength(1)
-    expect(userIntegration.rpc || []).toHaveLength(0)
+    expect((userIntegration.mcp || []).some((m: any) => m.alias === '/user-mcp')).toBe(true)
+    expect((userIntegration.rpc || []).some((r: any) => r.alias === '/workflow1-rpc')).toBe(false)
 
-    expect(workflow1Integration.mcp || []).toHaveLength(0)
-    expect(workflow1Integration.rpc).toHaveLength(1)
+    expect((workflow1Integration.mcp || []).some((m: any) => m.alias === '/user-mcp')).toBe(false)
+    expect((workflow1Integration.rpc || []).some((r: any) => r.alias === '/workflow1-rpc')).toBe(true)
   })
 
   test('cleanup verifies empty array after scope-specific deletion', async ({ page }) => {
@@ -640,7 +606,24 @@ test.describe.serial('Workflow-scoped integrations', () => {
     await deleteMCPItemAtScope(page, '/item2', workflow1Id)
 
     const workflow1Integration = await getIntegrationAtScope(page, workflow1Id)
-    expect(workflow1Integration.mcp || []).toHaveLength(0)
+    expect((workflow1Integration.mcp || []).some((m: any) => m.alias === '/item1' || m.alias === '/item2')).toBe(false)
+  })
+
+  test('fallback: GET at workflow scope returns user-level items after last workflow item deleted', async ({
+    page,
+  }) => {
+    await addMCPItemAtScope(page, { alias: '/user-anchor', transport: 'stdio', toolName: 'user-tool', command: 'node' })
+    await addMCPItemAtScope(
+      page,
+      { alias: '/wf-only', transport: 'stdio', toolName: 'wf-tool', command: 'node' },
+      workflow1Id,
+    )
+
+    await deleteMCPItemAtScope(page, '/wf-only', workflow1Id)
+
+    const workflow1Integration = await getIntegrationAtScope(page, workflow1Id)
+    expect((workflow1Integration.mcp || []).some((m: any) => m.alias === '/user-anchor')).toBe(true)
+    expect((workflow1Integration.mcp || []).some((m: any) => m.alias === '/wf-only')).toBe(false)
   })
 
   test('beforeEach cleanup prevents test pollution: multiple items at all scopes', async ({ page }) => {
@@ -667,7 +650,10 @@ test.describe.serial('Workflow-scoped integrations', () => {
     const workflow1Integration = await getIntegrationAtScope(page, workflow1Id)
     const workflow2Integration = await getIntegrationAtScope(page, workflow2Id)
 
-    expect(userIntegration.mcp).toHaveLength(3)
+    const userMcpAliases = new Set((userIntegration.mcp || []).map((m: any) => m.alias))
+    expect(userMcpAliases.has('/user-item-1')).toBe(true)
+    expect(userMcpAliases.has('/user-item-2')).toBe(true)
+    expect(userMcpAliases.has('/user-item-3')).toBe(true)
     expect(workflow1Integration.mcp).toHaveLength(3)
     expect(workflow2Integration.mcp).toHaveLength(3)
   })

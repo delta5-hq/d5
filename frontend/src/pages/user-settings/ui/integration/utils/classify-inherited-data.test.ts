@@ -26,18 +26,10 @@ describe('classifyInheritedData', () => {
       expect(result.editable).toEqual({})
       expect(result.inherited).toEqual({})
     })
-
-    it('handles null currentScope same as undefined', () => {
-      const appWideScope: IntegrationSettings = { openai: { apiKey: 'key', model: 'gpt-4' } }
-      const result = classifyInheritedData(undefined, appWideScope)
-
-      expect(result.editable).toEqual({})
-      expect(result.inherited).toBe(appWideScope)
-    })
   })
 
-  describe('workflowId field detection', () => {
-    it('treats as app-wide when workflowId field absent', () => {
+  describe('scope detection', () => {
+    it('no selectedWorkflowId and no workflowId in response → app-wide: editable is currentScope', () => {
       const currentScope: IntegrationSettings = { openai: { apiKey: 'key', model: 'gpt-4' } }
       const appWideScope: IntegrationSettings = { claude: { apiKey: 'key2', model: 'claude-3' } }
       const result = classifyInheritedData(currentScope, appWideScope)
@@ -46,7 +38,17 @@ describe('classifyInheritedData', () => {
       expect(result.inherited).toEqual({})
     })
 
-    it('treats as app-wide when workflowId is null', () => {
+    it('null selectedWorkflowId without response workflowId → app-wide: editable is currentScope', () => {
+      const currentScope: IntegrationSettings = { openai: { apiKey: 'key', model: 'gpt-4' } }
+      const appWideScope: IntegrationSettings = { claude: { apiKey: 'key2', model: 'claude-3' } }
+      const result = classifyInheritedData(currentScope, appWideScope, null)
+
+      expect(result.editable).toBe(currentScope)
+      expect(result.inherited).toEqual({})
+    })
+
+    it('response workflowId present but null → app-wide: editable is currentScope', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const currentScope: IntegrationSettings = { workflowId: null as any, openai: { apiKey: 'key', model: 'gpt-4' } }
       const appWideScope: IntegrationSettings = { claude: { apiKey: 'key2', model: 'claude-3' } }
       const result = classifyInheritedData(currentScope, appWideScope)
@@ -55,7 +57,32 @@ describe('classifyInheritedData', () => {
       expect(result.inherited).toEqual({})
     })
 
-    it('treats as workflow-scoped when workflowId field present with value', () => {
+    it('non-null selectedWorkflowId without response workflowId → fallback: all items inherited', () => {
+      const currentScope: IntegrationSettings = { openai: { apiKey: 'key', model: 'gpt-4' } }
+      const appWideScope: IntegrationSettings = { openai: { apiKey: 'key', model: 'gpt-4' } }
+      const result = classifyInheritedData(currentScope, appWideScope, 'wf-123')
+
+      expect(result.editable).toEqual({})
+      expect(result.inherited).toBe(appWideScope)
+    })
+
+    it('workflow fallback inherits all arrays and LLM providers from app-wide scope', () => {
+      const appWideMCP: MCPIntegration[] = [{ alias: '/research', transport: 'stdio', toolName: 'research' }]
+      const appWideRPC: RPCIntegration[] = [{ alias: '/deploy', protocol: 'ssh', host: 'deploy-server' }]
+      const currentScope: IntegrationSettings = { openai: { apiKey: 'key', model: 'gpt-4' } }
+      const appWideScope: IntegrationSettings = {
+        mcp: appWideMCP,
+        rpc: appWideRPC,
+        openai: { apiKey: 'key', model: 'gpt-4' },
+        claude: { apiKey: 'key2', model: 'claude-3' },
+      }
+      const result = classifyInheritedData(currentScope, appWideScope, 'wf-abc')
+
+      expect(result.editable).toEqual({})
+      expect(result.inherited).toBe(appWideScope)
+    })
+
+    it('response workflowId present without selectedWorkflowId → normal workflow inheritance', () => {
       const currentScope: IntegrationSettings = { workflowId: 'wf-123', openai: { apiKey: 'key', model: 'gpt-4' } }
       const appWideScope: IntegrationSettings = { claude: { apiKey: 'key2', model: 'claude-3' } }
       const result = classifyInheritedData(currentScope, appWideScope)
@@ -64,13 +91,23 @@ describe('classifyInheritedData', () => {
       expect(result.inherited).toEqual({ mcp: [], rpc: [], claude: appWideScope.claude })
     })
 
-    it('detects workflowId field even when empty string', () => {
+    it('empty-string response workflowId is treated as workflow-scoped, not app-wide', () => {
       const currentScope: IntegrationSettings = { workflowId: '', openai: { apiKey: 'key', model: 'gpt-4' } }
       const appWideScope: IntegrationSettings = { claude: { apiKey: 'key2', model: 'claude-3' } }
       const result = classifyInheritedData(currentScope, appWideScope)
 
       expect(result.editable).toBe(currentScope)
       expect(result.inherited).toEqual({ mcp: [], rpc: [], claude: appWideScope.claude })
+    })
+
+    it('response workflowId present with selectedWorkflowId → normal workflow, not fallback', () => {
+      const currentScope: IntegrationSettings = { workflowId: 'wf-123', openai: { apiKey: 'wf-key', model: 'gpt-4' } }
+      const appWideScope: IntegrationSettings = { claude: { apiKey: 'app-key', model: 'claude-3' } }
+      const result = classifyInheritedData(currentScope, appWideScope, 'wf-123')
+
+      expect(result.editable).toBe(currentScope)
+      expect(result.inherited.claude).toEqual(appWideScope.claude)
+      expect(result.inherited.openai).toBeUndefined()
     })
   })
 
@@ -376,15 +413,6 @@ describe('classifyInheritedData', () => {
       expect(result.inherited.mcp![0].alias).toBe('/z')
       expect(result.inherited.mcp![1].alias).toBe('/a')
       expect(result.inherited.mcp![2].alias).toBe('/m')
-    })
-
-    it('handles empty strings as valid workflowId', () => {
-      const currentScope: IntegrationSettings = { workflowId: '', openai: { apiKey: 'key', model: 'gpt-4' } }
-      const appWideScope: IntegrationSettings = { claude: { apiKey: 'key2', model: 'claude-3' } }
-      const result = classifyInheritedData(currentScope, appWideScope)
-
-      expect(result.editable).toBe(currentScope)
-      expect(result.inherited.claude).toEqual(appWideScope.claude)
     })
   })
 

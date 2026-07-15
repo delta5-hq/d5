@@ -257,6 +257,11 @@ export class TestDataFactory {
 /* Global instance for tests */
 export const testDataFactory = new TestDataFactory()
 
+export async function rawIntegrationDoc(userId, workflowId = null) {
+  const db = await getMongoConnection()
+  return db.collection('integrations').findOne({ userId, workflowId })
+}
+
 /* 
  * Deterministic E2E Test Orchestration
  * 

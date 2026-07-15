@@ -9,8 +9,24 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+type ScopeQuerier interface {
+	FindOne(ctx context.Context, filter bson.M) (map[string]interface{}, error)
+}
+
+type qmgoScopeQuerier struct {
+	collection *qmgo.Collection
+}
+
+func (q *qmgoScopeQuerier) FindOne(ctx context.Context, filter bson.M) (map[string]interface{}, error) {
+	var raw map[string]interface{}
+	if err := q.collection.Find(ctx, filter).One(&raw); err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
+
 type FallbackFinder struct {
-	collection  *qmgo.Collection
+	querier     ScopeQuerier
 	encryptor   *DocumentEncryptor
 	normalizer  bsonDocumentNormalizer
 	unmarshaler bsonUnmarshaler
@@ -25,7 +41,7 @@ func newFallbackFinder(
 	encryptor *DocumentEncryptor,
 ) *FallbackFinder {
 	return &FallbackFinder{
-		collection:  collection,
+		querier:     &qmgoScopeQuerier{collection: collection},
 		encryptor:   encryptor,
 		normalizer:  normalizeBSONDoc,
 		unmarshaler: bson.Unmarshal,
@@ -51,10 +67,10 @@ func (f *FallbackFinder) findWithFallback(ctx context.Context, scope ScopeIdenti
 }
 
 func (f *FallbackFinder) findByScope(ctx context.Context, scope ScopeIdentifier) (*models.Integration, error) {
-	var raw map[string]interface{}
 	filter := buildScopeFilter(scope)
 
-	if err := f.collection.Find(ctx, filter).One(&raw); err != nil {
+	raw, err := f.querier.FindOne(ctx, filter)
+	if err != nil {
 		return nil, err
 	}
 

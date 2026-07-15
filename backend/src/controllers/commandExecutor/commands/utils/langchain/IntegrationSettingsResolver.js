@@ -1,4 +1,5 @@
 import {USER_DEFAULT_MODEL} from '../../../../../shared/config/constants'
+import {CLAUDE_DEFAULT_MODEL as FALLBACK_CLAUDE_DEFAULT_MODEL} from '../../../../../constants'
 import {canUseMockExternalServices} from './MockExternalServices'
 
 // Both env-fill and credential-presence checks derive from this map — add a provider here only.
@@ -18,6 +19,11 @@ const NO_CREDENTIALS_ERROR =
 
 const isNonBlankString = value => Boolean(value && (typeof value !== 'string' || value.trim()))
 
+const resolveClaudeDefaultModel = () => {
+  if (isNonBlankString(process.env.CLAUDE_DEFAULT_MODEL)) return process.env.CLAUDE_DEFAULT_MODEL.trim()
+  return FALLBACK_CLAUDE_DEFAULT_MODEL
+}
+
 const fillAbsentCredentialsFromEnv = settings => {
   for (const [provider, credentialEnvVars] of Object.entries(PROVIDER_CREDENTIAL_ENV_MAP)) {
     for (const [field, envVar] of Object.entries(credentialEnvVars)) {
@@ -32,6 +38,12 @@ const fillAbsentCredentialsFromEnv = settings => {
   }
 }
 
+const fillProviderDefaults = settings => {
+  if (!isNonBlankString(settings.claude?.apiKey) || isNonBlankString(settings.claude?.model)) return
+
+  settings.claude.model = resolveClaudeDefaultModel()
+}
+
 const hasAnyRegisteredCredential = settings =>
   Object.entries(PROVIDER_CREDENTIAL_ENV_MAP).some(([provider, credentialEnvVars]) =>
     Object.keys(credentialEnvVars).some(field => isNonBlankString(settings[provider]?.[field])),
@@ -43,10 +55,13 @@ const buildBaseSettings = (userId, workflowId) => ({
   model: USER_DEFAULT_MODEL,
 })
 
+export const PROVIDER_CREDENTIAL_ENV_VARS = Object.values(PROVIDER_CREDENTIAL_ENV_MAP).flatMap(Object.values)
+
 export const resolveSettings = ({merged, workflowDoc, userId, workflowId}) => {
   const settings = merged ?? buildBaseSettings(userId, workflowId)
 
   fillAbsentCredentialsFromEnv(settings)
+  fillProviderDefaults(settings)
 
   if (canUseMockExternalServices()) {
     return {settings, workflowDoc}

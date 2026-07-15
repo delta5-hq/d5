@@ -1,23 +1,3 @@
-/**
- * Round-trip Integration Tests for runCommand
- *
- * Validates full execution chain: MongoDB → loadUserAliases → resolveCommand → runCommand → subprocess → output node
- *
- * Scope:
- * - MCP stdio transport with real subprocess spawning
- * - RPC HTTP transport with real network I/O
- * - RPC ACP-local transport with real agent protocol
- * - Multi-alias coexistence in single Integration doc
- * - Workflow-scoped overlay merging
- * - Edge cases: empty prompts, nonexistent aliases, encrypted fields, session hydration
- *
- * Out of scope:
- * - SSH transport (requires SSH server)
- * - Streamable HTTP / SSE MCP transports (requires HTTP MCP server)
- * - Agent mode (requires LLM API key)
- * - ExecutorController layer (tested separately)
- */
-
 import {ReadableStream, WritableStream, TransformStream} from 'stream/web'
 import {DatabaseFixtures} from './__tests__/fixtures/DatabaseFixtures'
 import {TransportStubs} from './__tests__/fixtures/TransportStubs'
@@ -299,6 +279,32 @@ describe('runCommand round-trip integration', () => {
 
       QueryTypeValidator.expectNoMatch(result)
     })
+
+    it('runCommand creates error node for unresolvable alias', async () => {
+      const runner = new RoundTripTestRunner(testUserId)
+      const aliases = await runner.loadAliases()
+
+      const cell = runner.createCell({id: 'unknownCell', command: '/nonexistent hello'})
+      const result = await runner.executeCell({cell, aliases})
+
+      OutputNodeValidator.expectNodeTitleContains(result.output, {
+        substring: 'Error: Unknown command "/nonexistent"',
+        parentId: 'unknownCell',
+      })
+    })
+
+    it('runCommand creates error node for deleted alias (empty aliases)', async () => {
+      const runner = new RoundTripTestRunner(testUserId)
+      const emptyAliases = {mcp: [], rpc: []}
+
+      const cell = runner.createCell({id: 'deletedCell', command: '/e2e-deleted hello'})
+      const result = await runner.executeCell({cell, aliases: emptyAliases})
+
+      OutputNodeValidator.expectNodeTitleContains(result.output, {
+        substring: 'Error: Unknown command "/e2e-deleted"',
+        parentId: 'deletedCell',
+      })
+    })
   })
 
   describe('Edge case: encrypted env field round-trip', () => {
@@ -354,7 +360,7 @@ describe('runCommand round-trip integration', () => {
     it('executes three different transport types in single workflow tree', async () => {
       const doc = new IntegrationDocBuilder(testUserId)
         .addMcpStdio({
-          alias: '/mcp',
+          alias: '/echo-mcp',
           command: 'node',
           args: [transportStubs.getMcpStdioPath()],
           toolName: 'echo',
@@ -380,7 +386,7 @@ describe('runCommand round-trip integration', () => {
       const aliases = await runner.loadAliases()
 
       const cells = [
-        runner.createCell({id: 'node1', command: '/mcp regression1'}),
+        runner.createCell({id: 'node1', command: '/echo-mcp regression1'}),
         runner.createCell({id: 'node2', command: '/http regression2'}),
         runner.createCell({id: 'node3', command: '/acp regression3'}),
       ]

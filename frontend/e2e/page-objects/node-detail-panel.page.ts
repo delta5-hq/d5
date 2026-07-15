@@ -61,6 +61,14 @@ export class NodeDetailPanelPage extends PageComponent {
   }
 
   async execute(): Promise<void> {
+    await this.executeButton.waitFor({ state: 'visible' })
+    await this.page.waitForFunction(
+      () => {
+        const btn = document.querySelector('[data-testid="execute-node-button"]')
+        return btn && !(btn as HTMLButtonElement).disabled
+      },
+      { timeout: 5000 },
+    )
     await this.executeButton.click()
   }
 

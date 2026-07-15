@@ -93,21 +93,25 @@ export const CommandField = ({
   const isDirty = text !== value
 
   const allSuggestions = useMemo((): CommandSuggestion[] => {
-    const builtins = getSupportedCommands().map(cmd => ({
-      command: cmd,
-      description: COMMAND_DESCRIPTIONS[cmd] || '',
-      badge: 'builtin' as const,
-    }))
+    const byCommand = new Map<string, CommandSuggestion>()
 
-    const dynamics = aliases.map(
-      (alias: DynamicAlias): CommandSuggestion => ({
+    for (const cmd of getSupportedCommands()) {
+      byCommand.set(cmd, {
+        command: cmd,
+        description: COMMAND_DESCRIPTIONS[cmd] || '',
+        badge: 'builtin' as const,
+      })
+    }
+
+    for (const alias of aliases as DynamicAlias[]) {
+      byCommand.set(alias.alias, {
         command: alias.alias,
         description: alias.description || '',
         badge: alias.queryType?.startsWith('mcp:') ? 'mcp' : 'rpc',
-      }),
-    )
+      })
+    }
 
-    return [...builtins, ...dynamics]
+    return Array.from(byCommand.values())
   }, [aliases])
 
   const shouldShowAutocomplete = useMemo((): boolean => {
@@ -132,13 +136,13 @@ export const CommandField = ({
   }, [shouldShowAutocomplete, text, allSuggestions])
 
   useEffect(() => {
-    if (filteredSuggestions.length > 0 && shouldShowAutocomplete) {
-      setAutocompleteOpen(true)
-      setSelectedIndex(0)
-    } else {
-      setAutocompleteOpen(false)
-    }
-  }, [filteredSuggestions, shouldShowAutocomplete])
+    const nextOpen = filteredSuggestions.length > 0 && shouldShowAutocomplete
+    setAutocompleteOpen(current => (current === nextOpen ? current : nextOpen))
+    setSelectedIndex(current => {
+      if (!nextOpen) return 0
+      return current >= filteredSuggestions.length ? 0 : current
+    })
+  }, [filteredSuggestions.length, shouldShowAutocomplete])
 
   const handleChange = useCallback(
     (e: ChangeEvent<HTMLTextAreaElement>) => {

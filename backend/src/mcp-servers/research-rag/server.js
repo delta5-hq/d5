@@ -22,9 +22,10 @@ async function main() {
     await lifecycle.startup()
 
     const userId = environmentValidator.getUserId()
+    const workflowId = environmentValidator.getWorkflowId()
     log(`Starting MCP server for user: ${userId}`)
 
-    const userContextProvider = new UserContextProvider(userId)
+    const userContextProvider = new UserContextProvider(userId, workflowId)
     const commandContextAdapter = new CommandContextAdapter()
     const toolRegistry = new ToolRegistry(userContextProvider, commandContextAdapter)
 

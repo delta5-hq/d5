@@ -83,8 +83,8 @@ const ArrayIntegrationSection: React.FC<Props> = ({
   }
 
   const cardClassName = inherited
-    ? 'cursor-pointer transition-shadow border-dashed opacity-60'
-    : 'cursor-pointer hover:shadow-md transition-shadow'
+    ? 'w-full sm:w-60 min-h-40 cursor-pointer overflow-hidden transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border-dashed opacity-60'
+    : 'w-full sm:w-60 min-h-40 cursor-pointer overflow-hidden hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
 
   return (
     <>
@@ -106,7 +106,7 @@ const ArrayIntegrationSection: React.FC<Props> = ({
           ) : null}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="flex flex-wrap gap-4 justify-start w-full">
           {items.map(item => {
             const keyDetail = getKeyConfigDetail(item)
             const integrationType = getIntegrationType(item)
@@ -118,6 +118,7 @@ const ArrayIntegrationSection: React.FC<Props> = ({
                 data-alias={item.alias}
                 data-field={fieldName}
                 data-inherited={inherited}
+                glassEffect={false}
                 key={item.alias}
                 onClick={() => onEdit(item)}
                 onKeyDown={e => {
@@ -129,11 +130,11 @@ const ArrayIntegrationSection: React.FC<Props> = ({
                 role="button"
                 tabIndex={0}
               >
-                <CardContent className="p-4 relative">
+                <CardContent className="relative flex h-full p-4">
                   {!inherited ? (
                     <Button
                       aria-label={`Delete ${item.alias}`}
-                      className="absolute top-2 right-2 h-6 w-6 p-0"
+                      className="absolute top-2 right-2 h-6 w-6 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                       onClick={e => handleDeleteRequest(e, item.alias)}
                       size="sm"
                       variant="ghost"
@@ -144,19 +145,30 @@ const ArrayIntegrationSection: React.FC<Props> = ({
                       </span>
                     </Button>
                   ) : null}
-                  <div className="flex-1 min-w-0 pr-8">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h4 className="font-mono text-lg font-bold truncate">{item.alias}</h4>
-                      {integrationType ? <IntegrationTypeBadge type={integrationType} /> : null}
-                    </div>
+                  <div className="flex h-full min-w-0 flex-1 flex-col pr-8">
+                    <h4 className="mb-1 min-w-0 truncate font-mono text-lg font-bold" title={item.alias}>
+                      {item.alias}
+                    </h4>
+                    {integrationType ? (
+                      <div className="mb-2">
+                        <IntegrationTypeBadge type={integrationType} />
+                      </div>
+                    ) : null}
                     {keyDetail ? (
-                      <p className="text-xs text-muted-foreground mb-1 truncate font-mono">{keyDetail}</p>
+                      <p className="mb-1 truncate font-mono text-xs text-muted-foreground">{keyDetail}</p>
                     ) : null}
                     {item.description ? (
-                      <p className="text-xs text-muted-foreground line-clamp-2">{item.description}</p>
+                      <p className="line-clamp-2 text-xs text-muted-foreground">{item.description}</p>
+                    ) : null}
+                    {item.lastSessionId ? (
+                      <p className="mt-1 flex items-center gap-1 text-xs text-success" title={item.lastSessionId}>
+                        <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
+                        <FormattedMessage id="integration.session.active" />
+                        <span className="font-mono text-muted-foreground">…{item.lastSessionId.slice(-8)}</span>
+                      </p>
                     ) : null}
                     {inherited ? (
-                      <p className="text-xs text-muted-foreground italic mt-2">
+                      <p className="mt-2 text-xs text-muted-foreground italic">
                         <FormattedMessage id="integration.inheritedNote" />
                       </p>
                     ) : null}

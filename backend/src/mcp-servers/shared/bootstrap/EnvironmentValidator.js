@@ -14,4 +14,8 @@ export class EnvironmentValidator {
   getUserId() {
     return process.env.D5_USER_ID
   }
+
+  getWorkflowId() {
+    return process.env.D5_WORKFLOW_ID || null
+  }
 }

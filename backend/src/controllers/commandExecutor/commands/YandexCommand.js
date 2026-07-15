@@ -3,10 +3,11 @@ import {clearCommandsWithParams} from '../constants'
 import {clearStepsPrefix} from '../constants/steps'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import {readJoinParam, readTableParam} from '../constants/yandex'
+import {YANDEX_DEFAULT_MODEL} from '../../../constants'
 import {getIntegrationSettings} from './utils/langchain/getLLM'
-import YandexService from '../../integrations/yandex/YandexService'
+import YandexService, {extractCompletionText} from '../../integrations/yandex/YandexService'
 import {referencePatterns} from './references/utils/referencePatterns'
-import {clearReferences} from './references/utils/referenceUtils' // Direct import
+import {clearReferences} from './references/utils/referenceUtils'
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
@@ -46,11 +47,17 @@ export class YandexCommand {
       )
     }
 
-    const modelUri = `gpt://${folder_id}/${model}`
+    const modelUri = `gpt://${folder_id}/${model || YANDEX_DEFAULT_MODEL}`
 
-    const response = await YandexService.completionWithRetry({messages, modelUri, ...credentials, ...options})
+    const response = await YandexService.completionWithRetry({
+      messages,
+      modelUri,
+      folderId: folder_id,
+      ...credentials,
+      ...options,
+    })
 
-    return response?.alternatives[0].message.text
+    return extractCompletionText(response)
   }
 
   async run(node, context, originalPrompt, options = {}) {

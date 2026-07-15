@@ -6,16 +6,26 @@ import LLMVector from '../models/LLMVector'
 import {encryptFields} from '../models/utils/fieldEncryption'
 import {INTEGRATION_ENCRYPTION_CONFIG} from '../models/Integration'
 import AliasValidator from './commandExecutor/commands/aliases/AliasValidator'
+import EffectiveAliasResolver from './commandExecutor/commands/aliases/EffectiveAliasResolver'
 
 jest.mock('./commandExecutor/commands/aliases/AliasValidator', () => ({
   __esModule: true,
   default: {
     validateIntegrationArrays: jest.fn(),
+    validateSubmittedAgainstEffective: jest.fn(),
+  },
+}))
+
+jest.mock('./commandExecutor/commands/aliases/EffectiveAliasResolver', () => ({
+  __esModule: true,
+  default: {
+    resolveOtherType: jest.fn().mockReturnValue([]),
   },
 }))
 
 jest.mock('../repositories/IntegrationRepository', () => ({
   findWithFallback: jest.fn(),
+  findBothDocs: jest.fn(),
 }))
 
 jest.mock('../repositories/IntegrationFacade', () => ({
@@ -33,6 +43,12 @@ jest.mock('../models/Integration', () => {
     INTEGRATION_ENCRYPTION_CONFIG: {fields: ['openai']},
   }
 })
+jest.mock('../repositories/IntegrationSessionRepository', () => ({
+  __esModule: true,
+  default: {
+    findAllSessionsForUser: jest.fn().mockResolvedValue([]),
+  },
+}))
 jest.mock('../models/LLMVector')
 jest.mock('../models/utils/fieldEncryption', () => ({
   encryptFields: jest.fn(data => data),
@@ -59,23 +75,30 @@ describe('IntegrationController', () => {
   })
 
   describe('getAll', () => {
-    it('calls facade with normalized null when workflowId is missing', async () => {
-      IntegrationFacade.findMergedDecrypted.mockResolvedValue({openai: {key: 'k'}})
-      const ctx = createCtx()
+    it.each([
+      ['missing workflowId', {}],
+      ['empty workflowId', {workflowId: ''}],
+    ])('serves %s as bare user scope', async (_label, query) => {
+      IntegrationFacade.findMergedDecrypted.mockResolvedValue({
+        userId: 'user-1',
+        workflowId: null,
+        openai: {key: 'k'},
+        mcp: [],
+        rpc: [],
+      })
+      const ctx = createCtx({query})
 
       await IntegrationController.getAll(ctx)
 
       expect(IntegrationFacade.findMergedDecrypted).toHaveBeenCalledWith('user-1', null)
-      expect(ctx.body).toEqual({openai: {key: 'k'}})
-    })
-
-    it('calls facade with normalized null when workflowId is empty string', async () => {
-      IntegrationFacade.findMergedDecrypted.mockResolvedValue({openai: {key: 'k'}})
-      const ctx = createCtx({query: {workflowId: ''}})
-
-      await IntegrationController.getAll(ctx)
-
-      expect(IntegrationFacade.findMergedDecrypted).toHaveBeenCalledWith('user-1', null)
+      expect(ctx.body).toEqual({
+        userId: 'user-1',
+        workflowId: null,
+        openai: {key: 'k'},
+        mcp: [],
+        rpc: [],
+        secretsMeta: {},
+      })
     })
 
     it('calls facade with workflowId when provided', async () => {
@@ -102,7 +125,7 @@ describe('IntegrationController', () => {
 
       await IntegrationController.getAll(ctx)
 
-      expect(ctx.body).toEqual(merged)
+      expect(ctx.body).toEqual({...merged, rpc: [], mcp: [], secretsMeta: {}})
     })
 
     it('handles workflow-specific integration retrieval', async () => {
@@ -113,7 +136,7 @@ describe('IntegrationController', () => {
       await IntegrationController.getAll(ctx)
 
       expect(IntegrationFacade.findMergedDecrypted).toHaveBeenCalledWith('user-1', 'wf-123')
-      expect(ctx.body).toEqual(workflowData)
+      expect(ctx.body).toEqual({...workflowData, rpc: [], mcp: [], secretsMeta: {}})
     })
 
     it('handles integration with MCP and RPC fields', async () => {
@@ -127,8 +150,23 @@ describe('IntegrationController', () => {
 
       await IntegrationController.getAll(ctx)
 
-      expect(ctx.body.mcp).toEqual([{alias: '/coder1'}])
-      expect(ctx.body.rpc).toEqual([{alias: '/vm1'}])
+      expect(ctx.body.mcp).toEqual([{alias: '/coder1', lastSessionId: null}])
+      expect(ctx.body.rpc).toEqual([{alias: '/vm1', lastSessionId: null}])
+    })
+
+    it('attaches lastSessionId from session store to matching alias', async () => {
+      const IntegrationSessionRepository = require('../repositories/IntegrationSessionRepository').default
+      IntegrationSessionRepository.findAllSessionsForUser.mockResolvedValue([
+        {alias: '/vm1', protocol: 'rpc', lastSessionId: 'sess-abc'},
+      ])
+      const integration = {mcp: [{alias: '/coder1'}], rpc: [{alias: '/vm1'}]}
+      IntegrationFacade.findMergedDecrypted.mockResolvedValue(integration)
+      const ctx = createCtx()
+
+      await IntegrationController.getAll(ctx)
+
+      expect(ctx.body.rpc).toEqual([{alias: '/vm1', lastSessionId: 'sess-abc'}])
+      expect(ctx.body.mcp).toEqual([{alias: '/coder1', lastSessionId: null}])
     })
   })
 
@@ -316,80 +354,101 @@ describe('IntegrationController', () => {
     })
 
     describe('alias validation for MCP/RPC', () => {
+      const bothDocs = {appWide: {mcp: [], rpc: []}, workflow: null}
+      const effectiveOpposite = [{alias: '/existing-opposite'}]
+
       beforeEach(() => {
-        IntegrationRepository.findWithFallback.mockResolvedValue({
-          mcp: [{alias: '/existing'}],
-          rpc: [],
-        })
+        IntegrationRepository.findBothDocs.mockResolvedValue(bothDocs)
+        EffectiveAliasResolver.resolveOtherType.mockReturnValue(effectiveOpposite)
       })
 
-      it('validates MCP aliases when updating mcp service', async () => {
-        const mcpIntegrations = [{alias: '/agent1'}, {alias: '/agent2'}]
+      it.each([
+        ['mcp', [{alias: '/agent1'}, {alias: '/agent2'}]],
+        ['rpc', [{alias: '/ssh1'}]],
+      ])('service=%s: delegates to findBothDocs with correct userId and workflowId', async (service, integrations) => {
         const ctx = createCtx({
+          params: {service},
+          request: {json: jest.fn().mockResolvedValue(integrations)},
+        })
+
+        await IntegrationController.updateService(ctx)
+
+        expect(IntegrationRepository.findBothDocs).toHaveBeenCalledWith('user-1', null)
+      })
+
+      it.each([
+        ['mcp', [{alias: '/agent1'}]],
+        ['rpc', [{alias: '/ssh1'}]],
+      ])(
+        'service=%s: delegates to EffectiveAliasResolver with correct service and docs',
+        async (service, integrations) => {
+          const ctx = createCtx({
+            params: {service},
+            request: {json: jest.fn().mockResolvedValue(integrations)},
+          })
+
+          await IntegrationController.updateService(ctx)
+
+          expect(EffectiveAliasResolver.resolveOtherType).toHaveBeenCalledWith(service, bothDocs)
+        },
+      )
+
+      it.each([
+        ['mcp', [{alias: '/agent1'}]],
+        ['rpc', [{alias: '/ssh1'}]],
+      ])(
+        'service=%s: delegates to validateSubmittedAgainstEffective with submitted array, service, and effective opposite',
+        async (service, integrations) => {
+          const ctx = createCtx({
+            params: {service},
+            request: {json: jest.fn().mockResolvedValue(integrations)},
+          })
+
+          await IntegrationController.updateService(ctx)
+
+          expect(AliasValidator.validateSubmittedAgainstEffective).toHaveBeenCalledWith(
+            integrations,
+            service,
+            effectiveOpposite,
+          )
+        },
+      )
+
+      it('passes workflow-scoped workflowId to findBothDocs when provided in query', async () => {
+        const ctx = createCtx({
+          query: {workflowId: 'wf-123'},
           params: {service: 'mcp'},
-          request: {json: jest.fn().mockResolvedValue(mcpIntegrations)},
+          request: {json: jest.fn().mockResolvedValue([{alias: '/agent'}])},
         })
 
         await IntegrationController.updateService(ctx)
 
-        expect(AliasValidator.validateIntegrationArrays).toHaveBeenCalledWith(mcpIntegrations, [])
+        expect(IntegrationRepository.findBothDocs).toHaveBeenCalledWith('user-1', 'wf-123')
       })
 
-      it('validates RPC aliases when updating rpc service', async () => {
-        const rpcIntegrations = [{alias: '/ssh1'}]
-        const ctx = createCtx({
-          params: {service: 'rpc'},
-          request: {json: jest.fn().mockResolvedValue(rpcIntegrations)},
-        })
-
-        await IntegrationController.updateService(ctx)
-
-        expect(AliasValidator.validateIntegrationArrays).toHaveBeenCalledWith([{alias: '/existing'}], rpcIntegrations)
-      })
-
-      it('rejects with 400 when MCP alias validation fails', async () => {
-        const actualModule = jest.requireActual('./commandExecutor/commands/aliases/AliasValidator')
-        AliasValidator.validateIntegrationArrays.mockImplementation(() => {
-          throw new actualModule.AliasValidationError('Alias conflicts with built-in', 'RESERVED_COMMAND', '/web')
+      it.each([
+        ['RESERVED_COMMAND', 'Alias conflicts with built-in', 'mcp'],
+        ['DUPLICATE_IN_ARRAY', 'Duplicate alias found', 'mcp'],
+        ['DUPLICATE_ACROSS_TYPES', 'Alias already in use by another integration', 'rpc'],
+        ['RESERVED_COMMAND', 'Alias conflicts with built-in', 'rpc'],
+      ])('AliasValidationError code=%s converts to HTTP 400 for service=%s', async (code, message, service) => {
+        const {AliasValidationError} = jest.requireActual('./commandExecutor/commands/aliases/AliasValidator')
+        AliasValidator.validateSubmittedAgainstEffective.mockImplementation(() => {
+          throw new AliasValidationError(message, code, '/any')
         })
 
         const ctx = createCtx({
-          params: {service: 'mcp'},
-          request: {json: jest.fn().mockResolvedValue([{alias: '/web'}])},
+          params: {service},
+          request: {json: jest.fn().mockResolvedValue([{alias: '/any'}])},
         })
 
-        await expect(IntegrationController.updateService(ctx)).rejects.toThrow('Alias conflicts with built-in')
+        await expect(IntegrationController.updateService(ctx)).rejects.toThrow(message)
       })
 
-      it('rejects with 400 when RPC alias validation fails', async () => {
-        const actualModule = jest.requireActual('./commandExecutor/commands/aliases/AliasValidator')
-        AliasValidator.validateIntegrationArrays.mockImplementation(() => {
-          throw new actualModule.AliasValidationError('Duplicate alias found', 'DUPLICATE_IN_ARRAY', '/dup')
-        })
-
-        const ctx = createCtx({
-          params: {service: 'rpc'},
-          request: {json: jest.fn().mockResolvedValue([{alias: '/dup'}, {alias: '/dup'}])},
-        })
-
-        await expect(IntegrationController.updateService(ctx)).rejects.toThrow('Duplicate alias found')
-      })
-
-      it('does not validate when updating non-alias services', async () => {
-        const ctx = createCtx({
-          params: {service: 'openai'},
-          request: {json: jest.fn().mockResolvedValue({apiKey: 'sk-123'})},
-        })
-
-        await IntegrationController.updateService(ctx)
-
-        expect(AliasValidator.validateIntegrationArrays).not.toHaveBeenCalled()
-      })
-
-      it('throws non-validation errors unchanged', async () => {
-        const otherError = new Error('Database connection failed')
-        AliasValidator.validateIntegrationArrays.mockImplementation(() => {
-          throw otherError
+      it('non-AliasValidationError propagates without converting to 400', async () => {
+        const dbError = new Error('Database connection failed')
+        AliasValidator.validateSubmittedAgainstEffective.mockImplementation(() => {
+          throw dbError
         })
 
         const ctx = createCtx({
@@ -398,6 +457,18 @@ describe('IntegrationController', () => {
         })
 
         await expect(IntegrationController.updateService(ctx)).rejects.toThrow('Database connection failed')
+      })
+
+      it('does not call findBothDocs or validateSubmittedAgainstEffective for non-alias services', async () => {
+        const ctx = createCtx({
+          params: {service: 'openai'},
+          request: {json: jest.fn().mockResolvedValue({apiKey: 'sk-123'})},
+        })
+
+        await IntegrationController.updateService(ctx)
+
+        expect(IntegrationRepository.findBothDocs).not.toHaveBeenCalled()
+        expect(AliasValidator.validateSubmittedAgainstEffective).not.toHaveBeenCalled()
       })
     })
   })

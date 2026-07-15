@@ -36,6 +36,7 @@ export interface Deepseek {
 export interface CustomLLM {
   apiRootUrl: string
   apiKey?: string
+  model?: string
   maxTokens: number
   apiType: string
   embeddingsChunkSize: number
@@ -63,6 +64,7 @@ export interface MCPIntegration {
   args?: string[]
   env?: Record<string, string>
   timeoutMs?: number
+  lastSessionId?: string | null
 }
 
 export interface RPCIntegration {
@@ -89,6 +91,7 @@ export interface RPCIntegration {
   env?: Record<string, string>
   autoApprove?: 'all' | 'none' | 'whitelist'
   allowedTools?: string[]
+  lastSessionId?: string | null
 }
 
 export interface LLMSecretMetadata {

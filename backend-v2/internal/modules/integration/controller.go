@@ -1,6 +1,8 @@
 package integration
 
 import (
+	"context"
+
 	"backend-v2/internal/common/constants"
 	"backend-v2/internal/common/logger"
 	"backend-v2/internal/common/response"
@@ -13,12 +15,19 @@ import (
 var log = logger.New("INTEGRATION")
 
 type Controller struct {
-	service *Service
-	db      *qmgo.Database
+	service            *Service
+	db                 *qmgo.Database
+	sessionRepo        *SessionRepository
+	customLLMValidator *CustomLLMValidator
 }
 
-func NewController(service *Service, db *qmgo.Database) *Controller {
-	return &Controller{service: service, db: db}
+func NewController(service *Service, db *qmgo.Database, validator *CustomLLMValidator) *Controller {
+	return &Controller{
+		service:            service,
+		db:                 db,
+		sessionRepo:        NewSessionRepository(db),
+		customLLMValidator: validator,
+	}
 }
 
 func (ctrl *Controller) Authorization(c *fiber.Ctx) error {
@@ -62,6 +71,28 @@ func (ctrl *Controller) GetAll(c *fiber.Ctx) error {
 		return response.InternalError(c, err.Error())
 	}
 
+	sessions, err := ctrl.sessionRepo.FindAllForUser(c.Context(), scope.UserID)
+	if err != nil {
+		log.Error("GetAll: fetch sessions failed: %v", err)
+	} else {
+		sessionMap := make(map[string]string)
+		for _, s := range sessions {
+			sessionMap[s.Alias+":"+s.Protocol] = s.LastSessionId
+		}
+		for i := range secureResponse.Integration.RPC {
+			item := &secureResponse.Integration.RPC[i]
+			if sid, ok := sessionMap[item.Alias+":rpc"]; ok {
+				item.LastSessionId = &sid
+			}
+		}
+		for i := range secureResponse.Integration.MCP {
+			item := &secureResponse.Integration.MCP[i]
+			if sid, ok := sessionMap[item.Alias+":mcp"]; ok {
+				item.LastSessionId = &sid
+			}
+		}
+	}
+
 	return c.JSON(secureResponse)
 }
 
@@ -92,6 +123,10 @@ func (ctrl *Controller) UpdateService(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Something is wrong with the provided data")
 	}
 
+	if err := ctrl.validateServiceConfig(c.Context(), service, serviceConfig); err != nil {
+		return response.BadRequest(c, err.Error())
+	}
+
 	if _, err := ctrl.service.CreateLLMVector(c.Context(), ctrl.db, scope.UserID, service); err != nil {
 		return response.InternalError(c, err.Error())
 	}
@@ -114,6 +149,14 @@ func (ctrl *Controller) UpdateService(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(secureResponse)
+}
+
+func (ctrl *Controller) validateServiceConfig(ctx context.Context, service string, serviceConfig map[string]interface{}) error {
+	if service != "custom_llm" {
+		return nil
+	}
+
+	return ctrl.customLLMValidator.Validate(ctx, serviceConfig)
 }
 
 func (ctrl *Controller) Delete(c *fiber.Ctx) error {

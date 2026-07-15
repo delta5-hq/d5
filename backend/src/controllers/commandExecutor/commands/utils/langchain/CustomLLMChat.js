@@ -57,6 +57,7 @@ export class CustomLLMChat extends BaseChatModel {
     this.apiType = params.apiType
 
     this.apiKey = params.apiKey
+    this.model = params.model
     this.temperature = params.temperature ?? 1
     this.topP = params.topP ?? 1
     this.maxTokens = params.maxTokens
@@ -73,11 +74,9 @@ export class CustomLLMChat extends BaseChatModel {
     return 'custom_llm'
   }
 
-  /**
-   * Get the parameters used to invoke the model
-   */
   invocationParams(options) {
     return {
+      ...(this.model !== undefined && {model: this.model}),
       temperature: this.temperature,
       top_p: this.topP,
       stop: options?.stop,

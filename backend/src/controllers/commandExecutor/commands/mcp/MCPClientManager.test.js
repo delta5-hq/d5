@@ -1,4 +1,4 @@
-import {callTool, listTools, withClient, formatToolResult} from './MCPClientManager'
+import {callTool, listTools, withClient, withMultipleClientsTolerant, formatToolResult} from './MCPClientManager'
 import {createTransport} from './createTransport'
 import {MCP_DEFAULT_TIMEOUT_MS, MCP_CONNECTION_TIMEOUT_MS} from '../../constants/mcp'
 import {TimeoutError} from './withTimeout'
@@ -98,6 +98,66 @@ describe('MCPClientManager', () => {
       expect(createTransport).toHaveBeenCalledWith(
         expect.objectContaining({transport: 'stdio', command: 'claude', args: ['mcp', 'serve'], env: {X: '1'}}),
       )
+    })
+  })
+
+  describe('withMultipleClientsTolerant', () => {
+    const configs = [
+      {serverUrl: 'http://one', transport: 'streamable-http'},
+      {serverUrl: 'http://two', transport: 'streamable-http'},
+      {transport: 'stdio', command: 'agent', args: ['serve']},
+    ]
+
+    it('passes connected clients with their original config index', async () => {
+      const fn = jest.fn().mockResolvedValue('done')
+
+      const result = await withMultipleClientsTolerant(configs, fn)
+
+      expect(result).toBe('done')
+      expect(fn).toHaveBeenCalledWith(
+        [
+          {client: expect.any(Object), index: 0},
+          {client: expect.any(Object), index: 1},
+          {client: expect.any(Object), index: 2},
+        ],
+        [],
+      )
+    })
+
+    it('reports skipped clients without failing connected clients', async () => {
+      mockConnect
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('second down'))
+        .mockResolvedValueOnce(undefined)
+      const fn = jest.fn().mockResolvedValue('partial')
+
+      const result = await withMultipleClientsTolerant(configs, fn)
+
+      expect(result).toBe('partial')
+      expect(fn).toHaveBeenCalledWith(
+        [
+          {client: expect.any(Object), index: 0},
+          {client: expect.any(Object), index: 2},
+        ],
+        [{index: 1, error: expect.any(Error)}],
+      )
+      expect(fn.mock.calls[0][1][0].error.message).toBe('second down')
+    })
+
+    it('closes connected and skipped clients after callback settles', async () => {
+      mockConnect.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('second down'))
+
+      await withMultipleClientsTolerant(configs.slice(0, 2), jest.fn().mockResolvedValue(undefined))
+
+      expect(mockClose).toHaveBeenCalledTimes(2)
+    })
+
+    it('closes connected clients when callback rejects', async () => {
+      const fn = jest.fn().mockRejectedValue(new Error('callback failed'))
+
+      await expect(withMultipleClientsTolerant(configs.slice(0, 2), fn)).rejects.toThrow('callback failed')
+
+      expect(mockClose).toHaveBeenCalledTimes(2)
     })
   })
 

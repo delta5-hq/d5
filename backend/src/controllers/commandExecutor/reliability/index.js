@@ -58,3 +58,4 @@ export {
   appendRefineSuffix,
 } from './core/reliabilitySuffix'
 export {resolveRefineCell} from './core/resolveRefineCell'
+export {runCommodityForks, isCommodityForkInProgress, markCommodityForkInProgress} from './core/CommodityForkRunner'

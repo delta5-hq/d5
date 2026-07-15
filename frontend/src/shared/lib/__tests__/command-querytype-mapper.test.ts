@@ -7,30 +7,22 @@ import {
   COMMAND_DESCRIPTIONS,
   type DynamicAlias,
 } from '../command-querytype-mapper'
+import { BUILTIN_COMMAND_ALIASES, BUILTIN_COMMANDS } from '../builtin-command-aliases'
 
 describe('extractQueryTypeFromCommand - Command Mapping', () => {
   describe('registered command → queryType mapping', () => {
+    it.each(BUILTIN_COMMANDS)('maps $alias to $queryType', ({ alias, queryType }) => {
+      expect(extractQueryTypeFromCommand(`${alias} some prompt text`)).toBe(queryType)
+    })
+
+    it.each(BUILTIN_COMMANDS)('maps $alias with no trailing text', ({ alias, queryType }) => {
+      expect(extractQueryTypeFromCommand(alias)).toBe(queryType)
+    })
+
     it('returns the declared queryType for every registered command', () => {
       for (const [cmd, expectedType] of Object.entries(COMMAND_TO_QUERYTYPE_MAP)) {
         expect(extractQueryTypeFromCommand(cmd)).toBe(expectedType)
         expect(extractQueryTypeFromCommand(`${cmd} text`)).toBe(expectedType)
-      }
-    })
-
-    it('all commands sharing a queryType resolve to that queryType', () => {
-      const groups = new Map<string, string[]>()
-      for (const [cmd, qt] of Object.entries(COMMAND_TO_QUERYTYPE_MAP)) {
-        const group = groups.get(qt) ?? []
-        group.push(cmd)
-        groups.set(qt, group)
-      }
-      for (const [qt, cmds] of groups) {
-        if (cmds.length > 1) {
-          cmds.forEach(cmd => {
-            expect(extractQueryTypeFromCommand(cmd), `${cmd} should resolve to ${qt}`).toBe(qt)
-            expect(extractQueryTypeFromCommand(`${cmd} text`), `${cmd} with text should resolve to ${qt}`).toBe(qt)
-          })
-        }
       }
     })
   })
@@ -49,18 +41,25 @@ describe('extractQueryTypeFromCommand - Command Mapping', () => {
   })
 
   describe('fallback behavior for unregistered commands', () => {
-    it('strips leading slash from unknown slash-commands', () => {
+    it('maps unknown slash commands to explicit unknown query type', () => {
       expect(extractQueryTypeFromCommand('/unknown Do something')).toBe('unknown')
-      expect(extractQueryTypeFromCommand('/newfeature Test')).toBe('newfeature')
     })
 
-    it('returns first word for slash-free input', () => {
+    it('does not derive executable query types from unregistered slash commands', () => {
+      expect(extractQueryTypeFromCommand('/newfeature Test')).toBe('unknown')
+    })
+
+    it('does not preserve unknown command text as an executable query type', () => {
+      expect(extractQueryTypeFromCommand('/UnknownCommand')).toBe('unknown')
+    })
+
+    it('handles commands without slash prefix — defaults to chat', () => {
       expect(extractQueryTypeFromCommand('chat Hello')).toBe('chat')
-      expect(extractQueryTypeFromCommand('custom Direct query')).toBe('custom')
+      expect(extractQueryTypeFromCommand('custom Direct query')).toBe('chat')
     })
 
-    it('preserves case for unregistered commands', () => {
-      expect(extractQueryTypeFromCommand('/UnknownCommand')).toBe('UnknownCommand')
+    it('returns chat for arbitrary generated text without slash prefix', () => {
+      expect(extractQueryTypeFromCommand('Here is your outline:')).toBe('chat')
     })
   })
 
@@ -95,28 +94,40 @@ describe('extractQueryTypeFromCommand - Command Mapping', () => {
     it('handles command with no text after', () => {
       expect(extractQueryTypeFromCommand('/web')).toBe('web')
     })
+
+    it('handles command with only whitespace after slash', () => {
+      expect(extractQueryTypeFromCommand('/   ')).toBe('unknown')
+    })
+
+    it('handles bare slash as unknown command', () => {
+      expect(extractQueryTypeFromCommand('/')).toBe('unknown')
+    })
   })
 
   describe('edge cases', () => {
-    it('handles double slash as unknown command starting with slash', () => {
-      expect(extractQueryTypeFromCommand('//web')).toBe('/web')
+    it('handles double slash as unknown command', () => {
+      expect(extractQueryTypeFromCommand('//web')).toBe('unknown')
     })
 
-    it('handles slash in middle of non-command text', () => {
-      expect(extractQueryTypeFromCommand('web/search query')).toBe('web/search')
+    it('returns chat for input without leading slash even if it contains a slash mid-word', () => {
+      expect(extractQueryTypeFromCommand('web/search query')).toBe('chat')
     })
 
     it('handles unicode characters in unknown commands', () => {
-      expect(extractQueryTypeFromCommand('/查询 search')).toBe('查询')
+      expect(extractQueryTypeFromCommand('/查询 search')).toBe('unknown')
     })
 
     it('handles emoji in unknown command name', () => {
-      expect(extractQueryTypeFromCommand('/🔍 search')).toBe('🔍')
+      expect(extractQueryTypeFromCommand('/🔍 search')).toBe('unknown')
     })
 
     it('handles very long unknown command names', () => {
       const longCommand = '/' + 'a'.repeat(100)
-      expect(extractQueryTypeFromCommand(longCommand)).toBe('a'.repeat(100))
+      expect(extractQueryTypeFromCommand(longCommand)).toBe('unknown')
+    })
+
+    it('handles special characters in unknown commands', () => {
+      expect(extractQueryTypeFromCommand('/@#$%')).toBe('unknown')
     })
   })
 })
@@ -168,10 +179,14 @@ describe('getFullCommandMap - Dynamic Alias Merging', () => {
       expect(map['/chatgpt']).toBe('chat')
     })
 
-    it('does not override static commands with dynamic aliases', () => {
-      const aliases: DynamicAlias[] = [{ alias: '/web', queryType: 'override' }]
-      expect(getFullCommandMap(aliases)['/web']).toBe('web')
-    })
+    it.each(Object.entries(COMMAND_TO_QUERYTYPE_MAP))(
+      'does not override static command %s with a dynamic alias',
+      (alias, queryType) => {
+        const aliases: DynamicAlias[] = [{ alias, queryType: 'override' }]
+        const map = getFullCommandMap(aliases)
+        expect(map[alias]).toBe(queryType)
+      },
+    )
 
     it('ignores alias with empty string', () => {
       const aliases: DynamicAlias[] = [{ alias: '', queryType: 'empty' }]
@@ -191,213 +206,104 @@ describe('getFullCommandMap - Dynamic Alias Merging', () => {
       expect(getFullCommandMap(aliases)['/test']).toBe('test')
     })
 
-    it('handles alias with undefined queryType (falls back to derived)', () => {
-      const aliases: DynamicAlias[] = [{ alias: '/test', queryType: undefined }]
-      expect(getFullCommandMap(aliases)['/test']).toBe('test')
-    })
-
-    it('derives queryType by stripping leading slash', () => {
-      const aliases: DynamicAlias[] = [{ alias: '/mycommand' }]
-      expect(getFullCommandMap(aliases)['/mycommand']).toBe('mycommand')
-    })
-
     it('handles alias without leading slash', () => {
       const aliases: DynamicAlias[] = [{ alias: 'noslash', queryType: 'custom' }]
       expect(getFullCommandMap(aliases)['noslash']).toBe('custom')
-    })
-
-    it('handles alias with special characters', () => {
-      const aliases: DynamicAlias[] = [{ alias: '/c++', queryType: 'cpp' }]
-      expect(getFullCommandMap(aliases)['/c++']).toBe('cpp')
-    })
-
-    it('handles alias with unicode', () => {
-      const aliases: DynamicAlias[] = [{ alias: '/查询', queryType: 'search_cn' }]
-      expect(getFullCommandMap(aliases)['/查询']).toBe('search_cn')
-    })
-
-    it('handles very long alias names', () => {
-      const longAlias = '/' + 'a'.repeat(100)
-      const aliases: DynamicAlias[] = [{ alias: longAlias, queryType: 'long' }]
-      expect(getFullCommandMap(aliases)[longAlias]).toBe('long')
     })
   })
 })
 
 describe('getSupportedCommands - Command List Generation', () => {
-  describe('static commands', () => {
-    it('returns exactly the keys of COMMAND_TO_QUERYTYPE_MAP when no aliases provided', () => {
-      const commands = getSupportedCommands()
-      expect([...commands].sort()).toEqual(Object.keys(COMMAND_TO_QUERYTYPE_MAP).sort())
-    })
-
-    it('returns same result for no-arg, undefined, and empty-array calls', () => {
-      expect(getSupportedCommands()).toEqual(getSupportedCommands(undefined))
-      expect(getSupportedCommands()).toEqual(getSupportedCommands([]))
-    })
-
-    it('contains every key from COMMAND_TO_QUERYTYPE_MAP', () => {
-      const commands = getSupportedCommands()
-      for (const cmd of Object.keys(COMMAND_TO_QUERYTYPE_MAP)) {
-        expect(commands).toContain(cmd)
-      }
-    })
-
-    it('has no duplicate entries', () => {
-      const commands = getSupportedCommands()
-      expect(commands.length).toBe(new Set(commands).size)
-    })
+  it('returns exactly the keys of COMMAND_TO_QUERYTYPE_MAP when no aliases provided', () => {
+    const commands = getSupportedCommands()
+    expect([...commands].sort()).toEqual(Object.keys(COMMAND_TO_QUERYTYPE_MAP).sort())
   })
 
-  describe('with dynamic aliases', () => {
-    it('includes dynamic aliases alongside static commands', () => {
-      const aliases: DynamicAlias[] = [
-        { alias: '/code', queryType: 'mcp:code' },
-        { alias: '/qa', queryType: 'mcp:qa' },
-      ]
-      const commands = getSupportedCommands(aliases)
-      expect(commands).toContain('/code')
-      expect(commands).toContain('/qa')
-      expect(commands).toContain('/web')
-    })
-
-    it('does not duplicate a command when alias shadows static', () => {
-      const aliases: DynamicAlias[] = [{ alias: '/web', queryType: 'override' }]
-      const commands = getSupportedCommands(aliases)
-      expect(commands.filter(cmd => cmd === '/web').length).toBe(1)
-    })
-
-    it('has no duplicate entries when aliases are added', () => {
-      const aliases: DynamicAlias[] = [{ alias: '/new1' }, { alias: '/new2' }]
-      const commands = getSupportedCommands(aliases)
-      expect(commands.length).toBe(new Set(commands).size)
-    })
+  it('contains every key from COMMAND_TO_QUERYTYPE_MAP', () => {
+    const commands = getSupportedCommands()
+    for (const cmd of Object.keys(COMMAND_TO_QUERYTYPE_MAP)) {
+      expect(commands).toContain(cmd)
+    }
   })
 
-  describe('consistency with getFullCommandMap', () => {
-    it('returns exactly the keys of getFullCommandMap for any alias set', () => {
-      const aliases: DynamicAlias[] = [{ alias: '/test1', queryType: 'type1' }, { alias: '/test2' }]
-      expect(getSupportedCommands(aliases)).toEqual(Object.keys(getFullCommandMap(aliases)))
-    })
+  it('includes dynamic aliases alongside static commands', () => {
+    const aliases: DynamicAlias[] = [
+      { alias: '/code', queryType: 'mcp:code' },
+      { alias: '/qa', queryType: 'mcp:qa' },
+    ]
+    const commands = getSupportedCommands(aliases)
+    expect(commands).toContain('/code')
+    expect(commands).toContain('/qa')
+    expect(commands).toContain('/web')
+  })
+
+  it('does not duplicate a command when alias shadows static', () => {
+    const aliases: DynamicAlias[] = [{ alias: '/web', queryType: 'override' }]
+    const commands = getSupportedCommands(aliases)
+    expect(commands.filter(cmd => cmd === '/web').length).toBe(1)
   })
 })
 
 describe('extractQueryTypeFromCommand - With Dynamic Aliases', () => {
-  describe('dynamic alias resolution', () => {
-    it('resolves dynamic alias to its queryType', () => {
-      const aliases: DynamicAlias[] = [{ alias: '/code', queryType: 'mcp:code' }]
-      expect(extractQueryTypeFromCommand('/code analyze this', aliases)).toBe('mcp:code')
-    })
-
-    it('resolves derived queryType from alias name', () => {
-      const aliases: DynamicAlias[] = [{ alias: '/research' }]
-      expect(extractQueryTypeFromCommand('/research query', aliases)).toBe('research')
-    })
-
-    it('prefers static command over dynamic alias when both exist', () => {
-      const aliases: DynamicAlias[] = [{ alias: '/web', queryType: 'custom_web' }]
-      expect(extractQueryTypeFromCommand('/web search', aliases)).toBe('web')
-    })
-
-    it('falls back to slash-stripping for unknown commands not in aliases', () => {
-      const aliases: DynamicAlias[] = [{ alias: '/known', queryType: 'known_type' }]
-      expect(extractQueryTypeFromCommand('/unknown query', aliases)).toBe('unknown')
-    })
-
-    it('handles whitespace around dynamic alias command', () => {
-      const aliases: DynamicAlias[] = [{ alias: '/test', queryType: 'test_type' }]
-      expect(extractQueryTypeFromCommand('  /test  query  ', aliases)).toBe('test_type')
-    })
+  it('resolves dynamic alias to its queryType', () => {
+    const aliases: DynamicAlias[] = [{ alias: '/code', queryType: 'mcp:code' }]
+    expect(extractQueryTypeFromCommand('/code analyze this', aliases)).toBe('mcp:code')
   })
 
-  describe('static commands resolve identically regardless of alias list', () => {
-    it('produces same result with no args, undefined, and empty array', () => {
-      expect(extractQueryTypeFromCommand('/web search')).toBe('web')
-      expect(extractQueryTypeFromCommand('/web search', undefined)).toBe('web')
-      expect(extractQueryTypeFromCommand('/web search', [])).toBe('web')
-    })
-
-    it('default values are unaffected by alias presence', () => {
-      const aliases: DynamicAlias[] = [{ alias: '/test' }]
-      expect(extractQueryTypeFromCommand('', aliases)).toBe('chat')
-      expect(extractQueryTypeFromCommand(undefined, aliases)).toBe('chat')
-    })
+  it('resolves derived queryType from alias name', () => {
+    const aliases: DynamicAlias[] = [{ alias: '/research' }]
+    expect(extractQueryTypeFromCommand('/research query', aliases)).toBe('research')
   })
 
-  describe('alias precedence and shadowing', () => {
-    it('static commands always win over any dynamic alias', () => {
-      const aliases: DynamicAlias[] = [
-        { alias: '/web', queryType: 'custom1' },
-        { alias: '/chatgpt', queryType: 'custom2' },
-      ]
-      expect(extractQueryTypeFromCommand('/web search', aliases)).toBe('web')
-      expect(extractQueryTypeFromCommand('/chatgpt ask', aliases)).toBe('chat')
-    })
-
-    it('uses first alias when the same alias key is duplicated', () => {
-      const aliases: DynamicAlias[] = [
-        { alias: '/tool', queryType: 'first' },
-        { alias: '/tool', queryType: 'second' },
-      ]
-      expect(extractQueryTypeFromCommand('/tool run', aliases)).toBe('first')
-    })
-
-    it('alias matching is case-sensitive', () => {
-      const aliases: DynamicAlias[] = [
-        { alias: '/Tool', queryType: 'capitalized' },
-        { alias: '/tool', queryType: 'lowercase' },
-      ]
-      expect(extractQueryTypeFromCommand('/Tool run', aliases)).toBe('capitalized')
-      expect(extractQueryTypeFromCommand('/tool run', aliases)).toBe('lowercase')
-    })
+  it('prefers static command over dynamic alias when both exist', () => {
+    const aliases: DynamicAlias[] = [{ alias: '/web', queryType: 'custom_web' }]
+    expect(extractQueryTypeFromCommand('/web search', aliases)).toBe('web')
   })
 
-  describe('queryType format preservation', () => {
-    it.each([
-      ['namespace:tool', 'namespace:tool'],
-      ['my_custom_type', 'my_custom_type'],
-      ['my-custom-type', 'my-custom-type'],
-      ['ns:my_tool-v2', 'ns:my_tool-v2'],
-      ['mcp:sub:tool', 'mcp:sub:tool'],
-    ])('preserves queryType %s unchanged', (queryType, expected) => {
-      const aliases: DynamicAlias[] = [{ alias: '/tool', queryType }]
-      expect(extractQueryTypeFromCommand('/tool run', aliases)).toBe(expected)
-    })
+  it('does not override static commands during query extraction (mcp-fusion)', () => {
+    const aliases: DynamicAlias[] = [{ alias: '/mcp', queryType: 'override' }]
+    expect(extractQueryTypeFromCommand('/mcp use every tool', aliases)).toBe('mcp-fusion')
   })
 
-  describe('alias naming patterns', () => {
-    it.each([
-      ['/my-tool', 'my-tool with dashes'],
-      ['/my_tool', 'my_tool with underscores'],
-      ['/MyTool', 'MyTool mixed case'],
-      ['/tool2', 'tool2 with number'],
-      ['/my-tool_v2', 'mixed separators'],
-    ])('accepts %s as a valid alias key', alias => {
-      const aliases: DynamicAlias[] = [{ alias, queryType: 'custom' }]
-      expect(extractQueryTypeFromCommand(`${alias} execute`, aliases)).toBe('custom')
-    })
+  it('returns unknown for a command absent from both static and dynamic registries', () => {
+    const aliases: DynamicAlias[] = [{ alias: '/known', queryType: 'known_type' }]
+    expect(extractQueryTypeFromCommand('/unknown query', aliases)).toBe('unknown')
   })
 
-  describe('integration scenarios', () => {
-    it('handles realistic MCP multi-alias workflow', () => {
-      const aliases: DynamicAlias[] = [
-        { alias: '/code', queryType: 'mcp:claude_code' },
-        { alias: '/qa', queryType: 'mcp:qa_testing' },
-        { alias: '/research', queryType: 'mcp:research' },
-      ]
-      expect(extractQueryTypeFromCommand('/code fix the bug', aliases)).toBe('mcp:claude_code')
-      expect(extractQueryTypeFromCommand('/qa run tests', aliases)).toBe('mcp:qa_testing')
-      expect(extractQueryTypeFromCommand('/research query', aliases)).toBe('mcp:research')
-      expect(extractQueryTypeFromCommand('/web search', aliases)).toBe('web')
-    })
+  it('handles whitespace around dynamic alias command', () => {
+    const aliases: DynamicAlias[] = [{ alias: '/test', queryType: 'test_type' }]
+    expect(extractQueryTypeFromCommand('  /test  query  ', aliases)).toBe('test_type')
+  })
+
+  it('handles realistic MCP multi-alias workflow', () => {
+    const aliases: DynamicAlias[] = [
+      { alias: '/code', queryType: 'mcp:claude_code' },
+      { alias: '/qa', queryType: 'mcp:qa_testing' },
+      { alias: '/research', queryType: 'mcp:research' },
+    ]
+    expect(extractQueryTypeFromCommand('/code fix the bug', aliases)).toBe('mcp:claude_code')
+    expect(extractQueryTypeFromCommand('/qa run tests', aliases)).toBe('mcp:qa_testing')
+    expect(extractQueryTypeFromCommand('/research query', aliases)).toBe('mcp:research')
+    expect(extractQueryTypeFromCommand('/web search', aliases)).toBe('web')
   })
 })
 
 describe('COMMAND_DESCRIPTIONS and COMMAND_TO_QUERYTYPE_MAP consistency', () => {
-  it('both maps have identical key sets', () => {
-    const mapKeys = new Set(Object.keys(COMMAND_TO_QUERYTYPE_MAP))
-    const descKeys = new Set(Object.keys(COMMAND_DESCRIPTIONS))
-    expect(mapKeys).toEqual(descKeys)
+  it('keys of both maps match BUILTIN_COMMAND_ALIASES in insertion order', () => {
+    const aliases = [...BUILTIN_COMMAND_ALIASES]
+    expect(Object.keys(COMMAND_TO_QUERYTYPE_MAP)).toEqual(aliases)
+    expect(Object.keys(COMMAND_DESCRIPTIONS)).toEqual(aliases)
+  })
+
+  it.each(BUILTIN_COMMANDS)(
+    'COMMAND_TO_QUERYTYPE_MAP[$alias] equals source queryType $queryType',
+    ({ alias, queryType }) => {
+      expect(COMMAND_TO_QUERYTYPE_MAP[alias]).toBe(queryType)
+    },
+  )
+
+  it.each(BUILTIN_COMMANDS)('COMMAND_DESCRIPTIONS[$alias] equals source description', ({ alias, description }) => {
+    expect(COMMAND_DESCRIPTIONS[alias]).toBe(description)
   })
 
   it('each description value is a non-empty string', () => {

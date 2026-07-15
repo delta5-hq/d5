@@ -76,6 +76,64 @@ describe('IntegrationMerger', () => {
       })
     })
 
+    describe('sentinel field handling', () => {
+      it('falls back to app-wide model when workflow model is the sentinel "auto"', () => {
+        const appWide = {userId: 'u1', workflowId: null, model: 'Qwen'}
+        const workflow = {userId: 'u1', workflowId: 'w1', model: 'auto'}
+
+        const result = merger.merge(appWide, workflow)
+
+        expect(result.model).toBe('Qwen')
+      })
+
+      it('falls back to app-wide lang when workflow lang is the sentinel "none"', () => {
+        const appWide = {userId: 'u1', workflowId: null, lang: 'ru'}
+        const workflow = {userId: 'u1', workflowId: 'w1', lang: 'none'}
+
+        const result = merger.merge(appWide, workflow)
+
+        expect(result.lang).toBe('ru')
+      })
+
+      it('uses workflow model when it is a non-sentinel value', () => {
+        const appWide = {userId: 'u1', workflowId: null, model: 'Qwen'}
+        const workflow = {userId: 'u1', workflowId: 'w1', model: 'Claude'}
+
+        const result = merger.merge(appWide, workflow)
+
+        expect(result.model).toBe('Claude')
+      })
+
+      it('uses workflow lang when it is a non-sentinel value', () => {
+        const appWide = {userId: 'u1', workflowId: null, lang: 'en'}
+        const workflow = {userId: 'u1', workflowId: 'w1', lang: 'de'}
+
+        const result = merger.merge(appWide, workflow)
+
+        expect(result.lang).toBe('de')
+      })
+
+      it('both sentinel values in workflow fall back to app-wide for both fields', () => {
+        const appWide = {userId: 'u1', workflowId: null, model: 'OpenAI', lang: 'ru'}
+        const workflow = {userId: 'u1', workflowId: 'w1', model: 'auto', lang: 'none'}
+
+        const result = merger.merge(appWide, workflow)
+
+        expect(result.model).toBe('OpenAI')
+        expect(result.lang).toBe('ru')
+      })
+
+      it('both sentinel values in app-wide are returned as-is when workflow also has sentinels', () => {
+        const appWide = {userId: 'u1', workflowId: null, model: 'auto', lang: 'none'}
+        const workflow = {userId: 'u1', workflowId: 'w1', model: 'auto', lang: 'none'}
+
+        const result = merger.merge(appWide, workflow)
+
+        expect(result.model).toBe('auto')
+        expect(result.lang).toBe('none')
+      })
+    })
+
     describe('LLM provider field-level overlay', () => {
       it('workflow provider overrides app-wide provider when both exist', () => {
         const appWide = {
@@ -128,7 +186,7 @@ describe('IntegrationMerger', () => {
         expect(result.yandex).toEqual({apiKey: 'app-key', folder_id: 'folder2'})
       })
 
-      it('undefined workflow provider field preserves app-wide', () => {
+      it('empty object workflow provider wipes app-wide fields', () => {
         const appWide = {
           userId: 'u1',
           workflowId: null,
@@ -142,7 +200,7 @@ describe('IntegrationMerger', () => {
 
         const result = merger.merge(appWide, workflow)
 
-        expect(result.qwen).toEqual({apiKey: 'app-key'})
+        expect(result.qwen).toEqual({})
       })
 
       it('workflow-only provider appears in result', () => {
@@ -584,7 +642,7 @@ describe('IntegrationMerger', () => {
         })
       })
 
-      it('empty provider object {} preserves all app-wide fields', () => {
+      it('empty provider object {} at workflow scope wipes all app-wide fields', () => {
         const appWide = {
           userId: 'u1',
           workflowId: null,
@@ -598,7 +656,72 @@ describe('IntegrationMerger', () => {
 
         const result = merger.merge(appWide, workflow)
 
-        expect(result.openai).toEqual({apiKey: 'key', model: 'gpt-4', temperature: 0.5})
+        expect(result.openai).toEqual({})
+      })
+
+      it('empty app-wide provider {} with non-empty workflow uses workflow fields', () => {
+        const appWide = {
+          userId: 'u1',
+          workflowId: null,
+          openai: {},
+        }
+        const workflow = {
+          userId: 'u1',
+          workflowId: 'w1',
+          openai: {apiKey: 'wf-key', model: 'gpt-4'},
+        }
+
+        const result = merger.merge(appWide, workflow)
+
+        expect(result.openai).toEqual({apiKey: 'wf-key', model: 'gpt-4'})
+      })
+
+      it('both app-wide and workflow provider empty {} yields {}', () => {
+        const appWide = {userId: 'u1', workflowId: null, openai: {}}
+        const workflow = {userId: 'u1', workflowId: 'w1', openai: {}}
+
+        const result = merger.merge(appWide, workflow)
+
+        expect(result.openai).toEqual({})
+      })
+
+      it('null app-wide provider with non-empty workflow uses workflow object', () => {
+        const appWide = {
+          userId: 'u1',
+          workflowId: null,
+          openai: null,
+        }
+        const workflow = {
+          userId: 'u1',
+          workflowId: 'w1',
+          openai: {apiKey: 'wf-key'},
+        }
+
+        const result = merger.merge(appWide, workflow)
+
+        expect(result.openai).toEqual({apiKey: 'wf-key'})
+      })
+
+      it('multiple providers wiped simultaneously — each {} wipes independently', () => {
+        const appWide = {
+          userId: 'u1',
+          workflowId: null,
+          openai: {apiKey: 'openai-key'},
+          claude: {apiKey: 'claude-key', model: 'claude-3'},
+          qwen: {apiKey: 'qwen-key'},
+        }
+        const workflow = {
+          userId: 'u1',
+          workflowId: 'w1',
+          openai: {},
+          claude: {},
+        }
+
+        const result = merger.merge(appWide, workflow)
+
+        expect(result.openai).toEqual({})
+        expect(result.claude).toEqual({})
+        expect(result.qwen).toEqual({apiKey: 'qwen-key'})
       })
     })
 
@@ -842,6 +965,55 @@ describe('IntegrationMerger', () => {
         const result = mergeIntegrations(globalDoc, workflowDoc)
 
         expect(result.openai).toEqual({apiKey: 'gk1'})
+      })
+
+      it('null global provider with non-empty workflow yields workflow object', () => {
+        const globalDoc = {userId: 'u1', workflowId: null, openai: null}
+        const workflowDoc = {userId: 'u1', workflowId: 'wf1', openai: {apiKey: 'wk1'}}
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.openai).toEqual({apiKey: 'wk1'})
+      })
+
+      it('empty global provider {} with non-empty workflow yields workflow fields', () => {
+        const globalDoc = {userId: 'u1', workflowId: null, openai: {}}
+        const workflowDoc = {userId: 'u1', workflowId: 'wf1', openai: {apiKey: 'wk1'}}
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.openai).toEqual({apiKey: 'wk1'})
+      })
+
+      it('both global and workflow provider empty {} yields {}', () => {
+        const globalDoc = {userId: 'u1', workflowId: null, openai: {}}
+        const workflowDoc = {userId: 'u1', workflowId: 'wf1', openai: {}}
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.openai).toEqual({})
+      })
+
+      it('multiple providers wiped simultaneously — each {} wipes independently', () => {
+        const globalDoc = {
+          userId: 'u1',
+          workflowId: null,
+          openai: {apiKey: 'gk-openai'},
+          claude: {apiKey: 'gk-claude'},
+          yandex: {apiKey: 'gk-yandex'},
+        }
+        const workflowDoc = {
+          userId: 'u1',
+          workflowId: 'wf1',
+          openai: {},
+          claude: {},
+        }
+
+        const result = mergeIntegrations(globalDoc, workflowDoc)
+
+        expect(result.openai).toEqual({})
+        expect(result.claude).toEqual({})
+        expect(result.yandex).toEqual({apiKey: 'gk-yandex'})
       })
     })
 

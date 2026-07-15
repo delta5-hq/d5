@@ -18,11 +18,12 @@ import {clearStepsPrefix} from '../constants/steps'
 
 import {WebCommand} from './WebCommand'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
-import {createSimpleAgentExecutor} from './utils/langchain/getAgentExecutor'
+import {JSKnowledgeMapWebScholarSearch} from './utils/langchain/JSKnowledgeMapWebScholarSearch'
 import {conditionallyTranslate} from './utils/translate'
 import Store from './utils/Store'
 
 jest.mock('@langchain/classic/chains')
+jest.mock('./utils/langchain/JSKnowledgeMapWebScholarSearch')
 jest.mock('./utils/langchain/getLLM', () => ({
   ...jest.requireActual('./utils/langchain/getLLM'),
   getLLM: jest.fn(),
@@ -30,7 +31,6 @@ jest.mock('./utils/langchain/getLLM', () => ({
   getEmbeddings: jest.fn(),
 }))
 jest.mock('./references/substitution')
-jest.mock('./utils/langchain/getAgentExecutor')
 jest.mock('./utils/translate')
 jest.mock('./references/utils/referencePatterns', () => ({
   referencePatterns: {
@@ -71,9 +71,9 @@ describe('WebCommand', () => {
     })
     getLLM.mockReturnValue({llm: {}, chunkSize: 2000})
     getEmbeddings.mockReturnValue({})
-    createSimpleAgentExecutor.mockReturnValue({
-      invoke: jest.fn().mockResolvedValue({output: 'agent output'}),
-    })
+    JSKnowledgeMapWebScholarSearch.mockImplementation(() => ({
+      getKnowledgeMapWebExt: jest.fn().mockResolvedValue('retrieval output'),
+    }))
     conditionallyTranslate.mockResolvedValue('translated output')
   })
 
@@ -90,55 +90,29 @@ describe('WebCommand', () => {
       mockStore.importer.createTable = jest.fn()
       mockStore.importer.createJoinNode = jest.fn()
     })
-    it('should use yandex credentials', async () => {
-      getIntegrationSettings.mockImplementation(sourceGetIntegrationSettings)
-      jest.spyOn(Integration, 'findOne').mockReturnValue({
-        lean: jest.fn().mockReturnValue(settings),
-      })
-      jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockReturnValue({output_text: 'response'})
+    it.each([['/web prompt'], ['/web prompt --lang=ru']])(
+      'selects provider by credential priority for "%s"',
+      async commandStr => {
+        getIntegrationSettings.mockImplementation(sourceGetIntegrationSettings)
+        jest.spyOn(Integration, 'findOne').mockReturnValue({
+          lean: jest.fn().mockReturnValue(settings),
+        })
+        jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockReturnValue({output_text: 'response'})
 
-      getLLM.mockImplementationOnce(() => {
-        return {llm: {}, chunkSize: 2000}
-      })
+        getLLM.mockImplementationOnce(() => {
+          return {llm: {}, chunkSize: 2000}
+        })
 
-      const node = {
-        id: 'node',
-        command: '/web prompt --lang=ru',
-      }
+        const node = {id: 'node', command: commandStr}
+        const workflowNodes = {[command.id]: command}
 
-      const workflowNodes = {
-        [command.id]: command,
-      }
+        await command.run(node, 'prompt', workflowNodes, {})
 
-      await command.run(node, 'prompt', workflowNodes, {})
-
-      expect(getLLM).toHaveBeenCalledWith(
-        expect.objectContaining({settings: expect.objectContaining(settings), type: Model.YandexGPT}),
-      )
-    })
-
-    it('should use openai credentials', async () => {
-      getIntegrationSettings.mockImplementation(sourceGetIntegrationSettings)
-      jest.spyOn(Integration, 'findOne').mockReturnValue({
-        lean: jest.fn().mockReturnValue(settings),
-      })
-      jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockReturnValue({output_text: 'response'})
-
-      getLLM.mockImplementationOnce(() => {
-        return {llm: {}, chunkSize: 2000}
-      })
-
-      const node = {
-        id: 'node',
-        command: '/web prompt',
-      }
-
-      await command.run(node, 'prompt')
-
-      expect(getLLM).toHaveBeenCalledWith(
-        expect.objectContaining({settings: expect.objectContaining(settings), type: Model.OpenAI}),
-      )
-    })
+        expect(getLLM).toHaveBeenCalledWith(
+          expect.objectContaining({settings: expect.objectContaining(settings), type: Model.OpenAI}),
+        )
+      },
+    )
 
     it('should use substituteReferencesAndHashrefsChildrenAndSelf when title contains a reference', async () => {
       jest.spyOn(refRegExp, 'test').mockReturnValue(true)
@@ -178,6 +152,19 @@ describe('WebCommand', () => {
       await command.run(node, 'test prompt', {})
 
       expect(mockStore.importer.createNodes).toHaveBeenCalledWith('translated output', node.id)
+    })
+
+    it('calls the research retrieval tool directly with the resolved prompt', async () => {
+      const search = {getKnowledgeMapWebExt: jest.fn().mockResolvedValue('grounded web result')}
+      JSKnowledgeMapWebScholarSearch.mockImplementationOnce(() => search)
+      conditionallyTranslate.mockImplementationOnce(async text => text)
+
+      const node = {id: 'node', title: '/web search term'}
+
+      await command.run(node, 'test prompt')
+
+      expect(search.getKnowledgeMapWebExt).toHaveBeenCalledWith('cleared test prompt')
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('grounded web result', node.id)
     })
   })
 })

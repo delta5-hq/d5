@@ -1,4 +1,6 @@
 import {spawn} from 'child_process'
+import {sandboxSpawn} from '../../sandbox/ProcessSandbox'
+import {safeSystemEnv} from '../../sandbox/safeSystemEnv'
 import {Writable, Readable} from 'stream'
 import {ClientSideConnection, ndJsonStream, PROTOCOL_VERSION} from '@agentclientprotocol/sdk'
 import {SessionResumeStrategy} from './SessionResumeStrategy'
@@ -21,8 +23,9 @@ export class ACPConnection {
   async initialize(client) {
     this.client = client
 
-    this.process = spawn(this.command, this.args, {
-      env: {...process.env, ...this.env},
+    const sandboxed = sandboxSpawn(this.command, this.args, this.env, {allowNetwork: true})
+    this.process = spawn(sandboxed.command, sandboxed.args, {
+      env: {...safeSystemEnv(), ...this.env},
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: this.cwd,
     })

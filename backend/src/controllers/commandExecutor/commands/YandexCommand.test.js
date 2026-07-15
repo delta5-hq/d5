@@ -30,7 +30,15 @@ import {getIntegrationSettings} from './utils/langchain/getLLM'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import Store from './utils/Store'
 
-jest.mock('../../integrations/yandex/YandexService')
+jest.mock('../../integrations/yandex/YandexService', () => {
+  const actual = jest.requireActual('../../integrations/yandex/YandexService')
+  return {
+    __esModule: true,
+    default: {completionWithRetry: jest.fn(), embeddings: jest.fn()},
+    extractCompletionText: actual.extractCompletionText,
+    YandexOperationTimeoutError: actual.YandexOperationTimeoutError,
+  }
+})
 jest.mock('./utils/langchain/getLLM')
 jest.mock('./references/substitution')
 
@@ -55,13 +63,26 @@ describe('YandexCommand', () => {
         yandex: {apiKey: 'apiKey', folder_id: 'folder_id', model: 'model'},
       })
       YandexService.completionWithRetry.mockResolvedValue({
-        alternatives: [{message: {text: 'Response'}}],
+        result: {alternatives: [{message: {text: 'Response'}}]},
       })
 
       const messages = [{text: 'prompt', role: 'user'}]
       const result = await command.replyYandex(messages, userId)
 
       expect(result).toBe('Response')
+    })
+
+    it('passes folderId from user settings to completionWithRetry', async () => {
+      getIntegrationSettings.mockResolvedValue({
+        yandex: {apiKey: 'apiKey', folder_id: 'my-folder', model: 'model'},
+      })
+      YandexService.completionWithRetry.mockResolvedValue({
+        result: {alternatives: [{message: {text: 'ok'}}]},
+      })
+
+      await command.replyYandex([{text: 'hi', role: 'user'}], userId)
+
+      expect(YandexService.completionWithRetry).toHaveBeenCalledWith(expect.objectContaining({folderId: 'my-folder'}))
     })
 
     it('should propagate rate limit errors from Yandex API', async () => {
@@ -99,12 +120,54 @@ describe('YandexCommand', () => {
 
       await expect(command.replyYandex(messages, userId)).rejects.toThrow('Invalid API key or folder ID')
     })
+
+    it('throws when apiKey is missing from integration settings', async () => {
+      getIntegrationSettings.mockResolvedValue({yandex: {folder_id: 'folder_id', model: 'model'}})
+
+      await expect(command.replyYandex([{text: 'hi', role: 'user'}], userId)).rejects.toThrow(
+        'YandexGPT API key and folder ID not configured',
+      )
+    })
+
+    it('throws when folder_id is missing from integration settings', async () => {
+      getIntegrationSettings.mockResolvedValue({yandex: {apiKey: 'key', model: 'model'}})
+
+      await expect(command.replyYandex([{text: 'hi', role: 'user'}], userId)).rejects.toThrow(
+        'YandexGPT API key and folder ID not configured',
+      )
+    })
+
+    it('constructs modelUri as gpt://<folder_id>/<model>', async () => {
+      getIntegrationSettings.mockResolvedValue({
+        yandex: {apiKey: 'key', folder_id: 'my-folder', model: 'yandexgpt-lite'},
+      })
+      YandexService.completionWithRetry.mockResolvedValue({
+        result: {alternatives: [{message: {text: 'ok'}}]},
+      })
+
+      await command.replyYandex([{text: 'hi', role: 'user'}], userId)
+
+      expect(YandexService.completionWithRetry).toHaveBeenCalledWith(
+        expect.objectContaining({modelUri: 'gpt://my-folder/yandexgpt-lite'}),
+      )
+    })
+
+    it('returns undefined when completionWithRetry resolves to null', async () => {
+      getIntegrationSettings.mockResolvedValue({
+        yandex: {apiKey: 'key', folder_id: 'folder', model: 'model'},
+      })
+      YandexService.completionWithRetry.mockResolvedValue(null)
+
+      const result = await command.replyYandex([{text: 'hi', role: 'user'}], userId)
+
+      expect(result).toBeUndefined()
+    })
   })
 
   describe('run', () => {
     beforeEach(() => {
       YandexService.completionWithRetry.mockResolvedValue({
-        alternatives: [{message: {text: 'Yandex response'}}],
+        result: {alternatives: [{message: {text: 'Yandex response'}}]},
       })
       command.store = mockStore
 

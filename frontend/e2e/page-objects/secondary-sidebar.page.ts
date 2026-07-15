@@ -124,11 +124,17 @@ export class SecondarySidebarPage extends PageComponent {
   }
 
   async waitForVisible(): Promise<void> {
-    await this.root.waitFor({ state: 'visible', timeout: TEST_TIMEOUTS.SIDEBAR_TRANSITION * 2 })
+    await this.root.waitFor({ state: 'visible', timeout: TEST_TIMEOUTS.SECTION_SWITCH })
+  }
+
+  async waitForHidden(): Promise<void> {
+    await this.root.waitFor({ state: 'hidden', timeout: TEST_TIMEOUTS.SECTION_SWITCH })
   }
 
   async waitForTransition(): Promise<void> {
-    await this.page.waitForTimeout(TEST_TIMEOUTS.SIDEBAR_TRANSITION)
+    await this.root
+      .waitFor({ state: 'visible', timeout: TEST_TIMEOUTS.SECTION_SWITCH })
+      .catch(() => {})
   }
 
   async waitForMobileVisible(): Promise<void> {

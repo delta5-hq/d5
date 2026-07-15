@@ -17,6 +17,10 @@ func (s *Service) AddArrayItem(ctx context.Context, scope ScopeIdentifier, field
 		return fmt.Errorf("alias is required")
 	}
 
+	if err := validateArrayItemShape(fieldName, item); err != nil {
+		return err
+	}
+
 	if err := s.validateArrayItemDoesNotExist(ctx, scope, fieldName, alias); err != nil {
 		return err
 	}
@@ -105,6 +109,14 @@ func (s *Service) encryptArrayItem(scope ScopeIdentifier, arrayName string, item
 }
 
 func (s *Service) UpdateArrayItem(ctx context.Context, scope ScopeIdentifier, fieldName, alias string, updates map[string]interface{}) error {
+	if err := normalizeArrayItemUpdateAlias(alias, updates); err != nil {
+		return err
+	}
+
+	if err := validateArrayItemUpdateShape(fieldName, updates); err != nil {
+		return err
+	}
+
 	if err := s.validateArrayItemExists(ctx, scope, fieldName, alias); err != nil {
 		return err
 	}
@@ -134,7 +146,28 @@ func (s *Service) UpdateArrayItem(ctx context.Context, scope ScopeIdentifier, fi
 		setFields[fieldName+".$."+key] = encryptedValue
 	}
 
-	return s.collection.UpdateOne(ctx, filter, bson.M{"$set": setFields})
+	if len(setFields) == 0 {
+		return nil
+	}
+
+	update := bson.M{"$set": setFields}
+
+	return s.collection.UpdateOne(ctx, filter, update)
+}
+
+func normalizeArrayItemUpdateAlias(pathAlias string, updates map[string]interface{}) error {
+	value, exists := updates["alias"]
+	if !exists {
+		return nil
+	}
+
+	bodyAlias, ok := value.(string)
+	if !ok || bodyAlias != pathAlias {
+		return arrayItemValidationError{message: "alias cannot be changed after creation"}
+	}
+
+	delete(updates, "alias")
+	return nil
 }
 
 func (s *Service) DeleteArrayItem(ctx context.Context, scope ScopeIdentifier, fieldName, alias string) error {
@@ -201,29 +234,6 @@ func (s *Service) validateArrayItemDoesNotExist(ctx context.Context, scope Scope
 	return nil
 }
 
-func (s *Service) validateCrossTypeAliasUniqueness(ctx context.Context, scope ScopeIdentifier, fieldName, alias string) error {
-	for _, otherField := range GetOtherArrayFields(fieldName) {
-		filter := bson.M{
-			"userId":              scope.UserID,
-			"workflowId":          scope.WorkflowID,
-			otherField + ".alias": alias,
-		}
-
-		var result map[string]interface{}
-		err := s.collection.Find(ctx, filter).One(&result)
-
-		if err == nil {
-			return fmt.Errorf("alias '%s' already exists in field '%s'", alias, otherField)
-		}
-
-		if err != qmgo.ErrNoSuchDocuments {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func isEncryptedField(arrayName, fieldName string) bool {
 	fieldConfigs, exists := GetIntegrationEncryptionConfig().ArrayFields[arrayName]
 	if !exists {
@@ -237,6 +247,59 @@ func isEncryptedField(arrayName, fieldName string) bool {
 	}
 
 	return false
+}
+
+func (s *Service) aliasExistsInField(ctx context.Context, scope ScopeIdentifier, fieldName, alias string) (bool, error) {
+	filter := bson.M{
+		"userId":             scope.UserID,
+		"workflowId":         scope.WorkflowID,
+		fieldName + ".alias": alias,
+	}
+
+	var result map[string]interface{}
+	err := s.collection.Find(ctx, filter).One(&result)
+
+	if err == nil {
+		return true, nil
+	}
+
+	if err == qmgo.ErrNoSuchDocuments {
+		return false, nil
+	}
+
+	return false, err
+}
+
+func (s *Service) validateCrossTypeAliasUniqueness(ctx context.Context, scope ScopeIdentifier, fieldName, alias string) error {
+	otherFields := GetOtherArrayFields(fieldName)
+
+	for _, otherField := range otherFields {
+		found, err := s.aliasExistsInField(ctx, scope, otherField, alias)
+		if err != nil {
+			return err
+		}
+		if found {
+			return fmt.Errorf("alias '%s' already exists in field '%s'", alias, otherField)
+		}
+	}
+
+	if scope.WorkflowID == nil {
+		return nil
+	}
+
+	globalScope := ScopeIdentifier{UserID: scope.UserID, WorkflowID: nil}
+
+	for _, otherField := range otherFields {
+		found, err := s.aliasExistsInField(ctx, globalScope, otherField, alias)
+		if err != nil {
+			return err
+		}
+		if found {
+			return fmt.Errorf("alias '%s' already exists in field '%s' (inherited from global scope)", alias, otherField)
+		}
+	}
+
+	return nil
 }
 
 func validateNoSentinelSecrets(arrayName string, item map[string]interface{}) error {

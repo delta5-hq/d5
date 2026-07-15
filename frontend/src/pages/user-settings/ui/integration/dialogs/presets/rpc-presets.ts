@@ -26,7 +26,20 @@ interface RPCFormFlat {
   allowedTools?: string
 }
 
-export const RPC_PRESETS: PresetDefinition<RPCFormFlat>[] = [
+type RPCPreset = PresetDefinition<RPCFormFlat>
+
+const d5CliCommandTemplate = (binary: string) =>
+  `command -v ${binary} >/dev/null 2>&1 && ${binary} "{{prompt}}" || { echo "${binary} executable not found on SSH target"; exit 127; }`
+
+const fillD5CliSshPreset = (setValue: Parameters<RPCPreset['fill']>[0], binary: string, description: string) => {
+  setValue('protocol', 'ssh')
+  setValue('commandTemplate', d5CliCommandTemplate(binary))
+  setValue('outputFormat', 'text')
+  setValue('description', description)
+  setValue('timeoutMs', 300000)
+}
+
+export const RPC_PRESETS: RPCPreset[] = [
   {
     id: 'claude-cli-ssh',
     label: 'Claude CLI (SSH)',
@@ -49,6 +62,30 @@ export const RPC_PRESETS: PresetDefinition<RPCFormFlat>[] = [
       setValue('outputFormat', 'json')
       setValue('outputField', 'suites')
       setValue('sessionIdField', 'session_id')
+    },
+  },
+  {
+    id: 'd5-scrape-ssh',
+    label: 'D5 Scrape (SSH)',
+    icon: '🧲',
+    fill: setValue => {
+      fillD5CliSshPreset(setValue, 'd5-scrape', 'Run the installed D5 scraper CLI via SSH')
+    },
+  },
+  {
+    id: 'd5-outline-ssh',
+    label: 'D5 Outline (SSH)',
+    icon: '🧭',
+    fill: setValue => {
+      fillD5CliSshPreset(setValue, 'd5-outline', 'Run the installed D5 outliner CLI via SSH')
+    },
+  },
+  {
+    id: 'd5-research-ssh',
+    label: 'D5 Research (SSH)',
+    icon: '🔎',
+    fill: setValue => {
+      fillD5CliSshPreset(setValue, 'd5-research', 'Run the installed D5 research CLI via SSH')
     },
   },
   {
@@ -90,7 +127,7 @@ export const RPC_PRESETS: PresetDefinition<RPCFormFlat>[] = [
   },
   {
     id: 'qa-playwright-ssh',
-    label: 'Playwright CLI (SSH)',
+    label: 'QA Playwright (SSH)',
     icon: '🧪',
     fill: setValue => {
       setValue('protocol', 'ssh')
@@ -99,32 +136,6 @@ export const RPC_PRESETS: PresetDefinition<RPCFormFlat>[] = [
       setValue('outputField', 'output')
       setValue('description', 'Run Playwright tests via SSH')
       setValue('timeoutMs', 300000)
-    },
-  },
-  {
-    id: 'outliner-ssh',
-    label: 'Outliner (SSH)',
-    icon: '📝',
-    fill: setValue => {
-      setValue('protocol', 'ssh')
-      setValue(
-        'commandTemplate',
-        'cd /path/to/backend && npx babel-node src/mcp-servers/cli.js src/mcp-servers/outliner/server.js generate_outline --query="{{prompt}}"',
-      )
-      setValue('outputFormat', 'text')
-    },
-  },
-  {
-    id: 'scraper-ssh',
-    label: 'Web Scraper (SSH)',
-    icon: '🌐',
-    fill: setValue => {
-      setValue('protocol', 'ssh')
-      setValue(
-        'commandTemplate',
-        'cd /path/to/backend && npx babel-node src/mcp-servers/cli.js src/mcp-servers/scraper/server.js scrape_web_pages --urls="{{prompt}}"',
-      )
-      setValue('outputFormat', 'text')
     },
   },
 ]

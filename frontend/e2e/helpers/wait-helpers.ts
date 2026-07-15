@@ -55,6 +55,8 @@ export async function selectWorkflowScope(
   await selector.click()
 
   const targetItem = page.locator(`[data-type="scope-workflow-${workflowId}"]`)
+  await targetItem.waitFor({ state: 'visible', timeout })
+
   const currentState = await targetItem.getAttribute('data-state')
 
   if (currentState === 'checked') {

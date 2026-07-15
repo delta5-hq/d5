@@ -118,6 +118,13 @@ describe('useCommandEnterExecute', () => {
     })
   })
 
+  it('executes a slash command that is not in the alias registry', async () => {
+    const node = makeNode({ command: '/deleted-alias prompt' })
+    const { result, handlers } = renderChain(node)
+    await act(async () => result.current.handleCommandEnter())
+    expect(handlers.onExecute).toHaveBeenCalledTimes(1)
+    expect(handlers.onExecute).toHaveBeenCalledWith(node, expect.any(String))
+  })
   describe('post-execution sibling creation', () => {
     it('creates a sibling using the current node id after successful execution', async () => {
       const { result, handlers } = renderChain(makeNode({ id: 'my-node' }))

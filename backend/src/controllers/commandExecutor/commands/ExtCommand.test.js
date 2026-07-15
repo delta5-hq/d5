@@ -24,10 +24,15 @@ import {clearStepsPrefix} from '../constants/steps'
 import {referencePatterns} from './references/utils/referencePatterns'
 
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
+import {getIntegrationSettings, determineLLMType, getEmbeddings, getLLM} from './utils/langchain/getLLM'
+import {ExtVectorStore} from './utils/langchain/vectorStore/ExtVectorStore'
+import {JSKnowledgeMapWebScholarSearch} from './utils/langchain/JSKnowledgeMapWebScholarSearch'
 import Store from './utils/Store'
 import {ExtCommand} from './ExtCommand'
 
 jest.mock('./utils/langchain/getLLM')
+jest.mock('./utils/langchain/vectorStore/ExtVectorStore')
+jest.mock('./utils/langchain/JSKnowledgeMapWebScholarSearch')
 jest.mock('openai')
 jest.mock('./references/substitution')
 
@@ -133,6 +138,31 @@ describe('ExtCommand', () => {
       await command.run(node, 'query')
 
       expect(command.store.importer.createErrorNode).toHaveBeenCalledWith('Error: Rate limit exceeded', 'node')
+    })
+
+    it('calls the ext retrieval tool directly with initialized vectors and resolved prompt', async () => {
+      createResponseExtSpy.mockRestore()
+      referencePatterns.withAssignmentPrefix().test.mockReturnValue(false)
+
+      const settings = {model: 'openai'}
+      const llm = {}
+      const vectorStore = {setVectors: jest.fn().mockResolvedValue(undefined)}
+      const search = {getKnowledgeMapWebExt: jest.fn().mockResolvedValue('grounded ext result')}
+
+      getIntegrationSettings.mockResolvedValue(settings)
+      determineLLMType.mockReturnValue('openai')
+      getLLM.mockReturnValue({llm, chunkSize: 2000})
+      getEmbeddings.mockReturnValue({storageType: 'openai', embeddings: {}})
+      ExtVectorStore.mockImplementationOnce(() => vectorStore)
+      JSKnowledgeMapWebScholarSearch.mockImplementationOnce(() => search)
+
+      const node = {id: 'node', title: '/ext search'}
+
+      await command.run(node, 'query')
+
+      expect(vectorStore.setVectors).toHaveBeenCalled()
+      expect(search.getKnowledgeMapWebExt).toHaveBeenCalledWith('cleared query')
+      expect(command.store.importer.createNodes).toHaveBeenCalledWith('grounded ext result', node.id)
     })
   })
 })

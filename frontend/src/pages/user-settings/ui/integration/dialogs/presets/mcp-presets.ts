@@ -1,4 +1,5 @@
 import type { PresetDefinition } from './types'
+import { D5_INTERNAL_MCP_SERVERS } from './d5-internal-server-refs'
 
 interface MCPFormFlat {
   alias: string
@@ -66,8 +67,8 @@ export const MCP_PRESETS: PresetDefinition<MCPFormFlat>[] = [
       setValue('alias', '/research')
       setValue('description', 'Deep research with web and academic paper search')
       setValue('transport', 'stdio')
-      setValue('command', 'babel-node')
-      setValue('args', '--presets @babel/preset-env src/mcp-servers/research-rag/server.js')
+      setValue('command', 'node')
+      setValue('args', D5_INTERNAL_MCP_SERVERS.researchRag)
       setValue('toolName', 'auto')
       setValue('toolInputField', 'prompt')
       setValue('timeoutMs', 300000)
@@ -81,10 +82,10 @@ export const MCP_PRESETS: PresetDefinition<MCPFormFlat>[] = [
       setValue('alias', '/scrape')
       setValue('description', 'Web page scraper with content extraction')
       setValue('transport', 'stdio')
-      setValue('command', 'babel-node')
-      setValue('args', '--presets @babel/preset-env src/mcp-servers/scraper/server.js')
+      setValue('command', 'node')
+      setValue('args', D5_INTERNAL_MCP_SERVERS.scraper)
       setValue('toolName', 'scrape_web_pages')
-      setValue('toolInputField', 'urls')
+      setValue('toolInputField', 'text')
       setValue('timeoutMs', 180000)
     },
   },
@@ -96,8 +97,8 @@ export const MCP_PRESETS: PresetDefinition<MCPFormFlat>[] = [
       setValue('alias', '/mkoutline')
       setValue('description', 'Generate structured outlines from topics')
       setValue('transport', 'stdio')
-      setValue('command', 'babel-node')
-      setValue('args', '--presets @babel/preset-env src/mcp-servers/outliner/server.js')
+      setValue('command', 'node')
+      setValue('args', D5_INTERNAL_MCP_SERVERS.outliner)
       setValue('toolName', 'generate_outline')
       setValue('toolInputField', 'query')
       setValue('timeoutMs', 300000)

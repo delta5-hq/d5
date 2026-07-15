@@ -1,4 +1,5 @@
 import debug from 'debug'
+import {z} from 'zod'
 import {ExtCommand} from '../../../controllers/commandExecutor/commands/ExtCommand'
 import {CommandStringBuilder} from '../context/CommandStringBuilder'
 
@@ -12,36 +13,21 @@ export class KnowledgeBaseQueryTool {
     this.logError = log.extend('ERROR*', '::')
   }
 
-  getSchema() {
+  getName() {
+    return 'kb_query'
+  }
+
+  getDescription() {
+    return 'Query the user knowledge base (vectorized documents)'
+  }
+
+  getZodShape() {
     return {
-      name: 'kb_query',
-      description: 'Query the user knowledge base (vectorized documents)',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          query: {
-            type: 'string',
-            description: 'The query to search in the knowledge base',
-          },
-          context: {
-            type: 'string',
-            description: 'Knowledge base context name. Optional.',
-          },
-          lang: {
-            type: 'string',
-            description: 'Output language code (e.g., "ru", "en"). Optional.',
-          },
-          citations: {
-            type: 'boolean',
-            description: 'Include source citations in the response. Optional.',
-          },
-          maxChunks: {
-            type: 'string',
-            description: 'Maximum chunks size: xxs, xs, s, m, l, xl, xxl. Optional.',
-          },
-        },
-        required: ['query'],
-      },
+      query: z.string().describe('The query to search in the knowledge base'),
+      context: z.string().optional().describe('Knowledge base context name.'),
+      lang: z.string().optional().describe('Output language code (e.g., "ru", "en").'),
+      citations: z.boolean().optional().describe('Include source citations in the response.'),
+      maxChunks: z.string().optional().describe('Maximum chunks size: xxs, xs, s, m, l, xl, xxl.'),
     }
   }
 
@@ -49,9 +35,10 @@ export class KnowledgeBaseQueryTool {
     try {
       const params = this.commandContextAdapter.parseKnowledgeBaseParams(args)
       const userId = this.userContextProvider.getUserId()
+      const workflowId = this.userContextProvider.getWorkflowId()
       const syntheticNode = this.commandStringBuilder.buildSyntheticNode(params)
 
-      const command = new ExtCommand(userId, null, null)
+      const command = new ExtCommand(userId, workflowId, null)
       const result = await command.createResponseExt(syntheticNode, args.query, params)
 
       return {

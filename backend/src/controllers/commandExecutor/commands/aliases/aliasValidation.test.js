@@ -6,7 +6,14 @@ import {
   AliasValidationError,
   VALID_ALIAS_PATTERN,
   BUILT_IN_COMMANDS,
+  ADDITIONAL_BUILT_IN_COMMANDS,
 } from './aliasValidation'
+import {queryCommands} from '../../constants/commandRegExp'
+
+const normalizeCommand = command => command.toLowerCase()
+const buildCaseVariants = alias => Array.from(new Set([alias, alias.toUpperCase(), `/${alias.slice(1).toUpperCase()}`]))
+const queryCommandSet = new Set(queryCommands.map(normalizeCommand))
+const compatibilityOnlyCommands = ADDITIONAL_BUILT_IN_COMMANDS.filter(alias => !queryCommandSet.has(alias))
 
 describe('aliasValidation', () => {
   describe('VALID_ALIAS_PATTERN', () => {
@@ -35,10 +42,16 @@ describe('aliasValidation', () => {
       expect(BUILT_IN_COMMANDS.size).toBeGreaterThan(0)
     })
 
-    it('contains known built-in commands', () => {
-      expect(BUILT_IN_COMMANDS.has('/chatgpt')).toBe(true)
-      expect(BUILT_IN_COMMANDS.has('/web')).toBe(true)
-      expect(BUILT_IN_COMMANDS.has('/steps')).toBe(true)
+    it('is the normalized union of executor commands and user-facing compatibility commands', () => {
+      const expected = new Set([...queryCommands, ...ADDITIONAL_BUILT_IN_COMMANDS].map(normalizeCommand))
+
+      expect(BUILT_IN_COMMANDS).toEqual(expected)
+    })
+
+    it('contains only normalized slash commands', () => {
+      for (const command of BUILT_IN_COMMANDS) {
+        expect(command).toMatch(/^\/[a-z][a-z0-9_-]*$/)
+      }
     })
   })
 
@@ -82,11 +95,25 @@ describe('aliasValidation', () => {
   })
 
   describe('validateNotBuiltIn', () => {
-    it('throws RESERVED_COMMAND for built-in conflicts', () => {
-      expect(() => validateNotBuiltIn('/chatgpt')).toThrow(AliasValidationError)
-      expect(() => validateNotBuiltIn('/chatgpt')).toThrow(expect.objectContaining({code: 'RESERVED_COMMAND'}))
-      expect(() => validateNotBuiltIn('/web')).toThrow(expect.objectContaining({code: 'RESERVED_COMMAND'}))
+    it.each(Array.from(BUILT_IN_COMMANDS))('throws RESERVED_COMMAND for built-in conflict: %s', alias => {
+      expect(() => validateNotBuiltIn(alias)).toThrow(AliasValidationError)
+      expect(() => validateNotBuiltIn(alias)).toThrow(expect.objectContaining({code: 'RESERVED_COMMAND'}))
     })
+
+    it.each(Array.from(BUILT_IN_COMMANDS).flatMap(buildCaseVariants))(
+      'rejects built-in conflicts regardless of alias casing: %s',
+      alias => {
+        expect(() => validateNotBuiltIn(alias)).toThrow(expect.objectContaining({code: 'RESERVED_COMMAND'}))
+      },
+    )
+
+    it.each(compatibilityOnlyCommands)(
+      'rejects compatibility command aliases not owned by queryCommands: %s',
+      alias => {
+        expect(queryCommandSet.has(alias)).toBe(false)
+        expect(() => validateNotBuiltIn(alias)).toThrow(expect.objectContaining({code: 'RESERVED_COMMAND'}))
+      },
+    )
 
     it('succeeds for non-conflicting aliases', () => {
       expect(() => validateNotBuiltIn('/myCustomAgent')).not.toThrow()
@@ -186,26 +213,7 @@ describe('aliasValidation', () => {
     })
 
     describe('prevents collision with built-in commands', () => {
-      it.each([
-        ['/chatgpt', 'chat command'],
-        ['/claude', 'claude command'],
-        ['/yandexgpt', 'yandex command'],
-        ['/qwen', 'qwen command'],
-        ['/deepseek', 'deepseek command'],
-        ['/perplexity', 'perplexity command'],
-        ['/custom', 'custom LLM command'],
-        ['/steps', 'steps control flow'],
-        ['/foreach', 'foreach control flow'],
-        ['/switch', 'switch control flow'],
-        ['/summarize', 'summarize post-process'],
-        ['/memorize', 'memorize post-process'],
-        ['/outline', 'outline command'],
-        ['/refine', 'refine command'],
-        ['/web', 'web search command'],
-        ['/scholar', 'scholar search command'],
-        ['/download', 'download command'],
-        ['/ext', 'ext (knowledge base) command'],
-      ])('rejects built-in: %s (%s)', alias => {
+      it.each(Array.from(BUILT_IN_COMMANDS))('rejects built-in: %s', alias => {
         expect(isValidAlias(alias)).toBe(false)
       })
     })

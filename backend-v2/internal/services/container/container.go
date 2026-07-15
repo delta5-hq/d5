@@ -13,6 +13,7 @@ import (
 
 /* ServiceContainer centralizes service instantiation for DRY/SOLID compliance */
 type ServiceContainer struct {
+	MockMode   bool
 	Email      email.Service
 	Thumbnail  thumbnail.Service
 	Midjourney midjourney.Service
@@ -24,6 +25,7 @@ type ServiceContainer struct {
 /* NewServiceContainer instantiates all services based on mock flag */
 func NewServiceContainer(useMockServices bool, db *qmgo.Database) *ServiceContainer {
 	return &ServiceContainer{
+		MockMode:   useMockServices,
 		Email:      selectService(useMockServices, email.NewNoopService, email.NewSMTPService),
 		Thumbnail:  selectService(useMockServices, thumbnail.NewNoopService, thumbnail.NewProdService),
 		Midjourney: selectService(useMockServices, midjourney.NewNoopService, midjourney.NewProdService),

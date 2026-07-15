@@ -7,6 +7,7 @@ import {
   extractBuiltInCommandPrefix,
   extractDynamicAlias,
 } from './commandRecognition'
+import {commandLookalikeInputs, orderedCommandLookalikeInputs} from '../../constants/commandBoundaryCases.testData'
 
 const mkAlias = alias => ({alias})
 
@@ -35,6 +36,10 @@ describe('commandRecognition', () => {
     ])('returns %s for non-built-in: %s', (input, expected) => {
       expect(matchesBuiltInCommand(input)).toBe(expected)
     })
+
+    it.each(commandLookalikeInputs)('rejects built-in command-prefix lookalike: %s', input => {
+      expect(matchesBuiltInCommand(input)).toBe(false)
+    })
   })
 
   describe('matchesBuiltInCommandWithOrder', () => {
@@ -54,6 +59,10 @@ describe('commandRecognition', () => {
       ['', false],
       [null, false],
     ])('returns false for: %s', input => {
+      expect(matchesBuiltInCommandWithOrder(input)).toBe(false)
+    })
+
+    it.each(orderedCommandLookalikeInputs)('rejects ordered built-in command-prefix lookalike: %s', input => {
       expect(matchesBuiltInCommandWithOrder(input)).toBe(false)
     })
   })
@@ -145,6 +154,10 @@ describe('commandRecognition', () => {
       expect(isAnyCommandWithOrder(input, aliases)).toBe(false)
     })
 
+    it.each(orderedCommandLookalikeInputs)('does not treat ordered built-in lookalike as a command: %s', input => {
+      expect(isAnyCommandWithOrder(input, aliases)).toBe(false)
+    })
+
     it('works without aliases parameter', () => {
       expect(isAnyCommandWithOrder('#1 /chatgpt')).toBe(true)
       expect(isAnyCommandWithOrder('#1 /coder1')).toBe(false)
@@ -166,8 +179,11 @@ describe('commandRecognition', () => {
       expect(extractBuiltInCommandPrefix(input)).toBe(null)
     })
 
+    it.each(commandLookalikeInputs)('does not extract built-in command-prefix lookalike: %s', input => {
+      expect(extractBuiltInCommandPrefix(input)).toBe(null)
+    })
+
     it('returns first matching prefix for ambiguous input', () => {
-      // If somehow text could match multiple, returns the first found
       expect(extractBuiltInCommandPrefix('/chatgpt')).toBe('/chatgpt')
     })
   })

@@ -123,9 +123,8 @@ export class OutlineCommand {
 
     const lang = params?.lang
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
-    const llmType = determineLLMType(getNodeCommand(node), settings)
+    const llmType = determineLLMType(settings)
     const {llm, chunkSize} = getLLM({type: llmType, settings})
-    const embeddings = getEmbeddings({type: llmType, settings})
 
     const citations = []
     let searchTool = {}
@@ -135,6 +134,7 @@ export class OutlineCommand {
       const disableSearchScrape = params.disableSearchScrape
       const serpApiParams = params.serpApiParams
       const hrefs = params.from
+      const embeddings = getEmbeddings({type: llmType, settings})
 
       let vectorStore
 
@@ -221,10 +221,7 @@ export class OutlineCommand {
     await this.replySecondDebugLevelOutline(node, params)
   }
 
-  // eslint-disable-next-line no-unused-vars
-  replyThirdLevelsOutline = async (node, prompt, params) => {
-    // TODO
-  }
+  replyThirdLevelsOutline = async () => undefined
 
   async replyWithSummarize(node, command, prompt, params) {
     const summarizeExecutor = new SummarizeCommand(this.userId, this.workflowId, this.store)

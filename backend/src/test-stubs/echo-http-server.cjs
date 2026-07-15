@@ -1,20 +1,5 @@
-/**
- * Echo HTTP Server Test Stub
- *
- * Minimal HTTP server that echoes back request body as JSON.
- * Used for integration testing of HTTPExecutor without external dependencies.
- *
- * Exports startEchoServer() which returns {server, port, url, close()}.
- * Uses port 0 for OS-assigned port to avoid conflicts in parallel test runs.
- */
-
 const http = require('http')
 
-/**
- * Starts an echo HTTP server on a random available port.
- *
- * @returns {Promise<{server: http.Server, port: number, url: string, close: () => Promise<void>}>}
- */
 function startEchoServer() {
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {

@@ -24,6 +24,7 @@ import { Button } from '@shared/ui/button'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { getDescendantIds, normalizeNodeTitle, hasUsableRoot } from '@entities/workflow/lib'
 import { useClickOutside } from '@shared/lib/hooks'
+import { isSlashCommand } from '@shared/lib/commands/command-validator'
 import { matchesAnyCommandWithOrder } from '@shared/lib/command-validation'
 import { deriveNodeTitle } from '@shared/lib/reliability-suffix'
 import { isValidRefineCell } from '@shared/lib/reliability/refine-params'
@@ -79,10 +80,7 @@ const WorkflowContent = () => {
     if (autoFocusCommandNodeId) setAutoFocusCommandNodeId(undefined)
   }, [autoFocusCommandNodeId])
 
-  const hasValidCommand = useMemo(() => {
-    if (!selectedNode?.command?.trim()) return false
-    return matchesAnyCommandWithOrder(selectedNode.command, aliases)
-  }, [selectedNode?.command, aliases])
+  const hasValidCommand = useMemo(() => isSlashCommand(selectedNode?.command), [selectedNode?.command])
 
   const selectedNodeRefineProjection = useMemo(() => {
     if (!selectedNode || !isValidRefineCell(selectedNode.command)) return null

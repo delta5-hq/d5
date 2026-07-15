@@ -11,6 +11,7 @@ describe('OutlineTool Delegation Integration', () => {
   beforeEach(() => {
     mockUserContext = {
       getUserId: jest.fn().mockReturnValue('test-user-123'),
+      getWorkflowId: jest.fn().mockReturnValue(null),
     }
 
     mockOutlineCommand = {

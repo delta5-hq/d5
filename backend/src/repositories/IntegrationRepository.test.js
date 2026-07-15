@@ -161,6 +161,110 @@ describe('IntegrationRepository', () => {
     })
   })
 
+  describe('findBothDocs', () => {
+    const userScopeIntegration = {userId: 'user-1', workflowId: null, mcp: []}
+    const scopedKey = ({userId, workflowId}) => `${userId}:${workflowId ?? 'null'}`
+    const recordSet = records => new Map(records.map(record => [scopedKey(record), record]))
+    const workflowScopeIntegration = (workflowId, userId = 'user-1') => ({
+      userId,
+      workflowId,
+      mcp: [{alias: `/${workflowId}`}],
+    })
+
+    const mockScopedRecords = records => {
+      Integration.findOne.mockImplementation(filter => ({
+        lean: jest.fn().mockResolvedValue(records.get(scopedKey(filter)) ?? null),
+      }))
+    }
+
+    const cases = [
+      {
+        label: 'null workflowId reads only bare user scope',
+        workflowId: null,
+        records: recordSet([userScopeIntegration, workflowScopeIntegration('wf-hidden')]),
+        queries: [{userId: 'user-1', workflowId: null}],
+        expected: {appWide: userScopeIntegration, workflow: null},
+      },
+      {
+        label: 'undefined workflowId reads only bare user scope',
+        workflowId: undefined,
+        records: recordSet([userScopeIntegration, workflowScopeIntegration('wf-hidden')]),
+        queries: [{userId: 'user-1', workflowId: null}],
+        expected: {appWide: userScopeIntegration, workflow: null},
+      },
+      {
+        label: 'empty workflowId reads only bare user scope',
+        workflowId: '',
+        records: recordSet([userScopeIntegration, workflowScopeIntegration('wf-hidden')]),
+        queries: [{userId: 'user-1', workflowId: null}],
+        expected: {appWide: userScopeIntegration, workflow: null},
+      },
+      {
+        label: 'missing bare user document stays isolated from workflow documents',
+        workflowId: null,
+        records: recordSet([workflowScopeIntegration('wf-hidden')]),
+        queries: [{userId: 'user-1', workflowId: null}],
+        expected: {appWide: null, workflow: null},
+      },
+      {
+        label: 'simple workflowId reads bare user and exact workflow scope',
+        workflowId: 'wf-1',
+        records: recordSet([
+          userScopeIntegration,
+          workflowScopeIntegration('wf-1'),
+          workflowScopeIntegration('wf-other'),
+        ]),
+        queries: [
+          {userId: 'user-1', workflowId: null},
+          {userId: 'user-1', workflowId: 'wf-1'},
+        ],
+        expected: {
+          appWide: userScopeIntegration,
+          workflow: workflowScopeIntegration('wf-1'),
+        },
+      },
+      {
+        label: 'special-character workflowId reads bare user and exact workflow scope',
+        workflowId: 'wf-$pecial@2024',
+        records: recordSet([
+          userScopeIntegration,
+          workflowScopeIntegration('wf-$pecial@2024'),
+          workflowScopeIntegration('wf-special-2024'),
+        ]),
+        queries: [
+          {userId: 'user-1', workflowId: null},
+          {userId: 'user-1', workflowId: 'wf-$pecial@2024'},
+        ],
+        expected: {
+          appWide: userScopeIntegration,
+          workflow: workflowScopeIntegration('wf-$pecial@2024'),
+        },
+      },
+      {
+        label: 'matching workflowId for another user is ignored',
+        workflowId: 'wf-1',
+        records: recordSet([userScopeIntegration, workflowScopeIntegration('wf-1', 'user-2')]),
+        queries: [
+          {userId: 'user-1', workflowId: null},
+          {userId: 'user-1', workflowId: 'wf-1'},
+        ],
+        expected: {appWide: userScopeIntegration, workflow: null},
+      },
+    ]
+
+    it.each(cases)('$label', async ({workflowId, records, queries, expected}) => {
+      mockScopedRecords(records)
+
+      const result = await repository.findBothDocs('user-1', workflowId)
+
+      expect(Integration.findOne).toHaveBeenCalledTimes(queries.length)
+      queries.forEach((query, index) => {
+        expect(Integration.findOne).toHaveBeenNthCalledWith(index + 1, query)
+      })
+      expect(result).toEqual(expected)
+    })
+  })
+
   describe('workflow isolation', () => {
     it('returns different integrations for different workflows of same user', async () => {
       const mockWorkflowA = {userId: 'user-1', workflowId: 'wf-A', claude: {apiKey: 'key-A'}}

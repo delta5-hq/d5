@@ -1,4 +1,4 @@
-import {createNoopLLM} from './index'
+import {createNoopEmbeddings, createNoopLLM} from './index'
 
 describe('createNoopLLM (factory wiring)', () => {
   it('returns the {llm, chunkSize} contract getLLM consumers expect', () => {
@@ -24,6 +24,24 @@ describe('createNoopLLM (factory wiring)', () => {
 
   it('yields a fresh model instance per call so callers cannot share state accidentally', () => {
     expect(createNoopLLM().llm).not.toBe(createNoopLLM().llm)
+  })
+})
+
+describe('createNoopEmbeddings', () => {
+  it('returns the embeddings contract vector stores expect', async () => {
+    const {embeddings, chunkSize, similarityThreshold} = createNoopEmbeddings()
+    const documents = await embeddings.embedDocuments(['alpha', 'beta'])
+    const query = await embeddings.embedQuery('alpha')
+
+    expect(documents).toHaveLength(2)
+    expect(documents[0]).toHaveLength(query.length)
+    expect(typeof chunkSize).toBe('number')
+    expect(similarityThreshold).toBe(0)
+  })
+
+  it('is deterministic for the same text', async () => {
+    const {embeddings} = createNoopEmbeddings()
+    await expect(embeddings.embedQuery('same text')).resolves.toEqual(await embeddings.embedQuery('same text'))
   })
 })
 

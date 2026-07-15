@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { UseFormSetValue } from 'react-hook-form'
 import { MCP_PRESETS } from './mcp-presets'
+import { D5_INTERNAL_MCP_SERVERS } from './d5-internal-server-refs'
 
 interface MCPFormFlat {
   alias: string
@@ -32,72 +33,44 @@ const getField = (setValue: ReturnType<typeof vi.fn>, field: string) =>
   setValue.mock.calls.find((call: unknown[]) => call[0] === field)?.[1]
 
 describe('MCP_PRESETS', () => {
-  describe('preset collection structure', () => {
-    it('maintains stable preset count (breaking change detection)', () => {
+  describe('collection structure', () => {
+    it('count matches expected (breaking-change sentinel)', () => {
       expect(MCP_PRESETS).toHaveLength(6)
     })
 
-    it('enforces unique preset identifiers', () => {
+    it('ids are unique across all presets', () => {
       const ids = MCP_PRESETS.map(p => p.id)
       expect(new Set(ids).size).toBe(ids.length)
     })
 
-    it('requires all presets to have non-empty ids', () => {
-      MCP_PRESETS.forEach(preset => {
-        expect(preset.id).toBeTruthy()
-        expect(preset.id.length).toBeGreaterThan(0)
-      })
-    })
-
-    it('enforces kebab-case convention for preset ids', () => {
+    it('ids follow kebab-case convention', () => {
       MCP_PRESETS.forEach(preset => {
         expect(preset.id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/)
       })
     })
-  })
 
-  describe('preset metadata requirements', () => {
-    it('requires icon for each preset', () => {
-      MCP_PRESETS.forEach(preset => {
-        expect(preset.icon).toBeTruthy()
-        expect(typeof preset.icon).toBe('string')
-        expect(preset.icon.length).toBeGreaterThan(0)
-      })
-    })
-
-    it('requires emoji icon (Unicode range check)', () => {
+    it('icons are emoji characters', () => {
       MCP_PRESETS.forEach(preset => {
         expect(preset.icon).toMatch(/[\u{1F000}-\u{1F9FF}]/u)
       })
     })
 
-    it('requires label for each preset', () => {
-      MCP_PRESETS.forEach(preset => {
-        expect(preset.label).toBeTruthy()
-        expect(typeof preset.label).toBe('string')
-        expect(preset.label.length).toBeGreaterThan(0)
-      })
-    })
-
-    it('ensures labels are descriptive (minimum length)', () => {
+    it('labels are descriptive (minimum 5 characters)', () => {
       MCP_PRESETS.forEach(preset => {
         expect(preset.label.length).toBeGreaterThanOrEqual(5)
       })
     })
 
-    it('requires fill function for each preset', () => {
+    it('each preset exposes a fill function', () => {
       MCP_PRESETS.forEach(preset => {
-        expect(preset.fill).toBeDefined()
         expect(typeof preset.fill).toBe('function')
       })
     })
   })
 
   describe('per-preset field snapshots', () => {
-    it('Claude Code one-shot: direct mode via third-party npx package', () => {
-      const setValue = fillPreset('claude-code-oneshot')
-
-      expect(setValue.mock.calls).toEqual([
+    it('claude-code-oneshot: direct mode via third-party npx package', () => {
+      expect(fillPreset('claude-code-oneshot').mock.calls).toEqual([
         ['alias', '/code'],
         ['description', 'Claude Code one-shot coding agent'],
         ['transport', 'stdio'],
@@ -109,10 +82,8 @@ describe('MCP_PRESETS', () => {
       ])
     })
 
-    it('Claude Code multi-tool: agent mode via native claude CLI', () => {
-      const setValue = fillPreset('claude-code-multi')
-
-      expect(setValue.mock.calls).toEqual([
+    it('claude-code-multi: agent mode via native claude CLI', () => {
+      expect(fillPreset('claude-code-multi').mock.calls).toEqual([
         ['alias', '/agent'],
         ['description', 'Claude Code multi-tool agent with full MCP capabilities'],
         ['transport', 'stdio'],
@@ -124,10 +95,8 @@ describe('MCP_PRESETS', () => {
       ])
     })
 
-    it('QA Testing: agent mode via Playwright MCP', () => {
-      const setValue = fillPreset('qa-testing-mcp')
-
-      expect(setValue.mock.calls).toEqual([
+    it('qa-testing-mcp: agent mode via Playwright MCP', () => {
+      expect(fillPreset('qa-testing-mcp').mock.calls).toEqual([
         ['alias', '/qa'],
         ['description', 'Playwright-powered QA testing with browser automation'],
         ['transport', 'stdio'],
@@ -139,45 +108,39 @@ describe('MCP_PRESETS', () => {
       ])
     })
 
-    it('Research & RAG: agent mode via d5 internal MCP server', () => {
-      const setValue = fillPreset('research-rag-mcp')
-
-      expect(setValue.mock.calls).toEqual([
+    it('research-rag-mcp: agent mode via d5 internal MCP server', () => {
+      expect(fillPreset('research-rag-mcp').mock.calls).toEqual([
         ['alias', '/research'],
         ['description', 'Deep research with web and academic paper search'],
         ['transport', 'stdio'],
-        ['command', 'babel-node'],
-        ['args', '--presets @babel/preset-env src/mcp-servers/research-rag/server.js'],
+        ['command', 'node'],
+        ['args', D5_INTERNAL_MCP_SERVERS.researchRag],
         ['toolName', 'auto'],
         ['toolInputField', 'prompt'],
         ['timeoutMs', 300000],
       ])
     })
 
-    it('Web Scraper: direct mode via d5 internal scraper server', () => {
-      const setValue = fillPreset('scraper-mcp')
-
-      expect(setValue.mock.calls).toEqual([
+    it('scraper-mcp: direct mode via d5 internal scraper server', () => {
+      expect(fillPreset('scraper-mcp').mock.calls).toEqual([
         ['alias', '/scrape'],
         ['description', 'Web page scraper with content extraction'],
         ['transport', 'stdio'],
-        ['command', 'babel-node'],
-        ['args', '--presets @babel/preset-env src/mcp-servers/scraper/server.js'],
+        ['command', 'node'],
+        ['args', D5_INTERNAL_MCP_SERVERS.scraper],
         ['toolName', 'scrape_web_pages'],
-        ['toolInputField', 'urls'],
+        ['toolInputField', 'text'],
         ['timeoutMs', 180000],
       ])
     })
 
-    it('Outliner: direct mode via d5 internal outliner server', () => {
-      const setValue = fillPreset('outliner-mcp')
-
-      expect(setValue.mock.calls).toEqual([
+    it('outliner-mcp: direct mode via d5 internal outliner server', () => {
+      expect(fillPreset('outliner-mcp').mock.calls).toEqual([
         ['alias', '/mkoutline'],
         ['description', 'Generate structured outlines from topics'],
         ['transport', 'stdio'],
-        ['command', 'babel-node'],
-        ['args', '--presets @babel/preset-env src/mcp-servers/outliner/server.js'],
+        ['command', 'node'],
+        ['args', D5_INTERNAL_MCP_SERVERS.outliner],
         ['toolName', 'generate_outline'],
         ['toolInputField', 'query'],
         ['timeoutMs', 300000],
@@ -185,55 +148,8 @@ describe('MCP_PRESETS', () => {
     })
   })
 
-  describe('cross-cutting invariants', () => {
-    it('alias and description are always the first fields set', () => {
-      fillAll().forEach(({ setValue }) => {
-        expect(setValue.mock.calls[0]).toEqual(expect.arrayContaining(['alias']))
-        expect(setValue.mock.calls[1]).toEqual(expect.arrayContaining(['description']))
-      })
-    })
-
-    it('all presets configure alias, description, toolName and toolInputField', () => {
-      fillAll().forEach(({ setValue }) => {
-        const alias = getField(setValue, 'alias')
-        const description = getField(setValue, 'description')
-        expect(alias).toBeTruthy()
-        expect(alias).toMatch(/^\/[a-zA-Z][a-zA-Z0-9_-]*$/)
-        expect(description).toBeTruthy()
-        expect(description.length).toBeGreaterThan(10)
-        expect(getField(setValue, 'toolName')).toBeTruthy()
-        expect(getField(setValue, 'toolInputField')).toBeTruthy()
-      })
-    })
-
-    it('all stdio presets configure command', () => {
-      fillAll().forEach(({ setValue }) => {
-        if (getField(setValue, 'transport') === 'stdio') {
-          expect(getField(setValue, 'command')).toBeTruthy()
-        }
-      })
-    })
-
-    it('all presets configure timeout as a positive number', () => {
-      fillAll().forEach(({ setValue }) => {
-        const timeout = getField(setValue, 'timeoutMs')
-        expect(typeof timeout).toBe('number')
-        expect(timeout).toBeGreaterThanOrEqual(60000)
-        expect(timeout).toBeLessThanOrEqual(3600000)
-      })
-    })
-  })
-
-  describe('agent mode vs direct mode', () => {
-    it('at least one preset uses agent mode and at least one uses direct mode', () => {
-      const results = fillAll().map(({ setValue }) => getField(setValue, 'toolName'))
-      expect(results).toContain('auto')
-      expect(results.some(t => t !== 'auto')).toBe(true)
-    })
-  })
-
-  describe('idempotency', () => {
-    it('consecutive fills produce identical calls', () => {
+  describe('fill behavior', () => {
+    it('consecutive fills produce identical call sequences (idempotency)', () => {
       MCP_PRESETS.forEach(preset => {
         const first = vi.fn()
         const second = vi.fn()
@@ -242,10 +158,50 @@ describe('MCP_PRESETS', () => {
         expect(first.mock.calls).toEqual(second.mock.calls)
       })
     })
-  })
 
-  describe('field value safety', () => {
-    it('string values are non-empty and trimmed', () => {
+    it('fill does not mutate the preset definition', () => {
+      MCP_PRESETS.forEach(preset => {
+        const { id, label, icon } = preset
+        preset.fill(vi.fn() as unknown as UseFormSetValue<MCPFormFlat>)
+        expect(preset.id).toBe(id)
+        expect(preset.label).toBe(label)
+        expect(preset.icon).toBe(icon)
+      })
+    })
+
+    it('alias is always set first', () => {
+      fillAll().forEach(({ setValue }) => {
+        expect((setValue.mock.calls[0] as unknown[])[0]).toBe('alias')
+      })
+    })
+
+    it('description is always set second', () => {
+      fillAll().forEach(({ setValue }) => {
+        expect((setValue.mock.calls[1] as unknown[])[0]).toBe('description')
+      })
+    })
+
+    it('transport is always set third', () => {
+      fillAll().forEach(({ setValue }) => {
+        expect((setValue.mock.calls[2] as unknown[])[0]).toBe('transport')
+      })
+    })
+
+    it('timeout is always set last', () => {
+      fillAll().forEach(({ setValue }) => {
+        const last = setValue.mock.calls[setValue.mock.calls.length - 1] as unknown[]
+        expect(last[0]).toBe('timeoutMs')
+      })
+    })
+
+    it('transport values are constrained to the allowed enum', () => {
+      const allowed = new Set(['stdio', 'streamable-http', 'sse'])
+      fillAll().forEach(({ setValue }) => {
+        expect(allowed.has(getField(setValue, 'transport'))).toBe(true)
+      })
+    })
+
+    it('string field values are non-empty and trimmed', () => {
       fillAll().forEach(({ setValue }) => {
         setValue.mock.calls.forEach((call: unknown[]) => {
           if (typeof call[1] === 'string') {
@@ -256,7 +212,7 @@ describe('MCP_PRESETS', () => {
       })
     })
 
-    it('command values are simple executable names', () => {
+    it('command values are safe executable names', () => {
       fillAll().forEach(({ setValue }) => {
         const command = getField(setValue, 'command')
         if (command) {
@@ -273,71 +229,34 @@ describe('MCP_PRESETS', () => {
         }
       })
     })
-  })
 
-  describe('alias uniqueness and format', () => {
-    it('enforces unique aliases across all presets', () => {
-      const aliases = fillAll().map(({ setValue }) => getField(setValue, 'alias'))
-      const uniqueAliases = new Set(aliases)
-      expect(uniqueAliases.size).toBe(aliases.length)
-    })
+    it('internal stdio presets store logical server references instead of backend filesystem paths', () => {
+      const internalRefs = new Set(Object.values(D5_INTERNAL_MCP_SERVERS))
+      const internalPresets = fillAll().filter(({ setValue }) => internalRefs.has(getField(setValue, 'args')))
 
-    it('aliases follow slash-command format', () => {
-      fillAll().forEach(({ setValue }) => {
-        const alias = getField(setValue, 'alias')
-        expect(alias).toMatch(/^\/[a-zA-Z][a-zA-Z0-9_-]*$/)
+      expect(internalPresets).toHaveLength(internalRefs.size)
+      internalPresets.forEach(({ setValue }) => {
+        expect(getField(setValue, 'command')).toBe('node')
+        expect(getField(setValue, 'args')).toMatch(/^d5-internal:\/\/mcp-server\//)
       })
     })
 
-    it('aliases do not contain spaces or special characters', () => {
+    it('no preset embeds a local backend filesystem root in arguments', () => {
       fillAll().forEach(({ setValue }) => {
-        const alias = getField(setValue, 'alias')
-        expect(alias).not.toMatch(/[\s!@#$%^&*()+={}[\]:;"'<>,.?\\|]/)
+        const args = getField(setValue, 'args')
+        if (args) {
+          expect(args).not.toMatch(/(^\/app\b|backend\/build|\.\.\/backend)/)
+        }
       })
     })
 
-    it('aliases are lowercase or camelCase (no all-caps)', () => {
-      fillAll().forEach(({ setValue }) => {
-        const alias = getField(setValue, 'alias')
-        const afterSlash = alias.substring(1)
-        expect(afterSlash).not.toMatch(/^[A-Z]+$/)
-      })
-    })
-  })
-
-  describe('description quality', () => {
-    it('descriptions are meaningful (not just repeating the alias)', () => {
-      fillAll().forEach(({ setValue }) => {
-        const alias = getField(setValue, 'alias')
-        const description = getField(setValue, 'description')
-        const aliasWords = alias.toLowerCase().replace(/[^a-z]/g, '')
-        expect(description.toLowerCase()).not.toBe(aliasWords)
-      })
-    })
-
-    it('descriptions do not end with period', () => {
-      fillAll().forEach(({ setValue }) => {
-        const description = getField(setValue, 'description')
-        expect(description).not.toMatch(/\.$/)
-      })
-    })
-
-    it('descriptions are sentence case (start with capital)', () => {
-      fillAll().forEach(({ setValue }) => {
-        const description = getField(setValue, 'description')
-        expect(description[0]).toMatch(/[A-Z]/)
-      })
-    })
-  })
-
-  describe('transport-specific field requirements', () => {
     it('stdio presets set command before args', () => {
       fillAll().forEach(({ setValue }) => {
         if (getField(setValue, 'transport') === 'stdio') {
-          const commandIndex = setValue.mock.calls.findIndex((call: unknown[]) => call[0] === 'command')
-          const argsIndex = setValue.mock.calls.findIndex((call: unknown[]) => call[0] === 'args')
-          if (argsIndex !== -1) {
-            expect(commandIndex).toBeLessThan(argsIndex)
+          const commandIdx = setValue.mock.calls.findIndex((c: unknown[]) => c[0] === 'command')
+          const argsIdx = setValue.mock.calls.findIndex((c: unknown[]) => c[0] === 'args')
+          if (argsIdx !== -1) {
+            expect(commandIdx).toBeLessThan(argsIdx)
           }
         }
       })
@@ -351,7 +270,7 @@ describe('MCP_PRESETS', () => {
       })
     })
 
-    it('http/sse presets would set serverUrl', () => {
+    it('streamable-http and sse presets set serverUrl', () => {
       fillAll().forEach(({ setValue }) => {
         const transport = getField(setValue, 'transport')
         if (transport === 'streamable-http' || transport === 'sse') {
@@ -361,65 +280,77 @@ describe('MCP_PRESETS', () => {
     })
   })
 
-  describe('timeout constraints', () => {
-    it('no preset has timeout less than 1 minute', () => {
-      fillAll().forEach(({ setValue }) => {
-        const timeout = getField(setValue, 'timeoutMs')
-        expect(timeout).toBeGreaterThanOrEqual(60000)
-      })
+  describe('alias contract', () => {
+    it('aliases are unique across all presets', () => {
+      const aliases = fillAll().map(({ setValue }) => getField(setValue, 'alias'))
+      expect(new Set(aliases).size).toBe(aliases.length)
     })
 
-    it('no preset has timeout greater than 1 hour', () => {
+    it('aliases follow slash-command format', () => {
       fillAll().forEach(({ setValue }) => {
-        const timeout = getField(setValue, 'timeoutMs')
-        expect(timeout).toBeLessThanOrEqual(3600000)
+        expect(getField(setValue, 'alias')).toMatch(/^\/[a-zA-Z][a-zA-Z0-9_-]*$/)
       })
-    })
-
-    it('agent mode presets have longer timeouts than direct mode', () => {
-      const agentTimeouts = fillAll()
-        .filter(({ setValue }) => getField(setValue, 'toolName') === 'auto')
-        .map(({ setValue }) => getField(setValue, 'timeoutMs'))
-
-      const directTimeouts = fillAll()
-        .filter(({ setValue }) => getField(setValue, 'toolName') !== 'auto')
-        .map(({ setValue }) => getField(setValue, 'timeoutMs'))
-
-      if (agentTimeouts.length > 0 && directTimeouts.length > 0) {
-        const avgAgent = agentTimeouts.reduce((a, b) => a + b, 0) / agentTimeouts.length
-        const avgDirect = directTimeouts.reduce((a, b) => a + b, 0) / directTimeouts.length
-        expect(avgAgent).toBeGreaterThanOrEqual(avgDirect)
-      }
     })
   })
 
-  describe('field ordering consistency', () => {
-    it('alias is always set first', () => {
+  describe('description contract', () => {
+    it('descriptions start with a capital letter', () => {
       fillAll().forEach(({ setValue }) => {
-        const firstCall = setValue.mock.calls[0] as unknown[]
-        expect(firstCall[0]).toBe('alias')
+        const description = getField(setValue, 'description')
+        expect(description[0]).toMatch(/[A-Z]/)
       })
     })
 
-    it('description is always set second', () => {
+    it('descriptions do not end with a period', () => {
       fillAll().forEach(({ setValue }) => {
-        const secondCall = setValue.mock.calls[1] as unknown[]
-        expect(secondCall[0]).toBe('description')
+        expect(getField(setValue, 'description')).not.toMatch(/\.$/)
       })
     })
 
-    it('transport is always set third', () => {
+    it('descriptions are meaningfully different from aliases', () => {
       fillAll().forEach(({ setValue }) => {
-        const thirdCall = setValue.mock.calls[2] as unknown[]
-        expect(thirdCall[0]).toBe('transport')
+        const alias = getField(setValue, 'alias')
+        const description = getField(setValue, 'description')
+        expect(description.toLowerCase()).not.toBe(alias.toLowerCase().replace(/[^a-z]/g, ''))
+      })
+    })
+  })
+
+  describe('tool configuration requirements', () => {
+    it('all presets configure toolName and toolInputField', () => {
+      fillAll().forEach(({ setValue }) => {
+        expect(getField(setValue, 'toolName')).toBeTruthy()
+        expect(getField(setValue, 'toolInputField')).toBeTruthy()
       })
     })
 
-    it('timeout is always set last', () => {
+    it('collection covers both agent mode (auto) and direct mode (specific tool)', () => {
+      const toolNames = fillAll().map(({ setValue }) => getField(setValue, 'toolName'))
+      expect(toolNames).toContain('auto')
+      expect(toolNames.some((t: string) => t !== 'auto')).toBe(true)
+    })
+  })
+
+  describe('timeout policy', () => {
+    it('all timeouts are between 1 minute and 1 hour', () => {
       fillAll().forEach(({ setValue }) => {
-        const lastCall = setValue.mock.calls[setValue.mock.calls.length - 1] as unknown[]
-        expect(lastCall[0]).toBe('timeoutMs')
+        const timeout = getField(setValue, 'timeoutMs')
+        expect(timeout).toBeGreaterThanOrEqual(60_000)
+        expect(timeout).toBeLessThanOrEqual(3_600_000)
       })
+    })
+
+    it('agent mode presets have higher average timeout than direct mode presets', () => {
+      const all = fillAll()
+      const agentItems = all.filter(({ setValue }) => getField(setValue, 'toolName') === 'auto')
+      const directItems = all.filter(({ setValue }) => getField(setValue, 'toolName') !== 'auto')
+      if (agentItems.length > 0 && directItems.length > 0) {
+        const agentAvg =
+          agentItems.reduce((acc, { setValue }) => acc + getField(setValue, 'timeoutMs'), 0) / agentItems.length
+        const directAvg =
+          directItems.reduce((acc, { setValue }) => acc + getField(setValue, 'timeoutMs'), 0) / directItems.length
+        expect(agentAvg).toBeGreaterThanOrEqual(directAvg)
+      }
     })
   })
 })

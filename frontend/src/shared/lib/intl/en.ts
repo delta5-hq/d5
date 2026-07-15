@@ -189,12 +189,23 @@ export default {
     installed: 'Installed',
     inherited: 'Inherited',
     inheritedNote: 'Click to edit in app-wide scope',
+    session: {
+      active: 'Session active',
+    },
     workflowScope: {
       label: 'Workflow Scope',
       userLevel: 'All workflows (user-level)',
       description: 'Choose whether this integration applies to all workflows or only a specific one',
       descriptionUserLevel: 'Integrations apply to all workflows you create',
       descriptionWorkflow: 'Integrations apply only to this workflow, overriding global settings',
+    },
+  },
+  mcp: {
+    fusionReport: {
+      title: 'MCP Tool Call Report',
+      available: 'Available integrations:',
+      unavailable: 'Unavailable integrations:',
+      toolCalls: 'Tool calls:',
     },
   },
 
@@ -247,6 +258,7 @@ export default {
       deleteConfirmMessage: 'Are you sure you want to delete "{alias}"? This action cannot be undone.',
       editAction: 'Edit integration',
       deleteAction: 'Delete integration',
+      presets: 'Presets',
       claudePreset: 'Claude CLI Preset',
     },
   },

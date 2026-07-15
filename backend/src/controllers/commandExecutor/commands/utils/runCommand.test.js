@@ -1,10 +1,12 @@
 import {ChatCommand} from '../ChatCommand'
-import {OutlineCommand} from '../OutlineCommand'
+import {SummarizeCommand} from '../SummarizeCommand'
 import executeExample1 from './exampleData/executeExample1.json'
 import {runCommand} from './runCommand'
 import Store from './Store'
 import ProgressReporter from '../../ProgressReporter'
 import {ForeachCommand} from '../ForeachCommand'
+import {ValidateCommand} from '../../reliability/core/ValidateCommand'
+import * as unknownCommandNode from './unknownCommandNode'
 import {VALIDATE_QUERY_TYPE} from '../../constants/validate'
 import {REFINE_QUERY_TYPE} from '../../constants/refine'
 
@@ -26,9 +28,9 @@ describe('runCommand', () => {
     jest.clearAllMocks()
   })
 
-  it('should run 4 times chat and 1 times outline', async () => {
+  it('should run 4 times chat and 1 times outline --summarize', async () => {
     const chatRunSpy = jest.spyOn(ChatCommand.prototype, 'run').mockReturnValue({nodes: []})
-    const outlineRunSpy = jest.spyOn(OutlineCommand.prototype, 'run').mockReturnValue({nodes: []})
+    const replyDefaultSpy = jest.spyOn(SummarizeCommand.prototype, 'replyDefault').mockResolvedValue('')
 
     const {workflowNodes, workflowFiles, ...data} = executeExample1
     const mockStore = new Store({
@@ -39,15 +41,15 @@ describe('runCommand', () => {
     await runCommand({...data, store: mockStore})
 
     expect(chatRunSpy).toHaveBeenCalledTimes(4)
-    expect(outlineRunSpy).toHaveBeenCalledTimes(1)
+    expect(replyDefaultSpy).toHaveBeenCalledTimes(1)
 
     chatRunSpy.mockRestore()
-    outlineRunSpy.mockRestore()
+    replyDefaultSpy.mockRestore()
   })
 
-  it('should run summarize outline', async () => {
+  it('should run outline --summarize via SummarizeCommand.replyDefault', async () => {
     const chatRunSpy = jest.spyOn(ChatCommand.prototype, 'run').mockReturnValue({nodes: []})
-    const outlineSummarizeSpy = jest.spyOn(OutlineCommand.prototype, 'replyWithSummarize').mockReturnValue([])
+    const replyDefaultSpy = jest.spyOn(SummarizeCommand.prototype, 'replyDefault').mockResolvedValue('')
 
     const {workflowNodes, workflowFiles, ...data} = executeExample1
     const mockStore = new Store({
@@ -57,10 +59,10 @@ describe('runCommand', () => {
     })
     await runCommand({...data, store: mockStore})
 
-    expect(outlineSummarizeSpy).toHaveBeenCalledTimes(1)
+    expect(replyDefaultSpy).toHaveBeenCalledTimes(1)
 
     chatRunSpy.mockRestore()
-    outlineSummarizeSpy.mockRestore()
+    replyDefaultSpy.mockRestore()
   })
 
   it('should run foreach only with prompts', async () => {
@@ -249,6 +251,53 @@ describe('runCommand', () => {
     expect(postProcessReporter.dispose).toHaveBeenCalled()
 
     chatSpy.mockRestore()
+  })
+
+  describe('direct validate execution', () => {
+    it('dispatches /validate through the command runner so a visible artifact can be created', async () => {
+      const cell = {id: 'validate-node', parent: 'root', command: '/validate answer is useful', children: []}
+      const parent = {id: 'root', parent: 'root', title: 'answer text', children: ['validate-node']}
+      const store = new Store({userId: 'user-id', nodes: {root: parent, 'validate-node': cell}})
+      const runSpy = jest.spyOn(ValidateCommand.prototype, 'run').mockResolvedValue({passed: true})
+
+      await runCommand({queryType: 'validate', cell, store})
+
+      expect(runSpy).toHaveBeenCalledWith(expect.objectContaining({id: 'validate-node'}))
+      runSpy.mockRestore()
+    })
+  })
+
+  describe('unrecognized command dispatch', () => {
+    it('delegates to createUnknownCommandNode when no built-in, MCP alias, or RPC alias is matched', async () => {
+      const cell = {id: 'root', parent: 'root', command: '/unregistered-alias prompt', children: []}
+      const store = new Store({userId: 'user-id', nodes: {root: cell}})
+      const spy = jest.spyOn(unknownCommandNode, 'createUnknownCommandNode')
+
+      await runCommand({queryType: undefined, mcpAlias: undefined, rpcAlias: undefined, cell, store})
+
+      expect(spy).toHaveBeenCalledWith(store, cell)
+      spy.mockRestore()
+    })
+
+    it('error node title contains the alias extracted from the unrecognized command', async () => {
+      const cell = {id: 'root', parent: 'root', command: '/ghost-alias run task', children: []}
+      const store = new Store({userId: 'user-id', nodes: {root: cell}})
+      jest.spyOn(store.importer, 'createNodes')
+
+      await runCommand({queryType: undefined, mcpAlias: undefined, rpcAlias: undefined, cell, store})
+
+      expect(store.importer.createNodes).toHaveBeenCalledWith('Error: Unknown command "/ghost-alias"', 'root')
+    })
+
+    it('error node title contains (unknown) when cell command is absent', async () => {
+      const cell = {id: 'root', parent: 'root', command: undefined, children: []}
+      const store = new Store({userId: 'user-id', nodes: {root: cell}})
+      jest.spyOn(store.importer, 'createNodes')
+
+      await runCommand({queryType: undefined, mcpAlias: undefined, rpcAlias: undefined, cell, store})
+
+      expect(store.importer.createNodes).toHaveBeenCalledWith('Error: Unknown command "(unknown)"', 'root')
+    })
   })
 })
 

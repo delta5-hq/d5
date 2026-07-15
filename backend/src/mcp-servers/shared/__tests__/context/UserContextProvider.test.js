@@ -2,7 +2,14 @@ import {UserContextProvider} from '../../context/UserContextProvider'
 import IntegrationFacade from '../../../../repositories/IntegrationFacade'
 
 jest.mock('../../../../repositories/IntegrationFacade', () => ({
-  findDecryptedOrThrow: jest.fn(),
+  findMergedDecryptedWithMetadata: jest.fn(),
+}))
+
+jest.mock('../../../../controllers/commandExecutor/commands/utils/langchain/IntegrationSettingsResolver', () => ({
+  resolveSettings: jest.fn(({merged, workflowDoc, userId, workflowId}) => ({
+    settings: merged ?? {userId, workflowId, model: 'auto'},
+    workflowDoc: workflowDoc ?? null,
+  })),
 }))
 
 describe('UserContextProvider', () => {
@@ -37,54 +44,52 @@ describe('UserContextProvider', () => {
   })
 
   describe('getIntegrationSettings', () => {
-    it('delegates to IntegrationFacade.findDecryptedOrThrow with userId', async () => {
+    it('returns resolved settings via full resolution pipeline', async () => {
       const mockSettings = {openai: {apiKey: 'test-key'}}
-      IntegrationFacade.findDecryptedOrThrow.mockResolvedValue(mockSettings)
+      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
+        merged: mockSettings,
+        workflowDoc: null,
+      })
 
       const result = await provider.getIntegrationSettings()
 
-      expect(IntegrationFacade.findDecryptedOrThrow).toHaveBeenCalledWith('test-user-123', null)
-      expect(result).toBe(mockSettings)
+      expect(IntegrationFacade.findMergedDecryptedWithMetadata).toHaveBeenCalledWith('test-user-123', null)
+      expect(result).toEqual(expect.objectContaining({openai: {apiKey: 'test-key'}}))
     })
 
-    it('always passes null as workflowId', async () => {
-      IntegrationFacade.findDecryptedOrThrow.mockResolvedValue({})
+    it('forwards workflowId when provider is scoped to a workflow', async () => {
+      const scopedProvider = new UserContextProvider('test-user-123', 'workflow-456')
+      IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({
+        merged: {openai: {apiKey: 'key'}},
+        workflowDoc: null,
+      })
 
-      await provider.getIntegrationSettings()
+      await scopedProvider.getIntegrationSettings()
 
-      expect(IntegrationFacade.findDecryptedOrThrow).toHaveBeenCalledWith(expect.any(String), null)
+      expect(IntegrationFacade.findMergedDecryptedWithMetadata).toHaveBeenCalledWith('test-user-123', 'workflow-456')
     })
 
-    it('propagates integration not found errors', async () => {
-      IntegrationFacade.findDecryptedOrThrow.mockRejectedValue(new Error('Integration not found'))
+    it('propagates facade errors', async () => {
+      IntegrationFacade.findMergedDecryptedWithMetadata.mockRejectedValue(new Error('DB failure'))
 
-      await expect(provider.getIntegrationSettings()).rejects.toThrow('Integration not found')
+      await expect(provider.getIntegrationSettings()).rejects.toThrow('DB failure')
     })
 
     it('propagates decryption errors', async () => {
-      IntegrationFacade.findDecryptedOrThrow.mockRejectedValue(new Error('Decryption failed'))
+      IntegrationFacade.findMergedDecryptedWithMetadata.mockRejectedValue(new Error('Decryption failed'))
 
       await expect(provider.getIntegrationSettings()).rejects.toThrow('Decryption failed')
     })
 
-    it('can be called multiple times', async () => {
-      IntegrationFacade.findDecryptedOrThrow.mockResolvedValue({openai: {apiKey: 'key'}})
-
-      await provider.getIntegrationSettings()
-      await provider.getIntegrationSettings()
-      await provider.getIntegrationSettings()
-
-      expect(IntegrationFacade.findDecryptedOrThrow).toHaveBeenCalledTimes(3)
-    })
-
-    it('returns different results if facade state changes', async () => {
-      IntegrationFacade.findDecryptedOrThrow
-        .mockResolvedValueOnce({openai: {apiKey: 'key1'}})
-        .mockResolvedValueOnce({openai: {apiKey: 'key2'}})
+    it('fetches fresh settings on each call without caching', async () => {
+      IntegrationFacade.findMergedDecryptedWithMetadata
+        .mockResolvedValueOnce({merged: {openai: {apiKey: 'key1'}}, workflowDoc: null})
+        .mockResolvedValueOnce({merged: {openai: {apiKey: 'key2'}}, workflowDoc: null})
 
       const result1 = await provider.getIntegrationSettings()
       const result2 = await provider.getIntegrationSettings()
 
+      expect(IntegrationFacade.findMergedDecryptedWithMetadata).toHaveBeenCalledTimes(2)
       expect(result1.openai.apiKey).toBe('key1')
       expect(result2.openai.apiKey).toBe('key2')
     })

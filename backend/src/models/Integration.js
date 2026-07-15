@@ -76,6 +76,10 @@ const CustomLLM = createSchema(
       type: String,
       required: false,
     },
+    model: {
+      type: String,
+      required: false,
+    },
   },
   {_id: false, timestamps: false},
 )
@@ -140,8 +144,8 @@ const IntegrationSchema = createSchema({
   lang: {type: String, default: 'none'},
   model: {type: String, default: 'auto'},
   perplexity: Perplexity,
-  mcp: [MCPIntegration],
-  rpc: [RPCIntegration],
+  mcp: {type: [MCPIntegration], default: undefined},
+  rpc: {type: [RPCIntegration], default: undefined},
 })
 
 IntegrationSchema.index({userId: 1, workflowId: 1}, {unique: true})

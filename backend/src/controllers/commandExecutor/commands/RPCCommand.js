@@ -9,8 +9,32 @@ import {RPC_PROTOCOL} from '../constants/rpc'
 import {SessionIdExtractor} from './rpc/SessionIdExtractor'
 import {SessionIdInjector} from './rpc/SessionIdInjector'
 import IntegrationSessionRepository from '../../../repositories/IntegrationSessionRepository'
+import {resolveExternalCommandPrompt} from './shared/resolveExternalCommandPrompt'
 
 const log = debug('delta5:app:Command:RPC')
+
+const MAX_HTTP_ERROR_BODY_LENGTH = 500
+
+const normalizeHTTPErrorBody = body => {
+  if (!body) return ''
+
+  const text = String(body).replace(/\s+/g, ' ').trim()
+  if (!text) return ''
+
+  if (text.length <= MAX_HTTP_ERROR_BODY_LENGTH) return text
+  return `${text.slice(0, MAX_HTTP_ERROR_BODY_LENGTH)}…`
+}
+
+class RPCHTTPStatusError extends Error {
+  constructor(status, body) {
+    const bodyPreview = normalizeHTTPErrorBody(body)
+    const details = bodyPreview ? `: ${bodyPreview}` : ''
+    super(`HTTP RPC failed with status ${status}${details}`)
+    this.name = 'RPCHTTPStatusError'
+    this.status = status
+    this.body = body
+  }
+}
 
 export class RPCCommand {
   constructor(userId, workflowId, store, aliasConfig, progressReporter = null, sshClientPool = null) {
@@ -96,6 +120,7 @@ export class RPCCommand {
 
     if (isError) {
       this.logError(`HTTP request failed with status ${status}`)
+      throw new RPCHTTPStatusError(status, responseBody)
     }
 
     return responseBody
@@ -196,12 +221,9 @@ export class RPCCommand {
   }
 
   extractPrompt(node, originalPrompt) {
-    if (originalPrompt) {
-      return this.stripAliasPrefix(originalPrompt)
-    }
-
-    const rawTitle = node?.command || node?.title || ''
-    return this.stripAliasPrefix(rawTitle)
+    const rawPrompt = originalPrompt || node?.command || node?.title || ''
+    const resolvedPrompt = resolveExternalCommandPrompt(rawPrompt, node, this.store)
+    return this.stripAliasPrefix(resolvedPrompt)
   }
 
   stripAliasPrefix(text) {

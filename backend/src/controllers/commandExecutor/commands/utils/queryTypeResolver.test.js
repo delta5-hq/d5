@@ -1,4 +1,6 @@
 import {
+  isMCPQueryType,
+  isRPCQueryType,
   mcpAliasToQueryType,
   rpcAliasToQueryType,
   resolveQueryType,
@@ -6,11 +8,55 @@ import {
   findRPCAliasByQueryType,
   resolveCommand,
 } from './queryTypeResolver'
+import {commandLookalikeInputs, orderedCommandLookalikeInputs} from '../../constants/commandBoundaryCases.testData'
 
 const mkMCPAlias = alias => ({alias})
 const mkRPCAlias = alias => ({alias})
 
 describe('queryTypeResolver', () => {
+  describe('isMCPQueryType', () => {
+    it.each([
+      ['mcp:coder1', true],
+      ['mcp:tool', true],
+      ['mcp:', true],
+      ['mcp:a:b:c', true],
+      ['rpc:vm3', false],
+      ['chat', false],
+      ['mcp', false],
+      ['', false],
+      [null, false],
+      [undefined, false],
+    ])('%s → %s', (queryType, expected) => {
+      expect(isMCPQueryType(queryType)).toBe(expected)
+    })
+  })
+
+  describe('isRPCQueryType', () => {
+    it.each([
+      ['rpc:vm3', true],
+      ['rpc:worker', true],
+      ['rpc:', true],
+      ['rpc:a:b:c', true],
+      ['mcp:coder1', false],
+      ['web', false],
+      ['rpc', false],
+      ['', false],
+      [null, false],
+      [undefined, false],
+    ])('%s → %s', (queryType, expected) => {
+      expect(isRPCQueryType(queryType)).toBe(expected)
+    })
+  })
+
+  describe('isMCPQueryType / isRPCQueryType — mutual exclusion', () => {
+    it.each(['mcp:tool', 'mcp:', 'rpc:vm', 'rpc:', 'chat', 'web', ''])(
+      '%s cannot be both MCP and RPC type simultaneously',
+      queryType => {
+        expect(isMCPQueryType(queryType) && isRPCQueryType(queryType)).toBe(false)
+      },
+    )
+  })
+
   describe('mcpAliasToQueryType', () => {
     it.each([
       ['/coder1', 'mcp:coder1'],
@@ -100,7 +146,12 @@ describe('queryTypeResolver', () => {
       it('prioritizes MCP over RPC when both have same alias', () => {
         const shared = [mkMCPAlias('/shared')]
         const rpcShared = [mkRPCAlias('/shared')]
-        expect(resolveQueryType('/shared cmd', {mcpAliases: shared, rpcAliases: rpcShared})).toBe('mcp:shared')
+        expect(
+          resolveQueryType('/shared cmd', {
+            mcpAliases: shared,
+            rpcAliases: rpcShared,
+          }),
+        ).toBe('mcp:shared')
       })
     })
 
@@ -121,6 +172,17 @@ describe('queryTypeResolver', () => {
       it.each([['/unknown'], ['text'], [''], [null], [undefined]])('returns undefined for: %s', input => {
         expect(resolveQueryType(input, {mcpAliases, rpcAliases})).toBeUndefined()
       })
+
+      it.each(commandLookalikeInputs)('does not resolve built-in command-prefix lookalike: %s', input => {
+        expect(resolveQueryType(input, {mcpAliases: [], rpcAliases: []})).toBeUndefined()
+      })
+
+      it.each(orderedCommandLookalikeInputs)(
+        'does not resolve ordered built-in command-prefix lookalike: %s',
+        input => {
+          expect(resolveQueryType(input, {mcpAliases: [], rpcAliases: []})).toBeUndefined()
+        },
+      )
     })
 
     describe('parameter handling', () => {
@@ -269,6 +331,13 @@ describe('queryTypeResolver', () => {
     })
 
     it.each([[null], [undefined], ['']])('handles %s input', input => {
+      const result = resolveCommand(input, aliases)
+      expect(result.queryType).toBeUndefined()
+      expect(result.mcpAlias).toBeUndefined()
+      expect(result.rpcAlias).toBeUndefined()
+    })
+
+    it.each(orderedCommandLookalikeInputs)('returns no alias payload for ordered lookalike: %s', input => {
       const result = resolveCommand(input, aliases)
       expect(result.queryType).toBeUndefined()
       expect(result.mcpAlias).toBeUndefined()

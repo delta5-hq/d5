@@ -38,7 +38,8 @@ export const useAuth = (isBootstrapped: boolean) => {
   const logoutMutation = useApiMutation<unknown, unknown, void>({
     url: '/auth/logout',
     method: 'POST',
-    onSuccess: async () => {
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: queryKeys.authMe })
       queryClient.clear()
     },
   })
@@ -63,7 +64,13 @@ export const useAuth = (isBootstrapped: boolean) => {
   return {
     user,
     isLoggedIn: !!user,
-    isLoading: !isBootstrapped || meQuery.isLoading || loginMutation.isPending || signupMutation.isPending,
+    isLoading:
+      !isBootstrapped ||
+      meQuery.isLoading ||
+      loginMutation.isPending ||
+      signupMutation.isPending ||
+      logoutMutation.isPending ||
+      (logoutMutation.isSuccess && !!user),
     isSuccessSignup: signupMutation.isSuccess,
 
     isAdmin,

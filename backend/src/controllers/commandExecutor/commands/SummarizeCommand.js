@@ -39,6 +39,7 @@ import {clearReferences} from './references/utils/referenceUtils'
 import {clearCommandsWithParams} from '../constants'
 import {clearStepsPrefix} from '../constants/steps'
 import {NodeTextExtractor} from './utils/NodeTextExtractor'
+import {runWithErrorNode} from './shared/runWithErrorNode'
 import {throwIfAborted, signalOptions} from './utils/executionSignal'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
@@ -239,12 +240,12 @@ export class SummarizeCommand {
   }
 
   getStartNode(node, title) {
-    let startNode = this.store.getNode(node.parent)
+    let startNode = this.store.getNode(node.parent) || node
 
     const parentParam = readSummarizeParentParam(title)
 
     let loopIteration = 0
-    while (this.store.getNode(startNode.parent) && loopIteration < parentParam) {
+    while (startNode?.parent && this.store.getNode(startNode.parent) && loopIteration < parentParam) {
       startNode = this.store.getNode(startNode.parent)
       loopIteration += 1
     }
@@ -269,7 +270,7 @@ export class SummarizeCommand {
     const {lang = Lang.en, sizeLabel = SUMMARIZE_SIZE_DEFAULT, structured = false} = params ?? {}
 
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
-    const llmType = determineLLMType(command, settings)
+    const llmType = determineLLMType(settings)
     const {llm, chunkSize} = getLLM({settings, type: llmType})
 
     const maxChunks = this.verifyMaxChunks(command) ? this.calculateMaxChunksFromSize(sizeLabel) : Infinity
@@ -319,24 +320,26 @@ export class SummarizeCommand {
   }
 
   async run(node, originalPrompt, options = {}) {
-    let prompt = originalPrompt
-    const command = node?.command || node?.title
+    await runWithErrorNode(this.store, node, this.logError.bind(this), async () => {
+      let prompt = originalPrompt
+      const command = node?.command || node?.title
 
-    if (!prompt || referencePatterns.withAssignmentPrefix().test(command)) {
-      prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
-    } else {
-      prompt = clearCommandsWithParams(
-        clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
-      )
-    }
+      if (!prompt || referencePatterns.withAssignmentPrefix().test(command)) {
+        prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
+      } else {
+        prompt = clearCommandsWithParams(
+          clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+        )
+      }
 
-    const answer = await this.replyDefault(node, command, prompt, {
-      lang: readLangParam(command),
-      sizeLabel: readEmbedParam(command) || readMaxChunksParam(command),
-      signal: options.signal,
+      const answer = await this.replyDefault(node, command, prompt, {
+        lang: readLangParam(command),
+        sizeLabel: readEmbedParam(command) || readMaxChunksParam(command),
+        signal: options.signal,
+      })
+
+      throwIfAborted(options.signal)
+      this.store.importer.createNodes(answer, node.id)
     })
-
-    throwIfAborted(options.signal)
-    this.store.importer.createNodes(answer, node.id)
   }
 }

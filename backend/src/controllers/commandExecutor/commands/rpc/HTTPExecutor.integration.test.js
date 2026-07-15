@@ -1,13 +1,3 @@
-/**
- * HTTPExecutor Integration Tests
- *
- * Tests real HTTP network I/O using echo-http-server stub.
- * Complements HTTPExecutor.test.js (mocked fetch) by proving transport layer works.
- *
- * Focus: Actual network I/O, request/response round-trips, real timeout behavior
- * Unit tests cover: Mocked fetch behavior, parameter passing, error conditions
- */
-
 const {HTTPExecutor} = require('./HTTPExecutor')
 const {startEchoServer} = require('../../../../test-stubs/echo-http-server.cjs')
 const {RPC_HTTP_METHOD} = require('../../constants/rpc')
@@ -29,9 +19,21 @@ describe('HTTPExecutor integration', () => {
 
   describe('HTTP method variants', () => {
     const testCases = [
-      {method: RPC_HTTP_METHOD.POST, hasBody: true, description: 'POST with body'},
-      {method: RPC_HTTP_METHOD.PUT, hasBody: true, description: 'PUT with body'},
-      {method: RPC_HTTP_METHOD.GET, hasBody: false, description: 'GET without body'},
+      {
+        method: RPC_HTTP_METHOD.POST,
+        hasBody: true,
+        description: 'POST with body',
+      },
+      {
+        method: RPC_HTTP_METHOD.PUT,
+        hasBody: true,
+        description: 'PUT with body',
+      },
+      {
+        method: RPC_HTTP_METHOD.GET,
+        hasBody: false,
+        description: 'GET without body',
+      },
     ]
 
     testCases.forEach(({method, hasBody, description}) => {
@@ -59,27 +61,24 @@ describe('HTTPExecutor integration', () => {
   })
 
   describe('request data integrity', () => {
-    it('preserves various content types in request body', async () => {
+    it.each([
+      ['simple string', 'simple string'],
+      ['JSON-like content', '{"json": "object"}'],
+      ['empty string', ''],
+      ['unicode characters', 'unicode: 日本語 🎉 Émojis'],
+      ['special characters', 'special chars: <>&"\''],
+    ])('echoes %s back in response body without corruption', async (_label, testData) => {
       const executor = new HTTPExecutor()
-      const testCases = [
-        'simple string',
-        '{"json": "object"}',
-        '',
-        'unicode: 日本語 🎉 Émojis',
-        'special chars: <>&"\'',
-      ]
 
-      for (const testData of testCases) {
-        const result = await executor.execute({
-          url: serverUrl,
-          method: RPC_HTTP_METHOD.POST,
-          body: testData,
-          timeoutMs: 5000,
-        })
+      const result = await executor.execute({
+        url: serverUrl,
+        method: RPC_HTTP_METHOD.POST,
+        body: testData,
+        timeoutMs: 5000,
+      })
 
-        const responseData = JSON.parse(result.body)
-        expect(responseData.echoed).toBe(testData)
-      }
+      const responseData = JSON.parse(result.body)
+      expect(responseData.echoed).toBe(testData)
     })
 
     it('handles large payload without truncation', async () => {
@@ -101,11 +100,11 @@ describe('HTTPExecutor integration', () => {
   })
 
   describe('URL path handling', () => {
-    it('preserves URL path in requests', async () => {
-      const executor = new HTTPExecutor()
-      const paths = ['/resource', '/api/v1/execute', '/path/with/multiple/segments']
+    it.each([['/resource'], ['/api/v1/execute'], ['/path/with/multiple/segments']])(
+      'preserves path %s in request to server',
+      async resourcePath => {
+        const executor = new HTTPExecutor()
 
-      for (const resourcePath of paths) {
         const result = await executor.execute({
           url: `${serverUrl}${resourcePath}`,
           method: RPC_HTTP_METHOD.POST,
@@ -115,8 +114,8 @@ describe('HTTPExecutor integration', () => {
 
         const responseData = JSON.parse(result.body)
         expect(responseData.url).toBe(resourcePath)
-      }
-    })
+      },
+    )
   })
 
   describe('header propagation', () => {
@@ -228,9 +227,24 @@ describe('HTTPExecutor integration', () => {
       const executor = new HTTPExecutor()
 
       const promises = [
-        executor.execute({url: serverUrl, method: RPC_HTTP_METHOD.POST, body: 'req1', timeoutMs: 5000}),
-        executor.execute({url: serverUrl, method: RPC_HTTP_METHOD.POST, body: 'req2', timeoutMs: 5000}),
-        executor.execute({url: serverUrl, method: RPC_HTTP_METHOD.POST, body: 'req3', timeoutMs: 5000}),
+        executor.execute({
+          url: serverUrl,
+          method: RPC_HTTP_METHOD.POST,
+          body: 'req1',
+          timeoutMs: 5000,
+        }),
+        executor.execute({
+          url: serverUrl,
+          method: RPC_HTTP_METHOD.POST,
+          body: 'req2',
+          timeoutMs: 5000,
+        }),
+        executor.execute({
+          url: serverUrl,
+          method: RPC_HTTP_METHOD.POST,
+          body: 'req3',
+          timeoutMs: 5000,
+        }),
       ]
 
       const results = await Promise.all(promises)
@@ -252,7 +266,12 @@ describe('HTTPExecutor integration', () => {
 
       const results = await Promise.all(
         executors.map((executor, i) =>
-          executor.execute({url: serverUrl, method: RPC_HTTP_METHOD.POST, body: `e${i}`, timeoutMs: 5000}),
+          executor.execute({
+            url: serverUrl,
+            method: RPC_HTTP_METHOD.POST,
+            body: `e${i}`,
+            timeoutMs: 5000,
+          }),
         ),
       )
 

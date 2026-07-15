@@ -36,5 +36,25 @@ export async function setupWorkflowWithNode(page: Page): Promise<WorkflowNodeSet
 export async function setupWorkflowWithCommandField(page: Page): Promise<WorkflowNodeSetupResult> {
   const result = await setupWorkflowWithNode(page)
   await page.locator('textarea[data-type="command-field"]').waitFor({ state: 'visible' })
+  await page.getByText('Saved', { exact: true }).waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
   return result
+}
+
+export async function getExistingWorkflowSetup(page: Page): Promise<WorkflowNodeSetupResult> {
+  const tree = new WorkflowTreePage(page)
+  await tree.firstNode.waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
+
+  const rootNodeId = await tree.rootNodeId()
+  await tree.selectNode(rootNodeId)
+
+  const detail = new NodeDetailPanelPage(page)
+  await detail.waitForComponent()
+  await page.locator('textarea[data-type="command-field"]').waitFor({ state: 'visible' })
+
+  return { rootNodeId, tree, detail }
+}
+
+export async function reloadAndGetExistingSetup(page: Page): Promise<WorkflowNodeSetupResult> {
+  await page.reload()
+  return getExistingWorkflowSetup(page)
 }
