@@ -438,15 +438,13 @@ ci-full: ci-local e2e
 	@echo "✓ Full CI pipeline completed"
 
 install-hooks:
-	@echo "→ Installing git hooks..."
-	@cp .git-hooks/pre-commit .git/hooks/pre-commit
-	@chmod +x .git/hooks/pre-commit
-	@cp .git-hooks/pre-push .git/hooks/pre-push
-	@chmod +x .git/hooks/pre-push
+	@echo "→ Activating tracked git hooks from .git-hooks/ via core.hooksPath (no copy, never stale)..."
+	@chmod +x .git-hooks/pre-commit .git-hooks/pre-push
+	@git config --local core.hooksPath .git-hooks
 	@# Keepalive prevents the ref-discovery SSH session from idling out
 	@# during ci-full, which otherwise breaks the post-hook pack upload.
 	@git config --local core.sshCommand "ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=240 -o TCPKeepAlive=yes"
-	@echo "✓ Git hooks installed (pre-commit + pre-push) with SSH keepalive"
+	@echo "✓ Git hooks active from .git-hooks/ (pre-commit + pre-push) with SSH keepalive"
 
 setup-build-tools:
 	@bash scripts/setup-build-tools.sh
