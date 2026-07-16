@@ -267,6 +267,14 @@ export const NodeDetailPanel = ({
                         ))}
                       </div>
                     ) : null}
+                    {reliabilityMetadata?.mode === 'suppressed' || reliabilityMetadata?.suppressed ? (
+                      <span className="text-xs text-accent mt-1 block" data-testid="suppressed-run-hint">
+                        <FormattedMessage
+                          id="workflowTree.node.suppressedRunHint"
+                          values={{ n: reliabilityMetadata.requestedN ?? '' }}
+                        />
+                      </span>
+                    ) : null}
                     {reliabilityMetadata?.perCriterionVerdict?.length ? (
                       <button
                         className="text-xs text-primary underline underline-offset-2 mt-1 block hover:opacity-80 transition-opacity"

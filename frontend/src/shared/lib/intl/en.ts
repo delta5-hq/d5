@@ -431,6 +431,8 @@ export default {
       refineCostOverLimit: '⛔ Exceeds :limit= — will be refused ({cost} calls)',
       commodityCeilingHint:
         '⚠ Structural-only: catches empty, refusal, and thrown-error outputs. Soft errors (well-formed HTTP 200 error text) are undetectable at this tier — use /refine + /validate for semantic checking.',
+      suppressedRunHint:
+        '⚠ Single run — best-of-N suppressed for a side-effecting command (requested :n={n}). Running it {n} times would fire {n} real external operations.',
       verdictButton: 'View verdict',
     },
 
@@ -476,6 +478,7 @@ export default {
       generatorOnlyJudgeLabel: 'Generator and judge share the same provider — cross-family independence not possible',
       judgeReasoningRequestedLabel: 'Extended judge reasoning requested (:judge_reasoning)',
       modeInvalid: 'invalid',
+      modeSuppressed: 'suppressed',
       failureCauseMissingParent:
         'This command requires a parent cell — move it below an existing workflow cell before running',
       failureCauseInvalidCriteria:

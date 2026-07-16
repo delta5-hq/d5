@@ -25,7 +25,14 @@ import {MCP_FUSION_QUERY_TYPE} from '../../constants/mcpFusion'
 import {YANDEX_QUERY_TYPE} from '../../constants/yandex'
 import {CONTROL_FLOW_COMMANDS, modifierQueryTypes} from '../../constants'
 import ProgressReporter from '../../ProgressReporter'
-import {CommandFactory, buildInvalidReliabilityMetadata, FAILURE_CAUSE, REMEDIATION_HINT} from '../../reliability'
+import {
+  CommandFactory,
+  buildInvalidReliabilityMetadata,
+  buildSuppressedReliabilityMetadata,
+  COMMODITY_SUPPRESSION_CAUSE,
+  FAILURE_CAUSE,
+  REMEDIATION_HINT,
+} from '../../reliability'
 import {
   stripReliabilitySuffix,
   appendValidateSuffix,
@@ -271,7 +278,16 @@ export const runCommand = async (
     cellNode.title = stripReliabilitySuffix(cellNode.title || '')
   }
 
-  const commodityN = preventCommodityForks || store.withinForkExecution ? 1 : readCommodityN(getNodeCommand(cell))
+  // Best-of-N presumes idempotent attempts to pick a winner from. A side-effecting
+  // dispatch — an MCP/RPC alias, or `/mcp` fusion running the user's configured MCP
+  // tools — is not idempotent, so fanning it N times would fire N real external ops
+  // (duplicate-side-effect hazard). Force N=1 for those dispatches — but honestly,
+  // via a suppression signal below, never a silent collapse.
+  const isSideEffectingDispatch = Boolean(mcpAlias) || Boolean(rpcAlias) || queryType === MCP_FUSION_QUERY_TYPE
+  const isForkReentry = preventCommodityForks || store.withinForkExecution
+  const requestedCommodityN = isForkReentry ? 1 : readCommodityN(getNodeCommand(cell))
+  const suppressedForSideEffect = isSideEffectingDispatch && requestedCommodityN > 1
+  const commodityN = suppressedForSideEffect ? 1 : requestedCommodityN
 
   if (commodityN > 1) {
     await runCommodityForks({
@@ -317,6 +333,20 @@ export const runCommand = async (
     await executeCommandWithProgress(queryType, context, prompt, cell, store, progress, buildExecutionOptions(signal))
   } else {
     createUnknownCommandNode(store, cell)
+  }
+
+  // The single side-effecting execution above still produced its normal output so
+  // downstream cells compose; here we surface WHY the requested :n=N fan-out did not
+  // happen — an honest, composable signal rather than a silent collapse or error node.
+  if (suppressedForSideEffect) {
+    const executedNode = store.getNode(cell.id)
+    if (executedNode) {
+      executedNode.reliabilityMetadata = buildSuppressedReliabilityMetadata({
+        cause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS,
+        requestedN: requestedCommodityN,
+      })
+      store.saveNodeToOutput(cell.id)
+    }
   }
 
   let runPostProccess = !preventPostProcess

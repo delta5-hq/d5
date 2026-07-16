@@ -111,9 +111,15 @@ export type DiscardedFork = {
 export type ReliabilityMetadata = {
   winnerForkIndex: number | null
   perCriterionVerdict: CriterionVerdict[]
-  mode: 'strict' | 'fallback' | 'commodity' | 'invalid'
+  mode: 'strict' | 'fallback' | 'commodity' | 'invalid' | 'suppressed'
   selectionLayer: 'primary' | 'fallback' | 'none'
   noSignal: boolean
+  /** best-of-N was collapsed to a single execution (e.g. side-effecting MCP/RPC alias) */
+  suppressed?: boolean
+  /** why the run was collapsed to one, e.g. 'side-effecting-alias' */
+  cause?: string
+  /** the N originally requested via commodity :n=N before suppression */
+  requestedN?: number
   tiebreakUsed?: boolean
   fallbackUsed?: boolean
   generatorOnlyJudge?: boolean

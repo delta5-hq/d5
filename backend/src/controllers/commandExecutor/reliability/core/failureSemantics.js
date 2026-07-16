@@ -26,6 +26,13 @@ export const REMEDIATION_HINT = Object.freeze({
   NONE: 'none',
 })
 
+// Why a commodity :n=N fan-out was collapsed to a single execution instead of
+// being run N times. Best-of-N presumes idempotent attempts; a side-effecting
+// MCP/RPC alias is not idempotent, so fanning it N times duplicates real ops.
+export const COMMODITY_SUPPRESSION_CAUSE = Object.freeze({
+  SIDE_EFFECTING_ALIAS: 'side-effecting-alias',
+})
+
 export function classifyNoWinner({allGateFiltered = false, noSignal = false, forkResults = []}) {
   if (allGateFiltered) {
     return {

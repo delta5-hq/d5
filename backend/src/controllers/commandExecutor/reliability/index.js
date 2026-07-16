@@ -39,11 +39,12 @@ export {
 } from './core/ModelFamilyRouter'
 export {passesStructuralGate, passesCommodityGate} from './core/structuralGate'
 export {readCommodityN, stripCommodityN, COMMODITY_N_MAX} from './core/commodityParams'
-export {FAILURE_CAUSE, REMEDIATION_HINT, classifyNoWinner} from './core/failureSemantics'
+export {FAILURE_CAUSE, REMEDIATION_HINT, COMMODITY_SUPPRESSION_CAUSE, classifyNoWinner} from './core/failureSemantics'
 export {
   buildReliabilityMetadata,
   buildCommodityReliabilityMetadata,
   buildInvalidReliabilityMetadata,
+  buildSuppressedReliabilityMetadata,
   buildDiscardedFork,
   buildJudgeInputMetadata,
   buildJudgeQualityWarning,

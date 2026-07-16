@@ -31,6 +31,8 @@ import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
 import {COMPLETION_QUERY_TYPE} from '../../constants/completion'
 import {MEMORIZE_QUERY_TYPE} from '../../constants/memorize'
+import {MCP_FUSION_QUERY_TYPE} from '../../constants/mcpFusion'
+import {MCPFusionCommand} from '../MCPFusionCommand'
 import * as MCPClientManager from '../mcp/MCPClientManager'
 /* eslint-disable no-unused-vars */
 import {SSHExecutor} from '../rpc/SSHExecutor'
@@ -2505,7 +2507,7 @@ describe('commodity :n=N × MCP alias', () => {
   })
 
   it.each([2, 3, 5])(
-    'invokes the MCP tool exactly %i times and creates exactly %i output nodes for /qa-mcp :n=%i',
+    'suppresses the fan-out for /qa-mcp :n=%i — invokes the MCP tool exactly once, one output node, honest suppression metadata',
     async n => {
       const node = {id: 'node', parent: 'root', command: `/qa-mcp :n=${n} task-prompt`, children: []}
       const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
@@ -2515,12 +2517,22 @@ describe('commodity :n=N × MCP alias', () => {
 
       await runCommand({cell: node, store, mcpAlias: mcpSeamAlias})
 
-      expect(MCPClientManager.callTool).toHaveBeenCalledTimes(n)
-      expect(store.getOutput().nodes.filter(m => m.parent === node.id)).toHaveLength(n)
+      expect(MCPClientManager.callTool).toHaveBeenCalledTimes(1)
+      expect(store.getOutput().nodes.filter(m => m.parent === node.id)).toHaveLength(1)
+      expect(store.getNode(node.id).reliabilityMetadata).toEqual(
+        expect.objectContaining({
+          suppressed: true,
+          cause: 'side-effecting-alias',
+          requestedN: n,
+          mode: 'suppressed',
+          total: 1,
+          eligible: 1,
+        }),
+      )
     },
   )
 
-  it.each([1, 2, 3])(':n=%i token is absent from the MCP tool payload on both fork and non-fork paths', async n => {
+  it.each([1, 2, 3])(':n=%i token is absent from the MCP tool payload of the single suppressed execution', async n => {
     const node = {id: 'node', parent: 'root', command: `/qa-mcp :n=${n} task-prompt`, children: []}
     const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
     const store = new Store({userId, workflowId, nodes: {node, root}})
@@ -2548,7 +2560,7 @@ describe('commodity :n=N × MCP alias', () => {
 
     await runCommand({cell: commandNode, store, mcpAlias: mcpSeamAlias})
 
-    expect(MCPClientManager.callTool).toHaveBeenCalledTimes(2)
+    expect(MCPClientManager.callTool).toHaveBeenCalledTimes(1)
     MCPClientManager.callTool.mock.calls.forEach(([callArgs]) => {
       expect(callArgs.toolArguments.prompt).not.toMatch(/:n=/)
       expectResolvedExternalPrompt(callArgs.toolArguments.prompt, ['seam-topic', 'seam-source'])
@@ -2573,7 +2585,7 @@ describe('commodity :n=N × RPC alias', () => {
   })
 
   it.each([2, 3, 5])(
-    'executes the SSH command exactly %i times and creates exactly %i output nodes for /qa-rpc :n=%i',
+    'suppresses the fan-out for /qa-rpc :n=%i — runs the SSH command exactly once, one output node, honest suppression metadata',
     async n => {
       const node = {id: 'node', parent: 'root', command: `/qa-rpc :n=${n} task-prompt`, children: []}
       const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
@@ -2583,25 +2595,38 @@ describe('commodity :n=N × RPC alias', () => {
 
       await runCommand({cell: node, store, rpcAlias: rpcSeamAlias})
 
-      expect(mockSSHExecute).toHaveBeenCalledTimes(n)
-      expect(store.getOutput().nodes.filter(m => m.parent === node.id)).toHaveLength(n)
+      expect(mockSSHExecute).toHaveBeenCalledTimes(1)
+      expect(store.getOutput().nodes.filter(m => m.parent === node.id)).toHaveLength(1)
+      expect(store.getNode(node.id).reliabilityMetadata).toEqual(
+        expect.objectContaining({
+          suppressed: true,
+          cause: 'side-effecting-alias',
+          requestedN: n,
+          mode: 'suppressed',
+          total: 1,
+          eligible: 1,
+        }),
+      )
     },
   )
 
-  it.each([1, 2, 3])(':n=%i token is absent from the SSH command string on both fork and non-fork paths', async n => {
-    const node = {id: 'node', parent: 'root', command: `/qa-rpc :n=${n} task-prompt`, children: []}
-    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
-    const store = new Store({userId, workflowId, nodes: {node, root}})
+  it.each([1, 2, 3])(
+    ':n=%i token is absent from the SSH command string of the single suppressed execution',
+    async n => {
+      const node = {id: 'node', parent: 'root', command: `/qa-rpc :n=${n} task-prompt`, children: []}
+      const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+      const store = new Store({userId, workflowId, nodes: {node, root}})
 
-    mockSSHExecute.mockResolvedValue({stdout: 'rpc-result', stderr: '', exitCode: 0})
+      mockSSHExecute.mockResolvedValue({stdout: 'rpc-result', stderr: '', exitCode: 0})
 
-    await runCommand({cell: node, store, rpcAlias: rpcSeamAlias})
+      await runCommand({cell: node, store, rpcAlias: rpcSeamAlias})
 
-    mockSSHExecute.mock.calls.forEach(([params]) => {
-      expect(params.command).not.toMatch(/:n=/)
-      expect(params.command).toContain('task-prompt')
-    })
-  })
+      mockSSHExecute.mock.calls.forEach(([params]) => {
+        expect(params.command).not.toMatch(/:n=/)
+        expect(params.command).toContain('task-prompt')
+      })
+    },
+  )
 
   it('@@ and ## references are resolved within RPC command string after :n=N is stripped', async () => {
     const {commandNode, nodes} = createReferenceWorkflow({
@@ -2616,10 +2641,66 @@ describe('commodity :n=N × RPC alias', () => {
 
     await runCommand({cell: commandNode, store, rpcAlias: rpcSeamAlias})
 
-    expect(mockSSHExecute).toHaveBeenCalledTimes(2)
+    expect(mockSSHExecute).toHaveBeenCalledTimes(1)
     mockSSHExecute.mock.calls.forEach(([params]) => {
       expect(params.command).not.toMatch(/:n=/)
       expectResolvedExternalPrompt(params.command, ['seam-topic', 'seam-source'])
     })
+  })
+})
+
+describe('commodity :n=N × /mcp fusion (MCP_FUSION_QUERY_TYPE, no alias param)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('suppresses the fan-out for /mcp :n=3 — invokes the fusion command exactly once, one output node, honest suppression metadata', async () => {
+    const node = {id: 'node', parent: 'root', command: '/mcp :n=3 task-prompt', children: []}
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    const runSpy = jest.spyOn(MCPFusionCommand.prototype, 'run').mockImplementation(async function (cell) {
+      this.store.createNode({title: 'fusion-result', parent: cell.id})
+    })
+
+    await runCommand({cell: node, queryType: MCP_FUSION_QUERY_TYPE, store})
+
+    expect(runSpy).toHaveBeenCalledTimes(1)
+    expect(store.getOutput().nodes.filter(m => m.parent === node.id)).toHaveLength(1)
+    expect(store.getNode(node.id).reliabilityMetadata).toEqual(
+      expect.objectContaining({
+        suppressed: true,
+        cause: 'side-effecting-alias',
+        requestedN: 3,
+        mode: 'suppressed',
+        total: 1,
+        eligible: 1,
+      }),
+    )
+  })
+})
+
+describe('commodity :n=N guard narrowness — native /chat fan-out is unaffected', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('native /chat :n=3 still creates exactly 3 forks / 3 output nodes with no suppression metadata', async () => {
+    const node = {id: 'node', parent: 'root', command: '/chat :n=3 task', children: []}
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    let callCount = 0
+    jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI').mockImplementation(async () => {
+      callCount++
+      return `A well-formed response output ${callCount}`
+    })
+
+    await runCommand({cell: node, queryType: CHAT_QUERY_TYPE, store})
+
+    expect(callCount).toBe(3)
+    expect(store.getOutput().nodes.filter(m => m.parent === node.id)).toHaveLength(3)
+    expect(store.getNode(node.id).reliabilityMetadata.mode).toBe('commodity')
+    expect(store.getNode(node.id).reliabilityMetadata.suppressed).toBeUndefined()
   })
 })

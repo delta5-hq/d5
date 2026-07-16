@@ -1,5 +1,6 @@
 import {isDegradedInput} from './judgeContentBudget'
 import {FAILURE_CAUSE, JUDGE_WARNING_CONDITION} from './failureSemantics'
+export {COMMODITY_SUPPRESSION_CAUSE} from './failureSemantics'
 
 export function buildJudgeInputMetadata({candidateCount, perForkBudget, resolvedModels}) {
   return {
@@ -76,6 +77,27 @@ export function buildCommodityReliabilityMetadata({successCount, total, forkOutc
     discardedForks: forkOutcomes
       .filter(f => !f.succeeded)
       .map(f => buildDiscardedFork({forkIndex: f.forkIndex, status: 'runtime-failed'})),
+  }
+}
+
+// Honest, composable signal for a commodity :n≥2 request that was collapsed to a
+// single execution (never a silent collapse, never an error node). The one real
+// execution still happened, so it reports eligible/total = 1; `suppressed`,
+// `cause`, and `requestedN` record what the user asked for and why it was denied.
+export function buildSuppressedReliabilityMetadata({cause, requestedN}) {
+  return {
+    winnerForkIndex: null,
+    perCriterionVerdict: [],
+    mode: 'suppressed',
+    selectionLayer: 'primary',
+    noSignal: false,
+    tiebreakUsed: false,
+    eligible: 1,
+    total: 1,
+    suppressed: true,
+    cause,
+    requestedN,
+    discardedForks: [],
   }
 }
 

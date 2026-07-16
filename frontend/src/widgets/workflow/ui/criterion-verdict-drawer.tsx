@@ -30,6 +30,7 @@ const MODE_I18N_KEY: Record<ReliabilityMetadata['mode'], string> = {
   fallback: 'workflowTree.verdictDrawer.modeFallback',
   commodity: 'workflowTree.verdictDrawer.modeCommodity',
   invalid: 'workflowTree.verdictDrawer.modeInvalid',
+  suppressed: 'workflowTree.verdictDrawer.modeSuppressed',
 }
 
 const INVALID_FAILURE_CAUSE_I18N_KEY: Record<string, string> = {
