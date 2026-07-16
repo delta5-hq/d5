@@ -10,6 +10,7 @@ import {
 import { setupLLMWorkflow } from './reliability/workflow-lifecycle'
 import {
   nodeTitle,
+  awaitNodeTitle,
   selectRootAndOpenDetail,
   addChildCommand,
   executeAndWaitForCompletion,
@@ -78,8 +79,7 @@ test.describe('Reliability execution contracts', () => {
       const refineId = await addChildCommand(page, tree, rootId, `/refine :n=${n}`)
       await executeRoot(page, tree, rootId)
 
-      const refineTitle = await nodeTitle(page, refineId)
-      expect(refineTitle).toMatch(COMPLETION_SUFFIX_RE)
+      const refineTitle = await awaitNodeTitle(page, refineId, COMPLETION_SUFFIX_RE)
       expect(refineTitle).not.toMatch(/\[✓ refined\]/)
       expect(refineTitle).toMatch(suffixPattern)
     })
@@ -93,8 +93,7 @@ test.describe('Reliability execution contracts', () => {
     const validateId = await addChildCommand(page, tree, refineId, '/validate MOCK_VALIDATE_FAIL — must never pass')
     await executeRoot(page, tree, rootId)
 
-    const refineTitle = await nodeTitle(page, refineId)
-    expect(refineTitle).toMatch(REFINE_FALLBACK_SUFFIX_RE)
+    const refineTitle = await awaitNodeTitle(page, refineId, REFINE_FALLBACK_SUFFIX_RE)
     await expectValidateFailure(page, validateId)
   })
 
@@ -114,8 +113,7 @@ test.describe('Reliability execution contracts', () => {
     )
     await executeRoot(page, tree, rootId)
 
-    const refineTitle = await nodeTitle(page, refineId)
-    expect(refineTitle).toMatch(REFINE_FALLBACK_SUFFIX_RE)
+    const refineTitle = await awaitNodeTitle(page, refineId, REFINE_FALLBACK_SUFFIX_RE)
     await expectValidateFailure(page, validateId)
   })
 
@@ -212,7 +210,6 @@ test.describe('Reliability execution contracts', () => {
 
     await executeAndWaitForCompletion(page, refineDetail)
 
-    const refineTitle = await nodeTitle(page, refineId)
-    expect(refineTitle).toMatch(COMPLETION_SUFFIX_RE)
+    const refineTitle = await awaitNodeTitle(page, refineId, COMPLETION_SUFFIX_RE)
   })
 })

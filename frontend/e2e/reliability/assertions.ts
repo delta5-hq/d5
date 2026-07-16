@@ -8,7 +8,7 @@ import {
   VALIDATE_FAIL_RE,
 } from './suffix-patterns'
 import { persistedChildTitles } from './snapshot'
-import { nodeTitle } from './node-interaction'
+import { nodeTitle, awaitNodeTitle } from './node-interaction'
 
 export async function expectRootWithCommodityChildren(tree: WorkflowTreePage, n: number): Promise<void> {
   await expect(tree.nodes).toHaveCount(n + 1, { timeout: TIMEOUTS.BACKEND_SYNC })
@@ -20,7 +20,7 @@ export async function expectCommodityFullSuccess(
   rootId: string,
   n: number,
 ): Promise<void> {
-  expect(await nodeTitle(page, rootId)).toMatch(COMMODITY_FULL_SUCCESS_SUFFIX_RE(n))
+  await awaitNodeTitle(page, rootId, COMMODITY_FULL_SUCCESS_SUFFIX_RE(n))
   expect(await persistedChildTitles(page, rootId)).toHaveLength(n)
   await expectRootWithCommodityChildren(tree, n)
 }
@@ -31,7 +31,7 @@ export async function expectCommodityOutcomeMatchesChildren(
   rootId: string,
   expectedTotal: number,
 ): Promise<void> {
-  const title = await nodeTitle(page, rootId)
+  const title = await awaitNodeTitle(page, rootId, COMMODITY_OUTCOME_SUFFIX_RE)
   const match = title.match(COMMODITY_OUTCOME_SUFFIX_RE)
   expect(match).not.toBeNull()
 
@@ -56,5 +56,5 @@ export async function expectNoCommodityTokenInChildren(page: Page, tree: Workflo
 }
 
 export async function expectValidateFailure(page: Page, validateId: string): Promise<void> {
-  expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_FAIL_RE)
+  await awaitNodeTitle(page, validateId, VALIDATE_FAIL_RE)
 }

@@ -9,6 +9,24 @@ export async function nodeTitle(page: Page, nodeId: string): Promise<string> {
   return text?.trim() ?? ''
 }
 
+// The reliability suffix renders a beat after awaitExecutionCompleted resolves,
+// so reading the title once races the render under parallel load. Poll the title
+// until it matches the expected completion pattern, then return the stable value.
+export async function awaitNodeTitle(
+  page: Page,
+  nodeId: string,
+  pattern: RegExp,
+  timeout: number = TIMEOUTS.BACKEND_SYNC,
+): Promise<string> {
+  await expect
+    .poll(() => nodeTitle(page, nodeId), {
+      timeout,
+      message: `node ${nodeId} title did not match ${pattern}`,
+    })
+    .toMatch(pattern)
+  return nodeTitle(page, nodeId)
+}
+
 export async function selectRootAndOpenDetail(page: Page) {
   const tree = new WorkflowTreePage(page)
   const detail = new NodeDetailPanelPage(page)

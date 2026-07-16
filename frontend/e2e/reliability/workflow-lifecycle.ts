@@ -28,8 +28,11 @@ export async function purgeQaBotWorkflows(page: Page): Promise<void> {
 export async function setupLLMWorkflow(page: Page): Promise<void> {
   await page.goto('/workflows')
   await qaBotLogin(page)
+  // No purge: qa-bot's workflow cap is raised in the seed, so purging here (which
+  // deletes ALL qa-bot workflows) would wipe a peer parallel worker's in-flight
+  // workflow — the shared-account race that surfaced as `400 Bad Request` on the
+  // workflow GET. Each test creates and drives its own workflow by id instead.
   for (let attempt = 0; attempt < 3; attempt++) {
-    await purgeQaBotWorkflows(page)
     try {
       await createWorkflow(page)
       break
@@ -38,7 +41,6 @@ export async function setupLLMWorkflow(page: Page): Promise<void> {
       await page.waitForTimeout(1000 * (attempt + 1))
     }
   }
-  await page.waitForLoadState('networkidle')
   await page.getByTestId('create-first-node').click()
   await page.locator('[data-node-id]').first().waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
 }

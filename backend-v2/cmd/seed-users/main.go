@@ -121,14 +121,17 @@ func main() {
 			UpdatedAt:      time.Now(),
 		},
 		{
-			ID:             "qa-bot",
-			UserID:         "qa-bot",
-			Name:           "qa-bot",
-			Mail:           "qa-bot@dreaktor.com",
-			Password:       qaBotHash,
-			Roles:          []string{"subscriber"},
-			Confirmed:      true,
-			LimitWorkflows: 10,
+			ID:        "qa-bot",
+			UserID:    "qa-bot",
+			Name:      "qa-bot",
+			Mail:      "qa-bot@dreaktor.com",
+			Password:  qaBotHash,
+			Roles:     []string{"subscriber"},
+			Confirmed: true,
+			// Raised so parallel reliability workers sharing qa-bot don't saturate the
+			// cap; this removes the need for the cross-worker purge that deleted peers'
+			// in-flight workflows (see e2e/reliability/workflow-lifecycle.ts).
+			LimitWorkflows: 500,
 			LimitNodes:     300,
 			CreatedAt:      time.Now(),
 			UpdatedAt:      time.Now(),
