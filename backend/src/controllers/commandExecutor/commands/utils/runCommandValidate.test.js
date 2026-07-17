@@ -528,6 +528,66 @@ describe('runCommand \u2014 /validate with NoopLLM verifier contract', () => {
   })
 })
 
+describe('runCommand — /validate :retry with a superseded prompt node surviving in children (P0.8 reload-shape regression)', () => {
+  const originalMockExternalServices = process.env.MOCK_EXTERNAL_SERVICES
+
+  beforeAll(() => {
+    process.env.MOCK_EXTERNAL_SERVICES = 'true'
+  })
+
+  afterAll(() => {
+    if (originalMockExternalServices === undefined) delete process.env.MOCK_EXTERNAL_SERVICES
+    else process.env.MOCK_EXTERNAL_SERVICES = originalMockExternalServices
+  })
+
+  // Root cause (note-12857 P0.8): the verifier's parent-fallback read source
+  // (extractValidationContent -> NodeTextExtractor.extractFullContent) walks the parent's
+  // whole `children` subtree. After a persistence/reload the authoritative `prompts` linkage
+  // can drop while a superseded attempt-0 prompt-output node survives in `children`; that stale
+  // node is then concatenated into EVERY re-validation, so a criterion keyed to the stale
+  // marker can never clear and the retry loop exhausts to [✗ N×] even though every fresh
+  // regeneration satisfies the criterion. This test constructs that reload shape directly.
+  // The marker is unique so the freshly generated NoopLLM content
+  // (`mock-content-variant-<hash%8> :: <corpus preview>`) can never carry it.
+  const STALE_MARKER = 'STALESENTINEL_P08'
+  const buildReloadShapeStore = () => {
+    const root = {
+      id: 'root',
+      parent: null,
+      command: '/chat produce a short substantive answer',
+      children: ['stale', 'v'],
+      prompts: [],
+    }
+    const stale = {
+      id: 'stale',
+      parent: 'root',
+      title: `mock-content-variant-0 :: ${STALE_MARKER} leftover attempt-0 output`,
+      children: [],
+    }
+    const v = {
+      id: 'v',
+      parent: 'root',
+      command: `/validate ${MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX}${STALE_MARKER} output must avoid the leftover marker :retry=2`,
+      children: [],
+    }
+    const store = buildStore({root, stale, v})
+    writeCachedIntegrationSettings(store, store._userId, null, {})
+    return {root, store}
+  }
+
+  it('does not re-validate the superseded attempt-0 child; recovers instead of exhausting to [✗ 3×]', async () => {
+    const {root, store} = buildReloadShapeStore()
+
+    // Before the fix the stale child keeps the marker present, so the criterion never clears and
+    // runCommand rejects with CriteriaFailedError ([✗ 3×]); after the fix the verifier sources the
+    // parent's authoritative materialized output (prompts) and the run resolves with a pass.
+    await expect(runCommand({queryType: 'chat', cell: root, store})).resolves.toBeUndefined()
+
+    expect(store.getNode('v').title).toMatch(/\[✓/)
+    expect(store.getNode('v').title).not.toMatch(/\[✗/)
+  })
+})
+
 describe('runCommand \u2014 non-CriteriaFailedError from post-processors is swallowed', () => {
   it('resolves normally when a non-validate post-processor throws a generic error', async () => {
     const store = buildStore({

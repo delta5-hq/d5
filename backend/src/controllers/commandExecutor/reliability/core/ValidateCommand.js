@@ -47,6 +47,27 @@ const extractValidationContent = async (parentNode, store) => {
     return summaryOutputs.join('\n')
   }
 
+  // Parent fallback: source the parent's authoritative current materialized output — the nodes
+  // in `parentNode.prompts` — instead of walking the whole `children` subtree. A superseded
+  // attempt-0 prompt-output node can survive in `children` after a persistence/reload (its
+  // `prompts` linkage dropped), and extractFullContent(parentNode) would concatenate that stale
+  // content into every re-validation, so a retry could never clear a content-keyed criterion
+  // (note-12857 P0.8). Reading `prompts` is the authoritative-output pattern of
+  // ForkLeafExtractor.extractForkLeafOutputs.
+  const promptOutputs = []
+  for (const promptId of parentNode.prompts ?? []) {
+    const promptNode = store.getNode(promptId)
+    if (!promptNode) continue
+    const content = await extractor.extractFullContent(promptNode)
+    if (content.trim()) {
+      promptOutputs.push(content)
+    }
+  }
+
+  if (promptOutputs.length) {
+    return promptOutputs.join('\n')
+  }
+
   return extractor.extractFullContent(parentNode)
 }
 
