@@ -155,13 +155,25 @@ test.describe('Reliability execution contracts', () => {
   // ── UI state and persistence ───────────────────────────────────────────────
 
   test('executing visual state — abort button appears during execution and disappears on completion', async ({ page }) => {
-    const { detail } = await selectRootAndOpenDetail(page)
-    await detail.fillCommand('/chat :n=2 List 3 colors')
-    await detail.execute()
+    const { tree, detail, rootId } = await selectRootAndOpenDetail(page)
+    await detail.fillCommand('/chat List 3 colors')
+    // A single /chat under the mock backend keeps the root in executingNodeIds for only a
+    // sub-second, optimistic-then-cleared window, which raced the transient abort button under
+    // Firefox + parallel-worker load. A failing /validate with retries re-runs the parent
+    // sequentially, holding the root "executing" for a reliably observable window.
+    await addChildCommand(page, tree, rootId, '/validate MOCK_VALIDATE_FAIL — never passes :retry=2')
+    await tree.selectNode(rootId)
+    await detail.waitForComponent()
 
-    await expect(page.getByTestId('abort-node-button')).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
-    await page.getByTestId('abort-node-button').waitFor({ state: 'hidden', timeout: LLM_TIMEOUT })
-    await expect(page.getByTestId('abort-node-button')).not.toBeVisible()
+    // Arm the visibility waiter BEFORE triggering so the appearance can't be missed by an
+    // assertion that only starts polling after the click resolves.
+    const abortButton = page.getByTestId('abort-node-button')
+    const abortAppeared = abortButton.waitFor({ state: 'visible', timeout: LLM_TIMEOUT })
+    await detail.execute()
+    await abortAppeared
+
+    await abortButton.waitFor({ state: 'hidden', timeout: LLM_TIMEOUT })
+    await expect(abortButton).not.toBeVisible()
   })
 
   test('reload persistence — full-success suffix and child count survive a full page reload', async ({ page }) => {
