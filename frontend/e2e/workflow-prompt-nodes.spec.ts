@@ -60,5 +60,46 @@ test.describe('Workflow prompt node behavior', () => {
     await expect(firstPrompt).toHaveClass(/opacity-60/)
     await expect(secondPrompt).toHaveAttribute('data-prompt-node', 'true')
     await expect(secondPrompt).toHaveClass(/opacity-60/)
+
+    await detail.importTextAsPrompts()
+
+    await expect(tree.nodesAtDepth(1)).toHaveCount(2)
+    await expect(tree.nodesAtDepth(1).filter({ hasText: /^First paragraph$/ })).toHaveCount(1)
+    await expect(tree.nodesAtDepth(1).filter({ hasText: /^Second paragraph$/ })).toHaveCount(1)
+  })
+
+  test('multi-paragraph title entered in the UI imports one prompt child per paragraph', async ({ page }) => {
+    const workflowId = await createWorkflow(page)
+    await page.goto(`/workflow/${workflowId}`)
+
+    const tree = new WorkflowTreePage(page)
+    const detail = new NodeDetailPanelPage(page)
+
+    await page.getByTestId('create-first-node').click()
+    await tree.firstNode.waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
+    await page.keyboard.press('Escape')
+
+    const rootId = await tree.rootNodeId()
+    await tree.selectNode(rootId)
+    await detail.waitForComponent()
+
+    await detail.root.getByText('Root Node').dblclick()
+    await detail.root.getByRole('textbox').first().fill('First paragraph\n\nSecond paragraph\n\nThird paragraph')
+    await detail.root.getByRole('textbox').first().blur()
+    await detail.importTextAsPrompts()
+
+    await expect(tree.nodesAtDepth(1)).toHaveCount(3, { timeout: TIMEOUTS.UI_UPDATE })
+    await expect(tree.nodesAtDepth(1).filter({ hasText: /^First paragraph$/ })).toHaveAttribute(
+      'data-prompt-node',
+      'true',
+    )
+    await expect(tree.nodesAtDepth(1).filter({ hasText: /^Second paragraph$/ })).toHaveAttribute(
+      'data-prompt-node',
+      'true',
+    )
+    await expect(tree.nodesAtDepth(1).filter({ hasText: /^Third paragraph$/ })).toHaveAttribute(
+      'data-prompt-node',
+      'true',
+    )
   })
 })

@@ -5,18 +5,22 @@ import {
   addChildNode,
   addPromptChild as addPromptChildPure,
   removePromptChildren as removePromptChildrenPure,
-  orphanMatchingPromptChildren as orphanMatchingPromptChildrenPure,
   updateNode as updateNodePure,
   removeNode as removeNodePure,
   moveNode as moveNodePure,
   duplicateNode as duplicateNodePure,
+  wrapNodesInParent,
   NodeMutationError,
   resolveSelectionAfterDelete,
   getTopLevelIds,
+  isStepsNode,
+  applySequentialPrefixes,
+  reorderAndRenumberStepsChildren,
 } from '@entities/workflow/lib'
 import { toast } from 'sonner'
 import type { WorkflowStoreState } from './workflow-store-types'
 import type { DebouncedPersister } from './workflow-store-persistence'
+import type { HistoryStack } from './workflow-store-history'
 import { excludeIds } from './workflow-store-set-utils'
 import { createPromptNodesFromText } from './text-to-prompts-splitter'
 
@@ -40,10 +44,13 @@ export function bindMutationActions(
   store: Store<WorkflowStoreState>,
   persister: DebouncedPersister,
   formatMessage: FormatMessage,
+  historyStack: HistoryStack,
 ) {
   function applyMutation<T>(mutationFn: () => T, onSuccess: (result: T) => void): T | null {
     try {
       const result = mutationFn()
+      const { nodes, edges, root } = store.getState()
+      historyStack.checkpoint({ nodes, edges, root })
       onSuccess(result)
       store.setState({ isDirty: true })
       persister.schedule()
@@ -73,7 +80,7 @@ export function bindMutationActions(
     return (
       applyMutation(
         () => addChildNode(nodes, parentId, nodeData),
-        result => store.setState({ nodes: result.nodes }),
+        result => store.setState({ nodes: applySequentialPrefixes(result.nodes, parentId) }),
       )?.newId ?? null
     )
   }
@@ -85,17 +92,26 @@ export function bindMutationActions(
     return addChild(node.parent, nodeData)
   }
 
-  const updateNode = (nodeId: NodeId, updates: Partial<Omit<NodeData, 'id' | 'parent'>>): boolean =>
-    applyMutation(
-      () => updateNodePure(store.getState().nodes, nodeId, updates),
-      result => {
-        const { dirtyNodeIds } = store.getState()
-        store.setState({ nodes: result, dirtyNodeIds: new Set([...dirtyNodeIds, nodeId]) })
-      },
-    ) !== null
+  const updateNode = (nodeId: NodeId, updates: Partial<Omit<NodeData, 'id' | 'parent'>>): boolean => {
+    const currentNodes = store.getState().nodes
+    const parentId = currentNodes[nodeId]?.parent
+    return (
+      applyMutation(
+        () => updateNodePure(currentNodes, nodeId, updates),
+        result => {
+          const { dirtyNodeIds } = store.getState()
+          const finalNodes = 'title' in updates && parentId ? reorderAndRenumberStepsChildren(result, parentId) : result
+          store.setState({ nodes: finalNodes, dirtyNodeIds: new Set([...dirtyNodeIds, nodeId]) })
+        },
+      ) !== null
+    )
+  }
 
   const removeNode = (nodeId: NodeId): boolean => {
     const { nodes, edges, selectedId, selectedIds, anchorId } = store.getState()
+    const removedNodeParent = nodes[nodeId]?.parent
+    const stepsParentId =
+      removedNodeParent && isStepsNode(nodes[removedNodeParent] ?? ({} as NodeData)) ? removedNodeParent : undefined
     const nextSelectedId = selectedId !== undefined ? resolveSelectionAfterDelete(nodes, nodeId) : undefined
     return (
       applyMutation(
@@ -113,8 +129,9 @@ export function bindMutationActions(
 
           const { dirtyNodeIds } = store.getState()
           const cleanedDirtyIds = excludeIds(dirtyNodeIds, removedSet)
+          const finalNodes = stepsParentId ? applySequentialPrefixes(result.nodes, stepsParentId) : result.nodes
           store.setState({
-            nodes: result.nodes,
+            nodes: finalNodes,
             edges: result.edges,
             ...(selectionAffected && { selectedId: nextSelectedId }),
             ...(newSelectedIds !== selectedIds && { selectedIds: newSelectedIds }),
@@ -136,6 +153,13 @@ export function bindMutationActions(
 
     if (deletableIds.length === 0) return 0
 
+    const stepsParentIds = new Set<NodeId>()
+    for (const id of deletableIds) {
+      const parentId = nodes[id]?.parent
+      const parentNode = parentId ? nodes[parentId] : undefined
+      if (parentId && parentNode && isStepsNode(parentNode)) stepsParentIds.add(parentId)
+    }
+
     let currentNodes = nodes
     let currentEdges = edges
     let totalRemoved = 0
@@ -156,6 +180,11 @@ export function bindMutationActions(
 
     if (totalRemoved === 0) return 0
 
+    let finalNodes = currentNodes
+    for (const parentId of stepsParentIds) {
+      if (finalNodes[parentId]) finalNodes = applySequentialPrefixes(finalNodes, parentId)
+    }
+
     const survivorIds = excludeIds(selectedIds, removedSet)
     const lastSurvivor = survivorIds.size > 0 ? [...survivorIds].at(-1) : undefined
     const anchorAffected = anchorId !== undefined && removedSet.has(anchorId)
@@ -163,7 +192,7 @@ export function bindMutationActions(
     const cleanedDirtyIds = excludeIds(dirtyNodeIds, removedSet)
 
     store.setState({
-      nodes: currentNodes,
+      nodes: finalNodes,
       edges: currentEdges,
       selectedId: lastSurvivor,
       selectedIds: survivorIds,
@@ -186,11 +215,23 @@ export function bindMutationActions(
     return totalRemoved
   }
 
-  const moveNode = (nodeId: NodeId, newParentId: NodeId): boolean =>
-    applyMutation(
-      () => moveNodePure(store.getState().nodes, nodeId, newParentId),
-      result => store.setState({ nodes: result }),
-    ) !== null
+  const moveNode = (nodeId: NodeId, newParentId: NodeId): boolean => {
+    const { nodes } = store.getState()
+    const oldParentId = nodes[nodeId]?.parent
+    return (
+      applyMutation(
+        () => moveNodePure(nodes, nodeId, newParentId),
+        result => {
+          let finalNodes = result
+          if (oldParentId && oldParentId !== newParentId) {
+            finalNodes = applySequentialPrefixes(finalNodes, oldParentId)
+          }
+          finalNodes = applySequentialPrefixes(finalNodes, newParentId)
+          store.setState({ nodes: finalNodes })
+        },
+      ) !== null
+    )
+  }
 
   const addPromptChild = (parentId: NodeId, nodeData: Partial<NodeData>): NodeId | null => {
     const { nodes } = store.getState()
@@ -222,14 +263,6 @@ export function bindMutationActions(
     if (!text.trim()) return 0
 
     const promptNodes = createPromptNodesFromText(parentId, text)
-    const incomingTitles = new Set(promptNodes.map(n => n.title ?? ''))
-
-    try {
-      const orphaned = orphanMatchingPromptChildrenPure(store.getState().nodes, parentId, incomingTitles)
-      store.setState({ nodes: orphaned })
-    } catch {
-      return 0
-    }
 
     if (!removePromptChildren(parentId)) return 0
 
@@ -240,6 +273,20 @@ export function bindMutationActions(
     }
 
     return imported
+  }
+
+  const wrapNodes = (nodeIds: Set<NodeId>): NodeId | null => {
+    const { nodes, edges } = store.getState()
+    const ordered = [...nodeIds]
+    return (
+      applyMutation(
+        () => wrapNodesInParent(nodes, edges, ordered),
+        result => {
+          store.setState({ nodes: result.nodes, edges: result.edges })
+          store.setState({ selectedId: result.newParentId, selectedIds: new Set([result.newParentId]) })
+        },
+      )?.newParentId ?? null
+    )
   }
 
   return {
@@ -254,5 +301,6 @@ export function bindMutationActions(
     moveNode,
     duplicateNode,
     importTextAsPrompts,
+    wrapNodes,
   }
 }

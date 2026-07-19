@@ -9,6 +9,8 @@ export interface TreeNodeCallbacks {
   onDuplicateNode?: (nodeId: string) => void
   onRename?: (nodeId: string, newTitle: string) => void
   onRequestRename?: (nodeId: string) => void
+  onWrapNodes?: (nodeId: string) => void
+  onToggleChecked?: (nodeId: string) => void
 }
 
 export interface TreeNode {

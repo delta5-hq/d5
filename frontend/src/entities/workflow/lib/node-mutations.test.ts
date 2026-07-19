@@ -10,6 +10,7 @@ import {
   addPromptChild,
   removePromptChildren,
   orphanMatchingPromptChildren,
+  wrapNodesInParent,
   NodeMutationError,
 } from './node-mutations'
 
@@ -766,6 +767,122 @@ describe('orphanMatchingPromptChildren', () => {
       const err = getError(() => orphanMatchingPromptChildren({}, 'missing', new Set(['x'])))
       expect(err).toBeInstanceOf(NodeMutationError)
       expect(err.code).toBe('PARENT_NOT_FOUND')
+    })
+  })
+})
+
+describe('wrapNodesInParent', () => {
+  const makeTree = (): Record<string, NodeData> => ({
+    root: { id: 'root', title: 'Root', parent: undefined, children: ['a', 'b', 'c'] },
+    a: { id: 'a', title: 'A', parent: 'root', children: [] },
+    b: { id: 'b', title: 'B', parent: 'root', children: [] },
+    c: { id: 'c', title: 'C', parent: 'root', children: [] },
+  })
+
+  const emptyEdges: Record<string, EdgeData> = {}
+
+  describe('new parent shape', () => {
+    it('new parent has empty title and is parented to original parent', () => {
+      const { nodes, newParentId } = wrapNodesInParent(makeTree(), emptyEdges, ['a'])
+      expect(nodes[newParentId].title).toBe('')
+      expect(nodes[newParentId].parent).toBe('root')
+    })
+
+    it('new parent children list contains exactly the wrapped nodes', () => {
+      const { nodes, newParentId } = wrapNodesInParent(makeTree(), emptyEdges, ['a', 'b'])
+      expect(nodes[newParentId].children).toEqual(['a', 'b'])
+    })
+
+    it('wrapped nodes are reparented to new parent', () => {
+      const { nodes, newParentId } = wrapNodesInParent(makeTree(), emptyEdges, ['a', 'b'])
+      expect(nodes['a'].parent).toBe(newParentId)
+      expect(nodes['b'].parent).toBe(newParentId)
+    })
+  })
+
+  describe('insertion position', () => {
+    it('new parent is inserted at position of first wrapped node (first two)', () => {
+      const { nodes, newParentId } = wrapNodesInParent(makeTree(), emptyEdges, ['a', 'b'])
+      expect(nodes['root'].children.indexOf(newParentId)).toBe(0)
+    })
+
+    it('new parent is inserted at position of first wrapped node (middle two)', () => {
+      const { nodes, newParentId } = wrapNodesInParent(makeTree(), emptyEdges, ['b', 'c'])
+      expect(nodes['root'].children.indexOf(newParentId)).toBe(1)
+    })
+
+    it('non-wrapped siblings remain in original parent', () => {
+      const { nodes, newParentId } = wrapNodesInParent(makeTree(), emptyEdges, ['a', 'b'])
+      expect(nodes['root'].children).toEqual([newParentId, 'c'])
+    })
+  })
+
+  describe('ordering', () => {
+    it('wrapped nodes appear in parent-children order regardless of input order', () => {
+      const { nodes, newParentId } = wrapNodesInParent(makeTree(), emptyEdges, ['c', 'a'])
+      expect(nodes[newParentId].children).toEqual(['a', 'c'])
+    })
+
+    it('single-node wrap places exactly that node under new parent', () => {
+      const { nodes, newParentId } = wrapNodesInParent(makeTree(), emptyEdges, ['b'])
+      expect(nodes[newParentId].children).toEqual(['b'])
+      expect(nodes['b'].parent).toBe(newParentId)
+    })
+
+    it('wrapping all children leaves original parent with only new parent', () => {
+      const { nodes, newParentId } = wrapNodesInParent(makeTree(), emptyEdges, ['a', 'b', 'c'])
+      expect(nodes['root'].children).toEqual([newParentId])
+    })
+  })
+
+  describe('edges passthrough', () => {
+    it('returns the same edges reference when no edges are removed', () => {
+      const { edges } = wrapNodesInParent(makeTree(), emptyEdges, ['a'])
+      expect(edges).toBe(emptyEdges)
+    })
+  })
+
+  describe('error handling', () => {
+    it('throws NODE_NOT_FOUND for empty nodeIds array', () => {
+      const err = getError(() => wrapNodesInParent(makeTree(), emptyEdges, []))
+      expect(err).toBeInstanceOf(NodeMutationError)
+      expect(err.code).toBe('NODE_NOT_FOUND')
+    })
+
+    it('throws NODE_NOT_FOUND when a nodeId does not exist in nodes', () => {
+      const err = getError(() => wrapNodesInParent(makeTree(), emptyEdges, ['missing']))
+      expect(err).toBeInstanceOf(NodeMutationError)
+      expect(err.code).toBe('NODE_NOT_FOUND')
+    })
+
+    it('throws CANNOT_MOVE_ROOT when first node has no parent', () => {
+      const nodes = { root: { id: 'root', title: 'Root', children: [] } }
+      const err = getError(() => wrapNodesInParent(nodes, emptyEdges, ['root']))
+      expect(err).toBeInstanceOf(NodeMutationError)
+      expect(err.code).toBe('CANNOT_MOVE_ROOT')
+    })
+
+    it('throws PARENT_NOT_FOUND when nodeIds span different parents', () => {
+      const tree = makeTree()
+      tree['a'] = { ...tree['a'], parent: 'other' }
+      const err = getError(() => wrapNodesInParent(tree, emptyEdges, ['a', 'b']))
+      expect(err).toBeInstanceOf(NodeMutationError)
+      expect(err.code).toBe('PARENT_NOT_FOUND')
+    })
+  })
+
+  describe('immutability', () => {
+    it('does not mutate original parent children array', () => {
+      const original = makeTree()
+      const before = [...original['root'].children!]
+      wrapNodesInParent(original, emptyEdges, ['a', 'b'])
+      expect(original['root'].children).toEqual(before)
+    })
+
+    it('does not mutate wrapped node parent field on original', () => {
+      const original = makeTree()
+      wrapNodesInParent(original, emptyEdges, ['a', 'b'])
+      expect(original['a'].parent).toBe('root')
     })
   })
 })

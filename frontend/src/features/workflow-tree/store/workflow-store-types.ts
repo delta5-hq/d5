@@ -48,6 +48,10 @@ export interface WorkflowStoreActions {
 
   executeCommand: (node: NodeData, queryType: string) => Promise<boolean>
   abortExecution: (nodeId: NodeId) => void
+
+  wrapNodes: (nodeIds: Set<NodeId>) => NodeId | null
+  undo: () => void
+  redo: () => void
 }
 
 export const INITIAL_WORKFLOW_STATE: Omit<WorkflowStoreState, 'workflowId'> = {

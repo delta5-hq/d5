@@ -22,7 +22,6 @@ import { Button } from '@shared/ui/button'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { getDescendantIds, normalizeNodeTitle, hasUsableRoot } from '@entities/workflow/lib'
 import { useClickOutside } from '@shared/lib/hooks'
-import { isSlashCommand } from '@shared/lib/commands/command-validator'
 import { matchesAnyCommandWithOrder } from '@shared/lib/command-validation'
 import { deriveNodeTitle } from '@shared/lib/reliability-suffix'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
@@ -71,7 +70,6 @@ const WorkflowContent = () => {
     if (autoFocusCommandNodeId) setAutoFocusCommandNodeId(undefined)
   }, [autoFocusCommandNodeId])
 
-  const hasValidCommand = useMemo(() => isSlashCommand(selectedNode?.command), [selectedNode?.command])
   const visibleOrderRef = useRef<readonly string[]>([])
   const treeContainerRef = useRef<HTMLDivElement>(null)
   const workspaceContainerRef = useRef<HTMLDivElement>(null)
@@ -98,6 +96,10 @@ const WorkflowContent = () => {
     onRequestEdit: setAutoEditNodeId,
     onRequestDelete: setPendingDeleteId,
     onRequestDeleteMultiple: setPendingDeleteIds,
+    onRequestWrap: nodeIds => {
+      const newId = actions.wrapNodes(nodeIds)
+      if (newId) setFlashNodeId(newId)
+    },
   })
 
   useClickOutside({
@@ -223,6 +225,15 @@ const WorkflowContent = () => {
       }
     },
     [actions],
+  )
+
+  const handleWrapNodes = useCallback(
+    (nodeId: string) => {
+      const toWrap = selectedIds.size > 1 && selectedIds.has(nodeId) ? selectedIds : new Set([nodeId])
+      const newId = actions.wrapNodes(toWrap)
+      if (newId) setFlashNodeId(newId)
+    },
+    [actions, selectedIds],
   )
 
   const handleCloseDetailPanel = useCallback(() => {
@@ -355,6 +366,7 @@ const WorkflowContent = () => {
             onAddChild={handleAddChild}
             onDelete={handleDelete}
             onDuplicateNode={handleDuplicateNode}
+            onWrapNodes={handleWrapNodes}
             onRename={handleRename}
             onRequestRename={handleRequestRename}
             onSelect={handleSelect}
@@ -375,8 +387,8 @@ const WorkflowContent = () => {
           {selectedNode ? (
             <NodeDetailPanel
               autoFocusCommand={autoFocusCommandNodeId === selectedId}
-              autoFocusTitle={autoEditNodeId === selectedId}
-              executeDisabled={isSelectedNodeExecuting || !hasValidCommand}
+              autoFocusTitle={false}
+              executeDisabled={isSelectedNodeExecuting}
               isExecuting={isSelectedNodeExecuting}
               isPrompt={isSelectedNodePrompt}
               key={selectedNode.id}

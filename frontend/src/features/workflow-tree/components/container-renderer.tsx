@@ -28,6 +28,7 @@ export const ContainerRenderer = ({
   onDuplicateNode,
   onRename,
   onRequestRename,
+  onWrapNodes,
   autoEditNodeId,
 }: ContainerRendererProps) => {
   const ContainerComponent = container.config.component || DefaultContainerWrapper
@@ -48,6 +49,7 @@ export const ContainerRenderer = ({
         onAddChild={onAddChild}
         onDelete={onDelete}
         onDuplicateNode={onDuplicateNode}
+        onWrapNodes={onWrapNodes}
         onRename={onRename}
         onRequestRename={onRequestRename}
         onSelect={onSelect}
@@ -85,6 +87,7 @@ export const ContainerRenderer = ({
               onAddChild={onAddChild}
               onDelete={onDelete}
               onDuplicateNode={onDuplicateNode}
+              onWrapNodes={onWrapNodes}
               onRename={onRename}
               onRequestRename={onRequestRename}
               onSelect={onSelect}

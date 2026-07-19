@@ -344,20 +344,84 @@ describe('NodeDetailPanel — Execute button behavior', () => {
       expect(onExecute).toHaveBeenCalledTimes(1)
     })
 
-    it('is enabled for an unregistered slash command when executeDisabled is false', () => {
+    it('disables a non-slash command and shows validation feedback', () => {
+      const node = makeNode({ command: 'not a slash command' })
+      const onExecute = vi.fn().mockResolvedValue(true)
+      renderPanel(node, false, { onExecute, executeDisabled: false })
+
+      expect(screen.getByTestId('execute-node-button')).toBeDisabled()
+      expect(screen.getByTestId('command-validation-message')).toHaveTextContent('Enter a valid slash command')
+
+      fireEvent.click(screen.getByTestId('execute-node-button'))
+
+      expect(onExecute).not.toHaveBeenCalled()
+    })
+
+    it('enables an unregistered slash command so the backend can report the unknown-alias error', () => {
       const node = makeNode({ command: '/unregistered-alias task' })
       const onExecute = vi.fn().mockResolvedValue(true)
       renderPanel(node, false, { onExecute, executeDisabled: false })
 
-      fireEvent.click(screen.getByTestId('execute-node-button'))
+      expect(screen.getByTestId('execute-node-button')).toBeEnabled()
+      expect(screen.queryByTestId('command-validation-message')).not.toBeInTheDocument()
+    })
 
-      expect(onExecute).toHaveBeenCalledTimes(1)
+    it('validates the current command draft instead of the previous committed value', () => {
+      const node = makeNode({ command: '' })
+      const onExecute = vi.fn().mockResolvedValue(true)
+      renderPanel(node, false, { onExecute, executeDisabled: false })
+      const commandField = screen.getByPlaceholderText(/command/i)
+      const executeButton = screen.getByTestId('execute-node-button')
+
+      expect(executeButton).toBeDisabled()
+
+      fireEvent.change(commandField, { target: { value: '/chat ok' } })
+      expect(executeButton).toBeEnabled()
+
+      fireEvent.change(commandField, { target: { value: 'not a command' } })
+      expect(executeButton).toBeDisabled()
+
+      fireEvent.change(commandField, { target: { value: '/chat ok again' } })
+      expect(executeButton).toBeEnabled()
+
+      fireEvent.click(executeButton)
+
+      expect(onExecute).toHaveBeenCalledWith(expect.objectContaining({ command: '/chat ok again' }), 'chat')
     })
     it('does not render when node is root', () => {
       const node = makeNode({ command: '/chat test', parent: null })
       renderPanel(node, true, {})
 
       expect(screen.queryByTestId('execute-node-button')).not.toBeInTheDocument()
+    })
+
+    it('empty command draft is disabled without showing a validation message', () => {
+      const node = makeNode({ command: '' })
+      renderPanel(node, false, { executeDisabled: false })
+
+      expect(screen.getByTestId('execute-node-button')).toBeDisabled()
+      expect(screen.queryByTestId('command-validation-message')).not.toBeInTheDocument()
+    })
+
+    it('executeDisabled prop disables the button even when the draft is a valid command', () => {
+      const node = makeNode({ command: '/chat ok' })
+      renderPanel(node, false, { executeDisabled: true })
+
+      expect(screen.getByTestId('execute-node-button')).toBeDisabled()
+    })
+
+    it('switching to a different node resets draft validation to the incoming node command', () => {
+      const nodeA = makeNode({ id: 'a', command: '/chat valid' })
+      const nodeB = makeNode({ id: 'b', command: '' })
+      const onExecute = vi.fn().mockResolvedValue(true)
+
+      const { rerender } = renderPanel(nodeA, false, { onExecute, executeDisabled: false })
+      expect(screen.getByTestId('execute-node-button')).toBeEnabled()
+
+      rerender(<NodeDetailPanel {...makeProps(nodeB, false, { onExecute, executeDisabled: false })} />)
+
+      expect(screen.getByTestId('execute-node-button')).toBeDisabled()
+      expect(screen.queryByTestId('command-validation-message')).not.toBeInTheDocument()
     })
   })
 })
@@ -415,5 +479,38 @@ describe('NodeDetailPanel — handleCommandChange title sync', () => {
     fireEvent.blur(textarea)
 
     expect(onUpdateNode).toHaveBeenCalledWith('n1', { command: '/chat list fruits' })
+  })
+})
+
+describe('NodeDetailPanel — autoFocusTitle prop', () => {
+  it('title field is in read-only mode when autoFocusTitle is false', () => {
+    renderPanel(makeNode(), false, { autoFocusTitle: false })
+
+    expect(screen.queryByDisplayValue('Test Node')).not.toBeInTheDocument()
+  })
+
+  it('title field enters edit mode when autoFocusTitle is true', () => {
+    renderPanel(makeNode(), false, { autoFocusTitle: true })
+
+    expect(screen.getByDisplayValue('Test Node')).toBeInTheDocument()
+  })
+
+  it('title field enters edit mode when autoFocusTitle transitions from false to true', () => {
+    const node = makeNode()
+    const { rerender } = renderPanel(node, false, { autoFocusTitle: false })
+    expect(screen.queryByDisplayValue('Test Node')).not.toBeInTheDocument()
+
+    rerender(<NodeDetailPanel {...makeProps(node, false, { autoFocusTitle: true })} />)
+
+    expect(screen.getByDisplayValue('Test Node')).toBeInTheDocument()
+  })
+
+  it('title field returns to read-only after user cancels the auto-focused edit', () => {
+    renderPanel(makeNode(), false, { autoFocusTitle: true })
+    const textarea = screen.getByDisplayValue('Test Node')
+    fireEvent.keyDown(textarea, { key: 'Escape' })
+
+    expect(screen.queryByDisplayValue('Test Node')).not.toBeInTheDocument()
+    expect(screen.getByText('Test Node')).toBeInTheDocument()
   })
 })

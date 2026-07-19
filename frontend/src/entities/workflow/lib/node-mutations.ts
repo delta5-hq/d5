@@ -384,3 +384,63 @@ export const duplicateNode = (
     idMapping,
   }
 }
+
+export interface WrapNodesResult {
+  nodes: Record<NodeId, NodeData>
+  edges: Record<EdgeId, EdgeData>
+  newParentId: NodeId
+}
+
+export const wrapNodesInParent = (
+  nodes: Record<NodeId, NodeData>,
+  edges: Record<EdgeId, EdgeData>,
+  nodeIds: NodeId[],
+): WrapNodesResult => {
+  if (nodeIds.length === 0) {
+    throw new NodeMutationError('No nodes to wrap', 'NODE_NOT_FOUND')
+  }
+
+  const firstNode = nodes[nodeIds[0]]
+  if (!firstNode) {
+    throw new NodeMutationError(`Node "${nodeIds[0]}" not found`, 'NODE_NOT_FOUND')
+  }
+  if (!firstNode.parent) {
+    throw new NodeMutationError('Cannot wrap root node', 'CANNOT_MOVE_ROOT')
+  }
+
+  const sharedParentId = firstNode.parent
+  for (const id of nodeIds) {
+    const n = nodes[id]
+    if (!n) throw new NodeMutationError(`Node "${id}" not found`, 'NODE_NOT_FOUND')
+    if (n.parent !== sharedParentId) {
+      throw new NodeMutationError('All wrapped nodes must share the same parent', 'PARENT_NOT_FOUND')
+    }
+  }
+
+  const parentNode = nodes[sharedParentId]
+  const parentChildren = parentNode.children ?? []
+  const wrapSet = new Set(nodeIds)
+
+  const orderedToWrap = parentChildren.filter(id => wrapSet.has(id))
+  const insertionIndex = parentChildren.indexOf(orderedToWrap[0])
+
+  const newParentId = generateUniqueNodeId(nodes)
+  const newParent: NodeData = {
+    title: '',
+    id: newParentId,
+    parent: sharedParentId,
+    children: orderedToWrap,
+  }
+
+  const newNodes: Record<NodeId, NodeData> = { ...nodes, [newParentId]: newParent }
+
+  const remainingChildren = parentChildren.filter(id => !wrapSet.has(id))
+  remainingChildren.splice(insertionIndex, 0, newParentId)
+  newNodes[sharedParentId] = { ...parentNode, children: remainingChildren }
+
+  for (const id of orderedToWrap) {
+    newNodes[id] = { ...newNodes[id], parent: newParentId }
+  }
+
+  return { nodes: newNodes, edges, newParentId }
+}

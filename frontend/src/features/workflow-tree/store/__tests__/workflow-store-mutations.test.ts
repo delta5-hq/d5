@@ -64,6 +64,10 @@ function makePersister(): DebouncedPersister {
   return { schedule: vi.fn(), flush: vi.fn(), cancel: vi.fn(), destroy: vi.fn() }
 }
 
+function makeHistory() {
+  return { checkpoint: vi.fn(), undo: vi.fn(), redo: vi.fn(), clear: vi.fn() }
+}
+
 const mockFormatMessage: FormatMessage = (d: { id: string }) => d.id
 
 describe('bindMutationActions', () => {
@@ -74,7 +78,7 @@ describe('bindMutationActions', () => {
   it('createRoot adds node and marks dirty', () => {
     const store = makeStore()
     const persister = makePersister()
-    const { createRoot } = bindMutationActions(store, persister, mockFormatMessage)
+    const { createRoot } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     const newId = createRoot({ title: 'Root' })
 
@@ -88,7 +92,7 @@ describe('bindMutationActions', () => {
   it('addChild adds child node', () => {
     const store = makeStore({ nodes: { p1: { id: 'p1', children: [] } } as WorkflowStoreState['nodes'] })
     const persister = makePersister()
-    const { addChild } = bindMutationActions(store, persister, mockFormatMessage)
+    const { addChild } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     const newId = addChild('p1', { title: 'Child' })
 
@@ -105,7 +109,7 @@ describe('bindMutationActions', () => {
         } as WorkflowStoreState['nodes'],
       })
       const persister = makePersister()
-      const { addSibling } = bindMutationActions(store, persister, mockFormatMessage)
+      const { addSibling } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       const newId = addSibling('n1', { title: 'Sibling' })
 
@@ -119,7 +123,7 @@ describe('bindMutationActions', () => {
         nodes: { root: { id: 'root', children: [] } } as WorkflowStoreState['nodes'],
       })
       const persister = makePersister()
-      const { addSibling } = bindMutationActions(store, persister, mockFormatMessage)
+      const { addSibling } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       const newId = addSibling('root', { title: 'Sibling' })
 
@@ -131,7 +135,7 @@ describe('bindMutationActions', () => {
     it('returns null when node does not exist', () => {
       const store = makeStore({ nodes: {} })
       const persister = makePersister()
-      const { addSibling } = bindMutationActions(store, persister, mockFormatMessage)
+      const { addSibling } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       const newId = addSibling('ghost', { title: 'Sibling' })
 
@@ -147,7 +151,7 @@ describe('bindMutationActions', () => {
         } as WorkflowStoreState['nodes'],
       })
       const persister = makePersister()
-      const { addSibling } = bindMutationActions(store, persister, mockFormatMessage)
+      const { addSibling } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       const newId = addSibling('n1', { title: 'New Sibling', command: '/new' })
 
@@ -162,7 +166,7 @@ describe('bindMutationActions', () => {
         nodes: { n1: { id: 'n1', title: 'old' } } as WorkflowStoreState['nodes'],
       })
       const persister = makePersister()
-      const { updateNode } = bindMutationActions(store, persister, mockFormatMessage)
+      const { updateNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       const ok = updateNode('n1', { title: 'new' })
 
@@ -179,7 +183,7 @@ describe('bindMutationActions', () => {
         } as WorkflowStoreState['nodes'],
       })
       const persister = makePersister()
-      const { updateNode } = bindMutationActions(store, persister, mockFormatMessage)
+      const { updateNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       updateNode('n1', { title: 'a2' })
       updateNode('n2', { title: 'b2' })
@@ -192,7 +196,7 @@ describe('bindMutationActions', () => {
         nodes: { n1: { id: 'n1', title: 'a' } } as WorkflowStoreState['nodes'],
       })
       const persister = makePersister()
-      const { updateNode } = bindMutationActions(store, persister, mockFormatMessage)
+      const { updateNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       updateNode('n1', { title: 'b' })
       updateNode('n1', { title: 'c' })
@@ -210,7 +214,7 @@ describe('bindMutationActions', () => {
         nodes: { n1: { id: 'n1' } } as WorkflowStoreState['nodes'],
       })
       const persister = makePersister()
-      const { updateNode } = bindMutationActions(store, persister, mockFormatMessage)
+      const { updateNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       updateNode('n1', { title: 'x' })
 
@@ -225,7 +229,7 @@ describe('bindMutationActions', () => {
         dirtyNodeIds: new Set(['n1', 'n2']),
       })
       const persister = makePersister()
-      const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       removeNode('n1')
 
@@ -239,7 +243,7 @@ describe('bindMutationActions', () => {
         dirtyNodeIds: initialDirtyNodeIds,
       })
       const persister = makePersister()
-      const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       removeNode('n1')
 
@@ -265,7 +269,7 @@ describe('bindMutationActions', () => {
         dirtyNodeIds: new Set(['a', 'b', 'c']),
       })
       const persister = makePersister()
-      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       removeNodes(new Set(['a', 'b']))
 
@@ -287,7 +291,7 @@ describe('bindMutationActions', () => {
         } as WorkflowStoreState['nodes'],
       })
       const persister = makePersister()
-      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       removeNodes(new Set(['a']))
 
@@ -300,7 +304,7 @@ describe('bindMutationActions', () => {
       nodes: { n1: { id: 'n1', parent: 'root' } } as WorkflowStoreState['nodes'],
     })
     const persister = makePersister()
-    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     const ok = removeNode('n1')
 
@@ -316,7 +320,7 @@ describe('bindMutationActions', () => {
       selectedId: 'n1',
     })
     const persister = makePersister()
-    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     removeNode('n1')
 
@@ -333,7 +337,7 @@ describe('bindMutationActions', () => {
       selectedId: 'n1',
     })
     const persister = makePersister()
-    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     removeNode('n1')
 
@@ -346,7 +350,7 @@ describe('bindMutationActions', () => {
       selectedId: 'n2',
     })
     const persister = makePersister()
-    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     removeNode('n1')
 
@@ -358,7 +362,7 @@ describe('bindMutationActions', () => {
       nodes: { n1: { id: 'n1', parent: 'root' } } as WorkflowStoreState['nodes'],
     })
     const persister = makePersister()
-    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     removeNode('n1')
 
@@ -382,7 +386,7 @@ describe('bindMutationActions', () => {
       selectedId: 'child-2',
     })
     const persister = makePersister()
-    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     removeNode('parent')
 
@@ -406,7 +410,7 @@ describe('bindMutationActions', () => {
       selectedIds: new Set(['root', 'n1', 'child-of-n1']),
     })
     const persister = makePersister()
-    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     removeNode('n1')
 
@@ -419,7 +423,7 @@ describe('bindMutationActions', () => {
       anchorId: 'n1',
     })
     const persister = makePersister()
-    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     removeNode('n1')
 
@@ -442,7 +446,7 @@ describe('bindMutationActions', () => {
       anchorId: 'child',
     })
     const persister = makePersister()
-    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     removeNode('parent')
 
@@ -455,7 +459,7 @@ describe('bindMutationActions', () => {
       anchorId: 'n2',
     })
     const persister = makePersister()
-    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     removeNode('n1')
 
@@ -467,7 +471,7 @@ describe('bindMutationActions', () => {
       nodes: { n1: { id: 'n1', parent: 'root' } } as WorkflowStoreState['nodes'],
     })
     const persister = makePersister()
-    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     removeNode('n1')
 
@@ -485,7 +489,7 @@ describe('bindMutationActions', () => {
       selectedIds: new Set(['n1']),
     })
     const persister = makePersister()
-    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     removeNode('n1')
 
@@ -504,7 +508,7 @@ describe('bindMutationActions', () => {
       anchorId: 'n1',
     })
     const persister = makePersister()
-    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage)
+    const { removeNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     removeNode('n1')
 
@@ -530,7 +534,7 @@ describe('bindMutationActions', () => {
         } as WorkflowStoreState['nodes'],
       })
       const persister = makePersister()
-      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       const count = removeNodes(new Set(['a', 'b']))
 
@@ -548,7 +552,7 @@ describe('bindMutationActions', () => {
         } as WorkflowStoreState['nodes'],
       })
       const persister = makePersister()
-      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       const count = removeNodes(new Set(['root']))
 
@@ -571,7 +575,7 @@ describe('bindMutationActions', () => {
         } as WorkflowStoreState['nodes'],
       })
       const persister = makePersister()
-      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       const count = removeNodes(new Set(['root', 'child']))
 
@@ -588,7 +592,7 @@ describe('bindMutationActions', () => {
         executingNodeIds: new Set(['n1']),
       })
       const persister = makePersister()
-      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       const count = removeNodes(new Set(['n1']))
 
@@ -599,7 +603,7 @@ describe('bindMutationActions', () => {
     it('returns 0 for empty set', () => {
       const store = makeStore()
       const persister = makePersister()
-      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       expect(removeNodes(new Set())).toBe(0)
     })
@@ -621,7 +625,7 @@ describe('bindMutationActions', () => {
         executingNodeIds: new Set(['b']),
       })
       const persister = makePersister()
-      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       const count = removeNodes(new Set(['a', 'b', 'ghost']))
 
@@ -649,7 +653,7 @@ describe('bindMutationActions', () => {
         } as WorkflowStoreState['nodes'],
       })
       const persister = makePersister()
-      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       const count = removeNodes(new Set(['a', 'b']))
 
@@ -679,7 +683,7 @@ describe('bindMutationActions', () => {
         executingNodeIds: new Set(['b']),
       })
       const persister = makePersister()
-      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       removeNodes(new Set(['a', 'b']))
 
@@ -710,7 +714,7 @@ describe('bindMutationActions', () => {
         selectedId: 'c',
       })
       const persister = makePersister()
-      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       removeNodes(new Set(['a']))
 
@@ -735,7 +739,7 @@ describe('bindMutationActions', () => {
         anchorId: 'a',
       })
       const persister = makePersister()
-      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       removeNodes(new Set(['a']))
 
@@ -759,7 +763,7 @@ describe('bindMutationActions', () => {
         anchorId: 'b',
       })
       const persister = makePersister()
-      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       removeNodes(new Set(['a']))
 
@@ -784,7 +788,7 @@ describe('bindMutationActions', () => {
         executingNodeIds: new Set(['b']),
       })
       const persister = makePersister()
-      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       removeNodes(new Set(['a', 'b']))
 
@@ -807,7 +811,7 @@ describe('bindMutationActions', () => {
         } as WorkflowStoreState['nodes'],
       })
       const persister = makePersister()
-      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       removeNodes(new Set(['a']))
 
@@ -831,7 +835,7 @@ describe('bindMutationActions', () => {
         } as WorkflowStoreState['nodes'],
       })
       const persister = makePersister()
-      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       removeNodes(new Set(['a', 'a1']))
 
@@ -860,7 +864,7 @@ describe('bindMutationActions', () => {
         executingNodeIds: new Set(['b']),
       })
       const persister = makePersister()
-      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage)
+      const { removeNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       removeNodes(new Set(['a', 'a1', 'b']))
 
@@ -877,7 +881,7 @@ describe('bindMutationActions', () => {
         } as WorkflowStoreState['nodes'],
       })
       const persister = makePersister()
-      const { importTextAsPrompts } = bindMutationActions(store, persister, mockFormatMessage)
+      const { importTextAsPrompts } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       const imported = importTextAsPrompts('root', 'First paragraph\n\n\nSecond paragraph')
       const nodes = store.getState().nodes
@@ -900,7 +904,7 @@ describe('bindMutationActions', () => {
         } as WorkflowStoreState['nodes'],
       })
       const persister = makePersister()
-      const { importTextAsPrompts } = bindMutationActions(store, persister, mockFormatMessage)
+      const { importTextAsPrompts } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       const imported = importTextAsPrompts('root', 'Replacement prompt')
       const nodes = store.getState().nodes
@@ -913,13 +917,57 @@ describe('bindMutationActions', () => {
       expect((root.prompts ?? []).map(id => nodes[id]?.title)).toEqual(['Replacement prompt'])
     })
 
+    it('replaces prompt children on same-session re-import', () => {
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+      })
+      const persister = makePersister()
+      const { importTextAsPrompts } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
+
+      expect(importTextAsPrompts('root', 'First\n\nSecond\n\nThird')).toBe(3)
+      expect(importTextAsPrompts('root', 'First\n\nSecond\n\nThird')).toBe(3)
+
+      const nodes = store.getState().nodes
+      const root = nodes.root
+
+      expect(root.children).toHaveLength(3)
+      expect(root.prompts).toHaveLength(3)
+      expect(Object.keys(nodes)).toHaveLength(4)
+      expect((root.prompts ?? []).map(id => nodes[id]?.title)).toEqual(['First', 'Second', 'Third'])
+    })
+
+    it('removes stale prompt nodes when re-importing a different paragraph set', () => {
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['regular'] },
+          regular: { id: 'regular', title: 'Regular child', parent: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+      })
+      const persister = makePersister()
+      const { importTextAsPrompts } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
+
+      expect(importTextAsPrompts('root', 'First\n\nSecond\n\nThird')).toBe(3)
+      expect(importTextAsPrompts('root', 'Only replacement')).toBe(1)
+
+      const nodes = store.getState().nodes
+      const root = nodes.root
+
+      expect(root.children).toHaveLength(2)
+      expect(root.children).toContain('regular')
+      expect(root.prompts).toHaveLength(1)
+      expect(Object.keys(nodes)).toHaveLength(3)
+      expect((root.prompts ?? []).map(id => nodes[id]?.title)).toEqual(['Only replacement'])
+    })
+
     it('does not mutate or persist blank text', () => {
       const initialNodes = {
         root: { id: 'root', children: [] },
       } as WorkflowStoreState['nodes']
       const store = makeStore({ nodes: initialNodes })
       const persister = makePersister()
-      const { importTextAsPrompts } = bindMutationActions(store, persister, mockFormatMessage)
+      const { importTextAsPrompts } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
       const imported = importTextAsPrompts('root', '  \n\n  ')
 
@@ -928,6 +976,43 @@ describe('bindMutationActions', () => {
       expect(store.getState().isDirty).toBe(false)
       expect(persister.schedule).not.toHaveBeenCalled()
     })
+
+    it('single-paragraph text imports as exactly one prompt child', () => {
+      const store = makeStore({
+        nodes: { root: { id: 'root', children: [] } } as WorkflowStoreState['nodes'],
+      })
+      const { importTextAsPrompts } = bindMutationActions(store, makePersister(), mockFormatMessage, makeHistory())
+
+      const imported = importTextAsPrompts('root', 'Only one paragraph')
+      const nodes = store.getState().nodes
+
+      expect(imported).toBe(1)
+      expect(nodes.root.prompts).toHaveLength(1)
+      expect(nodes[nodes.root.prompts![0]]?.title).toBe('Only one paragraph')
+    })
+
+    it('preserves all regular children across multiple sequential re-imports', () => {
+      const store = makeStore({
+        nodes: {
+          root: { id: 'root', children: ['reg1', 'reg2'] },
+          reg1: { id: 'reg1', parent: 'root', children: [] },
+          reg2: { id: 'reg2', parent: 'root', children: [] },
+        } as WorkflowStoreState['nodes'],
+      })
+      const { importTextAsPrompts } = bindMutationActions(store, makePersister(), mockFormatMessage, makeHistory())
+
+      importTextAsPrompts('root', 'A\n\nB')
+      importTextAsPrompts('root', 'C\n\nD\n\nE')
+      importTextAsPrompts('root', 'F')
+
+      const nodes = store.getState().nodes
+      const root = nodes.root
+
+      expect(root.children).toContain('reg1')
+      expect(root.children).toContain('reg2')
+      expect(root.prompts).toHaveLength(1)
+      expect(nodes[root.prompts![0]]?.title).toBe('F')
+    })
   })
 
   it('duplicateNode returns new root id', () => {
@@ -935,7 +1020,7 @@ describe('bindMutationActions', () => {
       nodes: { n1: { id: 'n1' } } as WorkflowStoreState['nodes'],
     })
     const persister = makePersister()
-    const { duplicateNode } = bindMutationActions(store, persister, mockFormatMessage)
+    const { duplicateNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     const newId = duplicateNode('n1')
 
@@ -947,7 +1032,7 @@ describe('bindMutationActions', () => {
       nodes: { n1: { id: 'n1', parent: 'root' } } as WorkflowStoreState['nodes'],
     })
     const persister = makePersister()
-    const { moveNode } = bindMutationActions(store, persister, mockFormatMessage)
+    const { moveNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     const ok = moveNode('n1', 'root')
 
@@ -964,7 +1049,7 @@ describe('bindMutationActions', () => {
 
     const store = makeStore()
     const persister = makePersister()
-    const { createRoot } = bindMutationActions(store, persister, mockFormatMessage)
+    const { createRoot } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     const result = createRoot({ title: 'Root' })
 
@@ -981,9 +1066,94 @@ describe('bindMutationActions', () => {
 
     const store = makeStore()
     const persister = makePersister()
-    const { createRoot } = bindMutationActions(store, persister, mockFormatMessage)
+    const { createRoot } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
 
     const result = createRoot({ title: 'Root' })
+
+    expect(result).toBeNull()
+    expect(store.getState().isDirty).toBe(false)
+  })
+})
+
+describe('history integration — checkpoint on every mutation', () => {
+  it('checkpoint is called once per successful mutation', () => {
+    const store = makeStore()
+    const persister = makePersister()
+    const history = makeHistory()
+    const { createRoot } = bindMutationActions(store, persister, mockFormatMessage, history)
+
+    createRoot({ title: 'Root' })
+
+    expect(history.checkpoint).toHaveBeenCalledOnce()
+  })
+
+  it('checkpoint receives pre-mutation state (nodes/edges/root)', () => {
+    const initialNodes = { p1: { id: 'p1', children: [] } } as WorkflowStoreState['nodes']
+    const store = makeStore({ nodes: initialNodes })
+    const persister = makePersister()
+    const history = makeHistory()
+    const { addChild } = bindMutationActions(store, persister, mockFormatMessage, history)
+
+    addChild('p1', { title: 'Child' })
+
+    const captured = history.checkpoint.mock.calls[0]?.[0]
+    expect(captured).toMatchObject({ nodes: initialNodes, root: undefined })
+  })
+
+  it('checkpoint is NOT called when mutation throws', async () => {
+    const { createRootNode } = await import('@entities/workflow/lib')
+    vi.mocked(createRootNode).mockImplementationOnce(() => {
+      throw new MockNodeMutationError('Root exists', 'ROOT_EXISTS')
+    })
+    const store = makeStore()
+    const persister = makePersister()
+    const history = makeHistory()
+    const { createRoot } = bindMutationActions(store, persister, mockFormatMessage, history)
+
+    createRoot({ title: 'Root' })
+
+    expect(history.checkpoint).not.toHaveBeenCalled()
+  })
+})
+
+describe('wrapNodes action', () => {
+  it('returns the new parent id and selects it', () => {
+    const nodes: WorkflowStoreState['nodes'] = {
+      root: { id: 'root', title: 'Root', children: ['a', 'b'] },
+      a: { id: 'a', title: 'A', parent: 'root', children: [] },
+      b: { id: 'b', title: 'B', parent: 'root', children: [] },
+    }
+    const store = makeStore({ nodes })
+    const persister = makePersister()
+    const { wrapNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
+
+    const newId = wrapNodes(new Set(['a', 'b']))
+
+    expect(newId).toBeTruthy()
+    expect(store.getState().selectedId).toBe(newId)
+  })
+
+  it('marks store dirty and schedules persist', () => {
+    const nodes: WorkflowStoreState['nodes'] = {
+      root: { id: 'root', title: 'Root', children: ['a'] },
+      a: { id: 'a', title: 'A', parent: 'root', children: [] },
+    }
+    const store = makeStore({ nodes })
+    const persister = makePersister()
+    const { wrapNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
+
+    wrapNodes(new Set(['a']))
+
+    expect(store.getState().isDirty).toBe(true)
+    expect(persister.schedule).toHaveBeenCalled()
+  })
+
+  it('returns null and does not mark dirty when given an empty set', () => {
+    const store = makeStore()
+    const persister = makePersister()
+    const { wrapNodes } = bindMutationActions(store, persister, mockFormatMessage, makeHistory())
+
+    const result = wrapNodes(new Set())
 
     expect(result).toBeNull()
     expect(store.getState().isDirty).toBe(false)

@@ -25,6 +25,8 @@ export const SegmentRow = ({
   onDuplicateNode,
   onRename,
   onRequestRename,
+  onWrapNodes,
+  onToggleChecked,
   autoEditNodeId,
 }: SegmentRowProps) => {
   if (segment.type === 'node') {
@@ -42,6 +44,8 @@ export const SegmentRow = ({
         onAddChild={onAddChild}
         onDelete={onDelete}
         onDuplicateNode={onDuplicateNode}
+        onWrapNodes={onWrapNodes}
+        onToggleChecked={onToggleChecked}
         onRename={onRename}
         onRequestRename={onRequestRename}
         onSelect={onSelect}

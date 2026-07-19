@@ -1,7 +1,7 @@
 import { useIntl } from 'react-intl'
-import { EditableText, type EditableTextProps } from '@shared/ui/editable-field'
+import { EditableTextArea, type EditableTextAreaProps } from '@shared/ui/editable-field'
 
-type NodeTitleEditorProps = Omit<EditableTextProps, 'placeholder' | 'title'> & {
+type NodeTitleEditorProps = Omit<EditableTextAreaProps, 'placeholder' | 'title'> & {
   placeholder?: string
   title?: string
 }
@@ -10,7 +10,7 @@ export const NodeTitleEditor = ({ placeholder, title, ...rest }: NodeTitleEditor
   const { formatMessage } = useIntl()
 
   return (
-    <EditableText
+    <EditableTextArea
       placeholder={placeholder ?? formatMessage({ id: 'workflowTree.node.untitled' })}
       title={title ?? formatMessage({ id: 'workflowTree.node.editHint' })}
       {...rest}

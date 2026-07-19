@@ -120,19 +120,19 @@ const WorkflowVisibilityDialog: React.FC<VisibilityDialogProps> = ({ workflowId,
             title={<FormattedMessage id="buttonShare" />}
           />
 
-          <Separator />
-
-          <VisibilityOption
-            active={isPublic && isWriteable ? isHidden : false}
-            description={<FormattedMessage id="buttonShareWritableHiddenMessage" />}
-            disabled={isLoading}
-            icon={<Pencil className="h-6 w-6" />}
-            onClick={() => setWorkflowVisibility({ enabled: true, hidden: true, writeable: true })}
-            title={<FormattedMessage id="buttonShareWritableHidden" />}
-          />
-
           {isAdmin ? (
             <>
+              <Separator />
+
+              <VisibilityOption
+                active={isPublic && isWriteable ? isHidden : false}
+                description={<FormattedMessage id="buttonShareWritableHiddenMessage" />}
+                disabled={isLoading}
+                icon={<Pencil className="h-6 w-6" />}
+                onClick={() => setWorkflowVisibility({ enabled: true, hidden: true, writeable: true })}
+                title={<FormattedMessage id="buttonShareWritableHidden" />}
+              />
+
               <Separator />
 
               <VisibilityOption

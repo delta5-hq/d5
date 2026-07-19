@@ -12,14 +12,15 @@ test.describe('Workflow tree keyboard shortcuts', () => {
 
   test('Tab creates a child under the selected node', async ({ page }) => {
     const tree = new WorkflowTreePage(page)
-    const { rootId } = await tree.createRootAndChildren(0, TIMEOUTS.BACKEND_SYNC)
+    const { childIds } = await tree.createRootAndChildren(1, TIMEOUTS.BACKEND_SYNC)
 
-    await tree.selectNode(rootId)
+    await tree.selectNode(childIds[0])
     await tree.treePanel.press('Tab')
 
-    await expect(tree.nodesAtDepth(1)).toHaveCount(1, { timeout: TIMEOUTS.UI_UPDATE })
+    await expect(tree.nodesAtDepth(2)).toHaveCount(1, { timeout: TIMEOUTS.UI_UPDATE })
     await expect(tree.selectedNodes).toHaveCount(1)
-    await expect(tree.nodesAtDepth(1).first()).toHaveAttribute('data-node-selected', 'true')
+    await expect(tree.nodesAtDepth(2).first()).toHaveAttribute('data-node-selected', 'true')
+    await expect(tree.nodesAtDepth(2).first().locator('input')).toBeVisible()
   })
 
   test('Ctrl+N creates a sibling for the selected node', async ({ page }) => {

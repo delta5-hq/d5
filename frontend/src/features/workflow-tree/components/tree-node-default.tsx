@@ -1,5 +1,5 @@
 import React, { useRef, useCallback, useEffect, memo } from 'react'
-import { ChevronRight, Folder, FolderOpen, FileText, Plus, Copy, Trash2, Pencil } from 'lucide-react'
+import { ChevronRight, Folder, FolderOpen, FileText, Plus, Copy, Trash2, Pencil, PackagePlus } from 'lucide-react'
 import { cn } from '@shared/lib/utils'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { Genie, type GenieRef } from '@shared/ui/genie'
@@ -120,6 +120,8 @@ export const TreeNodeDefault = ({
   onDelete,
   onDuplicateNode,
   onRequestRename,
+  onWrapNodes,
+  onToggleChecked,
 }: TreeNodeProps) => {
   const {
     node,
@@ -204,6 +206,14 @@ export const TreeNodeDefault = ({
     [id, onRename],
   )
 
+  const handleToggleChecked = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      onToggleChecked?.(id)
+    },
+    [id, onToggleChecked],
+  )
+
   const wireIndentX = BASE_PADDING + (depth - 1) * INDENT_PER_LEVEL
   const isExpandedWithChildren = Boolean(isOpen && hasChildren)
 
@@ -240,6 +250,7 @@ export const TreeNodeDefault = ({
             isSelected && 'bg-accent',
             isPrompt && 'opacity-60',
           )}
+          data-genie-state={genieState}
           data-node-depth={depth}
           data-node-id={id}
           data-node-selected={isSelected || undefined}
@@ -274,6 +285,17 @@ export const TreeNodeDefault = ({
 
           {depth > 0 ? (
             <div className="wire-tree-spark" ref={sparkRef} style={{ offsetPath: `path('${sparkPath}')` }} />
+          ) : null}
+
+          {onToggleChecked ? (
+            <input
+              checked={!!node.checked}
+              className="relative z-10 flex-shrink-0 w-4 h-4 rounded accent-primary cursor-pointer"
+              data-testid="node-checkbox"
+              onChange={() => undefined}
+              onClick={handleToggleChecked}
+              type="checkbox"
+            />
           ) : null}
 
           <button
@@ -382,6 +404,10 @@ export const TreeNodeDefault = ({
         <ContextMenuItem disabled={isRoot} onClick={() => onDuplicateNode?.(id)}>
           <Copy className="mr-2 h-4 w-4" />
           <FormattedMessage id="workflowTree.node.duplicate" />
+        </ContextMenuItem>
+        <ContextMenuItem disabled={isRoot} onClick={() => onWrapNodes?.(id)}>
+          <PackagePlus className="mr-2 h-4 w-4" />
+          <FormattedMessage id="workflowTree.node.wrapInCard" />
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem disabled={isRoot} onClick={() => onDelete?.(id)} variant="destructive">

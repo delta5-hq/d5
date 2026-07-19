@@ -6,9 +6,11 @@ import { createDebouncedPersister } from './workflow-store-persistence'
 import { bindMutationActions, type FormatMessage } from './workflow-store-mutations'
 import { bindExecuteAction } from './workflow-store-execution'
 import { bindExpansionActions } from './workflow-store-expansion'
+import { createHistoryStack } from './workflow-store-history'
 import { retainExistingIds } from './workflow-store-set-utils'
 import { computeRangeSelection } from './workflow-store-range-select'
 import { deriveExpandedIdsFromNodes } from '../hooks/use-tree-expansion'
+import { isCommandlessTextNode, hasOnlyPromptChildren } from '@entities/workflow/lib'
 
 interface WorkflowApiResponse {
   _id: string
@@ -42,9 +44,20 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     })
   })
 
-  const mutations = bindMutationActions(store, persister, formatMessage)
+  const historyStack = createHistoryStack()
+  const mutations = bindMutationActions(store, persister, formatMessage, historyStack)
   const execution = bindExecuteAction(store, persister)
   const expansion = bindExpansionActions(store, persister)
+
+  const toggleExpanded = (nodeId: string): void => {
+    const { nodes, expandedIds } = store.getState()
+    const node = nodes[nodeId]
+    const expanding = node && !expandedIds.has(nodeId)
+    if (expanding && isCommandlessTextNode(node) && hasOnlyPromptChildren(nodeId, nodes)) {
+      mutations.importTextAsPrompts(nodeId, node.title ?? '')
+    }
+    expansion.toggleExpanded(nodeId)
+  }
 
   const load = async () => {
     store.setState({ isLoading: true, error: null })
@@ -117,6 +130,24 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     store.destroy()
   }
 
+  const undo = () => {
+    const { nodes, edges, root } = store.getState()
+    const prev = historyStack.undo({ nodes, edges, root })
+    if (prev) {
+      store.setState({ nodes: prev.nodes, edges: prev.edges, root: prev.root, isDirty: true })
+      persister.schedule()
+    }
+  }
+
+  const redo = () => {
+    const { nodes, edges, root } = store.getState()
+    const next = historyStack.redo({ nodes, edges, root })
+    if (next) {
+      store.setState({ nodes: next.nodes, edges: next.edges, root: next.root, isDirty: true })
+      persister.schedule()
+    }
+  }
+
   const actions: WorkflowStoreActions = {
     load,
     persist: persister.flush,
@@ -126,8 +157,11 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     rangeSelect,
     discard,
     destroy,
+    undo,
+    redo,
     ...execution,
     ...expansion,
+    toggleExpanded,
     ...mutations,
   }
 

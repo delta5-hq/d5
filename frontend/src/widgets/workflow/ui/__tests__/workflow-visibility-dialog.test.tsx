@@ -1,9 +1,8 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { IntlProvider } from 'react-intl'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import messages from '@shared/lib/intl'
-import WorkflowVisibilityDialog from '../workflow-card/workflow-visibility-dialog'
+import { VisibilityRadioGroup } from '../share-dialog/visibility-radio-group'
 
 let isAdmin = false
 
@@ -11,43 +10,78 @@ vi.mock('@entities/auth', () => ({
   useAuthContext: () => ({ isAdmin }),
 }))
 
-vi.mock('@shared/composables', () => ({
-  useApiQuery: () => ({
-    data: {
-      workflowId: 'wf-1',
-      title: 'Workflow',
-      nodes: {},
-      edges: {},
-      share: { public: { enabled: true, hidden: false, writeable: false } },
-    },
-  }),
-  useApiMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
-}))
-
-const renderDialog = () =>
+const renderRadioGroup = (
+  onValueChange = vi.fn(),
+  value: Parameters<typeof VisibilityRadioGroup>[0]['value'] = 'public',
+) => {
   render(
-    <QueryClientProvider client={new QueryClient()}>
-      <IntlProvider locale="en" messages={messages.en}>
-        <WorkflowVisibilityDialog onClose={vi.fn()} open workflowId="wf-1" />
-      </IntlProvider>
-    </QueryClientProvider>,
+    <IntlProvider locale="en" messages={messages.en}>
+      <VisibilityRadioGroup onValueChange={onValueChange} value={value} />
+    </IntlProvider>,
   )
+  return onValueChange
+}
 
-describe('WorkflowVisibilityDialog', () => {
+describe('VisibilityRadioGroup', () => {
   beforeEach(() => {
     isAdmin = false
   })
 
-  it('hides public writeable visibility from non-admin users', () => {
-    renderDialog()
+  it('hides collaborative public writeable control from non-admin users', () => {
+    renderRadioGroup()
 
-    expect(screen.queryByText('Public Writeable')).not.toBeInTheDocument()
+    expect(screen.queryByText('Collaborative editing')).not.toBeInTheDocument()
   })
 
-  it('shows public writeable visibility to admin users', () => {
+  it('shows collaborative public writeable control to admin users', () => {
     isAdmin = true
-    renderDialog()
+    renderRadioGroup()
 
-    expect(screen.getByText('Public Writeable')).toBeInTheDocument()
+    expect(screen.getByText('Collaborative editing')).toBeInTheDocument()
+  })
+
+  it('emits writeable public only when admin toggles collaborative editing', () => {
+    isAdmin = true
+    const onValueChange = renderRadioGroup()
+
+    fireEvent.click(screen.getByRole('switch'))
+
+    expect(onValueChange).toHaveBeenCalledWith('writeable-public')
+  })
+
+  it('uses the same admin gate for unlisted collaborative editing', () => {
+    renderRadioGroup(vi.fn(), 'unlisted')
+
+    expect(screen.queryByText('Collaborative editing')).not.toBeInTheDocument()
+
+    isAdmin = true
+    renderRadioGroup(vi.fn(), 'unlisted')
+
+    expect(screen.getByText('Collaborative editing')).toBeInTheDocument()
+  })
+})
+
+describe('VisibilityRadioGroup — collaborative toggle hidden regardless of loaded value', () => {
+  beforeEach(() => {
+    isAdmin = false
+  })
+
+  it('hides collaborative toggle for non-admin when current value is writeable-public', () => {
+    renderRadioGroup(vi.fn(), 'writeable-public')
+
+    expect(screen.queryByText('Collaborative editing')).not.toBeInTheDocument()
+  })
+
+  it('hides collaborative toggle for non-admin when current value is writeable-unlisted', () => {
+    renderRadioGroup(vi.fn(), 'writeable-unlisted')
+
+    expect(screen.queryByText('Collaborative editing')).not.toBeInTheDocument()
+  })
+
+  it('shows collaborative toggle for admin when current value is writeable-public', () => {
+    isAdmin = true
+    renderRadioGroup(vi.fn(), 'writeable-public')
+
+    expect(screen.getByText('Collaborative editing')).toBeInTheDocument()
   })
 })

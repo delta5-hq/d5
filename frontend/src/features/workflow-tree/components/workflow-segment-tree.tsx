@@ -22,9 +22,12 @@ export interface WorkflowSegmentTreeProps {
   onDuplicateNode?: (nodeId: string) => void
   onRename?: (nodeId: string, newTitle: string) => void
   onRequestRename?: (nodeId: string) => void
+  onWrapNodes?: (nodeId: string) => void
   onVisibleOrderChange?: (order: readonly string[]) => void
   /** Newly created node ID — signals the tree to flash it on mount */
   flashNodeId?: string
+  /** When true, each node renders an inline checkbox reflecting node.checked */
+  showCheckboxes?: boolean
 }
 
 const WorkflowSegmentTreeInner = ({
@@ -40,14 +43,16 @@ const WorkflowSegmentTreeInner = ({
   onDuplicateNode,
   onRename,
   onRequestRename,
+  onWrapNodes,
   onVisibleOrderChange,
   flashNodeId,
+  showCheckboxes,
 }: WorkflowSegmentTreeProps) => {
   const nodeIds = useMemo(() => new Set(Object.keys(nodes)), [nodes])
   useNodeCacheCleanup(nodeIds)
 
   const expandedIds = useWorkflowExpandedIds()
-  const { toggleExpanded, expandNode } = useWorkflowActions()
+  const { toggleExpanded, expandNode, updateNode } = useWorkflowActions()
   const treeWalker = useTreeWalker({ nodes, rootId, expandedIds })
   const { scheduleNewNodeFlash } = useTreeAnimation()
 
@@ -63,6 +68,11 @@ const WorkflowSegmentTreeInner = ({
   })
 
   const handleToggle = useAnimatedToggle(nodes, expandedIds, toggleExpanded)
+
+  const handleToggleChecked = useStableCallback((nodeId: string) => {
+    const node = nodes[nodeId]
+    if (node) updateNode(nodeId, { checked: !node.checked })
+  })
 
   const handleAddChild = useCallback(
     (parentId: string) => {
@@ -83,10 +93,12 @@ const WorkflowSegmentTreeInner = ({
               onAddChild={handleAddChild}
               onDelete={onDelete}
               onDuplicateNode={onDuplicateNode}
+              onWrapNodes={onWrapNodes}
               onRename={onRename}
               onRequestRename={onRequestRename}
               onSelect={handleSelect}
               onToggle={handleToggle}
+              onToggleChecked={showCheckboxes ? handleToggleChecked : undefined}
               onVisibleOrderChange={onVisibleOrderChange}
               overscanCount={overscanCount}
               rowHeight={rowHeight}

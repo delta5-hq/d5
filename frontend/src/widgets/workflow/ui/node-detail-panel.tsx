@@ -6,7 +6,7 @@ import { getCommandRole } from '@shared/constants/command-roles'
 import { getColorForRole } from '@shared/ui/genie/role-colors'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
-import { canExecuteNode } from '@shared/lib/commands/command-validator'
+import { canExecuteNode, isSlashCommand } from '@shared/lib/commands/command-validator'
 import { useAliases } from '@entities/aliases'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@shared/ui/collapsible'
 import {
@@ -79,13 +79,19 @@ export const NodeDetailPanel = ({
   const mutationDisabled = isExecuting
   const { formatMessage } = useIntl()
   const showPreview = isPrompt || Boolean(node.command) || Boolean(node.title)
-  const canExecute = canExecuteNode(node.command, executeDisabled)
+  const [commandDraft, setCommandDraft] = useState(node.command ?? '')
+  const commandIsValid = isSlashCommand(commandDraft)
+  const canExecute = canExecuteNode(commandDraft, executeDisabled)
   const siblingActionsEnabled = !isRoot && canExecute
   const canImportTextAsPrompts = Boolean(node.title?.trim())
 
   const [settingsOpen, setSettingsOpen] = useState(!isPrompt)
   const [previewOpen, setPreviewOpen] = useState(isPrompt)
   const previousExecutingRef = useRef(isExecuting)
+
+  useEffect(() => {
+    setCommandDraft(node.command ?? '')
+  }, [node.id, node.command])
 
   useEffect(() => {
     setSettingsOpen(!isPrompt)
@@ -110,6 +116,7 @@ export const NodeDetailPanel = ({
 
   const handleCommandChange = useCallback(
     (command: string) => {
+      setCommandDraft(command)
       const titleIsDerived = !node.title || isTitleDerivedFromCommand(node.title, node.command ?? '')
       onUpdateNode(node.id, titleIsDerived ? { command, title: command } : { command })
     },
@@ -117,9 +124,9 @@ export const NodeDetailPanel = ({
   )
 
   const handleExecute = useCallback(async () => {
-    const queryType = extractQueryTypeFromCommand(node.command, aliases)
-    await onExecute(node, queryType)
-  }, [node, onExecute, aliases])
+    const queryType = extractQueryTypeFromCommand(commandDraft, aliases)
+    await onExecute({ ...node, command: commandDraft }, queryType)
+  }, [node, commandDraft, onExecute, aliases])
 
   const handleAbort = useCallback(() => {
     onAbort(node.id)
@@ -217,11 +224,20 @@ export const NodeDetailPanel = ({
                     nodeId={node.id}
                     onChange={handleCommandChange}
                     onCtrlEnter={siblingActionsEnabled ? handleCtrlEnterInCommand : undefined}
+                    onDraftChange={setCommandDraft}
                     onEnter={handleEnterInCommand}
                     onShiftCtrlEnter={siblingActionsEnabled ? handleShiftCtrlEnterInCommand : undefined}
                     placeholder={formatMessage({ id: 'workflowTree.node.commandPlaceholder' })}
                     value={node.command ?? ''}
                   />
+                  {!commandIsValid && commandDraft.trim() ? (
+                    <p
+                      className="col-start-2 rounded-md border border-destructive/20 bg-destructive/5 px-2 py-1 text-xs font-medium text-destructive"
+                      data-testid="command-validation-message"
+                    >
+                      <FormattedMessage id="workflowTree.node.invalidCommand" />
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="flex flex-wrap gap-2 pt-2">
