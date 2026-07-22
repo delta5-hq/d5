@@ -93,7 +93,7 @@ test.describe('Reliability execution contracts', () => {
     const validateId = await addChildCommand(page, tree, refineId, '/validate MOCK_VALIDATE_FAIL — must never pass')
     await executeRoot(page, tree, rootId)
 
-    const refineTitle = await awaitNodeTitle(page, refineId, REFINE_FALLBACK_SUFFIX_RE)
+    const refineTitle = await awaitNodeTitle(page, refineId, REFINE_FALLBACK_SUFFIX_RE, LLM_TIMEOUT)
     await expectValidateFailure(page, validateId)
   })
 
@@ -113,7 +113,7 @@ test.describe('Reliability execution contracts', () => {
     )
     await executeRoot(page, tree, rootId)
 
-    const refineTitle = await awaitNodeTitle(page, refineId, REFINE_FALLBACK_SUFFIX_RE)
+    const refineTitle = await awaitNodeTitle(page, refineId, REFINE_FALLBACK_SUFFIX_RE, LLM_TIMEOUT)
     await expectValidateFailure(page, validateId)
   })
 
@@ -126,7 +126,12 @@ test.describe('Reliability execution contracts', () => {
     const validateId = await addChildCommand(page, tree, rootId, '/validate Each item must be a distinct color name')
     await executeRoot(page, tree, rootId)
 
-    expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_VERDICT_RE)
+    // The verdict suffix is WRITTEN (persisted) after post-processing, but under Firefox +
+    // parallel-worker load the live node title occasionally never receives the final update
+    // (an SSE/state-sync miss). Reload to read the persisted state — faithful to "written" —
+    // then poll for the suffix rather than reading once.
+    await page.reload()
+    await awaitNodeTitle(page, validateId, VALIDATE_VERDICT_RE, LLM_TIMEOUT)
   })
 
   test('validate — exhaustion suffix [✗ N×] written when MOCK_VALIDATE_FAIL criterion always rejects', async ({ page }) => {
