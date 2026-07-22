@@ -9,6 +9,7 @@
 
     /* Bundler mode */
     "moduleResolution": "bundler",
+    "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
@@ -32,9 +33,11 @@
       "@pages/*": ["pages/*"],
       "@widgets/*": ["widgets/*"],
       "@processes/*": ["processes/*"],
+      "@contracts/*": ["../../shared-contracts/*"],
       "@/components/*": ["shared/components/*"],
       "@/*": ["*"]
     }
   },
-  "include": ["src", "genversion.js"]
+  "include": ["src", "genversion.js", "../shared-contracts"],
+  "exclude": ["src/**/__tests__", "src/**/*.test.ts", "src/**/*.test.tsx", "e2e"]
 }

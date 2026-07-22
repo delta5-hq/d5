@@ -1,6 +1,7 @@
 import React, { createContext, useContext } from 'react'
 import type { AuthStore } from './types'
 import { useAuth } from '../api'
+import { useSessionBootstrap } from './use-session-bootstrap'
 
 export const AuthContext = createContext<AuthStore | null>(null)
 
@@ -17,7 +18,8 @@ export interface AuthProviderProps {
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const store = useAuth()
+  const isBootstrapped = useSessionBootstrap()
+  const store = useAuth(isBootstrapped)
 
   return <AuthContext.Provider value={store}>{children}</AuthContext.Provider>
 }

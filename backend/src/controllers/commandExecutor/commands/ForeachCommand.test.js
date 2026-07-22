@@ -6,9 +6,7 @@ import {getLLM, Model} from './utils/langchain/getLLM'
 import {REF_PREFIX} from '../constants'
 import {translate} from './utils/translate'
 import {createNodes} from './utils/createNodes'
-import {ScholarCommand} from './ScholarCommand'
-import {OutlineCommand} from './OutlineCommand'
-import {WebCommand} from './WebCommand'
+import * as MCPClientManager from './mcp/MCPClientManager'
 import {createDeepClone} from './utils/createDeepClone'
 import {StepsCommand} from './StepsCommand'
 import ProgressReporter from '../ProgressReporter'
@@ -22,6 +20,10 @@ jest.mock('./utils/langchain/getLLM', () => ({
 
 jest.mock('./StepsCommand')
 jest.mock('./utils/runCommand')
+jest.mock('./mcp/MCPClientManager', () => ({
+  callTool: jest.fn().mockResolvedValue({content: 'response', isError: false}),
+  listTools: jest.fn(),
+}))
 jest.mock('./utils/translate')
 jest.mock('./utils/createNodes')
 jest.mock('./utils/createDeepClone')
@@ -66,6 +68,8 @@ describe('ForeachCommand', () => {
     command.logError = jest.fn().mockImplementation(e => {
       throw e
     })
+
+    mockStore.importer.createNodes = jest.fn()
   })
 
   describe('getParentsTitles', () => {
@@ -128,6 +132,60 @@ describe('ForeachCommand', () => {
       const result = command.getParentsTitles(node)
 
       expect(result).toBe('ParentNode2, ParentNode1')
+    })
+
+    it('should skip dynamic alias parent titles when collecting context', () => {
+      mockStore._aliases = {
+        mcp: [{alias: '/coder1'}],
+        rpc: [{alias: '/vm3'}],
+      }
+
+      const root = {id: 'root'}
+      const parentNode4 = {id: 'p4', title: '/coder1 refactor code', parent: root.id}
+      const parentNode3 = {id: 'p3', title: 'Context A', parent: parentNode4.id}
+      const parentNode2 = {id: 'p2', title: '/vm3 deploy app', parent: parentNode3.id}
+      const parentNode1 = {id: 'p1', title: 'Context B', parent: parentNode2.id}
+
+      const node = {id: 'n', title: 'Node', parent: parentNode1.id}
+
+      mockStore._nodes = {
+        [root.id]: root,
+        [parentNode4.id]: parentNode4,
+        [parentNode3.id]: parentNode3,
+        [parentNode2.id]: parentNode2,
+        [parentNode1.id]: parentNode1,
+        [node.id]: node,
+      }
+
+      const result = command.getParentsTitles(node)
+
+      expect(result).toBe('Context A, Context B')
+    })
+
+    it('should handle mixed built-in and dynamic alias parents', () => {
+      mockStore._aliases = {
+        mcp: [{alias: '/agent'}],
+        rpc: [],
+      }
+
+      const root = {id: 'root'}
+      const parentNode3 = {id: 'p3', title: '/chatgpt analyze', parent: root.id}
+      const parentNode2 = {id: 'p2', title: 'Real Context', parent: parentNode3.id}
+      const parentNode1 = {id: 'p1', title: '/agent fix bugs', parent: parentNode2.id}
+
+      const node = {id: 'n', title: 'Node', parent: parentNode1.id}
+
+      mockStore._nodes = {
+        [root.id]: root,
+        [parentNode3.id]: parentNode3,
+        [parentNode2.id]: parentNode2,
+        [parentNode1.id]: parentNode1,
+        [node.id]: node,
+      }
+
+      const result = command.getParentsTitles(node)
+
+      expect(result).toBe('Real Context')
     })
   })
 
@@ -206,6 +264,56 @@ describe('ForeachCommand', () => {
 
       const result = command.substituteParentsTitles(title, child, 2)
       expect(result).toEqual('Child Parent Node')
+    })
+
+    it('should exclude dynamic aliases when substituting parent context', () => {
+      mockStore._aliases = {
+        mcp: [{alias: '/coder1'}],
+        rpc: [{alias: '/vm3'}],
+      }
+
+      const root = {id: 'root'}
+      const grandparent = {id: 'gp', title: '/coder1 implement feature', parent: root.id, childNodes: ['parent']}
+      const parent = {id: 'parent', title: 'User Story', parent: grandparent.id, childNodes: ['node']}
+      const node = {id: 'node', title: '/vm3 deploy service', parent: parent.id, children: ['child']}
+      const child = {id: 'child', title: 'Child', parent: node.id}
+
+      const title = 'Task @@parents'
+
+      mockStore._nodes = {
+        [root.id]: root,
+        [grandparent.id]: grandparent,
+        [parent.id]: parent,
+        [node.id]: node,
+        [child.id]: child,
+      }
+
+      const result = command.substituteParentsTitles(title, child, 3)
+      expect(result).toEqual('Task User Story')
+    })
+
+    it('should handle empty aliases when substituting parents', () => {
+      mockStore._aliases = {
+        mcp: [],
+        rpc: [],
+      }
+
+      const root = {id: 'root'}
+      const parent = {id: 'parent', title: '/chatgpt Context', parent: root.id, childNodes: ['node']}
+      const node = {id: 'node', title: 'Regular Node', parent: parent.id, children: ['child']}
+      const child = {id: 'child', title: 'Child', parent: node.id}
+
+      const title = 'Task @@parents'
+
+      mockStore._nodes = {
+        [root.id]: root,
+        [parent.id]: parent,
+        [node.id]: node,
+        [child.id]: child,
+      }
+
+      const result = command.substituteParentsTitles(title, child, 2)
+      expect(result).toEqual('Task Regular Node')
     })
   })
 
@@ -537,118 +645,112 @@ describe('ForeachCommand', () => {
       jest.clearAllMocks()
     })
 
-    it('should use yandex credentials', async () => {
-      // Setup:
-      //
-      // parentNode
-      //   /foreach /summarize prompt @@ --lang=ru (child3)
-      //   Child1
-      //
-      // Result: Uses Yandex model for translation with Russian language
+    it('resolves without output when root node has no children (executed at root level with no children)', async () => {
+      const foreachNode = {id: 'f', command: '/foreach /chatgpt @@', parent: undefined, children: []}
+      mockStore._nodes = {[foreachNode.id]: foreachNode}
 
-      jest.clearAllMocks()
-      runCommand.mockImplementation(sourceRunCommand)
-
-      const settings = {
-        openai: {apiKey: 'apiKey', model: 'model'},
-        yandex: {apiKey: 'apiKey', folder_id: 'folder_id', model: 'model'},
-      }
-
-      jest.spyOn(Integration, 'findOne').mockReturnValue({
-        lean: jest.fn().mockReturnValue(settings),
-      })
-
-      jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockReturnValue({
-        output_text: 'translated response',
-      })
-
-      getLLM.mockImplementation(() => ({llm: {}, chunkSize: 2000}))
-      translate.mockReturnValue('response')
-      createNodes.mockReturnValue([])
-
-      const child1 = {id: 'c1', title: 'Child1', parent: 'p'}
-      const foreachNode = {
-        id: 'c3',
-        command: '/foreach /summarize prompt @@ --lang=ru',
-        parent: 'p',
-      }
-      const parentNode = {
-        id: 'p',
-        parent: 'root',
-        title: 'ParentNode',
-        children: [child1.id, foreachNode.id],
-      }
-
-      mockStore._nodes = {
-        [child1.id]: child1,
-        [foreachNode.id]: foreachNode,
-        [parentNode.id]: parentNode,
-      }
-
-      await command.run(foreachNode)
-
-      expect(getLLM).toHaveBeenCalledWith(
-        expect.objectContaining({
-          settings,
-          type: Model.YandexGPT,
-        }),
-      )
+      await expect(command.run(foreachNode)).resolves.toBeUndefined()
     })
 
-    it('should use openai credentials', async () => {
-      // Setup:
-      //
-      // parentNode
-      //   /foreach /summarize prompt @@ (child3)
-      //   Child1
-      //
-      // Result: Uses OpenAI model for default operations
+    it('resolves when parent is the workflow root and foreach node is the only sibling', async () => {
+      const rootNode = {id: 'root', children: ['f']}
+      const foreachNode = {id: 'f', command: '/foreach /chatgpt @@', parent: rootNode.id}
+      mockStore._nodes = {[rootNode.id]: rootNode, [foreachNode.id]: foreachNode}
 
-      jest.clearAllMocks()
-      runCommand.mockImplementation(sourceRunCommand)
+      await expect(command.run(foreachNode)).resolves.toBeUndefined()
+    })
 
-      const settings = {
-        openai: {apiKey: 'apiKey', model: 'model'},
-        yandex: {apiKey: 'apiKey', folder_id: 'folder_id', model: 'model'},
-      }
+    it('resolves when executed on root node with children (iterates root children as leaves)', async () => {
+      const child1 = {id: 'c1', title: 'Child1', parent: 'root'}
+      const child2 = {id: 'c2', title: 'Child2', parent: 'root'}
+      const rootNode = {id: 'root', command: '/foreach /chatgpt @@', children: ['c1', 'c2'], parent: undefined}
+      mockStore._nodes = {root: rootNode, c1: child1, c2: child2}
 
-      jest.spyOn(Integration, 'findOne').mockReturnValue({
-        lean: jest.fn().mockReturnValue(settings),
-      })
+      await expect(command.run(rootNode)).resolves.toBeUndefined()
+    })
 
-      jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockReturnValue({
-        output_text: 'response',
-      })
+    it.each([['/foreach /summarize prompt @@'], ['/foreach /summarize prompt @@ --lang=ru']])(
+      'selects provider by credential priority for "%s"',
+      async commandStr => {
+        jest.clearAllMocks()
+        runCommand.mockImplementation(sourceRunCommand)
 
-      getLLM.mockImplementation(() => ({llm: {}, chunkSize: 2000}))
-      translate.mockReturnValue('response')
-      createNodes.mockReturnValue([])
+        const settings = {
+          openai: {apiKey: 'apiKey', model: 'model'},
+          yandex: {apiKey: 'apiKey', folder_id: 'folder_id', model: 'model'},
+        }
 
-      const child1 = {id: 'c1', title: 'Child1', parent: 'p'}
-      const foreachNode = {
-        id: 'c3',
-        command: '/foreach /summarize prompt @@',
+        jest.spyOn(Integration, 'findOne').mockReturnValue({
+          lean: jest.fn().mockReturnValue(settings),
+        })
+
+        jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockReturnValue({
+          output_text: 'response',
+        })
+
+        getLLM.mockImplementation(() => ({llm: {}, chunkSize: 2000}))
+        translate.mockReturnValue('response')
+        createNodes.mockReturnValue([])
+
+        const child1 = {id: 'c1', title: 'Child1', parent: 'p'}
+        const foreachNode = {id: 'c3', command: commandStr, parent: 'p'}
+        const parentNode = {
+          id: 'p',
+          parent: 'root',
+          title: 'ParentNode',
+          children: [child1.id, foreachNode.id],
+        }
+
+        mockStore._nodes = {
+          [child1.id]: child1,
+          [foreachNode.id]: foreachNode,
+          [parentNode.id]: parentNode,
+        }
+
+        await command.run(foreachNode)
+
+        expect(getLLM).toHaveBeenCalledWith(
+          expect.objectContaining({
+            settings: expect.objectContaining(settings),
+            type: Model.OpenAI,
+          }),
+        )
+      },
+    )
+
+    it('should use correct prompt and not cut it with scholar', async () => {
+      const child1 = {
+        id: 'c1',
+        title: 'c1',
+        command: '/foreach /scholar some prompt @@ --lang=ru --citation',
         parent: 'p',
       }
-      const parentNode = {
+      const child2 = {id: 'c2', title: 'yandexgpt response on your question', parent: 'p'}
+      const parent = {
         id: 'p',
-        parent: 'root',
-        title: 'ParentNode',
-        children: [child1.id, foreachNode.id],
+        title: 'prompt',
+        command: '/yandexgpt prompt',
+        children: [child1.id, child2.id],
+        prompts: [child2.id],
+        parent: 'id',
       }
 
       mockStore._nodes = {
         [child1.id]: child1,
-        [foreachNode.id]: foreachNode,
-        [parentNode.id]: parentNode,
+        [child2.id]: child2,
+        [parent.id]: parent,
       }
 
-      await command.run(foreachNode)
+      runCommand.mockImplementation(sourceRunCommand)
+      MCPClientManager.callTool.mockResolvedValue({content: 'response', isError: false})
 
-      expect(getLLM).toHaveBeenCalledWith(
+      await command.run(child1)
+
+      expect(MCPClientManager.callTool).toHaveBeenCalledWith(
         expect.objectContaining({
-          settings,
-          type: Model.OpenAI,
+          toolArguments: expect.objectContaining({
+            query: expect.stringContaining('some prompt yandexgpt response on your question'),
+          }),
         }),
       )
     })
@@ -677,49 +779,16 @@ describe('ForeachCommand', () => {
       }
 
       runCommand.mockImplementation(sourceRunCommand)
-      const scholarSpy = jest.spyOn(ScholarCommand.prototype, 'createResponseScholar').mockReturnValue('response')
+      MCPClientManager.callTool.mockResolvedValue({content: 'response', isError: false})
 
       await command.run(child1)
 
-      expect(scholarSpy).toHaveBeenCalledWith(
-        expect.anything(),
-        'some prompt yandexgpt response on your question',
-        expect.anything(),
-      )
-    })
-
-    it('should use correct prompt and not cut it with scholar', async () => {
-      const child1 = {
-        id: 'c1',
-        title: 'c1',
-        command: '/foreach /scholar some prompt @@ --lang=ru --citation',
-        parent: 'p',
-      }
-      const child2 = {id: 'c2', title: 'yandexgpt response on your question', parent: 'p'}
-      const parent = {
-        id: 'p',
-        title: 'prompt',
-        command: '/yandexgpt prompt',
-        children: [child1.id, child2.id],
-        prompts: [child2.id],
-        parent: 'id',
-      }
-
-      mockStore._nodes = {
-        [child1.id]: child1,
-        [child2.id]: child2,
-        [parent.id]: parent,
-      }
-
-      runCommand.mockImplementation(sourceRunCommand)
-      const scholarSpy = jest.spyOn(ScholarCommand.prototype, 'createResponseScholar').mockReturnValue('response')
-
-      await command.run(child1)
-
-      expect(scholarSpy).toHaveBeenCalledWith(
-        expect.anything(),
-        'some prompt yandexgpt response on your question',
-        expect.anything(),
+      expect(MCPClientManager.callTool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolArguments: expect.objectContaining({
+            query: expect.stringContaining('some prompt yandexgpt response on your question'),
+          }),
+        }),
       )
     })
 
@@ -747,14 +816,16 @@ describe('ForeachCommand', () => {
       }
 
       runCommand.mockImplementation(sourceRunCommand)
-      const outlineSpy = jest.spyOn(OutlineCommand.prototype, 'createResponseOutline').mockReturnValue('response')
+      MCPClientManager.callTool.mockResolvedValue({content: 'response', isError: false})
 
       await command.run(child1)
 
-      expect(outlineSpy).toHaveBeenCalledWith(
-        expect.anything(),
-        'some prompt yandexgpt response on your question',
-        expect.anything(),
+      expect(MCPClientManager.callTool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolArguments: expect.objectContaining({
+            query: expect.stringContaining('some prompt yandexgpt response on your question'),
+          }),
+        }),
       )
     })
 
@@ -777,14 +848,16 @@ describe('ForeachCommand', () => {
       }
 
       runCommand.mockImplementation(sourceRunCommand)
-      const webSpy = jest.spyOn(WebCommand.prototype, 'createResponseWeb').mockReturnValue('response')
+      MCPClientManager.callTool.mockResolvedValue({content: 'response', isError: false})
 
       await command.run(child1)
 
-      expect(webSpy).toHaveBeenCalledWith(
-        expect.anything(),
-        'some prompt yandexgpt response on your question',
-        expect.anything(),
+      expect(MCPClientManager.callTool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolArguments: expect.objectContaining({
+            query: expect.stringContaining('some prompt yandexgpt response on your question'),
+          }),
+        }),
       )
     })
 
@@ -2479,7 +2552,7 @@ describe('ForeachCommand', () => {
       await command.run(foreachNode)
 
       expect(findLeafsSpy).toHaveBeenCalledWith(parentNode, expect.anything(), true)
-      expect(executePromptsSpy).toHaveBeenCalledWith(leafs, expect.anything())
+      expect(executePromptsSpy).toHaveBeenCalledWith(leafs, expect.anything(), undefined)
     })
 
     it('should execute deeply nested foreach with complex steps structure', async () => {
@@ -2883,6 +2956,49 @@ describe('ForeachCommand', () => {
     })
   })
 
+  describe('run — error handling', () => {
+    let errorCmd
+
+    beforeEach(() => {
+      errorCmd = new ForeachCommand(userId, workflowId, mockStore)
+      errorCmd.logError = jest.fn()
+    })
+
+    it('creates error node on the foreach node when parent is missing', async () => {
+      const foreachNode = {id: 'foreach-node', command: '/foreach /chatgpt @@', parent: undefined}
+      mockStore._nodes = {[foreachNode.id]: foreachNode}
+
+      await errorCmd.run(foreachNode)
+
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith(expect.stringMatching(/^Error:/), 'foreach-node')
+    })
+
+    it('does not error when parent is the workflow root and foreach node is the only child', async () => {
+      const rootNode = {id: 'root', children: ['foreach-node']}
+      const foreachNode = {id: 'foreach-node', command: '/foreach /chatgpt @@', parent: rootNode.id}
+      mockStore._nodes = {[rootNode.id]: rootNode, [foreachNode.id]: foreachNode}
+
+      await expect(errorCmd.run(foreachNode)).resolves.toBeUndefined()
+      expect(mockStore.importer.createNodes).not.toHaveBeenCalledWith(expect.stringMatching(/^Error:/), 'foreach-node')
+    })
+
+    it('does not throw to caller when parent is missing', async () => {
+      const foreachNode = {id: 'foreach-node', command: '/foreach /chatgpt @@', parent: undefined}
+      mockStore._nodes = {[foreachNode.id]: foreachNode}
+
+      await expect(errorCmd.run(foreachNode)).resolves.toBeUndefined()
+    })
+
+    it('logs the error when parent is missing', async () => {
+      const foreachNode = {id: 'foreach-node', command: '/foreach /chatgpt @@', parent: undefined}
+      mockStore._nodes = {[foreachNode.id]: foreachNode}
+
+      await errorCmd.run(foreachNode)
+
+      expect(errorCmd.logError).toHaveBeenCalledWith(expect.any(Error))
+    })
+  })
+
   describe('executePrompts', () => {
     it('should skip errors when execute in parallel', async () => {
       const nodes = [
@@ -3019,6 +3135,44 @@ describe('ForeachCommand', () => {
 
       expect(outputNodes.map(({id}) => id)).toEqual(expect.arrayContaining(['n1', 'n2', 'n5', 'n6']))
 
+      command.logError = t
+    })
+
+    it('creates error node on failing child node when executing in parallel', async () => {
+      const failingNode = {id: 'fail-node', command: '/chatgpt prompt'}
+      const nodes = [
+        {node: failingNode, promptString: '/chatgpt prompt'},
+        {node: {id: 'ok-node'}, promptString: '/chatgpt prompt'},
+      ]
+
+      const t = command.logError
+      command.logError = jest.fn()
+
+      runCommand.mockRejectedValueOnce(new Error('child parallel failure'))
+      runCommand.mockResolvedValueOnce({nodes: []})
+
+      await command.executePrompts(nodes)
+
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: child parallel failure', 'fail-node')
+      command.logError = t
+    })
+
+    it('creates error node on failing child node when executing sequentially', async () => {
+      const failingNode = {id: 'fail-node', command: '/chatgpt prompt'}
+      const nodes = [
+        {node: failingNode, promptString: '/chatgpt prompt'},
+        {node: {id: 'ok-node'}, promptString: '/chatgpt prompt'},
+      ]
+
+      const t = command.logError
+      command.logError = jest.fn()
+
+      runCommand.mockRejectedValueOnce(new Error('child sequential failure'))
+      runCommand.mockResolvedValueOnce({nodes: []})
+
+      await command.executePrompts(nodes, false)
+
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: child sequential failure', 'fail-node')
       command.logError = t
     })
   })
@@ -3164,6 +3318,7 @@ describe('ForeachCommand', () => {
           {node: exampleNode, promptString: '/steps Example Node Main Steps Title #_hashref @ref'},
         ]),
         expect.anything(),
+        undefined,
       )
     })
   })

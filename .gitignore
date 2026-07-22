@@ -28,6 +28,9 @@ yarn-error.log*
 pnpm-debug.log*
 nohup.out
 
+# Dependency trees (workspace-root hoisting by npm/pnpm/yarn/vitest)
+node_modules/
+
 # Environment files (global)
 .env
 .env.local
@@ -36,7 +39,10 @@ nohup.out
 # MongoDB data directories (dev and E2E)
 data/
 
+# Workflow automation artifacts
+contribot.state.json
 transcripts/
+*.pid
 
 # Test artifacts (if running from root)
 test-results/
@@ -50,3 +56,6 @@ backend-e2e-output.log
 
 contribot.*.json
 transcripts/
+.playwright-cli/
+.claude
+.github/docs/TODO.md

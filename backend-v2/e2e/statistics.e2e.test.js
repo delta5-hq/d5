@@ -1,9 +1,8 @@
 import {administratorRequest, subscriberRequest, publicRequest} from './shared/requests'
 import {testDataFactory, testOrchestrator} from './shared/test-data-factory'
 import {workflowData} from './shared/fixtures'
-import {subscriber} from './shared/test-users.js'
 
-const userId = subscriber.name
+const userId = `stats-test-${Date.now()}`
 
 describe('Statistics E2E', () => {
   let testUser

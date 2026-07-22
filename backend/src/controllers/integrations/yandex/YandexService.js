@@ -5,39 +5,33 @@ const yandexService = container.get('yandexService')
 export class YandexOperationTimeoutError extends Error {
   constructor(message) {
     super(message)
-
     this.name = 'YandexGPT Timeout Error'
   }
 }
 
+const buildCompletionBody = ({modelUri, messages, completionOptions}) => ({
+  modelUri,
+  messages,
+  completionOptions: {
+    stream: false,
+    temperature: completionOptions?.temperature,
+    maxTokens: completionOptions?.maxTokens,
+  },
+})
+
+export const extractCompletionText = response => response?.result?.alternatives?.[0]?.message?.text
+
 class YandexService {
-  completions = async params => {
-    const {messages, modelUri, completionOptions} = params
-    const {temperature, maxTokens} = completionOptions || {}
-
-    const body = {
-      messages,
-      model: modelUri,
-      temperature,
-      maxTokens,
-    }
-    const response = await yandexService.completion(body)
-
-    return {
-      id: 'operation-id',
-      done: true,
-      response,
-    }
+  completions = async ({modelUri, messages, completionOptions, apiKey, folderId}) => {
+    const body = buildCompletionBody({modelUri, messages, completionOptions})
+    const response = await yandexService.completion({...body, apiKey, folderId})
+    return {id: 'operation-id', done: true, response}
   }
 
-  getOperationResult = async operation => {
-    return operation.response
-  }
+  getOperationResult = async operation => operation.response
 
-  embeddings = async ({modelUri, text}) => {
-    const result = await yandexService.embeddings({modelUri, text})
-    return result
-  }
+  embeddings = async ({modelUri, text, apiKey, folderId}) =>
+    yandexService.embeddings({modelUri, text, apiKey, folderId})
 
   completionWithRetry = async (params, retries = 3) => {
     let attempts = retries + 1

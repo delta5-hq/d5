@@ -28,6 +28,70 @@ describe('CustomLLMChat parseChatHistory', () => {
   })
 })
 
+describe('CustomLLMChat invocationParams model field', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('includes model in params when provided', () => {
+    const llm = new CustomLLMChat({
+      apiRootUrl: 'http://localhost:3000',
+      apiType: CustomLLMApiType.OpenAI_Compatible,
+      model: 'llama-3.1-8b',
+    })
+    expect(llm.invocationParams({}).model).toBe('llama-3.1-8b')
+  })
+
+  it('omits model from params when absent', () => {
+    const llm = new CustomLLMChat({
+      apiRootUrl: 'http://localhost:3000',
+      apiType: CustomLLMApiType.OpenAI_Compatible,
+    })
+    expect('model' in llm.invocationParams({})).toBe(false)
+  })
+
+  it('sends model field in fetch body when model is set', async () => {
+    fetch.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        choices: [{message: {content: 'ok'}}],
+        usage: {},
+      }),
+    })
+
+    const llm = new CustomLLMChat({
+      apiRootUrl: 'http://localhost:3000',
+      apiType: CustomLLMApiType.OpenAI_Compatible,
+      model: 'gpt-4o-mini',
+    })
+
+    await llm.invoke([new HumanMessage('hello')])
+
+    const body = JSON.parse(fetch.mock.calls[0][1].body)
+    expect(body.model).toBe('gpt-4o-mini')
+  })
+
+  it('omits model field from fetch body when model is not set', async () => {
+    fetch.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        choices: [{message: {content: 'ok'}}],
+        usage: {},
+      }),
+    })
+
+    const llm = new CustomLLMChat({
+      apiRootUrl: 'http://localhost:3000',
+      apiType: CustomLLMApiType.OpenAI_Compatible,
+    })
+
+    await llm.invoke([new HumanMessage('hello')])
+
+    const body = JSON.parse(fetch.mock.calls[0][1].body)
+    expect('model' in body).toBe(false)
+  })
+})
+
 describe('CustomLLMChat request formatting', () => {
   beforeEach(() => {
     jest.clearAllMocks()

@@ -33,13 +33,14 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     workflowId,
   })
 
-  const persister = createDebouncedPersister(store, payload =>
-    apiFetch(`/workflow/${workflowId}`, {
+  const persister = createDebouncedPersister(store, payload => {
+    const rootTitle = payload.root ? (payload.nodes[payload.root]?.title ?? '') : undefined
+    return apiFetch(`/workflow/${workflowId}`, {
       method: 'PUT',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, ...(rootTitle !== undefined && { title: rootTitle }) }),
       headers: { 'Content-Type': 'application/json' },
-    }),
-  )
+    })
+  })
 
   const mutations = bindMutationActions(store, persister, formatMessage)
   const execution = bindExecuteAction(store, persister)

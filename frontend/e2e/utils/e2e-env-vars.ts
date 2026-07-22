@@ -4,6 +4,8 @@ const requiredEnv = [
 ] as const
 
 const optionalEnv = [
+  'E2E_SUBSCRIBER_USER',
+  'E2E_SUBSCRIBER_PASS',
   'E2E_DEEPSEEK_API_KEY',
   'E2E_QWEN_API_KEY',
   'E2E_PERPLEXITY_API_KEY',

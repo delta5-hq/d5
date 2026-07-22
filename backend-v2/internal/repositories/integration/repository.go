@@ -22,10 +22,12 @@ func NewMongoRepository(db *qmgo.Database) Repository {
 	return &MongoRepository{db: db}
 }
 
-/* FindByUserID retrieves Integration document by userID */
 func (r *MongoRepository) FindByUserID(ctx context.Context, userID string) (*models.Integration, error) {
 	var integration models.Integration
-	err := r.db.Collection("integrations").Find(ctx, bson.M{"userId": userID}).One(&integration)
+	err := r.db.Collection("integrations").Find(ctx, bson.M{
+		"userId":     userID,
+		"workflowId": nil,
+	}).One(&integration)
 	if err != nil {
 		return nil, err
 	}

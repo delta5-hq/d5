@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { waitForAuthenticatedState } from './helpers'
 import { adminLogin, closeMobileSidebar } from './utils'
 import { CreateWorkflowActionsPage, UserMenuPage } from './page-objects'
 import { VIEWPORT, TEST_TIMEOUTS } from './constants/test-timeouts'
@@ -51,14 +52,14 @@ test.describe('Auth-dependent UI visibility', () => {
 
     test('user menu trigger visible in sidebar footer', async ({ page }) => {
       await page.setViewportSize(VIEWPORT.DESKTOP)
-      
+
       const userMenu = new UserMenuPage(page)
       await expect(userMenu.menuTrigger).toBeVisible()
     })
 
     test('user menu popover opens on trigger click', async ({ page }) => {
       await page.setViewportSize(VIEWPORT.DESKTOP)
-      
+
       const userMenu = new UserMenuPage(page)
       await userMenu.openUserMenu()
       await expect(userMenu.popoverContainer).toBeVisible()
@@ -67,9 +68,9 @@ test.describe('Auth-dependent UI visibility', () => {
     test('create workflow action visible', async ({ page }) => {
       await page.setViewportSize({ width: 1280, height: 720 })
       await page.goto('/workflows')
-      
+      await waitForAuthenticatedState(page)
       const createActions = new CreateWorkflowActionsPage(page)
-      await expect(createActions.createNavItem).toBeVisible()
+      await expect(createActions.createNavItem).toBeVisible({ timeout: TEST_TIMEOUTS.NAVIGATION })
     })
 
     test('desktop shows user controls, no login button', async ({ page }) => {
@@ -77,7 +78,7 @@ test.describe('Auth-dependent UI visibility', () => {
       await page.goto('/workflows')
 
       await expect(page.locator('[data-type="login"]')).toHaveCount(0)
-      
+
       const userMenu = new UserMenuPage(page)
       await expect(userMenu.menuTrigger).toBeVisible()
       await expect(page.locator('button:has(svg.lucide-circle-question-mark)')).toBeVisible()
@@ -87,11 +88,12 @@ test.describe('Auth-dependent UI visibility', () => {
       await page.setViewportSize({ width: 375, height: 667 })
       await page.goto('/workflows')
       await closeMobileSidebar(page)
+      await waitForAuthenticatedState(page)
 
       await expect(page.locator('[data-type="login"]')).toHaveCount(0)
-      
+
       const createActions = new CreateWorkflowActionsPage(page)
-      await expect(createActions.createNavItem).toBeVisible()
+      await expect(createActions.createNavItem).toBeVisible({ timeout: TEST_TIMEOUTS.NAVIGATION })
     })
 
     test('mobile sidebar shows user controls when authenticated', async ({ page }) => {

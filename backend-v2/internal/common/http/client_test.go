@@ -95,3 +95,21 @@ func TestNewClientFactory(t *testing.T) {
 		t.Fatal("NewClientFactory() returned nil")
 	}
 }
+
+func TestClientFactory_CreateStreaming(t *testing.T) {
+	factory := NewClientFactory()
+	client := factory.CreateStreaming()
+
+	if client == nil {
+		t.Fatal("CreateStreaming() returned nil client")
+	}
+
+	httpClient, ok := client.(*http.Client)
+	if !ok {
+		t.Fatal("CreateStreaming() did not return *http.Client")
+	}
+
+	if httpClient.Timeout != 0 {
+		t.Errorf("CreateStreaming() timeout = %v, want 0 (no timeout)", httpClient.Timeout)
+	}
+}

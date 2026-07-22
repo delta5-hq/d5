@@ -10,14 +10,14 @@ if [ -z "$MONGO_DB" ]; then
   if [ "$MONGO_PORT" = "27017" ]; then
     MONGO_DB="delta5-dev"
   else
-    MONGO_DB="delta5"
+    MONGO_DB="delta5-e2e"
   fi
 fi
 MONGO_URI="mongodb://${MONGO_HOST}:${MONGO_PORT}/${MONGO_DB}"
 
 if [ ! -f "$SCRIPT_DIR/seed-users" ]; then
   echo "→ Building seed-users tool..."
-  cd "$SCRIPT_DIR" && go build -o seed-users ./cmd/seed-users/main.go
+  cd "$SCRIPT_DIR" && go build -o seed-users ./cmd/seed-users
 fi
 
 DROP_FLAG=""

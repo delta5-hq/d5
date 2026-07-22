@@ -6,7 +6,7 @@ test.describe('Authentication network error handling', () => {
   test.beforeEach(async ({ page }) => {
     await clearAuthState(page)
     await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('domcontentloaded')
   })
 
   test.afterEach(async ({ page }) => {
@@ -154,7 +154,7 @@ test.describe('Authentication network error handling', () => {
     })
 
     await page.goto('/register')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('domcontentloaded')
 
     await page.getByLabel('Username').fill('testuser')
     await page.getByLabel('Email').fill('test@example.com')

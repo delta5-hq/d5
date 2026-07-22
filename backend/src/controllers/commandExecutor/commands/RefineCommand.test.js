@@ -1,137 +1,57 @@
-import {BaseChatModel} from '@langchain/core/language_models/chat_models'
 import {RefineCommand} from './RefineCommand'
 import Store from './utils/Store'
 
-jest.mock('./utils/langchain/getLLM')
+jest.mock('debug', () => {
+  const fn = jest.fn(() => fn)
+  fn.extend = jest.fn(() => fn)
+  return fn
+})
+
+jest.mock('../reliability/core/resolveRefineCell', () => ({
+  resolveRefineCell: jest.fn(),
+}))
+
+import {resolveRefineCell} from '../reliability/core/resolveRefineCell'
+
+const buildStore = () => new Store({userId: 'user1', workflowId: 'wf1', nodes: {r: {id: 'r', command: '/refine :n=2'}}})
+
+const runRefine = async (options = {}) => {
+  const store = buildStore()
+  const createNodesSpy = jest.spyOn(store.importer, 'createNodes')
+  const command = new RefineCommand('user1', 'wf1', store)
+  await command.run(store.getNode('r'), options)
+  return {store, createNodesSpy}
+}
 
 describe('RefineCommand', () => {
-  const userId = 'userId'
-  const workflowId = 'workflowId'
-  const mockStore = new Store({
-    userId,
-    workflowId,
-    nodes: {},
-  })
-  const command = new RefineCommand(userId, workflowId, mockStore)
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
-  it('should should concatenate substituted reference', () => {
-    const refNode = {id: 'ref', title: '@ref story about cat'}
-    const child1 = {id: 'child1', title: '@@ref'}
-    const child2 = {id: 'child2', title: 'Some story'}
-    const mockNode = {
-      id: 'mockNodeId',
-      command: '/chatgpt write summary',
-      title: 'Summary',
-      children: [child1.id, child2.id],
-    }
-    mockStore._nodes = {
-      [mockNode.id]: mockNode,
-      [child1.id]: child1,
-      [child2.id]: child2,
-      [refNode.id]: refNode,
-    }
-    const result = command.getRefinePrompt(mockNode)
+  it('routes direct execution to the reliability refine resolver with an isolated memo map by default', async () => {
+    const {store, createNodesSpy} = await runRefine()
 
-    expect(result).toContain('story about cat')
+    expect(resolveRefineCell).toHaveBeenCalledWith(store.getNode('r'), store, expect.any(Map), null)
+    expect(createNodesSpy).not.toHaveBeenCalled()
   })
 
-  it('should call replyDefault when no refine prompt', async () => {
-    const mockNode = {
-      id: 'mockNodeId',
-      command: '/chatgpt write summary',
-      title: 'Summary',
-    }
-    mockStore._nodes = {
-      [mockNode.id]: mockNode,
-    }
+  it('passes caller-provided memoMap and abort signal to the reliability refine resolver', async () => {
+    const memoMap = new Map()
+    const signal = new AbortController().signal
+    const {store} = await runRefine({memoMap, signal})
 
-    const spy = jest.spyOn(command, 'replyDefault')
-    await command.run(mockNode)
-
-    expect(spy).toHaveBeenCalled()
-    spy.mockRestore()
+    expect(resolveRefineCell).toHaveBeenCalledWith(store.getNode('r'), store, memoMap, signal)
   })
 
-  it('should call replyRefine when refine prompt is present', async () => {
-    const child1 = {id: 'child1', title: 'Child2'}
-    const child2 = {id: 'child2', title: 'Child1'}
-    const mockNode = {
-      id: 'mockNodeId',
-      command: '/chatgpt write summary',
-      title: 'Summary',
-      children: [child1.id, child2.id],
-    }
-    mockStore._nodes = {
-      [mockNode.id]: mockNode,
-      [child1.id]: child1,
-      [child2.id]: child2,
-    }
+  it.each([
+    ['standard error', new Error('refine failed')],
+    ['typed error', new TypeError('invalid refine state')],
+  ])('creates one error node when the refine resolver throws a %s', async (_label, error) => {
+    resolveRefineCell.mockRejectedValueOnce(error)
 
-    const spy = jest.spyOn(command, 'replyRefine')
-    await command.run(mockNode)
+    const {createNodesSpy} = await runRefine()
 
-    expect(spy).toHaveBeenCalled()
-    spy.mockRestore()
-  })
-
-  it('should succesfully return result', async () => {
-    const node = {id: 'n', title: '/chatgpt write summary'}
-    mockStore._nodes = {
-      [node.id]: node,
-    }
-
-    const spy = jest.spyOn(command, 'replyDefault').mockResolvedValue('Result')
-    await command.run(node)
-    const result = mockStore.getOutput()
-
-    expect(result.nodes).toEqual(expect.arrayContaining([expect.objectContaining({title: 'Result', parent: node.id})]))
-    spy.mockRestore()
-  })
-
-  it('should return empty array when reply result is undefined', async () => {
-    const node = {id: 'n', title: '/chatgpt write summary'}
-    mockStore._nodes = {
-      [node.id]: node,
-    }
-
-    const spy = jest.spyOn(command, 'replyDefault').mockResolvedValue(undefined)
-    await command.run(node)
-    const result = mockStore.getOutput()
-
-    expect(result.nodes).toEqual([])
-    spy.mockRestore()
-  })
-
-  it('should return empty array when llm throw error with replyDefault', async () => {
-    const node = {id: 'n', title: '/chatgpt write summary'}
-    mockStore._nodes = {
-      [node.id]: node,
-    }
-
-    const spy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValue()
-    await command.run(node)
-    const result = mockStore.getOutput()
-
-    expect(result.nodes).toEqual([])
-    spy.mockRestore()
-  })
-
-  it('should return empty array when llm throw error with replyRefine', async () => {
-    const node = {id: 'n', title: '/chatgpt write summary'}
-    mockStore._nodes = {
-      [node.id]: node,
-    }
-
-    const spy = jest.spyOn(BaseChatModel.prototype, 'invoke').mockRejectedValue()
-    const getRefineSpy = jest.spyOn(command, 'getRefinePrompt').mockReturnValue(true)
-    await command.run(node)
-    const result = mockStore.getOutput()
-
-    expect(result.nodes).toEqual([])
-    spy.mockRestore()
-    getRefineSpy.mockRestore()
+    expect(createNodesSpy).toHaveBeenCalledWith(`Error: ${error.message}`, 'r')
+    expect(createNodesSpy).toHaveBeenCalledTimes(1)
   })
 })

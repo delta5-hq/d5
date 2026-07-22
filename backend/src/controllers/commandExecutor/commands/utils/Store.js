@@ -20,6 +20,7 @@
  * @property {boolean} [autoshrink=false] - Whether autoshrink behavior is enabled
  * @property {string} [command] - Command associated with the node(/chatgpt, /web e.t.c)
  * @property {string[]} [prompts] - List of prompt ids that created from command execution
+ * @property {Object} [reliabilityMetadata] - Judge verdict from /refine :n=N execution; includes winner, criteria rankings, and fork counts
  */
 
 /**
@@ -54,6 +55,12 @@ class Store {
   /** @type {Record<string, string>} File map (fileID to content) */
   _files = {}
 
+  /** @type {{mcp: Array, rpc: Array}} User-defined command aliases */
+  _aliases = {mcp: [], rpc: []}
+
+  /** @type {Object|null} Cached integration settings (per-request, not per-node) */
+  _integrationSettingsCache = null
+
   /**
    * @type {{
    *   nodes: Record<string, NodeData[]>,
@@ -82,10 +89,11 @@ class Store {
    * @param {Record<string, NodeData>} params.nodes - Node map
    * @param {Record<string, EdgeData>} params.nodes - Edge map
    * @param {Record<string, string>} params.files - File map
+   * @param {{mcp: Array, rpc: Array}} [params.aliases] - User-defined command aliases
    *
    * @throws {Error} If any required field is missing or incorrectly typed
    */
-  constructor({userId, workflowId = undefined, nodes = {}, files = {}, edges = {}} = {}) {
+  constructor({userId, workflowId = undefined, nodes = {}, files = {}, edges = {}, aliases = {mcp: [], rpc: []}} = {}) {
     if (!userId) {
       throw new Error('User ID is required')
     }
@@ -107,6 +115,7 @@ class Store {
     this._nodes = nodes
     this._edges = edges
     this._files = files
+    this._aliases = aliases
 
     this.logError = debug('delta5:app:CommandStore').extend(userId, '/').extend('ERROR*', '::')
   }

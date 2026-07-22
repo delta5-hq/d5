@@ -1,11 +1,12 @@
 package integration
 
 import (
+	"context"
+
 	"backend-v2/internal/common/constants"
 	"backend-v2/internal/common/logger"
 	"backend-v2/internal/common/response"
 	"backend-v2/internal/models"
-	"encoding/json"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/qiniu/qmgo"
@@ -14,12 +15,19 @@ import (
 var log = logger.New("INTEGRATION")
 
 type Controller struct {
-	service *Service
-	db      *qmgo.Database
+	service            *Service
+	db                 *qmgo.Database
+	sessionRepo        *SessionRepository
+	customLLMValidator *CustomLLMValidator
 }
 
-func NewController(service *Service, db *qmgo.Database) *Controller {
-	return &Controller{service: service, db: db}
+func NewController(service *Service, db *qmgo.Database, validator *CustomLLMValidator) *Controller {
+	return &Controller{
+		service:            service,
+		db:                 db,
+		sessionRepo:        NewSessionRepository(db),
+		customLLMValidator: validator,
+	}
 }
 
 func (ctrl *Controller) Authorization(c *fiber.Ctx) error {
@@ -34,8 +42,8 @@ func (ctrl *Controller) getUserID(c *fiber.Ctx) string {
 	return userID
 }
 
-func (ctrl *Controller) findUserIntegration(c *fiber.Ctx, userID string) (*models.Integration, error) {
-	integration, err := ctrl.service.FindByUserID(c.Context(), userID)
+func (ctrl *Controller) findUserIntegration(c *fiber.Ctx, scope ScopeIdentifier) (*models.Integration, error) {
+	integration, err := ctrl.service.FindWithFallback(c.Context(), scope)
 	if err == qmgo.ErrNoSuchDocuments {
 		return nil, response.NotFound(c, "Integration not found")
 	}
@@ -46,9 +54,9 @@ func (ctrl *Controller) findUserIntegration(c *fiber.Ctx, userID string) (*model
 }
 
 func (ctrl *Controller) GetAll(c *fiber.Ctx) error {
-	userID := ctrl.getUserID(c)
+	scope := extractScopeFromRequest(c, ctrl.getUserID)
 
-	integration, err := ctrl.service.FindByUserID(c.Context(), userID)
+	integration, err := ctrl.service.FindWithFallback(c.Context(), scope)
 	if err == qmgo.ErrNoSuchDocuments {
 		return c.JSON(fiber.Map{})
 	}
@@ -57,31 +65,57 @@ func (ctrl *Controller) GetAll(c *fiber.Ctx) error {
 		return response.InternalError(c, err.Error())
 	}
 
-	return c.JSON(integration)
+	secureResponse, err := ctrl.service.PrepareSecureIntegrationResponse(integration)
+	if err != nil {
+		log.Error("GetAll: prepare secure response failed: %v", err)
+		return response.InternalError(c, err.Error())
+	}
+
+	sessions, err := ctrl.sessionRepo.FindAllForUser(c.Context(), scope.UserID)
+	if err != nil {
+		log.Error("GetAll: fetch sessions failed: %v", err)
+	} else {
+		sessionMap := make(map[string]string)
+		for _, s := range sessions {
+			sessionMap[s.Alias+":"+s.Protocol] = s.LastSessionId
+		}
+		for i := range secureResponse.Integration.RPC {
+			item := &secureResponse.Integration.RPC[i]
+			if sid, ok := sessionMap[item.Alias+":rpc"]; ok {
+				item.LastSessionId = &sid
+			}
+		}
+		for i := range secureResponse.Integration.MCP {
+			item := &secureResponse.Integration.MCP[i]
+			if sid, ok := sessionMap[item.Alias+":mcp"]; ok {
+				item.LastSessionId = &sid
+			}
+		}
+	}
+
+	return c.JSON(secureResponse)
 }
 
 func (ctrl *Controller) GetService(c *fiber.Ctx) error {
-	userID := ctrl.getUserID(c)
+	scope := extractScopeFromRequest(c, ctrl.getUserID)
 	service := c.Params("service")
 
-	integration, err := ctrl.findUserIntegration(c, userID)
+	integration, err := ctrl.findUserIntegration(c, scope)
 	if err != nil {
 		return err
 	}
 
-	integrationBytes, _ := json.Marshal(integration)
-	var integrationMap map[string]interface{}
-	if err := json.Unmarshal(integrationBytes, &integrationMap); err != nil {
-		return response.InternalError(c, "failed to parse integration")
+	secureResponse, err := ctrl.service.PrepareSecureServiceFieldResponse(integration, service)
+	if err != nil {
+		log.Error("GetService: prepare secure response failed: %v", err)
+		return response.InternalError(c, err.Error())
 	}
 
-	return c.JSON(map[string]interface{}{
-		service: integrationMap[service],
-	})
+	return c.JSON(secureResponse)
 }
 
 func (ctrl *Controller) UpdateService(c *fiber.Ctx) error {
-	userID := ctrl.getUserID(c)
+	scope := extractScopeFromRequest(c, ctrl.getUserID)
 	service := c.Params("service")
 
 	var serviceConfig map[string]interface{}
@@ -89,35 +123,56 @@ func (ctrl *Controller) UpdateService(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Something is wrong with the provided data")
 	}
 
-	vectors, err := ctrl.service.CreateLLMVector(c.Context(), ctrl.db, userID, service)
-	if err != nil {
+	if err := ctrl.validateServiceConfig(c.Context(), service, serviceConfig); err != nil {
+		return response.BadRequest(c, err.Error())
+	}
+
+	if _, err := ctrl.service.CreateLLMVector(c.Context(), ctrl.db, scope.UserID, service); err != nil {
 		return response.InternalError(c, err.Error())
 	}
 
 	update := map[string]interface{}{service: serviceConfig}
-	if err := ctrl.service.Upsert(c.Context(), userID, update); err != nil {
+	if err := ctrl.service.Upsert(c.Context(), scope, update); err != nil {
 		return response.InternalError(c, err.Error())
 	}
 
-	return c.JSON(fiber.Map{"vectors": vectors})
+	integration, err := ctrl.service.FindWithFallback(c.Context(), scope)
+	if err != nil {
+		log.Error("UpdateService: re-fetch after upsert failed: %v", err)
+		return response.InternalError(c, err.Error())
+	}
+
+	secureResponse, err := ctrl.service.PrepareSecureIntegrationResponse(integration)
+	if err != nil {
+		log.Error("UpdateService: prepare secure response failed: %v", err)
+		return response.InternalError(c, err.Error())
+	}
+
+	return c.JSON(secureResponse)
+}
+
+func (ctrl *Controller) validateServiceConfig(ctx context.Context, service string, serviceConfig map[string]interface{}) error {
+	if service != "custom_llm" {
+		return nil
+	}
+
+	return ctrl.customLLMValidator.Validate(ctx, serviceConfig)
 }
 
 func (ctrl *Controller) Delete(c *fiber.Ctx) error {
-	userID := ctrl.getUserID(c)
+	scope := extractScopeFromRequest(c, ctrl.getUserID)
 
-	if err := ctrl.service.Delete(c.Context(), userID); err != nil {
+	if err := ctrl.service.Delete(c.Context(), scope); err != nil {
 		return response.InternalError(c, err.Error())
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-/* DeleteService removes a specific integration service for authenticated user */
 func (ctrl *Controller) DeleteService(c *fiber.Ctx) error {
-	userID := ctrl.getUserID(c)
+	scope := extractScopeFromRequest(c, ctrl.getUserID)
 	service := c.Params("service")
 
-	/* Validate service name */
 	validServices := []string{"openai", "deepseek", "qwen", "claude", "perplexity", "yandex", "custom_llm"}
 	isValid := false
 	for _, s := range validServices {
@@ -130,11 +185,10 @@ func (ctrl *Controller) DeleteService(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Invalid service name")
 	}
 
-	/* Remove service field entirely from integration document using $unset */
 	unset := map[string]interface{}{service: ""}
 	update := map[string]interface{}{"$unset": unset}
 
-	if err := ctrl.service.UpdateRaw(c.Context(), userID, update); err != nil {
+	if err := ctrl.service.UpdateRaw(c.Context(), scope, update); err != nil {
 		return response.InternalError(c, err.Error())
 	}
 
@@ -162,7 +216,7 @@ func (ctrl *Controller) SetModel(c *fiber.Ctx) error {
 }
 
 func (ctrl *Controller) updatePreference(c *fiber.Ctx, fieldName, errorMsg string) error {
-	userID := ctrl.getUserID(c)
+	scope := extractScopeFromRequest(c, ctrl.getUserID)
 
 	var body map[string]interface{}
 	if err := c.BodyParser(&body); err != nil {
@@ -175,7 +229,7 @@ func (ctrl *Controller) updatePreference(c *fiber.Ctx, fieldName, errorMsg strin
 	}
 
 	update := map[string]interface{}{fieldName: value}
-	if err := ctrl.service.Upsert(c.Context(), userID, update); err != nil {
+	if err := ctrl.service.Upsert(c.Context(), scope, update); err != nil {
 		return response.InternalError(c, err.Error())
 	}
 

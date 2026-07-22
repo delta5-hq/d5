@@ -5,28 +5,30 @@ import { FormattedMessage } from 'react-intl'
 
 import { Button } from '@shared/ui/button'
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@shared/ui/dialog'
+  GlassDialog,
+  GlassDialogClose,
+  GlassDialogContent,
+  GlassDialogDescription,
+  GlassDialogFooter,
+  GlassDialogHeader,
+  GlassDialogTitle,
+} from '@shared/ui/glass-dialog'
 import { Input } from '@shared/ui/input'
 import { Label } from '@shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
 
 import { toast } from 'sonner'
 
-import type { ApiError, DialogProps, Openai } from '@shared/base-types'
+import type { DialogProps, Openai } from '@shared/base-types'
 import { useApiMutation } from '@shared/composables'
 import { OpenaiModels } from '@shared/config'
 import type { HttpError } from '@shared/lib/error'
 import { createResponseChat } from '@shared/lib/llm'
-import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
 import { X } from 'lucide-react'
 import { z } from 'zod'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
+import { submitIntegrationChanges } from '../utils/submit-integration-changes'
+import { toastIntegrationError } from '../utils/toast-integration-error'
 
 export const openaiSchema = z.object({
   apiKey: z.string().optional(),
@@ -40,11 +42,14 @@ export type OpenaiFormValues = z.infer<typeof openaiSchema>
 interface Props extends DialogProps {
   data: Openai | undefined
   refresh: () => Promise<void>
+  workflowId?: string | null
 }
 
-const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
+const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data, workflowId }) => {
+  const url = buildIntegrationUrl('/integration/openai/update', workflowId)
+
   const { mutateAsync: save } = useApiMutation<Openai, HttpError, Openai>({
-    url: '/integration/openai/update',
+    url,
     method: 'PUT',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => {
@@ -81,49 +86,30 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
 
   const onSubmit = async (values: OpenaiFormValues) => {
     try {
-      const apiKeyChanged = values.apiKey && values.apiKey.trim() !== data?.apiKey && values.apiKey
-      const modelChanged = values.model.trim() !== data?.model
-
-      if (apiKeyChanged || modelChanged) {
-        await createResponseChat('Hello!', values)
-        await save(values)
-      } else if (!objectsAreEqual(values, data || {})) {
-        await save(values)
+      const payload: Partial<Openai> = { model: values.model }
+      if (values.apiKey?.trim()) {
+        payload.apiKey = values.apiKey
+        await createResponseChat('Hello!', { apiKey: values.apiKey, model: values.model })
       }
-
-      await refresh()
-      onClose?.()
+      await submitIntegrationChanges(() => save(payload as Openai), { refresh, onClose })
     } catch (e: unknown) {
-      const error = e as ApiError
-      const { status } = error.response || {}
-
-      if (status === 401) {
-        toast.error(<FormattedMessage id="dialog.integration.authenticationError" />)
-      } else if (status === 429) {
-        toast.error(<FormattedMessage id="dialog.integration.rateLimitExceeded" />)
-      } else if (status === 404) {
-        toast.error(<FormattedMessage id="dialog.integration.noAccess" values={{ model: values.model }} />)
-      } else if (status === 503) {
-        toast.error(<FormattedMessage id="dialog.integration.serverError" />)
-      } else {
-        toast.error(<FormattedMessage id="dialog.integration.wrongRequest" />)
-      }
+      toastIntegrationError(e, { model: values.model })
     }
   }
 
   return (
-    <Dialog onOpenChange={onClose} open={open}>
-      <DialogContent className="sm:max-w-lg" data-dialog-name="openai">
-        <DialogHeader>
-          <DialogTitle>
+    <GlassDialog onOpenChange={onClose} open={open}>
+      <GlassDialogContent className="sm:max-w-lg" data-dialog-name="openai" dismissible={false}>
+        <GlassDialogHeader>
+          <GlassDialogTitle>
             <FormattedMessage id="integration.openai.title" />
-          </DialogTitle>
-          <DialogClose className="absolute right-4 top-4">
+          </GlassDialogTitle>
+          <GlassDialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />
-          </DialogClose>
-        </DialogHeader>
+          </GlassDialogClose>
+        </GlassDialogHeader>
 
-        <DialogDescription />
+        <GlassDialogDescription />
 
         <div className="flex flex-col gap-4">
           {/* API Key */}
@@ -169,18 +155,18 @@ const OpenaiDialog: React.FC<Props> = ({ open, onClose, refresh, data }) => {
           </div>
         </div>
 
-        <DialogFooter className="mt-4 flex justify-end gap-2">
+        <GlassDialogFooter className="mt-4 flex justify-end gap-2">
           <Button disabled={isSubmitting} onClick={handleSubmit(onSubmit)} type="submit" variant="accent">
             <FormattedMessage id="save" />
           </Button>
-          <DialogClose asChild>
+          <GlassDialogClose asChild>
             <Button variant="default">
               <FormattedMessage id="cancel" />
             </Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </GlassDialogClose>
+        </GlassDialogFooter>
+      </GlassDialogContent>
+    </GlassDialog>
   )
 }
 

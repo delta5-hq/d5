@@ -1,3 +1,5 @@
+import customLLMApiTypes from '@contracts/custom-llm-api-types.json'
+
 import { API_BASE_PATH } from './api'
 
 export const OPENAI_COMPLETION_BASE_PATH = `${window.location.origin}${API_BASE_PATH}/integration`
@@ -107,10 +109,12 @@ export enum DeepseekModels {
 
 export const DEEPSEEK_DEFAULT_MODEL = DeepseekModels.DEEPSEEK_CHAT
 
-export enum CustomLLMApiType {
-  OpenAI_Compatible = 'OpenAI compatible',
-  OpenAI_Compatible_Chain_Of_Thought = 'OpenAI compatible Chain-of-Thought',
-}
+export const CustomLLMApiType = {
+  OpenAI_Compatible: customLLMApiTypes.OpenAI_Compatible,
+  OpenAI_Compatible_Chain_Of_Thought: customLLMApiTypes.OpenAI_Compatible_Chain_Of_Thought,
+} as const
+
+export type CustomLLMApiTypeValue = (typeof CustomLLMApiType)[keyof typeof CustomLLMApiType]
 
 export const CUSTOM_LLM_TIMEOUT_MS = 600_000
 

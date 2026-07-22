@@ -68,16 +68,40 @@ describe('ChatCommand', () => {
       expect(result).toBe('Response')
     })
 
-    it('should return an empty string on error', async () => {
+    it('should propagate errors from LLM invocation', async () => {
       getIntegrationSettings.mockResolvedValue({
         openai: {apiKey: 'apiKey', model: 'model'},
       })
-      callSpy.mockRejectedValue({})
+      const testError = new Error('API rate limit exceeded')
+      callSpy.mockRejectedValue(testError)
 
       const messages = [{content: 'prompt', role: 'user'}]
-      const result = await command.replyChatOpenAIAPI(messages)
 
-      expect(result).toBe('')
+      await expect(command.replyChatOpenAIAPI(messages)).rejects.toThrow('API rate limit exceeded')
+    })
+
+    it('should propagate network errors from LLM', async () => {
+      getIntegrationSettings.mockResolvedValue({
+        openai: {apiKey: 'apiKey', model: 'model'},
+      })
+      const networkError = new Error('ECONNREFUSED')
+      callSpy.mockRejectedValue(networkError)
+
+      const messages = [{content: 'prompt', role: 'user'}]
+
+      await expect(command.replyChatOpenAIAPI(messages)).rejects.toThrow('ECONNREFUSED')
+    })
+
+    it('should propagate authentication errors from LLM', async () => {
+      getIntegrationSettings.mockResolvedValue({
+        openai: {apiKey: 'invalid-key', model: 'model'},
+      })
+      const authError = new Error('Invalid API key')
+      callSpy.mockRejectedValue(authError)
+
+      const messages = [{content: 'prompt', role: 'user'}]
+
+      await expect(command.replyChatOpenAIAPI(messages)).rejects.toThrow('Invalid API key')
     })
   })
 
@@ -88,6 +112,7 @@ describe('ChatCommand', () => {
       mockStore.importer.createNodes = jest.fn()
       mockStore.importer.createTable = jest.fn()
       mockStore.importer.createJoinNode = jest.fn()
+      mockStore.importer.createErrorNode = jest.fn()
     })
     it('should create table nodes when readTableParam is true', async () => {
       callSpy.mockResolvedValue({
@@ -154,6 +179,128 @@ describe('ChatCommand', () => {
 
       expect(substituteReferencesAndHashrefsChildrenAndSelf).not.toHaveBeenCalled()
       expect(clearStepsPrefix).toHaveBeenCalledWith(originalPrompt)
+    })
+
+    describe('error handling', () => {
+      it('should create error node when LLM invocation fails', async () => {
+        const testError = new Error('API connection timeout')
+        callSpy.mockRejectedValue(testError)
+
+        const node = {id: 'test-node', command: '/chatgpt test prompt'}
+
+        await command.run(node, null, node.command)
+
+        expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: API connection timeout', node.id)
+      })
+
+      it('should create error node when getIntegrationSettings fails', async () => {
+        getIntegrationSettings.mockRejectedValue(new Error('Database connection lost'))
+
+        const node = {id: 'test-node', command: '/chatgpt test prompt'}
+
+        await command.run(node, null, node.command)
+
+        expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: Database connection lost', node.id)
+      })
+
+      it('should create error node when prompt processing throws', async () => {
+        substituteReferencesAndHashrefsChildrenAndSelf.mockImplementation(() => {
+          throw new Error('Reference resolution failed')
+        })
+
+        const node = {id: 'test-node', command: '/chatgpt @@ref'}
+
+        await command.run(node, null, null)
+
+        expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: Reference resolution failed', node.id)
+      })
+
+      it('should log error details when execution fails', async () => {
+        getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'key'}})
+        const logErrorSpy = jest.spyOn(command, 'logError')
+        const testError = new Error('Test error')
+        callSpy.mockRejectedValue(testError)
+
+        const node = {id: 'test-node', command: '/chatgpt test'}
+
+        await command.run(node, null, node.command)
+
+        expect(logErrorSpy).toHaveBeenCalledWith(testError)
+      })
+
+      it('should not create successful output nodes when error occurs', async () => {
+        callSpy.mockRejectedValue(new Error('LLM failure'))
+
+        const node = {id: 'test-node', command: '/chatgpt test --table'}
+
+        await command.run(node, null, node.command)
+
+        expect(mockStore.importer.createTable).not.toHaveBeenCalled()
+        expect(mockStore.importer.createJoinNode).not.toHaveBeenCalled()
+        expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(expect.stringContaining('Error:'), node.id)
+      })
+    })
+  })
+
+  describe('ChatOpenAI constructor arguments', () => {
+    it('passes apiKey (not the deprecated openAIApiKey) to ChatOpenAI', async () => {
+      const {ChatOpenAI} = jest.requireActual('@langchain/openai')
+      const spy = jest.spyOn(ChatOpenAI.prototype, 'invoke').mockResolvedValue({content: 'ok'})
+
+      getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'test-key', model: 'gpt-4o'}})
+
+      const cmd = new ChatCommand('u', 'w', new Store({userId: 'u', nodes: {}}))
+      await cmd.replyChatOpenAIAPI([{role: 'user', content: 'hi'}])
+
+      expect(spy.mock.instances[0].apiKey).toBe('test-key')
+      spy.mockRestore()
+    })
+
+    it('uses the user-configured model name', async () => {
+      const {ChatOpenAI} = jest.requireActual('@langchain/openai')
+      const spy = jest.spyOn(ChatOpenAI.prototype, 'invoke').mockResolvedValue({content: 'ok'})
+
+      getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k', model: 'gpt-4-turbo'}})
+
+      const cmd = new ChatCommand('u', 'w', new Store({userId: 'u', nodes: {}}))
+      await cmd.replyChatOpenAIAPI([{role: 'user', content: 'hi'}])
+
+      expect(spy.mock.instances[0].model).toBe('gpt-4-turbo')
+      spy.mockRestore()
+    })
+
+    it('throws when openai apiKey is absent from settings', async () => {
+      getIntegrationSettings.mockResolvedValue({openai: {}})
+      const cmd = new ChatCommand('u', 'w', new Store({userId: 'u', nodes: {}}))
+      await expect(cmd.replyChatOpenAIAPI([{role: 'user', content: 'hi'}])).rejects.toThrow(
+        'OpenAI API key not configured',
+      )
+    })
+
+    it('throws when openai settings block is absent entirely', async () => {
+      getIntegrationSettings.mockResolvedValue({claude: {apiKey: 'k'}})
+      const cmd = new ChatCommand('u', 'w', new Store({userId: 'u', nodes: {}}))
+      await expect(cmd.replyChatOpenAIAPI([{role: 'user', content: 'hi'}])).rejects.toThrow(
+        'OpenAI API key not configured',
+      )
+    })
+
+    it.each([
+      ['an empty string', {apiKey: 'k', model: ''}],
+      ['null', {apiKey: 'k', model: null}],
+      ['undefined', {apiKey: 'k', model: undefined}],
+      ['absent from the settings block', {apiKey: 'k'}],
+    ])('resolves to gpt-4o when model is %s', async (_label, openaiSettings) => {
+      const {ChatOpenAI} = jest.requireActual('@langchain/openai')
+      const spy = jest.spyOn(ChatOpenAI.prototype, 'invoke').mockResolvedValue({content: 'ok'})
+
+      getIntegrationSettings.mockResolvedValue({openai: openaiSettings})
+
+      const cmd = new ChatCommand('u', 'w', new Store({userId: 'u', nodes: {}}))
+      await cmd.replyChatOpenAIAPI([{role: 'user', content: 'hi'}])
+
+      expect(spy.mock.instances[0].model).toBe('gpt-4o')
+      spy.mockRestore()
     })
   })
 })

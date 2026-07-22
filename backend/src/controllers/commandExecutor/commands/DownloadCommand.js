@@ -7,13 +7,19 @@ import {clearStepsPrefix} from '../constants/steps'
 import WorkflowFile from '../../../models/WorkflowFile'
 import {Readable} from 'stream'
 import {referencePatterns} from './references/utils/referencePatterns'
-import {clearReferences} from './references/utils/referenceUtils' // Direct import
+import {clearReferences} from './references/utils/referenceUtils'
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
+import {runWithErrorNode} from './shared/runWithErrorNode'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 
 const log = debug('app:Command:Download')
-const logError = log.extend('ERROR*', '::')
+
+const formatDownloadConfirmation = files => {
+  const names = files.map(file => file.title).filter(Boolean)
+  if (!names.length) return 'Downloaded content is already attached to this node'
+  return `Downloaded content already attached: ${names.join(', ')}`
+}
 
 /**
  * Class representing a Download Command.
@@ -86,25 +92,15 @@ export class DownloadCommand {
       content: buffer,
     }
 
-    try {
-      const result = await this.upload(file)
+    const result = await this.upload(file)
 
-      // eslint-disable-next-line
-      console.log('!!! DownloadCommand.insertFileToWorkflow -> upload', {
-        // eslint-disable-next-line
-        result, file
-      })
-
-      const fileId = result._id.toString()
-      this.store.createNode({
-        file: fileId,
-        title: filename,
-        parent: node.id,
-      })
-      this.store.createFile(fileId, content)
-    } catch (e) {
-      logError('Error when trying to create file', e)
-    }
+    const fileId = result._id.toString()
+    this.store.createNode({
+      file: fileId,
+      title: filename,
+      parent: node.id,
+    })
+    this.store.createFile(fileId, content)
 
     return undefined
   }
@@ -171,17 +167,15 @@ export class DownloadCommand {
   async insertFileToWorkflow(node, input, params) {
     const urls = this.extractUniqueUrls(input)
 
-    // eslint-disable-next-line
-    console.log('!!! DownloadCommand.insertFileToWorkflow -> extractUniqueUrls', {
-      // eslint-disable-next-line
-      urls, input
-    })
-
     if (!urls.length) {
-      return []
+      throw new Error('No valid URL found for /download')
     }
 
     const parsed = await this.scrape(urls, params)
+
+    if (!Array.isArray(parsed) || !parsed.length) {
+      throw new Error(`No downloadable content returned for ${urls.join(', ')}`)
+    }
 
     const filesMap = this.getNodeFiles(node)
     const nodeFiles = Object.keys(filesMap)
@@ -189,12 +183,6 @@ export class DownloadCommand {
     const contentHashMap = new Map(
       Object.entries(this.store._files).map(([fileId, content]) => [this.hash(content), {id: fileId}]),
     )
-
-    // eslint-disable-next-line
-    console.log('!!! DownloadCommand.insertFileToWorkflow -> getNodeFiles', {
-      // eslint-disable-next-line
-      contentHashMap, nodeFiles, filesMap
-    })
 
     const duplicatedFiles = []
     const newFilesData = []
@@ -216,48 +204,42 @@ export class DownloadCommand {
       }
     })
 
-    // eslint-disable-next-line
-    console.log('!!! DownloadCommand.insertFileToWorkflow -> parsed.forEach {...}', {
-      // eslint-disable-next-line
-      duplicatedFiles, newFilesData, parsed
-    })
-
     if (newFilesData.length) {
-      await Promise.allSettled(newFilesData.map(data => this.saveFile(node, data)))
+      const results = await Promise.allSettled(newFilesData.map(data => this.saveFile(node, data)))
+      const failed = results.find(result => result.status === 'rejected')
+      if (failed) {
+        throw failed.reason
+      }
+      return
     }
 
-    // eslint-disable-next-line
-    console.log('!!! DownloadCommand.insertFileToWorkflow -> allSettled(newFilesData) {...}', {
-      // eslint-disable-next-line
-      newFilesData
-    })
+    if (duplicatedFiles.length) {
+      this.store.importer.createNodes(formatDownloadConfirmation(duplicatedFiles), node.id)
+      return
+    }
+
+    throw new Error(`Downloaded content already exists on this node for ${urls.join(', ')}`)
   }
 
   async run(node, originalPrompt) {
-    let prompt = originalPrompt
-    const command = node?.command || node?.title
+    return runWithErrorNode(this.store, node, this.logError.bind(this), async () => {
+      let prompt = originalPrompt
+      const command = node?.command || node?.title
 
-    if (!prompt || referencePatterns.withAssignmentPrefix().test(command)) {
-      prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
-    } else {
-      prompt = clearCommandsWithParams(
-        clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
-      )
-    }
+      if (!prompt || referencePatterns.withAssignmentPrefix().test(command)) {
+        prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
+      } else {
+        prompt = clearCommandsWithParams(
+          clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+        )
+      }
 
-    const params = {
-      max_size: readMaxSizeParam(command),
-      max_pages: readMaxPagesParam(command),
-    }
+      const params = {
+        max_size: readMaxSizeParam(command),
+        max_pages: readMaxPagesParam(command),
+      }
 
-    const prevNodes = this.store.getOutput().nodes.map(({id}) => id)
-
-    await this.insertFileToWorkflow(node, prompt, params)
-    // eslint-disable-next-line
-    console.log('!!! DownloadCommand.run -> insertFileToWorkflow(prompt)', prompt)
-
-    const newNodes = this.store.getOutput().nodes.filter(({id}) => !prevNodes.includes(id))
-    // eslint-disable-next-line
-    console.log('!!! DownloadCommand.run -> insertFileToWorkflow(prompt) -> result', newNodes)
+      await this.insertFileToWorkflow(node, prompt, params)
+    })
   }
 }

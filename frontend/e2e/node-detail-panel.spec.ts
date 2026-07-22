@@ -258,6 +258,9 @@ test.describe('Node detail panel — Auto-collapse for prompt nodes', () => {
       })
     })
 
+    const rootId = await tree.rootNodeId()
+    await tree.selectNode(rootId)
+    await detail.waitForComponent()
     await detail.fillCommand('/chatgpt test')
     await detail.execute()
     await tree.nodeByTitle('Title with @@ref').waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })

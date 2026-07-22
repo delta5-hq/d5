@@ -3,14 +3,14 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose,
-  DialogDescription,
-} from '@shared/ui/dialog'
+  GlassDialog,
+  GlassDialogContent,
+  GlassDialogHeader,
+  GlassDialogTitle,
+  GlassDialogFooter,
+  GlassDialogClose,
+  GlassDialogDescription,
+} from '@shared/ui/glass-dialog'
 import { Input } from '@shared/ui/input'
 import { Label } from '@shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
@@ -22,6 +22,9 @@ import type { DialogProps, Qwen } from '@shared/base-types'
 import { QWEN_DEFAULT_MODEL, QwenModels } from '@shared/config'
 import type { HttpError } from '@shared/lib/error'
 import { createResponseQwen } from '@shared/lib/llm'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
+import { submitIntegrationChanges } from '../utils/submit-integration-changes'
+import { toastIntegrationError } from '../utils/toast-integration-error'
 import { X } from 'lucide-react'
 
 const qwenSchema = z.object({
@@ -36,11 +39,14 @@ type QwenFormValues = z.infer<typeof qwenSchema>
 interface QwenDialogProps extends DialogProps {
   data: Qwen | undefined
   refresh: () => Promise<void>
+  workflowId?: string | null
 }
 
-export const QwenDialog: React.FC<QwenDialogProps> = ({ data, open, onClose, refresh }) => {
+export const QwenDialog: React.FC<QwenDialogProps> = ({ data, open, onClose, refresh, workflowId }) => {
+  const url = buildIntegrationUrl('/integration/qwen/update', workflowId)
+
   const { mutateAsync: save } = useApiMutation<Qwen, HttpError, Qwen>({
-    url: '/integration/qwen/update',
+    url,
     method: 'PUT',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => {
@@ -71,48 +77,28 @@ export const QwenDialog: React.FC<QwenDialogProps> = ({ data, open, onClose, ref
 
   const onSubmit = async (values: QwenFormValues) => {
     try {
-      const apiKeyChanged = values.apiKey.trim() !== data?.apiKey
-      const modelChanged = values.model.trim() !== data?.model
-
-      if (apiKeyChanged || modelChanged) {
+      if (values.apiKey?.trim()) {
         await createResponseQwen('Hello!', values)
-        await save(values)
       }
-
-      await refresh()
-      onClose?.()
-      toast.success('Saved successfully')
+      await submitIntegrationChanges(() => save(values), { refresh, onClose })
     } catch (e: unknown) {
-      const error = e as HttpError
-      const status = error?.response?.status
-
-      if (status === 401) {
-        toast.error(<FormattedMessage id="dialog.integration.authenticationError" />)
-      } else if (status === 429) {
-        toast.error(<FormattedMessage id="dialog.integration.rateLimitExceeded" />)
-      } else if (status === 404) {
-        toast.error(<FormattedMessage id="dialog.integration.noAccess" values={{ model: values.model }} />)
-      } else if (status === 503) {
-        toast.error(<FormattedMessage id="dialog.integration.serverError" />)
-      } else {
-        toast.error(<FormattedMessage id="dialog.integration.wrongRequest" />)
-      }
+      toastIntegrationError(e, { model: values.model })
     }
   }
 
   return (
-    <Dialog onOpenChange={onClose} open={open}>
-      <DialogContent className="sm:max-w-lg" data-dialog-name="qwen">
-        <DialogHeader>
-          <DialogTitle>
+    <GlassDialog onOpenChange={onClose} open={open}>
+      <GlassDialogContent className="sm:max-w-lg" data-dialog-name="qwen" dismissible={false}>
+        <GlassDialogHeader>
+          <GlassDialogTitle>
             <FormattedMessage id="integration.qwen.title" />
-          </DialogTitle>
-          <DialogClose className="absolute right-4 top-4">
+          </GlassDialogTitle>
+          <GlassDialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />
-          </DialogClose>
-        </DialogHeader>
+          </GlassDialogClose>
+        </GlassDialogHeader>
 
-        <DialogDescription />
+        <GlassDialogDescription />
 
         <div className="flex flex-col space-y-1">
           <Label htmlFor="apiKey">
@@ -149,17 +135,17 @@ export const QwenDialog: React.FC<QwenDialogProps> = ({ data, open, onClose, ref
           </Select>
         </div>
 
-        <DialogFooter className="mt-4 flex justify-end gap-2">
+        <GlassDialogFooter className="mt-4 flex justify-end gap-2">
           <Button disabled={isSubmitting} onClick={handleSubmit(onSubmit)} type="submit" variant="accent">
             <FormattedMessage id="save" />
           </Button>
-          <DialogClose asChild>
+          <GlassDialogClose asChild>
             <Button variant="default">
               <FormattedMessage id="cancel" />
             </Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </GlassDialogClose>
+        </GlassDialogFooter>
+      </GlassDialogContent>
+    </GlassDialog>
   )
 }

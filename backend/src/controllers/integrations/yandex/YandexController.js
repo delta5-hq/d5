@@ -6,6 +6,7 @@ const YandexController = {
     const body = await ctx.request.json('infinity')
     const retry = Number(ctx.query.retry || 0)
     const apiKey = ctx.headers.authorization.split(' ')[1]
+    const folderId = ctx.headers['x-folder-id']
 
     const {messages} = body
     if (!messages?.length && !messages[0]?.text) {
@@ -16,7 +17,7 @@ const YandexController = {
       let result
 
       if (!retry) {
-        const operation = await YandexService.completions({...body, apiKey})
+        const operation = await YandexService.completions({...body, apiKey, folderId})
         result = await YandexService.getOperationResult(operation, apiKey)
       } else {
         let attempts = retry + 1
@@ -24,7 +25,7 @@ const YandexController = {
 
         while (attempts && !result) {
           attempts -= 1
-          const operation = await YandexService.completions({...body, apiKey})
+          const operation = await YandexService.completions({...body, apiKey, folderId})
 
           const startTime = Date.now()
 
@@ -61,6 +62,7 @@ const YandexController = {
     try {
       const {modelUri, text} = await ctx.request.json('infinity')
       const apiKey = ctx.headers.authorization.split(' ')[1]
+      const folderId = ctx.headers['x-folder-id']
 
       if (!text || !modelUri) {
         ctx.throw(400, 'Input not specified')
@@ -70,7 +72,7 @@ const YandexController = {
         ctx.throw(401, 'Unauthorized')
       }
 
-      const result = await YandexService.embeddings({modelUri, text, apiKey})
+      const result = await YandexService.embeddings({modelUri, text, apiKey, folderId})
 
       ctx.body = result
     } catch (e) {

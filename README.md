@@ -111,7 +111,7 @@ make stop
 ┌─────────────────────────────────────────────────┐
 │ MongoDB - E2E Tests                             │
 │ Port: 27018                                     │
-│ Database: delta5                                │
+│ Database: delta5-e2e                            │
 │ Persistent: ./data/mongodb-e2e                  │
 │ Note: Isolated from dev, reseeded per test run  │
 └─────────────────────────────────────────────────┘
@@ -119,7 +119,7 @@ make stop
 
 ### Database Separation:
 - **Development**: Uses MongoDB on port 27017, database `delta5-dev`, persistent storage
-- **E2E Tests**: Uses MongoDB on port 27018, database `delta5`, isolated and reseeded per test run
+- **E2E Tests**: Uses MongoDB on port 27018, database `delta5-e2e`, isolated and reseeded per test run
 - **CI E2E Tests**: Uses MongoDB on port 27017, database `delta5_${CI_JOB_ID}`, temporary per-job isolation
 - Development and test databases are completely isolated to prevent data pollution
 
@@ -130,7 +130,7 @@ make stop
 | Database | Port | Name | Purpose | URI |
 |----------|------|------|---------|-----|
 | Development | 27017 | `delta5-dev` | Persistent dev data | `mongodb://localhost:27017/delta5-dev` |
-| E2E Tests | 27018 | `delta5` | Test isolation | `mongodb://localhost:27018/delta5` |
+| E2E Tests | 27018 | `delta5-e2e` | Test isolation | `mongodb://localhost:27018/delta5-e2e` |
 
 ### CI Environment
 
@@ -159,11 +159,23 @@ make dev-db-init
 ### E2E Tests Failing
 ```bash
 make clean-e2e
-make stop
-make start-mongodb-e2e
-make e2e-db-init
-make e2e-backend
+make stop-e2e
+make e2e-backend-v2                   # Go backend-v2 e2e suite
+MANUAL_RUN=1 make e2e-frontend        # full Playwright suite (1+ hour; gated)
 ```
+
+### E2E Architecture
+
+Each env is a complete stack of its own — no service is shared:
+
+| Tier | Dev | E2E |
+|------|-----|-----|
+| MongoDB | 27017 / `delta5-dev` | 27018 / `delta5-e2e` |
+| Node backend | 3001 | 3005 (`make start-backend-e2e`) |
+| backend-v2 (Go) | 3002 | 3003 (`make start-backend-v2-e2e`) |
+| Frontend (vite) | 5173 (`make dev-frontend`) | 5174 (`make start-frontend-e2e`) |
+
+`make stop-dev` / `make stop-e2e` kill one stack at a time; `make stop` kills both. Direct `npx playwright test …` outside `make e2e-frontend` is refused at config time unless `E2E_BASE_URL` is set (`http://localhost:5174`).
 
 ### Go Backend
 

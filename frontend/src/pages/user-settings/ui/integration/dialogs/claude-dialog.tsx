@@ -5,29 +5,31 @@ import { useForm } from 'react-hook-form'
 import { FormattedMessage } from 'react-intl'
 import { z } from 'zod'
 
-import type { ApiError, Claude, DialogProps } from '@shared/base-types'
+import type { Claude, DialogProps, LLMSecretMetadata } from '@shared/base-types'
 import { useApiMutation } from '@shared/composables'
 import { CLAUDE_DEFAULT_MODEL, ClaudeModels } from '@shared/config'
+import type { HttpError } from '@shared/lib/error'
 import { createResponseClaude, getClaudeMaxOutput } from '@shared/lib/llm'
-import { objectsAreEqual } from '@shared/lib/objectsAreEqual'
 import { Button } from '@shared/ui/button'
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@shared/ui/dialog'
+  GlassDialog,
+  GlassDialogClose,
+  GlassDialogContent,
+  GlassDialogDescription,
+  GlassDialogFooter,
+  GlassDialogHeader,
+  GlassDialogTitle,
+} from '@shared/ui/glass-dialog'
 import { Input } from '@shared/ui/input'
 import { Label } from '@shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shared/ui/select'
 import { toast } from 'sonner'
-import type { HttpError } from '@shared/lib/error'
+import { buildIntegrationUrl } from '../utils/build-integration-url'
+import { submitIntegrationChanges } from '../utils/submit-integration-changes'
+import { toastIntegrationError } from '../utils/toast-integration-error'
 
 const claudeSchema = z.object({
-  apiKey: z.string().min(1, 'API Key is required'),
+  apiKey: z.string().optional(),
   model: z.nativeEnum(ClaudeModels, {
     errorMap: () => ({ message: 'Please select a model' }),
   }),
@@ -37,12 +39,16 @@ type ClaudeFormValues = z.infer<typeof claudeSchema>
 
 interface Props extends DialogProps {
   data: Claude | undefined
+  secretMeta?: LLMSecretMetadata
   refresh: () => Promise<void>
+  workflowId?: string | null
 }
 
-export const ClaudeDialog: React.FC<Props> = ({ data, open, onClose, refresh }) => {
+export const ClaudeDialog: React.FC<Props> = ({ data, secretMeta, open, onClose, refresh, workflowId }) => {
+  const url = buildIntegrationUrl('/integration/claude/update', workflowId)
+
   const { mutateAsync: save } = useApiMutation<Claude, HttpError, Claude>({
-    url: '/integration/claude/update',
+    url,
     method: 'PUT',
     onSuccess: () => toast.success(<FormattedMessage id="dialog.integration.saveSuccess" />),
     onError: (err: Error) => toast.error(err.message || 'Server error'),
@@ -51,7 +57,7 @@ export const ClaudeDialog: React.FC<Props> = ({ data, open, onClose, refresh }) 
   const form = useForm<ClaudeFormValues>({
     resolver: zodResolver(claudeSchema),
     defaultValues: {
-      apiKey: data?.apiKey || '',
+      apiKey: '',
       model: (data?.model as ClaudeModels) || CLAUDE_DEFAULT_MODEL,
     },
   })
@@ -66,10 +72,9 @@ export const ClaudeDialog: React.FC<Props> = ({ data, open, onClose, refresh }) 
 
   const onSubmit = async (values: ClaudeFormValues) => {
     try {
-      const apiKeyChanged = values.apiKey.trim() !== data?.apiKey
-      const modelChanged = values.model.trim() !== data?.model
-
-      if (apiKeyChanged || modelChanged) {
+      const payload: Partial<Claude> = { model: values.model }
+      if (values.apiKey?.trim()) {
+        payload.apiKey = values.apiKey
         await createResponseClaude(
           {
             model: values.model,
@@ -78,46 +83,31 @@ export const ClaudeDialog: React.FC<Props> = ({ data, open, onClose, refresh }) 
           },
           values.apiKey,
         )
-        await save(values)
-      } else if (!objectsAreEqual(values, data)) {
-        await save(values)
       }
-
-      await refresh()
-      onClose?.()
+      await submitIntegrationChanges(() => save(payload as Claude), { refresh, onClose })
     } catch (e: unknown) {
-      const error = e as ApiError
-      const status = error?.response?.status
-
-      if (status === 401) {
-        toast.error(<FormattedMessage id="dialog.integration.authenticationError" />)
-      } else if (status === 429) {
-        toast.error(<FormattedMessage id="dialog.integration.rateLimitExceeded" />)
-      } else if (status === 404) {
-        toast.error(<FormattedMessage id="dialog.integration.noAccess" values={{ model: values.model }} />)
-      } else {
-        toast.error(<FormattedMessage id="dialog.integration.wrongRequest" />)
-      }
+      toastIntegrationError(e, { model: values.model })
     }
   }
 
   return (
-    <Dialog onOpenChange={state => !state && onClose?.()} open={open}>
-      <DialogContent className="sm:max-w-lg" data-dialog-name="claude">
-        <DialogHeader>
-          <DialogTitle>
+    <GlassDialog onOpenChange={state => !state && onClose?.()} open={open}>
+      <GlassDialogContent className="sm:max-w-lg" data-dialog-name="claude" dismissible={false}>
+        <GlassDialogHeader>
+          <GlassDialogTitle>
             <FormattedMessage id="integration.claude.title" />
-          </DialogTitle>
-          <DialogClose className="absolute right-4 top-4">
+          </GlassDialogTitle>
+          <GlassDialogClose className="absolute right-4 top-4">
             <X className="h-4 w-4" />
-          </DialogClose>
-        </DialogHeader>
+          </GlassDialogClose>
+        </GlassDialogHeader>
 
-        <DialogDescription />
+        <GlassDialogDescription />
 
         <div>
           <Label htmlFor="apiKey">
             <FormattedMessage id="dialog.integration.apiKey" />
+            {secretMeta?.apiKey ? <span className="text-sm text-muted-foreground ml-2">(already set)</span> : null}
           </Label>
           <Input
             {...register('apiKey')}
@@ -125,7 +115,8 @@ export const ClaudeDialog: React.FC<Props> = ({ data, open, onClose, refresh }) 
             error={!!errors.apiKey}
             errorHelper={errors.apiKey?.message?.toString()}
             id="apiKey"
-            required
+            placeholder={secretMeta?.apiKey ? '••••••••••••••••' : 'Enter API key'}
+            type="password"
           />
         </div>
 
@@ -151,17 +142,17 @@ export const ClaudeDialog: React.FC<Props> = ({ data, open, onClose, refresh }) 
           </Select>
         </div>
 
-        <DialogFooter className="mt-4 flex justify-end gap-2">
+        <GlassDialogFooter className="mt-4 flex justify-end gap-2">
           <Button disabled={isSubmitting} onClick={handleSubmit(onSubmit)} type="submit" variant="accent">
             <FormattedMessage id="save" />
           </Button>
-          <DialogClose asChild>
+          <GlassDialogClose asChild>
             <Button variant="default">
               <FormattedMessage id="cancel" />
             </Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </GlassDialogClose>
+        </GlassDialogFooter>
+      </GlassDialogContent>
+    </GlassDialog>
   )
 }

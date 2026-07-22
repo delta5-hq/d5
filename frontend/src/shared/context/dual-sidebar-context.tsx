@@ -1,5 +1,6 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { safeLocalStorage } from '@shared/lib/storage'
+import { useViewportBreakpoint } from '@shared/composables/use-viewport-breakpoint'
 
 const SECONDARY_SIDEBAR_KEY = 'secondary_sidebar_state'
 const ACTIVE_SECTION_KEY = 'active_section'
@@ -67,6 +68,23 @@ export const DualSidebarProvider: React.FC<DualSidebarProviderProps> = ({
       safeLocalStorage.removeItem(ACTIVE_SECTION_KEY)
     }
   }, [])
+
+  const isMobile = useViewportBreakpoint()
+  const activeSectionRef = useRef(activeSection)
+  activeSectionRef.current = activeSection
+
+  const prevIsMobileRef = useRef(isMobile)
+
+  useEffect(() => {
+    if (prevIsMobileRef.current === isMobile) return
+    prevIsMobileRef.current = isMobile
+
+    if (isMobile) {
+      setSecondaryOpen(false)
+    } else if (activeSectionRef.current) {
+      setSecondaryOpen(true)
+    }
+  }, [isMobile, setSecondaryOpen])
 
   const contextValue = useMemo<DualSidebarContextProps>(
     () => ({

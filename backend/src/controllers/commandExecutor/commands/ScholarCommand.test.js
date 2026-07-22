@@ -1,7 +1,7 @@
 import {ScholarCommand} from './ScholarCommand'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import {getIntegrationSettings, getLLM, getEmbeddings} from './utils/langchain/getLLM'
-import {createSimpleAgentExecutor} from './utils/langchain/getAgentExecutor'
+import {JSKnowledgeMapWebScholarSearch} from './utils/langchain/JSKnowledgeMapWebScholarSearch'
 import {conditionallyTranslate} from './utils/translate'
 
 // Mock the reference patterns module
@@ -32,7 +32,7 @@ import Store from './utils/Store'
 
 jest.mock('./references/substitution')
 jest.mock('./utils/langchain/getLLM')
-jest.mock('./utils/langchain/getAgentExecutor')
+jest.mock('./utils/langchain/JSKnowledgeMapWebScholarSearch')
 jest.mock('./utils/translate')
 
 describe('ScholarCommand', () => {
@@ -53,9 +53,9 @@ describe('ScholarCommand', () => {
     })
     getLLM.mockReturnValue({llm: {}, chunkSize: 2000})
     getEmbeddings.mockReturnValue({})
-    createSimpleAgentExecutor.mockReturnValue({
-      call: jest.fn().mockResolvedValue({output: 'agent output'}),
-    })
+    JSKnowledgeMapWebScholarSearch.mockImplementation(() => ({
+      getKnowledgeMapWebExt: jest.fn().mockResolvedValue('retrieval output'),
+    }))
     conditionallyTranslate.mockResolvedValue('translated output')
 
     jest.spyOn(command, 'createResponseScholar').mockResolvedValue('scholar response')
@@ -108,6 +108,20 @@ describe('ScholarCommand', () => {
 
       expect(command.createResponseScholar).toHaveBeenCalled()
       expect(mockStore.importer.createNodes).toHaveBeenCalledWith('scholar response', node.id)
+    })
+
+    it('calls the scholar retrieval tool directly with the resolved prompt', async () => {
+      command.createResponseScholar.mockRestore()
+      const search = {getKnowledgeMapWebExt: jest.fn().mockResolvedValue('grounded scholar result')}
+      JSKnowledgeMapWebScholarSearch.mockImplementationOnce(() => search)
+      conditionallyTranslate.mockImplementationOnce(async text => text)
+
+      const node = {id: 'node', title: '/scholar search term'}
+
+      await command.run(node, 'test prompt')
+
+      expect(search.getKnowledgeMapWebExt).toHaveBeenCalledWith('cleared test prompt')
+      expect(mockStore.importer.createNodes).toHaveBeenCalledWith('grounded scholar result', node.id)
     })
   })
 })

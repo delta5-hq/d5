@@ -402,16 +402,17 @@ class RealClaudeService {
     log('RealClaudeService initialized', {baseUrl: config.baseUrl})
   }
 
-  async sendMessages(body) {
+  async sendMessages({apiKey: callerApiKey, userId: _userId, ...payload}) {
+    const apiKey = callerApiKey || this.config.apiKey
     const fetch = (await import('node-fetch')).default
     const response = await fetch(`${this.config.baseUrl}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': this.config.apiKey,
+        'x-api-key': apiKey,
         'anthropic-version': this.config.version,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     })
 
     const result = await response.json()
@@ -453,16 +454,18 @@ class RealYandexService {
     log('RealYandexService initialized', {baseUrl: config.baseUrl})
   }
 
-  async completion(body) {
+  async completion({apiKey: callerApiKey, folderId: callerFolderId, ...payload}) {
+    const apiKey = callerApiKey || this.config.apiKey
+    const folderId = callerFolderId || this.config.folderId
     const fetch = (await import('node-fetch')).default
     const response = await fetch(`${this.config.baseUrl}/foundationModels/v1/completion`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.config.apiKey}`,
-        'x-folder-id': this.config.folderId,
+        Authorization: `Api-Key ${apiKey}`,
+        'x-folder-id': folderId,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     })
 
     if (!response.ok) {
@@ -471,16 +474,18 @@ class RealYandexService {
     return response.json()
   }
 
-  async embeddings(body) {
+  async embeddings({apiKey: callerApiKey, folderId: callerFolderId, ...payload}) {
+    const apiKey = callerApiKey || this.config.apiKey
+    const folderId = callerFolderId || this.config.folderId
     const fetch = (await import('node-fetch')).default
     const response = await fetch(`${this.config.baseUrl}/foundationModels/v1/textEmbedding`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.config.apiKey}`,
-        'x-folder-id': this.config.folderId,
+        Authorization: `Api-Key ${apiKey}`,
+        'x-folder-id': folderId,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     })
 
     if (!response.ok) {

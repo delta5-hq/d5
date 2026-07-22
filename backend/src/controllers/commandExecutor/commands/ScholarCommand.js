@@ -5,7 +5,6 @@ import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/subst
 import {readLangParam, readCitationParam} from '../constants'
 import {getEmbeddings, determineLLMType, getIntegrationSettings, getLLM} from './utils/langchain/getLLM'
 import {conditionallyTranslate} from './utils/translate'
-import {createSimpleAgentExecutor} from './utils/langchain/getAgentExecutor'
 import {JSKnowledgeMapWebScholarSearch} from './utils/langchain/JSKnowledgeMapWebScholarSearch'
 import {WebVectorStore} from './utils/langchain/vectorStore/WebVectorStore'
 import {readMaxChunksParam} from '../constants'
@@ -40,49 +39,40 @@ export class ScholarCommand {
     this.logError = this.log.extend('ERROR*', '::')
   }
   async createResponseScholar(node, userInput, params) {
-    try {
-      const lang = params?.lang
-      const serpApiParams = {...SERP_API_SCHOLAR_PARAMS, as_ylo: params?.minYear}
+    const lang = params?.lang
+    const serpApiParams = {...SERP_API_SCHOLAR_PARAMS, as_ylo: params?.minYear}
 
-      const settings = await getIntegrationSettings(this.userId)
-      const llmType = determineLLMType(node?.command, settings)
-      const {llm, chunkSize} = getLLM({settings, type: llmType})
-      const embeddings = getEmbeddings({settings, type: llmType})
+    const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
+    const llmType = determineLLMType(settings)
+    const {llm, chunkSize} = getLLM({settings, type: llmType})
+    const embeddings = getEmbeddings({settings, type: llmType})
 
-      const vectorStore = new WebVectorStore({
-        ...embeddings,
-        logError: this.logError,
-      })
+    const vectorStore = new WebVectorStore({
+      ...embeddings,
+      logError: this.logError,
+    })
 
-      const citations = []
-      const searchTool = new JSKnowledgeMapWebScholarSearch(llm, vectorStore, {
-        maxChunks: params?.maxChunks,
-        disableSearchScrape: false,
-        chunkSize,
-        serpApiParams,
-        citations: params?.citations ? citations : undefined,
-        userInput,
-        onError: this.logError,
-        convertOutputToOutline: false,
-      }).asTool()
+    const citations = []
+    const searchTool = new JSKnowledgeMapWebScholarSearch(llm, vectorStore, {
+      maxChunks: params?.maxChunks,
+      disableSearchScrape: false,
+      chunkSize,
+      serpApiParams,
+      citations: params?.citations ? citations : undefined,
+      userInput,
+      onError: this.logError,
+      convertOutputToOutline: false,
+    })
 
-      const tools = [searchTool]
+    let result = await searchTool.getKnowledgeMapWebExt(userInput)
 
-      const executor = createSimpleAgentExecutor(llm, tools, lang)
+    result = await conditionallyTranslate(result, lang, llm, this.logError, settings)
 
-      let result = (await executor.invoke({input: userInput})).output
-
-      result = await conditionallyTranslate(result, lang, llm, this.logError, settings)
-
-      if (params?.citations) {
-        result += `\n\n${CITATIONS_STRING}:\n    ${citations.join('\n    ')}`
-      }
-
-      return result
-    } catch (e) {
-      this.logError(e)
-      return ''
+    if (params?.citations) {
+      result += `\n\n${CITATIONS_STRING}:\n    ${citations.join('\n    ')}`
     }
+
+    return result
   }
 
   getParams = title => {
@@ -102,20 +92,25 @@ export class ScholarCommand {
   }
 
   async run(node, originalPrompt) {
-    let prompt = originalPrompt
-    const title = node?.command || node?.title
+    try {
+      let prompt = originalPrompt
+      const title = node?.command || node?.title
 
-    if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
-      prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
-    } else {
-      prompt = clearCommandsWithParams(
-        clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
-      )
+      if (!prompt || referencePatterns.withAssignmentPrefix().test(title)) {
+        prompt = substituteReferencesAndHashrefsChildrenAndSelf(this.store.getNode(node.id), this.store)
+      } else {
+        prompt = clearCommandsWithParams(
+          clearReferences(clearReferences(clearStepsPrefix(prompt), REF_DEF_PREFIX), HASHREF_DEF_PREFIX),
+        )
+      }
+
+      const params = this.getParams(title)
+      const text = await this.createResponseScholar(node, prompt, params)
+
+      this.store.importer.createNodes(text, node.id)
+    } catch (e) {
+      this.logError(e)
+      this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }
-
-    const params = this.getParams(title)
-    const text = await this.createResponseScholar(node, prompt, params)
-
-    this.store.importer.createNodes(text, node.id)
   }
 }

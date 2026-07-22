@@ -568,3 +568,64 @@ describe('SummarizeCommand', () => {
     })
   })
 })
+
+describe('SummarizeCommand error handling', () => {
+  const userId = 'userId'
+  const workflowId = 'workflowId'
+  let store
+  let command
+
+  beforeEach(() => {
+    store = new Store({userId, workflowId, nodes: {}})
+    command = new SummarizeCommand(userId, workflowId, store)
+    jest.clearAllMocks()
+    store.importer.createNodes = jest.fn()
+    command.logError = jest.fn()
+    getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k'}})
+    getLLM.mockReturnValue({llm: {}, chunkSize: 1000})
+  })
+
+  it('creates error node on the summarize node when LLM throws', async () => {
+    const err = new Error('LLM unavailable')
+    jest.spyOn(command, 'replyDefault').mockRejectedValue(err)
+
+    const node = {id: 'sum-node', command: '/summarize text'}
+    store._nodes = {[node.id]: node}
+
+    await command.run(node, 'text')
+
+    expect(store.importer.createNodes).toHaveBeenCalledWith('Error: LLM unavailable', 'sum-node')
+  })
+
+  it('logs the thrown error when LLM throws', async () => {
+    const err = new Error('LLM unavailable')
+    jest.spyOn(command, 'replyDefault').mockRejectedValue(err)
+
+    const node = {id: 'sum-node', command: '/summarize text'}
+    store._nodes = {[node.id]: node}
+
+    await command.run(node, 'text')
+
+    expect(command.logError).toHaveBeenCalledWith(err)
+  })
+
+  it('does not throw to the caller when LLM throws', async () => {
+    jest.spyOn(command, 'replyDefault').mockRejectedValue(new Error('crash'))
+
+    const node = {id: 'sum-node', command: '/summarize text'}
+    store._nodes = {[node.id]: node}
+
+    await expect(command.run(node, 'text')).resolves.toBeUndefined()
+  })
+
+  it('creates exactly one error node when LLM throws', async () => {
+    jest.spyOn(command, 'replyDefault').mockRejectedValue(new Error('overload'))
+
+    const node = {id: 'sum-node', command: '/summarize text'}
+    store._nodes = {[node.id]: node}
+
+    await command.run(node, 'text')
+
+    expect(store.importer.createNodes).toHaveBeenCalledTimes(1)
+  })
+})
