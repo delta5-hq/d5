@@ -4,6 +4,7 @@ import { ForkStreamClient } from './fork-stream-client'
 type MockEventSource = {
   onmessage: ((event: { data: string }) => void) | null
   onerror: (() => void) | null
+  onopen: (() => void) | null
   close: ReturnType<typeof vi.fn>
   readyState: number
 }
@@ -14,6 +15,7 @@ beforeEach(() => {
   mockInstance = {
     onmessage: null,
     onerror: null,
+    onopen: null,
     close: vi.fn(),
     readyState: 0,
   }
@@ -132,6 +134,49 @@ describe('ForkStreamClient', () => {
       const client = new ForkStreamClient('sess-1', { onForkEvent: vi.fn() })
       client.connect()
       expect(() => mockInstance.onerror?.()).not.toThrow()
+    })
+  })
+
+  describe('whenReady — gates the execute POST on SSE session registration', () => {
+    it('resolves once the EventSource opens', async () => {
+      const client = new ForkStreamClient('sess-1', { onForkEvent: vi.fn() })
+      client.connect()
+
+      let resolved = false
+      const ready = client.whenReady().then(() => {
+        resolved = true
+      })
+      await Promise.resolve()
+      expect(resolved).toBe(false) // still waiting — session not open yet
+
+      mockInstance.onopen?.()
+      await ready
+      expect(resolved).toBe(true)
+    })
+
+    it('resolves after the timeout when the connection never opens (best-effort — never blocks execution)', async () => {
+      vi.useFakeTimers()
+      try {
+        const client = new ForkStreamClient('sess-1', { onForkEvent: vi.fn() })
+        client.connect()
+
+        let settled = false
+        const ready = client.whenReady(3000).then(() => {
+          settled = true
+        })
+        await vi.advanceTimersByTimeAsync(2999)
+        expect(settled).toBe(false)
+        await vi.advanceTimersByTimeAsync(1)
+        await ready
+        expect(settled).toBe(true)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('resolves immediately when connect was never called (nothing to wait for)', async () => {
+      const client = new ForkStreamClient('sess-1', { onForkEvent: vi.fn() })
+      await expect(client.whenReady()).resolves.toBeUndefined()
     })
   })
 

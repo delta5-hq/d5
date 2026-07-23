@@ -145,6 +145,11 @@ export function bindExecuteAction(
           },
         })
         streamClient.connect()
+        // Gate the execute POST on the SSE session being registered. Firing the POST first races
+        // stream-session registration on the backend, which 400s the execution and drops the
+        // parent's output (worst under rapid edit→run on refine/best-of-N). Best-effort: whenReady
+        // resolves on SSE open or a short timeout, so a stalled stream never blocks execution.
+        await streamClient.whenReady()
       }
 
       let response

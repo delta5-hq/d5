@@ -22,7 +22,7 @@ vi.mock('../execution-genie-bridge', () => ({
 
 vi.mock('../../api/streaming/fork-stream-client', () => ({
   ForkStreamClient: vi.fn().mockImplementation(function () {
-    return { connect: vi.fn(), disconnect: vi.fn() }
+    return { connect: vi.fn(), disconnect: vi.fn(), whenReady: vi.fn().mockResolvedValue(undefined) }
   }),
 }))
 
@@ -1849,7 +1849,11 @@ describe('bindExecuteAction', () => {
     function activateStreaming(): void {
       vi.mocked(isValidRefineCell).mockReturnValue(true)
       vi.mocked(ForkStreamClient).mockImplementation(function () {
-        return { connect: vi.fn(), disconnect: vi.fn() } as unknown as InstanceType<typeof ForkStreamClient>
+        return {
+          connect: vi.fn(),
+          disconnect: vi.fn(),
+          whenReady: vi.fn().mockResolvedValue(undefined),
+        } as unknown as InstanceType<typeof ForkStreamClient>
       })
     }
 
@@ -1946,6 +1950,26 @@ describe('bindExecuteAction', () => {
       const { streamSessionId } = vi.mocked(executeWorkflowCommand).mock.calls[0][0]
       expect(typeof streamSessionId).toBe('string')
       expect(streamSessionId).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
+    })
+
+    it('awaits stream readiness (whenReady) BEFORE issuing the execute POST — closes the session-registration race that 400s streaming executions', async () => {
+      vi.mocked(isValidRefineCell).mockReturnValue(true)
+      let executeCallsWhenReadyRan = -1
+      const whenReady = vi.fn().mockImplementation(async () => {
+        // capture how many execute POSTs had fired at the moment the readiness gate ran
+        executeCallsWhenReadyRan = vi.mocked(executeWorkflowCommand).mock.calls.length
+      })
+      vi.mocked(ForkStreamClient).mockImplementation(function () {
+        return { connect: vi.fn(), disconnect: vi.fn(), whenReady } as unknown as InstanceType<typeof ForkStreamClient>
+      })
+      mockIdentityExecution(N1)
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      await makeExecute(store, makePersister())(stubNode, 'query')
+
+      expect(whenReady).toHaveBeenCalledTimes(1)
+      // the execute POST must NOT have been issued yet when the readiness gate ran
+      expect(executeCallsWhenReadyRan).toBe(0)
     })
 
     it('applies fork events to forkPreviews immediately while execution is still in flight', async () => {
