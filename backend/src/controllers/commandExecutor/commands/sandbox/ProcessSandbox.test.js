@@ -127,15 +127,63 @@ describe('ProcessSandbox', () => {
   })
 
   describe('sandboxSpawn — bwrap unavailable', () => {
+    const savedOverride = process.env.D5_ALLOW_UNSANDBOXED_SPAWN
+
     beforeEach(() => {
       execFileSync.mockImplementation(() => {
         throw new Error('not found')
       })
+      delete process.env.D5_ALLOW_UNSANDBOXED_SPAWN
+    })
+
+    afterEach(() => {
+      if (savedOverride === undefined) delete process.env.D5_ALLOW_UNSANDBOXED_SPAWN
+      else process.env.D5_ALLOW_UNSANDBOXED_SPAWN = savedOverride
     })
 
     it('throws SandboxUnavailableError', () => {
       const {sandboxSpawn, SandboxUnavailableError} = require('./ProcessSandbox')
       expect(() => sandboxSpawn('node', ['server.js'])).toThrow(SandboxUnavailableError)
+    })
+
+    it('throws by default even when the override env var is unset (secure by default)', () => {
+      const {sandboxSpawn, SandboxUnavailableError} = require('./ProcessSandbox')
+      expect(() => sandboxSpawn('node', [])).toThrow(SandboxUnavailableError)
+    })
+
+    describe('with D5_ALLOW_UNSANDBOXED_SPAWN=true (trusted-environment override)', () => {
+      let warnSpy
+      beforeEach(() => {
+        process.env.D5_ALLOW_UNSANDBOXED_SPAWN = 'true'
+        warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
+      })
+      afterEach(() => warnSpy.mockRestore())
+
+      it('returns the original command unsandboxed, without bwrap', () => {
+        const {sandboxSpawn} = require('./ProcessSandbox')
+        const env = {API_KEY: 'abc'}
+        const result = sandboxSpawn('node', ['/srv/app/server.js'], env)
+        expect(result.command).toBe('node')
+        expect(result.args).toEqual(['/srv/app/server.js'])
+        expect(result.env).toBe(env)
+      })
+
+      it('defaults undefined args to an empty array in the unsandboxed result', () => {
+        const {sandboxSpawn} = require('./ProcessSandbox')
+        expect(sandboxSpawn('node', undefined).args).toEqual([])
+      })
+
+      it('warns that it is spawning without a sandbox', () => {
+        const {sandboxSpawn} = require('./ProcessSandbox')
+        sandboxSpawn('node', [])
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/without a sandbox/))
+      })
+
+      it('does not fall back for any other truthy-looking value (strict "true" only)', () => {
+        process.env.D5_ALLOW_UNSANDBOXED_SPAWN = '1'
+        const {sandboxSpawn, SandboxUnavailableError} = require('./ProcessSandbox')
+        expect(() => sandboxSpawn('node', [])).toThrow(SandboxUnavailableError)
+      })
     })
 
     it.each([
