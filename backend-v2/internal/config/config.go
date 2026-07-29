@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"log"
 	"net/url"
 	"os"
 
@@ -46,8 +45,6 @@ func init() {
 
 	MongoDatabase = resolveMongoDatabase(getEnv("MONGO_DATABASE", ""), MongoURI)
 
-	log.Printf("PORT=%s API_ROOT=%s MONGO_HOST=%s MONGO_PORT=%s MONGO_DATABASE=%s MONGO_USERNAME=%s",
-		Port, ApiRoot, MongoHost, MongoPort, MongoDatabase, MongoUsername)
 }
 
 const defaultDatabase = "delta5"

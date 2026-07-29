@@ -1,4 +1,4 @@
-.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e start-backend-e2e start-backend-v2-e2e start-frontend-e2e stop stop-dev stop-e2e ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend build-backend build-backend-v2 build-frontend test-backend test-backend-v2 test-frontend e2e-backend-v2 e2e-frontend e2e-frontend-throttled e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks test-hook clean-e2e clean-all fix-permissions cleanup-old-data e2e-disk-preflight
+.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e start-backend-e2e start-backend-v2-e2e start-frontend-e2e stop stop-dev stop-e2e ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend build-backend build-backend-v2 package-backend-v2 build-frontend test-backend test-backend-v2 test-frontend e2e-backend-v2 e2e-frontend e2e-frontend-throttled e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks test-hook clean-e2e clean-all fix-permissions cleanup-old-data e2e-disk-preflight
 
 # Configuration
 DOCKER_NETWORK := d5-dev-network
@@ -14,6 +14,13 @@ FRONTEND_PORT := 5173
 E2E_BACKEND_V2_PORT := 3003
 E2E_NODEJS_BACKEND_PORT := 3005
 E2E_FRONTEND_PORT := 5174
+REDACTION_CHECKER_PATH ?= $(shell command -v value-redaction-check 2>/dev/null)
+REDACTION_REGISTERED_VALUES_FILE ?= $(CURDIR)/backend-v2/testdata/redaction-registered-values.json
+REDACTION_TIMEOUT_MS ?= 2000
+REDACTION_PACKAGE_SPEC ?= /tmp/redaction-package.tgz
+REDACTION_PACKAGE_TARBALL_FILE ?= $(CURDIR)/backend-v2/third_party/redaction/redaction-control-value-redaction-control-0.1.2.tgz
+REDACTION_PACKAGE_SHA512 ?= 19f4f7ca3ac8f0fe10b292bf26e7e6c71a89dd904875f7d892d00e963b7e36788b5925ebed3e598c92063164837fb64b6492c80706d5c167015472ca8def14ff
+E2E_BACKEND_V2_READY_TIMEOUT ?= 30
 
 help:
 	@echo "Available targets:"
@@ -56,6 +63,7 @@ help:
 	@echo "Build:"
 	@echo "  make build-backend       - Build Node.js backend"
 	@echo "  make build-backend-v2    - Build backend-v2"
+	@echo "  make package-backend-v2  - Build backend-v2 image with the private redaction checker"
 	@echo "  make build-frontend      - Build frontend"
 	@echo ""
 	@echo "Maintenance:"
@@ -78,37 +86,51 @@ test: test-backend test-backend-v2 test-frontend
 build: build-backend build-backend-v2 build-frontend
 	@echo "✓ All modules built"
 
+package-backend-v2:
+	@if [ ! -r "$(REDACTION_PACKAGE_TARBALL_FILE)" ]; then \
+		echo "✗ REDACTION_PACKAGE_TARBALL_FILE must be readable"; \
+		exit 1; \
+	fi
+	@if [ -z "$(REDACTION_PACKAGE_SHA512)" ]; then \
+		echo "✗ REDACTION_PACKAGE_SHA512 is required"; \
+		exit 1; \
+	fi
+	@$(MAKE) -C backend-v2 build-docker \
+		REDACTION_PACKAGE_SPEC='$(REDACTION_PACKAGE_SPEC)' \
+		REDACTION_PACKAGE_SHA512='$(REDACTION_PACKAGE_SHA512)' \
+		DOCKER_BUILD_SECRETS='--secret id=redaction_package,src=$(REDACTION_PACKAGE_TARBALL_FILE)'
+
 e2e: e2e-backend-v2 e2e-frontend
 	@echo "✓ All E2E tests completed"
 
 e2e-db-init:
 	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users seed-users
 	@echo "→ Initializing E2E database (port 27018)..."
-	@DROP_DB=true MONGO_PORT=27018 bash backend-v2/e2e-db-init.sh
+	@DROP_DB=true MONGO_PORT=27018 D5_REDACTION_CHECKER_PATH='$(REDACTION_CHECKER_PATH)' D5_REDACTION_REGISTERED_VALUES_FILE='$(REDACTION_REGISTERED_VALUES_FILE)' D5_REDACTION_TIMEOUT_MS='$(REDACTION_TIMEOUT_MS)' bash backend-v2/e2e-db-init.sh
 	@echo "✓ E2E database initialized"
 
 e2e-db-drop:
 	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users seed-users
 	@echo "→ Dropping E2E database (port 27018)..."
-	@MONGO_PORT=27018 bash backend-v2/e2e-db-drop.sh
+	@MONGO_PORT=27018 D5_REDACTION_CHECKER_PATH='$(REDACTION_CHECKER_PATH)' D5_REDACTION_REGISTERED_VALUES_FILE='$(REDACTION_REGISTERED_VALUES_FILE)' D5_REDACTION_TIMEOUT_MS='$(REDACTION_TIMEOUT_MS)' bash backend-v2/e2e-db-drop.sh
 	@echo "✓ E2E database dropped"
 
 dev-db-init:
 	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users seed-users
 	@echo "→ Initializing development database (port 27017)..."
-	@MONGO_PORT=27017 bash backend-v2/e2e-db-init.sh
+	@MONGO_PORT=27017 D5_REDACTION_CHECKER_PATH='$(REDACTION_CHECKER_PATH)' D5_REDACTION_REGISTERED_VALUES_FILE='$(REDACTION_REGISTERED_VALUES_FILE)' D5_REDACTION_TIMEOUT_MS='$(REDACTION_TIMEOUT_MS)' bash backend-v2/e2e-db-init.sh
 	@echo "✓ Development database initialized"
 
 dev-db-reset:
 	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users seed-users
 	@echo "→ Resetting development database..."
-	@DROP_DB=true MONGO_PORT=27017 bash backend-v2/e2e-db-init.sh
+	@DROP_DB=true MONGO_PORT=27017 D5_REDACTION_CHECKER_PATH='$(REDACTION_CHECKER_PATH)' D5_REDACTION_REGISTERED_VALUES_FILE='$(REDACTION_REGISTERED_VALUES_FILE)' D5_REDACTION_TIMEOUT_MS='$(REDACTION_TIMEOUT_MS)' bash backend-v2/e2e-db-init.sh
 	@echo "✓ Development database reset"
 
 dev-db-drop:
 	@bash scripts/ci-helpers.sh build_tool_go backend-v2 ./cmd/seed-users seed-users
 	@echo "→ Dropping development database (port 27017)..."
-	@MONGO_PORT=27017 bash backend-v2/e2e-db-drop.sh
+	@MONGO_PORT=27017 D5_REDACTION_CHECKER_PATH='$(REDACTION_CHECKER_PATH)' D5_REDACTION_REGISTERED_VALUES_FILE='$(REDACTION_REGISTERED_VALUES_FILE)' D5_REDACTION_TIMEOUT_MS='$(REDACTION_TIMEOUT_MS)' bash backend-v2/e2e-db-drop.sh
 	@echo "✓ Development database dropped"
 
 start-mongodb-dev:
@@ -135,6 +157,9 @@ dev-backend-v2: start-mongodb-dev
 		PORT=$(BACKEND_PORT) \
 		API_ROOT='$(API_ROOT)' \
 		MOCK_EXTERNAL_SERVICES=false \
+		D5_REDACTION_CHECKER_PATH='$(REDACTION_CHECKER_PATH)' \
+		D5_REDACTION_REGISTERED_VALUES_FILE='$(REDACTION_REGISTERED_VALUES_FILE)' \
+		D5_REDACTION_TIMEOUT_MS='$(REDACTION_TIMEOUT_MS)' \
 		$(MAKE) start
 	@echo "✓ Backend-v2 running on http://localhost:$(BACKEND_PORT)"
 
@@ -152,6 +177,9 @@ dev: start-mongodb-dev
 		PORT=$(BACKEND_PORT) \
 		API_ROOT='$(API_ROOT)' \
 		MOCK_EXTERNAL_SERVICES=false \
+		D5_REDACTION_CHECKER_PATH='$(REDACTION_CHECKER_PATH)' \
+		D5_REDACTION_REGISTERED_VALUES_FILE='$(REDACTION_REGISTERED_VALUES_FILE)' \
+		D5_REDACTION_TIMEOUT_MS='$(REDACTION_TIMEOUT_MS)' \
 		$(MAKE) start
 	@echo "✓ Backend-v2 running on http://localhost:$(BACKEND_PORT)"
 	@echo ""
@@ -252,7 +280,7 @@ build-backend:
 	@bash scripts/ci-helpers.sh build_node backend
 
 build-backend-v2:
-	@bash scripts/ci-helpers.sh build_go backend-v2 backend-v2
+	@DOCKER_BUILD_NETWORK=default bash scripts/ci-helpers.sh build_go backend-v2 backend-v2
 
 build-frontend:
 	@bash scripts/ci-helpers.sh build_node frontend
@@ -299,7 +327,7 @@ start-backend-e2e:
 
 start-backend-v2-e2e:
 	@echo "→ Building backend-v2..."
-	@cd backend-v2 && $(MAKE) build > /dev/null 2>&1
+	@cd backend-v2 && DOCKER_BUILD_NETWORK=default $(MAKE) build > /dev/null 2>&1
 	@echo "→ Starting backend-v2 for E2E (port $(E2E_BACKEND_V2_PORT))..."
 	@lsof -ti:$(E2E_BACKEND_V2_PORT) 2>/dev/null | xargs -r kill -9 2>/dev/null || true
 	@cd backend-v2 && mkdir -p logs && ( \
@@ -310,16 +338,28 @@ start-backend-v2-e2e:
 		API_ROOT='$(API_ROOT)' \
 		MOCK_EXTERNAL_SERVICES=true \
 		NODEJS_BACKEND_URL=http://localhost:$(E2E_NODEJS_BACKEND_PORT) \
+		D5_REDACTION_CHECKER_PATH='$(REDACTION_CHECKER_PATH)' \
+		D5_REDACTION_REGISTERED_VALUES_FILE='$(REDACTION_REGISTERED_VALUES_FILE)' \
+		D5_REDACTION_TIMEOUT_MS='$(REDACTION_TIMEOUT_MS)' \
 		nohup ./backend-v2 > logs/backend-e2e.log 2>&1 & echo $$! > logs/backend-e2e.pid )
-	@sleep 3
-	@if [ -f backend-v2/logs/backend-e2e.pid ] && kill -0 $$(cat backend-v2/logs/backend-e2e.pid) 2>/dev/null; then \
-		echo "✓ Backend-v2 e2e running on http://localhost:$(E2E_BACKEND_V2_PORT) (PID $$(cat backend-v2/logs/backend-e2e.pid))"; \
-	else \
-		echo "✗ Backend-v2 e2e failed to start"; \
-		tail -10 backend-v2/logs/backend-e2e.log 2>/dev/null || true; \
-		exit 1; \
-	fi
-	@until curl -s http://localhost:$(E2E_BACKEND_V2_PORT)$(API_ROOT)/health > /dev/null 2>&1; do sleep 1; done
+	@deadline=$$(($$(date +%s) + $(E2E_BACKEND_V2_READY_TIMEOUT))); \
+	while true; do \
+		if curl -s http://localhost:$(E2E_BACKEND_V2_PORT)$(API_ROOT)/health > /dev/null 2>&1; then \
+			echo "✓ Backend-v2 e2e running on http://localhost:$(E2E_BACKEND_V2_PORT) (PID $$(cat backend-v2/logs/backend-e2e.pid))"; \
+			break; \
+		fi; \
+		if [ ! -f backend-v2/logs/backend-e2e.pid ] || ! kill -0 $$(cat backend-v2/logs/backend-e2e.pid) 2>/dev/null; then \
+			echo "✗ Backend-v2 e2e failed before health became reachable"; \
+			tail -10 backend-v2/logs/backend-e2e.log 2>/dev/null || true; \
+			exit 1; \
+		fi; \
+		if [ $$(date +%s) -ge $$deadline ]; then \
+			echo "✗ Backend-v2 e2e did not become healthy within $(E2E_BACKEND_V2_READY_TIMEOUT)s"; \
+			tail -10 backend-v2/logs/backend-e2e.log 2>/dev/null || true; \
+			exit 1; \
+		fi; \
+		sleep 1; \
+	done
 
 start-frontend-e2e:
 	@echo "→ Starting E2E frontend (port $(E2E_FRONTEND_PORT))..."

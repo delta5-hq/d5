@@ -228,11 +228,20 @@ jobs:
           node-version: 22
           cache: 'npm'
           cache-dependency-path: backend-v2/e2e/package-lock.json
+      - run: |
+          REDACTION_PACKAGE_TARBALL="$GITHUB_WORKSPACE/backend-v2/third_party/redaction/redaction-control-value-redaction-control-0.1.2.tgz"
+          REDACTION_PACKAGE_SHA512="19f4f7ca3ac8f0fe10b292bf26e7e6c71a89dd904875f7d892d00e963b7e36788b5925ebed3e598c92063164837fb64b6492c80706d5c167015472ca8def14ff"
+          printf '%s  %s\n' "$REDACTION_PACKAGE_SHA512" "$REDACTION_PACKAGE_TARBALL" | sha512sum -c -
+          npm install -g "$REDACTION_PACKAGE_TARBALL"
+          echo "D5_REDACTION_CHECKER_PATH=$(command -v value-redaction-check)" >> "$GITHUB_ENV"
+          echo "D5_REDACTION_REGISTERED_VALUES_FILE=$GITHUB_WORKSPACE/backend-v2/testdata/redaction-registered-values.json" >> "$GITHUB_ENV"
+          echo "D5_REDACTION_TIMEOUT_MS=2000" >> "$GITHUB_ENV"
+      - run: cd backend-v2 && bash scripts/verify-redaction-runtime.sh
       - run: cd backend-v2/e2e && npm ci
       - run: DROP_DB=true bash backend-v2/e2e-db-init.sh
       - run: |
           cd backend-v2
-          MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" PORT="${BACKEND_PORT}" API_ROOT="${API_ROOT}" MOCK_EXTERNAL_SERVICES=true nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
+          MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" PORT="${BACKEND_PORT}" API_ROOT="${API_ROOT}" MOCK_EXTERNAL_SERVICES=true D5_REDACTION_CHECKER_PATH="${D5_REDACTION_CHECKER_PATH}" D5_REDACTION_REGISTERED_VALUES_FILE="${D5_REDACTION_REGISTERED_VALUES_FILE}" D5_REDACTION_TIMEOUT_MS="${D5_REDACTION_TIMEOUT_MS}" nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
           sleep 5
           if ! kill -0 $(cat backend-e2e.pid); then
             echo "Backend failed to start"
@@ -278,6 +287,15 @@ jobs:
           node-version: 22
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
+      - run: |
+          REDACTION_PACKAGE_TARBALL="$GITHUB_WORKSPACE/backend-v2/third_party/redaction/redaction-control-value-redaction-control-0.1.2.tgz"
+          REDACTION_PACKAGE_SHA512="19f4f7ca3ac8f0fe10b292bf26e7e6c71a89dd904875f7d892d00e963b7e36788b5925ebed3e598c92063164837fb64b6492c80706d5c167015472ca8def14ff"
+          printf '%s  %s\n' "$REDACTION_PACKAGE_SHA512" "$REDACTION_PACKAGE_TARBALL" | sha512sum -c -
+          npm install -g "$REDACTION_PACKAGE_TARBALL"
+          echo "D5_REDACTION_CHECKER_PATH=$(command -v value-redaction-check)" >> "$GITHUB_ENV"
+          echo "D5_REDACTION_REGISTERED_VALUES_FILE=$GITHUB_WORKSPACE/backend-v2/testdata/redaction-registered-values.json" >> "$GITHUB_ENV"
+          echo "D5_REDACTION_TIMEOUT_MS=2000" >> "$GITHUB_ENV"
+      - run: cd backend-v2 && bash scripts/verify-redaction-runtime.sh
       - name: Verify bubblewrap can launch sandboxed Node.js
         run: |
           bwrap_args=(
@@ -313,7 +331,7 @@ jobs:
           fi
       - run: |
           cd backend-v2
-          MONGO_DATABASE="delta5_${{ github.run_id }}" MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" PORT="${BACKEND_PORT}" API_ROOT="${API_ROOT}" MOCK_EXTERNAL_SERVICES=true NODEJS_BACKEND_URL="http://localhost:${NODEJS_BACKEND_PORT}" nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
+          MONGO_DATABASE="delta5_${{ github.run_id }}" MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" PORT="${BACKEND_PORT}" API_ROOT="${API_ROOT}" MOCK_EXTERNAL_SERVICES=true NODEJS_BACKEND_URL="http://localhost:${NODEJS_BACKEND_PORT}" D5_REDACTION_CHECKER_PATH="${D5_REDACTION_CHECKER_PATH}" D5_REDACTION_REGISTERED_VALUES_FILE="${D5_REDACTION_REGISTERED_VALUES_FILE}" D5_REDACTION_TIMEOUT_MS="${D5_REDACTION_TIMEOUT_MS}" nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
           sleep 5
           if ! kill -0 $(cat backend-e2e.pid); then
             echo "Backend failed to start"

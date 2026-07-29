@@ -6,14 +6,18 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func Register(router fiber.Router) {
+func Register(router fiber.Router) error {
 	config := NewConfig()
 	proxy := NewProxy(config)
-	registry := NewRouteRegistry(proxy)
+	registry, err := NewRouteRegistry(proxy)
+	if err != nil {
+		return err
+	}
 
 	protectedGroup := router.Group("/")
 	protectedGroup.Use(middlewares.JWTMiddleware)
 	protectedGroup.Use(middlewares.ExtractUserID)
 
 	registry.RegisterNodeJSRoutes(protectedGroup)
+	return nil
 }

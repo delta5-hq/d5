@@ -1,6 +1,8 @@
 package gateway
 
 import (
+	"fmt"
+
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -8,13 +10,13 @@ type RouteRegistry struct {
 	proxy *Proxy
 }
 
-func NewRouteRegistry(proxy *Proxy) *RouteRegistry {
+func NewRouteRegistry(proxy *Proxy) (*RouteRegistry, error) {
 	if proxy == nil {
-		panic("proxy cannot be nil")
+		return nil, fmt.Errorf("gateway proxy is required")
 	}
 	return &RouteRegistry{
 		proxy: proxy,
-	}
+	}, nil
 }
 
 func (r *RouteRegistry) RegisterNodeJSRoutes(router fiber.Router) {
