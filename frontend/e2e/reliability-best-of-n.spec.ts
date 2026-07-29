@@ -79,7 +79,12 @@ test.describe('Reliability execution contracts', () => {
       const refineId = await addChildCommand(page, tree, rootId, `/refine :n=${n}`)
       await executeRoot(page, tree, rootId)
 
-      const refineTitle = await awaitNodeTitle(page, refineId, COMPLETION_SUFFIX_RE)
+      // The refine winner suffix lands via the streaming fork completion, which under parallel-worker
+      // load can lag well past the abort indicator clearing — a refine :n=3 runs the commodity :n=3
+      // scope AND 3 judged forks. Do NOT reload here (unlike the validate verdict at :122): a reload
+      // drops the in-flight SSE and can interrupt the fork completion before the suffix is written.
+      // Poll the live title with the LLM-scale timeout instead.
+      const refineTitle = await awaitNodeTitle(page, refineId, COMPLETION_SUFFIX_RE, LLM_TIMEOUT)
       expect(refineTitle).not.toMatch(/\[✓ refined\]/)
       expect(refineTitle).toMatch(suffixPattern)
     })
