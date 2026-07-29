@@ -31,13 +31,13 @@ describe('createWorkflowStore', () => {
     vi.resetAllMocks()
   })
 
-  it('initializes with loading false and empty state', () => {
+  it('initializes as loading so empty-state actions stay unavailable before the initial fetch', () => {
     const { store } = createWorkflowStore('wf-test', mockFormatMessage)
     const state = store.getState()
 
     expect(state.workflowId).toBe('wf-test')
     expect(state.nodes).toEqual({})
-    expect(state.isLoading).toBe(false)
+    expect(state.isLoading).toBe(true)
     expect(state.selectedId).toBeUndefined()
   })
 
@@ -132,6 +132,30 @@ describe('createWorkflowStore', () => {
 
     expect(store.getState().nodes).toEqual(mockApiResponse.nodes)
     expect(vi.mocked(apiFetch)).toHaveBeenCalledTimes(2)
+  })
+
+  it('only applies the latest overlapping load response', async () => {
+    let resolveFirstLoad!: (value: unknown) => void
+    const firstLoadResponse = new Promise<unknown>(resolve => {
+      resolveFirstLoad = resolve
+    })
+    const latestResponse = {
+      ...mockApiResponse,
+      nodes: { latest: { id: 'latest', title: 'Latest' } },
+      root: 'latest',
+    }
+    vi.mocked(apiFetch).mockReturnValueOnce(firstLoadResponse).mockResolvedValueOnce(latestResponse)
+    const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+
+    const staleLoad = actions.load()
+    const latestLoad = actions.load()
+    await latestLoad
+    resolveFirstLoad(mockApiResponse)
+    await staleLoad
+
+    expect(store.getState().nodes).toEqual(latestResponse.nodes)
+    expect(store.getState().root).toBe('latest')
+    expect(store.getState().isLoading).toBe(false)
   })
 
   it('select updates selectedId to given node', () => {

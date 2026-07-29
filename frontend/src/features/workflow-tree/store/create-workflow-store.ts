@@ -33,6 +33,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
   const store = createStore<WorkflowStoreState>({
     ...INITIAL_WORKFLOW_STATE,
     workflowId,
+    isLoading: true,
   })
 
   const persister = createDebouncedPersister(store, payload => {
@@ -45,6 +46,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
   })
 
   const historyStack = createHistoryStack()
+  let loadVersion = 0
   const mutations = bindMutationActions(store, persister, formatMessage, historyStack)
   const execution = bindExecuteAction(store, persister)
   const expansion = bindExpansionActions(store, persister)
@@ -60,9 +62,11 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
   }
 
   const load = async () => {
+    const requestVersion = ++loadVersion
     store.setState({ isLoading: true, error: null })
     try {
       const data = await apiFetch<WorkflowApiResponse>(`/workflow/${workflowId}`)
+      if (requestVersion !== loadVersion) return
       const newNodes = (data.nodes ?? {}) as WorkflowStoreState['nodes']
       const { selectedId, selectedIds, anchorId } = store.getState()
       const selectionStale = selectedId !== undefined && !(selectedId in newNodes)
@@ -83,6 +87,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
         ...(anchorStale ? { anchorId: undefined } : {}),
       })
     } catch (err) {
+      if (requestVersion !== loadVersion) return
       store.setState({
         isLoading: false,
         error: err instanceof Error ? err : new Error('Failed to load workflow'),
@@ -126,6 +131,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
   }
 
   const destroy = () => {
+    loadVersion += 1
     persister.destroy()
     store.destroy()
   }
