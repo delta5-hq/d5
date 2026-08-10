@@ -170,6 +170,7 @@ export const moveNode = (
   nodes: Record<NodeId, NodeData>,
   nodeId: NodeId,
   newParentId: NodeId,
+  insertionIndex?: number,
 ): Record<NodeId, NodeData> => {
   const node = nodes[nodeId]
   if (!node) {
@@ -189,8 +190,35 @@ export const moveNode = (
   }
 
   const oldParentId = node.parent
-  if (oldParentId === newParentId) {
+  const oldSiblings = nodes[oldParentId]?.children ?? []
+  const newSiblings = nodes[newParentId]?.children ?? []
+  const sameParent = oldParentId === newParentId
+  if (sameParent && insertionIndex === undefined) {
     return nodes
+  }
+
+  const siblingsWithoutMovedNode = sameParent ? oldSiblings.filter(id => id !== nodeId) : newSiblings
+  const targetIndex =
+    insertionIndex === undefined
+      ? siblingsWithoutMovedNode.length
+      : Math.max(0, Math.min(insertionIndex, siblingsWithoutMovedNode.length))
+  const nextTargetChildren = [
+    ...siblingsWithoutMovedNode.slice(0, targetIndex),
+    nodeId,
+    ...siblingsWithoutMovedNode.slice(targetIndex),
+  ]
+
+  if (sameParent) {
+    const currentIndex = oldSiblings.indexOf(nodeId)
+    if (currentIndex === targetIndex) return nodes
+
+    return {
+      ...nodes,
+      [oldParentId]: {
+        ...nodes[oldParentId],
+        children: nextTargetChildren,
+      },
+    }
   }
 
   const newNodes = { ...nodes }
@@ -206,7 +234,7 @@ export const moveNode = (
   const newParent = newNodes[newParentId]
   newNodes[newParentId] = {
     ...newParent,
-    children: [...(newParent.children ?? []), nodeId],
+    children: nextTargetChildren,
   }
 
   newNodes[nodeId] = {

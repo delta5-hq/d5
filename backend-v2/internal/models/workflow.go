@@ -22,6 +22,7 @@ type Node struct {
 	File            string                 `json:"file" bson:"file"`
 	Title           string                 `json:"title" bson:"title"`
 	Collapsed       bool                   `json:"collapsed" bson:"collapsed"`
+	Checked         bool                   `json:"checked" bson:"checked"`
 	Color           string                 `json:"color" bson:"color"`
 	BorderColor     string                 `json:"borderColor" bson:"borderColor"`
 	Scale           int                    `json:"scale" bson:"scale"`

@@ -464,5 +464,13 @@ export default {
       failed: 'Operation failed',
       bulkDeletePartial: '{removed} removed, {skipped} skipped (in use)',
     },
+
+    attachment: {
+      uploadFailed: 'Failed to upload file',
+      localCreateFailed: 'Parent node not found — attachment could not be created',
+      linkPersistFailed: 'File uploaded but could not be linked — the uploaded file was removed',
+      deleteFailed: 'Failed to delete attachment bytes',
+      removeFlushFailed: 'Attachment removed but workflow save failed — please retry',
+    },
   },
 }

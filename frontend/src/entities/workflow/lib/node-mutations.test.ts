@@ -190,6 +190,51 @@ describe('moveNode', () => {
     expect(result).toEqual(nodes)
   })
 
+  it('reorders node within the same parent at requested index', () => {
+    const nodes = createSimpleTree()
+    const result = moveNode(nodes, 'b', 'root', 0)
+
+    expect(result['root'].children).toEqual(['b', 'a'])
+    expect(result['b'].parent).toBe('root')
+  })
+
+  it.each([
+    { nodeId: 'a', insertionIndex: 1, expectedChildren: ['b', 'a'] },
+    { nodeId: 'b', insertionIndex: 0, expectedChildren: ['b', 'a'] },
+    { nodeId: 'a', insertionIndex: 0, expectedChildren: ['a', 'b'] },
+    { nodeId: 'b', insertionIndex: 1, expectedChildren: ['a', 'b'] },
+  ])('handles same-parent reorder boundaries %#', ({ nodeId, insertionIndex, expectedChildren }) => {
+    const nodes = createSimpleTree()
+    const result = moveNode(nodes, nodeId, 'root', insertionIndex)
+
+    expect(result['root'].children).toEqual(expectedChildren)
+    expect(result[nodeId].parent).toBe('root')
+  })
+
+  it('inserts moved node into target parent at requested index', () => {
+    const nodes = createSimpleTree()
+    const result = moveNode(nodes, 'a1', 'root', 1)
+
+    expect(result['a'].children).toEqual([])
+    expect(result['root'].children).toEqual(['a', 'a1', 'b'])
+    expect(result['a1'].parent).toBe('root')
+  })
+
+  it('clamps insertion index to target sibling bounds', () => {
+    const nodes = createSimpleTree()
+
+    expect(moveNode(nodes, 'a1', 'root', -5)['root'].children).toEqual(['a1', 'a', 'b'])
+    expect(moveNode(nodes, 'a1', 'root', 99)['root'].children).toEqual(['a', 'b', 'a1'])
+  })
+
+  it('does not duplicate source id when reordering or reparenting', () => {
+    const sameParent = moveNode(createSimpleTree(), 'a', 'root', 1)
+    const crossParent = moveNode(createSimpleTree(), 'a1', 'root', 1)
+
+    expect(sameParent['root'].children.filter(id => id === 'a')).toHaveLength(1)
+    expect(crossParent['root'].children.filter(id => id === 'a1')).toHaveLength(1)
+  })
+
   it('throws CIRCULAR_REFERENCE for self parent', () => {
     const err = getError(() => moveNode(createSimpleTree(), 'a', 'a'))
     expect(err).toBeInstanceOf(NodeMutationError)

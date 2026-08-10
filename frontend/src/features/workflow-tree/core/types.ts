@@ -1,5 +1,6 @@
-import type { CSSProperties, MouseEvent } from 'react'
+import type { CSSProperties, MouseEvent, PointerEvent } from 'react'
 import type { NodeData, NodeId } from '@/shared/base-types/workflow'
+import type { TreeDropPosition } from './tree-drag'
 
 export interface TreeNodeCallbacks {
   onToggle?: (id: string, sparkDelay?: number) => void
@@ -11,6 +12,16 @@ export interface TreeNodeCallbacks {
   onRequestRename?: (nodeId: string) => void
   onWrapNodes?: (nodeId: string) => void
   onToggleChecked?: (nodeId: string) => void
+  onMoveNode?: (nodeId: string, targetNodeId: string, position: TreeDropPosition) => void
+  onDragHoverNode?: (nodeId: string) => void
+  onDragLeaveNode?: (nodeId: string) => void
+  onDragStartNode?: (nodeId: string) => void
+  onDragEndNode?: () => void
+  onPointerDragStartNode?: (nodeId: string, event: PointerEvent<HTMLElement> | MouseEvent<HTMLElement>) => void
+  onDropFiles?: (parentId: string, files: FileList) => void
+  activeDraggedNodeId?: string
+  activeDropTargetId?: string
+  activeDropPosition?: TreeDropPosition
 }
 
 export interface TreeNode {

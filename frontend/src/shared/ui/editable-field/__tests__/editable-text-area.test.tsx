@@ -49,6 +49,19 @@ describe('EditableTextArea', () => {
       render(<EditableTextArea onChange={vi.fn()} value="Hello" />)
       expect((screen.getByText('Hello') as HTMLElement).style.touchAction).toBe('manipulation')
     })
+
+    it('can show a shortened read-only value while editing the full stored value', () => {
+      render(
+        <EditableTextArea displayValue="First twenty chars" onChange={vi.fn()} value="First twenty chars plus more" />,
+      )
+
+      expect(screen.getByText('First twenty chars')).toBeInTheDocument()
+      expect(screen.queryByText('First twenty chars plus more')).not.toBeInTheDocument()
+
+      fireEvent.dblClick(screen.getByText('First twenty chars'))
+
+      expect(screen.getByDisplayValue('First twenty chars plus more')).toBeInTheDocument()
+    })
   })
 
   describe('editing transition', () => {
@@ -72,6 +85,12 @@ describe('EditableTextArea', () => {
     it('forwards className to textarea while editing', () => {
       render(<EditableTextArea autoFocus className="custom-class" onChange={vi.fn()} value="Hello" />)
       expect(screen.getByDisplayValue('Hello').className).toContain('custom-class')
+    })
+
+    it('forwards editClassName only to textarea while editing', () => {
+      render(<EditableTextArea autoFocus editClassName="edit-only-class" onChange={vi.fn()} value="Hello" />)
+
+      expect(screen.getByDisplayValue('Hello').className).toContain('edit-only-class')
     })
 
     it('enters edit mode when autoFocus prop changes from false to true', () => {

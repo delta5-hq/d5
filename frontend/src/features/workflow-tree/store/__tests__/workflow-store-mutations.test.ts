@@ -1159,3 +1159,178 @@ describe('wrapNodes action', () => {
     expect(store.getState().isDirty).toBe(false)
   })
 })
+
+describe('removeNode / removeNodes — attachment flush-failure hardening', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  // Nodes shared across tests: n1 has a file attachment, root is its parent.
+  const attachedNodes = {
+    root: { id: 'root', children: ['n1'] },
+    n1: { id: 'n1', parent: 'root', children: [], file: 'file-abc' },
+  } as WorkflowStoreState['nodes']
+
+  function makeServerNodes(dangling?: string): WorkflowStoreState['nodes'] {
+    if (!dangling) return {}
+    return { sv: { id: 'sv', children: [], file: dangling } } as WorkflowStoreState['nodes']
+  }
+
+  function makeLifecycle(danglingFileId?: string) {
+    return {
+      workflowId: 'wf-test',
+      deleteWorkflowFile: vi.fn<[string, string], Promise<void>>().mockResolvedValue(undefined),
+      readWorkflow: vi.fn().mockResolvedValue({
+        nodes: makeServerNodes(danglingFileId),
+        edges: {},
+        root: undefined,
+      }),
+    }
+  }
+
+  function makeExhaustingPersister(): DebouncedPersister {
+    return { schedule: vi.fn(), flush: vi.fn().mockResolvedValue(false), cancel: vi.fn(), destroy: vi.fn() }
+  }
+
+  describe('removeNode with attachment', () => {
+    it('surfaces removeFlushFailed when all flush retries exhausted and server retains the deleted file id', async () => {
+      vi.useFakeTimers()
+      try {
+        const store = makeStore({ nodes: attachedNodes })
+        const { removeNode } = bindMutationActions(
+          store,
+          makeExhaustingPersister(),
+          mockFormatMessage,
+          makeHistory(),
+          makeLifecycle('file-abc'),
+        )
+
+        removeNode('n1')
+        await vi.runAllTimersAsync()
+
+        const { toast } = await import('sonner')
+        expect(vi.mocked(toast.error)).toHaveBeenCalledWith('workflowTree.attachment.removeFlushFailed')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not surface removeFlushFailed when server is clean after flush exhaustion', async () => {
+      vi.useFakeTimers()
+      try {
+        const store = makeStore({ nodes: attachedNodes })
+        const { removeNode } = bindMutationActions(
+          store,
+          makeExhaustingPersister(),
+          mockFormatMessage,
+          makeHistory(),
+          makeLifecycle(), // no dangling file on server
+        )
+
+        removeNode('n1')
+        await vi.runAllTimersAsync()
+
+        const { toast } = await import('sonner')
+        expect(vi.mocked(toast.error)).not.toHaveBeenCalledWith('workflowTree.attachment.removeFlushFailed')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('skips server readback entirely when flush succeeds within the retry window', async () => {
+      vi.useFakeTimers()
+      try {
+        const store = makeStore({ nodes: attachedNodes })
+        const readWorkflow = vi.fn()
+        const persister: DebouncedPersister = {
+          schedule: vi.fn(),
+          flush: vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true),
+          cancel: vi.fn(),
+          destroy: vi.fn(),
+        }
+        const { removeNode } = bindMutationActions(store, persister, mockFormatMessage, makeHistory(), {
+          workflowId: 'wf-test',
+          deleteWorkflowFile: vi.fn<[string, string], Promise<void>>().mockResolvedValue(undefined),
+          readWorkflow,
+        })
+
+        removeNode('n1')
+        await vi.runAllTimersAsync()
+
+        expect(readWorkflow).not.toHaveBeenCalled()
+        const { toast } = await import('sonner')
+        expect(vi.mocked(toast.error)).not.toHaveBeenCalledWith('workflowTree.attachment.removeFlushFailed')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('removes the node from local state even when all flushes fail permanently', async () => {
+      vi.useFakeTimers()
+      try {
+        const store = makeStore({ nodes: attachedNodes })
+        const { removeNode } = bindMutationActions(
+          store,
+          makeExhaustingPersister(),
+          mockFormatMessage,
+          makeHistory(),
+          makeLifecycle(),
+        )
+
+        removeNode('n1')
+        await vi.runAllTimersAsync()
+
+        expect(store.getState().nodes).not.toHaveProperty('n1')
+        expect(store.getState().isDirty).toBe(true)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
+
+  describe('removeNodes with attachment', () => {
+    it('surfaces removeFlushFailed when bulk flush exhausted and server retains a removed file id', async () => {
+      vi.useFakeTimers()
+      try {
+        const store = makeStore({ nodes: attachedNodes })
+        const { removeNodes } = bindMutationActions(
+          store,
+          makeExhaustingPersister(),
+          mockFormatMessage,
+          makeHistory(),
+          makeLifecycle('file-abc'),
+        )
+
+        removeNodes(new Set(['n1']))
+        await vi.runAllTimersAsync()
+
+        const { toast } = await import('sonner')
+        expect(vi.mocked(toast.error)).toHaveBeenCalledWith('workflowTree.attachment.removeFlushFailed')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not surface removeFlushFailed when bulk flush exhausted but server is clean', async () => {
+      vi.useFakeTimers()
+      try {
+        const store = makeStore({ nodes: attachedNodes })
+        const { removeNodes } = bindMutationActions(
+          store,
+          makeExhaustingPersister(),
+          mockFormatMessage,
+          makeHistory(),
+          makeLifecycle(),
+        )
+
+        removeNodes(new Set(['n1']))
+        await vi.runAllTimersAsync()
+
+        const { toast } = await import('sonner')
+        expect(vi.mocked(toast.error)).not.toHaveBeenCalledWith('workflowTree.attachment.removeFlushFailed')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
+})

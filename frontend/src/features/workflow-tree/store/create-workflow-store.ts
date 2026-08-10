@@ -11,6 +11,9 @@ import { retainExistingIds } from './workflow-store-set-utils'
 import { computeRangeSelection } from './workflow-store-range-select'
 import { deriveExpandedIdsFromNodes } from '../hooks/use-tree-expansion'
 import { isCommandlessTextNode, hasOnlyPromptChildren } from '@entities/workflow/lib'
+import { deleteWorkflowFile, uploadWorkflowFile } from '../api/workflow-file-api'
+import { toast } from 'sonner'
+import { attachFileChildTransaction } from './workflow-attachment-transaction'
 
 interface WorkflowApiResponse {
   _id: string
@@ -47,7 +50,20 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
 
   const historyStack = createHistoryStack()
   let loadVersion = 0
-  const mutations = bindMutationActions(store, persister, formatMessage, historyStack)
+  const readWorkflow = async (id: string): Promise<Pick<WorkflowStoreState, 'nodes' | 'edges' | 'root'>> => {
+    const data = await apiFetch<WorkflowApiResponse>(`/workflow/${id}`)
+    return {
+      nodes: (data.nodes ?? {}) as WorkflowStoreState['nodes'],
+      edges: (data.edges ?? {}) as WorkflowStoreState['edges'],
+      root: data.root,
+    }
+  }
+
+  const mutations = bindMutationActions(store, persister, formatMessage, historyStack, {
+    workflowId,
+    deleteWorkflowFile,
+    readWorkflow,
+  })
   const execution = bindExecuteAction(store, persister)
   const expansion = bindExpansionActions(store, persister)
 
@@ -55,10 +71,12 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     const { nodes, expandedIds } = store.getState()
     const node = nodes[nodeId]
     const expanding = node && !expandedIds.has(nodeId)
+    const shouldPersistImmediately = Boolean(expanding && node && isCommandlessTextNode(node))
     if (expanding && isCommandlessTextNode(node) && hasOnlyPromptChildren(nodeId, nodes)) {
       mutations.importTextAsPrompts(nodeId, node.title ?? '')
     }
     expansion.toggleExpanded(nodeId)
+    if (shouldPersistImmediately) void persister.flush()
   }
 
   const load = async () => {
@@ -71,7 +89,11 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
       const { selectedId, selectedIds, anchorId } = store.getState()
       const selectionStale = selectedId !== undefined && !(selectedId in newNodes)
       const anchorStale = anchorId !== undefined && !(anchorId in newNodes)
-      const cleanedIds = retainExistingIds(selectedIds, newNodes)
+      const loadedNodes = Object.values(newNodes)
+      const hasPersistedCheckedState = loadedNodes.some(node => 'checked' in node)
+      const checkedIds = new Set(loadedNodes.filter(node => node.checked).map(node => node.id))
+      const cleanedIds = hasPersistedCheckedState ? checkedIds : retainExistingIds(selectedIds, newNodes)
+      const checkedSelectedId = hasPersistedCheckedState ? [...checkedIds].at(-1) : undefined
       const expandedIds = data.root ? deriveExpandedIdsFromNodes(newNodes, data.root) : new Set<string>()
       store.setState({
         nodes: newNodes,
@@ -82,7 +104,11 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
         isLoading: false,
         isDirty: false,
         dirtyNodeIds: new Set<string>(),
-        ...(selectionStale ? { selectedId: undefined } : {}),
+        ...(hasPersistedCheckedState
+          ? { selectedId: checkedSelectedId }
+          : selectionStale
+            ? { selectedId: undefined }
+            : {}),
         ...(cleanedIds !== selectedIds ? { selectedIds: cleanedIds } : {}),
         ...(anchorStale ? { anchorId: undefined } : {}),
       })
@@ -154,6 +180,24 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     }
   }
 
+  const onAttachmentError = (code: string): void => {
+    toast.error(formatMessage({ id: code }))
+  }
+
+  const attachFileChild = async (parentId: string, file: File): Promise<string | null> =>
+    attachFileChildTransaction(parentId, file, {
+      store,
+      persister,
+      historyStack,
+      workflowId,
+      uploadFile: uploadWorkflowFile,
+      deleteFile: deleteWorkflowFile,
+      readWorkflow,
+      expandNode: expansion.expandNode,
+      select,
+      onError: onAttachmentError,
+    })
+
   const actions: WorkflowStoreActions = {
     load,
     persist: persister.flush,
@@ -165,6 +209,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     destroy,
     undo,
     redo,
+    attachFileChild,
     ...execution,
     ...expansion,
     toggleExpanded,

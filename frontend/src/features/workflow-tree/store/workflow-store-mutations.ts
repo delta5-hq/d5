@@ -23,6 +23,13 @@ import type { DebouncedPersister } from './workflow-store-persistence'
 import type { HistoryStack } from './workflow-store-history'
 import { excludeIds } from './workflow-store-set-utils'
 import { createPromptNodesFromText } from './text-to-prompts-splitter'
+import {
+  collectAttachmentReferences,
+  deleteAttachmentFiles,
+  type AttachmentLifecycleDeps,
+} from './workflow-attachment-lifecycle'
+import { reconcileRemoveFlush } from './workflow-remove-flush-reconciler'
+import type { ReadWorkflowFn } from './workflow-store-types'
 
 export type FormatMessage = (descriptor: { id: string }, values?: Record<string, string | number>) => string
 
@@ -45,7 +52,23 @@ export function bindMutationActions(
   persister: DebouncedPersister,
   formatMessage: FormatMessage,
   historyStack: HistoryStack,
+  attachmentLifecycle?: {
+    workflowId: string
+    deleteWorkflowFile: AttachmentLifecycleDeps['deleteFile']
+    readWorkflow: ReadWorkflowFn
+  },
 ) {
+  const attachmentOnError = (code: string): void => {
+    toast.error(formatMessage({ id: code }))
+  }
+  const attachmentDeps = attachmentLifecycle
+    ? {
+        workflowId: attachmentLifecycle.workflowId,
+        deleteFile: attachmentLifecycle.deleteWorkflowFile,
+        onError: attachmentOnError,
+      }
+    : undefined
+
   function applyMutation<T>(mutationFn: () => T, onSuccess: (result: T) => void): T | null {
     try {
       const result = mutationFn()
@@ -109,38 +132,66 @@ export function bindMutationActions(
 
   const removeNode = (nodeId: NodeId): boolean => {
     const { nodes, edges, selectedId, selectedIds, anchorId } = store.getState()
-    const removedNodeParent = nodes[nodeId]?.parent
-    const stepsParentId =
-      removedNodeParent && isStepsNode(nodes[removedNodeParent] ?? ({} as NodeData)) ? removedNodeParent : undefined
-    const nextSelectedId = selectedId !== undefined ? resolveSelectionAfterDelete(nodes, nodeId) : undefined
-    return (
-      applyMutation(
-        () => removeNodePure(nodes, edges, nodeId),
-        result => {
-          const removedSet = new Set(result.removedNodeIds)
-          const selectionAffected = selectedId !== undefined && removedSet.has(selectedId)
-          const anchorAffected = anchorId !== undefined && removedSet.has(anchorId)
+    try {
+      const removedNodeParent = nodes[nodeId]?.parent
+      const stepsParentId =
+        removedNodeParent && isStepsNode(nodes[removedNodeParent] ?? ({} as NodeData)) ? removedNodeParent : undefined
+      const nextSelectedId = selectedId !== undefined ? resolveSelectionAfterDelete(nodes, nodeId) : undefined
+      const result = removeNodePure(nodes, edges, nodeId)
+      const removedSet = new Set(result.removedNodeIds)
+      const attachmentReferences = attachmentDeps ? collectAttachmentReferences(nodes, removedSet) : []
 
-          const newSelectedIds = selectionAffected
-            ? nextSelectedId
-              ? new Set<NodeId>([nextSelectedId])
-              : new Set<NodeId>()
-            : excludeIds(selectedIds, removedSet)
+      const applyRemoval = (): void => {
+        const selectionAffected = selectedId !== undefined && removedSet.has(selectedId)
+        const anchorAffected = anchorId !== undefined && removedSet.has(anchorId)
 
-          const { dirtyNodeIds } = store.getState()
-          const cleanedDirtyIds = excludeIds(dirtyNodeIds, removedSet)
-          const finalNodes = stepsParentId ? applySequentialPrefixes(result.nodes, stepsParentId) : result.nodes
-          store.setState({
-            nodes: finalNodes,
-            edges: result.edges,
-            ...(selectionAffected && { selectedId: nextSelectedId }),
-            ...(newSelectedIds !== selectedIds && { selectedIds: newSelectedIds }),
-            ...(anchorAffected && { anchorId: nextSelectedId }),
-            ...(cleanedDirtyIds !== dirtyNodeIds && { dirtyNodeIds: cleanedDirtyIds }),
-          })
-        },
-      ) !== null
-    )
+        const newSelectedIds = selectionAffected
+          ? nextSelectedId
+            ? new Set<NodeId>([nextSelectedId])
+            : new Set<NodeId>()
+          : excludeIds(selectedIds, removedSet)
+
+        const { dirtyNodeIds } = store.getState()
+        const cleanedDirtyIds = excludeIds(dirtyNodeIds, removedSet)
+        const finalNodes = stepsParentId ? applySequentialPrefixes(result.nodes, stepsParentId) : result.nodes
+        store.setState({
+          nodes: finalNodes,
+          edges: result.edges,
+          ...(selectionAffected && { selectedId: nextSelectedId }),
+          ...(newSelectedIds !== selectedIds && { selectedIds: newSelectedIds }),
+          ...(anchorAffected && { anchorId: nextSelectedId }),
+          ...(cleanedDirtyIds !== dirtyNodeIds && { dirtyNodeIds: cleanedDirtyIds }),
+          isDirty: true,
+        })
+        persister.schedule()
+      }
+
+      if (attachmentReferences.length === 0 || !attachmentDeps) {
+        historyStack.checkpoint({ nodes, edges, root: store.getState().root })
+        applyRemoval()
+        return true
+      }
+      void (async () => {
+        if (!(await deleteAttachmentFiles(attachmentDeps, attachmentReferences))) return
+        applyRemoval()
+        historyStack.clear()
+        await reconcileRemoveFlush({
+          persister,
+          workflowId: attachmentDeps.workflowId,
+          readWorkflow: attachmentLifecycle!.readWorkflow,
+          removedFileIds: attachmentReferences.map(r => r.fileId),
+          onDanglingLinkSurvived: () => attachmentOnError('workflowTree.attachment.removeFlushFailed'),
+        })
+      })()
+      return true
+    } catch (err) {
+      const messageId =
+        err instanceof NodeMutationError
+          ? (MUTATION_ERROR_KEYS[err.code] ?? 'workflowTree.mutation.failed')
+          : 'workflowTree.mutation.failed'
+      toast.error(formatMessage({ id: messageId }))
+      return false
+    }
   }
 
   const removeNodes = (targetIds: Set<NodeId>): number => {
@@ -180,6 +231,8 @@ export function bindMutationActions(
 
     if (totalRemoved === 0) return 0
 
+    const attachmentReferences = attachmentDeps ? collectAttachmentReferences(nodes, removedSet) : []
+
     let finalNodes = currentNodes
     for (const parentId of stepsParentIds) {
       if (finalNodes[parentId]) finalNodes = applySequentialPrefixes(finalNodes, parentId)
@@ -191,16 +244,36 @@ export function bindMutationActions(
     const { dirtyNodeIds } = store.getState()
     const cleanedDirtyIds = excludeIds(dirtyNodeIds, removedSet)
 
-    store.setState({
-      nodes: finalNodes,
-      edges: currentEdges,
-      selectedId: lastSurvivor,
-      selectedIds: survivorIds,
-      ...(anchorAffected && { anchorId: undefined }),
-      ...(cleanedDirtyIds !== dirtyNodeIds && { dirtyNodeIds: cleanedDirtyIds }),
-      isDirty: true,
-    })
-    persister.schedule()
+    const applyBulkRemoval = (): void => {
+      store.setState({
+        nodes: finalNodes,
+        edges: currentEdges,
+        selectedId: lastSurvivor,
+        selectedIds: survivorIds,
+        ...(anchorAffected && { anchorId: undefined }),
+        ...(cleanedDirtyIds !== dirtyNodeIds && { dirtyNodeIds: cleanedDirtyIds }),
+        isDirty: true,
+      })
+      persister.schedule()
+    }
+
+    if (attachmentReferences.length === 0 || !attachmentDeps) {
+      historyStack.checkpoint({ nodes, edges, root: store.getState().root })
+      applyBulkRemoval()
+    } else {
+      void (async () => {
+        if (!(await deleteAttachmentFiles(attachmentDeps, attachmentReferences))) return
+        applyBulkRemoval()
+        historyStack.clear()
+        await reconcileRemoveFlush({
+          persister,
+          workflowId: attachmentDeps.workflowId,
+          readWorkflow: attachmentLifecycle!.readWorkflow,
+          removedFileIds: attachmentReferences.map(r => r.fileId),
+          onDanglingLinkSurvived: () => attachmentOnError('workflowTree.attachment.removeFlushFailed'),
+        })
+      })()
+    }
 
     let removed = 0
     let skipped = 0
@@ -215,12 +288,12 @@ export function bindMutationActions(
     return totalRemoved
   }
 
-  const moveNode = (nodeId: NodeId, newParentId: NodeId): boolean => {
+  const moveNode = (nodeId: NodeId, newParentId: NodeId, insertionIndex?: number): boolean => {
     const { nodes } = store.getState()
     const oldParentId = nodes[nodeId]?.parent
     return (
       applyMutation(
-        () => moveNodePure(nodes, nodeId, newParentId),
+        () => moveNodePure(nodes, nodeId, newParentId, insertionIndex),
         result => {
           let finalNodes = result
           if (oldParentId && oldParentId !== newParentId) {

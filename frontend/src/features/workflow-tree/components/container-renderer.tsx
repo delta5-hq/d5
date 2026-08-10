@@ -29,6 +29,17 @@ export const ContainerRenderer = ({
   onRename,
   onRequestRename,
   onWrapNodes,
+  onToggleChecked,
+  onMoveNode,
+  onDragHoverNode,
+  onDragLeaveNode,
+  onDragStartNode,
+  onDragEndNode,
+  onPointerDragStartNode,
+  onDropFiles,
+  activeDraggedNodeId,
+  activeDropTargetId,
+  activeDropPosition,
   autoEditNodeId,
 }: ContainerRendererProps) => {
   const ContainerComponent = container.config.component || DefaultContainerWrapper
@@ -41,6 +52,9 @@ export const ContainerRenderer = ({
   const parentRow = (
     <div style={{ position: 'relative', height: `${rowHeight}px` }}>
       <MemoizedTreeNodeDefault
+        activeDraggedNodeId={activeDraggedNodeId}
+        activeDropPosition={activeDropPosition}
+        activeDropTargetId={activeDropTargetId}
         autoEditNodeId={autoEditNodeId}
         data={parentNode}
         id={parentNode.id}
@@ -48,12 +62,20 @@ export const ContainerRenderer = ({
         isSelected={selectedIds?.has(parentNode.id) ?? false}
         onAddChild={onAddChild}
         onDelete={onDelete}
+        onDragEndNode={onDragEndNode}
+        onDragHoverNode={onDragHoverNode}
+        onDragLeaveNode={onDragLeaveNode}
+        onDragStartNode={onDragStartNode}
+        onDropFiles={onDropFiles}
         onDuplicateNode={onDuplicateNode}
-        onWrapNodes={onWrapNodes}
+        onMoveNode={onMoveNode}
+        onPointerDragStartNode={onPointerDragStartNode}
         onRename={onRename}
         onRequestRename={onRequestRename}
         onSelect={onSelect}
         onToggle={onToggle}
+        onToggleChecked={onToggleChecked}
+        onWrapNodes={onWrapNodes}
         style={EMPTY_STYLE}
         wireExtendDown={paddingTop}
       />
@@ -79,6 +101,9 @@ export const ContainerRenderer = ({
             }}
           >
             <MemoizedTreeNodeDefault
+              activeDraggedNodeId={activeDraggedNodeId}
+              activeDropPosition={activeDropPosition}
+              activeDropTargetId={activeDropTargetId}
               autoEditNodeId={autoEditNodeId}
               data={childNode}
               id={childNode.id}
@@ -86,12 +111,20 @@ export const ContainerRenderer = ({
               isSelected={selectedIds?.has(childNode.id) ?? false}
               onAddChild={onAddChild}
               onDelete={onDelete}
+              onDragEndNode={onDragEndNode}
+              onDragHoverNode={onDragHoverNode}
+              onDragLeaveNode={onDragLeaveNode}
+              onDragStartNode={onDragStartNode}
+              onDropFiles={onDropFiles}
               onDuplicateNode={onDuplicateNode}
-              onWrapNodes={onWrapNodes}
+              onMoveNode={onMoveNode}
+              onPointerDragStartNode={onPointerDragStartNode}
               onRename={onRename}
               onRequestRename={onRequestRename}
               onSelect={onSelect}
               onToggle={onToggle}
+              onToggleChecked={onToggleChecked}
+              onWrapNodes={onWrapNodes}
               style={EMPTY_STYLE}
               wireExtendDown={isLastChild ? paddingBottom : 0}
               wireExtendUp={isFirstChild ? paddingTop : 0}

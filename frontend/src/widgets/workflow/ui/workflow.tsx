@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef, type MouseEvent } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef, type DragEvent, type MouseEvent } from 'react'
 import type { NodeId } from '@shared/base-types'
 import {
   WorkflowSegmentTree,
@@ -15,6 +15,8 @@ import {
   useIsPromptNode,
   useTreeKeyboardNavigation,
   useWorkflowExecutingNodeIds,
+  type TreeDropPosition,
+  getTreeMoveRequest,
 } from '@features/workflow-tree'
 import { Card, CardContent, CardHeader, CardTitle } from '@shared/ui/card'
 import { Loader2, RefreshCw } from 'lucide-react'
@@ -26,10 +28,13 @@ import { matchesAnyCommandWithOrder } from '@shared/lib/command-validation'
 import { deriveNodeTitle } from '@shared/lib/reliability-suffix'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import { useAliases } from '@entities/aliases'
+import { toast } from 'sonner'
+import { useViewportBreakpoint } from '@shared/composables/use-viewport-breakpoint'
 import { EmptyWorkflowView } from './empty-workflow-view'
 import { DirtyIndicator } from './dirty-indicator'
 import { NodeDetailPanel } from './node-detail-panel'
 import { DeleteConfirmDialog } from './delete-confirm-dialog'
+import { resolveWorkflowFileDropParentId } from '../lib/file-drop-target'
 
 interface WorkflowProps {
   workflowId: string
@@ -49,6 +54,7 @@ const WorkflowContent = () => {
   const isDirty = useWorkflowIsDirty()
   const { formatMessage } = useIntl()
   const { aliases } = useAliases()
+  const isMobile = useViewportBreakpoint()
 
   const selectedId = useWorkflowSelectedId()
   const selectedIds = useWorkflowSelectedIds()
@@ -236,6 +242,70 @@ const WorkflowContent = () => {
     [actions, selectedIds],
   )
 
+  const handleMoveNode = useCallback(
+    (nodeId: string, targetNodeId: string, position: TreeDropPosition) => {
+      const request = getTreeMoveRequest(nodes, nodeId, targetNodeId, position)
+      if (!request) return
+
+      const moved = actions.moveNode(request.nodeId, request.parentId, request.insertionIndex)
+      if (!moved) return
+
+      actions.select(request.nodeId)
+      if (request.expandTargetId) actions.expandNode(request.expandTargetId)
+      void actions.persistNow()
+    },
+    [actions, nodes],
+  )
+
+  const handleDropFiles = useCallback(
+    (parentId: string, files: FileList) => {
+      void (async () => {
+        let lastNodeId: string | null = null
+        for (const file of Array.from(files)) {
+          lastNodeId = await actions.attachFileChild(parentId, file)
+        }
+        if (lastNodeId) setFlashNodeId(lastNodeId)
+      })().catch(error => {
+        toast.error(error instanceof Error ? error.message : 'Failed to attach file')
+      })
+    },
+    [actions],
+  )
+
+  const hasDraggedFiles = (event: DragEvent<HTMLElement>): boolean =>
+    Array.from(event.dataTransfer.types).includes('Files')
+
+  const getFileDropParentId = useCallback(
+    (event: DragEvent<HTMLElement>): string | undefined =>
+      resolveWorkflowFileDropParentId({
+        eventTarget: event.target instanceof Element ? event.target : undefined,
+        pointTarget: document.elementFromPoint(event.clientX, event.clientY),
+        rootId: root,
+        hasNode: nodeId => Boolean(nodes[nodeId]),
+      }),
+    [nodes, root],
+  )
+
+  const handleTreePanelDragOver = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      if (!root || !hasDraggedFiles(event)) return
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'copy'
+    },
+    [root],
+  )
+
+  const handleTreePanelDrop = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      if (!root || event.dataTransfer.files.length === 0) return
+      event.preventDefault()
+      const parentId = getFileDropParentId(event)
+      if (!parentId) return
+      handleDropFiles(parentId, event.dataTransfer.files)
+    },
+    [getFileDropParentId, handleDropFiles, root],
+  )
+
   const handleCloseDetailPanel = useCallback(() => {
     actions.select(undefined)
   }, [actions])
@@ -343,16 +413,21 @@ const WorkflowContent = () => {
   }
 
   return (
-    <div className="flex h-full min-h-[400px] gap-4 p-4" ref={workspaceContainerRef}>
+    <div
+      className="flex h-full min-h-[25rem] min-w-0 flex-col gap-3 overflow-y-auto p-2 md:flex-row md:gap-4 md:overflow-hidden md:p-4"
+      ref={workspaceContainerRef}
+    >
       <Card
-        className="w-80 flex flex-col min-h-0 focus:outline-none"
+        className="workflow-editor-panel workflow-editor-panel--tree relative flex h-[68svh] min-h-72 max-h-[calc(100svh-8rem)] w-full min-w-0 shrink-0 flex-col border-muted-foreground/15 bg-card/95 shadow-none focus:outline-none md:h-auto md:min-h-0 md:max-h-none md:w-[32rem] xl:w-[34rem]"
         data-testid="workflow-tree-panel"
+        onDragOver={handleTreePanelDragOver}
+        onDrop={handleTreePanelDrop}
         ref={treeContainerRef}
         tabIndex={0}
       >
-        <CardHeader className="pb-2 flex-shrink-0">
+        <CardHeader className="workflow-editor-panel-header flex-shrink-0 border-b border-muted-foreground/10 pb-2">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">
+            <CardTitle className="workflow-panel-title font-mono text-sm font-bold uppercase tracking-[0.08em]">
               <FormattedMessage id="workflowTree.title" />
             </CardTitle>
             <DirtyIndicator isDirty={isDirty} isSaving={isSaving} />
@@ -365,21 +440,24 @@ const WorkflowContent = () => {
             nodes={nodes}
             onAddChild={handleAddChild}
             onDelete={handleDelete}
+            onDropFiles={handleDropFiles}
             onDuplicateNode={handleDuplicateNode}
-            onWrapNodes={handleWrapNodes}
+            onMoveNode={handleMoveNode}
             onRename={handleRename}
             onRequestRename={handleRequestRename}
             onSelect={handleSelect}
             onVisibleOrderChange={handleVisibleOrderChange}
+            onWrapNodes={handleWrapNodes}
             rootId={root}
             selectedIds={selectedIds}
+            showCheckboxes={isMobile}
           />
         </CardContent>
       </Card>
 
-      <Card className="flex-1">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">
+      <Card className="workflow-editor-panel relative min-w-0 flex-1 border-muted-foreground/15 bg-card/95 shadow-none">
+        <CardHeader className="workflow-editor-panel-header border-b border-muted-foreground/10 pb-2">
+          <CardTitle className="workflow-panel-title font-mono text-sm font-bold uppercase tracking-[0.08em]">
             <FormattedMessage id="workflowTree.nodeDetails" />
           </CardTitle>
         </CardHeader>
@@ -407,7 +485,7 @@ const WorkflowContent = () => {
               onUpdateNode={handleUpdateNode}
             />
           ) : (
-            <p className="text-muted-foreground">
+            <p className="workflow-empty-panel-callout rounded-2xl border border-dashed border-muted-foreground/25 bg-muted/35 px-4 py-5 text-sm text-muted-foreground">
               <FormattedMessage id="workflowTree.selectNode" />
             </p>
           )}

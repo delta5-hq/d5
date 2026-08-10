@@ -6,8 +6,10 @@ import { useEditableField } from './use-editable-field'
 export interface EditableTextAreaProps {
   value: string
   onChange: (value: string) => void
+  displayValue?: string
   placeholder?: string
   className?: string
+  editClassName?: string
   autoFocus?: boolean
   readOnlyClassName?: string
   title?: string
@@ -16,8 +18,10 @@ export interface EditableTextAreaProps {
 export const EditableTextArea = ({
   value,
   onChange,
+  displayValue,
   placeholder,
   className,
+  editClassName,
   autoFocus,
   readOnlyClassName,
   title,
@@ -32,7 +36,7 @@ export const EditableTextArea = ({
   if (isEditing) {
     return (
       <Textarea
-        className={cn('min-h-24 resize-y text-sm leading-6', className)}
+        className={cn('min-h-24 resize-y text-sm leading-6', editClassName, className)}
         onBlur={commitEdit}
         onChange={e => setEditValue(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -55,7 +59,7 @@ export const EditableTextArea = ({
       style={{ touchAction: 'manipulation' }}
       title={title}
     >
-      {value || placeholder}
+      {(displayValue ?? value) || placeholder}
     </span>
   )
 }

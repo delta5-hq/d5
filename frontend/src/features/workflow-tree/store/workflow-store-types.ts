@@ -42,9 +42,10 @@ export interface WorkflowStoreActions {
   updateNode: (nodeId: NodeId, updates: Partial<Omit<NodeData, 'id' | 'parent'>>) => boolean
   removeNode: (nodeId: NodeId) => boolean
   removeNodes: (nodeIds: Set<NodeId>) => number
-  moveNode: (nodeId: NodeId, newParentId: NodeId) => boolean
+  moveNode: (nodeId: NodeId, newParentId: NodeId, insertionIndex?: number) => boolean
   duplicateNode: (nodeId: NodeId, targetParentId?: NodeId) => NodeId | null
   importTextAsPrompts: (parentId: NodeId, text: string) => number
+  attachFileChild: (parentId: NodeId, file: File) => Promise<NodeId | null>
 
   executeCommand: (node: NodeData, queryType: string) => Promise<boolean>
   abortExecution: (nodeId: NodeId) => void
@@ -53,6 +54,8 @@ export interface WorkflowStoreActions {
   undo: () => void
   redo: () => void
 }
+
+export type ReadWorkflowFn = (workflowId: string) => Promise<Pick<WorkflowStoreState, 'nodes' | 'edges' | 'root'>>
 
 export const INITIAL_WORKFLOW_STATE: Omit<WorkflowStoreState, 'workflowId'> = {
   nodes: {},

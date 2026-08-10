@@ -53,6 +53,16 @@ type ComparedKeys =
   | 'onRequestRename'
   | 'onWrapNodes'
   | 'onToggleChecked'
+  | 'onMoveNode'
+  | 'onDragHoverNode'
+  | 'onDragLeaveNode'
+  | 'onDragStartNode'
+  | 'onDragEndNode'
+  | 'onPointerDragStartNode'
+  | 'onDropFiles'
+  | 'activeDraggedNodeId'
+  | 'activeDropTargetId'
+  | 'activeDropPosition'
 
 /* Build guard: adding a prop to TreeNodeProps without listing it here errors the return type below */
 type ExhaustiveCompareResult = Exclude<keyof TreeNodeProps, ComparedKeys> extends never ? boolean : never
@@ -87,6 +97,16 @@ export function areTreeNodePropsEqual(
   if (prev.onRequestRename !== next.onRequestRename) return false
   if (prev.onWrapNodes !== next.onWrapNodes) return false
   if (prev.onToggleChecked !== next.onToggleChecked) return false
+  if (prev.onMoveNode !== next.onMoveNode) return false
+  if (prev.onDragHoverNode !== next.onDragHoverNode) return false
+  if (prev.onDragLeaveNode !== next.onDragLeaveNode) return false
+  if (prev.onDragStartNode !== next.onDragStartNode) return false
+  if (prev.onDragEndNode !== next.onDragEndNode) return false
+  if (prev.onPointerDragStartNode !== next.onPointerDragStartNode) return false
+  if (prev.onDropFiles !== next.onDropFiles) return false
+  if (prev.activeDraggedNodeId !== next.activeDraggedNodeId) return false
+  if ((prev.activeDropTargetId === prev.id) !== (next.activeDropTargetId === next.id)) return false
+  if (prev.activeDropTargetId === prev.id && prev.activeDropPosition !== next.activeDropPosition) return false
 
   return true
 }

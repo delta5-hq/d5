@@ -53,6 +53,46 @@ func (g *GridFSBucket) Find(ctx context.Context, filter bson.M) ([]GridFSFile, e
 	return files, nil
 }
 
+func (g *GridFSBucket) FindOne(ctx context.Context, filter bson.M) (*GridFSFile, error) {
+	files, err := g.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	if len(files) == 0 {
+		return nil, mongo.ErrNoDocuments
+	}
+	return &files[0], nil
+}
+
+func (g *GridFSBucket) UploadFromStream(ctx context.Context, filename string, reader io.Reader, metadata bson.M) (primitive.ObjectID, error) {
+	uploadStream, err := g.bucket.OpenUploadStream(filename, options.GridFSUpload().SetMetadata(metadata))
+	if err != nil {
+		return primitive.NilObjectID, err
+	}
+
+	if _, err := io.Copy(uploadStream, reader); err != nil {
+		_ = uploadStream.Abort()
+		return primitive.NilObjectID, err
+	}
+
+	id, ok := uploadStream.FileID.(primitive.ObjectID)
+	if !ok {
+		_ = uploadStream.Abort()
+		return primitive.NilObjectID, mongo.ErrNilDocument
+	}
+
+	if err := uploadStream.Close(); err != nil {
+		_ = uploadStream.Abort()
+		return primitive.NilObjectID, err
+	}
+
+	return id, nil
+}
+
+func (g *GridFSBucket) Delete(ctx context.Context, id primitive.ObjectID) error {
+	return g.bucket.Delete(id)
+}
+
 /* GridFSFile represents a file in GridFS */
 type GridFSFile struct {
 	ID       primitive.ObjectID
