@@ -46,7 +46,7 @@ const expectedBinPath = binEntry ? fs.realpathSync(path.resolve(path.dirname(man
 
 if (
   manifest.name !== '@redaction-control/value-redaction-control' ||
-  manifest.version !== '0.1.2' ||
+  manifest.version !== '0.1.4' ||
   manifest.engines?.node !== '>=22' ||
   !binEntry ||
   expectedBinPath !== checkerPath
@@ -56,7 +56,7 @@ if (
 NODE
 
 rule_set_version="$("$checker_path" --version | tr -d '\r\n')"
-if [ "$rule_set_version" != "redaction-rules-v2" ]; then
+if [ "$rule_set_version" != "redaction-rules-v3" ]; then
   echo "redaction runtime probe failed: checker version mismatch" >&2
   exit 1
 fi

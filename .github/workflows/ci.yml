@@ -228,10 +228,12 @@ jobs:
           node-version: 22
           cache: 'npm'
           cache-dependency-path: backend-v2/e2e/package-lock.json
-      - run: |
-          REDACTION_PACKAGE_TARBALL="$GITHUB_WORKSPACE/backend-v2/third_party/redaction/redaction-control-value-redaction-control-0.1.2.tgz"
-          REDACTION_PACKAGE_SHA512="19f4f7ca3ac8f0fe10b292bf26e7e6c71a89dd904875f7d892d00e963b7e36788b5925ebed3e598c92063164837fb64b6492c80706d5c167015472ca8def14ff"
-          printf '%s  %s\n' "$REDACTION_PACKAGE_SHA512" "$REDACTION_PACKAGE_TARBALL" | sha512sum -c -
+      - env:
+          REDACTION_NPM_TOKEN: ${{ secrets.REDACTION_NPM_TOKEN }}
+        run: |
+          REDACTION_PACKAGE_DIR="$(mktemp -d)"
+          REDACTION_PACKAGE_TARBALL="$REDACTION_PACKAGE_DIR/value-redaction-control-0.1.4.tgz"
+          bash backend-v2/scripts/fetch-redaction-package.sh "$REDACTION_PACKAGE_TARBALL"
           npm install -g "$REDACTION_PACKAGE_TARBALL"
           echo "D5_REDACTION_CHECKER_PATH=$(command -v value-redaction-check)" >> "$GITHUB_ENV"
           echo "D5_REDACTION_REGISTERED_VALUES_FILE=$GITHUB_WORKSPACE/backend-v2/testdata/redaction-registered-values.json" >> "$GITHUB_ENV"
@@ -287,10 +289,12 @@ jobs:
           node-version: 22
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
-      - run: |
-          REDACTION_PACKAGE_TARBALL="$GITHUB_WORKSPACE/backend-v2/third_party/redaction/redaction-control-value-redaction-control-0.1.2.tgz"
-          REDACTION_PACKAGE_SHA512="19f4f7ca3ac8f0fe10b292bf26e7e6c71a89dd904875f7d892d00e963b7e36788b5925ebed3e598c92063164837fb64b6492c80706d5c167015472ca8def14ff"
-          printf '%s  %s\n' "$REDACTION_PACKAGE_SHA512" "$REDACTION_PACKAGE_TARBALL" | sha512sum -c -
+      - env:
+          REDACTION_NPM_TOKEN: ${{ secrets.REDACTION_NPM_TOKEN }}
+        run: |
+          REDACTION_PACKAGE_DIR="$(mktemp -d)"
+          REDACTION_PACKAGE_TARBALL="$REDACTION_PACKAGE_DIR/value-redaction-control-0.1.4.tgz"
+          bash backend-v2/scripts/fetch-redaction-package.sh "$REDACTION_PACKAGE_TARBALL"
           npm install -g "$REDACTION_PACKAGE_TARBALL"
           echo "D5_REDACTION_CHECKER_PATH=$(command -v value-redaction-check)" >> "$GITHUB_ENV"
           echo "D5_REDACTION_REGISTERED_VALUES_FILE=$GITHUB_WORKSPACE/backend-v2/testdata/redaction-registered-values.json" >> "$GITHUB_ENV"

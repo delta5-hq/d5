@@ -15,21 +15,21 @@ FROM node:22-alpine
 SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
 
 ARG REDACTION_PACKAGE_SPEC=/tmp/redaction-package.tgz
-ARG REDACTION_PACKAGE_SHA512=19f4f7ca3ac8f0fe10b292bf26e7e6c71a89dd904875f7d892d00e963b7e36788b5925ebed3e598c92063164837fb64b6492c80706d5c167015472ca8def14ff
+ARG REDACTION_PACKAGE_SHA512=b24d54070ebbeeaff4c6791c721ba34971b467164bfcdec8ae9ae5056efa320172fb4e95c5e045c6bc674e31357b68001aca0cad0dcb88f93fc12a5aab3a33f7
 
 # hadolint ignore=DL3018
 RUN apk add --no-cache ca-certificates tzdata
 
 # hadolint ignore=DL3016
-RUN --mount=type=secret,id=redaction_package,target=/tmp/redaction-package.tgz,required=false \
-	if [ -n "${REDACTION_PACKAGE_SHA512}" ]; then \
-		printf '%s  %s\n' "${REDACTION_PACKAGE_SHA512}" "${REDACTION_PACKAGE_SPEC}" | sha512sum -c -; \
-	fi \
-	&& npm install --global "${REDACTION_PACKAGE_SPEC}" \
+RUN --mount=type=secret,id=redaction_package,target=/tmp/redaction-package.tgz,required=true \
+	test "${REDACTION_PACKAGE_SPEC}" = "/tmp/redaction-package.tgz" \
+	&& test "${REDACTION_PACKAGE_SHA512}" = "b24d54070ebbeeaff4c6791c721ba34971b467164bfcdec8ae9ae5056efa320172fb4e95c5e045c6bc674e31357b68001aca0cad0dcb88f93fc12a5aab3a33f7" \
+	&& printf '%s  %s\n' "${REDACTION_PACKAGE_SHA512}" "${REDACTION_PACKAGE_SPEC}" | sha512sum -c - \
+	&& npm install --global "/tmp/redaction-package.tgz" \
 	&& npm cache clean --force \
 	&& test "$(node --version | cut -d. -f1 | tr -d v)" -ge 22 \
 	&& command -v value-redaction-check >/dev/null \
-	&& test "$(value-redaction-check --version | tr -d '\r\n')" = "redaction-rules-v2"
+	&& test "$(value-redaction-check --version | tr -d '\r\n')" = "redaction-rules-v3"
 
 RUN node - <<'NODE'
 const fs = require('node:fs');
@@ -57,7 +57,7 @@ const binEntry = manifest.bin && manifest.bin['value-redaction-check'];
 const expectedBinPath = binEntry ? fs.realpathSync(path.resolve(path.dirname(manifestPath), binEntry)) : '';
 if (
   manifest.name !== '@redaction-control/value-redaction-control' ||
-  manifest.version !== '0.1.2' ||
+  manifest.version !== '0.1.4' ||
   manifest.engines?.node !== '>=22' ||
   expectedBinPath !== checkerPath
 ) {

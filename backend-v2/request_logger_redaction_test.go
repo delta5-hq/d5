@@ -19,12 +19,18 @@ import (
 
 type requestRedactingChecker struct{}
 
+const structuralRequestCredentialValue = "ghp_abcdefghij"
+
 func (requestRedactingChecker) Version(context.Context) (checkedlog.Version, error) {
 	return checkedlog.Version{PackageVersion: checkedlog.ExpectedPackageVersion, RuleSetVersion: checkedlog.ExpectedRuleSetVersion}, nil
 }
 
 func (requestRedactingChecker) Redact(_ context.Context, text string) (checkedlog.Result, error) {
-	return checkedlog.Result{Text: strings.ReplaceAll(text, "syntheticRequestCanary12345", "[REDACTED]")}, nil
+	replacer := strings.NewReplacer(
+		"syntheticRequestCanary12345", "[REDACTED]",
+		structuralRequestCredentialValue, strings.Repeat("[", len(structuralRequestCredentialValue)),
+	)
+	return checkedlog.Result{Text: replacer.Replace(text)}, nil
 }
 
 func TestHTTPRequestLoggerPassesThroughCheckedBoundary(t *testing.T) {
@@ -53,6 +59,24 @@ func TestHTTPRequestLoggerPassesThroughCheckedBoundary(t *testing.T) {
 			wantStatus:    200,
 			wantParts:     []string{"GET", "/request/", "[REDACTED]"},
 			forbidParts:   []string{"syntheticRequestCanary12345"},
+		},
+		{
+			name:          "structural path credential is removed when checker returns redacted text",
+			path:          "/api/v2/qa/token/" + structuralRequestCredentialValue,
+			method:        "GET",
+			registerRoute: true,
+			wantStatus:    200,
+			wantParts:     []string{"GET", "/api/v2/qa/token/", strings.Repeat("[", len(structuralRequestCredentialValue))},
+			forbidParts:   []string{structuralRequestCredentialValue},
+		},
+		{
+			name:          "structural query credential is removed when checker returns redacted text",
+			path:          "/api/v2/qa/token-query?token=" + structuralRequestCredentialValue + "&note=visible",
+			method:        "GET",
+			registerRoute: true,
+			wantStatus:    200,
+			wantParts:     []string{"GET", "/api/v2/qa/token-query", "token=" + strings.Repeat("[", len(structuralRequestCredentialValue)) + "&note=visible"},
+			forbidParts:   []string{structuralRequestCredentialValue},
 		},
 		{
 			name:       "ordinary unmatched query remains observable without route-shaped target",

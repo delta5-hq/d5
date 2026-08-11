@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/sha512"
-	"encoding/hex"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -13,13 +11,13 @@ import (
 )
 
 const (
-	canonicalRedactionPackageName         = "@redaction-control/value-redaction-control"
-	canonicalRedactionPackageVersion      = "0.1.2"
-	canonicalRedactionRuleSetVersion      = "redaction-rules-v2"
-	canonicalRedactionPackageRelativePath = "third_party/redaction/redaction-control-value-redaction-control-0.1.2.tgz"
-	canonicalRedactionPackageBuildPath    = "/tmp/redaction-package.tgz"
-	canonicalRedactionPackageChecksum     = "19f4f7ca3ac8f0fe10b292bf26e7e6c71a89dd904875f7d892d00e963b7e36788b5925ebed3e598c92063164837fb64b6492c80706d5c167015472ca8def14ff"
-	canonicalRedactionPackageSize         = 11215
+	canonicalRedactionPackageName        = "@redaction-control/value-redaction-control"
+	canonicalRedactionPackageVersion     = "0.1.4"
+	canonicalRedactionRuleSetVersion     = "redaction-rules-v3"
+	canonicalRedactionFetcherPath        = "scripts/fetch-redaction-package.sh"
+	canonicalRedactionPackageRegistryURL = "https://gitlab.solid-branch-software.com/api/v4/projects/63/packages/npm/@redaction-control/value-redaction-control/-/@redaction-control/value-redaction-control-0.1.4.tgz"
+	canonicalRedactionPackageBuildPath   = "/tmp/redaction-package.tgz"
+	canonicalRedactionPackageChecksum    = "b24d54070ebbeeaff4c6791c721ba34971b467164bfcdec8ae9ae5056efa320172fb4e95c5e045c6bc674e31357b68001aca0cad0dcb88f93fc12a5aab3a33f7"
 )
 
 func TestRedactionRuntimeProbeAcceptsManifestBackedChecker(t *testing.T) {
@@ -56,7 +54,7 @@ func TestRedactionRuntimeProbeRejectsNonCanonicalCheckerReceipts(t *testing.T) {
 			name: "wrong package name",
 			manifest: probeManifest{
 				Name:       "local-fixture",
-				Version:    "0.1.2",
+				Version:    canonicalRedactionPackageVersion,
 				NodeEngine: ">=22",
 				BinName:    "value-redaction-check",
 				BinTarget:  "bin/value-redaction-check.js",
@@ -111,34 +109,92 @@ func TestRedactionRuntimeProbeRejectsNonCanonicalCheckerReceipts(t *testing.T) {
 	}
 }
 
-func TestCanonicalRedactionPackageArtifactMatchesPinnedReceipt(t *testing.T) {
-	content, err := os.ReadFile(canonicalRedactionPackageRelativePath)
-	if err != nil {
-		t.Fatalf("read canonical redaction package: %v", err)
-	}
-	if len(content) != canonicalRedactionPackageSize {
-		t.Fatalf("canonical redaction package size = %d, want %d", len(content), canonicalRedactionPackageSize)
+func TestCanonicalRedactionPackageFetcherPinsRegistryReceiptWithoutVendoring(t *testing.T) {
+	content := readRepositoryFile(t, canonicalRedactionFetcherPath)
+	for _, required := range []string{
+		canonicalRedactionPackageRegistryURL,
+		canonicalRedactionPackageChecksum,
+		"REDACTION_NPM_TOKEN",
+		"REDACTION_NPM_TOKEN contains control characters",
+		"PRIVATE-TOKEN|JOB-TOKEN",
+		"curl --header \"@$curl_header_path\"",
+		"sha512sum -c -",
+	} {
+		if !strings.Contains(content, required) {
+			t.Fatalf("canonical fetcher missing %q", required)
+		}
 	}
 
-	sum := sha512.Sum512(content)
-	if got := hex.EncodeToString(sum[:]); got != canonicalRedactionPackageChecksum {
-		t.Fatalf("canonical redaction package sha512 = %s, want %s", got, canonicalRedactionPackageChecksum)
+	if matches, err := filepath.Glob(filepath.Join("third_party", "redaction", "*.tgz")); err != nil {
+		t.Fatalf("glob vendored redaction packages: %v", err)
+	} else if len(matches) != 0 {
+		t.Fatalf("consumer-local redaction package copies are forbidden: %v", matches)
+	}
+	if strings.Contains(content, `--header "$token_type: $token"`) {
+		t.Fatal("registry credential must not be exposed in curl process arguments")
+	}
+	if strings.Contains(content, "--location") {
+		t.Fatal("registry credential-bearing fetch must not forward its custom auth header across redirects")
+	}
+}
+
+func TestCanonicalRedactionPackageFetcherRejectsInvalidInputsBeforeNetwork(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell probe is unix-only")
+	}
+
+	tests := []struct {
+		name       string
+		outputPath string
+		env        []string
+		wantStderr string
+	}{
+		{
+			name:       "missing output path",
+			wantStderr: "output path is required",
+		},
+		{
+			name:       "missing registry token",
+			outputPath: "package.tgz",
+			wantStderr: "REDACTION_NPM_TOKEN is required",
+		},
+		{
+			name:       "control character in registry token",
+			outputPath: "package.tgz",
+			env:        []string{"REDACTION_NPM_TOKEN=token\nInjected: header"},
+			wantStderr: "REDACTION_NPM_TOKEN contains control characters",
+		},
+		{
+			name:       "unsupported token header type",
+			outputPath: "package.tgz",
+			env: []string{
+				"REDACTION_NPM_TOKEN=token",
+				"REDACTION_NPM_TOKEN_TYPE=AUTHORIZATION",
+			},
+			wantStderr: "REDACTION_NPM_TOKEN_TYPE must be PRIVATE-TOKEN or JOB-TOKEN",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := runFetcherInputValidationProbe(t, tt.outputPath, tt.env...)
+			if result.exitCode == 0 {
+				t.Fatalf("invalid fetcher input unexpectedly passed\nstdout=%s\nstderr=%s", result.stdout, result.stderr)
+			}
+			if !strings.Contains(result.stderr, tt.wantStderr) {
+				t.Fatalf("stderr missing %q: %q", tt.wantStderr, result.stderr)
+			}
+		})
 	}
 }
 
 func TestRedactionProvisioningUsesCanonicalPackageSpecAndShipsEntrypoints(t *testing.T) {
 	publicRegistrySpec := canonicalRedactionPackageName + "@" + canonicalRedactionPackageVersion
 	legacySpecWithoutPort := "git+ssh://git@gitlab.solid-branch-software.com/solidbranch/internal/redaction.git#v0.1.2"
-	files := []string{
-		"Makefile",
-		filepath.Join("docs", "redaction-runtime.md"),
-	}
+	files := []string{"Makefile", filepath.Join("docs", "redaction-runtime.md")}
 	for _, file := range files {
 		t.Run(file, func(t *testing.T) {
 			content := readRepositoryFile(t, file)
-			if !strings.Contains(content, canonicalRedactionPackageRelativePath) {
-				t.Fatalf("%s does not reference canonical package spec", file)
-			}
 			if !strings.Contains(content, canonicalRedactionPackageChecksum) {
 				t.Fatalf("%s does not reference canonical package checksum", file)
 			}
@@ -195,8 +251,11 @@ func TestRedactionProvisioningUsesCanonicalPackageSpecAndShipsEntrypoints(t *tes
 	dockerfile := readRepositoryFile(t, "Dockerfile")
 	for _, line := range []string{
 		"FROM node:22-alpine",
-		"--mount=type=secret,id=redaction_package,target=" + canonicalRedactionPackageBuildPath + ",required=false",
+		"--mount=type=secret,id=redaction_package,target=" + canonicalRedactionPackageBuildPath + ",required=true",
 		"sha512sum -c -",
+		`test "${REDACTION_PACKAGE_SPEC}" = "/tmp/redaction-package.tgz"`,
+		`test "${REDACTION_PACKAGE_SHA512}" = "` + canonicalRedactionPackageChecksum + `"`,
+		`npm install --global "/tmp/redaction-package.tgz"`,
 		"command -v value-redaction-check >/dev/null",
 		"value-redaction-check --version",
 		"COPY --from=builder /build/service .",
@@ -216,26 +275,80 @@ func TestCanonicalInstallSurfacesVerifyPackageBeforeInstall(t *testing.T) {
 		"operator docs":      readRepositoryFile(t, filepath.Join("docs", "redaction-runtime.md")),
 	}
 
+	redactionInstallNeedles := []string{
+		`npm install -g "$REDACTION_PACKAGE_TARBALL"`,
+		`npm install --global "$REDACTION_PACKAGE_TARBALL"`,
+	}
+
 	for name, content := range surfaces {
 		t.Run(name, func(t *testing.T) {
-			packageIndex := strings.Index(content, "REDACTION_PACKAGE_TARBALL")
-			if packageIndex == -1 {
-				t.Fatalf("%s missing redaction package tarball variable", name)
-			}
-			redactionProvisioning := content[packageIndex:]
-			checksumIndex := strings.Index(redactionProvisioning, canonicalRedactionPackageChecksum)
-			installIndex := strings.Index(redactionProvisioning, "npm install")
-			if checksumIndex == -1 {
-				t.Fatalf("%s missing checksum", name)
+			fetchIndex := strings.Index(content, "fetch-redaction-package.sh")
+			installIndex := firstIndexOfAny(content, redactionInstallNeedles)
+			if fetchIndex == -1 {
+				t.Fatalf("%s missing receipt-verifying registry fetch", name)
 			}
 			if installIndex == -1 {
-				t.Fatalf("%s missing npm install step", name)
+				t.Fatalf("%s missing redaction package npm install step", name)
 			}
-			if checksumIndex > installIndex {
-				t.Fatalf("%s installs the redaction package before verifying checksum", name)
+			if fetchIndex > installIndex {
+				t.Fatalf("%s installs the redaction package before verified registry fetch", name)
 			}
 		})
 	}
+}
+
+func TestCheckerProvisioningUsesNodeAndAnNpmArchiveFilename(t *testing.T) {
+	gitlab := readRepositoryFile(t, filepath.Join("..", ".gitlab-ci.yml"))
+	github := readRepositoryFile(t, filepath.Join("..", ".github", "workflows", "ci.yml"))
+	operatorDocs := readRepositoryFile(t, filepath.Join("docs", "redaction-runtime.md"))
+
+	if !strings.Contains(gitlab, "- apk add --no-cache git nodejs") {
+		t.Fatal("GitLab backend-v2 unit job must install the node runtime used by checker contract tests")
+	}
+	archiveSurfaces := []struct {
+		name             string
+		content          string
+		expectedArchives int
+	}{
+		{name: "GitLab", content: gitlab, expectedArchives: 3},
+		{name: "GitHub", content: github, expectedArchives: 2},
+		{name: "operator docs", content: operatorDocs, expectedArchives: 1},
+	}
+	for _, surface := range archiveSurfaces {
+		if strings.Contains(surface.content, `REDACTION_PACKAGE_TARBALL="$(mktemp)"`) {
+			t.Fatalf("%s redaction package provisioning must not give npm an extensionless archive path", surface.name)
+		}
+		if count := strings.Count(surface.content, `REDACTION_PACKAGE_TARBALL="$REDACTION_PACKAGE_DIR/value-redaction-control-0.1.4.tgz"`); count != surface.expectedArchives {
+			t.Fatalf("%s provisioning must use %d explicit .tgz archive paths, got %d", surface.name, surface.expectedArchives, count)
+		}
+	}
+	packageFetcher := `REDACTION_NPM_TOKEN="$CI_JOB_TOKEN" REDACTION_NPM_TOKEN_TYPE="JOB-TOKEN" sh "$CI_PROJECT_DIR/backend-v2/scripts/fetch-redaction-package.sh" "$REDACTION_PACKAGE_TARBALL"`
+	if !strings.Contains(gitlab, packageFetcher) {
+		t.Fatal("GitLab Docker CLI package job must invoke the POSIX fetcher with the available sh runtime")
+	}
+	if strings.Contains(gitlab, `bash "$CI_PROJECT_DIR/backend-v2/scripts/fetch-redaction-package.sh"`) {
+		t.Fatal("GitLab Docker CLI package job must not depend on unavailable bash")
+	}
+	packageJob := gitlab[strings.Index(gitlab, "package-backend-v2:"):]
+	installIndex := strings.Index(packageJob, "- apk add --no-cache curl")
+	fetchIndex := strings.Index(packageJob, packageFetcher)
+	if installIndex == -1 || installIndex > fetchIndex {
+		t.Fatal("GitLab Docker CLI package job must install curl before the verified registry fetch")
+	}
+}
+
+func firstIndexOfAny(content string, needles []string) int {
+	first := -1
+	for _, needle := range needles {
+		index := strings.Index(content, needle)
+		if index == -1 {
+			continue
+		}
+		if first == -1 || index < first {
+			first = index
+		}
+	}
+	return first
 }
 
 func TestCanonicalPackagingEntrypointsFailBeforeUnsafeRegistryFallback(t *testing.T) {
@@ -243,9 +356,10 @@ func TestCanonicalPackagingEntrypointsFailBeforeUnsafeRegistryFallback(t *testin
 	for _, required := range []string{
 		"package-backend-v2:",
 		"REDACTION_PACKAGE_SPEC ?= " + canonicalRedactionPackageBuildPath,
-		"REDACTION_PACKAGE_TARBALL_FILE ?= $(CURDIR)/backend-v2/" + canonicalRedactionPackageRelativePath,
+		"REDACTION_PACKAGE_TARBALL_FILE ?=",
 		"REDACTION_PACKAGE_SHA512 ?= " + canonicalRedactionPackageChecksum,
 		"REDACTION_PACKAGE_TARBALL_FILE must be readable",
+		"REDACTION_PACKAGE_TARBALL_FILE='$(REDACTION_PACKAGE_TARBALL_FILE)'",
 		"REDACTION_PACKAGE_SHA512 is required",
 		"$(MAKE) -C backend-v2 build-docker",
 		"--secret id=redaction_package,src=$(REDACTION_PACKAGE_TARBALL_FILE)",
@@ -259,9 +373,13 @@ func TestCanonicalPackagingEntrypointsFailBeforeUnsafeRegistryFallback(t *testin
 	for _, required := range []string{
 		"scripts/verify-docker-build-prerequisites.sh",
 		"REDACTION_PACKAGE_SPEC ?= " + canonicalRedactionPackageBuildPath,
-		"REDACTION_PACKAGE_TARBALL_FILE ?= $(CURDIR)/" + canonicalRedactionPackageRelativePath,
+		"REDACTION_PACKAGE_TARBALL_FILE ?=",
 		"REDACTION_PACKAGE_SHA512 ?= " + canonicalRedactionPackageChecksum,
+		"REDACTION_PACKAGE_TARBALL_FILE must be readable",
 		"--secret id=redaction_package,src=$(REDACTION_PACKAGE_TARBALL_FILE)",
+		"REDACTION_PACKAGE_SPEC='$(REDACTION_PACKAGE_SPEC)'",
+		"REDACTION_PACKAGE_SHA512='$(REDACTION_PACKAGE_SHA512)'",
+		"DOCKER_BUILD_SECRETS='$(DOCKER_BUILD_SECRETS)'",
 	} {
 		if !strings.Contains(backendMakefile, required) {
 			t.Fatalf("backend-v2 Makefile missing %q", required)
@@ -273,7 +391,7 @@ func TestCanonicalPackagingEntrypointsFailBeforeUnsafeRegistryFallback(t *testin
 		"docker buildx version",
 		"Docker Buildx is required for BuildKit secret mounts",
 		"no BuildKit package secret was supplied",
-		"REDACTION_PACKAGE_SHA512 is required for the checksum-pinned tarball path",
+		"REDACTION_PACKAGE_SHA512 must equal the canonical release receipt",
 		"REDACTION_PACKAGE_SPEC must be the checksum-pinned canonical tarball path",
 	} {
 		if !strings.Contains(script, required) {
@@ -340,15 +458,22 @@ func TestDockerPrerequisiteGate(t *testing.T) {
 		{
 			name:         "canonical package with package secret and checksum passes prerequisites",
 			buildxWorks:  true,
-			env:          []string{"REDACTION_PACKAGE_SPEC=" + canonicalRedactionPackageBuildPath, "REDACTION_PACKAGE_SHA512=abc123", "DOCKER_BUILD_SECRETS=--secret id=redaction_package,src=/tmp/value-redaction-control-0.1.2.tgz"},
+			env:          []string{"REDACTION_PACKAGE_SPEC=" + canonicalRedactionPackageBuildPath, "REDACTION_PACKAGE_SHA512=" + canonicalRedactionPackageChecksum, "DOCKER_BUILD_SECRETS=--secret id=redaction_package,src=/tmp/value-redaction-control-0.1.4.tgz"},
 			wantExitCode: 0,
 		},
 		{
 			name:         "checksum-pinned package source requires checksum",
 			buildxWorks:  true,
-			env:          []string{"REDACTION_PACKAGE_SPEC=" + canonicalRedactionPackageBuildPath, "DOCKER_BUILD_SECRETS=--secret id=redaction_package,src=/tmp/value-redaction-control-0.1.2.tgz"},
+			env:          []string{"REDACTION_PACKAGE_SPEC=" + canonicalRedactionPackageBuildPath, "DOCKER_BUILD_SECRETS=--secret id=redaction_package,src=/tmp/value-redaction-control-0.1.4.tgz"},
 			wantExitCode: 1,
-			wantStderr:   "REDACTION_PACKAGE_SHA512 is required",
+			wantStderr:   "REDACTION_PACKAGE_SHA512 must equal the canonical release receipt",
+		},
+		{
+			name:         "checksum-pinned package source rejects wrong checksum",
+			buildxWorks:  true,
+			env:          []string{"REDACTION_PACKAGE_SPEC=" + canonicalRedactionPackageBuildPath, "REDACTION_PACKAGE_SHA512=abc123", "DOCKER_BUILD_SECRETS=--secret id=redaction_package,src=/tmp/value-redaction-control-0.1.4.tgz"},
+			wantExitCode: 1,
+			wantStderr:   "REDACTION_PACKAGE_SHA512 must equal the canonical release receipt",
 		},
 		{
 			name:         "unsupported package source is rejected before docker build",
@@ -756,6 +881,40 @@ func runRedactionRuntimeProbe(t *testing.T, checkerPath string, valuesPath strin
 	return probeResult{stdout: string(output)}
 }
 
+func runFetcherInputValidationProbe(t *testing.T, outputPath string, env ...string) probeResult {
+	t.Helper()
+	dir := t.TempDir()
+	curlCalled := filepath.Join(dir, "curl-called")
+	curlStub := filepath.Join(dir, "curl")
+	stub := "#!/bin/sh\nprintf called >\"$REDACTION_FETCHER_CURL_CALLED\"\nexit 0\n"
+	if err := os.WriteFile(curlStub, []byte(stub), 0o700); err != nil {
+		t.Fatalf("write curl stub: %v", err)
+	}
+
+	args := []string{canonicalRedactionFetcherPath}
+	if outputPath != "" {
+		args = append(args, filepath.Join(dir, outputPath))
+	}
+	cmd := exec.Command("sh", args...)
+	cmd.Env = append(os.Environ(),
+		"PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"REDACTION_FETCHER_CURL_CALLED="+curlCalled,
+	)
+	cmd.Env = append(cmd.Env, env...)
+	output, err := cmd.Output()
+	result := probeResult{stdout: string(output)}
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		result.stderr = string(exitErr.Stderr)
+		result.exitCode = exitErr.ExitCode()
+	} else if err != nil {
+		t.Fatalf("run fetcher validation probe: %v", err)
+	}
+	if _, statErr := os.Stat(curlCalled); !os.IsNotExist(statErr) {
+		t.Fatalf("invalid input reached credential-bearing curl: %v", statErr)
+	}
+	return result
+}
+
 func writeProbePackage(t *testing.T, manifest probeManifest) (string, string) {
 	t.Helper()
 	root := t.TempDir()
@@ -787,7 +946,7 @@ func writeProbePackage(t *testing.T, manifest probeManifest) (string, string) {
 import fs from 'node:fs';
 
 if (process.argv[2] === '--version') {
-  process.stdout.write('redaction-rules-v2\n');
+  process.stdout.write('redaction-rules-v3\n');
   process.exit(0);
 }
 

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -368,9 +369,9 @@ func TestProxy_Forward_BinaryData(t *testing.T) {
 }
 
 func TestProxy_Forward_ConcurrentRequests(t *testing.T) {
-	requestCount := 0
+	var requestCount atomic.Int64
 	backendServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestCount++
+		requestCount.Add(1)
 		time.Sleep(10 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte(`{"ok":true}`)); err != nil {
@@ -409,8 +410,8 @@ func TestProxy_Forward_ConcurrentRequests(t *testing.T) {
 		<-done
 	}
 
-	if requestCount != 10 {
-		t.Errorf("Backend received %v requests, want 10", requestCount)
+	if got := requestCount.Load(); got != 10 {
+		t.Errorf("Backend received %v requests, want 10", got)
 	}
 }
 

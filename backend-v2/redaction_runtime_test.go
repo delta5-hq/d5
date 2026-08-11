@@ -289,7 +289,7 @@ func (h runtimeHarness) environment(overrides map[string]string) []string {
 
 func buildGoProgram(t *testing.T, output string, packagePath string) {
 	t.Helper()
-	cmd := exec.Command("go", "build", "-o", output, packagePath)
+	cmd := exec.Command("go", "build", "-buildvcs=false", "-o", output, packagePath)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("build %s: %v\n%s", packagePath, err, out)
 	}
@@ -303,9 +303,9 @@ const mode = "` + checkerMode + `";
 const args = process.argv.slice(2);
 if (args[0] === '--version') {
   if (mode === 'slow-version') {
-    setTimeout(() => process.stdout.write('redaction-rules-v2\n'), 1000);
+    setTimeout(() => process.stdout.write('redaction-rules-v3\n'), 1000);
   } else {
-    process.stdout.write((mode === 'mismatch-version' ? 'redaction-rules-v1' : 'redaction-rules-v2') + '\n');
+    process.stdout.write((mode === 'mismatch-version' ? 'redaction-rules-v1' : 'redaction-rules-v3') + '\n');
   }
 } else {
   if (mode === 'reject-redact') process.exit(2);

@@ -10,8 +10,8 @@ import (
 
 const (
 	ExpectedPackageName    = "@redaction-control/value-redaction-control"
-	ExpectedPackageVersion = "0.1.2"
-	ExpectedRuleSetVersion = "redaction-rules-v2"
+	ExpectedPackageVersion = "0.1.4"
+	ExpectedRuleSetVersion = "redaction-rules-v3"
 	ExpectedNodeEngine     = ">=22"
 
 	EnvCheckerPath          = "D5_REDACTION_CHECKER_PATH"

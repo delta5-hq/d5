@@ -14,8 +14,8 @@ REDACTION_TIMEOUT_MS ?= 2000
 DOCKER_IMAGE := d5-backend-v2
 DOCKER_TAG := latest
 REDACTION_PACKAGE_SPEC ?= /tmp/redaction-package.tgz
-REDACTION_PACKAGE_SHA512 ?= 19f4f7ca3ac8f0fe10b292bf26e7e6c71a89dd904875f7d892d00e963b7e36788b5925ebed3e598c92063164837fb64b6492c80706d5c167015472ca8def14ff
-REDACTION_PACKAGE_TARBALL_FILE ?= $(CURDIR)/third_party/redaction/redaction-control-value-redaction-control-0.1.2.tgz
+REDACTION_PACKAGE_SHA512 ?= b24d54070ebbeeaff4c6791c721ba34971b467164bfcdec8ae9ae5056efa320172fb4e95c5e045c6bc674e31357b68001aca0cad0dcb88f93fc12a5aab3a33f7
+REDACTION_PACKAGE_TARBALL_FILE ?=
 DOCKER_BUILD_SECRETS ?= --secret id=redaction_package,src=$(REDACTION_PACKAGE_TARBALL_FILE)
 LOG_DIR := logs
 
@@ -53,7 +53,14 @@ build:
 	@DOCKER_BUILD_NETWORK=default bash ../scripts/ci-helpers.sh build_go . $(BINARY_NAME)
 
 build-docker:
-	@bash scripts/verify-docker-build-prerequisites.sh
+	@if [ ! -r "$(REDACTION_PACKAGE_TARBALL_FILE)" ]; then \
+		echo "✗ REDACTION_PACKAGE_TARBALL_FILE must be readable"; \
+		exit 1; \
+	fi
+	@REDACTION_PACKAGE_SPEC='$(REDACTION_PACKAGE_SPEC)' \
+	 REDACTION_PACKAGE_SHA512='$(REDACTION_PACKAGE_SHA512)' \
+	 DOCKER_BUILD_SECRETS='$(DOCKER_BUILD_SECRETS)' \
+	 bash scripts/verify-docker-build-prerequisites.sh
 	@echo "→ Building Docker image with redaction checker..."
 	@DOCKER_BUILDKIT=1 docker build \
 		$(DOCKER_BUILD_SECRETS) \

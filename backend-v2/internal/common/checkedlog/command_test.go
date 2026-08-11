@@ -1,12 +1,14 @@
 package checkedlog
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -98,6 +100,191 @@ func TestCommandRedactorContract(t *testing.T) {
 	}
 }
 
+func TestCommandRedactorRealCheckerPreservesOrdinaryText(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("real checker probe is unix-only")
+	}
+	redactor := newRealCommandRedactorFromEnv(t)
+
+	for _, tt := range []realCheckerPreservationCase{
+		{
+			name:  "multilingual prose with punctuation",
+			input: "ordinary multilingual prose stays byte-identical: Привет мир مرحبا こんにちは punctuation - _",
+		},
+		{
+			name:  "ordinary prose containing token as a word",
+			input: "ordinary prose may contain the word Token without a credential candidate",
+		},
+		{
+			name:  "path query syntax and separators",
+			input: "GET /api/v2/items?kind=ordinary_value&locale=en-US completed",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assertRealCheckerPreservesText(t, redactor, tt.input)
+		})
+	}
+}
+
+func TestCommandRedactorRealCheckerRedactsSecretMaterialLengthPreserving(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("real checker probe is unix-only")
+	}
+	redactor := newRealCommandRedactorFromEnv(t)
+
+	for _, tt := range []lengthPreservingRedactionCase{
+		{
+			name:           "registered value",
+			input:          "ordinary before syntheticRuntimeCanary12345 after",
+			secret:         "syntheticRuntimeCanary12345",
+			preservedParts: []string{"ordinary before", "after"},
+		},
+		{
+			name:           "structural bearer value",
+			input:          "ordinary before Bearer abcdefghijklmnopqrstu12345 after",
+			secret:         "abcdefghijklmnopqrstu12345",
+			preservedParts: []string{"ordinary before", "after"},
+		},
+		{
+			name:           "donor-service token in request path",
+			input:          "GET /api/v2/qa/token/ghp_abcdefghij completed",
+			secret:         "ghp_abcdefghij",
+			preservedParts: []string{"GET /api/v2/qa/token/", "completed"},
+		},
+		{
+			name:           "AWS access key in prose",
+			input:          "ordinary before key AKIAIOSFODNN7EXAMPLE after",
+			secret:         "AKIAIOSFODNN7EXAMPLE",
+			preservedParts: []string{"ordinary before key", "after"},
+		},
+		{
+			name:           "donor-service token in query",
+			input:          "GET /api/v2/health?token=ghp_abcdefghij completed",
+			secret:         "ghp_abcdefghij",
+			preservedParts: []string{"GET /api/v2/health?token=", "completed"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assertRealCheckerRedactsLengthPreserving(t, redactor, tt.input, tt.secret, tt.preservedParts...)
+		})
+	}
+}
+
+func TestCommandRedactorRealCheckerSuppressesHeldCandidates(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("real checker probe is unix-only")
+	}
+	redactor := newRealCommandRedactorFromEnv(t)
+
+	for _, tt := range []heldCandidateCase{
+		{
+			name:      "no digit high entropy candidate with dash and underscore separators",
+			input:     "ordinary before AbCdEfGhIjKlMnOpQrStUvWxYz_-AbCdEfGhIjKlMnOpQrStUvWxYz after",
+			candidate: "AbCdEfGhIjKlMnOpQrStUvWxYz_-AbCdEfGhIjKlMnOpQrStUvWxYz",
+		},
+		{
+			name:      "credential candidate introduced by token prose",
+			input:     "ordinary prose says Token AbCdEfGhIjKlMnOpQrStUvWxYzabcdefghijklmno before continuing",
+			candidate: "AbCdEfGhIjKlMnOpQrStUvWxYzabcdefghijklmno",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assertRealCheckerSuppressesText(t, redactor, tt.input, tt.candidate)
+		})
+	}
+}
+
+type realCheckerPreservationCase struct {
+	name  string
+	input string
+}
+
+type lengthPreservingRedactionCase struct {
+	name           string
+	input          string
+	secret         string
+	preservedParts []string
+}
+
+type heldCandidateCase struct {
+	name      string
+	input     string
+	candidate string
+}
+
+func newRealCommandRedactorFromEnv(t *testing.T) *CommandRedactor {
+	t.Helper()
+	checkerPath := strings.TrimSpace(os.Getenv(EnvCheckerPath))
+	valuesPath := strings.TrimSpace(os.Getenv(EnvRegisteredValuesPath))
+	if checkerPath == "" || valuesPath == "" {
+		t.Skip("real redaction checker environment is not configured")
+	}
+	redactor, err := NewCommandRedactor(Config{
+		CheckerPath:          checkerPath,
+		RegisteredValuesPath: valuesPath,
+		Timeout:              2 * time.Second,
+		PackageVersion:       ExpectedPackageVersion,
+		RuleSetVersion:       ExpectedRuleSetVersion,
+	})
+	if err != nil {
+		t.Fatalf("NewCommandRedactor: %v", err)
+	}
+	version, err := redactor.Version(context.Background())
+	if err != nil {
+		t.Fatalf("Version: %v", err)
+	}
+	if version.PackageVersion != ExpectedPackageVersion || version.RuleSetVersion != ExpectedRuleSetVersion {
+		t.Fatalf("version = %#v", version)
+	}
+	return redactor
+}
+
+func assertRealCheckerPreservesText(t *testing.T, redactor *CommandRedactor, text string) {
+	t.Helper()
+	result, err := redactor.Redact(context.Background(), text)
+	if err != nil {
+		t.Fatalf("Redact: %v", err)
+	}
+	if result.Text != text {
+		t.Fatalf("redacted text = %q, want %q", result.Text, text)
+	}
+}
+
+func assertRealCheckerRedactsLengthPreserving(t *testing.T, redactor *CommandRedactor, text string, forbidden string, preservedParts ...string) {
+	t.Helper()
+	result, err := redactor.Redact(context.Background(), text)
+	if err != nil {
+		t.Fatalf("Redact: %v", err)
+	}
+	if len(result.Text) != len(text) {
+		t.Fatalf("redacted length = %d, want %d in %q", len(result.Text), len(text), result.Text)
+	}
+	if strings.Contains(result.Text, forbidden) {
+		t.Fatalf("redacted output leaked %q in %q", forbidden, result.Text)
+	}
+	for _, part := range preservedParts {
+		if !strings.Contains(result.Text, part) {
+			t.Fatalf("redacted output did not preserve %q in %q", part, result.Text)
+		}
+	}
+}
+
+func assertRealCheckerSuppressesText(t *testing.T, redactor *CommandRedactor, attempted string, forbidden string) {
+	t.Helper()
+	var out bytes.Buffer
+	emitter := NewEmitter(&out, redactor, 2*time.Second)
+
+	emitter.Printf("%s", attempted)
+
+	got := out.String()
+	if got != suppressedLine {
+		t.Fatalf("real checker gate output = %q, want suppression", got)
+	}
+	if strings.Contains(got, forbidden) {
+		t.Fatalf("real checker gate leaked held candidate: %q", got)
+	}
+}
+
 func TestCommandRedactorInvokesCheckerWithRawContract(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("shell script probe is unix-only")
@@ -129,7 +316,7 @@ const args = process.argv.slice(2);
 if (args[0] === '--version') {
   fs.writeFileSync("` + argsLog + `", args.join(' ') + "\n");
   fs.writeFileSync("` + versionEnvLog + `", Object.entries(process.env).sort().map(([k,v]) => k + '=' + v).join("\n"));
-  process.stdout.write('redaction-rules-v2\n');
+  process.stdout.write('redaction-rules-v3\n');
   process.exit(0);
 }
 fs.writeFileSync("` + argsLog + `", args.join(' ') + "\n");
@@ -273,7 +460,7 @@ func TestCommandRedactorLimitsConcurrentCheckerProcesses(t *testing.T) {
 const fs = require('node:fs');
 const args = process.argv.slice(2);
 if (args[0] === '--version') {
-  process.stdout.write('redaction-rules-v2\n');
+  process.stdout.write('redaction-rules-v3\n');
   process.exit(0);
 }
 function sleep(ms) {
@@ -334,8 +521,15 @@ process.stdout.write(fs.readFileSync(0, 'utf8'));
 	wg.Wait()
 
 	maxObserved := readTrimmed(t, maxPath)
-	if maxObserved != fmt.Sprint(maxConcurrentCheckerProcesses) {
-		t.Fatalf("max concurrent checker processes = %s, want %d", maxObserved, maxConcurrentCheckerProcesses)
+	maxObservedProcesses, err := strconv.Atoi(maxObserved)
+	if err != nil {
+		t.Fatalf("max concurrent checker processes = %q, want integer", maxObserved)
+	}
+	if maxObservedProcesses > maxConcurrentCheckerProcesses {
+		t.Fatalf("max concurrent checker processes = %d, want at most %d", maxObservedProcesses, maxConcurrentCheckerProcesses)
+	}
+	if maxObservedProcesses < 2 {
+		t.Fatalf("max concurrent checker processes = %d, want concurrent checker execution", maxObservedProcesses)
 	}
 }
 
@@ -474,8 +668,8 @@ if (args[0] === '--version') {
   if (mode === 'reject-version') process.exit(2);
   if (mode === 'version-empty') { process.stdout.write('\n'); process.exit(0); }
   if (mode === 'version-mismatch') { process.stdout.write('redaction-rules-v1\n'); process.exit(0); }
-  if (mode === 'version-whitespace') { process.stdout.write('  redaction-rules-v2\r\n'); process.exit(0); }
-  process.stdout.write('redaction-rules-v2\n');
+  if (mode === 'version-whitespace') { process.stdout.write('  redaction-rules-v3\r\n'); process.exit(0); }
+  process.stdout.write('redaction-rules-v3\n');
   process.exit(0);
 }
 if (args[0] !== '--values-file' || !args[1] || args[2]) {

@@ -2,6 +2,7 @@
 set -eu
 
 canonical_package='/tmp/redaction-package.tgz'
+canonical_sha512='b24d54070ebbeeaff4c6791c721ba34971b467164bfcdec8ae9ae5056efa320172fb4e95c5e045c6bc674e31357b68001aca0cad0dcb88f93fc12a5aab3a33f7'
 package_spec="${REDACTION_PACKAGE_SPEC:-$canonical_package}"
 secret_args="${DOCKER_BUILD_SECRETS:-}"
 package_sha512="${REDACTION_PACKAGE_SHA512:-}"
@@ -21,14 +22,14 @@ case "$package_spec" in
       *)
         cat >&2 <<'MESSAGE'
 redaction docker build prerequisite failed: REDACTION_PACKAGE_SPEC uses the checksum-pinned tarball path, but no BuildKit package secret was supplied.
-Set DOCKER_BUILD_SECRETS='--secret id=redaction_package,src=backend-v2/third_party/redaction/redaction-control-value-redaction-control-0.1.2.tgz'.
+Fetch the verified 0.1.4 registry package outside the repository, then set REDACTION_PACKAGE_TARBALL_FILE to that path.
 MESSAGE
         exit 1
         ;;
     esac
-    if [ -z "$package_sha512" ]; then
+    if [ "$package_sha512" != "$canonical_sha512" ]; then
       cat >&2 <<'MESSAGE'
-redaction docker build prerequisite failed: REDACTION_PACKAGE_SHA512 is required for the checksum-pinned tarball path.
+redaction docker build prerequisite failed: REDACTION_PACKAGE_SHA512 must equal the canonical release receipt.
 MESSAGE
       exit 1
     fi

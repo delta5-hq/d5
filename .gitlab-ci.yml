@@ -196,7 +196,7 @@ test-backend-v2:
   before_script:
     - cd backend-v2
   script:
-    - apk add --no-cache git
+    - apk add --no-cache git nodejs
     - go mod download
     - go test -v -coverprofile=coverage.out ./...
     - go tool cover -func=coverage.out
@@ -301,9 +301,9 @@ e2e-backend:
       - /root/.npm/**/*
   script:
     - apk add --no-cache bash curl git
-    - REDACTION_PACKAGE_TARBALL="$CI_PROJECT_DIR/backend-v2/third_party/redaction/redaction-control-value-redaction-control-0.1.2.tgz"
-    - REDACTION_PACKAGE_SHA512="19f4f7ca3ac8f0fe10b292bf26e7e6c71a89dd904875f7d892d00e963b7e36788b5925ebed3e598c92063164837fb64b6492c80706d5c167015472ca8def14ff"
-    - printf '%s  %s\n' "$REDACTION_PACKAGE_SHA512" "$REDACTION_PACKAGE_TARBALL" | sha512sum -c -
+    - REDACTION_PACKAGE_DIR="$(mktemp -d)"
+    - REDACTION_PACKAGE_TARBALL="$REDACTION_PACKAGE_DIR/value-redaction-control-0.1.4.tgz"
+    - REDACTION_NPM_TOKEN="$CI_JOB_TOKEN" REDACTION_NPM_TOKEN_TYPE="JOB-TOKEN" bash backend-v2/scripts/fetch-redaction-package.sh "$REDACTION_PACKAGE_TARBALL"
     - npm install --global "$REDACTION_PACKAGE_TARBALL"
     - cd backend-v2
     - export D5_REDACTION_CHECKER_PATH="$(command -v value-redaction-check)"
@@ -359,9 +359,9 @@ e2e-frontend:
     - sleep 5
     - if ! kill -0 $(cat backend-e2e.pid); then echo "Node.js backend failed to start"; cat backend-e2e.log; exit 1; fi
     - cd ../backend-v2
-    - REDACTION_PACKAGE_TARBALL="$CI_PROJECT_DIR/backend-v2/third_party/redaction/redaction-control-value-redaction-control-0.1.2.tgz"
-    - REDACTION_PACKAGE_SHA512="19f4f7ca3ac8f0fe10b292bf26e7e6c71a89dd904875f7d892d00e963b7e36788b5925ebed3e598c92063164837fb64b6492c80706d5c167015472ca8def14ff"
-    - printf '%s  %s\n' "$REDACTION_PACKAGE_SHA512" "$REDACTION_PACKAGE_TARBALL" | sha512sum -c -
+    - REDACTION_PACKAGE_DIR="$(mktemp -d)"
+    - REDACTION_PACKAGE_TARBALL="$REDACTION_PACKAGE_DIR/value-redaction-control-0.1.4.tgz"
+    - REDACTION_NPM_TOKEN="$CI_JOB_TOKEN" REDACTION_NPM_TOKEN_TYPE="JOB-TOKEN" bash scripts/fetch-redaction-package.sh "$REDACTION_PACKAGE_TARBALL"
     - npm install --global "$REDACTION_PACKAGE_TARBALL"
     - export D5_REDACTION_CHECKER_PATH="$(command -v value-redaction-check)"
     - export D5_REDACTION_REGISTERED_VALUES_FILE="$CI_PROJECT_DIR/backend-v2/testdata/redaction-registered-values.json"
@@ -469,16 +469,18 @@ package-backend-v2:
     DOCKER_TLS_CERTDIR: ""
     DOCKER_HOST: "tcp://docker:2375"
     REDACTION_PACKAGE_SPEC: "/tmp/redaction-package.tgz"
-    REDACTION_PACKAGE_SHA512: "19f4f7ca3ac8f0fe10b292bf26e7e6c71a89dd904875f7d892d00e963b7e36788b5925ebed3e598c92063164837fb64b6492c80706d5c167015472ca8def14ff"
+    REDACTION_PACKAGE_SHA512: "b24d54070ebbeeaff4c6791c721ba34971b467164bfcdec8ae9ae5056efa320172fb4e95c5e045c6bc674e31357b68001aca0cad0dcb88f93fc12a5aab3a33f7"
   dependencies:
     - build-backend-v2
   script:
+    - apk add --no-cache curl
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
     - source $CI_PROJECT_DIR/scripts/ci-helpers.sh
     - TAG=$(generate_docker_tag)
     - NAME=$(generate_docker_name "backend-v2")
-    - REDACTION_PACKAGE_TARBALL="$CI_PROJECT_DIR/backend-v2/third_party/redaction/redaction-control-value-redaction-control-0.1.2.tgz"
-    - printf '%s  %s\n' "$REDACTION_PACKAGE_SHA512" "$REDACTION_PACKAGE_TARBALL" | sha512sum -c -
+    - REDACTION_PACKAGE_DIR="$(mktemp -d)"
+    - REDACTION_PACKAGE_TARBALL="$REDACTION_PACKAGE_DIR/value-redaction-control-0.1.4.tgz"
+    - REDACTION_NPM_TOKEN="$CI_JOB_TOKEN" REDACTION_NPM_TOKEN_TYPE="JOB-TOKEN" sh "$CI_PROJECT_DIR/backend-v2/scripts/fetch-redaction-package.sh" "$REDACTION_PACKAGE_TARBALL"
     - REDACTION_SECRET="--secret id=redaction_package,src=$REDACTION_PACKAGE_TARBALL"
     - docker build $REDACTION_SECRET --build-arg REDACTION_PACKAGE_SPEC="$REDACTION_PACKAGE_SPEC" --build-arg REDACTION_PACKAGE_SHA512="$REDACTION_PACKAGE_SHA512" -t "$CI_REGISTRY_IMAGE:$NAME-$TAG" "$CI_PROJECT_DIR/backend-v2"
     - docker push "$CI_REGISTRY_IMAGE:$NAME-$TAG"
