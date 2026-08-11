@@ -20,7 +20,7 @@ import { isCommandlessTextNode, normalizeNodeTitle } from '@entities/workflow/li
 import { useViewportBreakpoint } from '@shared/composables/use-viewport-breakpoint'
 import type { TreeNodeProps } from '../core/types'
 import { INDENT_PER_LEVEL, ROW_HEIGHT, WIRE_PADDING, BASE_PADDING } from '../core/constants'
-import { getTreeDragOverIntent, getTreeDropPosition, type TreeDropPosition } from '../core/tree-drag'
+import type { TreeDropPosition } from '../core/tree-drag'
 import { getTreeIndentLayout } from '../core/tree-layout'
 import { areTreeNodePropsEqual } from '../core/tree-node-memo'
 import { useTreeAnimation } from '../context'
@@ -126,14 +126,10 @@ export const TreeNodeDefault = ({
   onRequestRename,
   onWrapNodes,
   onToggleChecked,
-  onMoveNode,
   onDragHoverNode,
   onDragLeaveNode,
-  onDragStartNode,
-  onDragEndNode,
   onPointerDragStartNode,
   onDropFiles,
-  activeDraggedNodeId,
   activeDropTargetId,
   activeDropPosition,
 }: TreeNodeProps) => {
@@ -232,49 +228,16 @@ export const TreeNodeDefault = ({
     [id, onToggleChecked],
   )
 
-  const handleDragStart = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      if (isRoot) {
-        e.preventDefault()
-        return
-      }
-      e.dataTransfer.effectAllowed = 'move'
-      e.dataTransfer.setData('application/x-d5-workflow-node', id)
-      e.dataTransfer.setData('text/plain', id)
-      onDragStartNode?.(id)
-    },
-    [id, isRoot, onDragStartNode],
-  )
-
   const handleDragOver = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
       const transferTypes = Array.from(e.dataTransfer.types)
-      const intent = getTreeDragOverIntent({
-        activeDraggedNodeId,
-        canDropFiles: Boolean(onDropFiles),
-        canMoveNode: Boolean(onMoveNode),
-        clientY: e.clientY,
-        hasFiles: transferTypes.includes('Files'),
-        targetBounds: e.currentTarget.getBoundingClientRect(),
-        targetNodeId: id,
-      })
-
-      if (intent.kind === 'file') {
-        e.preventDefault()
-        e.dataTransfer.dropEffect = intent.dropEffect
-        setNativeDropPosition(intent.position)
-        return
-      }
-
-      if (intent.kind === 'none') return
-
+      if (!onDropFiles || !transferTypes.includes('Files')) return
       e.preventDefault()
-      e.dataTransfer.dropEffect = intent.dropEffect
-      setNativeDropPosition(intent.position)
-      if (intent.position === 'inside') onDragHoverNode?.(id)
-      else onDragLeaveNode?.(id)
+      e.dataTransfer.dropEffect = 'copy'
+      setNativeDropPosition('inside')
+      onDragHoverNode?.(id)
     },
-    [activeDraggedNodeId, id, onDragHoverNode, onDragLeaveNode, onDropFiles, onMoveNode],
+    [id, onDragHoverNode, onDropFiles],
   )
 
   const handleDragLeave = useCallback(
@@ -286,11 +249,6 @@ export const TreeNodeDefault = ({
     },
     [id, onDragLeaveNode],
   )
-
-  const handleDragEnd = useCallback(() => {
-    setNativeDropPosition(undefined)
-    onDragEndNode?.()
-  }, [onDragEndNode])
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
@@ -310,27 +268,15 @@ export const TreeNodeDefault = ({
 
   const handleDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
-      const draggedId =
-        activeDraggedNodeId ||
-        e.dataTransfer.getData('application/x-d5-workflow-node') ||
-        e.dataTransfer.getData('text/plain')
-      if (!draggedId && e.dataTransfer.files.length > 0 && onDropFiles) {
+      if (e.dataTransfer.files.length > 0 && onDropFiles) {
         e.preventDefault()
         e.stopPropagation()
         setNativeDropPosition(undefined)
         onDragLeaveNode?.(id)
         onDropFiles(id, e.dataTransfer.files)
-        return
       }
-      if (!draggedId || draggedId === id || !onMoveNode) return
-      e.preventDefault()
-      e.stopPropagation()
-      const position = getTreeDropPosition(e.clientY, e.currentTarget.getBoundingClientRect())
-      setNativeDropPosition(undefined)
-      onDragLeaveNode?.(id)
-      onMoveNode(draggedId, id, position)
     },
-    [activeDraggedNodeId, id, onDragLeaveNode, onDropFiles, onMoveNode],
+    [id, onDragLeaveNode, onDropFiles],
   )
 
   const wireIndentX = wireIndent
@@ -378,12 +324,9 @@ export const TreeNodeDefault = ({
           data-node-id={id}
           data-node-selected={isSelected || undefined}
           data-prompt-node={isPrompt || undefined}
-          draggable={false}
           onClick={handleClick}
-          onDragEnd={handleDragEnd}
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
-          onDragStart={handleDragStart}
           onDrop={handleDrop}
           onMouseDown={handlePointerDown}
           onPointerDown={handlePointerDown}

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { getTreeDragOverIntent, getTreeDropPosition, getTreeMoveRequest, type TreeDragBounds } from './tree-drag'
+import { getTreeDropPosition, getTreeMoveRequest, type TreeDragBounds } from './tree-drag'
 
 const ROW_BOUNDS: TreeDragBounds = { top: 100, height: 40 }
 
-describe('tree drag intent', () => {
+describe('tree drag position', () => {
   it.each([
     { clientY: 100, expected: 'before' },
     { clientY: 109, expected: 'before' },
@@ -13,58 +13,6 @@ describe('tree drag intent', () => {
     { clientY: 140, expected: 'after' },
   ] as const)('maps pointer y=$clientY to $expected insertion zone', ({ clientY, expected }) => {
     expect(getTreeDropPosition(clientY, ROW_BOUNDS)).toBe(expected)
-  })
-
-  it('derives node hover state from the active drag id instead of protected drag data', () => {
-    expect(
-      getTreeDragOverIntent({
-        activeDraggedNodeId: 'source',
-        canDropFiles: false,
-        canMoveNode: true,
-        clientY: 110,
-        hasFiles: false,
-        targetBounds: ROW_BOUNDS,
-        targetNodeId: 'target',
-      }),
-    ).toEqual({
-      kind: 'node',
-      draggedNodeId: 'source',
-      dropEffect: 'move',
-      position: 'inside',
-    })
-  })
-
-  it.each([
-    { name: 'missing active drag id', activeDraggedNodeId: undefined, canMoveNode: true, targetNodeId: 'target' },
-    { name: 'blank active drag id', activeDraggedNodeId: ' ', canMoveNode: true, targetNodeId: 'target' },
-    { name: 'self drop', activeDraggedNodeId: 'target', canMoveNode: true, targetNodeId: 'target' },
-    { name: 'missing move handler', activeDraggedNodeId: 'source', canMoveNode: false, targetNodeId: 'target' },
-  ])('suppresses node hover marker for $name', ({ activeDraggedNodeId, canMoveNode, targetNodeId }) => {
-    expect(
-      getTreeDragOverIntent({
-        activeDraggedNodeId,
-        canDropFiles: false,
-        canMoveNode,
-        clientY: 110,
-        hasFiles: false,
-        targetBounds: ROW_BOUNDS,
-        targetNodeId,
-      }),
-    ).toEqual({ kind: 'none' })
-  })
-
-  it('prefers file copy intent for external file drags', () => {
-    expect(
-      getTreeDragOverIntent({
-        activeDraggedNodeId: 'source',
-        canDropFiles: true,
-        canMoveNode: true,
-        clientY: 100,
-        hasFiles: true,
-        targetBounds: ROW_BOUNDS,
-        targetNodeId: 'target',
-      }),
-    ).toEqual({ kind: 'file', dropEffect: 'copy', position: 'inside' })
   })
 })
 

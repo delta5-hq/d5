@@ -35,13 +35,15 @@ describe('collectAttachmentReferences', () => {
     expect(collectAttachmentReferences(baseNodes, [])).toEqual([])
   })
 
-  it('silently skips node ids not present in the nodes map', () => {
+  it('skips missing ids and file ids still referenced by surviving nodes', () => {
     const references = collectAttachmentReferences(baseNodes, new Set(['a', 'ghost-id', 'c']))
 
-    expect(references).toEqual([
-      { nodeId: 'a', fileId: 'file-a' },
-      { nodeId: 'c', fileId: 'file-c' },
-    ])
+    expect(references).toEqual([{ nodeId: 'c', fileId: 'file-c' }])
+  })
+
+  it('does not delete a shared file until every referencing node is removed', () => {
+    expect(collectAttachmentReferences(baseNodes, new Set(['a']))).toEqual([])
+    expect(collectAttachmentReferences(baseNodes, new Set(['a', 'b']))).toEqual([{ nodeId: 'a', fileId: 'file-a' }])
   })
 
   it('accepts a plain array of node ids in addition to a Set', () => {
@@ -76,7 +78,7 @@ describe('deleteAttachmentFiles', () => {
     expect(deps.deleteFile).toHaveBeenNthCalledWith(2, 'wf-test', 'file-c')
   })
 
-  it('stops at the first real failure without attempting subsequent references', async () => {
+  it('continues after a real failure so later resources are not silently orphaned', async () => {
     const deps = makeDeps()
     vi.mocked(deps.deleteFile).mockRejectedValueOnce(new Error('storage unavailable'))
 
@@ -86,11 +88,11 @@ describe('deleteAttachmentFiles', () => {
     ])
 
     expect(deleted).toBe(false)
-    expect(deps.deleteFile).toHaveBeenCalledTimes(1)
+    expect(deps.deleteFile).toHaveBeenCalledTimes(2)
     expect(vi.mocked(deps.onError)).toHaveBeenCalledWith('workflowTree.attachment.deleteFailed')
   })
 
-  it('stops mid-sequence and skips remaining references when an interior deletion fails', async () => {
+  it('attempts the complete set when an interior deletion fails', async () => {
     const deps = makeDeps()
     vi.mocked(deps.deleteFile)
       .mockResolvedValueOnce(undefined)
@@ -104,7 +106,7 @@ describe('deleteAttachmentFiles', () => {
     ])
 
     expect(deleted).toBe(false)
-    expect(deps.deleteFile).toHaveBeenCalledTimes(2)
+    expect(deps.deleteFile).toHaveBeenCalledTimes(3)
     expect(vi.mocked(deps.onError)).toHaveBeenCalledWith('workflowTree.attachment.deleteFailed')
   })
 
@@ -164,7 +166,7 @@ describe('deleteAttachmentFiles', () => {
     ])
 
     expect(deleted).toBe(false)
-    expect(deps.deleteFile).toHaveBeenCalledTimes(2)
+    expect(deps.deleteFile).toHaveBeenCalledTimes(3)
     expect(vi.mocked(deps.onError)).toHaveBeenCalledWith('workflowTree.attachment.deleteFailed')
   })
 })

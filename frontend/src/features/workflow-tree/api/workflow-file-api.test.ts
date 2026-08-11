@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { apiFetch } from '@shared/lib/base-api'
-import { deleteWorkflowFile, downloadWorkflowFile, uploadWorkflowFile } from './workflow-file-api'
+import { deleteWorkflowFile, uploadWorkflowFile } from './workflow-file-api'
 
 vi.mock('@shared/lib/base-api', () => ({
   apiFetch: vi.fn(),
@@ -37,15 +37,5 @@ describe('workflow file api', () => {
     await deleteWorkflowFile(workflowId, fileId)
 
     expect(apiFetch).toHaveBeenCalledWith(expectedPath, { method: 'DELETE' })
-  })
-
-  it('downloads uploaded bytes from the canonical workflow file route', async () => {
-    const bytes = new Blob(['hello'], { type: 'application/octet-stream' })
-    vi.mocked(apiFetch).mockResolvedValueOnce(bytes)
-
-    const result = await downloadWorkflowFile('wf-test', 'file-1')
-
-    expect(result).toBe(bytes)
-    expect(apiFetch).toHaveBeenCalledWith('/workflow/wf-test/files/file-1', { method: 'GET' })
   })
 })

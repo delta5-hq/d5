@@ -449,7 +449,7 @@ describe('bindExecuteAction', () => {
     })
 
     it('preserves surviving selectedIds after merge', async () => {
-      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: { n1: { id: 'n1' } } })
       vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
         nodes: { n1: { id: 'n1' }, n2: { id: 'n2' } },
         edges: {},
@@ -509,7 +509,7 @@ describe('bindExecuteAction', () => {
       expect(store.getState().selectedIds.size).toBe(0)
     })
 
-    it('preserves populated selectedIds on execution failure', async () => {
+    it('clears populated selectedIds when selecting an error output', async () => {
       vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(new Error('fail'))
 
       const store = makeStore({
@@ -522,7 +522,7 @@ describe('bindExecuteAction', () => {
 
       await execute(stubNode, 'query')
 
-      expect(store.getState().selectedIds).toEqual(new Set(['n1']))
+      expect(store.getState().selectedIds).toEqual(new Set())
     })
 
     it('clears anchorId when anchor node removed by merge', async () => {
@@ -1116,19 +1116,24 @@ describe('bindExecuteAction', () => {
         nodesChanged: { child1: { id: 'child1', parent: 'n1' } },
       })
       vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
-        nodes: { n1: { id: 'n1' }, child1: { id: 'child1', parent: 'n1' } },
+        nodes: { n1: { id: 'n1', checked: true }, child1: { id: 'child1', parent: 'n1' } },
         edges: {},
         root: 'n1',
         share: { access: [] },
       })
 
-      const store = makeStore({ nodes: N1, root: 'n1', selectedIds: new Set(['n1']) })
+      const store = makeStore({
+        nodes: { n1: { ...N1.n1, checked: true } },
+        root: 'n1',
+        selectedIds: new Set(['n1']),
+      })
       const execute = makeExecute(store, makePersister())
 
       await execute(stubNode, 'query')
 
       expect(store.getState().selectedId).toBe('child1')
       expect(store.getState().selectedIds.size).toBe(0)
+      expect(store.getState().nodes.n1.checked).toBe(false)
     })
 
     it('clears selectedIds when auto-selecting among multiple new children', async () => {
@@ -1371,11 +1376,17 @@ describe('bindExecuteAction', () => {
     it('auto-selects the (no output) child when backend returns empty nodesChanged', async () => {
       vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
 
-      const store = makeStore({ nodes: { n1: { id: 'n1' } }, root: 'n1' })
+      const store = makeStore({
+        nodes: { n1: { id: 'n1', checked: true } },
+        root: 'n1',
+        selectedIds: new Set(['n1']),
+      })
       await makeExecute(store, makePersister())({ id: 'n1', title: 'Node 1', children: [] }, 'query')
 
       const children = store.getState().nodes['n1'].children ?? []
       expect(store.getState().selectedId).toBe(children[0])
+      expect(store.getState().selectedIds.size).toBe(0)
+      expect(store.getState().nodes.n1.checked).toBe(false)
     })
 
     it('expands the executed node when backend returns empty nodesChanged', async () => {
@@ -1423,12 +1434,18 @@ describe('bindExecuteAction', () => {
     it('auto-selects the error child node when API call fails', async () => {
       vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(new Error('boom'))
 
-      const store = makeStore({ nodes: { n1: { id: 'n1', children: [] } }, root: 'n1' })
+      const store = makeStore({
+        nodes: { n1: { id: 'n1', children: [], checked: true } },
+        root: 'n1',
+        selectedIds: new Set(['n1']),
+      })
       await makeExecute(store, makePersister())({ id: 'n1', title: 'Node 1', children: [] }, 'query')
 
       const children = store.getState().nodes['n1'].children ?? []
       expect(children).toHaveLength(1)
       expect(store.getState().selectedId).toBe(children[0])
+      expect(store.getState().selectedIds.size).toBe(0)
+      expect(store.getState().nodes.n1.checked).toBe(false)
     })
 
     it('does not auto-select when execution is aborted (no error child created)', async () => {

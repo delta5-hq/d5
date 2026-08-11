@@ -18,7 +18,3 @@ export async function uploadWorkflowFile(workflowId: string, file: File): Promis
 export async function deleteWorkflowFile(workflowId: string, fileId: string): Promise<void> {
   await apiFetch(`/workflow/${workflowId}/files/${fileId}`, { method: 'DELETE' })
 }
-
-export async function downloadWorkflowFile(workflowId: string, fileId: string): Promise<Blob> {
-  return apiFetch<Blob>(`/workflow/${workflowId}/files/${fileId}`, { method: 'GET' })
-}

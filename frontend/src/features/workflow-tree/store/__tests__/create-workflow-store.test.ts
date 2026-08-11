@@ -62,10 +62,14 @@ const drainQueue = async () => {
 
 /** Loads a store pre-seeded with a single file-attachment node, DELETE and PUT mocked to succeed. */
 async function loadWorkflowWithFileNode() {
+  let persisted = workflowWithFileNode
   vi.mocked(apiFetch).mockImplementation(async (url: string, o?: { method?: string; body?: string }) => {
-    if (url === '/workflow/wf-test' && o?.method === 'PUT') return {}
+    if (url === '/workflow/wf-test' && o?.method === 'PUT') {
+      persisted = { ...persisted, ...JSON.parse(String(o.body)) }
+      return {}
+    }
     if (url.startsWith('/workflow/wf-test/files/') && o?.method === 'DELETE') return {}
-    return workflowWithFileNode
+    return persisted
   })
   const bundle = createWorkflowStore('wf-test', mockFormatMessage)
   await bundle.actions.load()
@@ -74,10 +78,14 @@ async function loadWorkflowWithFileNode() {
 
 /** Loads a store pre-seeded with three nodes sharing two file references, DELETE and PUT mocked to succeed. */
 async function loadWorkflowWithFileNodes() {
+  let persisted = workflowWithFileNodes
   vi.mocked(apiFetch).mockImplementation(async (url: string, o?: { method?: string; body?: string }) => {
-    if (url === '/workflow/wf-test' && o?.method === 'PUT') return {}
+    if (url === '/workflow/wf-test' && o?.method === 'PUT') {
+      persisted = { ...persisted, ...JSON.parse(String(o.body)) }
+      return {}
+    }
     if (url.startsWith('/workflow/wf-test/files/') && o?.method === 'DELETE') return {}
-    return workflowWithFileNodes
+    return persisted
   })
   const bundle = createWorkflowStore('wf-test', mockFormatMessage)
   await bundle.actions.load()
@@ -392,6 +400,30 @@ describe('createWorkflowStore', () => {
 
       expect(store.getState().selectedIds).toEqual(new Set(['b']))
       expect(store.getState().selectedId).toBe('b')
+    })
+
+    it('projects ordinary, toggle, and range selection through persisted checked state', () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      store.setState({
+        nodes: {
+          root: { id: 'root', title: 'Root', children: ['a', 'b', 'c'] },
+          a: { id: 'a', title: 'A', parent: 'root', children: [] },
+          b: { id: 'b', title: 'B', parent: 'root', children: [] },
+          c: { id: 'c', title: 'C', parent: 'root', children: [] },
+        },
+      })
+
+      actions.select('a')
+      actions.toggleSelect('b')
+      expect(store.getState().nodes.a.checked).toBe(true)
+      expect(store.getState().nodes.b.checked).toBe(true)
+
+      actions.rangeSelect('c', ['a', 'b', 'c'])
+      expect(store.getState().selectedIds).toEqual(new Set(['a', 'b', 'c']))
+      expect(store.getState().nodes.c.checked).toBe(true)
+
+      actions.select(undefined)
+      expect(Object.values(store.getState().nodes).some(node => node.checked)).toBe(false)
     })
 
     it('load evicts stale ids from selectedIds', async () => {
@@ -748,7 +780,7 @@ describe('createWorkflowStore', () => {
         },
       )
 
-      it('deletes attachment bytes before persisting the node-link removal', async () => {
+      it('persists and confirms node-link removal before deleting attachment bytes', async () => {
         const { store, actions } = await loadWorkflowWithFileNode()
 
         actions.removeNode('file-node')
@@ -757,6 +789,10 @@ describe('createWorkflowStore', () => {
         expect(vi.mocked(apiFetch)).toHaveBeenCalledWith(`/workflow/wf-test/files/${uploadedFile.id}`, {
           method: 'DELETE',
         })
+        const putIndex = vi.mocked(apiFetch).mock.calls.findIndex(([, options]) => options?.method === 'PUT')
+        const deleteIndex = vi.mocked(apiFetch).mock.calls.findIndex(([, options]) => options?.method === 'DELETE')
+        expect(putIndex).toBeGreaterThanOrEqual(0)
+        expect(deleteIndex).toBeGreaterThan(putIndex)
         expect(store.getState().nodes['file-node']).toBeUndefined()
       })
 
@@ -780,26 +816,41 @@ describe('createWorkflowStore', () => {
         expect(store.getState().nodes['file-node']).toBeUndefined()
       })
 
-      it('aborts removal and toasts when byte deletion fails', async () => {
-        vi.mocked(apiFetch)
-          .mockResolvedValueOnce(workflowWithFileNode)
-          .mockRejectedValueOnce(new Error('S3 unavailable'))
+      it('keeps the accepted logical removal and toasts when byte cleanup fails', async () => {
+        let persisted = workflowWithFileNode
+        vi.mocked(apiFetch).mockImplementation(async (url: string, options?: { method?: string; body?: string }) => {
+          if (url === '/workflow/wf-test' && options?.method === 'PUT') {
+            persisted = { ...persisted, ...JSON.parse(String(options.body)) }
+            return {}
+          }
+          if (url.startsWith('/workflow/wf-test/files/') && options?.method === 'DELETE') {
+            throw new Error('S3 unavailable')
+          }
+          return persisted
+        })
         const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
         await actions.load()
 
         actions.removeNode('file-node')
         await drainQueue()
 
-        expect(store.getState().nodes['file-node']).toBeDefined()
+        expect(store.getState().nodes['file-node']).toBeUndefined()
         expect(store.getState().error).toBeNull()
         expect(vi.mocked(toast.error)).toHaveBeenCalledWith('workflowTree.attachment.deleteFailed')
       })
 
       it('treats a 404 from byte deletion as idempotent success and still removes the node and persists', async () => {
-        vi.mocked(apiFetch)
-          .mockResolvedValueOnce(workflowWithFileNode)
-          .mockRejectedValueOnce(new Error('Workflow file not found'))
-          .mockResolvedValueOnce({})
+        let persisted = workflowWithFileNode
+        vi.mocked(apiFetch).mockImplementation(async (url: string, options?: { method?: string; body?: string }) => {
+          if (url === '/workflow/wf-test' && options?.method === 'PUT') {
+            persisted = { ...persisted, ...JSON.parse(String(options.body)) }
+            return {}
+          }
+          if (url.startsWith('/workflow/wf-test/files/') && options?.method === 'DELETE') {
+            throw new Error('Workflow file not found')
+          }
+          return persisted
+        })
         const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
         await actions.load()
 
@@ -883,11 +934,15 @@ describe('createWorkflowStore', () => {
         })
       })
 
-      it('does not insert a history checkpoint when byte deletion is rejected, leaving the prior undo stack fully intact', async () => {
+      it('clears history before byte cleanup so failed cleanup cannot resurrect removed links', async () => {
+        let persisted = workflowWithFileNode
         vi.mocked(apiFetch).mockImplementation(async (url: string, o?: { method?: string; body?: string }) => {
-          if (url === '/workflow/wf-test' && o?.method === 'PUT') return {}
+          if (url === '/workflow/wf-test' && o?.method === 'PUT') {
+            persisted = { ...persisted, ...JSON.parse(String(o.body)) }
+            return {}
+          }
           if (url.startsWith('/workflow/wf-test/files/') && o?.method === 'DELETE') throw new Error('s3 down')
-          return workflowWithFileNode
+          return persisted
         })
         const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
         await actions.load()
@@ -897,17 +952,11 @@ describe('createWorkflowStore', () => {
 
         actions.removeNode('file-node')
         await drainQueue()
-        expect(store.getState().nodes['file-node']).toBeDefined()
-
-        // the full two-entry undo stack must be intact — no phantom entry consumed either slot
-        actions.undo()
-        expect(store.getState().nodes['c1']?.title).toBe('edit-1')
+        expect(store.getState().nodes['file-node']).toBeUndefined()
 
         actions.undo()
-        expect(store.getState().nodes['c1']?.title).toBe('Child')
-
-        actions.undo() // stack exhausted — no-op
-        expect(store.getState().nodes['c1']?.title).toBe('Child')
+        expect(store.getState().nodes['file-node']).toBeUndefined()
+        expect(store.getState().nodes['c1']?.title).toBe('edit-2')
       })
 
       it('checkpoints normally for non-attachment removals so undo correctly reverts the operation', async () => {
@@ -932,8 +981,8 @@ describe('createWorkflowStore', () => {
 
         expect(vi.mocked(apiFetch)).toHaveBeenCalledWith('/workflow/wf-test/files/file-a', { method: 'DELETE' })
         expect(vi.mocked(apiFetch)).toHaveBeenCalledWith('/workflow/wf-test/files/file-c', { method: 'DELETE' })
-        // GET (load) + DELETE file-a (deduplicated from a+b) + DELETE file-c + PUT (flush) = 4 total
-        expect(vi.mocked(apiFetch)).toHaveBeenCalledTimes(4)
+        // GET load + PUT + authoritative GET + two deduplicated DELETEs.
+        expect(vi.mocked(apiFetch)).toHaveBeenCalledTimes(5)
         expect(store.getState().nodes).toEqual({ root: { id: 'root', title: 'Root', children: [] } })
       })
 
@@ -949,29 +998,44 @@ describe('createWorkflowStore', () => {
         expect(store.getState().nodes['a']).toBeUndefined()
       })
 
-      it('bulk removal aborts and toasts when any byte deletion fails', async () => {
-        vi.mocked(apiFetch)
-          .mockResolvedValueOnce(workflowWithFileNodes)
-          .mockRejectedValueOnce(new Error('S3 unavailable'))
+      it('bulk removal keeps accepted link removal, attempts every byte, and toasts on partial cleanup failure', async () => {
+        let persisted = workflowWithFileNodes
+        vi.mocked(apiFetch).mockImplementation(async (url: string, options?: { method?: string; body?: string }) => {
+          if (url === '/workflow/wf-test' && options?.method === 'PUT') {
+            persisted = { ...persisted, ...JSON.parse(String(options.body)) }
+            return {}
+          }
+          if (url === '/workflow/wf-test/files/file-a' && options?.method === 'DELETE') {
+            throw new Error('S3 unavailable')
+          }
+          if (url === '/workflow/wf-test/files/file-c' && options?.method === 'DELETE') return {}
+          return persisted
+        })
         const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
         await actions.load()
 
         actions.removeNodes(new Set(['a', 'b', 'c']))
         await drainQueue()
 
-        expect(store.getState().nodes['a']).toBeDefined()
-        expect(store.getState().nodes['b']).toBeDefined()
+        expect(store.getState().nodes['a']).toBeUndefined()
+        expect(store.getState().nodes['b']).toBeUndefined()
+        expect(store.getState().nodes['c']).toBeUndefined()
+        expect(vi.mocked(apiFetch)).toHaveBeenCalledWith('/workflow/wf-test/files/file-c', { method: 'DELETE' })
         expect(store.getState().error).toBeNull()
         expect(vi.mocked(toast.error)).toHaveBeenCalledWith('workflowTree.attachment.deleteFailed')
       })
 
       it('bulk removal treats a not-found byte deletion as idempotent success and removes all nodes', async () => {
-        vi.mocked(apiFetch).mockImplementation(async (url: string, o?: { method?: string }) => {
+        let persisted = workflowWithFileNodes
+        vi.mocked(apiFetch).mockImplementation(async (url: string, o?: { method?: string; body?: string }) => {
           if (url === '/workflow/wf-test/files/file-a' && o?.method === 'DELETE') return {}
           if (url === '/workflow/wf-test/files/file-c' && o?.method === 'DELETE')
             throw new Error('Workflow file not found')
-          if (url === '/workflow/wf-test' && o?.method === 'PUT') return {}
-          return workflowWithFileNodes
+          if (url === '/workflow/wf-test' && o?.method === 'PUT') {
+            persisted = { ...persisted, ...JSON.parse(String(o.body)) }
+            return {}
+          }
+          return persisted
         })
         const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
         await actions.load()
@@ -987,6 +1051,45 @@ describe('createWorkflowStore', () => {
           '/workflow/wf-test',
           expect.objectContaining({ method: 'PUT' }),
         )
+      })
+
+      it('keeps shared bytes while a surviving duplicate still references the file', async () => {
+        const { store, actions } = await loadWorkflowWithFileNodes()
+
+        actions.removeNode('a')
+        await drainQueue()
+
+        expect(store.getState().nodes.a).toBeUndefined()
+        expect(store.getState().nodes.b?.file).toBe('file-a')
+        expect(vi.mocked(apiFetch)).not.toHaveBeenCalledWith('/workflow/wf-test/files/file-a', { method: 'DELETE' })
+      })
+
+      it('replaces prompt subtrees through attachment-aware cleanup', async () => {
+        let persisted = {
+          ...mockApiResponse,
+          nodes: {
+            root: { id: 'root', title: 'Root', children: ['prompt-file', 'regular'], prompts: ['prompt-file'] },
+            'prompt-file': { id: 'prompt-file', title: 'old.txt', parent: 'root', file: 'file-prompt' },
+            regular: { id: 'regular', title: 'Regular', parent: 'root' },
+          },
+        }
+        vi.mocked(apiFetch).mockImplementation(async (url: string, options?: { method?: string; body?: string }) => {
+          if (url === '/workflow/wf-test' && options?.method === 'PUT') {
+            persisted = { ...persisted, ...JSON.parse(String(options.body)) }
+            return {}
+          }
+          if (url === '/workflow/wf-test/files/file-prompt' && options?.method === 'DELETE') return {}
+          return persisted
+        })
+        const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+        await actions.load()
+
+        expect(actions.importTextAsPrompts('root', 'Replacement prompt')).toBe(1)
+        await drainQueue()
+
+        expect(store.getState().nodes['prompt-file']).toBeUndefined()
+        expect(store.getState().nodes.regular).toBeDefined()
+        expect(vi.mocked(apiFetch)).toHaveBeenCalledWith('/workflow/wf-test/files/file-prompt', { method: 'DELETE' })
       })
     })
   })

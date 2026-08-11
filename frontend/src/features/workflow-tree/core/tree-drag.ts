@@ -5,21 +5,6 @@ export interface TreeDragBounds {
   height: number
 }
 
-export interface TreeDragOverInput {
-  activeDraggedNodeId?: string
-  canDropFiles: boolean
-  canMoveNode: boolean
-  hasFiles: boolean
-  targetNodeId: string
-  targetBounds: TreeDragBounds
-  clientY: number
-}
-
-export type TreeDragOverIntent =
-  | { kind: 'file'; dropEffect: 'copy'; position: 'inside' }
-  | { kind: 'node'; draggedNodeId: string; dropEffect: 'move'; position: TreeDropPosition }
-  | { kind: 'none' }
-
 export interface TreeMoveNode {
   parent?: string
   children?: string[]
@@ -37,24 +22,6 @@ export function getTreeDropPosition(clientY: number, bounds: TreeDragBounds): Tr
   if (relativeY < bounds.height * 0.25) return 'before'
   if (relativeY > bounds.height * 0.75) return 'after'
   return 'inside'
-}
-
-export function getTreeDragOverIntent(input: TreeDragOverInput): TreeDragOverIntent {
-  if (input.hasFiles && input.canDropFiles) {
-    return { kind: 'file', dropEffect: 'copy', position: 'inside' }
-  }
-
-  const draggedNodeId = input.activeDraggedNodeId?.trim()
-  if (!draggedNodeId || draggedNodeId === input.targetNodeId || !input.canMoveNode) {
-    return { kind: 'none' }
-  }
-
-  return {
-    kind: 'node',
-    draggedNodeId,
-    dropEffect: 'move',
-    position: getTreeDropPosition(input.clientY, input.targetBounds),
-  }
 }
 
 export function getTreeMoveRequest(

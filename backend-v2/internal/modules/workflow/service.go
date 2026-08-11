@@ -19,6 +19,13 @@ type WorkflowService struct {
 	Collection *qmgo.Collection
 }
 
+const (
+	workflowUploadDrainTimeout  = 2 * time.Second
+	workflowUploadDrainInterval = 25 * time.Millisecond
+	workflowUploadLeaseTTL      = 5 * time.Minute
+	workflowUploadLeaseRenewal  = time.Minute
+)
+
 func NewService(db *qmgo.Database) *WorkflowService {
 	return &WorkflowService{
 		Collection: db.Collection("workflows"),
@@ -27,7 +34,10 @@ func NewService(db *qmgo.Database) *WorkflowService {
 
 func (s *WorkflowService) GetByWorkflowID(ctx context.Context, workflowId string) (*models.Workflow, error) {
 	var wf models.Workflow
-	err := s.Collection.Find(ctx, map[string]string{"workflowId": workflowId}).One(&wf)
+	err := s.Collection.Find(ctx, qmgo.M{
+		"workflowId":      workflowId,
+		"deletionPending": qmgo.M{"$ne": true},
+	}).One(&wf)
 
 	if err != nil {
 		return nil, err
@@ -107,6 +117,7 @@ func (s *WorkflowService) GetWorkflows(ctx context.Context, dto GetWorkflowsQuer
 			query["share.public.hidden"] = true
 		}
 	}
+	query["deletionPending"] = qmgo.M{"$ne": true}
 
 	search := dto.GetSearch()
 	if search != "" {
@@ -150,7 +161,10 @@ func (s *WorkflowService) GetWorkflows(ctx context.Context, dto GetWorkflowsQuer
 }
 
 func (s *WorkflowService) CreateWorkflow(ctx context.Context, dto CreateWorkflowDto) (*models.Workflow, *errors.HTTPError) {
-	total, err := s.Collection.Find(ctx, qmgo.M{"userId": dto.UserID}).Count()
+	total, err := s.Collection.Find(ctx, qmgo.M{
+		"userId":          dto.UserID,
+		"deletionPending": qmgo.M{"$ne": true},
+	}).Count()
 	if err != nil {
 		return nil, errors.NewHTTPError(404, "User not found")
 	}
@@ -197,19 +211,142 @@ func (s *WorkflowService) CreateWorkflow(ctx context.Context, dto CreateWorkflow
 	return &data, nil
 }
 
-func (s *WorkflowService) DeleteWorkflow(ctx context.Context, workflowId string, access WorkflowAccess) *errors.HTTPError {
+func validateWorkflowDeleteAccess(access WorkflowAccess) *errors.HTTPError {
 	if !access.IsOwner {
 		return errors.NewHTTPError(403, "You are not an owner of this workflow.")
 	}
+	return nil
+}
 
+func (s *WorkflowService) BeginWorkflowDeletion(
+	ctx context.Context,
+	workflowId string,
+	access WorkflowAccess,
+) *errors.HTTPError {
+	if err := validateWorkflowDeleteAccess(access); err != nil {
+		return err
+	}
+
+	err := s.Collection.UpdateOne(ctx, qmgo.M{"workflowId": workflowId}, qmgo.M{
+		"$set": qmgo.M{"deletionPending": true},
+	})
+	if err != nil {
+		return errors.NewHTTPError(500, "Can not begin workflow removal")
+	}
+	return nil
+}
+
+func (s *WorkflowService) WaitForWorkflowFileUploads(ctx context.Context, workflowId string) *errors.HTTPError {
+	deadline := time.NewTimer(workflowUploadDrainTimeout)
+	defer deadline.Stop()
+	ticker := time.NewTicker(workflowUploadDrainInterval)
+	defer ticker.Stop()
+
+	for {
+		reapErr := s.Collection.UpdateOne(ctx, qmgo.M{
+			"workflowId":      workflowId,
+			"deletionPending": true,
+		}, qmgo.M{
+			"$pull": qmgo.M{
+				"activeFileUploads": qmgo.M{"expiresAt": qmgo.M{"$lte": time.Now().UnixMilli()}},
+			},
+		})
+		if reapErr != nil {
+			return errors.NewHTTPError(500, "Can not reconcile workflow file upload leases")
+		}
+
+		var workflow models.Workflow
+		err := s.Collection.Find(ctx, qmgo.M{
+			"workflowId":      workflowId,
+			"deletionPending": true,
+		}).One(&workflow)
+		if err != nil {
+			return errors.NewHTTPError(500, "Can not inspect active workflow file uploads")
+		}
+		if len(workflow.ActiveFileUploads) == 0 {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return errors.NewHTTPError(409, "Workflow deletion is waiting for active file uploads")
+		case <-deadline.C:
+			return errors.NewHTTPError(409, "Workflow deletion is waiting for active file uploads")
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *WorkflowService) FinalizeWorkflowDeletion(ctx context.Context, workflowId string) *errors.HTTPError {
 	err := s.Collection.Remove(ctx, qmgo.M{
-		"workflowId": workflowId,
+		"workflowId":      workflowId,
+		"deletionPending": true,
+		"$or": qmgo.A{
+			qmgo.M{"activeFileUploads": qmgo.M{"$exists": false}},
+			qmgo.M{"activeFileUploads": qmgo.M{"$size": 0}},
+		},
 	})
 
 	if err != nil {
 		return errors.NewHTTPError(500, "Can not remove")
 	}
 
+	return nil
+}
+
+func (s *WorkflowService) BeginWorkflowFileUpload(
+	ctx context.Context,
+	workflowId string,
+	operationId string,
+) *errors.HTTPError {
+	err := s.Collection.UpdateOne(ctx, qmgo.M{
+		"workflowId":      workflowId,
+		"deletionPending": qmgo.M{"$ne": true},
+	}, qmgo.M{
+		"$addToSet": qmgo.M{"activeFileUploads": models.WorkflowFileUploadLease{
+			ID:        operationId,
+			ExpiresAt: time.Now().Add(workflowUploadLeaseTTL).UnixMilli(),
+		}},
+	})
+	if err == qmgo.ErrNoSuchDocuments {
+		return errors.NewHTTPError(409, "Workflow is no longer active")
+	}
+	if err != nil {
+		return errors.NewHTTPError(500, "Can not reserve workflow file upload")
+	}
+	return nil
+}
+
+func (s *WorkflowService) CompleteWorkflowFileUpload(
+	ctx context.Context,
+	workflowId string,
+	operationId string,
+) *errors.HTTPError {
+	err := s.Collection.UpdateOne(ctx, qmgo.M{"workflowId": workflowId}, qmgo.M{
+		"$pull": qmgo.M{"activeFileUploads": qmgo.M{"id": operationId}},
+	})
+	if err != nil {
+		return errors.NewHTTPError(500, "Can not release workflow file upload reservation")
+	}
+	return nil
+}
+
+func (s *WorkflowService) RenewWorkflowFileUpload(
+	ctx context.Context,
+	workflowId string,
+	operationId string,
+) *errors.HTTPError {
+	err := s.Collection.UpdateOne(ctx, qmgo.M{
+		"workflowId":           workflowId,
+		"activeFileUploads.id": operationId,
+	}, qmgo.M{
+		"$set": qmgo.M{
+			"activeFileUploads.$.expiresAt": time.Now().Add(workflowUploadLeaseTTL).UnixMilli(),
+		},
+	})
+	if err != nil {
+		return errors.NewHTTPError(500, "Can not renew workflow file upload lease")
+	}
 	return nil
 }
 

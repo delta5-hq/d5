@@ -30,14 +30,10 @@ export const ContainerRenderer = ({
   onRequestRename,
   onWrapNodes,
   onToggleChecked,
-  onMoveNode,
   onDragHoverNode,
   onDragLeaveNode,
-  onDragStartNode,
-  onDragEndNode,
   onPointerDragStartNode,
   onDropFiles,
-  activeDraggedNodeId,
   activeDropTargetId,
   activeDropPosition,
   autoEditNodeId,
@@ -52,7 +48,6 @@ export const ContainerRenderer = ({
   const parentRow = (
     <div style={{ position: 'relative', height: `${rowHeight}px` }}>
       <MemoizedTreeNodeDefault
-        activeDraggedNodeId={activeDraggedNodeId}
         activeDropPosition={activeDropPosition}
         activeDropTargetId={activeDropTargetId}
         autoEditNodeId={autoEditNodeId}
@@ -62,13 +57,10 @@ export const ContainerRenderer = ({
         isSelected={selectedIds?.has(parentNode.id) ?? false}
         onAddChild={onAddChild}
         onDelete={onDelete}
-        onDragEndNode={onDragEndNode}
         onDragHoverNode={onDragHoverNode}
         onDragLeaveNode={onDragLeaveNode}
-        onDragStartNode={onDragStartNode}
         onDropFiles={onDropFiles}
         onDuplicateNode={onDuplicateNode}
-        onMoveNode={onMoveNode}
         onPointerDragStartNode={onPointerDragStartNode}
         onRename={onRename}
         onRequestRename={onRequestRename}
@@ -101,7 +93,6 @@ export const ContainerRenderer = ({
             }}
           >
             <MemoizedTreeNodeDefault
-              activeDraggedNodeId={activeDraggedNodeId}
               activeDropPosition={activeDropPosition}
               activeDropTargetId={activeDropTargetId}
               autoEditNodeId={autoEditNodeId}
@@ -111,13 +102,10 @@ export const ContainerRenderer = ({
               isSelected={selectedIds?.has(childNode.id) ?? false}
               onAddChild={onAddChild}
               onDelete={onDelete}
-              onDragEndNode={onDragEndNode}
               onDragHoverNode={onDragHoverNode}
               onDragLeaveNode={onDragLeaveNode}
-              onDragStartNode={onDragStartNode}
               onDropFiles={onDropFiles}
               onDuplicateNode={onDuplicateNode}
-              onMoveNode={onMoveNode}
               onPointerDragStartNode={onPointerDragStartNode}
               onRename={onRename}
               onRequestRename={onRequestRename}

@@ -153,6 +153,7 @@ export const removeNode = (
     newNodes[node.parent] = {
       ...parentNode,
       children: (parentNode.children ?? []).filter(id => id !== nodeId),
+      ...(parentNode.prompts && { prompts: parentNode.prompts.filter(id => id !== nodeId) }),
     }
   }
 

@@ -27,14 +27,10 @@ export const SegmentRow = ({
   onRequestRename,
   onWrapNodes,
   onToggleChecked,
-  onMoveNode,
   onDragHoverNode,
   onDragLeaveNode,
-  onDragStartNode,
-  onDragEndNode,
   onPointerDragStartNode,
   onDropFiles,
-  activeDraggedNodeId,
   activeDropTargetId,
   activeDropPosition,
   autoEditNodeId,
@@ -49,20 +45,16 @@ export const SegmentRow = ({
     return (
       <MemoizedTreeNodeDefault
         {...record}
-        activeDraggedNodeId={activeDraggedNodeId}
         activeDropPosition={activeDropPosition}
         activeDropTargetId={activeDropTargetId}
         autoEditNodeId={autoEditNodeId}
         isSelected={selectedIds?.has(record.id) ?? false}
         onAddChild={onAddChild}
         onDelete={onDelete}
-        onDragEndNode={onDragEndNode}
         onDragHoverNode={onDragHoverNode}
         onDragLeaveNode={onDragLeaveNode}
-        onDragStartNode={onDragStartNode}
         onDropFiles={onDropFiles}
         onDuplicateNode={onDuplicateNode}
-        onMoveNode={onMoveNode}
         onPointerDragStartNode={onPointerDragStartNode}
         onRename={onRename}
         onRequestRename={onRequestRename}
@@ -78,20 +70,16 @@ export const SegmentRow = ({
   if (segment.type === 'container') {
     return (
       <ContainerRenderer
-        activeDraggedNodeId={activeDraggedNodeId}
         activeDropPosition={activeDropPosition}
         activeDropTargetId={activeDropTargetId}
         autoEditNodeId={autoEditNodeId}
         container={segment}
         onAddChild={onAddChild}
         onDelete={onDelete}
-        onDragEndNode={onDragEndNode}
         onDragHoverNode={onDragHoverNode}
         onDragLeaveNode={onDragLeaveNode}
-        onDragStartNode={onDragStartNode}
         onDropFiles={onDropFiles}
         onDuplicateNode={onDuplicateNode}
-        onMoveNode={onMoveNode}
         onPointerDragStartNode={onPointerDragStartNode}
         onRename={onRename}
         onRequestRename={onRequestRename}

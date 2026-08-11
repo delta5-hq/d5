@@ -32,14 +32,22 @@ export async function reconcileRemoveFlush({
   readWorkflow,
   removedFileIds,
   onDanglingLinkSurvived,
-}: RemoveFlushReconcilerDeps): Promise<void> {
+}: RemoveFlushReconcilerDeps): Promise<boolean> {
+  let flushed = false
   for (let attempt = 0; attempt < MAX_FLUSH_ATTEMPTS; attempt++) {
     if (attempt > 0) {
       await new Promise<void>(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt))
     }
-    if (await persister.flush()) return
+    if (await persister.flush()) {
+      flushed = true
+      break
+    }
   }
 
   const clean = await serverHasNoDanglingLinks(workflowId, removedFileIds, readWorkflow)
-  if (!clean) onDanglingLinkSurvived()
+  if (!clean) {
+    onDanglingLinkSurvived()
+    return false
+  }
+  return flushed || clean
 }

@@ -58,7 +58,7 @@ const WorkflowSegmentTreeInner = ({
   useNodeCacheCleanup(nodeIds)
 
   const expandedIds = useWorkflowExpandedIds()
-  const { toggleExpanded, expandNode, updateNode, toggleSelect, persistNow } = useWorkflowActions()
+  const { toggleExpanded, expandNode, toggleSelect, persistNow } = useWorkflowActions()
   const treeWalker = useTreeWalker({ nodes, rootId, expandedIds })
   const { scheduleNewNodeFlash } = useTreeAnimation()
   const hoverExpansionTimerRef = useRef<number | null>(null)
@@ -72,7 +72,6 @@ const WorkflowSegmentTreeInner = ({
     position?: TreeDropPosition
     dragging: boolean
   } | null>(null)
-  const [activeDraggedNodeId, setActiveDraggedNodeId] = useState<string | undefined>()
   const [activePointerDrop, setActivePointerDrop] = useState<
     { targetId: string; position: TreeDropPosition } | undefined
   >()
@@ -103,10 +102,7 @@ const WorkflowSegmentTreeInner = ({
   const handleToggleChecked = useStableCallback((nodeId: string) => {
     const node = nodes[nodeId]
     if (!node) return
-    const nextChecked = !node.checked
-    updateNode(nodeId, { checked: nextChecked })
-    const isSelected = selectedIds?.has(nodeId) ?? false
-    if (nextChecked !== isSelected) toggleSelect(nodeId)
+    toggleSelect(nodeId)
     void persistNow()
   })
 
@@ -129,16 +125,6 @@ const WorkflowSegmentTreeInner = ({
       const canExpand = node && ((node.children?.length ?? 0) > 0 || isCommandlessTextNode(node))
       if (canExpand && !expandedIds.has(nodeId)) toggleExpanded(nodeId)
     }, 600)
-  })
-
-  const handleDragStartNode = useStableCallback((nodeId: string) => {
-    setActiveDraggedNodeId(nodeId)
-  })
-
-  const handleDragEndNode = useStableCallback(() => {
-    setActiveDraggedNodeId(undefined)
-    setActivePointerDrop(undefined)
-    cancelHoverExpansion()
   })
 
   const updatePointerDropTarget = useStableCallback((clientX: number, clientY: number) => {
@@ -165,7 +151,6 @@ const WorkflowSegmentTreeInner = ({
 
   const resetPointerDrag = useStableCallback(() => {
     pointerDragRef.current = null
-    setActiveDraggedNodeId(undefined)
     setActivePointerDrop(undefined)
     cancelHoverExpansion()
   })
@@ -179,7 +164,6 @@ const WorkflowSegmentTreeInner = ({
     if (!active.dragging && Math.max(movedX, movedY) < 4) return
 
     active.dragging = true
-    setActiveDraggedNodeId(active.nodeId)
     updatePointerDropTarget(event.clientX, event.clientY)
     event.preventDefault()
   })
@@ -215,7 +199,6 @@ const WorkflowSegmentTreeInner = ({
     if (!active.dragging && Math.max(movedX, movedY) < 4) return
 
     active.dragging = true
-    setActiveDraggedNodeId(active.nodeId)
     updatePointerDropTarget(event.clientX, event.clientY)
     event.preventDefault()
   })
@@ -251,20 +234,16 @@ const WorkflowSegmentTreeInner = ({
         renderProp={({ height, width }) =>
           height && width ? (
             <VirtualizedSegmentTree
-              activeDraggedNodeId={activeDraggedNodeId}
               activeDropPosition={activePointerDrop?.position}
               activeDropTargetId={activePointerDrop?.targetId}
               autoEditNodeId={autoEditNodeId}
               height={height}
               onAddChild={handleAddChild}
               onDelete={onDelete}
-              onDragEndNode={handleDragEndNode}
               onDragHoverNode={handleDragHoverNode}
               onDragLeaveNode={cancelHoverExpansion}
-              onDragStartNode={handleDragStartNode}
               onDropFiles={onDropFiles}
               onDuplicateNode={onDuplicateNode}
-              onMoveNode={onMoveNode}
               onPointerDragStartNode={handlePointerDragStartNode}
               onRename={onRename}
               onRequestRename={onRequestRename}

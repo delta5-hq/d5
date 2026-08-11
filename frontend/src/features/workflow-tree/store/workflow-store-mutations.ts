@@ -30,6 +30,7 @@ import {
 } from './workflow-attachment-lifecycle'
 import { reconcileRemoveFlush } from './workflow-remove-flush-reconciler'
 import type { ReadWorkflowFn } from './workflow-store-types'
+import { applyCheckedSelection } from './workflow-checked-selection'
 
 export type FormatMessage = (descriptor: { id: string }, values?: Record<string, string | number>) => string
 
@@ -68,6 +69,22 @@ export function bindMutationActions(
         onError: attachmentOnError,
       }
     : undefined
+
+  const finishAttachmentRemoval = (references: ReturnType<typeof collectAttachmentReferences>): void => {
+    if (!attachmentDeps || references.length === 0) return
+    historyStack.clear()
+    void (async () => {
+      const persisted = await reconcileRemoveFlush({
+        persister,
+        workflowId: attachmentDeps.workflowId,
+        readWorkflow: attachmentLifecycle!.readWorkflow,
+        removedFileIds: references.map(reference => reference.fileId),
+        onDanglingLinkSurvived: () => attachmentOnError('workflowTree.attachment.removeFlushFailed'),
+      })
+      if (!persisted) return
+      await deleteAttachmentFiles(attachmentDeps, references)
+    })()
+  }
 
   function applyMutation<T>(mutationFn: () => T, onSuccess: (result: T) => void): T | null {
     try {
@@ -141,48 +158,32 @@ export function bindMutationActions(
       const removedSet = new Set(result.removedNodeIds)
       const attachmentReferences = attachmentDeps ? collectAttachmentReferences(nodes, removedSet) : []
 
-      const applyRemoval = (): void => {
-        const selectionAffected = selectedId !== undefined && removedSet.has(selectedId)
-        const anchorAffected = anchorId !== undefined && removedSet.has(anchorId)
+      const selectionAffected = selectedId !== undefined && removedSet.has(selectedId)
+      const anchorAffected = anchorId !== undefined && removedSet.has(anchorId)
+      const newSelectedIds = selectionAffected
+        ? nextSelectedId
+          ? new Set<NodeId>([nextSelectedId])
+          : new Set<NodeId>()
+        : excludeIds(selectedIds, removedSet)
+      const { dirtyNodeIds } = store.getState()
+      const cleanedDirtyIds = excludeIds(dirtyNodeIds, removedSet)
+      const finalNodes = stepsParentId ? applySequentialPrefixes(result.nodes, stepsParentId) : result.nodes
+      const checkedNodes = applyCheckedSelection(finalNodes, newSelectedIds).nodes
 
-        const newSelectedIds = selectionAffected
-          ? nextSelectedId
-            ? new Set<NodeId>([nextSelectedId])
-            : new Set<NodeId>()
-          : excludeIds(selectedIds, removedSet)
-
-        const { dirtyNodeIds } = store.getState()
-        const cleanedDirtyIds = excludeIds(dirtyNodeIds, removedSet)
-        const finalNodes = stepsParentId ? applySequentialPrefixes(result.nodes, stepsParentId) : result.nodes
-        store.setState({
-          nodes: finalNodes,
-          edges: result.edges,
-          ...(selectionAffected && { selectedId: nextSelectedId }),
-          ...(newSelectedIds !== selectedIds && { selectedIds: newSelectedIds }),
-          ...(anchorAffected && { anchorId: nextSelectedId }),
-          ...(cleanedDirtyIds !== dirtyNodeIds && { dirtyNodeIds: cleanedDirtyIds }),
-          isDirty: true,
-        })
-        persister.schedule()
-      }
-
-      if (attachmentReferences.length === 0 || !attachmentDeps) {
+      if (attachmentReferences.length === 0) {
         historyStack.checkpoint({ nodes, edges, root: store.getState().root })
-        applyRemoval()
-        return true
       }
-      void (async () => {
-        if (!(await deleteAttachmentFiles(attachmentDeps, attachmentReferences))) return
-        applyRemoval()
-        historyStack.clear()
-        await reconcileRemoveFlush({
-          persister,
-          workflowId: attachmentDeps.workflowId,
-          readWorkflow: attachmentLifecycle!.readWorkflow,
-          removedFileIds: attachmentReferences.map(r => r.fileId),
-          onDanglingLinkSurvived: () => attachmentOnError('workflowTree.attachment.removeFlushFailed'),
-        })
-      })()
+      store.setState({
+        nodes: checkedNodes,
+        edges: result.edges,
+        ...(selectionAffected && { selectedId: nextSelectedId }),
+        ...(newSelectedIds !== selectedIds && { selectedIds: newSelectedIds }),
+        ...(anchorAffected && { anchorId: nextSelectedId }),
+        ...(cleanedDirtyIds !== dirtyNodeIds && { dirtyNodeIds: cleanedDirtyIds }),
+        isDirty: true,
+      })
+      persister.schedule()
+      finishAttachmentRemoval(attachmentReferences)
       return true
     } catch (err) {
       const messageId =
@@ -243,37 +244,22 @@ export function bindMutationActions(
     const anchorAffected = anchorId !== undefined && removedSet.has(anchorId)
     const { dirtyNodeIds } = store.getState()
     const cleanedDirtyIds = excludeIds(dirtyNodeIds, removedSet)
+    finalNodes = applyCheckedSelection(finalNodes, survivorIds).nodes
 
-    const applyBulkRemoval = (): void => {
-      store.setState({
-        nodes: finalNodes,
-        edges: currentEdges,
-        selectedId: lastSurvivor,
-        selectedIds: survivorIds,
-        ...(anchorAffected && { anchorId: undefined }),
-        ...(cleanedDirtyIds !== dirtyNodeIds && { dirtyNodeIds: cleanedDirtyIds }),
-        isDirty: true,
-      })
-      persister.schedule()
-    }
-
-    if (attachmentReferences.length === 0 || !attachmentDeps) {
+    if (attachmentReferences.length === 0) {
       historyStack.checkpoint({ nodes, edges, root: store.getState().root })
-      applyBulkRemoval()
-    } else {
-      void (async () => {
-        if (!(await deleteAttachmentFiles(attachmentDeps, attachmentReferences))) return
-        applyBulkRemoval()
-        historyStack.clear()
-        await reconcileRemoveFlush({
-          persister,
-          workflowId: attachmentDeps.workflowId,
-          readWorkflow: attachmentLifecycle!.readWorkflow,
-          removedFileIds: attachmentReferences.map(r => r.fileId),
-          onDanglingLinkSurvived: () => attachmentOnError('workflowTree.attachment.removeFlushFailed'),
-        })
-      })()
     }
+    store.setState({
+      nodes: finalNodes,
+      edges: currentEdges,
+      selectedId: lastSurvivor,
+      selectedIds: survivorIds,
+      ...(anchorAffected && { anchorId: undefined }),
+      ...(cleanedDirtyIds !== dirtyNodeIds && { dirtyNodeIds: cleanedDirtyIds }),
+      isDirty: true,
+    })
+    persister.schedule()
+    finishAttachmentRemoval(attachmentReferences)
 
     let removed = 0
     let skipped = 0
@@ -316,11 +302,51 @@ export function bindMutationActions(
     )
   }
 
-  const removePromptChildren = (parentId: NodeId): boolean =>
-    applyMutation(
-      () => removePromptChildrenPure(store.getState().nodes, parentId),
-      result => store.setState({ nodes: result }),
-    ) !== null
+  const replacePromptChildren = (parentId: NodeId, replacements: readonly Partial<NodeData>[]): number | null => {
+    const { nodes, edges, selectedId, selectedIds, anchorId, dirtyNodeIds, root } = store.getState()
+    try {
+      let nextNodes = removePromptChildrenPure(nodes, parentId)
+      let imported = 0
+      for (const replacement of replacements) {
+        const added = addPromptChildPure(nextNodes, parentId, replacement)
+        nextNodes = added.nodes
+        imported++
+      }
+
+      const removedSet = new Set(Object.keys(nodes).filter(nodeId => !(nodeId in nextNodes)))
+      const references = attachmentDeps ? collectAttachmentReferences(nodes, removedSet) : []
+      const nextEdges = Object.fromEntries(
+        Object.entries(edges).filter(([, edge]) => !removedSet.has(edge.start) && !removedSet.has(edge.end)),
+      )
+      const nextSelectedIds = excludeIds(selectedIds, removedSet)
+      const nextSelectedId = selectedId && removedSet.has(selectedId) ? parentId : selectedId
+      if (nextSelectedId) nextSelectedIds.add(nextSelectedId)
+      nextNodes = applyCheckedSelection(nextNodes, nextSelectedIds).nodes
+
+      if (references.length === 0) historyStack.checkpoint({ nodes, edges, root })
+      store.setState({
+        nodes: nextNodes,
+        edges: nextEdges,
+        selectedId: nextSelectedId,
+        selectedIds: nextSelectedIds,
+        ...(anchorId && removedSet.has(anchorId) && { anchorId: parentId }),
+        dirtyNodeIds: excludeIds(dirtyNodeIds, removedSet),
+        isDirty: true,
+      })
+      persister.schedule()
+      finishAttachmentRemoval(references)
+      return imported
+    } catch (err) {
+      const messageId =
+        err instanceof NodeMutationError
+          ? (MUTATION_ERROR_KEYS[err.code] ?? 'workflowTree.mutation.failed')
+          : 'workflowTree.mutation.failed'
+      toast.error(formatMessage({ id: messageId }))
+      return null
+    }
+  }
+
+  const removePromptChildren = (parentId: NodeId): boolean => replacePromptChildren(parentId, []) !== null
 
   const duplicateNode = (nodeId: NodeId, targetParentId?: NodeId): NodeId | null => {
     const { nodes, edges } = store.getState()
@@ -334,18 +360,7 @@ export function bindMutationActions(
 
   const importTextAsPrompts = (parentId: NodeId, text: string): number => {
     if (!text.trim()) return 0
-
-    const promptNodes = createPromptNodesFromText(parentId, text)
-
-    if (!removePromptChildren(parentId)) return 0
-
-    let imported = 0
-    for (const promptData of promptNodes) {
-      const newId = addPromptChild(parentId, promptData)
-      if (newId) imported++
-    }
-
-    return imported
+    return replacePromptChildren(parentId, createPromptNodesFromText(parentId, text)) ?? 0
   }
 
   const wrapNodes = (nodeIds: Set<NodeId>): NodeId | null => {
@@ -355,8 +370,9 @@ export function bindMutationActions(
       applyMutation(
         () => wrapNodesInParent(nodes, edges, ordered),
         result => {
-          store.setState({ nodes: result.nodes, edges: result.edges })
-          store.setState({ selectedId: result.newParentId, selectedIds: new Set([result.newParentId]) })
+          const selectedIds = new Set([result.newParentId])
+          const checkedNodes = applyCheckedSelection(result.nodes, selectedIds).nodes
+          store.setState({ nodes: checkedNodes, edges: result.edges, selectedId: result.newParentId, selectedIds })
         },
       )?.newParentId ?? null
     )

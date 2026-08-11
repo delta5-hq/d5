@@ -18,10 +18,17 @@ export function collectAttachmentReferences(
 ): AttachmentReference[] {
   const references: AttachmentReference[] = []
   const seenFiles = new Set<string>()
+  const removedIds = nodeIds instanceof Set ? nodeIds : new Set(nodeIds)
+  const survivingFileIds = new Set(
+    Object.values(nodes)
+      .filter(node => !removedIds.has(node.id))
+      .map(node => node.file)
+      .filter((fileId): fileId is string => Boolean(fileId)),
+  )
 
-  for (const nodeId of nodeIds) {
+  for (const nodeId of removedIds) {
     const fileId = nodes[nodeId]?.file
-    if (!fileId || seenFiles.has(fileId)) continue
+    if (!fileId || seenFiles.has(fileId) || survivingFileIds.has(fileId)) continue
     seenFiles.add(fileId)
     references.push({ nodeId, fileId })
   }
@@ -33,14 +40,15 @@ export async function deleteAttachmentFiles(
   deps: AttachmentLifecycleDeps,
   references: readonly AttachmentReference[],
 ): Promise<boolean> {
+  let allDeleted = true
   for (const reference of references) {
     try {
       await deps.deleteFile(deps.workflowId, reference.fileId)
     } catch (err) {
       if (classifyIntegrationError(err) === 'not_found') continue
-      deps.onError('workflowTree.attachment.deleteFailed')
-      return false
+      allDeleted = false
     }
   }
-  return true
+  if (!allDeleted) deps.onError('workflowTree.attachment.deleteFailed')
+  return allDeleted
 }

@@ -40,20 +40,21 @@ describe('reconcileRemoveFlush', () => {
   })
 
   describe('flush succeeds within the retry window', () => {
-    it('resolves after a single successful flush without querying the server', async () => {
+    it('confirms authoritative readback after a single successful flush', async () => {
       const deps = makeDeps({ persister: makePersister(true) })
 
-      await reconcileRemoveFlush(deps)
+      const clean = await reconcileRemoveFlush(deps)
 
       expect(deps.persister.flush).toHaveBeenCalledTimes(1)
-      expect(deps.readWorkflow).not.toHaveBeenCalled()
+      expect(deps.readWorkflow).toHaveBeenCalledWith('wf-test')
       expect(deps.onDanglingLinkSurvived).not.toHaveBeenCalled()
+      expect(clean).toBe(true)
     })
 
     it.each([
       { label: 'second', failsBefore: 1 },
       { label: 'third', failsBefore: 2 },
-    ])('resolves on the $label attempt without querying the server', async ({ failsBefore }) => {
+    ])('resolves on the $label attempt and confirms authoritative readback', async ({ failsBefore }) => {
       vi.useFakeTimers()
       try {
         const failures = Array.from<boolean>({ length: failsBefore }).fill(false)
@@ -63,7 +64,7 @@ describe('reconcileRemoveFlush', () => {
         await vi.runAllTimersAsync()
 
         expect(deps.persister.flush).toHaveBeenCalledTimes(failsBefore + 1)
-        expect(deps.readWorkflow).not.toHaveBeenCalled()
+        expect(deps.readWorkflow).toHaveBeenCalledWith('wf-test')
         expect(deps.onDanglingLinkSurvived).not.toHaveBeenCalled()
       } finally {
         vi.useRealTimers()

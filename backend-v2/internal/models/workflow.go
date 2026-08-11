@@ -61,6 +61,11 @@ type Share struct {
 	Access []RoleBinding `json:"access" bson:"access"`
 }
 
+type WorkflowFileUploadLease struct {
+	ID        string `json:"-" bson:"id"`
+	ExpiresAt int64  `json:"-" bson:"expiresAt"`
+}
+
 type Workflow struct {
 	UserID     string            `json:"userId" bson:"userId"`
 	WorkflowID string            `json:"workflowId" bson:"workflowId"`
@@ -72,6 +77,12 @@ type Workflow struct {
 	Files      map[string]string `json:"files" bson:"files"`
 	Share      Share             `json:"share" bson:"share"`
 	Category   *string           `json:"category" bson:"category"`
+	// DeletionPending keeps an interrupted aggregate deletion retryable while
+	// normal reads and listings treat the workflow as logically gone.
+	DeletionPending bool `json:"-" bson:"deletionPending,omitempty"`
+	// ActiveFileUploads is a distributed deletion barrier. It is never exposed
+	// to clients and is drained before aggregate byte cleanup can finalize.
+	ActiveFileUploads []WorkflowFileUploadLease `json:"-" bson:"activeFileUploads,omitempty"`
 }
 
 /* WorkflowUpdateDTO uses pointers to distinguish "not provided" (nil) from "set to empty" */

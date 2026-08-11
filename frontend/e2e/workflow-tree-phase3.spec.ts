@@ -69,39 +69,34 @@ const COMPACT_VIEWPORT = { width: 360, height: 740 } as const
 
 // Returns whether elementFromPoint at the title-chip center lands on the given button.
 // elementFromPoint respects pointer-events, directly modelling touch/click hit-testing.
-async function evalTitleChipHitTest(
-  page: Page,
-  nodeId: string,
-  buttonTestId: RowActionTestId,
-): Promise<{ skipped: boolean; hits?: boolean }> {
+async function evalTitleChipHitTest(page: Page, nodeId: string, buttonTestId: RowActionTestId): Promise<boolean> {
   return page.evaluate(
     ({ id, testId }) => {
       const row = document.querySelector<HTMLElement>(`[data-node-id="${id}"]`)
       const title = row?.querySelector<HTMLElement>('[data-chip-kind="title"]')
       const btn = row?.querySelector<HTMLElement>(`[data-testid="${testId}"]`)
-      if (!title || !btn) return { skipped: true }
+      if (!row) throw new Error(`Expected workflow row "${id}"`)
+      if (!title) throw new Error(`Expected title chip in workflow row "${id}"`)
+      if (!btn) throw new Error(`Expected button "${testId}" in workflow row "${id}"`)
       const t = title.getBoundingClientRect()
       const hitEl = document.elementFromPoint((t.left + t.right) / 2, (t.top + t.bottom) / 2)
-      return { skipped: false, hits: btn === hitEl || btn.contains(hitEl as Node) }
+      return btn === hitEl || btn.contains(hitEl as Node)
     },
     { id: nodeId, testId: buttonTestId },
   )
 }
 
 // Returns whether elementFromPoint at the button's own center lands on that button.
-async function evalButtonHitTest(
-  page: Page,
-  nodeId: string,
-  buttonTestId: RowActionTestId,
-): Promise<{ skipped: boolean; hits?: boolean }> {
+async function evalButtonHitTest(page: Page, nodeId: string, buttonTestId: RowActionTestId): Promise<boolean> {
   return page.evaluate(
     ({ id, testId }) => {
       const row = document.querySelector<HTMLElement>(`[data-node-id="${id}"]`)
       const btn = row?.querySelector<HTMLElement>(`[data-testid="${testId}"]`)
-      if (!btn) return { skipped: true }
+      if (!row) throw new Error(`Expected workflow row "${id}"`)
+      if (!btn) throw new Error(`Expected button "${testId}" in workflow row "${id}"`)
       const b = btn.getBoundingClientRect()
       const hitEl = document.elementFromPoint((b.left + b.right) / 2, (b.top + b.bottom) / 2)
-      return { skipped: false, hits: btn === hitEl || btn.contains(hitEl as Node) }
+      return btn === hitEl || btn.contains(hitEl as Node)
     },
     { id: nodeId, testId: buttonTestId },
   )
@@ -113,22 +108,16 @@ async function evalButtonHitTest(
 async function expectActionButtonYieldsTitleTap(page: Page, nodeId: string, buttonTestId: RowActionTestId) {
   await page.locator(`[data-node-id="${nodeId}"]`).hover()
   const hit = await evalTitleChipHitTest(page, nodeId, buttonTestId)
-  if (hit.skipped) return
-  expect(
-    hit.hits,
-    `node "${nodeId}" button "${buttonTestId}": tap at title-chip center intercepted by the button`,
-  ).toBe(false)
+  expect(hit, `node "${nodeId}" button "${buttonTestId}": tap at title-chip center intercepted by the button`).toBe(
+    false,
+  )
 }
 
 // Asserts the button is pointer-interactive at its own center.
 // Caller is responsible for the precondition (node selected, or hover already applied).
 async function expectActionButtonIsHittable(page: Page, nodeId: string, buttonTestId: RowActionTestId) {
   const hit = await evalButtonHitTest(page, nodeId, buttonTestId)
-  if (hit.skipped) return
-  expect(
-    hit.hits,
-    `node "${nodeId}" button "${buttonTestId}": tap at button center did not land on the button`,
-  ).toBe(true)
+  expect(hit, `node "${nodeId}" button "${buttonTestId}": tap at button center did not land on the button`).toBe(true)
 }
 
 // Asserts the button is pointer-interactive after hovering its parent row.
@@ -137,11 +126,7 @@ async function expectActionButtonIsHittable(page: Page, nodeId: string, buttonTe
 async function expectActionButtonIsHittableOnHover(page: Page, nodeId: string, buttonTestId: RowActionTestId) {
   await page.locator(`[data-node-id="${nodeId}"]`).hover()
   const hit = await evalButtonHitTest(page, nodeId, buttonTestId)
-  if (hit.skipped) return
-  expect(
-    hit.hits,
-    `node "${nodeId}" button "${buttonTestId}": button not hittable on hover at this viewport`,
-  ).toBe(true)
+  expect(hit, `node "${nodeId}" button "${buttonTestId}": button not hittable on hover at this viewport`).toBe(true)
 }
 
 async function dropFileOnNode(page: Page, target: Locator, name: string, body: string) {
@@ -220,7 +205,14 @@ test.describe('Workflow tree Phase 3 flows', () => {
     const workflowId = await createWorkflow(page)
     await seedWorkflow(page, workflowId, {
       root: { id: 'root', title: 'Root', children: ['steps'] },
-      steps: { id: 'steps', parent: 'root', title: 'Steps parent', command: '/steps', children: ['plain'], collapsed: true },
+      steps: {
+        id: 'steps',
+        parent: 'root',
+        title: 'Steps parent',
+        command: '/steps',
+        children: ['plain'],
+        collapsed: true,
+      },
       plain: {
         id: 'plain',
         parent: 'steps',
@@ -300,10 +292,10 @@ test.describe('Workflow tree Phase 3 flows', () => {
     // d1nocmd: depth-1, no command (one-chip layout, different budget split)
     // d2: depth-2 (deepest indent — highest chip starvation risk)
     await seedWorkflow(page, workflowId, {
-      root:    { id: 'root',    title: 'Root',            children: ['d1cmd', 'd1nocmd'] },
-      d1cmd:   { id: 'd1cmd',   parent: 'root', title: 'Cmd node',      command: '/steps',  children: ['d2'] },
-      d1nocmd: { id: 'd1nocmd', parent: 'root', title: 'Cmdless node',  children: [] },
-      d2:      { id: 'd2',      parent: 'd1cmd', title: 'Depth-2 node', children: [] },
+      root: { id: 'root', title: 'Root', children: ['d1cmd', 'd1nocmd'] },
+      d1cmd: { id: 'd1cmd', parent: 'root', title: 'Cmd node', command: '/steps', children: ['d2'], collapsed: true },
+      d1nocmd: { id: 'd1nocmd', parent: 'root', title: 'Cmdless node', children: [] },
+      d2: { id: 'd2', parent: 'd1cmd', title: 'Depth-2 node', children: [] },
     })
 
     const tree = new WorkflowTreePage(page)
@@ -326,8 +318,8 @@ test.describe('Workflow tree Phase 3 flows', () => {
     // Both command (two-chip layout) and command-less (one-chip) variants: selected state must
     // restore button interactivity regardless of how the horizontal budget is divided.
     await seedWorkflow(page, workflowId, {
-      root:       { id: 'root',       title: 'Root',          children: ['childcmd', 'childnocmd'] },
-      childcmd:   { id: 'childcmd',   parent: 'root', title: 'Cmd child',    command: '/steps', children: [] },
+      root: { id: 'root', title: 'Root', children: ['childcmd', 'childnocmd'] },
+      childcmd: { id: 'childcmd', parent: 'root', title: 'Cmd child', command: '/steps', children: [] },
       childnocmd: { id: 'childnocmd', parent: 'root', title: 'Cmdless child', children: [] },
     })
 
@@ -348,7 +340,7 @@ test.describe('Workflow tree Phase 3 flows', () => {
     await page.setViewportSize(COMPACT_VIEWPORT)
     const workflowId = await createWorkflow(page)
     await seedWorkflow(page, workflowId, {
-      root:  { id: 'root',  title: 'Root',       children: ['child'] },
+      root: { id: 'root', title: 'Root', children: ['child'] },
       child: { id: 'child', parent: 'root', title: 'Child node', children: [] },
     })
 
@@ -375,8 +367,8 @@ test.describe('Workflow tree Phase 3 flows', () => {
     // Both command and command-less layouts: group-hover must activate buttons at desktop
     // (the compact-viewport pointer-events suppression applies only at ≤40rem / 640px).
     await seedWorkflow(page, workflowId, {
-      root:       { id: 'root',       title: 'Root',          children: ['childcmd', 'childnocmd'] },
-      childcmd:   { id: 'childcmd',   parent: 'root', title: 'Cmd child',     command: '/chat hello', children: [] },
+      root: { id: 'root', title: 'Root', children: ['childcmd', 'childnocmd'] },
+      childcmd: { id: 'childcmd', parent: 'root', title: 'Cmd child', command: '/chat hello', children: [] },
       childnocmd: { id: 'childnocmd', parent: 'root', title: 'Cmdless child', children: [] },
     })
 
@@ -399,9 +391,7 @@ test.describe('Workflow tree Phase 3 flows', () => {
       cmd: { id: 'cmd', parent: 'root', title: 'Command node', command: '/steps', children: [] },
     })
 
-    const commandChip = page
-      .locator('[data-node-id="cmd"]')
-      .locator('[data-chip-kind="command"]')
+    const commandChip = page.locator('[data-node-id="cmd"]').locator('[data-chip-kind="command"]')
 
     await commandChip.hover()
 

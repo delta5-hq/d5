@@ -1237,11 +1237,11 @@ describe('removeNode / removeNodes — attachment flush-failure hardening', () =
       }
     })
 
-    it('skips server readback entirely when flush succeeds within the retry window', async () => {
+    it('confirms server readback before deleting bytes when flush succeeds', async () => {
       vi.useFakeTimers()
       try {
         const store = makeStore({ nodes: attachedNodes })
-        const readWorkflow = vi.fn()
+        const readWorkflow = vi.fn().mockResolvedValue({ nodes: {}, edges: {}, root: undefined })
         const persister: DebouncedPersister = {
           schedule: vi.fn(),
           flush: vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true),
@@ -1257,7 +1257,7 @@ describe('removeNode / removeNodes — attachment flush-failure hardening', () =
         removeNode('n1')
         await vi.runAllTimersAsync()
 
-        expect(readWorkflow).not.toHaveBeenCalled()
+        expect(readWorkflow).toHaveBeenCalledWith('wf-test')
         const { toast } = await import('sonner')
         expect(vi.mocked(toast.error)).not.toHaveBeenCalledWith('workflowTree.attachment.removeFlushFailed')
       } finally {

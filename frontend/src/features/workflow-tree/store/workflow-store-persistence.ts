@@ -20,6 +20,7 @@ export function createDebouncedPersister(
   }) => Promise<unknown>,
 ): DebouncedPersister {
   let timer: ReturnType<typeof setTimeout> | null = null
+  let inFlight: Promise<boolean> | null = null
 
   const cancel = () => {
     if (timer) {
@@ -28,20 +29,34 @@ export function createDebouncedPersister(
     }
   }
 
-  const flush = async (): Promise<boolean> => {
+  const performFlush = async (): Promise<boolean> => {
     cancel()
-    const { isDirty, nodes, edges, root } = store.getState()
-    if (!isDirty) return true
+    while (store.getState().isDirty) {
+      const { nodes, edges, root } = store.getState()
+      store.setState({ isSaving: true })
+      try {
+        await saveFn({ nodes, edges, root })
+      } catch {
+        store.setState({ isSaving: false })
+        return false
+      }
 
-    store.setState({ isSaving: true })
-    try {
-      await saveFn({ nodes, edges, root })
-      store.setState({ isDirty: false, isSaving: false, dirtyNodeIds: new Set() })
-      return true
-    } catch {
-      store.setState({ isSaving: false })
-      return false
+      const current = store.getState()
+      const savedCurrentState = current.nodes === nodes && current.edges === edges && current.root === root
+      if (savedCurrentState) {
+        store.setState({ isDirty: false, isSaving: false, dirtyNodeIds: new Set() })
+      }
     }
+    store.setState({ isSaving: false })
+    return true
+  }
+
+  const flush = (): Promise<boolean> => {
+    if (inFlight) return inFlight
+    inFlight = performFlush().finally(() => {
+      inFlight = null
+    })
+    return inFlight
   }
 
   const schedule = () => {
