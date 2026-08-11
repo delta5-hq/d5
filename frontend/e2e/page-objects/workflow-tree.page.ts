@@ -36,6 +36,16 @@ export class WorkflowTreePage {
     return this.page.locator(`[data-node-depth="${depth}"]`)
   }
 
+  inlineTitleEditor(node: Locator): Locator {
+    return node.locator('textarea')
+  }
+
+  nodeAtDepthByTitle(depth: number, title: string): Locator {
+    return this.nodesAtDepth(depth).filter({
+      has: this.page.getByTestId('node-chip-title').getByText(title, { exact: true }),
+    })
+  }
+
   async selectNode(nodeId: string): Promise<void> {
     await this.node(nodeId).click()
   }
@@ -78,7 +88,7 @@ export class WorkflowTreePage {
 
   private async blurInlineEdit(): Promise<void> {
     await this.treePanel.press('Escape')
-    await this.treePanel.locator('input').waitFor({ state: 'detached', timeout: 2000 })
+    await this.treePanel.locator('textarea').waitFor({ state: 'detached', timeout: 2000 })
   }
 
   async createRootAndChildren(

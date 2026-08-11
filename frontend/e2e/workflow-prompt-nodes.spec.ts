@@ -53,8 +53,8 @@ test.describe('Workflow prompt node behavior', () => {
 
     await expect(tree.node('old-prompt')).toHaveCount(0, { timeout: TIMEOUTS.UI_UPDATE })
     await expect(tree.nodesAtDepth(1)).toHaveCount(2)
-    const firstPrompt = tree.nodesAtDepth(1).filter({ hasText: /^First paragraph$/ })
-    const secondPrompt = tree.nodesAtDepth(1).filter({ hasText: /^Second paragraph$/ })
+    const firstPrompt = tree.nodeAtDepthByTitle(1, 'First paragraph')
+    const secondPrompt = tree.nodeAtDepthByTitle(1, 'Second paragraph')
 
     await expect(firstPrompt).toHaveAttribute('data-prompt-node', 'true')
     await expect(firstPrompt).toHaveClass(/opacity-60/)
@@ -64,8 +64,8 @@ test.describe('Workflow prompt node behavior', () => {
     await detail.importTextAsPrompts()
 
     await expect(tree.nodesAtDepth(1)).toHaveCount(2)
-    await expect(tree.nodesAtDepth(1).filter({ hasText: /^First paragraph$/ })).toHaveCount(1)
-    await expect(tree.nodesAtDepth(1).filter({ hasText: /^Second paragraph$/ })).toHaveCount(1)
+    await expect(tree.nodeAtDepthByTitle(1, 'First paragraph')).toHaveCount(1)
+    await expect(tree.nodeAtDepthByTitle(1, 'Second paragraph')).toHaveCount(1)
   })
 
   test('multi-paragraph title entered in the UI imports one prompt child per paragraph', async ({ page }) => {
@@ -89,15 +89,15 @@ test.describe('Workflow prompt node behavior', () => {
     await detail.importTextAsPrompts()
 
     await expect(tree.nodesAtDepth(1)).toHaveCount(3, { timeout: TIMEOUTS.UI_UPDATE })
-    await expect(tree.nodesAtDepth(1).filter({ hasText: /^First paragraph$/ })).toHaveAttribute(
+    await expect(tree.nodeAtDepthByTitle(1, 'First paragraph')).toHaveAttribute(
       'data-prompt-node',
       'true',
     )
-    await expect(tree.nodesAtDepth(1).filter({ hasText: /^Second paragraph$/ })).toHaveAttribute(
+    await expect(tree.nodeAtDepthByTitle(1, 'Second paragraph')).toHaveAttribute(
       'data-prompt-node',
       'true',
     )
-    await expect(tree.nodesAtDepth(1).filter({ hasText: /^Third paragraph$/ })).toHaveAttribute(
+    await expect(tree.nodeAtDepthByTitle(1, 'Third paragraph')).toHaveAttribute(
       'data-prompt-node',
       'true',
     )

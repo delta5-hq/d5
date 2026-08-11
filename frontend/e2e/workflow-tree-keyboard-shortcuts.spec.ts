@@ -20,7 +20,7 @@ test.describe('Workflow tree keyboard shortcuts', () => {
     await expect(tree.nodesAtDepth(2)).toHaveCount(1, { timeout: TIMEOUTS.UI_UPDATE })
     await expect(tree.selectedNodes).toHaveCount(1)
     await expect(tree.nodesAtDepth(2).first()).toHaveAttribute('data-node-selected', 'true')
-    await expect(tree.nodesAtDepth(2).first().locator('input')).toBeVisible()
+    await expect(tree.inlineTitleEditor(tree.nodesAtDepth(2).first())).toBeVisible()
   })
 
   test('Ctrl+N creates a sibling for the selected node', async ({ page }) => {
@@ -54,6 +54,6 @@ test.describe('Workflow tree keyboard shortcuts', () => {
     await tree.selectNode(rootId)
     await tree.treePanel.press('Enter')
 
-    await expect(tree.node(rootId).locator('input')).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+    await expect(tree.inlineTitleEditor(tree.node(rootId))).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
   })
 })
