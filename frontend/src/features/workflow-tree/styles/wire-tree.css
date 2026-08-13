@@ -151,6 +151,13 @@
   inline-size: 100%;
 }
 
+@media (min-width: 40.0625rem) {
+  .workflow-tree-node-row:hover .workflow-tree-row-action {
+    pointer-events: auto;
+    opacity: 1;
+  }
+}
+
 /* Hidden at narrow viewports to free the horizontal budget the chip strip needs. */
 .workflow-tree-node-icon {
   display: flex;

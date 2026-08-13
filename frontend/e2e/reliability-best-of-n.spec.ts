@@ -25,18 +25,10 @@ async function selectRootAndOpenDetail(page: Parameters<typeof adminLogin>[0]) {
   return { tree, detail, rootId }
 }
 
-async function executeAndWaitForCompletion(
-  page: Parameters<typeof adminLogin>[0],
-  detail: NodeDetailPanelPage,
-) {
+async function executeAndWaitForCompletion(page: Parameters<typeof adminLogin>[0], detail: NodeDetailPanelPage) {
   await detail.execute()
   await page.getByTestId('abort-node-button').waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
   await page.getByTestId('abort-node-button').waitFor({ state: 'hidden', timeout: LLM_TIMEOUT })
-}
-
-async function nodeTitle(page: Parameters<typeof adminLogin>[0], nodeId: string): Promise<string> {
-  const text = await page.locator(`[data-node-id="${nodeId}"]`).textContent()
-  return text?.trim() ?? ''
 }
 
 test.describe('P0.7 — bestOf / refine reliability QA', () => {
@@ -92,7 +84,7 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     await expect(tree.nodes.first()).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
     const count = await tree.nodes.count()
     expect(count).toBeGreaterThanOrEqual(2)
-    const childTitle = await nodeTitle(page, await tree.nodeIdAt(1))
+    const childTitle = await tree.nodeTitle(await tree.nodeIdAt(1))
     expect(childTitle.length).toBeGreaterThan(0)
   })
 
@@ -113,7 +105,7 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     await detail.waitForComponent()
     await executeAndWaitForCompletion(page, detail)
 
-    const refineTitle = await nodeTitle(page, refineId)
+    const refineTitle = await tree.nodeTitle(refineId)
     expect(refineTitle).toMatch(SUFFIX_RE)
     expect(refineTitle).not.toMatch(/\[✓ refined\]/)
     expect(refineTitle).toMatch(/\[✓ \d+\/2/)
@@ -136,7 +128,7 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     await detail.waitForComponent()
     await executeAndWaitForCompletion(page, detail)
 
-    const refineTitle = await nodeTitle(page, refineId)
+    const refineTitle = await tree.nodeTitle(refineId)
     expect(refineTitle).toMatch(SUFFIX_RE)
     expect(refineTitle).not.toMatch(/\[✓ refined\]/)
     expect(refineTitle).toMatch(/\[(?:✓|✗) \d+\/3/)
@@ -161,7 +153,7 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     await detail.waitForComponent()
     await executeAndWaitForCompletion(page, detail)
 
-    expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_SUFFIX_RE)
+    expect(await tree.nodeTitle(validateId)).toMatch(VALIDATE_SUFFIX_RE)
   })
 
   test('executing visual state — abort button visible while running', async ({ page }) => {
@@ -212,6 +204,6 @@ test.describe('P0.7 — bestOf / refine reliability QA', () => {
     await detail.waitForComponent()
     await executeAndWaitForCompletion(page, detail)
 
-    expect(await nodeTitle(page, validateId)).toMatch(VALIDATE_SUFFIX_RE)
+    expect(await tree.nodeTitle(validateId)).toMatch(VALIDATE_SUFFIX_RE)
   })
 })
