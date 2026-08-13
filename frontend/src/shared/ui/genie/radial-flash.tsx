@@ -2,6 +2,7 @@ import { useEffect, useRef, useId, useImperativeHandle, forwardRef, useMemo, typ
 import radialFlashJson from '@shared/assets/genie/radial-flash.json'
 import { playerCache, RADIAL_FLASH_PREFIX } from '@shared/lib/player-cache'
 import type { TgsPlayerInstance } from './types'
+import { loadPlayerRuntime } from './player-runtime'
 
 export interface RadialFlashRef {
   flash: () => void
@@ -29,23 +30,6 @@ function replaceFlashColor(json: unknown, newColor: string): unknown {
   return JSON.parse(replaced)
 }
 
-/* Load player runtime once */
-let playerLoaded = false
-const loadPlayerRuntime = async () => {
-  if (playerLoaded || typeof window === 'undefined') return
-  playerLoaded = true
-
-  try {
-    const response = await fetch('/src/shared/assets/genie/base-genie.player.js')
-    const code = await response.text()
-    const script = document.createElement('script')
-    script.textContent = code
-    document.head.appendChild(script)
-  } catch {
-    playerLoaded = false
-  }
-}
-
 /* Cleanup player from cache when node is permanently removed */
 export function cleanupPlayerCache(nodeId: string): void {
   const playerId = `${RADIAL_FLASH_PREFIX}${nodeId}`
@@ -65,7 +49,6 @@ export const RadialFlash = forwardRef<RadialFlashRef, RadialFlashProps>(
     const fallbackId = useId().replace(/:/g, '')
     const playerId = nodeId ? `${RADIAL_FLASH_PREFIX}${nodeId}` : `${RADIAL_FLASH_PREFIX}${fallbackId}`
     const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const flashJson = useMemo(() => replaceFlashColor(radialFlashJson, flashColor), [flashColor])
 
@@ -88,37 +71,30 @@ export const RadialFlash = forwardRef<RadialFlashRef, RadialFlashProps>(
     useEffect(() => {
       if (!containerRef.current || initializedRef.current) return
       initializedRef.current = true
+      let cancelled = false
 
       const initPlayer = async () => {
-        await loadPlayerRuntime()
+        const loaded = await loadPlayerRuntime()
+        if (cancelled || !loaded || !window.TgsPlayer || !containerRef.current || playerRef.current) return
 
-        const waitForPlayer = () => {
-          if (window.TgsPlayer && containerRef.current && !playerRef.current) {
-            const cachedPlayer = playerCache.get(playerId)
-            if (cachedPlayer) {
-              playerRef.current = cachedPlayer
-              return
-            }
-
-            const el = document.getElementById(playerId)
-            if (el) el.innerHTML = ''
-            playerRef.current = new window.TgsPlayer!(flashJson, playerId)
-            playerCache.set(playerId, playerRef.current)
-          } else if (!window.TgsPlayer) {
-            pollTimerRef.current = setTimeout(waitForPlayer, 50)
-          }
+        const cachedPlayer = playerCache.get(playerId)
+        if (cachedPlayer) {
+          playerRef.current = cachedPlayer
+          return
         }
-        waitForPlayer()
+
+        const el = document.getElementById(playerId)
+        if (el) el.innerHTML = ''
+        playerRef.current = new window.TgsPlayer(flashJson, playerId)
+        playerCache.set(playerId, playerRef.current)
       }
 
       initPlayer()
 
       return () => {
+        cancelled = true
         if (stopTimerRef.current) {
           clearTimeout(stopTimerRef.current)
-        }
-        if (pollTimerRef.current) {
-          clearTimeout(pollTimerRef.current)
         }
         playerRef.current?.stop()
         playerRef.current = null

@@ -449,6 +449,84 @@ test.describe('Workflow tree Phase 3 flows', () => {
     expect(workflow.nodes.b.parent).toBe('a')
   })
 
+  test('drag hover expands a collapsed parent before reparenting and persists the drop', async ({ page }) => {
+    const workflowId = await createWorkflow(page)
+    await seedWorkflow(page, workflowId, {
+      root: { id: 'root', title: 'Root', children: ['source', 'target'] },
+      source: { id: 'source', parent: 'root', title: 'Drag me', children: [] },
+      target: {
+        id: 'target',
+        parent: 'root',
+        title: 'Collapsed target',
+        children: ['existing'],
+        collapsed: true,
+      },
+      existing: { id: 'existing', parent: 'target', title: 'Existing child', children: [] },
+    })
+
+    const tree = new WorkflowTreePage(page)
+    const source = tree.node('source')
+    const target = tree.node('target')
+    const [sourceBox, targetBox] = await Promise.all([source.boundingBox(), target.boundingBox()])
+    if (!sourceBox || !targetBox) throw new Error('Expected visible source and target rows')
+
+    await expect(tree.node('existing')).not.toBeVisible()
+    await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 8 })
+    await expect(tree.node('existing')).toBeVisible({ timeout: TIMEOUTS.EXPECT_DEFAULT })
+    await page.mouse.up()
+
+    await expect(tree.nodesAtDepth(2).filter({ hasText: 'Drag me' })).toHaveCount(1, {
+      timeout: TIMEOUTS.BACKEND_SYNC,
+    })
+    await page.reload()
+
+    const workflow = await readWorkflow(page, workflowId)
+    expect(workflow.nodes.target.children).toEqual(['existing', 'source'])
+    expect(workflow.nodes.source.parent).toBe('target')
+  })
+
+  test('/steps drag and manual prefix edits renumber sibling order and persist', async ({ page }) => {
+    const workflowId = await createWorkflow(page)
+    await seedWorkflow(page, workflowId, {
+      root: { id: 'root', title: 'Root', children: ['steps'] },
+      steps: {
+        id: 'steps',
+        parent: 'root',
+        title: 'Steps',
+        command: '/steps',
+        children: ['alpha', 'beta', 'gamma'],
+      },
+      alpha: { id: 'alpha', parent: 'steps', title: '#1 Alpha', children: [] },
+      beta: { id: 'beta', parent: 'steps', title: '#2 Beta', children: [] },
+      gamma: { id: 'gamma', parent: 'steps', title: '#3 Gamma', children: [] },
+    })
+
+    const tree = new WorkflowTreePage(page)
+    await dragNodeByPointer(tree.node('gamma'), tree.node('alpha'), 'before')
+    await expect.poll(() => titlesInOrder(tree.nodesAtDepth(2))).toEqual(['#1 Gamma', '#2 Alpha', '#3 Beta'])
+
+    await tree.node('beta').getByTestId('node-chip-title').dblclick()
+    const editor = tree.node('beta').locator('textarea')
+    await expect(editor).toBeVisible()
+    await editor.fill('#1 Beta')
+    await editor.press('Enter')
+    await expect.poll(() => titlesInOrder(tree.nodesAtDepth(2))).toEqual(['#1 Gamma', '#2 Beta', '#3 Alpha'])
+    await expect
+      .poll(async () => (await readWorkflow(page, workflowId)).nodes.steps.children, {
+        timeout: TIMEOUTS.BACKEND_SYNC,
+      })
+      .toEqual(['gamma', 'beta', 'alpha'])
+
+    await page.reload()
+    const workflow = await readWorkflow(page, workflowId)
+    expect(workflow.nodes.steps.children).toEqual(['gamma', 'beta', 'alpha'])
+    expect(workflow.nodes.gamma.title).toBe('#1 Gamma')
+    expect(workflow.nodes.beta.title).toBe('#2 Beta')
+    expect(workflow.nodes.alpha.title).toBe('#3 Alpha')
+  })
+
   test('drag marker is visible before dropping across all row zones', async ({ page }) => {
     const workflowId = await createWorkflow(page)
     await seedWorkflow(page, workflowId, {
