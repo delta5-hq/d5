@@ -402,28 +402,61 @@ describe('createWorkflowStore', () => {
       expect(store.getState().selectedId).toBe('b')
     })
 
-    it('projects ordinary, toggle, and range selection through persisted checked state', () => {
+    it('keeps ordinary, modifier, and range selection runtime-only', async () => {
+      const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+      const nodes = {
+        root: { id: 'root', title: 'Root', children: ['a', 'b', 'c'] },
+        a: { id: 'a', title: 'A', parent: 'root', children: [], checked: true },
+        b: { id: 'b', title: 'B', parent: 'root', children: [] },
+        c: { id: 'c', title: 'C', parent: 'root', children: [] },
+      }
+      store.setState({ nodes })
+
+      actions.select('b')
+      actions.toggleSelect('c')
+      actions.rangeSelect('c', ['a', 'b', 'c'])
+      actions.select(undefined)
+
+      expect(store.getState().nodes).toBe(nodes)
+      expect(store.getState().nodes.a.checked).toBe(true)
+      expect(store.getState().nodes.b.checked).toBeUndefined()
+      expect(store.getState().nodes.c.checked).toBeUndefined()
+      expect(store.getState().isDirty).toBe(false)
+      expect(store.getState().dirtyNodeIds).toEqual(new Set())
+      expect(await actions.persistNow()).toBe(true)
+      expect(vi.mocked(apiFetch)).not.toHaveBeenCalled()
+    })
+
+    it('persists explicit checkbox changes independently of ordinary selection', async () => {
+      vi.mocked(apiFetch).mockResolvedValue({})
       const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
       store.setState({
         nodes: {
-          root: { id: 'root', title: 'Root', children: ['a', 'b', 'c'] },
-          a: { id: 'a', title: 'A', parent: 'root', children: [] },
+          root: { id: 'root', title: 'Root', children: ['a', 'b'] },
+          a: { id: 'a', title: 'A', parent: 'root', children: [], checked: true },
           b: { id: 'b', title: 'B', parent: 'root', children: [] },
-          c: { id: 'c', title: 'C', parent: 'root', children: [] },
         },
       })
 
-      actions.select('a')
-      actions.toggleSelect('b')
+      actions.select('b')
+      actions.toggleChecked('b')
+
       expect(store.getState().nodes.a.checked).toBe(true)
       expect(store.getState().nodes.b.checked).toBe(true)
+      expect(store.getState().selectedIds).toEqual(new Set(['a', 'b']))
+      expect(store.getState().selectedId).toBe('b')
+      expect(store.getState().isDirty).toBe(true)
+      expect(store.getState().dirtyNodeIds).toEqual(new Set(['b']))
 
-      actions.rangeSelect('c', ['a', 'b', 'c'])
-      expect(store.getState().selectedIds).toEqual(new Set(['a', 'b', 'c']))
-      expect(store.getState().nodes.c.checked).toBe(true)
+      expect(await actions.persistNow()).toBe(true)
+      expect(vi.mocked(apiFetch)).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(apiFetch)).toHaveBeenCalledWith('/workflow/wf-test', expect.objectContaining({ method: 'PUT' }))
 
-      actions.select(undefined)
-      expect(Object.values(store.getState().nodes).some(node => node.checked)).toBe(false)
+      actions.select('a')
+      expect(store.getState().nodes.b.checked).toBe(true)
+      expect(store.getState().isDirty).toBe(false)
+      expect(await actions.persistNow()).toBe(true)
+      expect(vi.mocked(apiFetch)).toHaveBeenCalledTimes(1)
     })
 
     it('load evicts stale ids from selectedIds', async () => {
@@ -963,6 +996,12 @@ describe('createWorkflowStore', () => {
         vi.mocked(apiFetch).mockResolvedValueOnce(mockApiResponse).mockResolvedValue({})
         const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
         await actions.load()
+        store.setState({
+          nodes: {
+            ...store.getState().nodes,
+            c1: { ...store.getState().nodes.c1, checked: true },
+          },
+        })
 
         actions.removeNode('c1')
         expect(store.getState().nodes['c1']).toBeUndefined()
@@ -971,6 +1010,7 @@ describe('createWorkflowStore', () => {
 
         expect(store.getState().nodes['c1']).toBeDefined()
         expect(store.getState().nodes['c1']?.title).toBe('Child')
+        expect(store.getState().nodes['c1']?.checked).toBe(true)
       })
 
       it('bulk removal deletes each unique byte set and removes all node links', async () => {

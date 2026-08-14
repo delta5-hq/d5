@@ -58,7 +58,7 @@ const WorkflowSegmentTreeInner = ({
   useNodeCacheCleanup(nodeIds)
 
   const expandedIds = useWorkflowExpandedIds()
-  const { toggleExpanded, expandNode, toggleSelect, persistNow } = useWorkflowActions()
+  const { toggleExpanded, expandNode, toggleChecked, persistNow } = useWorkflowActions()
   const treeWalker = useTreeWalker({ nodes, rootId, expandedIds })
   const { scheduleNewNodeFlash } = useTreeAnimation()
   const hoverExpansionTimerRef = useRef<number | null>(null)
@@ -102,7 +102,7 @@ const WorkflowSegmentTreeInner = ({
   const handleToggleChecked = useStableCallback((nodeId: string) => {
     const node = nodes[nodeId]
     if (!node) return
-    toggleSelect(nodeId)
+    toggleChecked(nodeId)
     void persistNow()
   })
 

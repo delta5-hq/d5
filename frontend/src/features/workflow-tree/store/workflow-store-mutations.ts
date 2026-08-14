@@ -30,7 +30,6 @@ import {
 } from './workflow-attachment-lifecycle'
 import { reconcileRemoveFlush } from './workflow-remove-flush-reconciler'
 import type { ReadWorkflowFn } from './workflow-store-types'
-import { applyCheckedSelection } from './workflow-checked-selection'
 
 export type FormatMessage = (descriptor: { id: string }, values?: Record<string, string | number>) => string
 
@@ -168,13 +167,12 @@ export function bindMutationActions(
       const { dirtyNodeIds } = store.getState()
       const cleanedDirtyIds = excludeIds(dirtyNodeIds, removedSet)
       const finalNodes = stepsParentId ? applySequentialPrefixes(result.nodes, stepsParentId) : result.nodes
-      const checkedNodes = applyCheckedSelection(finalNodes, newSelectedIds).nodes
 
       if (attachmentReferences.length === 0) {
         historyStack.checkpoint({ nodes, edges, root: store.getState().root })
       }
       store.setState({
-        nodes: checkedNodes,
+        nodes: finalNodes,
         edges: result.edges,
         ...(selectionAffected && { selectedId: nextSelectedId }),
         ...(newSelectedIds !== selectedIds && { selectedIds: newSelectedIds }),
@@ -244,7 +242,6 @@ export function bindMutationActions(
     const anchorAffected = anchorId !== undefined && removedSet.has(anchorId)
     const { dirtyNodeIds } = store.getState()
     const cleanedDirtyIds = excludeIds(dirtyNodeIds, removedSet)
-    finalNodes = applyCheckedSelection(finalNodes, survivorIds).nodes
 
     if (attachmentReferences.length === 0) {
       historyStack.checkpoint({ nodes, edges, root: store.getState().root })
@@ -321,7 +318,6 @@ export function bindMutationActions(
       const nextSelectedIds = excludeIds(selectedIds, removedSet)
       const nextSelectedId = selectedId && removedSet.has(selectedId) ? parentId : selectedId
       if (nextSelectedId) nextSelectedIds.add(nextSelectedId)
-      nextNodes = applyCheckedSelection(nextNodes, nextSelectedIds).nodes
 
       if (references.length === 0) historyStack.checkpoint({ nodes, edges, root })
       store.setState({
@@ -371,8 +367,7 @@ export function bindMutationActions(
         () => wrapNodesInParent(nodes, edges, ordered),
         result => {
           const selectedIds = new Set([result.newParentId])
-          const checkedNodes = applyCheckedSelection(result.nodes, selectedIds).nodes
-          store.setState({ nodes: checkedNodes, edges: result.edges, selectedId: result.newParentId, selectedIds })
+          store.setState({ nodes: result.nodes, edges: result.edges, selectedId: result.newParentId, selectedIds })
         },
       )?.newParentId ?? null
     )

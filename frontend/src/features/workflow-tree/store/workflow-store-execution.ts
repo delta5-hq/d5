@@ -7,7 +7,6 @@ import type { DebouncedPersister } from './workflow-store-persistence'
 import { retainExistingIds } from './workflow-store-set-utils'
 import { notifyExecutionStarted, notifyExecutionCompleted, notifyExecutionAborted } from './execution-genie-bridge'
 import { generateNodeId } from '@shared/lib/generate-id'
-import { applyCheckedSelection } from './workflow-checked-selection'
 
 function addExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): void {
   store.setState(prev => ({
@@ -90,12 +89,8 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
           const emptyNode: NodeData = { id: emptyNodeId, title: '(no output)', parent: node.id }
           const updatedParent: NodeData = { ...parent, children: [...(parent.children ?? []), emptyNodeId] }
           const selectedIds = new Set<NodeId>()
-          const checkedNodes = applyCheckedSelection(
-            { ...prev.nodes, [node.id]: updatedParent, [emptyNodeId]: emptyNode },
-            selectedIds,
-          ).nodes
           return {
-            nodes: checkedNodes,
+            nodes: { ...prev.nodes, [node.id]: updatedParent, [emptyNodeId]: emptyNode },
             expandedIds: new Set([...prev.expandedIds, node.id]),
             selectedId: emptyNodeId,
             selectedIds,
@@ -134,11 +129,10 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
         shouldRevealChildren && merged.nodes[node.id]
           ? { ...merged.nodes, [node.id]: { ...merged.nodes[node.id], collapsed: false } }
           : merged.nodes
-      const checkedNodes = applyCheckedSelection(mergedNodes, cleanedIds).nodes
       const nextExpandedIds = shouldRevealChildren ? new Set([...current.expandedIds, node.id]) : current.expandedIds
 
       store.setState({
-        nodes: checkedNodes,
+        nodes: mergedNodes,
         edges: merged.edges ?? {},
         root: merged.root,
         isDirty: true,
@@ -167,12 +161,8 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
             const errorNode: NodeData = { id: errorNodeId, title: `Error: ${message}`, parent: node.id }
             const updatedParent: NodeData = { ...parent, children: [...(parent.children ?? []), errorNodeId] }
             const selectedIds = new Set<NodeId>()
-            const checkedNodes = applyCheckedSelection(
-              { ...prev.nodes, [node.id]: updatedParent, [errorNodeId]: errorNode },
-              selectedIds,
-            ).nodes
             return {
-              nodes: checkedNodes,
+              nodes: { ...prev.nodes, [node.id]: updatedParent, [errorNodeId]: errorNode },
               expandedIds: new Set([...prev.expandedIds, node.id]),
               selectedId: errorNodeId,
               selectedIds,

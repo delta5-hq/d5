@@ -14,7 +14,6 @@ import { isCommandlessTextNode, hasOnlyPromptChildren } from '@entities/workflow
 import { deleteWorkflowFile, uploadWorkflowFile } from '../api/workflow-file-api'
 import { toast } from 'sonner'
 import { attachFileChildTransaction } from './workflow-attachment-transaction'
-import { applyCheckedSelection } from './workflow-checked-selection'
 
 interface WorkflowApiResponse {
   _id: string
@@ -123,19 +122,11 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
   }
 
   const commitSelection = (selectedIds: Set<string>, selectedId: string | undefined, anchorId?: string) => {
-    const current = store.getState()
-    const checked = applyCheckedSelection(current.nodes, selectedIds)
     store.setState({
-      nodes: checked.nodes,
       selectedId,
       selectedIds,
       anchorId,
-      ...(checked.changedIds.length > 0 && {
-        isDirty: true,
-        dirtyNodeIds: new Set([...current.dirtyNodeIds, ...checked.changedIds]),
-      }),
     })
-    if (checked.changedIds.length > 0) persister.schedule()
   }
 
   const select = (nodeId: string | undefined) => {
@@ -164,6 +155,28 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     }
   }
 
+  const toggleChecked = (nodeId: string) => {
+    const current = store.getState()
+    const node = current.nodes[nodeId]
+    if (!node) return
+
+    const nodes = { ...current.nodes, [nodeId]: { ...node, checked: !node.checked } }
+    const selectedIds = new Set(
+      Object.values(nodes)
+        .filter(candidate => candidate.checked)
+        .map(candidate => candidate.id),
+    )
+    const selectedId = nodes[nodeId].checked ? nodeId : [...selectedIds].at(-1)
+    store.setState({
+      nodes,
+      selectedId,
+      selectedIds,
+      isDirty: true,
+      dirtyNodeIds: new Set([...current.dirtyNodeIds, nodeId]),
+    })
+    persister.schedule()
+  }
+
   const discard = () => {
     persister.cancel()
     load()
@@ -179,8 +192,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     const { nodes, edges, root } = store.getState()
     const prev = historyStack.undo({ nodes, edges, root })
     if (prev) {
-      const checked = applyCheckedSelection(prev.nodes, store.getState().selectedIds)
-      store.setState({ nodes: checked.nodes, edges: prev.edges, root: prev.root, isDirty: true })
+      store.setState({ nodes: prev.nodes, edges: prev.edges, root: prev.root, isDirty: true })
       persister.schedule()
     }
   }
@@ -189,8 +201,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     const { nodes, edges, root } = store.getState()
     const next = historyStack.redo({ nodes, edges, root })
     if (next) {
-      const checked = applyCheckedSelection(next.nodes, store.getState().selectedIds)
-      store.setState({ nodes: checked.nodes, edges: next.edges, root: next.root, isDirty: true })
+      store.setState({ nodes: next.nodes, edges: next.edges, root: next.root, isDirty: true })
       persister.schedule()
     }
   }
@@ -220,6 +231,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     select,
     toggleSelect,
     rangeSelect,
+    toggleChecked,
     discard,
     destroy,
     undo,

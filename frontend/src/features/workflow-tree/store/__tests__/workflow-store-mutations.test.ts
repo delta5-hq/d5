@@ -666,7 +666,7 @@ describe('bindMutationActions', () => {
       vi.mocked(removeNodePure).mockReturnValueOnce({
         nodes: {
           root: { id: 'root', children: ['b'] },
-          b: { id: 'b', parent: 'root' },
+          b: { id: 'b', parent: 'root', checked: true },
         },
         edges: {},
         removedNodeIds: ['a'],
@@ -676,7 +676,7 @@ describe('bindMutationActions', () => {
         nodes: {
           root: { id: 'root', children: ['a', 'b'] },
           a: { id: 'a', parent: 'root', children: [] },
-          b: { id: 'b', parent: 'root', children: [] },
+          b: { id: 'b', parent: 'root', children: [], checked: true },
         } as WorkflowStoreState['nodes'],
         selectedIds: new Set(['a', 'b']),
         selectedId: 'b',
@@ -689,6 +689,7 @@ describe('bindMutationActions', () => {
 
       expect(store.getState().selectedIds).toEqual(new Set(['b']))
       expect(store.getState().selectedId).toBe('b')
+      expect(store.getState().nodes.b.checked).toBe(true)
     })
 
     it('updates selectedId to last remaining selection after partial delete', async () => {
@@ -1120,7 +1121,7 @@ describe('wrapNodes action', () => {
   it('returns the new parent id and selects it', () => {
     const nodes: WorkflowStoreState['nodes'] = {
       root: { id: 'root', title: 'Root', children: ['a', 'b'] },
-      a: { id: 'a', title: 'A', parent: 'root', children: [] },
+      a: { id: 'a', title: 'A', parent: 'root', children: [], checked: true },
       b: { id: 'b', title: 'B', parent: 'root', children: [] },
     }
     const store = makeStore({ nodes })
@@ -1131,6 +1132,7 @@ describe('wrapNodes action', () => {
 
     expect(newId).toBeTruthy()
     expect(store.getState().selectedId).toBe(newId)
+    expect(store.getState().nodes.a.checked).toBe(true)
   })
 
   it('marks store dirty and schedules persist', () => {

@@ -19,6 +19,7 @@ function makeActions(): WorkflowStoreActions {
     select: vi.fn(),
     toggleSelect: vi.fn(),
     rangeSelect: vi.fn(),
+    toggleChecked: vi.fn(),
     toggleExpanded: vi.fn(),
     expandNode: vi.fn(),
     collapseNode: vi.fn(),

@@ -4,6 +4,7 @@ import { WorkflowTreePage } from './page-objects'
 import { TIMEOUTS } from './config/test-timeouts'
 
 interface WorkflowNodeReadback {
+  checked?: boolean
   file?: string
   title?: string
   parent?: string
@@ -44,6 +45,18 @@ async function readWorkflow(page: Page, workflowId: string): Promise<WorkflowRea
     if (!r.ok) throw new Error(`Workflow readback failed ${r.status}`)
     return r.json()
   }, workflowId)
+}
+
+function trackWorkflowMutationRequests(page: Page, workflowId: string): string[] {
+  const methods = new Set(['POST', 'PUT', 'PATCH'])
+  const requests: string[] = []
+  page.on('request', request => {
+    const url = new URL(request.url())
+    if (url.pathname === `/api/v2/workflow/${workflowId}` && methods.has(request.method())) {
+      requests.push(request.method())
+    }
+  })
+  return requests
 }
 
 async function expectChipInsidePanel(chip: Locator, panel: Locator, minimumWidth: number) {
@@ -610,7 +623,32 @@ test.describe('Workflow tree Phase 3 flows', () => {
     expect(readback).toEqual({ status: 200, body: 'hello' })
   })
 
-  test('mobile checkbox bulk selection persists checked state and desktop multi-select still works', async ({
+  test('ordinary node navigation stays saved and emits no workflow writes', async ({ page }) => {
+    const workflowId = await createWorkflow(page)
+    await seedWorkflow(page, workflowId, {
+      root: { id: 'root', title: 'Root', children: ['a', 'b'] },
+      a: { id: 'a', parent: 'root', title: 'A', children: [] },
+      b: { id: 'b', parent: 'root', title: 'B', children: [] },
+    })
+
+    const tree = new WorkflowTreePage(page)
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible()
+    const workflowWrites = trackWorkflowMutationRequests(page, workflowId)
+
+    await tree.selectNode('a')
+    await tree.selectNode('b')
+    await tree.treePanel.press('ArrowUp')
+    await tree.treePanel.press('Escape')
+    await page.waitForTimeout(600)
+
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible()
+    expect(workflowWrites).toEqual([])
+    const readback = await readWorkflow(page, workflowId)
+    expect(readback.nodes.a.checked).toBe(false)
+    expect(readback.nodes.b.checked).toBe(false)
+  })
+
+  test('mobile checkbox bulk selection persists checked state and desktop multi-select stays runtime-only', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 375, height: 667 })
@@ -622,9 +660,17 @@ test.describe('Workflow tree Phase 3 flows', () => {
     })
 
     const tree = new WorkflowTreePage(page)
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible()
+    const workflowWrites = trackWorkflowMutationRequests(page, workflowId)
     await tree.node('a').getByTestId('node-checkbox').click()
     await expect(tree.node('a').getByTestId('node-checkbox')).toBeChecked()
     await expect(tree.selectedNodes).toHaveCount(1)
+    await expect.poll(() => workflowWrites.length, { timeout: TIMEOUTS.BACKEND_SYNC }).toBe(1)
+
+    await tree.selectNode('b')
+    await page.waitForTimeout(600)
+    expect(workflowWrites).toHaveLength(1)
+    expect((await readWorkflow(page, workflowId)).nodes.a.checked).toBe(true)
 
     await page.reload()
     await expect(tree.node('a').getByTestId('node-checkbox')).toBeChecked({ timeout: TIMEOUTS.BACKEND_SYNC })
@@ -635,5 +681,7 @@ test.describe('Workflow tree Phase 3 flows', () => {
     await expect(tree.selectedNodes).toHaveCount(1)
     await tree.ctrlClickNode('b')
     await expect(tree.selectedNodes).toHaveCount(2)
+    await page.waitForTimeout(600)
+    expect(workflowWrites).toHaveLength(1)
   })
 })

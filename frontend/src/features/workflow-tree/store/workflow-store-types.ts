@@ -29,6 +29,7 @@ export interface WorkflowStoreActions {
   select: (nodeId: NodeId | undefined) => void
   toggleSelect: (nodeId: NodeId) => void
   rangeSelect: (targetId: NodeId, visibleOrder: readonly string[]) => void
+  toggleChecked: (nodeId: NodeId) => void
 
   toggleExpanded: (nodeId: NodeId) => void
   expandNode: (nodeId: NodeId) => void

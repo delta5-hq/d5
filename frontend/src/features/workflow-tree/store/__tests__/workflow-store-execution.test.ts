@@ -1111,7 +1111,7 @@ describe('bindExecuteAction', () => {
       expect(store.getState().selectedId).toBeUndefined()
     })
 
-    it('clears selectedIds when auto-selecting a new child', async () => {
+    it('clears runtime multi-selection but preserves checked state when auto-selecting a new child', async () => {
       vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({
         nodesChanged: { child1: { id: 'child1', parent: 'n1' } },
       })
@@ -1133,7 +1133,7 @@ describe('bindExecuteAction', () => {
 
       expect(store.getState().selectedId).toBe('child1')
       expect(store.getState().selectedIds.size).toBe(0)
-      expect(store.getState().nodes.n1.checked).toBe(false)
+      expect(store.getState().nodes.n1.checked).toBe(true)
     })
 
     it('clears selectedIds when auto-selecting among multiple new children', async () => {
@@ -1373,7 +1373,7 @@ describe('bindExecuteAction', () => {
       expect(store.getState().nodes[children[0]].parent).toBe('n1')
     })
 
-    it('auto-selects the (no output) child when backend returns empty nodesChanged', async () => {
+    it('auto-selects the (no output) child without clearing checked state', async () => {
       vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
 
       const store = makeStore({
@@ -1386,7 +1386,7 @@ describe('bindExecuteAction', () => {
       const children = store.getState().nodes['n1'].children ?? []
       expect(store.getState().selectedId).toBe(children[0])
       expect(store.getState().selectedIds.size).toBe(0)
-      expect(store.getState().nodes.n1.checked).toBe(false)
+      expect(store.getState().nodes.n1.checked).toBe(true)
     })
 
     it('expands the executed node when backend returns empty nodesChanged', async () => {
@@ -1431,7 +1431,7 @@ describe('bindExecuteAction', () => {
   })
 
   describe('error child auto-selection on API failure', () => {
-    it('auto-selects the error child node when API call fails', async () => {
+    it('auto-selects the error child without clearing checked state when the API call fails', async () => {
       vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(new Error('boom'))
 
       const store = makeStore({
@@ -1445,7 +1445,7 @@ describe('bindExecuteAction', () => {
       expect(children).toHaveLength(1)
       expect(store.getState().selectedId).toBe(children[0])
       expect(store.getState().selectedIds.size).toBe(0)
-      expect(store.getState().nodes.n1.checked).toBe(false)
+      expect(store.getState().nodes.n1.checked).toBe(true)
     })
 
     it('does not auto-select when execution is aborted (no error child created)', async () => {
