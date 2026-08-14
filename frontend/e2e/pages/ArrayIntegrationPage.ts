@@ -71,23 +71,21 @@ export class ArrayIntegrationPage {
 
   private async activateIntegrationsTab(): Promise<void> {
     const integrationsTab = this.page.locator('[role="tab"]:has-text("Integrations")').first()
+    const addIntegrationButton = this.page.locator('[data-type="add-integration"]')
 
-    if ((await integrationsTab.count()) === 0) {
-      return
+    await integrationsTab.or(addIntegrationButton).first().waitFor({ state: 'visible', timeout: TIMEOUTS.apiResponse })
+
+    if (await integrationsTab.isVisible()) {
+      await integrationsTab.scrollIntoViewIfNeeded()
+
+      if ((await integrationsTab.getAttribute('data-state')) !== 'active') {
+        await integrationsTab.click()
+      }
+
+      await expect(integrationsTab).toHaveAttribute('data-state', 'active', { timeout: TIMEOUTS.dialogAppear })
     }
 
-    await integrationsTab.scrollIntoViewIfNeeded()
-    await integrationsTab.waitFor({ state: 'visible', timeout: TIMEOUTS.dialogAppear })
-
-    if ((await integrationsTab.getAttribute('data-state')) !== 'active') {
-      await integrationsTab.click()
-    }
-
-    await expect(integrationsTab).toHaveAttribute('data-state', 'active', { timeout: TIMEOUTS.dialogAppear })
-
-    await this.page
-      .locator('[data-type="add-integration"]')
-      .waitFor({ state: 'visible', timeout: TIMEOUTS.dialogAppear })
+    await addIntegrationButton.waitFor({ state: 'visible', timeout: TIMEOUTS.dialogAppear })
 
     await waitForIntegrationCategoryReady(this.page, TIMEOUTS.apiResponse)
   }
