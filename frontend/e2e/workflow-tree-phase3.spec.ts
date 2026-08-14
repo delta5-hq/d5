@@ -5,6 +5,7 @@ import { TIMEOUTS } from './config/test-timeouts'
 
 interface WorkflowNodeReadback {
   checked?: boolean
+  collapsed?: boolean
   file?: string
   title?: string
   parent?: string
@@ -213,6 +214,34 @@ test.describe('Workflow tree Phase 3 flows', () => {
     expect(workflow.nodes.plain.prompts).toHaveLength(3)
   })
 
+  test('root collapse hides descendants and survives reload', async ({ page }) => {
+    const workflowId = await createWorkflow(page)
+    await seedWorkflow(page, workflowId, {
+      root: { id: 'root', title: 'Root', children: ['child'], collapsed: false },
+      child: { id: 'child', parent: 'root', title: 'Child', children: [] },
+    })
+
+    const tree = new WorkflowTreePage(page)
+    await expect(tree.node('child')).toBeVisible()
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible()
+    const workflowWrites = trackWorkflowMutationRequests(page, workflowId)
+
+    await tree.toggleNodeExpand('root')
+    await expect(tree.node('child')).toHaveCount(0)
+    await expect.poll(() => workflowWrites.length, { timeout: TIMEOUTS.BACKEND_SYNC }).toBe(1)
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible()
+    expect((await readWorkflow(page, workflowId)).nodes.root.collapsed).toBe(true)
+
+    await page.reload()
+    await expect(tree.node('root')).toBeVisible()
+    await expect(tree.node('child')).toHaveCount(0)
+
+    await tree.toggleNodeExpand('root')
+    await expect(tree.node('child')).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+    await expect.poll(() => workflowWrites.length, { timeout: TIMEOUTS.BACKEND_SYNC }).toBe(2)
+    expect((await readWorkflow(page, workflowId)).nodes.root.collapsed).toBe(false)
+  })
+
   test('mobile lazy-split descendants keep chips readable inside the tree panel', async ({ page }) => {
     await page.setViewportSize(COMPACT_VIEWPORT)
     const workflowId = await createWorkflow(page)
@@ -305,7 +334,7 @@ test.describe('Workflow tree Phase 3 flows', () => {
     // d1nocmd: depth-1, no command (one-chip layout, different budget split)
     // d2: depth-2 (deepest indent — highest chip starvation risk)
     await seedWorkflow(page, workflowId, {
-      root: { id: 'root', title: 'Root', children: ['d1cmd', 'd1nocmd'] },
+      root: { id: 'root', title: 'Root', children: ['d1cmd', 'd1nocmd'], collapsed: true },
       d1cmd: { id: 'd1cmd', parent: 'root', title: 'Cmd node', command: '/steps', children: ['d2'], collapsed: true },
       d1nocmd: { id: 'd1nocmd', parent: 'root', title: 'Cmdless node', children: [] },
       d2: { id: 'd2', parent: 'd1cmd', title: 'Depth-2 node', children: [] },
@@ -331,7 +360,7 @@ test.describe('Workflow tree Phase 3 flows', () => {
     // Both command (two-chip layout) and command-less (one-chip) variants: selected state must
     // restore button interactivity regardless of how the horizontal budget is divided.
     await seedWorkflow(page, workflowId, {
-      root: { id: 'root', title: 'Root', children: ['childcmd', 'childnocmd'] },
+      root: { id: 'root', title: 'Root', children: ['childcmd', 'childnocmd'], collapsed: true },
       childcmd: { id: 'childcmd', parent: 'root', title: 'Cmd child', command: '/steps', children: [] },
       childnocmd: { id: 'childnocmd', parent: 'root', title: 'Cmdless child', children: [] },
     })
@@ -353,7 +382,7 @@ test.describe('Workflow tree Phase 3 flows', () => {
     await page.setViewportSize(COMPACT_VIEWPORT)
     const workflowId = await createWorkflow(page)
     await seedWorkflow(page, workflowId, {
-      root: { id: 'root', title: 'Root', children: ['child'] },
+      root: { id: 'root', title: 'Root', children: ['child'], collapsed: true },
       child: { id: 'child', parent: 'root', title: 'Child node', children: [] },
     })
 
@@ -380,7 +409,7 @@ test.describe('Workflow tree Phase 3 flows', () => {
     // Both command and command-less layouts: group-hover must activate buttons at desktop
     // (the compact-viewport pointer-events suppression applies only at ≤40rem / 640px).
     await seedWorkflow(page, workflowId, {
-      root: { id: 'root', title: 'Root', children: ['childcmd', 'childnocmd'] },
+      root: { id: 'root', title: 'Root', children: ['childcmd', 'childnocmd'], collapsed: true },
       childcmd: { id: 'childcmd', parent: 'root', title: 'Cmd child', command: '/chat hello', children: [] },
       childnocmd: { id: 'childnocmd', parent: 'root', title: 'Cmdless child', children: [] },
     })

@@ -53,10 +53,21 @@ describe('createTreeWalker — single root', () => {
     expect(results[0].id).toBe('r')
   })
 
-  it('root is always open regardless of expandedIds', () => {
+  it('root defaults open when collapsed state is absent', () => {
     const data: FlatTreeData = { nodes: { r: makeNode('r', ['c']) }, rootId: 'r', expandedIds: new Set() }
     const results = collectWalker(data)
     expect(results[0].isOpen).toBe(true)
+  })
+
+  it('persisted collapsed root is closed and hides its children', () => {
+    const nodes = { r: { ...makeNode('r', ['c']), collapsed: true }, c: makeNode('c') }
+    const data: FlatTreeData = { nodes, rootId: 'r', expandedIds: new Set() }
+    const results = collectWalker(data)
+
+    expect(results).toHaveLength(1)
+    expect(results[0].id).toBe('r')
+    expect(results[0].isOpen).toBe(false)
+    expect(results[0].isOpenByDefault).toBe(false)
   })
 
   it('root has depth 0', () => {

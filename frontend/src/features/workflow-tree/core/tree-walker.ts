@@ -61,7 +61,7 @@ export function* createTreeWalker(treeData: FlatTreeData, refresh: boolean) {
     visitedIds.add(node.id)
 
     const isRootNode = node.id === rootId
-    const isOpen = isRootNode || expandedIds.has(node.id)
+    const isOpen = expandedIds.has(node.id) || (isRootNode && node.collapsed !== true)
     const hasChildren = Boolean(node.children?.length)
     const isPrompt = isPromptNode(node.id, nodes)
     const thisRowIndex = currentRowIndex
@@ -80,7 +80,7 @@ export function* createTreeWalker(treeData: FlatTreeData, refresh: boolean) {
         node,
         depth,
         isOpen,
-        isOpenByDefault: isRootNode,
+        isOpenByDefault: isRootNode && node.collapsed !== true,
         hasChildren,
         isPrompt,
         ancestorContinuation,
