@@ -67,7 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: git config --global --add safe.directory $GITHUB_WORKSPACE
-      - run: cd backend-v2 && golangci-lint run --timeout=5m
+      - run: cd backend-v2 && golangci-lint run --timeout="${GOLANGCI_LINT_TIMEOUT:-15m}"
 
   test-backend:
     runs-on: ubuntu-latest

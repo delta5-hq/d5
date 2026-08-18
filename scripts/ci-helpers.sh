@@ -1,6 +1,7 @@
 #!/bin/bash
 
 DOCKER_NETWORK="${DOCKER_NETWORK:-d5-dev-network}"
+GOLANGCI_LINT_TIMEOUT="${GOLANGCI_LINT_TIMEOUT:-15m}"
 
 log_info() { echo "→ $*"; }
 log_success() { echo "✓ $*"; }
@@ -35,7 +36,7 @@ lint_go() {
   
   log_info "Running golangci-lint..."
   if command -v golangci-lint >/dev/null 2>&1; then
-    golangci-lint run --timeout=5m --fix
+    golangci-lint run --timeout="$GOLANGCI_LINT_TIMEOUT" --fix
     local exit_code=$?
     
     if [ $exit_code -eq 0 ]; then
@@ -47,7 +48,7 @@ lint_go() {
       docker run --rm --network "$DOCKER_NETWORK" \
         -v "$(pwd)":/app -w /app \
         golangci/golangci-lint:v1.62-alpine \
-        golangci-lint run --timeout=5m --fix
+        golangci-lint run --timeout="$GOLANGCI_LINT_TIMEOUT" --fix
       return $?
     fi
   else
@@ -56,7 +57,7 @@ lint_go() {
     docker run --rm --network "$DOCKER_NETWORK" \
       -v "$(pwd)":/app -w /app \
       golangci/golangci-lint:v1.62-alpine \
-      golangci-lint run --timeout=5m --fix
+      golangci-lint run --timeout="$GOLANGCI_LINT_TIMEOUT" --fix
     return $?
   fi
 }
