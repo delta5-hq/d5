@@ -585,8 +585,8 @@ describe('ValidateCommand.run', () => {
   })
 })
 
-describe('auto-grandparent traversal for descendant topology', () => {
-  it('when validate parent is /refine, extracts content from /refine grandparent', async () => {
+describe('refine-local validation content', () => {
+  it("when validate parent is /refine with no prompts, walks up to /refine's parent for content", async () => {
     const store = buildStore({
       grandparent: {
         id: 'grandparent',
@@ -622,7 +622,7 @@ describe('auto-grandparent traversal for descendant topology', () => {
     expect(result.passed).toBe(true)
   })
 
-  it('fails when /refine has no grandparent and yields no content', async () => {
+  it('fails when /refine itself yields no content', async () => {
     const store = buildStore({
       refine: {id: 'refine', command: '/refine :n=2', children: ['v']},
       v: {
@@ -642,6 +642,85 @@ describe('auto-grandparent traversal for descendant topology', () => {
       criterion: 'must include numbers',
       reason: 'parent output is empty',
     })
+  })
+
+  it('falls through to extractor when /refine has no prompts and grandparent yields empty content', async () => {
+    const store = buildStore({
+      grandparent: {
+        id: 'grandparent',
+        command: '/chat do task',
+        children: ['refine'],
+        prompts: [],
+      },
+      refine: {
+        id: 'refine',
+        parent: 'grandparent',
+        command: '/refine :n=2',
+        children: ['v'],
+        prompts: [],
+      },
+      v: {
+        id: 'v',
+        parent: 'refine',
+        command: '/validate must include numbers',
+        children: [],
+      },
+    })
+    setupLLM(['NO: missing'])
+    NodeTextExtractor.mockImplementation(() => ({
+      extractFullContent: jest.fn().mockResolvedValue(''),
+    }))
+
+    const cmd = new ValidateCommand('user1', null, store)
+    const result = await cmd.run(store.getNode('v'))
+
+    expect(result).toEqual({
+      passed: false,
+      criterion: 'must include numbers',
+      reason: 'parent output is empty',
+    })
+  })
+
+  it('when /refine prompts array has a stale id (node absent from store), falls through to grandparent content', async () => {
+    const store = buildStore({
+      grandparent: {
+        id: 'grandparent',
+        command: '/chat do task',
+        children: ['refine'],
+        prompts: ['grandparent-output'],
+      },
+      'grandparent-output': {
+        id: 'grandparent-output',
+        parent: 'grandparent',
+        title: 'grandparent content with numbers: 42',
+        children: [],
+      },
+      refine: {
+        id: 'refine',
+        parent: 'grandparent',
+        command: '/refine :n=2',
+        children: ['v'],
+        prompts: ['dangling-id'], // stale: node does not exist in store
+      },
+      v: {
+        id: 'v',
+        parent: 'refine',
+        command: '/validate must include numbers',
+        children: [],
+      },
+    })
+    setupLLM(['YES'])
+    NodeTextExtractor.mockImplementation(() => ({
+      extractFullContent: jest.fn().mockImplementation(node => Promise.resolve(node.title ?? '')),
+    }))
+
+    const cmd = new ValidateCommand('user1', null, store)
+    const result = await cmd.run(store.getNode('v'))
+
+    // Stale prompt ID does not resolve in store → hasMaterializedPromptOutput returns false
+    // → falls through to grandparent → receives "grandparent content with numbers: 42"
+    // → juror passes the "must include numbers" criterion
+    expect(result.passed).toBe(true)
   })
 
   it('normal topology (validate parent is /chat, not /refine) is unaffected', async () => {
@@ -667,5 +746,216 @@ describe('auto-grandparent traversal for descendant topology', () => {
     await cmd.run(store.getNode('v'))
 
     expect(capturedNode).toBe(store.getNode('chat'))
+  })
+
+  it('when validate parent is /refine with materialized prompts, validates the winner prompt node — does not walk up to grandparent', async () => {
+    const store = buildStore({
+      grandparent: {
+        id: 'grandparent',
+        command: '/chat do task',
+        children: ['refine'],
+        prompts: ['grandparent-output'],
+      },
+      'grandparent-output': {
+        id: 'grandparent-output',
+        parent: 'grandparent',
+        title: 'grandparent output — must NOT be used',
+        children: [],
+      },
+      refine: {
+        id: 'refine',
+        parent: 'grandparent',
+        command: '/refine :n=2',
+        children: ['v'],
+        prompts: ['refine-winner'],
+      },
+      'refine-winner': {
+        id: 'refine-winner',
+        parent: 'refine',
+        title: 'refine winner content with 42 numbers',
+        children: [],
+      },
+      v: {
+        id: 'v',
+        parent: 'refine',
+        command: '/validate must include numbers',
+        children: [],
+      },
+    })
+    setupLLM(['YES'])
+    const capturedNodes = []
+    NodeTextExtractor.mockImplementation(() => ({
+      extractFullContent: jest.fn().mockImplementation(node => {
+        capturedNodes.push(node)
+        return Promise.resolve(node.title ?? '')
+      }),
+    }))
+
+    const cmd = new ValidateCommand('user1', null, store)
+    const result = await cmd.run(store.getNode('v'))
+
+    const visitedIds = capturedNodes.map(n => n.id)
+    expect(visitedIds).toContain('refine-winner')
+    expect(visitedIds).not.toContain('grandparent-output')
+    expect(result.passed).toBe(true)
+  })
+
+  it('when validate parent is /refine with materialized prompts, a failing criterion discriminates against grandparent content', async () => {
+    const store = buildStore({
+      grandparent: {
+        id: 'grandparent',
+        command: '/chat do task',
+        children: ['refine'],
+        prompts: ['grandparent-output'],
+      },
+      'grandparent-output': {
+        id: 'grandparent-output',
+        parent: 'grandparent',
+        title: 'grandparent content also has numbers: 42',
+        children: [],
+      },
+      refine: {
+        id: 'refine',
+        parent: 'grandparent',
+        command: '/refine :n=2',
+        children: ['v'],
+        prompts: ['refine-winner'],
+      },
+      'refine-winner': {
+        id: 'refine-winner',
+        parent: 'refine',
+        title: 'refine winner output: no digits here',
+        children: [],
+      },
+      v: {
+        id: 'v',
+        parent: 'refine',
+        command: '/validate must include numbers',
+        children: [],
+      },
+    })
+    // grandparent content would pass (has "42"), refine's own output would not (no digits)
+    // the verdict proves which content the judge received
+    setupLLM(['NO: no numbers found'])
+    NodeTextExtractor.mockImplementation(() => ({
+      extractFullContent: jest.fn().mockImplementation(node => Promise.resolve(node.title ?? '')),
+    }))
+
+    const cmd = new ValidateCommand('user1', null, store)
+    const result = await cmd.run(store.getNode('v'))
+
+    expect(result.passed).toBe(false)
+  })
+})
+
+describe('nested /refine: /validate checks nearest-enclosing refine winner, not outer refine', () => {
+  // Structure:
+  //   outerRefine (/refine :n=2)
+  //     └── innerRefine (/refine :n=2)
+  //           ├── innerWinner  ← the content /validate must check
+  //           └── v (/validate)
+  //   outerWinner ← outer refine's winner; must NOT be used by v
+  //
+  // Criterion: "must contain INNER" passes for innerWinner, fails for outerWinner.
+  // If the walk-up logic mistakenly escapes to outerRefine's prompts, the test sees outerWinner's
+  // content and the juror response doesn't match — a discriminating failure.
+
+  it('passes on inner-refine winner content and would fail on outer-refine content', async () => {
+    const store = buildStore({
+      outerRefine: {
+        id: 'outerRefine',
+        command: '/refine :n=2',
+        children: ['innerRefine'],
+        prompts: ['outerWinner'],
+        parent: null,
+      },
+      outerWinner: {
+        id: 'outerWinner',
+        parent: 'outerRefine',
+        title: 'outer refine winner: OUTER content only',
+        children: [],
+      },
+      innerRefine: {
+        id: 'innerRefine',
+        parent: 'outerRefine',
+        command: '/refine :n=2',
+        children: ['v'],
+        prompts: ['innerWinner'],
+      },
+      innerWinner: {
+        id: 'innerWinner',
+        parent: 'innerRefine',
+        title: 'inner refine winner: INNER content',
+        children: [],
+      },
+      v: {
+        id: 'v',
+        parent: 'innerRefine',
+        command: '/validate must contain INNER',
+        children: [],
+      },
+    })
+
+    setupLLM(['YES'])
+    NodeTextExtractor.mockImplementation(() => ({
+      extractFullContent: jest.fn().mockImplementation(node => Promise.resolve(node.title ?? '')),
+    }))
+
+    const cmd = new ValidateCommand('user1', null, store)
+    const result = await cmd.run(store.getNode('v'))
+
+    // Passes because innerWinner's title contains "INNER".
+    // Would fail if the outer winner ("OUTER content only") were used instead.
+    expect(result.passed).toBe(true)
+  })
+
+  it('fails when inner-refine winner does not satisfy the criterion, even if outer winner would pass', async () => {
+    const store = buildStore({
+      outerRefine: {
+        id: 'outerRefine',
+        command: '/refine :n=2',
+        children: ['innerRefine'],
+        prompts: ['outerWinner'],
+        parent: null,
+      },
+      outerWinner: {
+        id: 'outerWinner',
+        parent: 'outerRefine',
+        title: 'outer winner has INNER too — must not mislead the validate',
+        children: [],
+      },
+      innerRefine: {
+        id: 'innerRefine',
+        parent: 'outerRefine',
+        command: '/refine :n=2',
+        children: ['v'],
+        prompts: ['innerWinner'],
+      },
+      innerWinner: {
+        id: 'innerWinner',
+        parent: 'innerRefine',
+        title: 'inner winner: only OUTER keyword here',
+        children: [],
+      },
+      v: {
+        id: 'v',
+        parent: 'innerRefine',
+        command: '/validate must contain INNER',
+        children: [],
+      },
+    })
+
+    setupLLM(['NO: keyword INNER not found'])
+    NodeTextExtractor.mockImplementation(() => ({
+      extractFullContent: jest.fn().mockImplementation(node => Promise.resolve(node.title ?? '')),
+    }))
+
+    const cmd = new ValidateCommand('user1', null, store)
+    const result = await cmd.run(store.getNode('v'))
+
+    // Fails because innerWinner's title does NOT contain "INNER".
+    // The outer winner's title does — proving the test would give a false PASS
+    // if the outer refine's content were used. This discriminates the two paths.
+    expect(result.passed).toBe(false)
   })
 })

@@ -1,6 +1,9 @@
 import {runCommand} from './runCommand'
 import {CriteriaFailedError} from '../../reliability/core/CriteriaFailedError'
 import {ValidateCommand} from '../../reliability/core/ValidateCommand'
+import {MCPCommand} from '../MCPCommand'
+import {MCP_FUSION_QUERY_TYPE} from '../../constants/mcpFusion'
+import {MCPFusionCommand} from '../MCPFusionCommand'
 import Store from './Store'
 import {writeCachedIntegrationSettings} from './langchain/getLLM'
 import {MOCK_VERIFIER_FAIL_KEYWORD, MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX} from './langchain/noopLLM/ResponsePlanner'
@@ -21,15 +24,29 @@ jest.mock('../../ProgressReporter', () => ({
   })),
 }))
 
-jest.mock('../../reliability/core/resolveRefineCell', () => ({resolveRefineCell: jest.fn()}))
+jest.mock('../../reliability/core/resolveRefineCell', () => ({
+  resolveRefineCell: jest.fn(),
+}))
 jest.mock('../../reliability/core/RefineTopology', () => jest.fn(() => []))
-jest.mock('../internalResearch/MemorizeDispatcher', () => ({dispatchMemorize: jest.fn()}))
+jest.mock('../internalResearch/MemorizeDispatcher', () => ({
+  dispatchMemorize: jest.fn(),
+}))
 
 const buildStore = nodeMap => new Store({userId: 'user1', nodes: nodeMap})
 
-const chatRoot = (children, command = '/chat do task') => ({id: 'root', parent: null, command, children})
+const chatRoot = (children, command = '/chat do task') => ({
+  id: 'root',
+  parent: null,
+  command,
+  children,
+})
 
-const validateNode = (id, command) => ({id, parent: 'root', command, children: []})
+const validateNode = (id, command) => ({
+  id,
+  parent: 'root',
+  command,
+  children: [],
+})
 
 const treeWithValidates = (...validateCommands) => {
   const ids = validateCommands.map((_, i) => `v${i}`)
@@ -63,7 +80,11 @@ describe('runCommand \u2014 /validate: CriteriaFailedError propagates when retri
 
     let thrown
     try {
-      await runCommand({queryType: 'chat', cell: store.getNode('root'), store})
+      await runCommand({
+        queryType: 'chat',
+        cell: store.getNode('root'),
+        store,
+      })
     } catch (e) {
       thrown = e
     } finally {
@@ -82,7 +103,11 @@ describe('runCommand \u2014 /validate: CriteriaFailedError propagates when retri
 
     let thrown
     try {
-      await runCommand({queryType: 'chat', cell: store.getNode('root'), store})
+      await runCommand({
+        queryType: 'chat',
+        cell: store.getNode('root'),
+        store,
+      })
     } catch (e) {
       thrown = e
     } finally {
@@ -101,7 +126,11 @@ describe('runCommand \u2014 /validate: CriteriaFailedError propagates when retri
 
     let thrown
     try {
-      await runCommand({queryType: 'chat', cell: store.getNode('root'), store})
+      await runCommand({
+        queryType: 'chat',
+        cell: store.getNode('root'),
+        store,
+      })
     } catch (e) {
       thrown = e
     } finally {
@@ -119,11 +148,24 @@ describe('runCommand \u2014 /validate: [\u2713] suffix on successful validation'
     const signal = new AbortController().signal
     const validateSpy = jest
       .spyOn(ValidateCommand.prototype, 'run')
-      .mockResolvedValueOnce({passed: false, criterion: 'criterion', reason: 'missing detail'})
-      .mockResolvedValueOnce({passed: true, criterion: 'criterion', reason: ''})
+      .mockResolvedValueOnce({
+        passed: false,
+        criterion: 'criterion',
+        reason: 'missing detail',
+      })
+      .mockResolvedValueOnce({
+        passed: true,
+        criterion: 'criterion',
+        reason: '',
+      })
     const spy = chatSpy()
 
-    await runCommand({queryType: 'chat', cell: store.getNode('root'), store, signal})
+    await runCommand({
+      queryType: 'chat',
+      cell: store.getNode('root'),
+      store,
+      signal,
+    })
 
     expect(spy).toHaveBeenCalledTimes(2)
     expect(spy.mock.calls.map(call => call[3])).toEqual([{signal}, {signal}])
@@ -210,7 +252,11 @@ describe('runCommand \u2014 /validate: [\u2717 N\u00d7] suffix on failed validat
     const validateSpy = alwaysFail()
     const spy = chatSpy()
 
-    await runCommand({queryType: 'chat', cell: store.getNode('root'), store}).catch(() => {})
+    await runCommand({
+      queryType: 'chat',
+      cell: store.getNode('root'),
+      store,
+    }).catch(() => {})
     spy.mockRestore()
     validateSpy.mockRestore()
 
@@ -222,7 +268,11 @@ describe('runCommand \u2014 /validate: [\u2717 N\u00d7] suffix on failed validat
     const validateSpy = alwaysFail()
     const spy = chatSpy()
 
-    await runCommand({queryType: 'chat', cell: store.getNode('root'), store}).catch(() => {})
+    await runCommand({
+      queryType: 'chat',
+      cell: store.getNode('root'),
+      store,
+    }).catch(() => {})
     spy.mockRestore()
     validateSpy.mockRestore()
 
@@ -234,7 +284,11 @@ describe('runCommand \u2014 /validate: [\u2717 N\u00d7] suffix on failed validat
     const validateSpy = alwaysFail('criterion-A')
     const spy = chatSpy()
 
-    await runCommand({queryType: 'chat', cell: store.getNode('root'), store}).catch(() => {})
+    await runCommand({
+      queryType: 'chat',
+      cell: store.getNode('root'),
+      store,
+    }).catch(() => {})
     spy.mockRestore()
     validateSpy.mockRestore()
 
@@ -249,7 +303,11 @@ describe('runCommand \u2014 /validate: [\u2717 N\u00d7] suffix on failed validat
 
     let titleAtThrowTime
     try {
-      await runCommand({queryType: 'chat', cell: store.getNode('root'), store})
+      await runCommand({
+        queryType: 'chat',
+        cell: store.getNode('root'),
+        store,
+      })
     } catch {
       titleAtThrowTime = store.getNode('v0').title
     } finally {
@@ -266,13 +324,128 @@ describe('runCommand \u2014 /validate: [\u2717 N\u00d7] suffix on failed validat
     const validateSpy = alwaysFail()
     const spy = chatSpy()
 
-    await runCommand({queryType: 'chat', cell: store.getNode('root'), store}).catch(() => {})
+    await runCommand({
+      queryType: 'chat',
+      cell: store.getNode('root'),
+      store,
+    }).catch(() => {})
     spy.mockRestore()
     validateSpy.mockRestore()
 
     const title = store.getNode('v0').title
     expect(title).toMatch(/\[\u2717 1\u00d7\]/)
     expect(title).not.toMatch(/\[\u2713\]/)
+  })
+})
+
+describe('runCommand \u2014 /validate :retry side-effect containment', () => {
+  const sideEffectingMcpAlias = {
+    alias: '/qa-mcp',
+    serverUrl: 'http://localhost:3100/mcp',
+    transport: 'streamable-http',
+    toolName: 'run',
+  }
+
+  it('withholds validation retry for an MCP alias parent after one external execution', async () => {
+    const root = {
+      id: 'root',
+      parent: null,
+      command: '/qa-mcp perform external mutation',
+      children: ['v0'],
+    }
+    const store = buildStore({
+      root,
+      v0: validateNode('v0', '/validate criterion :retry=2'),
+    })
+    const mcpRun = jest.spyOn(MCPCommand.prototype, 'run').mockImplementation(async function (node) {
+      this.store.createNode({id: 'external-result', parent: node.id, title: 'external result'}, true)
+    })
+    const validateSpy = alwaysFail()
+
+    await expect(
+      runCommand({
+        queryType: 'mcp:qa-mcp',
+        cell: store.getNode('root'),
+        store,
+        mcpAlias: sideEffectingMcpAlias,
+      }),
+    ).resolves.toBeUndefined()
+
+    expect(mcpRun).toHaveBeenCalledTimes(1)
+    expect(validateSpy).toHaveBeenCalledTimes(1)
+    expect(store.getNode('v0').title).toMatch(/\[✗ 1×\]/)
+    expect(store.getNode('v0').reliabilityMetadata).toEqual(
+      expect.objectContaining({
+        mode: 'invalid',
+        retryWithheld: true,
+        cause: 'side-effecting-alias',
+        requestedRetry: 2,
+        failureCause: 'criteria-failed',
+      }),
+    )
+
+    mcpRun.mockRestore()
+    validateSpy.mockRestore()
+  })
+
+  it('withholds validation retry for /mcp fusion after one external execution', async () => {
+    const root = {
+      id: 'root',
+      parent: null,
+      command: '/mcp perform external mutation',
+      children: ['v0'],
+    }
+    const store = buildStore({
+      root,
+      v0: validateNode('v0', '/validate criterion :retry=2'),
+    })
+    const fusionRun = jest.spyOn(MCPFusionCommand.prototype, 'run').mockImplementation(async function (node) {
+      this.store.createNode({id: 'fusion-result', parent: node.id, title: 'fusion result'}, true)
+    })
+    const validateSpy = alwaysFail()
+
+    await expect(
+      runCommand({
+        queryType: MCP_FUSION_QUERY_TYPE,
+        cell: store.getNode('root'),
+        store,
+      }),
+    ).resolves.toBeUndefined()
+
+    expect(fusionRun).toHaveBeenCalledTimes(1)
+    expect(validateSpy).toHaveBeenCalledTimes(1)
+    expect(store.getNode('v0').reliabilityMetadata).toEqual(
+      expect.objectContaining({retryWithheld: true, requestedRetry: 2}),
+    )
+
+    fusionRun.mockRestore()
+    validateSpy.mockRestore()
+  })
+
+  it('keeps validation retry enabled for native chat parents', async () => {
+    const store = treeWithValidates('/validate criterion :retry=1')
+    const validateSpy = jest
+      .spyOn(ValidateCommand.prototype, 'run')
+      .mockResolvedValueOnce({
+        passed: false,
+        criterion: 'criterion',
+        reason: 'missing detail',
+      })
+      .mockResolvedValueOnce({
+        passed: true,
+        criterion: 'criterion',
+        reason: '',
+      })
+    const spy = chatSpy()
+
+    await runCommand({queryType: 'chat', cell: store.getNode('root'), store})
+
+    expect(spy).toHaveBeenCalledTimes(2)
+    expect(validateSpy).toHaveBeenCalledTimes(2)
+    expect(store.getNode('v0').title).toMatch(/\[✓ \+1\]/)
+
+    spy.mockRestore()
+    validateSpy.mockRestore()
   })
 })
 
@@ -284,7 +457,11 @@ describe('runCommand \u2014 /validate: empty criterion is a configuration error'
 
     let thrown
     try {
-      await runCommand({queryType: 'chat', cell: store.getNode('root'), store})
+      await runCommand({
+        queryType: 'chat',
+        cell: store.getNode('root'),
+        store,
+      })
     } catch (e) {
       thrown = e
     } finally {
@@ -304,7 +481,11 @@ describe('runCommand \u2014 /validate: empty criterion is a configuration error'
     const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run')
     const spy = chatSpy()
 
-    await runCommand({queryType: 'chat', cell: store.getNode('root'), store}).catch(() => {})
+    await runCommand({
+      queryType: 'chat',
+      cell: store.getNode('root'),
+      store,
+    }).catch(() => {})
     spy.mockRestore()
     validateSpy.mockRestore()
 
@@ -318,7 +499,11 @@ describe('runCommand \u2014 /validate: empty criterion is a configuration error'
 
     let thrown
     try {
-      await runCommand({queryType: 'chat', cell: store.getNode('root'), store})
+      await runCommand({
+        queryType: 'chat',
+        cell: store.getNode('root'),
+        store,
+      })
     } catch (e) {
       thrown = e
     } finally {
@@ -338,7 +523,11 @@ describe('runCommand \u2014 /validate: empty criterion is a configuration error'
     const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run')
     const spy = chatSpy()
 
-    await runCommand({queryType: 'chat', cell: store.getNode('root'), store}).catch(() => {})
+    await runCommand({
+      queryType: 'chat',
+      cell: store.getNode('root'),
+      store,
+    }).catch(() => {})
     spy.mockRestore()
     validateSpy.mockRestore()
 
@@ -355,7 +544,11 @@ describe('runCommand \u2014 /validate: empty criterion is a configuration error'
     const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run')
     const spy = chatSpy()
 
-    await runCommand({queryType: 'chat', cell: store.getNode('root'), store}).catch(() => {})
+    await runCommand({
+      queryType: 'chat',
+      cell: store.getNode('root'),
+      store,
+    }).catch(() => {})
     spy.mockRestore()
     validateSpy.mockRestore()
 
@@ -382,7 +575,11 @@ describe('runCommand \u2014 /validate: each sibling cell receives its own indivi
     })
     const spy = chatSpy()
 
-    await runCommand({queryType: 'chat', cell: store.getNode('root'), store}).catch(() => {})
+    await runCommand({
+      queryType: 'chat',
+      cell: store.getNode('root'),
+      store,
+    }).catch(() => {})
     spy.mockRestore()
     validateSpy.mockRestore()
 
@@ -401,7 +598,11 @@ describe('runCommand \u2014 /validate: each sibling cell receives its own indivi
     })
     const spy = chatSpy()
 
-    await runCommand({queryType: 'chat', cell: store.getNode('root'), store}).catch(() => {})
+    await runCommand({
+      queryType: 'chat',
+      cell: store.getNode('root'),
+      store,
+    }).catch(() => {})
     spy.mockRestore()
     validateSpy.mockRestore()
 
@@ -418,7 +619,12 @@ describe('runCommand \u2014 /validate retry preserves the best attempt', () => {
     const chatRun = jest.spyOn(ChatCommand.prototype, 'run').mockImplementation(async function () {
       chatCall++
       this.store.createNode(
-        {id: `prompt-${chatCall}`, parent: 'root', title: `attempt ${chatCall}`, children: []},
+        {
+          id: `prompt-${chatCall}`,
+          parent: 'root',
+          title: `attempt ${chatCall}`,
+          children: [],
+        },
         true,
       )
     })
@@ -435,7 +641,11 @@ describe('runCommand \u2014 /validate retry preserves the best attempt', () => {
 
     let thrown
     try {
-      await runCommand({queryType: 'chat', cell: store.getNode('root'), store})
+      await runCommand({
+        queryType: 'chat',
+        cell: store.getNode('root'),
+        store,
+      })
     } catch (e) {
       thrown = e
     } finally {
@@ -456,8 +666,18 @@ describe('runCommand \u2014 /validate retry preserves the best attempt', () => {
 describe('runCommand \u2014 /validate with NoopLLM verifier contract', () => {
   const originalMockExternalServices = process.env.MOCK_EXTERNAL_SERVICES
   const mockValidatedWorkflow = criterion => {
-    const root = {id: 'root', parent: null, command: '/chat produce a short substantive answer', children: ['validate']}
-    const validate = {id: 'validate', parent: 'root', command: `/validate ${criterion} :retry=0`, children: []}
+    const root = {
+      id: 'root',
+      parent: null,
+      command: '/chat produce a short substantive answer',
+      children: ['validate'],
+    }
+    const validate = {
+      id: 'validate',
+      parent: 'root',
+      command: `/validate ${criterion} :retry=0`,
+      children: [],
+    }
     const store = buildStore({root, validate})
     writeCachedIntegrationSettings(store, store._userId, null, {})
     return {root, validate, store}
@@ -499,7 +719,12 @@ describe('runCommand \u2014 /validate with NoopLLM verifier contract', () => {
   })
 
   const buildConditionalSentinelStore = (token, chatContent) => {
-    const root = {id: 'root', parent: null, command: `/chat ${chatContent}`, children: ['v']}
+    const root = {
+      id: 'root',
+      parent: null,
+      command: `/chat ${chatContent}`,
+      children: ['v'],
+    }
     const v = {
       id: 'v',
       parent: 'root',
@@ -592,7 +817,12 @@ describe('runCommand \u2014 non-CriteriaFailedError from post-processors is swal
   it('resolves normally when a non-validate post-processor throws a generic error', async () => {
     const store = buildStore({
       root: chatRoot(['memnode']),
-      memnode: {id: 'memnode', parent: 'root', command: '/memorize', children: []},
+      memnode: {
+        id: 'memnode',
+        parent: 'root',
+        command: '/memorize',
+        children: [],
+      },
     })
     const spy = chatSpy()
     const {MemorizeCommand} = require('../MemorizeCommand')
@@ -623,13 +853,22 @@ describe('post-processor sort order: /validate runs after all other recognized p
 
     const store = buildStore({
       root: chatRoot(['v0', 'sum', 'mem']),
-      v0: {id: 'v0', parent: 'root', command: '/validate criterion', children: []},
+      v0: {
+        id: 'v0',
+        parent: 'root',
+        command: '/validate criterion',
+        children: [],
+      },
       sum: {id: 'sum', parent: 'root', command: '/summarize', children: []},
       mem: {id: 'mem', parent: 'root', command: '/memorize', children: []},
     })
     const spy = chatSpy()
     try {
-      await runCommand({queryType: 'chat', cell: store.getNode('root'), store})
+      await runCommand({
+        queryType: 'chat',
+        cell: store.getNode('root'),
+        store,
+      })
     } finally {
       spy.mockRestore()
       summarizeSpy.mockRestore()
@@ -649,12 +888,26 @@ describe('post-processor sort order: /validate runs after all other recognized p
 
     const store = buildStore({
       root: chatRoot(['v0', 'unknown']),
-      v0: {id: 'v0', parent: 'root', command: '/validate criterion', children: []},
-      unknown: {id: 'unknown', parent: 'root', command: '/some-future-command', children: []},
+      v0: {
+        id: 'v0',
+        parent: 'root',
+        command: '/validate criterion',
+        children: [],
+      },
+      unknown: {
+        id: 'unknown',
+        parent: 'root',
+        command: '/some-future-command',
+        children: [],
+      },
     })
     const spy = chatSpy()
     try {
-      await runCommand({queryType: 'chat', cell: store.getNode('root'), store})
+      await runCommand({
+        queryType: 'chat',
+        cell: store.getNode('root'),
+        store,
+      })
     } finally {
       spy.mockRestore()
       validateSpy.mockRestore()

@@ -95,6 +95,144 @@ describe('runForks', () => {
       expect(mockRunCommand).toHaveBeenCalledTimes(5)
     })
 
+    it('collapses side-effecting MCP alias parent to one execution with suppression evidence', async () => {
+      const store = buildStore({
+        root: {id: 'root', children: ['parent']},
+        parent: {
+          id: 'parent',
+          parent: 'root',
+          command: '/tool mutate',
+          children: ['refine'],
+        },
+        refine: {
+          id: 'refine',
+          parent: 'parent',
+          command: '/refine :n=3',
+          children: [],
+        },
+      })
+      store._aliases = {mcp: [{alias: '/tool'}], rpc: []}
+
+      const results = await runForks({
+        refineNode: store.getNode('refine'),
+        store,
+        n: 3,
+        memoMap: new Map(),
+      })
+
+      expect(mockRunCommand).toHaveBeenCalledTimes(1)
+      expect(mockRunCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queryType: 'mcp:tool',
+          mcpAlias: expect.objectContaining({alias: '/tool'}),
+        }),
+        expect.anything(),
+      )
+      expect(results).toHaveLength(1)
+      expect(results[0]).toMatchObject({
+        status: 'ok',
+        suppressed: true,
+        cause: 'side-effecting-alias',
+        requestedN: 3,
+      })
+    })
+
+    it('collapses side-effecting RPC alias parent to one execution with suppression evidence', async () => {
+      const store = buildStore({
+        root: {id: 'root', children: ['parent']},
+        parent: {
+          id: 'parent',
+          parent: 'root',
+          command: '/ssh mutate',
+          children: ['refine'],
+        },
+        refine: {
+          id: 'refine',
+          parent: 'parent',
+          command: '/refine :n=3',
+          children: [],
+        },
+      })
+      store._aliases = {mcp: [], rpc: [{alias: '/ssh'}]}
+
+      const results = await runForks({
+        refineNode: store.getNode('refine'),
+        store,
+        n: 3,
+        memoMap: new Map(),
+      })
+
+      expect(mockRunCommand).toHaveBeenCalledTimes(1)
+      expect(mockRunCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queryType: 'rpc:ssh',
+          rpcAlias: expect.objectContaining({alias: '/ssh'}),
+        }),
+        expect.anything(),
+      )
+      expect(results[0]).toMatchObject({suppressed: true, requestedN: 3})
+    })
+
+    it('collapses side-effecting /mcp fusion parent to one execution with suppression evidence', async () => {
+      const store = buildStore({
+        root: {id: 'root', children: ['parent']},
+        parent: {
+          id: 'parent',
+          parent: 'root',
+          command: '/mcp mutate',
+          children: ['refine'],
+        },
+        refine: {
+          id: 'refine',
+          parent: 'parent',
+          command: '/refine :n=3',
+          children: [],
+        },
+      })
+
+      const results = await runForks({
+        refineNode: store.getNode('refine'),
+        store,
+        n: 3,
+        memoMap: new Map(),
+      })
+
+      expect(mockRunCommand).toHaveBeenCalledTimes(1)
+      expect(mockRunCommand).toHaveBeenCalledWith(expect.objectContaining({queryType: 'mcp-fusion'}), expect.anything())
+      expect(results[0]).toMatchObject({suppressed: true, requestedN: 3})
+    })
+
+    it('does not mark side-effect suppression when an external parent already executes once', async () => {
+      const store = buildStore({
+        root: {id: 'root', children: ['parent']},
+        parent: {
+          id: 'parent',
+          parent: 'root',
+          command: '/tool mutate',
+          children: ['refine'],
+        },
+        refine: {
+          id: 'refine',
+          parent: 'parent',
+          command: '/refine :n=1',
+          children: [],
+        },
+      })
+      store._aliases = {mcp: [{alias: '/tool'}], rpc: []}
+
+      const results = await runForks({
+        refineNode: store.getNode('refine'),
+        store,
+        n: 1,
+        memoMap: new Map(),
+      })
+
+      expect(mockRunCommand).toHaveBeenCalledTimes(1)
+      expect(results).toHaveLength(1)
+      expect(results[0].suppressed).toBeUndefined()
+      expect(results[0].requestedN).toBeUndefined()
+    })
+
     it('calls runCommand exactly 1 time for n=1', async () => {
       const store = minimalTree()
       const memoMap = new Map()

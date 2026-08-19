@@ -10,6 +10,7 @@ import {
   buildForkRankingEntry,
   buildPerCriterionVerdictEntry,
   COMMODITY_PARTIAL_SUCCESS_WARNING,
+  buildValidateRetryWithheldReliabilityMetadata,
 } from './reliabilityMetadataFields'
 
 const minimalVerdict = {
@@ -133,6 +134,63 @@ describe('buildReliabilityMetadata', () => {
     it('failure semantics fields pass through when set', () => {
       const meta = buildReliabilityMetadata({...minimalVerdict, ...failureFields}, [], 0, 1)
       expect(meta).toEqual(expect.objectContaining(failureFields))
+    })
+
+    it('suppression evidence is copied from executed fork results, not from the judge verdict', () => {
+      const meta = buildReliabilityMetadata(
+        minimalVerdict,
+        [
+          {
+            forkIndex: 0,
+            status: 'ok',
+            suppressed: true,
+            cause: 'side-effecting-alias',
+            requestedN: 5,
+          },
+        ],
+        1,
+        5,
+      )
+
+      expect(meta).toEqual(
+        expect.objectContaining({
+          suppressed: true,
+          cause: 'side-effecting-alias',
+          requestedN: 5,
+        }),
+      )
+    })
+
+    it('suppression evidence is absent when no executed fork was suppressed', () => {
+      const meta = buildReliabilityMetadata(minimalVerdict, [{forkIndex: 0, status: 'ok'}], 1, 1)
+
+      expect(meta.suppressed).toBeUndefined()
+      expect(meta.cause).toBeUndefined()
+      expect(meta.requestedN).toBeUndefined()
+    })
+
+    it('retryWithheld: true passes through from verdict', () => {
+      const meta = buildReliabilityMetadata({...minimalVerdict, retryWithheld: true}, [], 0, 1)
+
+      expect(meta.retryWithheld).toBe(true)
+    })
+
+    it('retryWithheld is absent from output when verdict does not set it', () => {
+      const meta = buildReliabilityMetadata(minimalVerdict, [], 0, 1)
+
+      expect(meta.retryWithheld).toBeUndefined()
+    })
+
+    it('requestedRetry passes through from verdict when set', () => {
+      const meta = buildReliabilityMetadata({...minimalVerdict, requestedRetry: 3}, [], 0, 1)
+
+      expect(meta.requestedRetry).toBe(3)
+    })
+
+    it('requestedRetry is absent from output when verdict does not set it', () => {
+      const meta = buildReliabilityMetadata(minimalVerdict, [], 0, 1)
+
+      expect(meta.requestedRetry).toBeUndefined()
     })
   })
 
@@ -790,8 +848,15 @@ describe('buildCommodityReliabilityMetadata', () => {
       [1, 3],
       [2, 3],
     ])('emits exactly one commodityPartialSuccess warning when %i of %i forks succeed', (successCount, total) => {
-      const forks = Array.from({length: total}, (_, i) => ({forkIndex: i, succeeded: i < successCount}))
-      const meta = buildCommodityReliabilityMetadata({successCount, total, forkOutcomes: forks})
+      const forks = Array.from({length: total}, (_, i) => ({
+        forkIndex: i,
+        succeeded: i < successCount,
+      }))
+      const meta = buildCommodityReliabilityMetadata({
+        successCount,
+        total,
+        forkOutcomes: forks,
+      })
       expect(meta.judgeQualityWarnings).toEqual([COMMODITY_PARTIAL_SUCCESS_WARNING])
     })
 
@@ -801,8 +866,15 @@ describe('buildCommodityReliabilityMetadata', () => {
       [0, 0],
       [1, 1],
     ])('does not emit judgeQualityWarnings when successCount %i of total %i (non-partial)', (successCount, total) => {
-      const forks = Array.from({length: total}, (_, i) => ({forkIndex: i, succeeded: i < successCount}))
-      const meta = buildCommodityReliabilityMetadata({successCount, total, forkOutcomes: forks})
+      const forks = Array.from({length: total}, (_, i) => ({
+        forkIndex: i,
+        succeeded: i < successCount,
+      }))
+      const meta = buildCommodityReliabilityMetadata({
+        successCount,
+        total,
+        forkOutcomes: forks,
+      })
       expect(meta).not.toHaveProperty('judgeQualityWarnings')
     })
 
@@ -1144,5 +1216,144 @@ describe('buildInvalidReliabilityMetadata', () => {
       remediationHint: 'adjust-criteria',
     })
     expect(Object.keys(JSON.parse(JSON.stringify(meta))).sort()).toContain('remediationHint')
+  })
+})
+
+describe('buildValidateRetryWithheldReliabilityMetadata', () => {
+  it('records a visible non-retry verdict for side-effecting parents', () => {
+    const meta = buildValidateRetryWithheldReliabilityMetadata({
+      cause: 'side-effecting-alias',
+      requestedRetry: 2,
+      passedCount: 0,
+      total: 1,
+    })
+
+    expect(meta).toEqual(
+      expect.objectContaining({
+        winnerForkIndex: null,
+        mode: 'invalid',
+        selectionLayer: 'primary',
+        retryWithheld: true,
+        cause: 'side-effecting-alias',
+        requestedRetry: 2,
+        eligible: 0,
+        total: 1,
+        failureCause: 'criteria-failed',
+      }),
+    )
+  })
+
+  it('mode is always "invalid" — withheld retry is an incomplete execution state', () => {
+    expect(
+      buildValidateRetryWithheldReliabilityMetadata({
+        cause: 'side-effecting-alias',
+        requestedRetry: 1,
+        passedCount: 0,
+        total: 1,
+      }).mode,
+    ).toBe('invalid')
+  })
+
+  it('retryWithheld is always true — the distinguishing flag for downstream consumers', () => {
+    expect(
+      buildValidateRetryWithheldReliabilityMetadata({
+        cause: 'any',
+        requestedRetry: 0,
+        passedCount: 0,
+        total: 1,
+      }).retryWithheld,
+    ).toBe(true)
+  })
+
+  it('eligible equals passedCount when some validates passed before retry was withheld', () => {
+    const meta = buildValidateRetryWithheldReliabilityMetadata({
+      cause: 'any',
+      requestedRetry: 2,
+      passedCount: 2,
+      total: 3,
+    })
+    expect(meta.eligible).toBe(2)
+  })
+
+  it('total passes through unchanged', () => {
+    expect(
+      buildValidateRetryWithheldReliabilityMetadata({
+        cause: 'any',
+        requestedRetry: 1,
+        passedCount: 0,
+        total: 5,
+      }).total,
+    ).toBe(5)
+  })
+
+  it('cause passes through unchanged', () => {
+    expect(
+      buildValidateRetryWithheldReliabilityMetadata({
+        cause: 'rpc-alias',
+        requestedRetry: 1,
+        passedCount: 0,
+        total: 1,
+      }).cause,
+    ).toBe('rpc-alias')
+  })
+
+  it('requestedRetry passes through unchanged', () => {
+    expect(
+      buildValidateRetryWithheldReliabilityMetadata({
+        cause: 'any',
+        requestedRetry: 5,
+        passedCount: 0,
+        total: 1,
+      }).requestedRetry,
+    ).toBe(5)
+  })
+
+  it('discardedForks is always empty — no fork candidates exist for a validate withheld verdict', () => {
+    expect(
+      buildValidateRetryWithheldReliabilityMetadata({
+        cause: 'any',
+        requestedRetry: 2,
+        passedCount: 0,
+        total: 1,
+      }).discardedForks,
+    ).toEqual([])
+  })
+
+  it('noSignal is false and tiebreakUsed is false — no judge selection occurred', () => {
+    const meta = buildValidateRetryWithheldReliabilityMetadata({
+      cause: 'any',
+      requestedRetry: 1,
+      passedCount: 0,
+      total: 1,
+    })
+    expect(meta.noSignal).toBe(false)
+    expect(meta.tiebreakUsed).toBe(false)
+  })
+
+  it('key set matches the withheld-retry contract shape', () => {
+    const meta = buildValidateRetryWithheldReliabilityMetadata({
+      cause: 'side-effecting-alias',
+      requestedRetry: 2,
+      passedCount: 0,
+      total: 1,
+    })
+    expect(Object.keys(meta).sort()).toEqual(
+      [
+        'cause',
+        'discardedForks',
+        'eligible',
+        'failureCause',
+        'mode',
+        'noSignal',
+        'perCriterionVerdict',
+        'remediationHint',
+        'requestedRetry',
+        'retryWithheld',
+        'selectionLayer',
+        'tiebreakUsed',
+        'total',
+        'winnerForkIndex',
+      ].sort(),
+    )
   })
 })

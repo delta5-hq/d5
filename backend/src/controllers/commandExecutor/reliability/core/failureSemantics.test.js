@@ -1,4 +1,11 @@
-import {classifyNoWinner, FAILURE_CAUSE, REMEDIATION_HINT, JUDGE_WARNING_CONDITION} from './failureSemantics'
+import {
+  classifyNoWinner,
+  deterministicFailureReason,
+  FAILURE_CAUSE,
+  REMEDIATION_HINT,
+  JUDGE_WARNING_CONDITION,
+  STRUCTURAL_GATE_REJECTION_REASON,
+} from './failureSemantics'
 
 describe('classifyNoWinner', () => {
   it.each([
@@ -208,5 +215,41 @@ describe('JUDGE_WARNING_CONDITION constants', () => {
         'commodityPartialSuccess',
       ]),
     )
+  })
+})
+
+describe('deterministicFailureReason', () => {
+  it.each([
+    ['execution error node', {executionStatus: 'error'}, STRUCTURAL_GATE_REJECTION_REASON.EXECUTION_ERROR],
+    ['MCP isError result', {isError: true}, STRUCTURAL_GATE_REJECTION_REASON.MCP_IS_ERROR],
+    ['HTTP below success range', {httpStatus: 199}, STRUCTURAL_GATE_REJECTION_REASON.HTTP_NON_2XX],
+    ['HTTP above success range', {httpStatus: 300}, STRUCTURAL_GATE_REJECTION_REASON.HTTP_NON_2XX],
+    ['SSH nonzero exit', {exitCode: 1}, STRUCTURAL_GATE_REJECTION_REASON.SSH_NONZERO_EXIT],
+    ['runtime failed fork', {status: 'runtime-failed'}, STRUCTURAL_GATE_REJECTION_REASON.RUNTIME_FAILURE],
+  ])('classifies %s', (_, signal, expected) => {
+    expect(deterministicFailureReason(signal)).toBe(expected)
+  })
+
+  it.each([
+    ['missing signal', undefined],
+    ['explicit null signal', null],
+    ['successful MCP result', {isError: false}],
+    ['HTTP lower success boundary', {httpStatus: 200}],
+    ['HTTP upper success boundary', {httpStatus: 299}],
+    ['SSH zero exit', {exitCode: 0}],
+    ['ok fork status', {status: 'ok'}],
+  ])('returns null for %s', (_, signal) => {
+    expect(deterministicFailureReason(signal)).toBeNull()
+  })
+
+  it('uses executionStatus precedence when a signal carries multiple failure fields', () => {
+    expect(
+      deterministicFailureReason({
+        executionStatus: 'error',
+        isError: true,
+        httpStatus: 500,
+        exitCode: 1,
+      }),
+    ).toBe(STRUCTURAL_GATE_REJECTION_REASON.EXECUTION_ERROR)
   })
 })

@@ -127,6 +127,11 @@ type ReliabilityMetadata struct {
 	TiebreakUsed            *bool                      `json:"tiebreakUsed,omitempty" bson:"tiebreakUsed,omitempty"`
 	Eligible                int                        `json:"eligible" bson:"eligible"`
 	Total                   int                        `json:"total" bson:"total"`
+	Suppressed              bool                       `json:"suppressed,omitempty" bson:"suppressed,omitempty"`
+	Cause                   string                     `json:"cause,omitempty" bson:"cause,omitempty"`
+	RequestedN              int                        `json:"requestedN,omitempty" bson:"requestedN,omitempty"`
+	RetryWithheld           bool                       `json:"retryWithheld,omitempty" bson:"retryWithheld,omitempty"`
+	RequestedRetry          int                        `json:"requestedRetry,omitempty" bson:"requestedRetry,omitempty"`
 	JudgeInput              *JudgeInputMetadata        `json:"judgeInput,omitempty" bson:"judgeInput,omitempty"`
 	JudgeQualityWarnings    []JudgeQualityWarning      `json:"judgeQualityWarnings,omitempty" bson:"judgeQualityWarnings,omitempty"`
 	FailureCause            ReliabilityFailureCause    `json:"failureCause,omitempty" bson:"failureCause,omitempty"`

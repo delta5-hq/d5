@@ -1,27 +1,12 @@
 import {isCommodityForkSuccess} from './commodityForkSuccess'
 import {appendCommoditySuffix} from './reliabilitySuffix'
 import {buildCommodityReliabilityMetadata} from './reliabilityMetadataFields'
+import {collectSubtreeIds} from './storeSubtreeUtils'
 
 const successfulPromptNodes = (forkStore, forkCell, forkIndex) =>
   (forkCell?.prompts ?? [])
     .map(promptId => forkStore.getNode(promptId))
     .filter(node => isCommodityForkSuccess(node, forkIndex))
-
-const collectSubtreeIds = (store, rootIds) => {
-  const pending = [...rootIds]
-  const collected = new Set()
-
-  while (pending.length > 0) {
-    const id = pending.pop()
-    if (!id || collected.has(id)) continue
-    const node = store.getNode(id)
-    if (!node) continue
-    collected.add(id)
-    pending.push(...(node.children ?? []))
-  }
-
-  return collected
-}
 
 const clearPreviousPromptSubtrees = (store, parentId) => {
   const parent = store.getNode(parentId)

@@ -1,5 +1,5 @@
 import {isDegradedInput} from './judgeContentBudget'
-import {FAILURE_CAUSE, JUDGE_WARNING_CONDITION} from './failureSemantics'
+import {FAILURE_CAUSE, JUDGE_WARNING_CONDITION, REMEDIATION_HINT} from './failureSemantics'
 export {COMMODITY_SUPPRESSION_CAUSE} from './failureSemantics'
 
 export function buildJudgeInputMetadata({candidateCount, perForkBudget, resolvedModels}) {
@@ -34,6 +34,7 @@ export function buildDiscardedFork(f) {
 }
 
 export function buildReliabilityMetadata(verdict, forkResults, okCount, n) {
+  const suppressedFork = forkResults.find(f => f.suppressed)
   return {
     winnerForkIndex: verdict.winnerForkIndex,
     perCriterionVerdict: verdict.perCriterionVerdict ?? [],
@@ -43,6 +44,9 @@ export function buildReliabilityMetadata(verdict, forkResults, okCount, n) {
     tiebreakUsed: verdict.tiebreakUsed ?? false,
     eligible: okCount,
     total: n,
+    ...(suppressedFork ? {suppressed: true, cause: suppressedFork.cause, requestedN: suppressedFork.requestedN} : {}),
+    ...(verdict.retryWithheld ? {retryWithheld: true} : {}),
+    ...(verdict.requestedRetry !== undefined ? {requestedRetry: verdict.requestedRetry} : {}),
     judgeInput: verdict.judgeInput,
     judgeQualityWarnings: verdict.judgeQualityWarnings ?? [],
     ...(verdict.selectionLayer === 'fallback' ? {fallbackUsed: true} : {}),
@@ -97,6 +101,25 @@ export function buildSuppressedReliabilityMetadata({cause, requestedN}) {
     suppressed: true,
     cause,
     requestedN,
+    discardedForks: [],
+  }
+}
+
+export function buildValidateRetryWithheldReliabilityMetadata({cause, requestedRetry, passedCount, total}) {
+  return {
+    winnerForkIndex: null,
+    perCriterionVerdict: [],
+    mode: 'invalid',
+    selectionLayer: 'primary',
+    noSignal: false,
+    tiebreakUsed: false,
+    eligible: passedCount,
+    total,
+    retryWithheld: true,
+    cause,
+    requestedRetry,
+    failureCause: FAILURE_CAUSE.CRITERIA_FAILED,
+    remediationHint: REMEDIATION_HINT.NONE,
     discardedForks: [],
   }
 }

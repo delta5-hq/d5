@@ -14,6 +14,28 @@ import {resolveExternalCommandPrompt} from './shared/resolveExternalCommandPromp
 const log = debug('delta5:app:Command:RPC')
 
 const MAX_HTTP_ERROR_BODY_LENGTH = 500
+const MAX_SSH_ERROR_BODY_LENGTH = 500
+
+const normalizeSSHErrorBody = body => {
+  if (!body) return ''
+
+  const text = String(body).replace(/\s+/g, ' ').trim()
+  if (!text) return ''
+
+  if (text.length <= MAX_SSH_ERROR_BODY_LENGTH) return text
+  return `${text.slice(0, MAX_SSH_ERROR_BODY_LENGTH)}…`
+}
+
+class RPCSSHExitError extends Error {
+  constructor(exitCode, stderr) {
+    const stderrPreview = normalizeSSHErrorBody(stderr)
+    const details = stderrPreview ? `: ${stderrPreview}` : ''
+    super(`SSH RPC failed with exit code ${exitCode}${details}`)
+    this.name = 'RPCSSHExitError'
+    this.exitCode = exitCode
+    this.stderr = stderr
+  }
+}
 
 const normalizeHTTPErrorBody = body => {
   if (!body) return ''
@@ -57,14 +79,22 @@ export class RPCCommand {
 
     const injector = new SessionIdInjector(commandTemplate, lastSessionId)
     const templateWithSession = injector.inject()
-    const command = interpolateTemplate(templateWithSession, prompt, {escapeMode: 'shell'})
+    const command = interpolateTemplate(templateWithSession, prompt, {
+      escapeMode: 'shell',
+    })
 
     const executor = new SSHExecutor()
 
     let client = null
     if (this.sshClientPool) {
       try {
-        client = await this.sshClientPool.getOrCreate({host, port, username, privateKey, passphrase})
+        client = await this.sshClientPool.getOrCreate({
+          host,
+          port,
+          username,
+          privateKey,
+          passphrase,
+        })
       } catch (err) {
         this.logError(`Failed to get shared SSH client, falling back to own connection: ${err.message}`)
       }
@@ -84,6 +114,7 @@ export class RPCCommand {
 
     if (exitCode !== 0) {
       this.logError(`SSH command failed with exit code ${exitCode}: ${stderr}`)
+      throw new RPCSSHExitError(exitCode, stderr)
     }
 
     return stdout || stderr
@@ -129,7 +160,10 @@ export class RPCCommand {
   async executeACP(prompt, progressReporter = null, signal = null) {
     const {command, args, env, timeoutMs, workingDir, autoApprove, allowedTools, lastSessionId} = this.aliasConfig
 
-    const permissionPolicy = ACPPermissionPolicy.fromIntegrationConfig({autoApprove, allowedTools})
+    const permissionPolicy = ACPPermissionPolicy.fromIntegrationConfig({
+      autoApprove,
+      allowedTools,
+    })
     const executor = new ACPExecutor()
 
     const onUpdate = progressReporter?.emitUpdate ? update => progressReporter.emitUpdate(update) : null
@@ -194,7 +228,14 @@ export class RPCCommand {
       this.store.importer.createNodes(parsedOutput || '(empty RPC response)', node.id)
     } catch (e) {
       this.logError(e)
-      this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
+      const httpStatus = Number.isInteger(e.status) ? e.status : undefined
+      const exitCode = Number.isInteger(e.exitCode) ? e.exitCode : undefined
+      const hasSignal = httpStatus !== undefined || exitCode !== undefined
+      this.store.importer.createErrorNode(
+        `Error: ${e.message}`,
+        node.id,
+        ...(hasSignal ? [{httpStatus, exitCode}] : []),
+      )
     }
   }
 

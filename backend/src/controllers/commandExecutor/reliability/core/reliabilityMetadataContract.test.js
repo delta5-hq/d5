@@ -7,6 +7,7 @@ import {
   buildJudgeQualityWarning,
   buildPerCriterionVerdictEntry,
   buildForkRankingEntry,
+  buildValidateRetryWithheldReliabilityMetadata,
 } from './reliabilityMetadataFields'
 
 const FIXTURE_PATH = path.resolve(
@@ -82,8 +83,13 @@ const maximalVerdict = {
   failureCause: 'structural-gate',
   remediationHint: 'revise-prompt',
   allGateFiltered: true,
+  suppressed: true,
+  cause: 'side-effecting-alias',
+  requestedN: 3,
   generatorOnlyJudge: true,
   judgeReasoningRequested: true,
+  retryWithheld: true,
+  requestedRetry: 2,
 }
 
 const maximalLoserFork = {
@@ -97,7 +103,16 @@ const maximalLoserFork = {
 describe('reliabilityMetadata field-set contract', () => {
   describe('maximal engine output matches the declared fixture shape (both directions)', () => {
     it('buildReliabilityMetadata with all fields populated produces exactly the fixture key-path set', () => {
-      const forkResults = [{forkIndex: 0, status: 'ok'}, maximalLoserFork]
+      const forkResults = [
+        {
+          forkIndex: 0,
+          status: 'ok',
+          suppressed: true,
+          cause: 'side-effecting-alias',
+          requestedN: 3,
+        },
+        maximalLoserFork,
+      ]
       const raw = buildReliabilityMetadata(maximalVerdict, forkResults, 1, 2)
       expect(sortedKeyPaths(JSON.parse(JSON.stringify(raw)))).toEqual(sortedKeyPaths(fixture))
     })
@@ -128,6 +143,7 @@ describe('reliabilityMetadata field-set contract', () => {
     it('fixture top-level key set matches the Go ReliabilityMetadata field names', () => {
       expect(Object.keys(fixture).sort()).toEqual([
         'allGateFiltered',
+        'cause',
         'discardedForks',
         'eligible',
         'failureCause',
@@ -140,7 +156,11 @@ describe('reliabilityMetadata field-set contract', () => {
         'noSignal',
         'perCriterionVerdict',
         'remediationHint',
+        'requestedN',
+        'requestedRetry',
+        'retryWithheld',
         'selectionLayer',
+        'suppressed',
         'tiebreakUsed',
         'total',
         'winnerForkIndex',
@@ -215,5 +235,26 @@ describe('nested builder construction chokepoints', () => {
       f => !f.endsWith('reliabilityMetadataFields.js'),
     )
     expect(violators).toEqual([])
+  })
+})
+
+describe('validate retry-withheld metadata builder', () => {
+  it('emits the persisted retry-withheld signal shape', () => {
+    expect(
+      buildValidateRetryWithheldReliabilityMetadata({
+        cause: 'side-effecting-alias',
+        requestedRetry: 2,
+        passedCount: 0,
+        total: 1,
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        mode: 'invalid',
+        retryWithheld: true,
+        cause: 'side-effecting-alias',
+        requestedRetry: 2,
+        failureCause: 'criteria-failed',
+      }),
+    )
   })
 })

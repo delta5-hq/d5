@@ -1,4 +1,5 @@
 import debug from 'debug'
+import {deterministicFailureReason} from './failureSemantics'
 
 const log = debug('delta5:app:structuralGate')
 
@@ -48,7 +49,12 @@ const passesBaseGate = (text, forkIndex) => {
   return true
 }
 
-export const passesStructuralGate = (text, forkIndex = null) => {
+export const passesStructuralGate = (text, forkIndex = null, failureSignal = null) => {
+  const deterministicReason = deterministicFailureReason(failureSignal)
+  if (deterministicReason) {
+    emitRejection(deterministicReason, forkIndex)
+    return false
+  }
   if (!passesBaseGate(text, forkIndex)) return false
   if (isTruncatedOutput(text)) {
     emitRejection(`output too short (${text?.trim().length} chars)`, forkIndex)
@@ -58,8 +64,14 @@ export const passesStructuralGate = (text, forkIndex = null) => {
 }
 
 // Known ceiling: a soft HTTP-200 error body that arrives as non-empty, non-refusal prose
-// is structurally indistinguishable from a valid completion and passes this gate. Hard
-// transport errors (4xx/5xx) are caught upstream by provider clients that throw before
-// any node is created, so they never reach this gate. Users who need semantic error
-// detection for soft errors must use /refine :n=N + /validate (judge layer).
-export const passesCommodityGate = (text, forkIndex = null) => passesBaseGate(text, forkIndex)
+// without a machine-readable failure signal is structurally indistinguishable from a
+// valid completion and passes this gate. Users who need semantic soft-error detection
+// must use /refine :n=N + /validate (judge layer).
+export const passesCommodityGate = (text, forkIndex = null, failureSignal = null) => {
+  const deterministicReason = deterministicFailureReason(failureSignal)
+  if (deterministicReason) {
+    emitRejection(deterministicReason, forkIndex)
+    return false
+  }
+  return passesBaseGate(text, forkIndex)
+}

@@ -1,6 +1,8 @@
 import {resolveRefineCell} from './resolveRefineCell'
 import Store from '../../commands/utils/Store'
+import {getNodeCommand} from '../../commands/utils/isCommand'
 import {ForkJudge} from './ForkJudge'
+import {NodeTextExtractor} from '../../commands/utils/NodeTextExtractor'
 
 jest.mock('debug', () => {
   const fn = jest.fn(() => fn)
@@ -445,6 +447,60 @@ describe('resolveRefineCell — winner path: validate flush sources from winner 
     const validate = outputNodes.find(n => n.id === 'v1')
     expect(validate).toBeDefined()
     expect(validate.title).toBe('/validate must include revenue figures [✓]')
+  })
+
+  it('copies winning parent prompt output into refine-owned prompts for downstream references', async () => {
+    const store = buildStore({
+      parent: {id: 'parent', command: '/chat', children: ['r1']},
+      r1: {
+        id: 'r1',
+        parent: 'parent',
+        title: 'Analyze competitors',
+        command: '/refine :n=2',
+        children: ['v1'],
+      },
+      v1: {
+        id: 'v1',
+        parent: 'r1',
+        command: '/validate must include revenue figures',
+        title: '/validate must include revenue figures',
+        children: [],
+      },
+    })
+    const winnerForkStore = buildStore({
+      parent: {id: 'parent', command: '/chat', children: ['r1', 'winner'], prompts: ['winner']},
+      r1: {id: 'r1', parent: 'parent', command: '/refine :n=2', children: ['v1']},
+      winner: {id: 'winner', parent: 'parent', title: 'WINNER_ONLY_TEXT', children: ['detail']},
+      detail: {id: 'detail', parent: 'winner', title: 'winner detail', children: []},
+      v1: {
+        id: 'v1',
+        parent: 'r1',
+        command: '/validate must include revenue figures',
+        title: '/validate must include revenue figures [✓]',
+        children: [],
+      },
+    })
+
+    mockRunForks.mockResolvedValue([
+      {forkIndex: 0, status: 'ok', forkStore: winnerForkStore},
+      {forkIndex: 1, status: 'runtime-failed', forkStore: null},
+    ])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: 0, selectionLayer: 'primary'}),
+    }))
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    const refineNode = store.getNode('r1')
+    const copiedPromptIds = refineNode.prompts ?? []
+    expect(copiedPromptIds).toHaveLength(1)
+    expect(copiedPromptIds).not.toContain('winner')
+    expect(store.getNode(copiedPromptIds[0]).parent).toBe('r1')
+    expect(store.getNode(copiedPromptIds[0]).title).toBe('WINNER_ONLY_TEXT')
+
+    const extractor = new NodeTextExtractor(Infinity, node => getNodeCommand(node).startsWith('/validate'), store)
+    await expect(extractor.extractFullContent(refineNode)).resolves.toContain('WINNER_ONLY_TEXT')
+    await expect(extractor.extractFullContent(refineNode)).resolves.toContain('winner detail')
   })
 
   it('fallback winner from criteria-failed pool: validate title flushed from fallback winner fork store', async () => {

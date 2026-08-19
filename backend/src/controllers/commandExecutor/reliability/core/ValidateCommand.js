@@ -47,13 +47,7 @@ const extractValidationContent = async (parentNode, store) => {
     return summaryOutputs.join('\n')
   }
 
-  // Parent fallback: source the parent's authoritative current materialized output — the nodes
-  // in `parentNode.prompts` — instead of walking the whole `children` subtree. A superseded
-  // attempt-0 prompt-output node can survive in `children` after a persistence/reload (its
-  // `prompts` linkage dropped), and extractFullContent(parentNode) would concatenate that stale
-  // content into every re-validation, so a retry could never clear a content-keyed criterion
-  // (note-12857 P0.8). Reading `prompts` is the authoritative-output pattern of
-  // ForkLeafExtractor.extractForkLeafOutputs.
+  // children may include stale superseded nodes from prior retry attempts
   const promptOutputs = []
   for (const promptId of parentNode.prompts ?? []) {
     const promptNode = store.getNode(promptId)
@@ -66,6 +60,15 @@ const extractValidationContent = async (parentNode, store) => {
 
   if (promptOutputs.length) {
     return promptOutputs.join('\n')
+  }
+
+  // inside a fork before winner selection, refine has no output yet — validate the command being refined
+  if (isValidRefineCell(getNodeCommand(parentNode)) && !hasMaterializedPromptOutput(parentNode, store)) {
+    const grandparent = store.getNode(parentNode.parent)
+    if (grandparent) {
+      const gpContent = await extractValidationContent(grandparent, store)
+      if (gpContent.trim()) return gpContent
+    }
   }
 
   return extractor.extractFullContent(parentNode)
@@ -85,13 +88,8 @@ export class ValidateCommand {
     const criterion = readValidateCriterion(command)
     const n = readValidateN(command)
 
-    let parentNode = this.store.getNode(validateNode.parent)
+    const parentNode = this.store.getNode(validateNode.parent)
     if (!parentNode) return {passed: false, criterion, reason: 'parent cell is missing'}
-    // /refine has no output content of its own — walk up to find the content-producing ancestor.
-    if (isValidRefineCell(getNodeCommand(parentNode))) {
-      parentNode = this.store.getNode(parentNode.parent) || parentNode
-    }
-
     const content = await extractValidationContent(parentNode, this.store)
 
     if (!content.trim()) return {passed: false, criterion, reason: 'parent output is empty'}

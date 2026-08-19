@@ -70,6 +70,58 @@ describe('ImportHandler', () => {
         expect(node.executionStatus).toBe('error')
       })
 
+      it('preserves deterministic failure fields on error nodes', () => {
+        const store = makeStore()
+        store.importer.createErrorNode('Provider refused credentials', 'parent', {
+          isError: true,
+          httpStatus: 503,
+          exitCode: 126,
+        })
+
+        const [node] = store.getOutput().nodes
+        expect(node).toEqual(expect.objectContaining({isError: true, httpStatus: 503, exitCode: 126}))
+      })
+
+      it.each([
+        [{httpStatus: 503}, 'httpStatus'],
+        [{exitCode: 126}, 'exitCode'],
+        [{isError: true}, 'isError'],
+      ])('preserves a single typed signal field when the others are absent (%s)', (signal, field) => {
+        const store = makeStore()
+        store.importer.createErrorNode('signal', 'parent', signal)
+
+        const [node] = store.getOutput().nodes
+        expect(node[field]).toBe(signal[field])
+      })
+
+      it('preserves isError when it is false (falsy-but-defined)', () => {
+        const store = makeStore()
+        store.importer.createErrorNode('explicit false', 'parent', {isError: false})
+
+        const [node] = store.getOutput().nodes
+        expect(node.isError).toBe(false)
+        expect('isError' in node).toBe(true)
+      })
+
+      it('does not stamp unrecognised keys from the signal onto the node', () => {
+        const store = makeStore()
+        store.importer.createErrorNode('signal', 'parent', {httpStatus: 404, unknownKey: 'should-be-dropped'})
+
+        const [node] = store.getOutput().nodes
+        expect(node).not.toHaveProperty('unknownKey')
+        expect(node.httpStatus).toBe(404)
+      })
+
+      it('produces no signal properties when called without a signal argument', () => {
+        const store = makeStore()
+        store.importer.createErrorNode('no signal', 'parent')
+
+        const [node] = store.getOutput().nodes
+        expect(node).not.toHaveProperty('httpStatus')
+        expect(node).not.toHaveProperty('exitCode')
+        expect(node).not.toHaveProperty('isError')
+      })
+
       it('preserves paragraph breaks in the title rather than discarding them', () => {
         const store = makeStore()
         const message = 'Error: first part.\n\nsecond part.'

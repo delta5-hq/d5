@@ -33,6 +33,28 @@ export const COMMODITY_SUPPRESSION_CAUSE = Object.freeze({
   SIDE_EFFECTING_ALIAS: 'side-effecting-alias',
 })
 
+export const STRUCTURAL_GATE_REJECTION_REASON = Object.freeze({
+  EXECUTION_ERROR: 'execution-error',
+  MCP_IS_ERROR: 'mcp-is-error',
+  HTTP_NON_2XX: 'http-non-2xx',
+  SSH_NONZERO_EXIT: 'ssh-nonzero-exit',
+  RUNTIME_FAILURE: 'runtime-failure',
+})
+
+export function deterministicFailureReason(signal = {}) {
+  if (!signal) return null
+  if (signal.executionStatus === 'error') return STRUCTURAL_GATE_REJECTION_REASON.EXECUTION_ERROR
+  if (signal.isError === true) return STRUCTURAL_GATE_REJECTION_REASON.MCP_IS_ERROR
+  if (Number.isInteger(signal.httpStatus) && (signal.httpStatus < 200 || signal.httpStatus > 299)) {
+    return STRUCTURAL_GATE_REJECTION_REASON.HTTP_NON_2XX
+  }
+  if (Number.isInteger(signal.exitCode) && signal.exitCode !== 0) {
+    return STRUCTURAL_GATE_REJECTION_REASON.SSH_NONZERO_EXIT
+  }
+  if (signal.status === 'runtime-failed') return STRUCTURAL_GATE_REJECTION_REASON.RUNTIME_FAILURE
+  return null
+}
+
 export function classifyNoWinner({allGateFiltered = false, noSignal = false, forkResults = []}) {
   if (allGateFiltered) {
     return {

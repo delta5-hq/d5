@@ -10,6 +10,7 @@ import {getNodeCommand} from '../../commands/utils/isCommand'
 import {isValidateCell} from './validateParams'
 import {NullForkProgressEmitter} from './ForkProgressEmitter'
 import {buildReliabilityMetadata} from './reliabilityMetadataFields'
+import {copyParentPromptOutputToRefine} from './refineWinnerOutput'
 
 /**
  * @typedef {import('../../commands/utils/Store').NodeData} NodeData
@@ -151,6 +152,12 @@ export async function resolveRefineCell(
     return
   }
   StoreFork.applyCandidate(store, winnerFork.forkStore, refineNode.id)
+  copyParentPromptOutputToRefine({
+    sourceStore: winnerFork.forkStore,
+    targetStore: store,
+    parentNodeId: refineNode.parent,
+    refineNodeId: refineNode.id,
+  })
 
   // Sibling validates are outside the refine subtree — applyCandidate does not transfer their titles.
   flushValidateTitles(allValidates, winnerFork.forkStore, store)

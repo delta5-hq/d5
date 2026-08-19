@@ -534,6 +534,40 @@ describe('resolveRefineCell — winner selected', () => {
     expect(StoreFork.applyCandidate).toHaveBeenCalledWith(store, winner, 'r1')
   })
 
+  it('exposes the selected parent output as refine-owned prompt output', async () => {
+    const winnerStore = buildStore({
+      p1: {
+        id: 'p1',
+        children: ['r1', 'winner-output'],
+        prompts: ['winner-output'],
+      },
+      r1: {id: 'r1', parent: 'p1', command: '/refine :n=3', children: []},
+      'winner-output': {
+        id: 'winner-output',
+        parent: 'p1',
+        title: 'selected winner',
+        children: [],
+      },
+    })
+    mockRunForks.mockResolvedValue([
+      {forkIndex: 0, status: 'ok', forkStore: winnerStore},
+      {forkIndex: 1, status: 'ok', forkStore: okForkStore()},
+    ])
+    const store = makeStore()
+
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    const copiedPromptIds = store.getNode('r1').prompts
+    expect(copiedPromptIds).toHaveLength(1)
+    expect(copiedPromptIds).not.toContain('winner-output')
+    expect(store.getNode(copiedPromptIds[0])).toEqual(
+      expect.objectContaining({
+        parent: 'r1',
+        title: 'selected winner',
+      }),
+    )
+  })
+
   it('saves node to output after applying winner', async () => {
     const store = makeStore()
 
@@ -599,6 +633,39 @@ describe('resolveRefineCell — winner selected', () => {
       eligible: 2,
       total: 2,
       judgeInput,
+    })
+  })
+
+  it('propagates side-effect suppression evidence from fork result into refine metadata', async () => {
+    const winner = okForkStore()
+    mockRunForks.mockResolvedValue([
+      {
+        forkIndex: 0,
+        status: 'ok',
+        forkStore: winner,
+        leafOutputs: [],
+        suppressed: true,
+        cause: 'side-effecting-alias',
+        requestedN: 3,
+      },
+    ])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: 0,
+        selectionLayer: 'primary',
+        mode: 'strict',
+      }),
+    }))
+
+    const store = makeStore('/refine :n=3')
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    expect(store.getNode('r1').reliabilityMetadata).toMatchObject({
+      suppressed: true,
+      cause: 'side-effecting-alias',
+      requestedN: 3,
+      total: 3,
+      eligible: 1,
     })
   })
 

@@ -45,6 +45,7 @@ export {
   buildCommodityReliabilityMetadata,
   buildInvalidReliabilityMetadata,
   buildSuppressedReliabilityMetadata,
+  buildValidateRetryWithheldReliabilityMetadata,
   buildDiscardedFork,
   buildJudgeInputMetadata,
   buildJudgeQualityWarning,

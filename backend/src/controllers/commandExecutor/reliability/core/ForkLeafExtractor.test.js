@@ -44,6 +44,71 @@ describe('extractForkLeafOutputs', () => {
       expect(extractForkLeafOutputs(store, 'parent')).toEqual([{nodeId: 'out1', content: 'LLM response text'}])
     })
 
+    it('preserves executionStatus when the prompt node is a machine-tagged error', () => {
+      const store = makeStore({
+        parent: {id: 'parent', prompts: ['out1']},
+        out1: {id: 'out1', title: 'Error: failed', executionStatus: 'error'},
+      })
+
+      expect(extractForkLeafOutputs(store, 'parent')).toEqual([
+        {nodeId: 'out1', content: 'Error: failed', executionStatus: 'error'},
+      ])
+    })
+
+    it('preserves deterministic tool failure fields for the structural gate', () => {
+      const store = makeStore({
+        parent: {id: 'parent', prompts: ['out1']},
+        out1: {
+          id: 'out1',
+          title: 'Error: failed',
+          isError: true,
+          httpStatus: 503,
+          exitCode: 126,
+        },
+      })
+
+      expect(extractForkLeafOutputs(store, 'parent')).toEqual([
+        {
+          nodeId: 'out1',
+          content: 'Error: failed',
+          isError: true,
+          httpStatus: 503,
+          exitCode: 126,
+        },
+      ])
+    })
+
+    it('preserves isError: false — boolean false passes through so the gate receives the full MCP signal, not just error-flagged nodes', () => {
+      const store = makeStore({
+        parent: {id: 'parent', prompts: ['out1']},
+        out1: {id: 'out1', title: 'success response', isError: false},
+      })
+
+      expect(extractForkLeafOutputs(store, 'parent')).toEqual([
+        {nodeId: 'out1', content: 'success response', isError: false},
+      ])
+    })
+
+    it('excludes non-integer httpStatus and exitCode from output — Number.isInteger rejects NaN and string values so the gate only sees type-safe integers', () => {
+      const store = makeStore({
+        parent: {id: 'parent', prompts: ['out1']},
+        out1: {id: 'out1', title: 'response', httpStatus: NaN, exitCode: '126'},
+      })
+      const result = extractForkLeafOutputs(store, 'parent')
+      expect(result).toHaveLength(1)
+      expect(result[0]).toEqual({nodeId: 'out1', content: 'response'})
+      expect(result[0].httpStatus).toBeUndefined()
+      expect(result[0].exitCode).toBeUndefined()
+    })
+
+    it('excludes executionStatus when it is an empty string — truthy guard requires a non-empty machine-tag so no-status nodes are not mis-classified as execution errors', () => {
+      const store = makeStore({
+        parent: {id: 'parent', prompts: ['out1']},
+        out1: {id: 'out1', title: 'response', executionStatus: ''},
+      })
+      expect(extractForkLeafOutputs(store, 'parent')).toEqual([{nodeId: 'out1', content: 'response'}])
+    })
+
     it('skips prompt node that is absent from store', () => {
       const store = makeStore({
         parent: {id: 'parent', prompts: ['missing']},

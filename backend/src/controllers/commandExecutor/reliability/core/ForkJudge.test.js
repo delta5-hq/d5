@@ -989,6 +989,65 @@ describe('ForkJudge.selectWinner — structural gate on candidate content', () =
       },
     )
 
+    it('execution-error prompt nodes are rejected before judge even when their text is substantive', async () => {
+      mockContentSequence(SUBSTANTIVE_A, SUBSTANTIVE_B)
+      const result = await makeJudge().selectWinner({
+        forks: [
+          makeFork(0, 'ok', {
+            leafOutputs: [
+              {
+                nodeId: 'err',
+                content: SUBSTANTIVE_A,
+                executionStatus: 'error',
+              },
+            ],
+          }),
+          makeFork(1),
+        ],
+        validateNodes: [],
+        parentNodeId: 'parent',
+        fallback: false,
+      })
+
+      expect(result.winnerForkIndex).toBe(1)
+      expect(getLLM).not.toHaveBeenCalled()
+      expect(result.allGateFiltered).toBe(false)
+    })
+
+    it.each([
+      ['MCP isError', {isError: true}, 'mcp-is-error'],
+      ['HTTP non-2xx', {httpStatus: 503}, 'http-non-2xx'],
+      ['SSH nonzero exit', {exitCode: 126}, 'ssh-nonzero-exit'],
+    ])('%s prompt nodes are rejected before judge even when their text is substantive', async (_, signal, reason) => {
+      mockContentSequence(SUBSTANTIVE_A, SUBSTANTIVE_B)
+      const rejectedFork = makeFork(0, 'ok', {
+        leafOutputs: [{nodeId: 'err', content: SUBSTANTIVE_A, ...signal}],
+      })
+      const result = await makeJudge().selectWinner({
+        forks: [rejectedFork, makeFork(1)],
+        validateNodes: [],
+        parentNodeId: 'parent',
+        fallback: false,
+      })
+
+      expect(result.winnerForkIndex).toBe(1)
+      expect(rejectedFork.reason).toBe(reason)
+      expect(getLLM).not.toHaveBeenCalled()
+      expect(result.allGateFiltered).toBe(false)
+    })
+
+    it('non-deterministic gate rejection (empty content, no failure signal) does not set fork.reason — reason is exclusive to machine-readable signals', async () => {
+      mockContentSequence('', SUBSTANTIVE_A)
+      const rejectedFork = makeFork(0)
+      await makeJudge().selectWinner({
+        forks: [rejectedFork, makeFork(1)],
+        validateNodes: [],
+        parentNodeId: 'parent',
+        fallback: false,
+      })
+      expect(rejectedFork.reason).toBeUndefined()
+    })
+
     it('sole survivor when multiple earlier forks are gate-rejected', async () => {
       mockContentSequence('', 'Too short.', SUBSTANTIVE_A)
       const result = await makeJudge().selectWinner({
@@ -1299,14 +1358,18 @@ describe('ForkJudge.selectWinner — resilience and signal propagation', () => {
       parentNodeId: 'parent',
       signal: controller.signal,
     })
-    expect(invoke).toHaveBeenCalledWith(expect.anything(), {signal: controller.signal})
+    expect(invoke).toHaveBeenCalledWith(expect.anything(), {
+      signal: controller.signal,
+    })
   })
 
   it('requests a non-null thinking budget from LLM when judgeReasoningRequested is true', async () => {
     let capturedBudget
     getLLM.mockImplementation(({thinkingBudgetTokens}) => {
       capturedBudget = thinkingBudgetTokens
-      return {llm: {invoke: jest.fn().mockResolvedValue({content: '1,2'})}}
+      return {
+        llm: {invoke: jest.fn().mockResolvedValue({content: '1,2'})},
+      }
     })
     await makeJudge().selectWinner({
       forks: [makeFork(0), makeFork(1)],

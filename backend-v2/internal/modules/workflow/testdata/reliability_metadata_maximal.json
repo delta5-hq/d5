@@ -50,5 +50,10 @@
       "reason": "context deadline exceeded",
       "attempts": 3
     }
-  ]
+  ],
+  "suppressed": true,
+  "cause": "side-effecting-alias",
+  "requestedN": 3,
+  "retryWithheld": true,
+  "requestedRetry": 2
 }
