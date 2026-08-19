@@ -10,7 +10,7 @@ import { createHistoryStack } from './workflow-store-history'
 import { retainExistingIds } from './workflow-store-set-utils'
 import { computeRangeSelection } from './workflow-store-range-select'
 import { deriveExpandedIdsFromNodes } from '../hooks/use-tree-expansion'
-import { isCommandlessTextNode, hasOnlyPromptChildren } from '@entities/workflow/lib'
+import { isCommandlessTextNode } from '@entities/workflow/lib'
 import { deleteWorkflowFile, uploadWorkflowFile } from '../api/workflow-file-api'
 import { toast } from 'sonner'
 import { attachFileChildTransaction } from './workflow-attachment-transaction'
@@ -70,13 +70,15 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
   const toggleExpanded = (nodeId: string): void => {
     const { nodes, expandedIds } = store.getState()
     const node = nodes[nodeId]
-    const expanding = node && !expandedIds.has(nodeId)
-    const shouldPersistImmediately = Boolean(expanding && node && isCommandlessTextNode(node))
-    if (expanding && isCommandlessTextNode(node) && hasOnlyPromptChildren(nodeId, nodes)) {
+    const expanding = Boolean(node && !expandedIds.has(nodeId))
+    // re-expand of a node that already has children must not overwrite user edits made since the first expand.
+    const shouldMaterializeSplit =
+      expanding && !!node && isCommandlessTextNode(node) && (node.children?.length ?? 0) === 0
+    if (shouldMaterializeSplit) {
       mutations.importTextAsPrompts(nodeId, node.title ?? '')
     }
     expansion.toggleExpanded(nodeId)
-    if (shouldPersistImmediately) void persister.flush()
+    if (shouldMaterializeSplit) void persister.flush()
   }
 
   const load = async () => {

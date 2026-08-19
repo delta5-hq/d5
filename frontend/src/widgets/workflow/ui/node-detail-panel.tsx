@@ -9,20 +9,7 @@ import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mappe
 import { canExecuteNode, isSlashCommand } from '@shared/lib/commands/command-validator'
 import { useAliases } from '@entities/aliases'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@shared/ui/collapsible'
-import {
-  Eye,
-  FileText,
-  Folder,
-  Play,
-  Loader2,
-  Square,
-  Copy,
-  Trash2,
-  Plus,
-  ChevronRight,
-  ArrowLeft,
-  Map,
-} from 'lucide-react'
+import { Eye, FileText, Folder, Play, Loader2, Square, Copy, Trash2, Plus, ChevronRight, ArrowLeft } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
 import { isTitleDerivedFromCommand } from '@shared/lib/reliability-suffix'
@@ -42,7 +29,6 @@ interface NodeDetailPanelProps {
   onEnterInCommand: (nodeId: NodeId, committedCommand: string) => void
   onCtrlEnterInCommand: (nodeId: NodeId, committedCommand: string) => void
   onShiftCtrlEnterInCommand: (nodeId: NodeId, committedCommand: string) => void
-  onImportTextAsPrompts: (nodeId: NodeId, text: string) => void
   onClose: () => void
   onExecute: (node: NodeData, queryType: string) => Promise<boolean>
   onAbort: (nodeId: NodeId) => void
@@ -63,7 +49,6 @@ export const NodeDetailPanel = ({
   onEnterInCommand,
   onCtrlEnterInCommand,
   onShiftCtrlEnterInCommand,
-  onImportTextAsPrompts,
   onClose,
   onExecute,
   onAbort,
@@ -83,7 +68,6 @@ export const NodeDetailPanel = ({
   const commandIsValid = isSlashCommand(commandDraft)
   const canExecute = canExecuteNode(commandDraft, executeDisabled)
   const siblingActionsEnabled = !isRoot && canExecute
-  const canImportTextAsPrompts = Boolean(node.title?.trim())
 
   const [settingsOpen, setSettingsOpen] = useState(!isPrompt)
   const [previewOpen, setPreviewOpen] = useState(isPrompt)
@@ -147,10 +131,6 @@ export const NodeDetailPanel = ({
   const handleAddSibling = useCallback(() => {
     onAddSibling(node.id)
   }, [node.id, onAddSibling])
-
-  const handleImportTextAsPrompts = useCallback(() => {
-    onImportTextAsPrompts(node.id, node.title ?? '')
-  }, [node.id, node.title, onImportTextAsPrompts])
 
   const handleEnterInCommand = useCallback(
     (committedCommand: string) => onEnterInCommand(node.id, committedCommand),
@@ -282,18 +262,6 @@ export const NodeDetailPanel = ({
                   >
                     <Plus className="mr-1 h-3 w-3" />
                     <FormattedMessage id="workflowTree.node.addSibling" />
-                  </Button>
-
-                  <Button
-                    className="border border-accent/30 bg-accent/10 text-foreground hover:bg-accent/15 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:border-border disabled:bg-transparent disabled:text-muted-foreground"
-                    data-testid="import-text-as-prompts-button"
-                    disabled={mutationDisabled || !canImportTextAsPrompts}
-                    onClick={handleImportTextAsPrompts}
-                    size="sm"
-                    variant="ghost"
-                  >
-                    <Map className="mr-1 h-3 w-3 text-accent" />
-                    <FormattedMessage id="workflowTree.node.importTextAsPrompts" />
                   </Button>
 
                   <Button

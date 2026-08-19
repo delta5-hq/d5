@@ -78,7 +78,7 @@ describe('toggleExpanded — commandless lazy-split', () => {
     expect(store.getState().nodes['n1'].children).toHaveLength(0)
   })
 
-  it('does not split when node already has a non-prompt child', async () => {
+  it('does not split when the commandless node already has children — user-edited regular child', async () => {
     const nodes = {
       root: { id: 'root', title: 'Root', children: ['n1'], collapsed: false },
       n1: { id: 'n1', title: 'Para 1\n\nPara 2', children: ['c1'], parent: 'root' },
@@ -91,7 +91,20 @@ describe('toggleExpanded — commandless lazy-split', () => {
     expect(store.getState().nodes['n1'].children).toHaveLength(1)
   })
 
-  it('replaces stale prompt children on second expand after collapse+expand cycle', async () => {
+  it('does not split when the commandless node already has children — prompt-style child loaded from persistence', async () => {
+    const nodes = {
+      root: { id: 'root', title: 'Root', children: ['n1'], collapsed: false },
+      n1: { id: 'n1', title: 'Para 1\n\nPara 2', children: ['c1'], prompts: ['c1'], parent: 'root' },
+      c1: { id: 'c1', title: 'Para 1', children: [], parent: 'n1' },
+    }
+    const { store, actions } = await loadStore(nodes, 'root')
+
+    actions.toggleExpanded('n1')
+
+    expect(store.getState().nodes['n1'].children).toHaveLength(1)
+  })
+
+  it('does not re-split on re-expand once children have been materialized', async () => {
     const nodes = {
       root: { id: 'root', title: 'Root', children: ['n1'], collapsed: false },
       n1: { id: 'n1', title: 'Para 1\n\nPara 2', children: [], prompts: [], parent: 'root' },
@@ -107,6 +120,41 @@ describe('toggleExpanded — commandless lazy-split', () => {
 
     const afterSecond = store.getState().nodes['n1'].children!.length
     expect(afterSecond).toBe(2)
+  })
+
+  it('materializes indented outline into nested prompt and child nodes on expand', async () => {
+    const nodes = {
+      root: { id: 'root', title: 'Root', children: ['n1'], collapsed: false },
+      n1: { id: 'n1', title: 'Topic\n  Detail\n\nAnother', children: [], prompts: [], parent: 'root' },
+    }
+    const { store, actions } = await loadStore(nodes, 'root')
+
+    actions.toggleExpanded('n1')
+
+    const { nodes: n } = store.getState()
+    expect(n['n1'].prompts).toHaveLength(2)
+
+    const topicId = n['n1'].prompts!.find(id => n[id]?.title === 'Topic')!
+    expect(topicId).toBeTruthy()
+    expect(n[topicId]?.children).toHaveLength(1)
+    expect(n[n[topicId]!.children![0]]?.title).toBe('Detail')
+
+    const anotherId = n['n1'].prompts!.find(id => n[id]?.title === 'Another')!
+    expect(anotherId).toBeTruthy()
+    expect(n[anotherId]?.children).toHaveLength(0)
+  })
+
+  it('expands to zero children when the commandless title contains only whitespace and newlines', async () => {
+    const nodes = {
+      root: { id: 'root', title: 'Root', children: ['n1'], collapsed: false },
+      n1: { id: 'n1', title: '\n\n', children: [], prompts: [], parent: 'root' },
+    }
+    const { store, actions } = await loadStore(nodes, 'root')
+
+    actions.toggleExpanded('n1')
+
+    expect(store.getState().expandedIds.has('n1')).toBe(true)
+    expect(store.getState().nodes['n1'].children).toHaveLength(0)
   })
 })
 

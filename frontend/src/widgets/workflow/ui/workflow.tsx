@@ -323,16 +323,6 @@ const WorkflowContent = () => {
     [actions],
   )
 
-  const handleImportTextAsPrompts = useCallback(
-    (nodeId: string, text: string) => {
-      const importedCount = actions.importTextAsPrompts(nodeId, text)
-      if (importedCount > 0) {
-        actions.expandNode(nodeId)
-      }
-    },
-    [actions],
-  )
-
   const handleEnterInCommand = useCallback(
     (nodeId: string, committedCommand: string) => {
       const node = nodes[nodeId]
@@ -480,7 +470,6 @@ const WorkflowContent = () => {
               onDuplicateNode={handleDuplicateNode}
               onEnterInCommand={handleEnterInCommand}
               onExecute={handleExecute}
-              onImportTextAsPrompts={handleImportTextAsPrompts}
               onShiftCtrlEnterInCommand={handleShiftCtrlEnterInCommand}
               onUpdateNode={handleUpdateNode}
             />

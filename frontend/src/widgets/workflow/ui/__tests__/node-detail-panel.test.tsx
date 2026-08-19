@@ -60,7 +60,6 @@ function makeProps(
     onEnterInCommand: vi.fn(),
     onCtrlEnterInCommand: vi.fn(),
     onShiftCtrlEnterInCommand: vi.fn(),
-    onImportTextAsPrompts: vi.fn(),
     onClose: vi.fn(),
     onExecute: vi.fn(),
     onAbort: vi.fn(),
@@ -259,24 +258,6 @@ describe('NodeDetailPanel — preview auto-expand on execution complete', () => 
     const node = makeNode({ title: 'result' })
     renderPanel(node, true, { isExecuting: false })
     expect(screen.getByTestId('preview-trigger')).toHaveAttribute('data-state', 'open')
-  })
-})
-
-describe('NodeDetailPanel — render text to map action', () => {
-  it('imports the selected node title as prompt children', () => {
-    const node = makeNode({ title: 'First paragraph\n\nSecond paragraph' })
-    const onImportTextAsPrompts = vi.fn()
-    renderPanel(node, false, { onImportTextAsPrompts })
-
-    fireEvent.click(screen.getByTestId('import-text-as-prompts-button'))
-
-    expect(onImportTextAsPrompts).toHaveBeenCalledWith('n1', 'First paragraph\n\nSecond paragraph')
-  })
-
-  it('disables importing when the node has no text', () => {
-    renderPanel(makeNode({ title: '   ' }), false)
-
-    expect(screen.getByTestId('import-text-as-prompts-button')).toBeDisabled()
   })
 })
 

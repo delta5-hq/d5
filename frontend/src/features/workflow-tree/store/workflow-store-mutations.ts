@@ -22,7 +22,7 @@ import type { WorkflowStoreState } from './workflow-store-types'
 import type { DebouncedPersister } from './workflow-store-persistence'
 import type { HistoryStack } from './workflow-store-history'
 import { excludeIds } from './workflow-store-set-utils'
-import { createPromptNodesFromText } from './text-to-prompts-splitter'
+import { parseTextToPromptSeeds, type PromptSeed } from './text-to-prompts-splitter'
 import {
   collectAttachmentReferences,
   deleteAttachmentFiles,
@@ -299,15 +299,42 @@ export function bindMutationActions(
     )
   }
 
-  const replacePromptChildren = (parentId: NodeId, replacements: readonly Partial<NodeData>[]): number | null => {
+  const appendBranch = (
+    nodes: Record<NodeId, NodeData>,
+    branchParentId: NodeId,
+    children: readonly PromptSeed[],
+  ): { nodes: Record<NodeId, NodeData>; count: number } => {
+    let currentNodes = nodes
+    let count = 0
+    for (const child of children) {
+      const childResult = addChildNode(currentNodes, branchParentId, { title: child.title, parent: branchParentId })
+      currentNodes = childResult.nodes
+      const branch = appendBranch(currentNodes, childResult.newId, child.children)
+      currentNodes = branch.nodes
+      count += 1 + branch.count
+    }
+    return { nodes: currentNodes, count }
+  }
+
+  const materializePromptSeed = (
+    nodes: Record<NodeId, NodeData>,
+    parentId: NodeId,
+    seed: PromptSeed,
+  ): { nodes: Record<NodeId, NodeData>; count: number } => {
+    const rootResult = addPromptChildPure(nodes, parentId, { title: seed.title, parent: parentId })
+    const branch = appendBranch(rootResult.nodes, rootResult.newId, seed.children)
+    return { nodes: branch.nodes, count: 1 + branch.count }
+  }
+
+  const replacePromptChildren = (parentId: NodeId, seeds: readonly PromptSeed[]): number | null => {
     const { nodes, edges, selectedId, selectedIds, anchorId, dirtyNodeIds, root } = store.getState()
     try {
       let nextNodes = removePromptChildrenPure(nodes, parentId)
       let imported = 0
-      for (const replacement of replacements) {
-        const added = addPromptChildPure(nextNodes, parentId, replacement)
-        nextNodes = added.nodes
-        imported++
+      for (const seed of seeds) {
+        const materialized = materializePromptSeed(nextNodes, parentId, seed)
+        nextNodes = materialized.nodes
+        imported += materialized.count
       }
 
       const removedSet = new Set(Object.keys(nodes).filter(nodeId => !(nodeId in nextNodes)))
@@ -356,7 +383,7 @@ export function bindMutationActions(
 
   const importTextAsPrompts = (parentId: NodeId, text: string): number => {
     if (!text.trim()) return 0
-    return replacePromptChildren(parentId, createPromptNodesFromText(parentId, text)) ?? 0
+    return replacePromptChildren(parentId, parseTextToPromptSeeds(text)) ?? 0
   }
 
   const wrapNodes = (nodeIds: Set<NodeId>): NodeId | null => {

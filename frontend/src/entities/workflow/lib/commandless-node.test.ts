@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { NodeData } from '@shared/base-types'
-import { isCommandlessTextNode, hasOnlyPromptChildren } from './commandless-node'
+import { isCommandlessTextNode } from './commandless-node'
 
 function node(id: string, overrides: Partial<NodeData> = {}): NodeData {
   return { id, title: '', children: [], ...overrides }
@@ -45,42 +45,5 @@ describe('isCommandlessTextNode', () => {
     it('returns false when title is undefined', () => {
       expect(isCommandlessTextNode(node('a', { title: undefined }))).toBe(false)
     })
-  })
-})
-
-describe('hasOnlyPromptChildren', () => {
-  it('returns true when all children are in the parent prompts list', () => {
-    const nodes = {
-      parent: node('parent', { children: ['p1', 'p2'], prompts: ['p1', 'p2'] }),
-      p1: node('p1', { parent: 'parent' }),
-      p2: node('p2', { parent: 'parent' }),
-    }
-    expect(hasOnlyPromptChildren('parent', nodes)).toBe(true)
-  })
-
-  it('returns true when children list is empty', () => {
-    const nodes = { parent: node('parent', { children: [] }) }
-    expect(hasOnlyPromptChildren('parent', nodes)).toBe(true)
-  })
-
-  it('returns false when at least one child is not a prompt', () => {
-    const nodes = {
-      parent: node('parent', { children: ['c1', 'p1'], prompts: ['p1'] }),
-      c1: node('c1', { parent: 'parent' }),
-      p1: node('p1', { parent: 'parent' }),
-    }
-    expect(hasOnlyPromptChildren('parent', nodes)).toBe(false)
-  })
-
-  it('returns false when no children are prompts', () => {
-    const nodes = {
-      parent: node('parent', { children: ['c1'] }),
-      c1: node('c1', { parent: 'parent' }),
-    }
-    expect(hasOnlyPromptChildren('parent', nodes)).toBe(false)
-  })
-
-  it('returns false when parent node does not exist', () => {
-    expect(hasOnlyPromptChildren('nonexistent', {})).toBe(false)
   })
 })
