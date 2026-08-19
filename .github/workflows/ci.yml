@@ -283,7 +283,16 @@ jobs:
       - name: Allow unprivileged user namespaces for bubblewrap
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
       - name: Install bubblewrap sandbox runtime
-        run: sudo apt-get update -qq && sudo apt-get install -y bubblewrap
+        run: |
+          # Skip when already present (preinstalled on self-hosted runners); otherwise
+          # use non-interactive apt with sudo -n and timeouts so the step fails fast
+          # instead of hanging on a password/prompt until the job timeout.
+          if command -v bwrap >/dev/null 2>&1; then
+            echo "bubblewrap already present: $(bwrap --version)"
+          else
+            timeout 120 sudo -n env DEBIAN_FRONTEND=noninteractive apt-get update -qq
+            timeout 180 sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y bubblewrap
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 22
