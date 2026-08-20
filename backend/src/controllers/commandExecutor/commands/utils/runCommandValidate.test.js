@@ -373,10 +373,10 @@ describe('runCommand \u2014 /validate :retry side-effect containment', () => {
 
     expect(mcpRun).toHaveBeenCalledTimes(1)
     expect(validateSpy).toHaveBeenCalledTimes(1)
-    expect(store.getNode('v0').title).toMatch(/\[✗ 1×\]/)
+    expect(store.getNode('v0').title).toMatch(/\[✗ ⊘\]/)
     expect(store.getNode('v0').reliabilityMetadata).toEqual(
       expect.objectContaining({
-        mode: 'invalid',
+        mode: 'retry-withheld',
         retryWithheld: true,
         requestedRetry: 2,
         cause: 'side-effecting-alias',

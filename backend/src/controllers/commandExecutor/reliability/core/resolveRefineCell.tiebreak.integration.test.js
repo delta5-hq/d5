@@ -8,7 +8,7 @@ jest.mock('debug', () => {
   return fn
 })
 
-jest.mock('./SubtreeForkRunner', () => ({runForks: jest.fn()}))
+jest.mock('./SubtreeForkRunner', () => ({runForks: jest.fn(), computeEffectiveN: jest.fn((_r, _s, n) => n)}))
 jest.mock('./StoreFork', () => ({
   applyCandidate: jest.fn(),
   createFork: jest.fn(),

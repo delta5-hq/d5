@@ -1,4 +1,4 @@
-import {runForks} from './SubtreeForkRunner'
+import {runForks, computeEffectiveN} from './SubtreeForkRunner'
 import {CriteriaFailedError} from './CriteriaFailedError'
 import Store from '../../commands/utils/Store'
 
@@ -1259,5 +1259,282 @@ describe('onForkSettled callback', () => {
 
     // The runForks contract: results array must be complete even if callback throws
     expect(results.filter(Boolean)).toHaveLength(3)
+  })
+})
+
+describe('computeEffectiveN', () => {
+  const buildStoreWithParent = (parentCommand, aliases = {mcp: [], rpc: []}) => {
+    const store = buildStore({
+      root: {id: 'root', children: ['parent']},
+      parent: {
+        id: 'parent',
+        parent: 'root',
+        command: parentCommand,
+        children: ['refine'],
+      },
+      refine: {
+        id: 'refine',
+        parent: 'parent',
+        command: '/refine :n=3',
+        children: [],
+      },
+    })
+    store._aliases = aliases
+    return store
+  }
+
+  it('returns n for a non-side-effecting parent (chat)', () => {
+    const store = buildStoreWithParent('/chat do something')
+    expect(computeEffectiveN(store.getNode('refine'), store, 3)).toBe(3)
+  })
+
+  it('returns 1 for a side-effecting MCP-alias parent when n > 1', () => {
+    const store = buildStoreWithParent('/tool mutate', {
+      mcp: [{alias: '/tool'}],
+      rpc: [],
+    })
+    expect(computeEffectiveN(store.getNode('refine'), store, 3)).toBe(1)
+  })
+
+  it('returns 1 for a side-effecting MCP-alias parent when n = 2 (minimum collapse threshold)', () => {
+    const store = buildStoreWithParent('/tool mutate', {
+      mcp: [{alias: '/tool'}],
+      rpc: [],
+    })
+    expect(computeEffectiveN(store.getNode('refine'), store, 2)).toBe(1)
+  })
+
+  it('returns n unchanged when n = 1 even with a side-effecting parent — n=1 never needs collapse', () => {
+    const store = buildStoreWithParent('/tool mutate', {
+      mcp: [{alias: '/tool'}],
+      rpc: [],
+    })
+    expect(computeEffectiveN(store.getNode('refine'), store, 1)).toBe(1)
+  })
+
+  it('returns n when parentNode is absent — no parent means no suppression signal', () => {
+    const store = buildStore({
+      refine: {id: 'refine', command: '/refine :n=3', children: []},
+    })
+    expect(computeEffectiveN(store.getNode('refine'), store, 5)).toBe(5)
+  })
+
+  it('returns 1 for a side-effecting RPC-alias parent when n > 1', () => {
+    const store = buildStoreWithParent('/ssh run', {
+      mcp: [],
+      rpc: [{alias: '/ssh'}],
+    })
+    expect(computeEffectiveN(store.getNode('refine'), store, 4)).toBe(1)
+  })
+
+  it('returns 1 for an /mcp fusion parent when n > 1', () => {
+    const store = buildStoreWithParent('/mcp some-op')
+    expect(computeEffectiveN(store.getNode('refine'), store, 3)).toBe(1)
+  })
+})
+
+describe('runForks — suppressed metadata propagates to failure shapes', () => {
+  const buildSuppressedTree = (aliases = {mcp: [{alias: '/tool'}], rpc: []}) => {
+    const store = buildStore({
+      root: {id: 'root', children: ['parent']},
+      parent: {
+        id: 'parent',
+        parent: 'root',
+        command: '/tool run',
+        children: ['refine'],
+      },
+      refine: {
+        id: 'refine',
+        parent: 'parent',
+        command: '/refine :n=3',
+        children: [],
+      },
+    })
+    store._aliases = aliases
+    return store
+  }
+
+  it('criteria-failed result from a suppressed fork carries suppressed/cause/requestedN', async () => {
+    const store = buildSuppressedTree()
+    mockRunCommand.mockRejectedValue(new CriteriaFailedError('quality', [{content: 'x'}]))
+
+    const results = await runForks({
+      refineNode: store.getNode('refine'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+    })
+
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatchObject({
+      status: 'criteria-failed',
+      suppressed: true,
+      cause: 'side-effecting-alias',
+      requestedN: 3,
+    })
+  })
+
+  it('runtime-failed result from a suppressed fork carries suppressed/cause/requestedN', async () => {
+    const store = buildSuppressedTree()
+    mockRunCommand.mockRejectedValue(new Error('network error'))
+
+    const results = await runForks({
+      refineNode: store.getNode('refine'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+    })
+
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatchObject({
+      status: 'runtime-failed',
+      suppressed: true,
+      cause: 'side-effecting-alias',
+      requestedN: 3,
+    })
+  })
+
+  it('non-suppressed criteria-failed fork does NOT carry suppressed field', async () => {
+    const store = minimalTree()
+    mockRunCommand.mockRejectedValue(new CriteriaFailedError('quality', [{content: 'x'}]))
+
+    const results = await runForks({
+      refineNode: store.getNode('refine'),
+      store,
+      n: 2,
+      memoMap: new Map(),
+    })
+
+    for (const r of results) {
+      expect(r.suppressed).toBeUndefined()
+      expect(r.requestedN).toBeUndefined()
+    }
+  })
+})
+
+describe('preExecuteSideEffectingRefineChildren — pre-execution exclusion rules', () => {
+  const mcpAlias = {
+    alias: '/tool',
+    serverUrl: 'http://mcp',
+    transport: 'streamable-http',
+    toolName: 'run',
+  }
+
+  it('post-processor child (/validate) is excluded from pre-execution even when side-effecting', async () => {
+    // /validate is a post-processor; even hypothetically side-effecting, it must not run pre-fork
+    const store = buildStore({
+      root: {id: 'root', children: ['parent']},
+      parent: {
+        id: 'parent',
+        parent: 'root',
+        command: '/chat do',
+        children: ['refine'],
+      },
+      refine: {
+        id: 'refine',
+        parent: 'parent',
+        command: '/refine :n=3',
+        children: ['child'],
+      },
+      child: {
+        id: 'child',
+        parent: 'refine',
+        command: '/validate quality',
+        children: [],
+      },
+    })
+    store._aliases = {mcp: [mcpAlias], rpc: []}
+
+    await runForks({
+      refineNode: store.getNode('refine'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+    })
+
+    // runCommand is called per fork (3 times for the parent chat) but NOT once pre-fork for /validate
+    // The per-fork calls have queryType 'chat', not the child MCP queryType
+    const preExecCalls = mockRunCommand.mock.calls.filter(([params]) => params.cell?.id === 'child')
+    expect(preExecCalls).toHaveLength(0)
+  })
+
+  it('MCP-alias child whose subtree contains a nested /refine is excluded from pre-execution', async () => {
+    // hasRefineDescendant guard: running such a child pre-fork would double-execute the nested refine
+    const store = buildStore({
+      root: {id: 'root', children: ['parent']},
+      parent: {
+        id: 'parent',
+        parent: 'root',
+        command: '/chat do',
+        children: ['refine'],
+      },
+      refine: {
+        id: 'refine',
+        parent: 'parent',
+        command: '/refine :n=3',
+        children: ['mcpChild'],
+      },
+      mcpChild: {
+        id: 'mcpChild',
+        parent: 'refine',
+        command: '/tool run',
+        children: ['nestedRefine'],
+      },
+      nestedRefine: {
+        id: 'nestedRefine',
+        parent: 'mcpChild',
+        command: '/refine :n=2',
+        children: [],
+      },
+    })
+    store._aliases = {mcp: [mcpAlias], rpc: []}
+
+    await runForks({
+      refineNode: store.getNode('refine'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+    })
+
+    // mcpChild has a refine descendant: must NOT be pre-executed (would compound fork counts)
+    const mcpChildCalls = mockRunCommand.mock.calls.filter(([params]) => params.cell?.id === 'mcpChild')
+    expect(mcpChildCalls).toHaveLength(0)
+  })
+
+  it('child already in memoMap is skipped by pre-execution (idempotency guard)', async () => {
+    const store = buildStore({
+      root: {id: 'root', children: ['parent']},
+      parent: {
+        id: 'parent',
+        parent: 'root',
+        command: '/chat do',
+        children: ['refine'],
+      },
+      refine: {
+        id: 'refine',
+        parent: 'parent',
+        command: '/refine :n=3',
+        children: ['child'],
+      },
+      child: {
+        id: 'child',
+        parent: 'refine',
+        command: '/tool run',
+        children: [],
+      },
+    })
+    store._aliases = {mcp: [mcpAlias], rpc: []}
+    const memoMap = new Map([['child', 'already-set']])
+
+    await runForks({
+      refineNode: store.getNode('refine'),
+      store,
+      n: 3,
+      memoMap,
+    })
+
+    // child is in memoMap already; pre-execution skips it
+    const childCalls = mockRunCommand.mock.calls.filter(([params]) => params.cell?.id === 'child')
+    expect(childCalls).toHaveLength(0)
   })
 })

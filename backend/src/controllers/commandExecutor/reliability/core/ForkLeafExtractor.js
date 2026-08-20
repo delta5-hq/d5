@@ -3,9 +3,6 @@
  * @property {string} nodeId
  * @property {string} content - capped at LEAF_PREVIEW_MAX_CHARS
  * @property {string} [executionStatus]
- * @property {boolean} [isError]
- * @property {number} [httpStatus]
- * @property {number} [exitCode]
  */
 
 export const LEAF_PREVIEW_MAX_CHARS = 500
@@ -23,8 +20,5 @@ export function extractForkLeafOutputs(forkStore, parentNodeId) {
       nodeId: node.id,
       content: node.title.slice(0, LEAF_PREVIEW_MAX_CHARS),
       ...(node.executionStatus ? {executionStatus: node.executionStatus} : {}),
-      ...(typeof node.isError === 'boolean' ? {isError: node.isError} : {}),
-      ...(Number.isInteger(node.httpStatus) ? {httpStatus: node.httpStatus} : {}),
-      ...(Number.isInteger(node.exitCode) ? {exitCode: node.exitCode} : {}),
     }))
 }

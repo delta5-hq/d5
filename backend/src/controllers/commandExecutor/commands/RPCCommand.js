@@ -228,14 +228,7 @@ export class RPCCommand {
       this.store.importer.createNodes(parsedOutput || '(empty RPC response)', node.id)
     } catch (e) {
       this.logError(e)
-      const httpStatus = Number.isInteger(e.status) ? e.status : undefined
-      const exitCode = Number.isInteger(e.exitCode) ? e.exitCode : undefined
-      const hasSignal = httpStatus !== undefined || exitCode !== undefined
-      this.store.importer.createErrorNode(
-        `Error: ${e.message}`,
-        node.id,
-        ...(hasSignal ? [{httpStatus, exitCode}] : []),
-      )
+      this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }
   }
 

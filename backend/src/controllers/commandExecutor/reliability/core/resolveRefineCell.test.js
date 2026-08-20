@@ -10,12 +10,15 @@ jest.mock('debug', () => {
   return fn
 })
 
-jest.mock('./SubtreeForkRunner', () => ({runForks: jest.fn()}))
+jest.mock('./SubtreeForkRunner', () => ({
+  runForks: jest.fn(),
+  computeEffectiveN: jest.fn((refineNode, store, n) => n),
+}))
 jest.mock('./ForkJudge', () => ({ForkJudge: jest.fn()}))
 jest.mock('./OwnershipResolver', () => jest.fn())
 jest.mock('./StoreFork', () => ({applyCandidate: jest.fn()}))
 
-const {runForks: mockRunForks} = require('./SubtreeForkRunner')
+const {runForks: mockRunForks, computeEffectiveN: mockComputeEffectiveN} = require('./SubtreeForkRunner')
 const MockForkJudge = ForkJudge
 const MockOwnershipResolver = OwnershipResolver
 
@@ -690,7 +693,11 @@ describe('resolveRefineCell — winner selected', () => {
   })
 
   it('suppressed /refine calls emitter.refineComplete with winnerForkIndex=0 and total=1', async () => {
-    const makeEmitter = () => ({forksStarted: jest.fn(), forkSettled: jest.fn(), refineComplete: jest.fn()})
+    const makeEmitter = () => ({
+      forksStarted: jest.fn(),
+      forkSettled: jest.fn(),
+      refineComplete: jest.fn(),
+    })
     const winner = okForkStore()
     mockRunForks.mockResolvedValue([
       {
@@ -728,19 +735,27 @@ describe('resolveRefineCell — winner selected', () => {
     expect(memoMap.get('r1')).toBe(winner)
   })
 
-  it.each([
-    ['side-effecting-alias', 'side-effecting-alias', 3],
-    ['side-effecting-refine-child', 'side-effecting-refine-child', undefined],
-  ])('suppression cause %s is forwarded to refine node metadata', async (_, cause, requestedN) => {
-    const winner = okForkStore()
-    mockRunForks.mockResolvedValue([
-      {forkIndex: 0, status: 'ok', forkStore: winner, leafOutputs: [], suppressed: true, cause, requestedN},
-    ])
-    const store = makeStore('/refine :n=3')
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
-    expect(store.getNode('r1').reliabilityMetadata.cause).toBe(cause)
-    expect(store.getNode('r1').reliabilityMetadata.suppressed).toBe(true)
-  })
+  it.each([['side-effecting-alias', 'side-effecting-alias', 3]])(
+    'suppression cause %s is forwarded to refine node metadata',
+    async (_, cause, requestedN) => {
+      const winner = okForkStore()
+      mockRunForks.mockResolvedValue([
+        {
+          forkIndex: 0,
+          status: 'ok',
+          forkStore: winner,
+          leafOutputs: [],
+          suppressed: true,
+          cause,
+          requestedN,
+        },
+      ])
+      const store = makeStore('/refine :n=3')
+      await resolveRefineCell(store.getNode('r1'), store, new Map())
+      expect(store.getNode('r1').reliabilityMetadata.cause).toBe(cause)
+      expect(store.getNode('r1').reliabilityMetadata.suppressed).toBe(true)
+    },
+  )
 
   it('suppressed /refine with forkStore:null — title, metadata, emitter, and memoMap still set; store operations skipped gracefully', async () => {
     // forkStore can be null when the fork never materialised (e.g. SubtreeForkRunner
@@ -758,7 +773,11 @@ describe('resolveRefineCell — winner selected', () => {
     ])
     const store = makeStore('/refine :n=2')
     store._nodes.r1.title = 'Bare Task'
-    const emitter = {forksStarted: jest.fn(), forkSettled: jest.fn(), refineComplete: jest.fn()}
+    const emitter = {
+      forksStarted: jest.fn(),
+      forkSettled: jest.fn(),
+      refineComplete: jest.fn(),
+    }
     const memoMap = new Map()
 
     await resolveRefineCell(store.getNode('r1'), store, memoMap, null, emitter)
@@ -772,6 +791,93 @@ describe('resolveRefineCell — winner selected', () => {
     })
     expect(emitter.refineComplete).toHaveBeenCalledWith('r1', 0, 1)
     expect(memoMap.get('r1')).toBeNull()
+  })
+
+  it('suppressed /refine whose single run fails reports collapsed count and no-winner status', async () => {
+    const makeEmitter = () => ({
+      forksStarted: jest.fn(),
+      forkSettled: jest.fn(),
+      refineComplete: jest.fn(),
+    })
+    mockRunForks.mockResolvedValue([
+      {
+        forkIndex: 0,
+        status: 'criteria-failed',
+        forkStore: null,
+        leafOutputs: [],
+        suppressed: true,
+        cause: 'side-effecting-alias',
+        requestedN: 3,
+      },
+    ])
+    const store = makeStore('/refine :n=3')
+    const emitter = makeEmitter()
+    await resolveRefineCell(store.getNode('r1'), store, new Map(), null, emitter)
+
+    expect(store._nodes.r1.title).toMatch(/\[✗ 0\/1\]/)
+    expect(store._nodes.r1.title).not.toMatch(/3/)
+    expect(emitter.refineComplete).toHaveBeenCalledWith('r1', null, 1)
+    expect(store._nodes.r1.reliabilityMetadata).toMatchObject({
+      mode: 'suppressed',
+      suppressed: true,
+      cause: 'side-effecting-alias',
+    })
+  })
+
+  it('forksStarted uses effectiveN from computeEffectiveN, not the raw n', async () => {
+    const makeEmitter = () => ({
+      forksStarted: jest.fn(),
+      forkSettled: jest.fn(),
+      refineComplete: jest.fn(),
+    })
+    mockComputeEffectiveN.mockReturnValueOnce(1)
+    mockRunForks.mockResolvedValue([
+      {
+        forkIndex: 0,
+        status: 'ok',
+        forkStore: okForkStore(),
+        leafOutputs: [],
+        suppressed: true,
+        cause: 'side-effecting-alias',
+        requestedN: 3,
+      },
+    ])
+    const store = makeStore('/refine :n=3')
+    const emitter = makeEmitter()
+    await resolveRefineCell(store.getNode('r1'), store, new Map(), null, emitter)
+
+    expect(emitter.forksStarted).toHaveBeenCalledWith('r1', 1)
+    expect(emitter.forksStarted).not.toHaveBeenCalledWith('r1', 3)
+  })
+
+  it('genuine 1-of-3 partial success renders [✓ 1/3] — suppressed-path changes do not affect normal winner path', async () => {
+    mockRunForks.mockResolvedValue([
+      {forkIndex: 0, status: 'ok', forkStore: winner},
+      {
+        forkIndex: 1,
+        status: 'criteria-failed',
+        forkStore: okForkStore(),
+        leafOutputs: [],
+      },
+      {
+        forkIndex: 2,
+        status: 'runtime-failed',
+        forkStore: null,
+        reason: 'timeout',
+        leafOutputs: [],
+      },
+    ])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({
+        winnerForkIndex: 0,
+        selectionLayer: 'primary',
+        mode: 'strict',
+      }),
+    }))
+    const store = makeStore('/refine :n=3')
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+
+    expect(store._nodes.r1.title).toMatch(/\[✓ 1\/3\]/)
   })
 
   it.each([

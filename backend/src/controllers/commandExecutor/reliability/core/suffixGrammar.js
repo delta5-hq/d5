@@ -19,6 +19,7 @@ export const ENGINE_SUFFIX_SHAPES = Object.freeze([
   '✓',
   '✗ 0/\\d+',
   '✗ \\d+×',
+  '✗ ⊘',
   '✗ !',
   '⚠ ∅',
   '⚠ 0/\\d+',

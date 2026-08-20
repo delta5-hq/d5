@@ -720,17 +720,18 @@ describe('NodeDetailPanel — suppressed hint: cause routing inside suppressed-r
     expect(hint).toHaveTextContent(':n=3')
   })
 
-  it('side-effecting-refine-child cause renders the child-hop hint — distinct from the alias hint', () => {
+  it('unrecognized or legacy cause falls through to suppressedRunHint — component is cause-agnostic', () => {
+    // 'side-effecting-refine-child' was removed in R3-1; component must not branch on cause values
     renderPanel(makeNode({ command: '/chat :n=3 task' }), false, {
       reliabilityMetadata: { ...baseSuppressed, cause: 'side-effecting-refine-child' },
     })
     const hint = screen.getByTestId('suppressed-run-hint')
     expect(hint).toBeInTheDocument()
-    expect(hint).toHaveTextContent('Side-effecting child skipped')
-    expect(hint).not.toHaveTextContent('best-of-N suppressed')
+    expect(hint).toHaveTextContent('best-of-N suppressed')
+    expect(hint).toHaveTextContent(':n=3')
   })
 
-  it('side-effecting-refine-child uses the same suppressed-run-hint container as the alias case', () => {
+  it('any suppressed cause uses the suppressed-run-hint container — no dead branch for legacy causes', () => {
     renderPanel(makeNode({ command: '/chat task' }), false, {
       reliabilityMetadata: { ...baseSuppressed, cause: 'side-effecting-refine-child' },
     })

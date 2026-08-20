@@ -269,14 +269,10 @@ export const NodeDetailPanel = ({
                     ) : null}
                     {reliabilityMetadata?.mode === 'suppressed' || reliabilityMetadata?.suppressed ? (
                       <span className="text-xs text-accent mt-1 block" data-testid="suppressed-run-hint">
-                        {reliabilityMetadata.cause === 'side-effecting-refine-child' ? (
-                          <FormattedMessage id="workflowTree.node.refineChildSuppressedHint" />
-                        ) : (
-                          <FormattedMessage
-                            id="workflowTree.node.suppressedRunHint"
-                            values={{ n: reliabilityMetadata.requestedN ?? '' }}
-                          />
-                        )}
+                        <FormattedMessage
+                          id="workflowTree.node.suppressedRunHint"
+                          values={{ n: reliabilityMetadata.requestedN ?? '' }}
+                        />
                       </span>
                     ) : null}
                     {reliabilityMetadata?.retryWithheld ? (

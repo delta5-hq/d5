@@ -34,6 +34,8 @@ import {MEMORIZE_QUERY_TYPE} from '../../constants/memorize'
 import {MCP_FUSION_QUERY_TYPE} from '../../constants/mcpFusion'
 import {MCPFusionCommand} from '../MCPFusionCommand'
 import * as MCPClientManager from '../mcp/MCPClientManager'
+import {runForks} from '../../reliability/core/SubtreeForkRunner'
+import {MEMO_SENTINEL_PRE_EXECUTED_CHILD} from '../../reliability/core/memoSentinels'
 /* eslint-disable no-unused-vars */
 import {SSHExecutor} from '../rpc/SSHExecutor'
 import {HTTPExecutor} from '../rpc/HTTPExecutor'
@@ -2701,16 +2703,10 @@ describe('commodity :n=N guard narrowness — native /chat fan-out is unaffected
     expect(callCount).toBe(3)
     expect(store.getOutput().nodes.filter(m => m.parent === node.id)).toHaveLength(3)
     expect(store.getNode(node.id).reliabilityMetadata.mode).toBe('commodity')
-    expect(store.getNode(node.id).reliabilityMetadata.suppressed).toBeUndefined()
   })
 })
 
-describe('/refine child-dispatch loop — side-effecting child suppression inside fork execution', () => {
-  // When the memoMap sentinel is 'in-progress' for a /refine cell, a fork-local
-  // runCommand call dispatches the refine cell's children. Side-effecting children
-  // (MCP/RPC aliases) must be suppressed rather than executed, to prevent N real
-  // external operations per fork-fan-out.
-
+describe('/refine child-dispatch loop — pre-execute side-effecting child exactly once across N forks', () => {
   const childMcpAlias = {
     alias: '/child-mcp',
     serverUrl: 'http://localhost:3100/mcp',
@@ -2729,112 +2725,66 @@ describe('/refine child-dispatch loop — side-effecting child suppression insid
     outputFormat: 'text',
   }
 
-  const makeForkStore = ({mcpAliases = [], rpcAliases = [], childCommand = ''} = {}) => {
-    const store = new Store({
-      userId,
-      workflowId,
+  const makeRefineStore = ({mcpAliases = [], rpcAliases = [], childCommand = ''} = {}) =>
+    new Store({
+      userId: 'user1',
+      workflowId: 'wf1',
       aliases: {mcp: mcpAliases, rpc: rpcAliases},
       nodes: {
-        parent: {id: 'parent', parent: null, command: '/chat outer', children: ['refine'], prompts: []},
+        root: {id: 'root', children: ['parent']},
+        parent: {id: 'parent', parent: 'root', command: '/chat outer', children: ['refine'], prompts: []},
         refine: {id: 'refine', parent: 'parent', command: '/refine :n=3', children: ['child'], prompts: []},
         child: {id: 'child', parent: 'refine', command: childCommand, children: [], prompts: []},
       },
     })
-    store.withinForkExecution = true
-    return store
-  }
 
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
-  it('suppresses an MCP-alias child inside fork execution — command not invoked, suppression metadata stamped', async () => {
-    const store = makeForkStore({mcpAliases: [childMcpAlias], childCommand: '/child-mcp do external op'})
-    const memoMap = new Map([['refine', 'in-progress']])
+  it('MCP-alias child executes exactly once across N=3 forks', async () => {
+    const store = makeRefineStore({mcpAliases: [childMcpAlias], childCommand: '/child-mcp do external op'})
     const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
     MCPClientManager.callTool.mockResolvedValue({content: 'result', isError: false})
 
-    await runCommand({cell: store.getNode('parent'), queryType: CHAT_QUERY_TYPE, store, memoMap})
-
-    expect(MCPClientManager.callTool).not.toHaveBeenCalled()
-    expect(store.getNode('child').reliabilityMetadata).toMatchObject({
-      mode: 'suppressed',
-      suppressed: true,
-      cause: 'side-effecting-refine-child',
-    })
-
-    chatSpy.mockRestore()
-  })
-
-  it('suppresses an RPC-alias child inside fork execution — SSH not invoked, suppression metadata stamped', async () => {
-    const store = makeForkStore({rpcAliases: [childRpcAlias], childCommand: '/child-rpc run external cmd'})
-    const memoMap = new Map([['refine', 'in-progress']])
-    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
-    mockSSHExecute.mockResolvedValue({stdout: 'out', stderr: '', exitCode: 0})
-
-    await runCommand({cell: store.getNode('parent'), queryType: CHAT_QUERY_TYPE, store, memoMap})
-
-    expect(mockSSHExecute).not.toHaveBeenCalled()
-    expect(store.getNode('child').reliabilityMetadata).toMatchObject({
-      mode: 'suppressed',
-      suppressed: true,
-      cause: 'side-effecting-refine-child',
-    })
-
-    chatSpy.mockRestore()
-  })
-
-  it('suppressed refine child carries requestedN: undefined — distinct from commodity suppression which carries the requested N', async () => {
-    const store = makeForkStore({mcpAliases: [childMcpAlias], childCommand: '/child-mcp task'})
-    const memoMap = new Map([['refine', 'in-progress']])
-    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
-    MCPClientManager.callTool.mockResolvedValue({content: 'result', isError: false})
-
-    await runCommand({cell: store.getNode('parent'), queryType: CHAT_QUERY_TYPE, store, memoMap})
-
-    expect(store.getNode('child').reliabilityMetadata.requestedN).toBeUndefined()
-
-    chatSpy.mockRestore()
-  })
-
-  it('does NOT suppress a side-effecting child when NOT inside fork execution (withinForkExecution=false)', async () => {
-    const store = makeForkStore({mcpAliases: [childMcpAlias], childCommand: '/child-mcp do op'})
-    store.withinForkExecution = false
-    const memoMap = new Map([['refine', 'in-progress']])
-    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
-    MCPClientManager.callTool.mockResolvedValue({content: 'result', isError: false})
-
-    await runCommand({cell: store.getNode('parent'), queryType: CHAT_QUERY_TYPE, store, memoMap})
+    await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
 
     expect(MCPClientManager.callTool).toHaveBeenCalledTimes(1)
-    expect(store.getNode('child').reliabilityMetadata?.cause).not.toBe('side-effecting-refine-child')
-
     chatSpy.mockRestore()
   })
 
-  it('does NOT suppress a plain-chat child inside fork execution — only alias-dispatched children are side-effecting', async () => {
-    const store = makeForkStore({childCommand: '/chat inner task'})
-    const memoMap = new Map([['refine', 'in-progress']])
+  it('RPC-alias child executes exactly once across N=3 forks', async () => {
+    mockSSHExecute.mockResolvedValue({stdout: 'out', stderr: '', exitCode: 0})
+    const store = makeRefineStore({rpcAliases: [childRpcAlias], childCommand: '/child-rpc run task'})
     const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
 
-    await runCommand({cell: store.getNode('parent'), queryType: CHAT_QUERY_TYPE, store, memoMap})
+    await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
 
-    expect(store.getNode('child').reliabilityMetadata?.cause).not.toBe('side-effecting-refine-child')
-
+    expect(mockSSHExecute).toHaveBeenCalledTimes(1)
     chatSpy.mockRestore()
   })
 
-  it('suppressed child is written to output — callers can observe the suppression decision', async () => {
-    const store = makeForkStore({mcpAliases: [childMcpAlias], childCommand: '/child-mcp task'})
-    const memoMap = new Map([['refine', 'in-progress']])
+  it('each fork sees the MCP child result — result is inherited via fork store deep clone', async () => {
+    const store = makeRefineStore({mcpAliases: [childMcpAlias], childCommand: '/child-mcp query'})
     const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
-    MCPClientManager.callTool.mockResolvedValue({content: 'result', isError: false})
+    MCPClientManager.callTool.mockResolvedValue({content: 'shared result', isError: false})
 
-    await runCommand({cell: store.getNode('parent'), queryType: CHAT_QUERY_TYPE, store, memoMap})
+    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
 
-    const outputChildIds = store.getOutput().nodes.map(n => n.id)
-    expect(outputChildIds).toContain('child')
+    expect(results).toHaveLength(3)
+    expect(MCPClientManager.callTool).toHaveBeenCalledTimes(1)
+    chatSpy.mockRestore()
+  })
 
+  it('non-side-effecting child is not pre-executed — no sentinel in memoMap, no MCP callTool', async () => {
+    const store = makeRefineStore({childCommand: '/chat inner task'})
+    const memoMap = new Map()
+    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+
+    await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap})
+
+    expect(memoMap.get('child')).not.toBe(MEMO_SENTINEL_PRE_EXECUTED_CHILD)
+    expect(MCPClientManager.callTool).not.toHaveBeenCalled()
     chatSpy.mockRestore()
   })
 })

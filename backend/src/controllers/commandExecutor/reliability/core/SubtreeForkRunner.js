@@ -7,6 +7,13 @@ import {CriteriaFailedError} from './CriteriaFailedError'
 import {extractForkLeafOutputs} from './ForkLeafExtractor'
 import {isSideEffectingDispatch} from './sideEffectingDispatch'
 import {COMMODITY_SUPPRESSION_CAUSE} from './failureSemantics'
+import {MEMO_SENTINEL_PRE_EXECUTED_CHILD} from './memoSentinels'
+import {FOREACH_QUERY} from '../../constants/foreach'
+import {MEMORIZE_QUERY} from '../../constants/memorize'
+import {OUTLINE_QUERY, readSummarizeParam} from '../../constants/outline'
+import {REFINE_QUERY} from '../../constants/refine'
+import {SUMMARIZE_QUERY} from '../../constants/summarize'
+import {VALIDATE_QUERY} from '../../constants/validate'
 
 /**
  * @typedef {import('../../commands/utils/Store').NodeData} NodeData
@@ -28,6 +35,43 @@ import {COMMODITY_SUPPRESSION_CAUSE} from './failureSemantics'
  * @property {number} [requestedN]
  */
 
+function isPostProcessorOrControlQuery(query) {
+  return (
+    !query ||
+    query.startsWith(FOREACH_QUERY) ||
+    query.startsWith(SUMMARIZE_QUERY) ||
+    query.startsWith(MEMORIZE_QUERY) ||
+    query.startsWith(REFINE_QUERY) ||
+    query.startsWith(VALIDATE_QUERY) ||
+    (query.startsWith(OUTLINE_QUERY) && readSummarizeParam(query))
+  )
+}
+
+function hasRefineDescendant(node, store) {
+  for (const childId of node.children ?? []) {
+    const child = store.getNode(childId)
+    if (!child) continue
+    if (getNodeCommand(child)?.startsWith(REFINE_QUERY)) return true
+    if (hasRefineDescendant(child, store)) return true
+  }
+  return false
+}
+
+async function preExecuteSideEffectingRefineChildren(refineNode, store, memoMap, signal) {
+  for (const childId of refineNode.children ?? []) {
+    if (memoMap.has(childId)) continue
+    const child = store.getNode(childId)
+    if (!child) continue
+    const query = getNodeCommand(child)
+    if (isPostProcessorOrControlQuery(query)) continue
+    if (hasRefineDescendant(child, store)) continue
+    const {queryType, mcpAlias, rpcAlias} = resolveCommand(query, store._aliases)
+    if (!queryType || !isSideEffectingDispatch({queryType, mcpAlias, rpcAlias})) continue
+    await runCommand({queryType, cell: child, store, mcpAlias, rpcAlias, signal, memoMap}, new NullProgress())
+    memoMap.set(childId, MEMO_SENTINEL_PRE_EXECUTED_CHILD)
+  }
+}
+
 /**
  * Sets `refineNode.id` in `memoMap` as `'in-progress'` BEFORE the forks run.
  * Each fork receives a fork-local memoMap copy so nested /refine cells are
@@ -36,10 +80,6 @@ import {COMMODITY_SUPPRESSION_CAUSE} from './failureSemantics'
  * this same /refine from within each fork.
  *
  * Returns one result per executed fork, including failures — the caller decides eligibility.
- *
- * `onForkSettled` is called as each fork resolves, in order of completion (not
- * launch order). The callback receives the ForkResult immediately so callers can
- * emit progressive updates without waiting for all N forks to complete.
  *
  * @param {{
  *   refineNode: NodeData,
@@ -63,6 +103,10 @@ export const runForks = async ({refineNode, store, n, memoMap, signal = null, on
   const {queryType, mcpAlias, rpcAlias} = resolveCommand(command, store._aliases)
   const suppressedForSideEffect = n > 1 && isSideEffectingDispatch({queryType, mcpAlias, rpcAlias})
   const effectiveN = suppressedForSideEffect ? 1 : n
+
+  if (!suppressedForSideEffect && effectiveN > 1) {
+    await preExecuteSideEffectingRefineChildren(refineNode, store, memoMap, signal)
+  }
 
   const forkStores = Array.from({length: effectiveN}, () => StoreFork.createFork(store))
   const results = new Array(effectiveN)
@@ -90,7 +134,11 @@ export const runForks = async ({refineNode, store, n, memoMap, signal = null, on
           status: 'ok',
           leafOutputs: extractForkLeafOutputs(forkStore, parentNode.id),
           ...(suppressedForSideEffect
-            ? {suppressed: true, cause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS, requestedN: n}
+            ? {
+                suppressed: true,
+                cause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS,
+                requestedN: n,
+              }
             : {}),
         }
       } catch (err) {
@@ -102,6 +150,13 @@ export const runForks = async ({refineNode, store, n, memoMap, signal = null, on
             failedAt: err.criterion,
             attempts: err.attempts,
             leafOutputs: extractForkLeafOutputs(forkStore, parentNode.id),
+            ...(suppressedForSideEffect
+              ? {
+                  suppressed: true,
+                  cause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS,
+                  requestedN: n,
+                }
+              : {}),
           }
         } else {
           result = {
@@ -110,6 +165,13 @@ export const runForks = async ({refineNode, store, n, memoMap, signal = null, on
             status: 'runtime-failed',
             reason: err?.message || String(err),
             leafOutputs: [],
+            ...(suppressedForSideEffect
+              ? {
+                  suppressed: true,
+                  cause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS,
+                  requestedN: n,
+                }
+              : {}),
           }
         }
       }
@@ -119,4 +181,18 @@ export const runForks = async ({refineNode, store, n, memoMap, signal = null, on
   )
 
   return results
+}
+/**
+ * Callers use this to emit accurate fork-started counts before runForks resolves.
+ * @param {NodeData} refineNode
+ * @param {Store} store
+ * @param {number} n - Requested fork count
+ * @returns {number}
+ */
+export function computeEffectiveN(refineNode, store, n) {
+  const parentNode = store.getNode(refineNode.parent)
+  if (!parentNode) return n
+  const command = getNodeCommand(parentNode)
+  const {queryType, mcpAlias, rpcAlias} = resolveCommand(command, store._aliases)
+  return n > 1 && isSideEffectingDispatch({queryType, mcpAlias, rpcAlias}) ? 1 : n
 }

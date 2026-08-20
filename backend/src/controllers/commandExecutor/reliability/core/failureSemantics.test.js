@@ -235,12 +235,9 @@ describe('deterministicFailureReason', () => {
     ['missing signal', undefined],
     ['explicit null signal', null],
     ['successful MCP result', {isError: false}],
-    ['MCP isError flag without executionStatus — no longer a rejection reason', {isError: true}],
     ['HTTP lower success boundary', {httpStatus: 200}],
     ['HTTP upper success boundary', {httpStatus: 299}],
-    ['HTTP non-2xx without executionStatus — no longer a rejection reason', {httpStatus: 503}],
     ['SSH zero exit', {exitCode: 0}],
-    ['SSH nonzero exit without executionStatus — no longer a rejection reason', {exitCode: 126}],
     ['ok fork status', {status: 'ok'}],
   ])('returns null for %s', (_, signal) => {
     expect(deterministicFailureReason(signal)).toBeNull()

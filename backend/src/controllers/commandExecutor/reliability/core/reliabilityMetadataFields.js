@@ -45,8 +45,6 @@ export function buildReliabilityMetadata(verdict, forkResults, okCount, n) {
     eligible: okCount,
     total: n,
     ...(suppressedFork ? {suppressed: true, cause: suppressedFork.cause, requestedN: suppressedFork.requestedN} : {}),
-    ...(verdict.retryWithheld ? {retryWithheld: true} : {}),
-    ...(verdict.requestedRetry !== undefined ? {requestedRetry: verdict.requestedRetry} : {}),
     judgeInput: verdict.judgeInput,
     judgeQualityWarnings: verdict.judgeQualityWarnings ?? [],
     ...(verdict.selectionLayer === 'fallback' ? {fallbackUsed: true} : {}),
@@ -109,7 +107,7 @@ export function buildValidateRetryWithheldReliabilityMetadata({cause, requestedR
   return {
     winnerForkIndex: null,
     perCriterionVerdict: [],
-    mode: 'invalid',
+    mode: 'retry-withheld',
     selectionLayer: 'primary',
     noSignal: false,
     tiebreakUsed: false,

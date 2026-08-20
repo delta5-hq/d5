@@ -28,7 +28,6 @@ export const REMEDIATION_HINT = Object.freeze({
 
 export const COMMODITY_SUPPRESSION_CAUSE = Object.freeze({
   SIDE_EFFECTING_ALIAS: 'side-effecting-alias',
-  SIDE_EFFECTING_REFINE_CHILD: 'side-effecting-refine-child',
 })
 
 export const STRUCTURAL_GATE_REJECTION_REASON = Object.freeze({

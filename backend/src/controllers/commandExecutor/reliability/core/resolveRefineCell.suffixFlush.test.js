@@ -10,7 +10,7 @@ jest.mock('debug', () => {
   return fn
 })
 
-jest.mock('./SubtreeForkRunner', () => ({runForks: jest.fn()}))
+jest.mock('./SubtreeForkRunner', () => ({runForks: jest.fn(), computeEffectiveN: jest.fn((_r, _s, n) => n)}))
 jest.mock('./ForkJudge', () => ({ForkJudge: jest.fn()}))
 
 const {runForks: mockRunForks} = require('./SubtreeForkRunner')

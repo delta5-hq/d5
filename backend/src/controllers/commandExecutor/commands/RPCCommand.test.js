@@ -312,7 +312,6 @@ describe('RPCCommand', () => {
       expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(
         'Error: HTTP RPC failed with status 503: upstream unavailable',
         'node-http-error',
-        {httpStatus: 503},
       )
       expect(mockStore.importer.createNodes).not.toHaveBeenCalled()
     })
@@ -360,21 +359,8 @@ describe('RPCCommand', () => {
       expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(
         'Error: SSH RPC failed with exit code 126: permission denied',
         'node-ssh-error',
-        {exitCode: 126},
       )
       expect(mockStore.importer.createNodes).not.toHaveBeenCalled()
-    })
-
-    it('omits the signal argument when neither httpStatus nor exitCode is an integer', async () => {
-      const err = Object.assign(new Error('typed failure'), {status: 'bad', exitCode: NaN})
-      mockSSHExecutor.execute.mockRejectedValue(err)
-      const command = new RPCCommand(userId, workflowId, mockStore, sshAliasConfig)
-      const node = {id: 'node-no-signal', command: '/vm1 deploy'}
-
-      await command.run(node, null, null)
-
-      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: typed failure', 'node-no-signal')
-      expect(mockStore.importer.createErrorNode).toHaveBeenCalledTimes(1)
     })
 
     it('throws on unknown protocol', async () => {

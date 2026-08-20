@@ -17,6 +17,14 @@ const FIXTURE_PATH = path.resolve(
 
 const fixture = JSON.parse(fs.readFileSync(FIXTURE_PATH, 'utf8'))
 
+// retryWithheld and requestedRetry are set only by buildValidateRetryWithheldReliabilityMetadata
+// (on validate nodes), not by buildReliabilityMetadata (on refine nodes). Exclude them when
+// testing buildReliabilityMetadata's key-path set.
+const VALIDATE_ONLY_FIELDS = ['retryWithheld', 'requestedRetry']
+const buildReliabilityMetadataFixture = Object.fromEntries(
+  Object.entries(fixture).filter(([k]) => !VALIDATE_ONLY_FIELDS.includes(k)),
+)
+
 // Arrays use only their first element — shape matters, not element count.
 function collectKeyPaths(obj, prefix = '') {
   if (obj === null || typeof obj !== 'object') return []
@@ -88,8 +96,6 @@ const maximalVerdict = {
   requestedN: 3,
   generatorOnlyJudge: true,
   judgeReasoningRequested: true,
-  retryWithheld: true,
-  requestedRetry: 2,
 }
 
 const maximalLoserFork = {
@@ -114,7 +120,7 @@ describe('reliabilityMetadata field-set contract', () => {
         maximalLoserFork,
       ]
       const raw = buildReliabilityMetadata(maximalVerdict, forkResults, 1, 2)
-      expect(sortedKeyPaths(JSON.parse(JSON.stringify(raw)))).toEqual(sortedKeyPaths(fixture))
+      expect(sortedKeyPaths(JSON.parse(JSON.stringify(raw)))).toEqual(sortedKeyPaths(buildReliabilityMetadataFixture))
     })
 
     it('buildDiscardedFork with all optional fields populated produces exactly the fixture discardedForks[0] key set', () => {
@@ -128,7 +134,7 @@ describe('reliabilityMetadata field-set contract', () => {
       const loserForkProxy = makeSentinelProxy(maximalLoserFork, 'fork')
       const forkResults = [{forkIndex: 0, status: 'ok'}, loserForkProxy]
       const raw = buildReliabilityMetadata(verdictProxy, forkResults, 1, 2)
-      expect(sortedKeyPaths(JSON.parse(JSON.stringify(raw)))).toEqual(sortedKeyPaths(fixture))
+      expect(sortedKeyPaths(JSON.parse(JSON.stringify(raw)))).toEqual(sortedKeyPaths(buildReliabilityMetadataFixture))
     })
 
     it('buildDiscardedFork emits exactly the fixture discardedForks[0] fields even when fork properties are absent (sentinel-proxy confirms no new field escapes persistence)', () => {
@@ -249,7 +255,7 @@ describe('validate retry-withheld metadata builder', () => {
       }),
     ).toEqual(
       expect.objectContaining({
-        mode: 'invalid',
+        mode: 'retry-withheld',
         retryWithheld: true,
         cause: 'side-effecting-alias',
         requestedRetry: 2,

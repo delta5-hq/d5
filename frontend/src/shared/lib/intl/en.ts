@@ -433,8 +433,6 @@ export default {
         '⚠ Structural-only: catches empty, refusal, and thrown-error outputs. Soft errors (well-formed HTTP 200 error text) are undetectable at this tier — use /refine + /validate for semantic checking.',
       suppressedRunHint:
         '⚠ Single run — best-of-N suppressed for a side-effecting command (requested :n={n}). Running it {n} times would fire {n} real external operations.',
-      refineChildSuppressedHint:
-        '⚠ Side-effecting child skipped inside /refine forks — would fire N real external operations if run per fork.',
       retryWithheldHint:
         '⚠ Retry withheld — this parent is side-effecting; requested :retry={n} but replaying it would duplicate the external operation.',
       verdictButton: 'View verdict',

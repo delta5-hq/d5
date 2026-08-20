@@ -23,6 +23,7 @@ import RefineTopology from '../../reliability/core/RefineTopology'
 import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {MCP_FUSION_QUERY_TYPE} from '../../constants/mcpFusion'
 import {isSideEffectingDispatch} from '../../reliability/core/sideEffectingDispatch'
+import {MEMO_SENTINEL_PRE_EXECUTED_CHILD} from '../../reliability/core/memoSentinels'
 import {YANDEX_QUERY_TYPE} from '../../constants/yandex'
 import {CONTROL_FLOW_COMMANDS, modifierQueryTypes} from '../../constants'
 import ProgressReporter from '../../ProgressReporter'
@@ -425,8 +426,6 @@ export const runCommand = async (
             const emitter = createForkProgressEmitter(progress)
             await resolveRefineCell(childNode, store, memoMap, signal, emitter)
           } else if (memoMap?.get(childNode.id) === 'in-progress') {
-            // Execute non-post-processor children of /refine via runCommand so they
-            // produce output that /validate and post-processors can then verify.
             for (const refineChildId of childNode.children ?? []) {
               const refineChild = store.getNode(refineChildId)
               if (!refineChild || ids.includes(refineChildId)) continue
@@ -451,22 +450,8 @@ export const runCommand = async (
                 rpcAlias: rcRpcAlias,
               } = resolveCommand(rcQuery, store._aliases)
               if (rcQueryType) {
-                if (
-                  store.withinForkExecution &&
-                  isSideEffectingDispatch({
-                    queryType: rcQueryType,
-                    mcpAlias: rcMcpAlias,
-                    rpcAlias: rcRpcAlias,
-                  })
-                ) {
-                  const refineChildNode = store.getNode(refineChildId)
-                  if (refineChildNode) {
-                    refineChildNode.reliabilityMetadata = buildSuppressedReliabilityMetadata({
-                      cause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_REFINE_CHILD,
-                      requestedN: undefined,
-                    })
-                    store.saveNodeToOutput(refineChildId)
-                  }
+                if (memoMap?.get(refineChildId) === MEMO_SENTINEL_PRE_EXECUTED_CHILD) {
+                  ids.push(refineChildId)
                   continue
                 }
                 ids.push(refineChildId)
@@ -574,6 +559,7 @@ export const runCommand = async (
             validateNode.title = appendValidateSuffix(validateNode.title || '', {
               passed: cellPassed,
               retryCount,
+              retryWithheld,
             })
             if (retryWithheld) {
               validateNode.reliabilityMetadata = buildValidateRetryWithheldReliabilityMetadata({

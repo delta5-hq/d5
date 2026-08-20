@@ -14,9 +14,14 @@ export const stripReliabilitySuffix = title => {
   return title.replace(HISTORICAL_SUFFIX_RE, '').replace(ENGINE_SUFFIX_RE, '')
 }
 
-export const appendValidateSuffix = (title, {passed, retryCount}) => {
+export const appendValidateSuffix = (title, {passed, retryCount, retryWithheld = false}) => {
   const base = stripReliabilitySuffix(title)
-  const suffix = passed ? (retryCount > 0 ? `[✓ +${retryCount}]` : '[✓]') : `[✗ ${retryCount}×]`
+  let suffix
+  if (retryWithheld) {
+    suffix = '[✗ ⊘]'
+  } else {
+    suffix = passed ? (retryCount > 0 ? `[✓ +${retryCount}]` : '[✓]') : `[✗ ${retryCount}×]`
+  }
   return clamp(base, suffix)
 }
 

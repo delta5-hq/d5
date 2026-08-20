@@ -70,67 +70,14 @@ describe('ImportHandler', () => {
         expect(node.executionStatus).toBe('error')
       })
 
-      it('signal arguments are silently dropped — only executionStatus:error is stamped (P0-2: httpStatus/exitCode/isError removed from createErrorNode)', () => {
+      it('error node carries no transport-signal fields — createErrorNode is 2-arg', () => {
         const store = makeStore()
-        store.importer.createErrorNode('Provider refused credentials', 'parent', {
-          isError: true,
-          httpStatus: 503,
-          exitCode: 126,
-        })
+        store.importer.createErrorNode('Provider refused credentials', 'parent')
 
         const [node] = store.getOutput().nodes
-        expect(node.executionStatus).toBe('error')
         expect(node).not.toHaveProperty('isError')
         expect(node).not.toHaveProperty('httpStatus')
         expect(node).not.toHaveProperty('exitCode')
-      })
-
-      it.each([
-        [{httpStatus: 503}, 'httpStatus'],
-        [{exitCode: 126}, 'exitCode'],
-        [{isError: true}, 'isError'],
-      ])(
-        'signal field %j is NOT stamped on the node (P0-2: createErrorNode no longer accepts signal params)',
-        (signal, field) => {
-          const store = makeStore()
-          store.importer.createErrorNode('signal', 'parent', signal)
-
-          const [node] = store.getOutput().nodes
-          expect(node[field]).toBeUndefined()
-        },
-      )
-
-      it('isError:false signal is NOT stamped on the node (P0-2: no signal fields accepted)', () => {
-        const store = makeStore()
-        store.importer.createErrorNode('explicit false', 'parent', {
-          isError: false,
-        })
-
-        const [node] = store.getOutput().nodes
-        expect(node.isError).toBeUndefined()
-        expect('isError' in node).toBe(false)
-      })
-
-      it('does not stamp any signal keys from the third argument onto the node (P0-2: all signal args dropped)', () => {
-        const store = makeStore()
-        store.importer.createErrorNode('signal', 'parent', {
-          httpStatus: 404,
-          unknownKey: 'should-be-dropped',
-        })
-
-        const [node] = store.getOutput().nodes
-        expect(node).not.toHaveProperty('unknownKey')
-        expect(node).not.toHaveProperty('httpStatus')
-      })
-
-      it('produces no signal properties when called without a signal argument', () => {
-        const store = makeStore()
-        store.importer.createErrorNode('no signal', 'parent')
-
-        const [node] = store.getOutput().nodes
-        expect(node).not.toHaveProperty('httpStatus')
-        expect(node).not.toHaveProperty('exitCode')
-        expect(node).not.toHaveProperty('isError')
       })
 
       it('preserves paragraph breaks in the title rather than discarding them', () => {
