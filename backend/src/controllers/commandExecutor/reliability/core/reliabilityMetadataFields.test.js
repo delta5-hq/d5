@@ -1,5 +1,6 @@
 import {DEGRADED_INPUT_THRESHOLD_CHARS} from './judgeContentBudget'
 import {JUDGE_WARNING_CONDITION} from './failureSemantics'
+import {COMMODITY_SUPPRESSION_CAUSE} from './failureSemantics'
 import {
   buildReliabilityMetadata,
   buildCommodityReliabilityMetadata,
@@ -10,6 +11,7 @@ import {
   buildForkRankingEntry,
   buildPerCriterionVerdictEntry,
   COMMODITY_PARTIAL_SUCCESS_WARNING,
+  buildSuppressedReliabilityMetadata,
   buildValidateRetryWithheldReliabilityMetadata,
 } from './reliabilityMetadataFields'
 
@@ -1355,5 +1357,94 @@ describe('buildValidateRetryWithheldReliabilityMetadata', () => {
         'winnerForkIndex',
       ].sort(),
     )
+  })
+})
+
+describe('COMMODITY_SUPPRESSION_CAUSE', () => {
+  it('SIDE_EFFECTING_ALIAS is the canonical value for commodity-level suppression', () => {
+    expect(COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS).toBe('side-effecting-alias')
+  })
+
+  it('SIDE_EFFECTING_REFINE_CHILD is the canonical value for refine-child-level suppression', () => {
+    expect(COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_REFINE_CHILD).toBe('side-effecting-refine-child')
+  })
+
+  it('the two causes are distinct strings — no aliasing between commodity and refine-child paths', () => {
+    expect(COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS).not.toBe(
+      COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_REFINE_CHILD,
+    )
+  })
+
+  it('is frozen — no new suppression causes can be registered at runtime', () => {
+    expect(() => {
+      COMMODITY_SUPPRESSION_CAUSE.NEW = 'new'
+    }).toThrow()
+  })
+
+  it('contains exactly the two canonical cause strings', () => {
+    expect(new Set(Object.values(COMMODITY_SUPPRESSION_CAUSE))).toEqual(
+      new Set(['side-effecting-alias', 'side-effecting-refine-child']),
+    )
+  })
+})
+
+describe('buildSuppressedReliabilityMetadata', () => {
+  describe('structural fields are always present with fixed values', () => {
+    it('mode is always suppressed', () => {
+      expect(buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias'}).mode).toBe('suppressed')
+    })
+
+    it('suppressed flag is always true', () => {
+      expect(buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias'}).suppressed).toBe(true)
+    })
+
+    it('eligible is always 1 — exactly one execution occurred', () => {
+      expect(buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias', requestedN: 5}).eligible).toBe(1)
+    })
+
+    it('selectionLayer is always primary', () => {
+      expect(buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias'}).selectionLayer).toBe('primary')
+    })
+
+    it('winnerForkIndex is null', () => {
+      expect(buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias'}).winnerForkIndex).toBeNull()
+    })
+
+    it('discardedForks is always an empty array', () => {
+      expect(buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias'}).discardedForks).toEqual([])
+    })
+
+    it('noSignal and tiebreakUsed are both false', () => {
+      const meta = buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias'})
+      expect(meta.noSignal).toBe(false)
+      expect(meta.tiebreakUsed).toBe(false)
+    })
+
+    it('perCriterionVerdict is always an empty array', () => {
+      expect(buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias'}).perCriterionVerdict).toEqual([])
+    })
+  })
+
+  describe('total is always 1 — suppression means exactly one execution occurred', () => {
+    it('total is always 1 regardless of requestedN', () => {
+      expect(buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias', requestedN: 3}).total).toBe(1)
+    })
+
+    it('eligible is 1 and total is 1 together — 1/1 suppressed report', () => {
+      const meta = buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias', requestedN: 5})
+      expect(meta.eligible).toBe(1)
+      expect(meta.total).toBe(1)
+    })
+  })
+
+  describe('cause and requestedN are forwarded without transformation', () => {
+    it.each([
+      ['commodity alias suppression', 'side-effecting-alias', 3],
+      ['refine-child suppression', 'side-effecting-refine-child', undefined],
+    ])('%s: cause and requestedN pass through', (_, cause, requestedN) => {
+      const meta = buildSuppressedReliabilityMetadata({cause, requestedN})
+      expect(meta.cause).toBe(cause)
+      expect(meta.requestedN).toBe(requestedN)
+    })
   })
 })

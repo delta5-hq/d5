@@ -369,7 +369,7 @@ describe('runCommand \u2014 /validate :retry side-effect containment', () => {
         store,
         mcpAlias: sideEffectingMcpAlias,
       }),
-    ).resolves.toBeUndefined()
+    ).rejects.toBeInstanceOf(CriteriaFailedError)
 
     expect(mcpRun).toHaveBeenCalledTimes(1)
     expect(validateSpy).toHaveBeenCalledTimes(1)
@@ -378,8 +378,8 @@ describe('runCommand \u2014 /validate :retry side-effect containment', () => {
       expect.objectContaining({
         mode: 'invalid',
         retryWithheld: true,
-        cause: 'side-effecting-alias',
         requestedRetry: 2,
+        cause: 'side-effecting-alias',
         failureCause: 'criteria-failed',
       }),
     )
@@ -410,7 +410,7 @@ describe('runCommand \u2014 /validate :retry side-effect containment', () => {
         cell: store.getNode('root'),
         store,
       }),
-    ).resolves.toBeUndefined()
+    ).rejects.toBeInstanceOf(CriteriaFailedError)
 
     expect(fusionRun).toHaveBeenCalledTimes(1)
     expect(validateSpy).toHaveBeenCalledTimes(1)
@@ -419,6 +419,28 @@ describe('runCommand \u2014 /validate :retry side-effect containment', () => {
     )
 
     fusionRun.mockRestore()
+    validateSpy.mockRestore()
+  })
+
+  it('discriminates withheld from genuine exhaustion: only withheld carries retryWithheld:true', async () => {
+    // genuine exhaustion (non-side-effecting parent, all retries consumed)
+    const store = treeWithValidates('/validate criterion :retry=1')
+    const validateSpy = alwaysFail()
+    const spy = chatSpy()
+
+    const exhaustionError = await runCommand({
+      queryType: 'chat',
+      cell: store.getNode('root'),
+      store,
+    }).catch(e => e)
+
+    expect(exhaustionError).toBeInstanceOf(CriteriaFailedError)
+    const exhaustedMeta = store.getNode('v0').reliabilityMetadata
+    // genuine exhaustion never sets reliabilityMetadata on the validate node — that's the discriminator:
+    // withheld → retryWithheld:true in metadata; exhausted → no metadata at all
+    expect(exhaustedMeta).toBeUndefined()
+
+    spy.mockRestore()
     validateSpy.mockRestore()
   })
 
@@ -445,6 +467,45 @@ describe('runCommand \u2014 /validate :retry side-effect containment', () => {
     expect(store.getNode('v0').title).toMatch(/\[✓ \+1\]/)
 
     spy.mockRestore()
+    validateSpy.mockRestore()
+  })
+
+  it(':retry=0 on a side-effecting parent — no retry budget to withhold; CriteriaFailedError thrown with no retryWithheld metadata', async () => {
+    const root = {
+      id: 'root',
+      parent: null,
+      command: '/qa-mcp perform external op',
+      children: ['v0'],
+    }
+    const sideEffectingMcpAlias = {
+      alias: '/qa-mcp',
+      serverUrl: 'http://localhost:3100/mcp',
+      transport: 'streamable-http',
+      toolName: 'run',
+    }
+    const store = buildStore({
+      root,
+      v0: validateNode('v0', '/validate criterion :retry=0'),
+    })
+    const mcpRun = jest.spyOn(MCPCommand.prototype, 'run').mockImplementation(async function (node) {
+      this.store.createNode({id: 'mcp-result', parent: node.id, title: 'mcp result'}, true)
+    })
+    const validateSpy = alwaysFail()
+
+    await expect(
+      runCommand({
+        queryType: 'mcp:qa-mcp',
+        cell: store.getNode('root'),
+        store,
+        mcpAlias: sideEffectingMcpAlias,
+      }),
+    ).rejects.toBeInstanceOf(CriteriaFailedError)
+
+    expect(mcpRun).toHaveBeenCalledTimes(1)
+    expect(validateSpy).toHaveBeenCalledTimes(1)
+    expect(store.getNode('v0').reliabilityMetadata).toBeUndefined()
+
+    mcpRun.mockRestore()
     validateSpy.mockRestore()
   })
 })

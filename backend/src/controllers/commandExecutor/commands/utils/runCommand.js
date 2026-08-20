@@ -280,7 +280,11 @@ export const runCommand = async (
     cellNode.title = stripReliabilitySuffix(cellNode.title || '')
   }
 
-  const sideEffectingDispatch = isSideEffectingDispatch({queryType, mcpAlias, rpcAlias})
+  const sideEffectingDispatch = isSideEffectingDispatch({
+    queryType,
+    mcpAlias,
+    rpcAlias,
+  })
   const isForkReentry = preventCommodityForks || store.withinForkExecution
   const requestedCommodityN = isForkReentry ? 1 : readCommodityN(getNodeCommand(cell))
   const suppressedForSideEffect = sideEffectingDispatch && requestedCommodityN > 1
@@ -447,6 +451,24 @@ export const runCommand = async (
                 rpcAlias: rcRpcAlias,
               } = resolveCommand(rcQuery, store._aliases)
               if (rcQueryType) {
+                if (
+                  store.withinForkExecution &&
+                  isSideEffectingDispatch({
+                    queryType: rcQueryType,
+                    mcpAlias: rcMcpAlias,
+                    rpcAlias: rcRpcAlias,
+                  })
+                ) {
+                  const refineChildNode = store.getNode(refineChildId)
+                  if (refineChildNode) {
+                    refineChildNode.reliabilityMetadata = buildSuppressedReliabilityMetadata({
+                      cause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_REFINE_CHILD,
+                      requestedN: undefined,
+                    })
+                    store.saveNodeToOutput(refineChildId)
+                  }
+                  continue
+                }
                 ids.push(refineChildId)
                 await runCommand(
                   {
@@ -553,7 +575,7 @@ export const runCommand = async (
               passed: cellPassed,
               retryCount,
             })
-            if (retryWithheld || (sideEffectingDispatch && maxRetry > 0 && !passed)) {
+            if (retryWithheld) {
               validateNode.reliabilityMetadata = buildValidateRetryWithheldReliabilityMetadata({
                 cause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS,
                 requestedRetry: maxRetry,
@@ -564,7 +586,7 @@ export const runCommand = async (
             store.saveNodeToOutput(validateNode.id)
           })
 
-          if (!passed && !retryWithheld) {
+          if (!passed) {
             const bestFail = firstFailedValidate(lastResults)
             throw new CriteriaFailedError(bestFail?.criterion ?? lastFailCriterion, attempt)
           }

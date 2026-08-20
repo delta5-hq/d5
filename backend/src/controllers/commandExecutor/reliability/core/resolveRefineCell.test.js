@@ -664,9 +664,114 @@ describe('resolveRefineCell — winner selected', () => {
       suppressed: true,
       cause: 'side-effecting-alias',
       requestedN: 3,
-      total: 3,
+      total: 1,
       eligible: 1,
     })
+  })
+
+  it('suppressed /refine title suffix is [✓ 1/1] — never [✓ 1/N] which implies N−1 forks failed', async () => {
+    const winner = okForkStore()
+    mockRunForks.mockResolvedValue([
+      {
+        forkIndex: 0,
+        status: 'ok',
+        forkStore: winner,
+        leafOutputs: [],
+        suppressed: true,
+        cause: 'side-effecting-alias',
+        requestedN: 3,
+      },
+    ])
+    const store = makeStore('/refine :n=3')
+    store._nodes.r1.title = 'My Task'
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    expect(store.getNode('r1').title).toMatch(/\[✓ 1\/1\]/)
+    expect(store.getNode('r1').title).not.toMatch(/\[✓ 1\/3\]/)
+  })
+
+  it('suppressed /refine calls emitter.refineComplete with winnerForkIndex=0 and total=1', async () => {
+    const makeEmitter = () => ({forksStarted: jest.fn(), forkSettled: jest.fn(), refineComplete: jest.fn()})
+    const winner = okForkStore()
+    mockRunForks.mockResolvedValue([
+      {
+        forkIndex: 0,
+        status: 'ok',
+        forkStore: winner,
+        leafOutputs: [],
+        suppressed: true,
+        cause: 'side-effecting-alias',
+        requestedN: 3,
+      },
+    ])
+    const store = makeStore('/refine :n=3')
+    const emitter = makeEmitter()
+    await resolveRefineCell(store.getNode('r1'), store, new Map(), null, emitter)
+    expect(emitter.refineComplete).toHaveBeenCalledWith('r1', 0, 1)
+  })
+
+  it('suppressed /refine sets memoMap to forkStore so downstream cells resolve against fork output', async () => {
+    const winner = okForkStore()
+    mockRunForks.mockResolvedValue([
+      {
+        forkIndex: 0,
+        status: 'ok',
+        forkStore: winner,
+        leafOutputs: [],
+        suppressed: true,
+        cause: 'side-effecting-alias',
+        requestedN: 3,
+      },
+    ])
+    const store = makeStore('/refine :n=3')
+    const memoMap = new Map()
+    await resolveRefineCell(store.getNode('r1'), store, memoMap)
+    expect(memoMap.get('r1')).toBe(winner)
+  })
+
+  it.each([
+    ['side-effecting-alias', 'side-effecting-alias', 3],
+    ['side-effecting-refine-child', 'side-effecting-refine-child', undefined],
+  ])('suppression cause %s is forwarded to refine node metadata', async (_, cause, requestedN) => {
+    const winner = okForkStore()
+    mockRunForks.mockResolvedValue([
+      {forkIndex: 0, status: 'ok', forkStore: winner, leafOutputs: [], suppressed: true, cause, requestedN},
+    ])
+    const store = makeStore('/refine :n=3')
+    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    expect(store.getNode('r1').reliabilityMetadata.cause).toBe(cause)
+    expect(store.getNode('r1').reliabilityMetadata.suppressed).toBe(true)
+  })
+
+  it('suppressed /refine with forkStore:null — title, metadata, emitter, and memoMap still set; store operations skipped gracefully', async () => {
+    // forkStore can be null when the fork never materialised (e.g. SubtreeForkRunner
+    // collapsed to effectiveN=1 and the fork store was not allocated).
+    mockRunForks.mockResolvedValue([
+      {
+        forkIndex: 0,
+        status: 'ok',
+        forkStore: null,
+        leafOutputs: [],
+        suppressed: true,
+        cause: 'side-effecting-alias',
+        requestedN: 2,
+      },
+    ])
+    const store = makeStore('/refine :n=2')
+    store._nodes.r1.title = 'Bare Task'
+    const emitter = {forksStarted: jest.fn(), forkSettled: jest.fn(), refineComplete: jest.fn()}
+    const memoMap = new Map()
+
+    await resolveRefineCell(store.getNode('r1'), store, memoMap, null, emitter)
+
+    expect(store.getNode('r1').title).toMatch(/\[✓ 1\/1\]/)
+    expect(store.getNode('r1').reliabilityMetadata).toMatchObject({
+      mode: 'suppressed',
+      suppressed: true,
+      total: 1,
+      eligible: 1,
+    })
+    expect(emitter.refineComplete).toHaveBeenCalledWith('r1', 0, 1)
+    expect(memoMap.get('r1')).toBeNull()
   })
 
   it.each([

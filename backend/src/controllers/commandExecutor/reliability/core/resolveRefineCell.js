@@ -9,7 +9,7 @@ import {appendRefineSuffix, appendInvalidSuffix, stripReliabilitySuffix} from '.
 import {getNodeCommand} from '../../commands/utils/isCommand'
 import {isValidateCell} from './validateParams'
 import {NullForkProgressEmitter} from './ForkProgressEmitter'
-import {buildReliabilityMetadata} from './reliabilityMetadataFields'
+import {buildReliabilityMetadata, buildSuppressedReliabilityMetadata} from './reliabilityMetadataFields'
 import {copyParentPromptOutputToRefine} from './refineWinnerOutput'
 
 /**
@@ -95,6 +95,36 @@ export async function resolveRefineCell(
     onForkSettled: result => emitter.forkSettled(refineNode.id, result),
   })
 
+  const okCount = forkResults.filter(f => f.status === 'ok').length
+  const baseTitle = stripReliabilitySuffix(refineNode.title || '')
+
+  const suppressedFork = forkResults.find(f => f.suppressed)
+  if (suppressedFork) {
+    const singleFork = forkResults[0]
+    if (singleFork?.forkStore) {
+      StoreFork.applyCandidate(store, singleFork.forkStore, refineNode.id)
+      copyParentPromptOutputToRefine({
+        sourceStore: singleFork.forkStore,
+        targetStore: store,
+        parentNodeId: refineNode.parent,
+        refineNodeId: refineNode.id,
+      })
+      flushValidateTitles(allValidates, singleFork.forkStore, store)
+    }
+    const winnerNode = store.getNode(refineNode.id)
+    if (winnerNode) {
+      winnerNode.title = appendRefineSuffix(baseTitle, {eligible: 1, total: 1, winnerForkIndex: 0})
+      winnerNode.reliabilityMetadata = buildSuppressedReliabilityMetadata({
+        cause: suppressedFork.cause,
+        requestedN: suppressedFork.requestedN,
+      })
+      store.saveNodeToOutput(refineNode.id)
+    }
+    emitter.refineComplete(refineNode.id, 0, 1)
+    memoMap.set(refineNode.id, singleFork?.forkStore ?? null)
+    return
+  }
+
   const judge = new ForkJudge(store._userId, store._workflowId, store)
   const verdict = await judge.selectWinner({
     forks: forkResults,
@@ -104,9 +134,6 @@ export async function resolveRefineCell(
     signal,
     judgeReasoningRequested,
   })
-
-  const okCount = forkResults.filter(f => f.status === 'ok').length
-  const baseTitle = stripReliabilitySuffix(refineNode.title || '')
 
   if (!verdict || verdict.winnerForkIndex === null) {
     const suffixEligible = verdict?.allGateFiltered ? 0 : okCount

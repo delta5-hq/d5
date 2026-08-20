@@ -104,17 +104,8 @@ class ImportHandler {
     this.store.createNode({parent: parentId, title: text}, true)
   }
 
-  createErrorNode(errorMessage, parentId, {httpStatus, exitCode, isError} = {}) {
-    return this.store.createNode(
-      withExecutionErrorStatus({
-        parent: parentId,
-        title: errorMessage,
-        ...(httpStatus !== undefined ? {httpStatus} : {}),
-        ...(exitCode !== undefined ? {exitCode} : {}),
-        ...(isError !== undefined ? {isError} : {}),
-      }),
-      true,
-    )
+  createErrorNode(errorMessage, parentId) {
+    return this.store.createNode(withExecutionErrorStatus({parent: parentId, title: errorMessage}), true)
   }
 }
 

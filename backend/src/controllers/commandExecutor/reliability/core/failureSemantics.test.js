@@ -219,37 +219,30 @@ describe('JUDGE_WARNING_CONDITION constants', () => {
 })
 
 describe('deterministicFailureReason', () => {
-  it.each([
-    ['execution error node', {executionStatus: 'error'}, STRUCTURAL_GATE_REJECTION_REASON.EXECUTION_ERROR],
-    ['MCP isError result', {isError: true}, STRUCTURAL_GATE_REJECTION_REASON.MCP_IS_ERROR],
-    ['HTTP below success range', {httpStatus: 199}, STRUCTURAL_GATE_REJECTION_REASON.HTTP_NON_2XX],
-    ['HTTP above success range', {httpStatus: 300}, STRUCTURAL_GATE_REJECTION_REASON.HTTP_NON_2XX],
-    ['SSH nonzero exit', {exitCode: 1}, STRUCTURAL_GATE_REJECTION_REASON.SSH_NONZERO_EXIT],
-    ['runtime failed fork', {status: 'runtime-failed'}, STRUCTURAL_GATE_REJECTION_REASON.RUNTIME_FAILURE],
-  ])('classifies %s', (_, signal, expected) => {
-    expect(deterministicFailureReason(signal)).toBe(expected)
+  it('classifies execution error node', () => {
+    expect(deterministicFailureReason({executionStatus: 'error'})).toBe(
+      STRUCTURAL_GATE_REJECTION_REASON.EXECUTION_ERROR,
+    )
+  })
+
+  it('executionStatus:error combined with isError:true still returns EXECUTION_ERROR — executionStatus branch fires first', () => {
+    expect(deterministicFailureReason({executionStatus: 'error', isError: true})).toBe(
+      STRUCTURAL_GATE_REJECTION_REASON.EXECUTION_ERROR,
+    )
   })
 
   it.each([
     ['missing signal', undefined],
     ['explicit null signal', null],
     ['successful MCP result', {isError: false}],
+    ['MCP isError flag without executionStatus — no longer a rejection reason', {isError: true}],
     ['HTTP lower success boundary', {httpStatus: 200}],
     ['HTTP upper success boundary', {httpStatus: 299}],
+    ['HTTP non-2xx without executionStatus — no longer a rejection reason', {httpStatus: 503}],
     ['SSH zero exit', {exitCode: 0}],
+    ['SSH nonzero exit without executionStatus — no longer a rejection reason', {exitCode: 126}],
     ['ok fork status', {status: 'ok'}],
   ])('returns null for %s', (_, signal) => {
     expect(deterministicFailureReason(signal)).toBeNull()
-  })
-
-  it('uses executionStatus precedence when a signal carries multiple failure fields', () => {
-    expect(
-      deterministicFailureReason({
-        executionStatus: 'error',
-        isError: true,
-        httpStatus: 500,
-        exitCode: 1,
-      }),
-    ).toBe(STRUCTURAL_GATE_REJECTION_REASON.EXECUTION_ERROR)
   })
 })

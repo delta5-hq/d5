@@ -70,7 +70,7 @@ describe('ImportHandler', () => {
         expect(node.executionStatus).toBe('error')
       })
 
-      it('preserves deterministic failure fields on error nodes', () => {
+      it('signal arguments are silently dropped — only executionStatus:error is stamped (P0-2: httpStatus/exitCode/isError removed from createErrorNode)', () => {
         const store = makeStore()
         store.importer.createErrorNode('Provider refused credentials', 'parent', {
           isError: true,
@@ -79,37 +79,48 @@ describe('ImportHandler', () => {
         })
 
         const [node] = store.getOutput().nodes
-        expect(node).toEqual(expect.objectContaining({isError: true, httpStatus: 503, exitCode: 126}))
+        expect(node.executionStatus).toBe('error')
+        expect(node).not.toHaveProperty('isError')
+        expect(node).not.toHaveProperty('httpStatus')
+        expect(node).not.toHaveProperty('exitCode')
       })
 
       it.each([
         [{httpStatus: 503}, 'httpStatus'],
         [{exitCode: 126}, 'exitCode'],
         [{isError: true}, 'isError'],
-      ])('preserves a single typed signal field when the others are absent (%s)', (signal, field) => {
+      ])(
+        'signal field %j is NOT stamped on the node (P0-2: createErrorNode no longer accepts signal params)',
+        (signal, field) => {
+          const store = makeStore()
+          store.importer.createErrorNode('signal', 'parent', signal)
+
+          const [node] = store.getOutput().nodes
+          expect(node[field]).toBeUndefined()
+        },
+      )
+
+      it('isError:false signal is NOT stamped on the node (P0-2: no signal fields accepted)', () => {
         const store = makeStore()
-        store.importer.createErrorNode('signal', 'parent', signal)
+        store.importer.createErrorNode('explicit false', 'parent', {
+          isError: false,
+        })
 
         const [node] = store.getOutput().nodes
-        expect(node[field]).toBe(signal[field])
+        expect(node.isError).toBeUndefined()
+        expect('isError' in node).toBe(false)
       })
 
-      it('preserves isError when it is false (falsy-but-defined)', () => {
+      it('does not stamp any signal keys from the third argument onto the node (P0-2: all signal args dropped)', () => {
         const store = makeStore()
-        store.importer.createErrorNode('explicit false', 'parent', {isError: false})
-
-        const [node] = store.getOutput().nodes
-        expect(node.isError).toBe(false)
-        expect('isError' in node).toBe(true)
-      })
-
-      it('does not stamp unrecognised keys from the signal onto the node', () => {
-        const store = makeStore()
-        store.importer.createErrorNode('signal', 'parent', {httpStatus: 404, unknownKey: 'should-be-dropped'})
+        store.importer.createErrorNode('signal', 'parent', {
+          httpStatus: 404,
+          unknownKey: 'should-be-dropped',
+        })
 
         const [node] = store.getOutput().nodes
         expect(node).not.toHaveProperty('unknownKey')
-        expect(node.httpStatus).toBe(404)
+        expect(node).not.toHaveProperty('httpStatus')
       })
 
       it('produces no signal properties when called without a signal argument', () => {

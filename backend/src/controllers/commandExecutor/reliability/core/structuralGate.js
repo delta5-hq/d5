@@ -67,11 +67,4 @@ export const passesStructuralGate = (text, forkIndex = null, failureSignal = nul
 // without a machine-readable failure signal is structurally indistinguishable from a
 // valid completion and passes this gate. Users who need semantic soft-error detection
 // must use /refine :n=N + /validate (judge layer).
-export const passesCommodityGate = (text, forkIndex = null, failureSignal = null) => {
-  const deterministicReason = deterministicFailureReason(failureSignal)
-  if (deterministicReason) {
-    emitRejection(deterministicReason, forkIndex)
-    return false
-  }
-  return passesBaseGate(text, forkIndex)
-}
+export const passesCommodityGate = (text, forkIndex = null) => passesBaseGate(text, forkIndex)

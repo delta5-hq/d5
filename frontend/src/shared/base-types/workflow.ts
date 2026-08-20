@@ -120,6 +120,10 @@ export type ReliabilityMetadata = {
   cause?: string
   /** the N originally requested via commodity :n=N before suppression */
   requestedN?: number
+  /** /validate retry was withheld because the parent is a side-effecting command */
+  retryWithheld?: boolean
+  /** the :retry=R value the user requested that was withheld */
+  requestedRetry?: number
   tiebreakUsed?: boolean
   fallbackUsed?: boolean
   generatorOnlyJudge?: boolean

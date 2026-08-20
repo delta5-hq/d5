@@ -32,7 +32,7 @@ const REF_NAME = 'MyRefine'
 const AT_TITLE = `@${REF_NAME} [✓ 1/3]`
 const BARE_TITLE = `${REF_NAME} [✓ 1/3]`
 
-const resolve = store => substituteReferences(`@@${REF_NAME}`, 0, store)
+const resolve = store => substituteReferences(`@@${REF_NAME}`, 0, store, [], true)
 
 // The refine cell is empty until commitWinner() transfers the winner.
 const buildTargetStore = (refineTitle, extraRefineChildren = []) => {

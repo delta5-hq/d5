@@ -266,32 +266,14 @@ describe('parity contract — truncation floor is the sole behavioral difference
   })
 })
 
-describe('deterministic failure signals — gate before prose judging', () => {
-  const substantiveErrorText =
-    'HTTP 500 upstream tool failed but this prose is long enough to pass the current text checks.'
+describe('structural gate — execution error signal', () => {
+  const substantiveErrorText = 'Upstream call failed but prose is long enough to pass text-only checks.'
 
-  it.each([
-    ['MCP isError', {isError: true}],
-    ['HTTP lower non-2xx boundary', {httpStatus: 199}],
-    ['HTTP upper non-2xx boundary', {httpStatus: 300}],
-    ['HTTP 500', {httpStatus: 500}],
-    ['SSH nonzero exit', {exitCode: 1}],
-    ['runtime failure status', {status: 'runtime-failed'}],
-    ['execution error node', {executionStatus: 'error'}],
-  ])('rejects %s even when prose is substantive', (_, signal) => {
-    expect(passesStructuralGate(substantiveErrorText, 0, signal)).toBe(false)
-  })
-
-  it.each([
-    ['HTTP lower success boundary', {httpStatus: 200}],
-    ['HTTP upper success boundary', {httpStatus: 299}],
-    ['SSH zero exit', {exitCode: 0}],
-    ['MCP non-error result', {isError: false}],
-  ])('passes identical prose for %s', (_, signal) => {
-    expect(passesStructuralGate(substantiveErrorText, 0, signal)).toBe(true)
-  })
-
-  it('commodity gate also rejects deterministic hard failures', () => {
-    expect(passesCommodityGate(substantiveErrorText, 0, {isError: true})).toBe(false)
+  it('rejects an execution-error node even when prose is substantive', () => {
+    expect(
+      passesStructuralGate(substantiveErrorText, 0, {
+        executionStatus: 'error',
+      }),
+    ).toBe(false)
   })
 })

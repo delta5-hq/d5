@@ -152,7 +152,9 @@ describe('copyParentPromptOutputToRefine', () => {
     expect(winnerCopy.children.filter(id => copiedPromptIds.includes(id))).toHaveLength(1)
   })
 
-  it('copies file and image content referenced by the winner output without overwriting target-owned files', () => {
+  it("preserves file and image reference properties on copied nodes; file-content transfer is StoreFork.applyCandidate's responsibility", () => {
+    // copyParentPromptOutputToRefine copies node structure (including file/image ID references).
+    // In production, StoreFork.applyCandidate runs first and copies _files content so those IDs resolve.
     const target = buildStore({
       parent: {id: 'parent', children: ['refine']},
       refine: {id: 'refine', parent: 'parent', children: [], prompts: []},
@@ -194,12 +196,15 @@ describe('copyParentPromptOutputToRefine', () => {
     const winnerCopy = target.getNode(winnerCopyId)
     const [childCopyId] = winnerCopy.children
 
+    // node properties carry the file/image ID references correctly
     expect(winnerCopy.file).toBe('winner-file')
     expect(winnerCopy.image).toBe('winner-image')
     expect(target.getNode(childCopyId).file).toBe('child-file')
+    // target-owned files are not overwritten (still guarded by applyCandidate upstream)
     expect(target.getFile('winner-file')).toBe('target-owned file')
-    expect(target.getFile('winner-image')).toBe('source winner image')
-    expect(target.getFile('child-file')).toBe('source child file')
+    // file content itself lives in sourceStore; transfer to target is applyCandidate's contract
+    expect(target.getFile('winner-image')).toBeUndefined()
+    expect(target.getFile('child-file')).toBeUndefined()
   })
 
   it('does not mutate the fork store refine node when copying winner output (shared-reference guard)', () => {
@@ -211,7 +216,12 @@ describe('copyParentPromptOutputToRefine', () => {
         prompts: ['winner'],
       },
       refine: {id: 'refine', parent: 'parent', children: [], prompts: []},
-      winner: {id: 'winner', parent: 'parent', title: 'winner output', children: []},
+      winner: {
+        id: 'winner',
+        parent: 'parent',
+        title: 'winner output',
+        children: [],
+      },
     })
 
     const outerStore = buildStore({
@@ -268,9 +278,19 @@ describe('copyParentPromptOutputToRefine', () => {
       refine: {id: 'refine', parent: 'parent', children: [], prompts: []},
     })
     const source = buildStore({
-      parent: {id: 'parent', children: ['refine', 'winner'], prompts: ['winner']},
+      parent: {
+        id: 'parent',
+        children: ['refine', 'winner'],
+        prompts: ['winner'],
+      },
       refine: {id: 'refine', parent: 'parent', children: []},
-      winner: {id: 'winner', parent: 'parent', title: 'winner', file: 'unregistered-file', children: []},
+      winner: {
+        id: 'winner',
+        parent: 'parent',
+        title: 'winner',
+        file: 'unregistered-file',
+        children: [],
+      },
     })
 
     const [winnerCopyId] = copyParentPromptOutputToRefine({

@@ -1015,25 +1015,22 @@ describe('ForkJudge.selectWinner — structural gate on candidate content', () =
     })
 
     it.each([
-      ['MCP isError', {isError: true}, 'mcp-is-error'],
-      ['HTTP non-2xx', {httpStatus: 503}, 'http-non-2xx'],
-      ['SSH nonzero exit', {exitCode: 126}, 'ssh-nonzero-exit'],
-    ])('%s prompt nodes are rejected before judge even when their text is substantive', async (_, signal, reason) => {
-      mockContentSequence(SUBSTANTIVE_A, SUBSTANTIVE_B)
-      const rejectedFork = makeFork(0, 'ok', {
-        leafOutputs: [{nodeId: 'err', content: SUBSTANTIVE_A, ...signal}],
-      })
-      const result = await makeJudge().selectWinner({
-        forks: [rejectedFork, makeFork(1)],
+      ['MCP isError', {isError: true}],
+      ['HTTP non-2xx', {httpStatus: 503}],
+      ['SSH nonzero exit', {exitCode: 126}],
+    ])('%s signal does NOT trigger structural gate rejection — only executionStatus=error does', async (_, signal) => {
+      // P0-2: these signals were removed from STRUCTURAL_GATE_REJECTION_REASON.
+      // The structural gate now only rejects on executionStatus==='error'.
+      // Forks carrying these signals pass the gate and proceed to the LLM judge.
+      NodeTextExtractor.mockImplementation(() => ({extractFullContent: jest.fn().mockResolvedValue(SUBSTANTIVE_A)}))
+      const fork0 = makeFork(0, 'ok', {leafOutputs: [{nodeId: 'n0', content: SUBSTANTIVE_A, ...signal}]})
+      await makeJudge().selectWinner({
+        forks: [fork0, makeFork(1)],
         validateNodes: [],
         parentNodeId: 'parent',
         fallback: false,
       })
-
-      expect(result.winnerForkIndex).toBe(1)
-      expect(rejectedFork.reason).toBe(reason)
-      expect(getLLM).not.toHaveBeenCalled()
-      expect(result.allGateFiltered).toBe(false)
+      expect(fork0.reason).toBeUndefined()
     })
 
     it('non-deterministic gate rejection (empty content, no failure signal) does not set fork.reason — reason is exclusive to machine-readable signals', async () => {

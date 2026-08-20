@@ -25,21 +25,11 @@ const cloneNodeData = (sourceNode, parentId) => ({
   prompts: [],
 })
 
-const copyReferencedFile = (sourceStore, targetStore, fileId) => {
-  if (!fileId || targetStore.getFile(fileId) !== undefined) return
-  const content = sourceStore.getFile(fileId)
-  if (content !== undefined) {
-    targetStore.createFile(fileId, content)
-  }
-}
-
 const copySubtree = (sourceStore, targetStore, sourceNodeId, targetParentId) => {
   const sourceNode = sourceStore.getNode(sourceNodeId)
   if (!sourceNode) return null
 
   const copied = targetStore.createNode(cloneNodeData(sourceNode, targetParentId))
-  copyReferencedFile(sourceStore, targetStore, sourceNode.file)
-  copyReferencedFile(sourceStore, targetStore, sourceNode.image)
 
   const promptIds = new Set(sourceNode.prompts ?? [])
   for (const childId of (sourceNode.children ?? []).filter(id => !promptIds.has(id))) {

@@ -26,32 +26,18 @@ export const REMEDIATION_HINT = Object.freeze({
   NONE: 'none',
 })
 
-// Why a commodity :n=N fan-out was collapsed to a single execution instead of
-// being run N times. Best-of-N presumes idempotent attempts; a side-effecting
-// MCP/RPC alias is not idempotent, so fanning it N times duplicates real ops.
 export const COMMODITY_SUPPRESSION_CAUSE = Object.freeze({
   SIDE_EFFECTING_ALIAS: 'side-effecting-alias',
+  SIDE_EFFECTING_REFINE_CHILD: 'side-effecting-refine-child',
 })
 
 export const STRUCTURAL_GATE_REJECTION_REASON = Object.freeze({
   EXECUTION_ERROR: 'execution-error',
-  MCP_IS_ERROR: 'mcp-is-error',
-  HTTP_NON_2XX: 'http-non-2xx',
-  SSH_NONZERO_EXIT: 'ssh-nonzero-exit',
-  RUNTIME_FAILURE: 'runtime-failure',
 })
 
 export function deterministicFailureReason(signal = {}) {
   if (!signal) return null
   if (signal.executionStatus === 'error') return STRUCTURAL_GATE_REJECTION_REASON.EXECUTION_ERROR
-  if (signal.isError === true) return STRUCTURAL_GATE_REJECTION_REASON.MCP_IS_ERROR
-  if (Number.isInteger(signal.httpStatus) && (signal.httpStatus < 200 || signal.httpStatus > 299)) {
-    return STRUCTURAL_GATE_REJECTION_REASON.HTTP_NON_2XX
-  }
-  if (Number.isInteger(signal.exitCode) && signal.exitCode !== 0) {
-    return STRUCTURAL_GATE_REJECTION_REASON.SSH_NONZERO_EXIT
-  }
-  if (signal.status === 'runtime-failed') return STRUCTURAL_GATE_REJECTION_REASON.RUNTIME_FAILURE
   return null
 }
 
