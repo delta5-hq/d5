@@ -1,7 +1,8 @@
 import type { NodeData } from '@shared/base-types'
 
-const PARAGRAPH_BREAK = /\n\n/
+const BLANK_LINE_BREAK = /\n[^\S\n]*\n/
+const normalizeLineEndings = (text: string): string => text.replace(/\r\n|\r/g, '\n')
 
 export function isCommandlessTextNode(node: NodeData): boolean {
-  return !node.command?.trim() && PARAGRAPH_BREAK.test(node.title ?? '')
+  return !node.command?.trim() && BLANK_LINE_BREAK.test(normalizeLineEndings(node.title ?? ''))
 }

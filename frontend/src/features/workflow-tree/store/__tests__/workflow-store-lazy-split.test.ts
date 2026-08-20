@@ -54,6 +54,24 @@ describe('toggleExpanded — commandless lazy-split', () => {
     expect(store.getState().expandedIds.has('n1')).toBe(true)
   })
 
+  it('materializes a persisted CRLF blank line and indentation hierarchy on expand', async () => {
+    const nodes = {
+      root: { id: 'root', title: 'Workflow', children: ['n1'], collapsed: false },
+      n1: { id: 'n1', title: 'Root\r\n\r\n  Child', children: [], prompts: [], parent: 'root' },
+    }
+    const { store, actions } = await loadStore(nodes, 'root')
+
+    actions.toggleExpanded('n1')
+
+    const { nodes: materialized } = store.getState()
+    expect(materialized.n1.prompts).toHaveLength(1)
+    const [rootId] = materialized.n1.prompts!
+    expect(materialized[rootId]?.title).toBe('Root')
+    expect(materialized[rootId]?.children).toHaveLength(1)
+    expect(materialized[materialized[rootId]!.children![0]]?.title).toBe('Child')
+    expect(store.getState().expandedIds.has('n1')).toBe(true)
+  })
+
   it('does not split when the node has a command', async () => {
     const nodes = {
       root: { id: 'root', title: 'Root', children: ['n1'], collapsed: false },
