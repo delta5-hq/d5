@@ -376,7 +376,7 @@ describe('runCommand \u2014 /validate :retry side-effect containment', () => {
     expect(store.getNode('v0').title).toMatch(/\[✗ ⊘\]/)
     expect(store.getNode('v0').reliabilityMetadata).toEqual(
       expect.objectContaining({
-        mode: 'retry-withheld',
+        mode: 'invalid',
         retryWithheld: true,
         requestedRetry: 2,
         cause: 'side-effecting-alias',

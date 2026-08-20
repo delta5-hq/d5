@@ -17,7 +17,7 @@ export const stripReliabilitySuffix = title => {
 export const appendValidateSuffix = (title, {passed, retryCount, retryWithheld = false}) => {
   const base = stripReliabilitySuffix(title)
   let suffix
-  if (retryWithheld) {
+  if (retryWithheld && !passed) {
     suffix = '[✗ ⊘]'
   } else {
     suffix = passed ? (retryCount > 0 ? `[✓ +${retryCount}]` : '[✓]') : `[✗ ${retryCount}×]`

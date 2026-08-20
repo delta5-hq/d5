@@ -1538,3 +1538,197 @@ describe('preExecuteSideEffectingRefineChildren — pre-execution exclusion rule
     expect(childCalls).toHaveLength(0)
   })
 })
+
+describe('runForks — pre-exec failure folds into results; never-throws contract', () => {
+  const mcpAlias = {
+    alias: '/tool',
+    serverUrl: 'http://mcp',
+    transport: 'streamable-http',
+    toolName: 'run',
+  }
+
+  const buildPreExecTree = () => {
+    const store = buildStore({
+      root: {id: 'root', children: ['parent']},
+      parent: {id: 'parent', parent: 'root', command: '/chat do', children: ['refine']},
+      refine: {id: 'refine', parent: 'parent', command: '/refine :n=3', children: ['child']},
+      child: {id: 'child', parent: 'refine', command: '/tool run', children: []},
+    })
+    store._aliases = {mcp: [mcpAlias], rpc: []}
+    return store
+  }
+
+  it('does not reject when pre-exec child throws CriteriaFailedError — never-throws contract holds', async () => {
+    mockRunCommand.mockImplementation(async ({cell}) => {
+      if (cell?.id === 'child') throw new CriteriaFailedError('must-be-valid', 2)
+    })
+    const store = buildPreExecTree()
+    await expect(
+      runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()}),
+    ).resolves.toBeDefined()
+  })
+
+  it('returns exactly N results when pre-exec throws CriteriaFailedError — one result per requested fork', async () => {
+    mockRunCommand.mockImplementation(async ({cell}) => {
+      if (cell?.id === 'child') throw new CriteriaFailedError('must-be-valid', 2)
+    })
+    const store = buildPreExecTree()
+    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    expect(results).toHaveLength(3)
+  })
+
+  it('each result carries status criteria-failed when pre-exec throws CriteriaFailedError', async () => {
+    mockRunCommand.mockImplementation(async ({cell}) => {
+      if (cell?.id === 'child') throw new CriteriaFailedError('must-be-valid', 2)
+    })
+    const store = buildPreExecTree()
+    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    expect(results.every(r => r.status === 'criteria-failed')).toBe(true)
+  })
+
+  it('failedAt and attempts are taken from the CriteriaFailedError and present on every result', async () => {
+    mockRunCommand.mockImplementation(async ({cell}) => {
+      if (cell?.id === 'child') throw new CriteriaFailedError('must-be-valid', 2)
+    })
+    const store = buildPreExecTree()
+    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    for (const r of results) {
+      expect(r.failedAt).toBe('must-be-valid')
+      expect(r.attempts).toBe(2)
+    }
+  })
+
+  it('forkIndex is correct and unique across all N results', async () => {
+    mockRunCommand.mockImplementation(async ({cell}) => {
+      if (cell?.id === 'child') throw new CriteriaFailedError('criterion', 1)
+    })
+    const store = buildPreExecTree()
+    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    const indices = results.map(r => r.forkIndex).sort((a, b) => a - b)
+    expect(indices).toEqual([0, 1, 2])
+  })
+
+  it('forkStore is null on every result — no fork stores created when pre-exec fails', async () => {
+    mockRunCommand.mockImplementation(async ({cell}) => {
+      if (cell?.id === 'child') throw new CriteriaFailedError('criterion', 1)
+    })
+    const store = buildPreExecTree()
+    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    expect(results.every(r => r.forkStore === null)).toBe(true)
+  })
+
+  it('onForkSettled is called once per result when pre-exec fails', async () => {
+    mockRunCommand.mockImplementation(async ({cell}) => {
+      if (cell?.id === 'child') throw new CriteriaFailedError('criterion', 1)
+    })
+    const store = buildPreExecTree()
+    const settled = []
+    await runForks({
+      refineNode: store.getNode('refine'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+      onForkSettled: r => settled.push(r),
+    })
+    expect(settled).toHaveLength(3)
+    expect(settled.every(r => r.status === 'criteria-failed')).toBe(true)
+  })
+
+  it('does not reject when pre-exec child throws a generic runtime error', async () => {
+    mockRunCommand.mockImplementation(async ({cell}) => {
+      if (cell?.id === 'child') throw new Error('network timeout')
+    })
+    const store = buildPreExecTree()
+    await expect(
+      runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()}),
+    ).resolves.toBeDefined()
+  })
+
+  it('returns N runtime-failed results when pre-exec throws a generic error', async () => {
+    mockRunCommand.mockImplementation(async ({cell}) => {
+      if (cell?.id === 'child') throw new Error('network timeout')
+    })
+    const store = buildPreExecTree()
+    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    expect(results).toHaveLength(3)
+    expect(results.every(r => r.status === 'runtime-failed')).toBe(true)
+  })
+
+  it('reason carries the error message on runtime-failed results', async () => {
+    mockRunCommand.mockImplementation(async ({cell}) => {
+      if (cell?.id === 'child') throw new Error('network timeout')
+    })
+    const store = buildPreExecTree()
+    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    expect(results.every(r => r.reason === 'network timeout')).toBe(true)
+  })
+
+  it('fork-loop runCommand is NOT called after pre-exec failure — no wasted fork execution', async () => {
+    let callCount = 0
+    mockRunCommand.mockImplementation(async ({cell}) => {
+      callCount++
+      if (cell?.id === 'child') throw new CriteriaFailedError('criterion', 1)
+    })
+    const store = buildPreExecTree()
+    await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    expect(callCount).toBe(1)
+  })
+})
+
+describe('runForks — pre-exec shared-child result and per-fork dispatch', () => {
+  const mcpAlias = {alias: '/tool', serverUrl: 'http://mcp', transport: 'streamable-http', toolName: 'run'}
+
+  const buildPreExecWithChildTree = () => {
+    const store = buildStore({
+      root: {id: 'root', children: ['parent']},
+      parent: {id: 'parent', parent: 'root', command: '/chat do', children: ['refine']},
+      refine: {id: 'refine', parent: 'parent', command: '/refine :n=3', children: ['child']},
+      child: {id: 'child', parent: 'refine', command: '/tool run', children: []},
+    })
+    store._aliases = {mcp: [mcpAlias], rpc: []}
+    return store
+  }
+
+  it('each fork store contains the pre-executed side-effecting child output — positive per-store inspection', async () => {
+    const store = buildPreExecWithChildTree()
+
+    mockRunCommand.mockImplementation(async ({cell, store: executionStore}) => {
+      if (cell.id === 'child') {
+        executionStore._nodes['child_output'] = {id: 'child_output', title: 'tool result', parent: 'child'}
+        executionStore._nodes['child'].title = 'executed'
+      }
+    })
+
+    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+
+    for (const result of results) {
+      expect(result.forkStore._nodes['child_output']).toBeDefined()
+      expect(result.forkStore._nodes['child_output'].title).toBe('tool result')
+      expect(result.forkStore._nodes['child'].title).toBe('executed')
+    }
+  })
+
+  it('non-side-effecting child dispatches once per fork — 3 executions for n=3', async () => {
+    const store = buildStore({
+      root: {id: 'root', children: ['parent']},
+      parent: {id: 'parent', parent: 'root', command: '/chat do', children: ['refine']},
+      refine: {id: 'refine', parent: 'parent', command: '/refine :n=3', children: ['child']},
+      child: {id: 'child', parent: 'refine', command: '/chat explain', children: []},
+    })
+    store._aliases = {mcp: [], rpc: []}
+
+    mockRunCommand.mockImplementation(async ({cell, store: forkStore, memoMap}) => {
+      if (cell.id === 'parent') {
+        const child = forkStore.getNode('child')
+        if (child && !memoMap.has('child')) {
+          await mockRunCommand({cell: child, store: forkStore, memoMap}, {})
+        }
+      }
+    })
+
+    await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+
+    const childCalls = mockRunCommand.mock.calls.filter(([params]) => params.cell?.id === 'child')
+    expect(childCalls).toHaveLength(3)
+  })
+})

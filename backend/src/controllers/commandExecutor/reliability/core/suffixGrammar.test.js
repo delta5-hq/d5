@@ -33,6 +33,7 @@ const ENGINE_CANONICAL_TITLES = [
   ['validate passed on first attempt', 'Task [✓]'],
   ['refine or commodity zero of N eligible', 'Task [✗ 0/3]'],
   ['validate all retries exhausted', 'Task [✗ 3×]'],
+  ['validate retry withheld', 'Task [✗ ⊘]'],
   ['validate invalid criterion', 'Task [✗ !]'],
   ['refine no judge signal in strict mode', 'Task [⚠ ∅]'],
   ['refine fallback winner committed', 'Task [⚠ 0/3]'],

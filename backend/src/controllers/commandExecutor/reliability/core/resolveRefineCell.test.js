@@ -821,7 +821,11 @@ describe('resolveRefineCell — winner selected', () => {
       mode: 'suppressed',
       suppressed: true,
       cause: 'side-effecting-alias',
+      eligible: 0,
+      total: 1,
     })
+    expect(store._nodes.r1.reliabilityMetadata.failureCause).toBeDefined()
+    expect(store._nodes.r1.reliabilityMetadata.remediationHint).toBeDefined()
   })
 
   it('forksStarted uses effectiveN from computeEffectiveN, not the raw n', async () => {

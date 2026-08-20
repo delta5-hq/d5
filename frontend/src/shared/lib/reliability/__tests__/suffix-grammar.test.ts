@@ -31,6 +31,7 @@ const ENGINE_CANONICAL_TITLES = [
   ['validate passed on first attempt', '/chat list [✓]'],
   ['refine or commodity zero of N eligible', '/chat list [✗ 0/3]'],
   ['validate all retries exhausted', '/chat list [✗ 3×]'],
+  ['validate retry withheld', '/chat list [✗ ⊘]'],
   ['validate invalid criterion', '/chat list [✗ !]'],
   ['refine no judge signal in strict mode', '/chat list [⚠ ∅]'],
   ['refine fallback winner committed', '/chat list [⚠ 0/3]'],

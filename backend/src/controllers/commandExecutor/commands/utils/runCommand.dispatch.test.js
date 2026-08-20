@@ -2703,6 +2703,7 @@ describe('commodity :n=N guard narrowness — native /chat fan-out is unaffected
     expect(callCount).toBe(3)
     expect(store.getOutput().nodes.filter(m => m.parent === node.id)).toHaveLength(3)
     expect(store.getNode(node.id).reliabilityMetadata.mode).toBe('commodity')
+    expect(store.getNode(node.id).reliabilityMetadata.suppressed).toBeUndefined()
   })
 })
 
@@ -2773,6 +2774,11 @@ describe('/refine child-dispatch loop — pre-execute side-effecting child exact
 
     expect(results).toHaveLength(3)
     expect(MCPClientManager.callTool).toHaveBeenCalledTimes(1)
+    // Each fork store inherits the pre-executed child state (deep clone of shared store)
+    const sharedChildState = store.getNode('child')
+    for (const result of results) {
+      expect(result.forkStore.getNode('child')).toEqual(sharedChildState)
+    }
     chatSpy.mockRestore()
   })
 
@@ -2781,8 +2787,9 @@ describe('/refine child-dispatch loop — pre-execute side-effecting child exact
     const memoMap = new Map()
     const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
 
-    await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap})
+    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap})
 
+    expect(results).toHaveLength(3)
     expect(memoMap.get('child')).not.toBe(MEMO_SENTINEL_PRE_EXECUTED_CHILD)
     expect(MCPClientManager.callTool).not.toHaveBeenCalled()
     chatSpy.mockRestore()

@@ -82,11 +82,15 @@ export function buildCommodityReliabilityMetadata({successCount, total, forkOutc
   }
 }
 
-// Honest, composable signal for a commodity :n≥2 request that was collapsed to a
-// single execution (never a silent collapse, never an error node). The one real
-// execution still happened, so it reports eligible/total = 1; `suppressed`,
-// `cause`, and `requestedN` record what the user asked for and why it was denied.
-export function buildSuppressedReliabilityMetadata({cause, requestedN}) {
+// Collapsed to one execution due to a side-effecting parent — never a silent collapse, never an error node.
+export function buildSuppressedReliabilityMetadata({
+  cause,
+  requestedN,
+  eligible = 1,
+  total = 1,
+  failureCause,
+  remediationHint,
+}) {
   return {
     winnerForkIndex: null,
     perCriterionVerdict: [],
@@ -94,11 +98,13 @@ export function buildSuppressedReliabilityMetadata({cause, requestedN}) {
     selectionLayer: 'primary',
     noSignal: false,
     tiebreakUsed: false,
-    eligible: 1,
-    total: 1,
+    eligible,
+    total,
     suppressed: true,
     cause,
     requestedN,
+    ...(failureCause !== undefined ? {failureCause} : {}),
+    ...(remediationHint !== undefined ? {remediationHint} : {}),
     discardedForks: [],
   }
 }
@@ -107,7 +113,7 @@ export function buildValidateRetryWithheldReliabilityMetadata({cause, requestedR
   return {
     winnerForkIndex: null,
     perCriterionVerdict: [],
-    mode: 'retry-withheld',
+    mode: 'invalid',
     selectionLayer: 'primary',
     noSignal: false,
     tiebreakUsed: false,

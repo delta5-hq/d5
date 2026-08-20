@@ -4,10 +4,11 @@ package models
 type RefineMode string
 
 const (
-	RefineModeStrict    RefineMode = "strict"
-	RefineModeBackFall  RefineMode = "fallback"
-	RefineModeCommodity RefineMode = "commodity"
-	RefineModeInvalid   RefineMode = "invalid"
+	RefineModeStrict     RefineMode = "strict"
+	RefineModeBackFall   RefineMode = "fallback"
+	RefineModeCommodity  RefineMode = "commodity"
+	RefineModeInvalid    RefineMode = "invalid"
+	RefineModeSuppressed RefineMode = "suppressed"
 )
 
 // SelectionLayer records whether the winner came from the eligible primary pool or the fallback pool.

@@ -1209,7 +1209,7 @@ describe('buildValidateRetryWithheldReliabilityMetadata', () => {
     expect(meta).toEqual(
       expect.objectContaining({
         winnerForkIndex: null,
-        mode: 'retry-withheld',
+        mode: 'invalid',
         selectionLayer: 'primary',
         retryWithheld: true,
         cause: 'side-effecting-alias',
@@ -1221,7 +1221,7 @@ describe('buildValidateRetryWithheldReliabilityMetadata', () => {
     )
   })
 
-  it('mode is "retry-withheld" — distinguishes withheld from invalid/suppressed modes', () => {
+  it('mode is "invalid" — retry-withheld is carried via retryWithheld flag, not a separate mode', () => {
     expect(
       buildValidateRetryWithheldReliabilityMetadata({
         cause: 'side-effecting-alias',
@@ -1229,7 +1229,7 @@ describe('buildValidateRetryWithheldReliabilityMetadata', () => {
         passedCount: 0,
         total: 1,
       }).mode,
-    ).toBe('retry-withheld')
+    ).toBe('invalid')
   })
 
   it('retryWithheld is always true — the distinguishing flag for downstream consumers', () => {
@@ -1362,7 +1362,7 @@ describe('buildSuppressedReliabilityMetadata', () => {
       expect(buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias'}).suppressed).toBe(true)
     })
 
-    it('eligible is always 1 — exactly one execution occurred', () => {
+    it('eligible defaults to 1 when omitted — the success path had exactly one execution', () => {
       expect(
         buildSuppressedReliabilityMetadata({
           cause: 'side-effecting-alias',
@@ -1396,8 +1396,8 @@ describe('buildSuppressedReliabilityMetadata', () => {
     })
   })
 
-  describe('total is always 1 — suppression means exactly one execution occurred', () => {
-    it('total is always 1 regardless of requestedN', () => {
+  describe('total defaults to 1 — suppression means exactly one execution was attempted', () => {
+    it('total defaults to 1 regardless of requestedN', () => {
       expect(
         buildSuppressedReliabilityMetadata({
           cause: 'side-effecting-alias',
@@ -1406,7 +1406,7 @@ describe('buildSuppressedReliabilityMetadata', () => {
       ).toBe(1)
     })
 
-    it('eligible is 1 and total is 1 together — 1/1 suppressed report', () => {
+    it('eligible defaults to 1 and total defaults to 1 — default success path is 1/1', () => {
       const meta = buildSuppressedReliabilityMetadata({
         cause: 'side-effecting-alias',
         requestedN: 5,
@@ -1425,5 +1425,69 @@ describe('buildSuppressedReliabilityMetadata', () => {
         expect(meta.requestedN).toBe(requestedN)
       },
     )
+  })
+
+  describe('eligible and total are parameterizable — failed-suppressed path passes explicit values', () => {
+    it('explicit eligible:0 passes through — failed-suppressed run had zero eligible outcomes', () => {
+      const meta = buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias', requestedN: 3, eligible: 0})
+      expect(meta.eligible).toBe(0)
+    })
+
+    it('explicit total:1 passes through — one execution was attempted even when failed', () => {
+      const meta = buildSuppressedReliabilityMetadata({
+        cause: 'side-effecting-alias',
+        requestedN: 3,
+        eligible: 0,
+        total: 1,
+      })
+      expect(meta.total).toBe(1)
+    })
+
+    it('eligible:0 and total:1 together express the failed-suppressed 0/1 report', () => {
+      const meta = buildSuppressedReliabilityMetadata({
+        cause: 'side-effecting-alias',
+        requestedN: 3,
+        eligible: 0,
+        total: 1,
+      })
+      expect(meta.eligible).toBe(0)
+      expect(meta.total).toBe(1)
+    })
+  })
+
+  describe('failureCause and remediationHint — present only when explicitly provided', () => {
+    it('failureCause is absent when not provided', () => {
+      const meta = buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias'})
+      expect('failureCause' in meta).toBe(false)
+    })
+
+    it('remediationHint is absent when not provided', () => {
+      const meta = buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias'})
+      expect('remediationHint' in meta).toBe(false)
+    })
+
+    it('failureCause is present when provided — failure classification is forwarded', () => {
+      const meta = buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias', failureCause: 'criteria-failed'})
+      expect(meta.failureCause).toBe('criteria-failed')
+    })
+
+    it('remediationHint is present when provided — remediation is forwarded', () => {
+      const meta = buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias', remediationHint: 'none'})
+      expect(meta.remediationHint).toBe('none')
+    })
+
+    it('failed-suppressed shape: eligible:0, failureCause, remediationHint all present together', () => {
+      const meta = buildSuppressedReliabilityMetadata({
+        cause: 'side-effecting-alias',
+        requestedN: 3,
+        eligible: 0,
+        total: 1,
+        failureCause: 'criteria-failed',
+        remediationHint: 'none',
+      })
+      expect(meta.eligible).toBe(0)
+      expect(meta.failureCause).toBe('criteria-failed')
+      expect(meta.remediationHint).toBe('none')
+    })
   })
 })

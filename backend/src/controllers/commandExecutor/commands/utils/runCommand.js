@@ -23,6 +23,7 @@ import RefineTopology from '../../reliability/core/RefineTopology'
 import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {MCP_FUSION_QUERY_TYPE} from '../../constants/mcpFusion'
 import {isSideEffectingDispatch} from '../../reliability/core/sideEffectingDispatch'
+import {isPostProcessorOrControlQuery, hasRefineDescendant} from '../../reliability/core/refineChildPredicates'
 import {MEMO_SENTINEL_PRE_EXECUTED_CHILD} from '../../reliability/core/memoSentinels'
 import {YANDEX_QUERY_TYPE} from '../../constants/yandex'
 import {CONTROL_FLOW_COMMANDS, modifierQueryTypes} from '../../constants'
@@ -212,17 +213,6 @@ async function runCommodityForks({
  * }} params
  * @param {ProgressReporter} progress
  */
-/** @private */
-function hasRefineDescendant(node, store) {
-  for (const childId of node.children ?? []) {
-    const child = store.getNode(childId)
-    if (!child) continue
-    if (getNodeCommand(child)?.startsWith(REFINE_QUERY)) return true
-    if (hasRefineDescendant(child, store)) return true
-  }
-  return false
-}
-
 function foreachValidateTemplateExclusions(queryType, cell, store) {
   if (queryType !== FOREACH_QUERY_TYPE) return []
   return (store.getNode(cell.id)?.children ?? []).filter(id => isValidate(store.getNode(id)))
@@ -430,17 +420,7 @@ export const runCommand = async (
               const refineChild = store.getNode(refineChildId)
               if (!refineChild || ids.includes(refineChildId)) continue
               const rcQuery = getNodeCommand(refineChild)
-              if (
-                !rcQuery ||
-                rcQuery.startsWith(FOREACH_QUERY) ||
-                rcQuery.startsWith(SUMMARIZE_QUERY) ||
-                rcQuery.startsWith(MEMORIZE_QUERY) ||
-                rcQuery.startsWith(REFINE_QUERY) ||
-                rcQuery.startsWith(VALIDATE_QUERY) ||
-                (rcQuery.startsWith(OUTLINE_QUERY) && readSummarizeParam(rcQuery))
-              ) {
-                continue
-              }
+              if (isPostProcessorOrControlQuery(rcQuery)) continue
               // Skip children whose subtree contains /refine: memoization pre-resolution
               // already ran them; re-running would double-execute per outer fork.
               if (hasRefineDescendant(refineChild, store)) continue

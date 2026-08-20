@@ -37,6 +37,7 @@ const ENGINE_SUFFIX_VARIANTS = [
   ['invalid command', 'Task [✗ !]', 'Task'],
   ['refine: all forks eligible, degraded judge input', 'Task [✓ 3/3 ⚠]', 'Task'],
   ['refine: some forks eligible, degraded judge input', 'Task [✓ 2/3 ⚠]', 'Task'],
+  ['validate: retry withheld, criterion failed', 'Task [✗ ⊘]', 'Task'],
 ]
 
 const ALL_SUFFIX_VARIANTS = [...HISTORICAL_SUFFIX_VARIANTS, ...ENGINE_SUFFIX_VARIANTS]
@@ -156,6 +157,34 @@ describe('appendValidateSuffix', () => {
     })
   })
 
+  describe('[✗ ⊘] — retry withheld on a failed criterion', () => {
+    it('retryWithheld:true + passed:false → [✗ ⊘] regardless of retryCount', () => {
+      expect(appendValidateSuffix('Task', {passed: false, retryCount: 0, retryWithheld: true})).toBe('Task [✗ ⊘]')
+    })
+
+    it('retryWithheld:true + passed:true → [✓] — group flag does not override a passing cell', () => {
+      expect(appendValidateSuffix('Task', {passed: true, retryCount: 0, retryWithheld: true})).toBe('Task [✓]')
+    })
+
+    it('retryWithheld:true + passed:true + retryCount>0 → [✓ +K] — retry credit preserved', () => {
+      expect(appendValidateSuffix('Task', {passed: true, retryCount: 2, retryWithheld: true})).toBe('Task [✓ +2]')
+    })
+
+    it('retryWithheld:false is the default — passing cell still gets [✓]', () => {
+      expect(appendValidateSuffix('Task', {passed: true, retryCount: 0, retryWithheld: false})).toBe('Task [✓]')
+    })
+
+    it('retryWithheld:false is the default — failing cell still gets [✗ N×]', () => {
+      expect(appendValidateSuffix('Task', {passed: false, retryCount: 3, retryWithheld: false})).toBe('Task [✗ 3×]')
+    })
+
+    it('[✗ ⊘] is strippable to base title — round-trip invariant', () => {
+      expect(
+        stripReliabilitySuffix(appendValidateSuffix('Base', {passed: false, retryCount: 0, retryWithheld: true})),
+      ).toBe('Base')
+    })
+  })
+
   describe('strips pre-existing reliability suffix before appending — no stacking across all known shapes', () => {
     it.each(ALL_SUFFIX_VARIANTS)('%s — replaced by [✓]', (_, titleWithSuffix, base) => {
       expect(appendValidateSuffix(titleWithSuffix, {passed: true, retryCount: 0})).toBe(`${base} [✓]`)
@@ -180,12 +209,14 @@ describe('appendValidateSuffix', () => {
   })
 
   describe('every output shape is strippable to its base title — round-trip invariant', () => {
-    it.each([[{passed: true, retryCount: 0}], [{passed: true, retryCount: 2}], [{passed: false, retryCount: 3}]])(
-      '%o → stripped back to base title',
-      opts => {
-        expect(stripReliabilitySuffix(appendValidateSuffix('Base', opts))).toBe('Base')
-      },
-    )
+    it.each([
+      [{passed: true, retryCount: 0}],
+      [{passed: true, retryCount: 2}],
+      [{passed: false, retryCount: 3}],
+      [{passed: false, retryCount: 0, retryWithheld: true}],
+    ])('%o → stripped back to base title', opts => {
+      expect(stripReliabilitySuffix(appendValidateSuffix('Base', opts))).toBe('Base')
+    })
   })
 })
 

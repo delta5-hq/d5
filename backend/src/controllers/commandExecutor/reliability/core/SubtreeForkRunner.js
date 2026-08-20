@@ -8,12 +8,7 @@ import {extractForkLeafOutputs} from './ForkLeafExtractor'
 import {isSideEffectingDispatch} from './sideEffectingDispatch'
 import {COMMODITY_SUPPRESSION_CAUSE} from './failureSemantics'
 import {MEMO_SENTINEL_PRE_EXECUTED_CHILD} from './memoSentinels'
-import {FOREACH_QUERY} from '../../constants/foreach'
-import {MEMORIZE_QUERY} from '../../constants/memorize'
-import {OUTLINE_QUERY, readSummarizeParam} from '../../constants/outline'
-import {REFINE_QUERY} from '../../constants/refine'
-import {SUMMARIZE_QUERY} from '../../constants/summarize'
-import {VALIDATE_QUERY} from '../../constants/validate'
+import {isPostProcessorOrControlQuery, hasRefineDescendant} from './refineChildPredicates'
 
 /**
  * @typedef {import('../../commands/utils/Store').NodeData} NodeData
@@ -35,26 +30,12 @@ import {VALIDATE_QUERY} from '../../constants/validate'
  * @property {number} [requestedN]
  */
 
-function isPostProcessorOrControlQuery(query) {
-  return (
-    !query ||
-    query.startsWith(FOREACH_QUERY) ||
-    query.startsWith(SUMMARIZE_QUERY) ||
-    query.startsWith(MEMORIZE_QUERY) ||
-    query.startsWith(REFINE_QUERY) ||
-    query.startsWith(VALIDATE_QUERY) ||
-    (query.startsWith(OUTLINE_QUERY) && readSummarizeParam(query))
-  )
-}
-
-function hasRefineDescendant(node, store) {
-  for (const childId of node.children ?? []) {
-    const child = store.getNode(childId)
-    if (!child) continue
-    if (getNodeCommand(child)?.startsWith(REFINE_QUERY)) return true
-    if (hasRefineDescendant(child, store)) return true
-  }
-  return false
+function isSideEffectingParent(refineNode, store) {
+  const parentNode = store.getNode(refineNode.parent)
+  if (!parentNode) return false
+  const command = getNodeCommand(parentNode)
+  const {queryType, mcpAlias, rpcAlias} = resolveCommand(command, store._aliases)
+  return isSideEffectingDispatch({queryType, mcpAlias, rpcAlias})
 }
 
 async function preExecuteSideEffectingRefineChildren(refineNode, store, memoMap, signal) {
@@ -70,6 +51,26 @@ async function preExecuteSideEffectingRefineChildren(refineNode, store, memoMap,
     await runCommand({queryType, cell: child, store, mcpAlias, rpcAlias, signal, memoMap}, new NullProgress())
     memoMap.set(childId, MEMO_SENTINEL_PRE_EXECUTED_CHILD)
   }
+}
+
+function buildPreExecFailureResults(effectiveN, err) {
+  if (err instanceof CriteriaFailedError) {
+    return Array.from({length: effectiveN}, (_, forkIndex) => ({
+      forkStore: null,
+      forkIndex,
+      status: 'criteria-failed',
+      failedAt: err.criterion,
+      attempts: err.attempts,
+      leafOutputs: [],
+    }))
+  }
+  return Array.from({length: effectiveN}, (_, forkIndex) => ({
+    forkStore: null,
+    forkIndex,
+    status: 'runtime-failed',
+    reason: err?.message || String(err),
+    leafOutputs: [],
+  }))
 }
 
 /**
@@ -99,15 +100,20 @@ export const runForks = async ({refineNode, store, n, memoMap, signal = null, on
 
   memoMap.set(refineNode.id, 'in-progress')
 
-  const command = getNodeCommand(parentNode)
-  const {queryType, mcpAlias, rpcAlias} = resolveCommand(command, store._aliases)
-  const suppressedForSideEffect = n > 1 && isSideEffectingDispatch({queryType, mcpAlias, rpcAlias})
+  const suppressedForSideEffect = n > 1 && isSideEffectingParent(refineNode, store)
   const effectiveN = suppressedForSideEffect ? 1 : n
 
   if (!suppressedForSideEffect && effectiveN > 1) {
-    await preExecuteSideEffectingRefineChildren(refineNode, store, memoMap, signal)
+    try {
+      await preExecuteSideEffectingRefineChildren(refineNode, store, memoMap, signal)
+    } catch (preExecErr) {
+      const results = buildPreExecFailureResults(effectiveN, preExecErr)
+      results.forEach(r => onForkSettled?.(r))
+      return results
+    }
   }
 
+  const {queryType, mcpAlias, rpcAlias} = resolveCommand(getNodeCommand(parentNode), store._aliases)
   const forkStores = Array.from({length: effectiveN}, () => StoreFork.createFork(store))
   const results = new Array(effectiveN)
 
@@ -190,9 +196,5 @@ export const runForks = async ({refineNode, store, n, memoMap, signal = null, on
  * @returns {number}
  */
 export function computeEffectiveN(refineNode, store, n) {
-  const parentNode = store.getNode(refineNode.parent)
-  if (!parentNode) return n
-  const command = getNodeCommand(parentNode)
-  const {queryType, mcpAlias, rpcAlias} = resolveCommand(command, store._aliases)
-  return n > 1 && isSideEffectingDispatch({queryType, mcpAlias, rpcAlias}) ? 1 : n
+  return n > 1 && isSideEffectingParent(refineNode, store) ? 1 : n
 }

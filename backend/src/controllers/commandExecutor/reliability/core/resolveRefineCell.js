@@ -10,6 +10,7 @@ import {getNodeCommand} from '../../commands/utils/isCommand'
 import {isValidateCell} from './validateParams'
 import {NullForkProgressEmitter} from './ForkProgressEmitter'
 import {buildReliabilityMetadata, buildSuppressedReliabilityMetadata} from './reliabilityMetadataFields'
+import {classifyNoWinner} from './failureSemantics'
 import {copyParentPromptOutputToRefine} from './refineWinnerOutput'
 
 /**
@@ -136,9 +137,14 @@ export async function resolveRefineCell(
           total: 1,
           winnerForkIndex: null,
         })
+        const {failureCause, remediationHint} = classifyNoWinner({forkResults: [singleFork]})
         winnerNode.reliabilityMetadata = buildSuppressedReliabilityMetadata({
           cause: suppressedFork.cause,
           requestedN: suppressedFork.requestedN,
+          eligible: 0,
+          total: 1,
+          failureCause,
+          remediationHint,
         })
         store.saveNodeToOutput(refineNode.id)
       }

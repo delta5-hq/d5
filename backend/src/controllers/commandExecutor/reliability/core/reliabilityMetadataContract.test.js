@@ -8,6 +8,9 @@ import {
   buildPerCriterionVerdictEntry,
   buildForkRankingEntry,
   buildValidateRetryWithheldReliabilityMetadata,
+  buildCommodityReliabilityMetadata,
+  buildSuppressedReliabilityMetadata,
+  buildInvalidReliabilityMetadata,
 } from './reliabilityMetadataFields'
 
 const FIXTURE_PATH = path.resolve(
@@ -255,12 +258,53 @@ describe('validate retry-withheld metadata builder', () => {
       }),
     ).toEqual(
       expect.objectContaining({
-        mode: 'retry-withheld',
+        mode: 'invalid',
         retryWithheld: true,
         cause: 'side-effecting-alias',
         requestedRetry: 2,
         failureCause: 'criteria-failed',
       }),
     )
+  })
+})
+
+describe('builder mode values are constrained to the declared cross-stack mode union', () => {
+  const FRONTEND_WORKFLOW_TS = path.resolve(__dirname, '../../../../../../frontend/src/shared/base-types/workflow.ts')
+
+  function parseFrontendModeUnion() {
+    const src = fs.readFileSync(FRONTEND_WORKFLOW_TS, 'utf8')
+    const match = src.match(/mode:\s*((?:'[^']+'\s*\|\s*)*'[^']+')/)
+    if (!match) throw new Error('Could not parse mode union from workflow.ts')
+    return match[1].split('|').map(s => s.trim().replace(/'/g, ''))
+  }
+
+  const GO_RELIABILITY_GO = path.resolve(__dirname, '../../../../../../backend-v2/internal/models/reliability.go')
+
+  function parseGoModeUnion() {
+    const src = fs.readFileSync(GO_RELIABILITY_GO, 'utf8')
+    return [...src.matchAll(/RefineMode\s*=\s*"([^"]+)"/g)].map(m => m[1])
+  }
+
+  function allBuilderModes() {
+    return [
+      buildCommodityReliabilityMetadata({successCount: 1, total: 2, forkOutcomes: []}).mode,
+      buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias', requestedN: 3}).mode,
+      buildValidateRetryWithheldReliabilityMetadata({cause: 'x', requestedRetry: 1, passedCount: 0, total: 1}).mode,
+      buildInvalidReliabilityMetadata({failureCause: 'missing-parent'}).mode,
+    ]
+  }
+
+  it('every fixed-mode builder emits a mode that is declared in the frontend ReliabilityMetadata union', () => {
+    const frontendModes = parseFrontendModeUnion()
+    for (const mode of allBuilderModes()) {
+      expect(frontendModes).toContain(mode)
+    }
+  })
+
+  it('every fixed-mode builder emits a mode that is declared in the Go RefineMode enum', () => {
+    const goModes = parseGoModeUnion()
+    for (const mode of allBuilderModes()) {
+      expect(goModes).toContain(mode)
+    }
   })
 })

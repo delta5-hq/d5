@@ -588,6 +588,8 @@ func TestReliabilityMetadata_EnumConstants_SerializeToCanonicalStrings(t *testin
 			{models.RefineModeStrict, `"strict"`},
 			{models.RefineModeBackFall, `"fallback"`},
 			{models.RefineModeCommodity, `"commodity"`},
+			{models.RefineModeInvalid, `"invalid"`},
+			{models.RefineModeSuppressed, `"suppressed"`},
 		}
 		for _, tt := range tests {
 			t.Run(string(tt.value), func(t *testing.T) {
@@ -1083,11 +1085,6 @@ func TestReliabilityFailureCause_InvalidModeConstants(t *testing.T) {
 	t.Run("ReliabilityFailureInvalidCriteria value is invalid-criteria", func(t *testing.T) {
 		if models.ReliabilityFailureInvalidCriteria != "invalid-criteria" {
 			t.Errorf("want %q, got %q", "invalid-criteria", models.ReliabilityFailureInvalidCriteria)
-		}
-	})
-	t.Run("RefineModeInvalid value is invalid", func(t *testing.T) {
-		if models.RefineModeInvalid != "invalid" {
-			t.Errorf("want %q, got %q", "invalid", models.RefineModeInvalid)
 		}
 	})
 	t.Run("missing-parent and invalid-criteria are distinct values", func(t *testing.T) {
