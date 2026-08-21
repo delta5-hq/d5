@@ -35,6 +35,38 @@ describe('useNodePreview', () => {
       expect(result.current.previewText).toContain('Prompt child')
     })
 
+    it.each([
+      ['LF outline', 'First paragraph\n\nOutline\n  sub a\n  sub b'],
+      ['CRLF outline', 'First paragraph\r\n\r\nOutline\r\n  sub a\r\n  sub b'],
+    ])('renders a lazy-split commandless %s title exactly once', (_case, title) => {
+      const nodes = makeNodes([
+        ['source', { children: ['first', 'outline'], prompts: ['first', 'outline'], title }],
+        ['first', { parent: 'source', title: 'First paragraph' }],
+        ['outline', { parent: 'source', children: ['sub-a', 'sub-b'], title: 'Outline' }],
+        ['sub-a', { parent: 'outline', title: 'sub a' }],
+        ['sub-b', { parent: 'outline', title: 'sub b' }],
+      ])
+
+      const { result } = renderPreview('source', nodes)
+
+      expect(result.current.previewText).toBe(title)
+    })
+
+    it('keeps regular children while excluding a commandless title projection', () => {
+      const title = 'Source alpha\n\nSource beta'
+      const nodes = makeNodes([
+        ['source', { children: ['regular', 'projection'], prompts: ['projection'], title }],
+        ['regular', { parent: 'source', title: 'Independently authored child' }],
+        ['projection', { parent: 'source', title: 'Source alpha' }],
+      ])
+
+      const { result } = renderPreview('source', nodes)
+
+      expect(result.current.previewText).toContain(title)
+      expect(result.current.previewText).toContain('Independently authored child')
+      expect(result.current.previewText.match(/Source alpha/g)).toHaveLength(1)
+    })
+
     it('shows command-bearing child nodes by title in hierarchical preview', () => {
       const nodes = makeNodes([
         ['root', { children: ['cmd-child', 'plain'], title: 'Root' }],
