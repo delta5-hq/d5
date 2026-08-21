@@ -33,7 +33,14 @@ type Node struct {
 	Height          int                    `json:"height" bson:"height"`
 	Command         string                 `json:"command" bson:"command"`
 	Prompts         []string               `json:"prompts" bson:"prompts"`
+	TitleProjection *TitleProjection       `json:"titleProjection,omitempty" bson:"titleProjection,omitempty"`
 	McpFusionReport map[string]interface{} `json:"mcpFusionReport,omitempty" bson:"mcpFusionReport,omitempty"`
+}
+
+type TitleProjection struct {
+	SourceTitle string   `json:"sourceTitle" bson:"sourceTitle"`
+	ChildIDs    []string `json:"childIds" bson:"childIds"`
+	NodeIDs     []string `json:"nodeIds" bson:"nodeIds"`
 }
 
 type Edge struct {

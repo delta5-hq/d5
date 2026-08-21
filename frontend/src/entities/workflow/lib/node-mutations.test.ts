@@ -106,6 +106,154 @@ describe('updateNode', () => {
     expect(result['a'].parent).toBe('root')
   })
 
+  describe('titleProjection lifecycle', () => {
+    it('removes stale projection when source title changes', () => {
+      const nodes = {
+        root: {
+          id: 'root',
+          title: 'Source',
+          children: ['child'],
+          titleProjection: { sourceTitle: 'Source', childIds: ['child'], nodeIds: ['child'] },
+        },
+        child: { id: 'child', title: 'Source', parent: 'root', children: [] },
+      }
+
+      const result = updateNode(nodes, 'root', { title: 'Edited' })
+
+      expect(result.root.titleProjection).toBeUndefined()
+    })
+
+    it('removes stale projection when projected child is removed', () => {
+      const nodes = {
+        root: { id: 'root', title: 'Workflow', children: ['parent'] },
+        parent: {
+          id: 'parent',
+          title: 'Source',
+          parent: 'root',
+          children: ['child'],
+          prompts: ['child'],
+          titleProjection: { sourceTitle: 'Source', childIds: ['child'], nodeIds: ['child'] },
+        },
+        child: { id: 'child', title: 'Source', parent: 'parent', children: [] },
+      }
+
+      const result = removeNode(nodes, {}, 'child')
+
+      expect(result.nodes.parent.titleProjection).toBeUndefined()
+    })
+
+    it('removes stale projection when projected child is reparented', () => {
+      const nodes = {
+        root: { id: 'root', title: 'Workflow', children: ['parent', 'target'] },
+        parent: {
+          id: 'parent',
+          title: 'Source',
+          parent: 'root',
+          children: ['child'],
+          titleProjection: { sourceTitle: 'Source', childIds: ['child'], nodeIds: ['child'] },
+        },
+        child: { id: 'child', title: 'Source', parent: 'parent', children: [] },
+        target: { id: 'target', title: 'Target', parent: 'root', children: [] },
+      }
+
+      const result = moveNode(nodes, 'child', 'target')
+
+      expect(result.parent.titleProjection).toBeUndefined()
+    })
+
+    it('removes stale projection when a nested projected line is edited', () => {
+      const sourceTitle = 'Heading\n  Detail'
+      const nodes = {
+        parent: {
+          id: 'parent',
+          title: sourceTitle,
+          children: ['heading'],
+          titleProjection: {
+            sourceTitle,
+            childIds: ['heading'],
+            nodeIds: ['heading', 'detail'],
+          },
+        },
+        heading: { id: 'heading', title: 'Heading', parent: 'parent', children: ['detail'] },
+        detail: { id: 'detail', title: 'Detail', parent: 'heading', children: [] },
+      }
+
+      const result = updateNode(nodes, 'detail', { title: 'Edited detail' })
+
+      expect(result.parent.titleProjection).toBeUndefined()
+    })
+
+    it('removes stale projection when a nested projected line is deleted', () => {
+      const sourceTitle = 'Heading\n  Detail'
+      const nodes = {
+        root: { id: 'root', title: 'Workflow', children: ['parent'] },
+        parent: {
+          id: 'parent',
+          title: sourceTitle,
+          parent: 'root',
+          children: ['heading'],
+          titleProjection: {
+            sourceTitle,
+            childIds: ['heading'],
+            nodeIds: ['heading', 'detail'],
+          },
+        },
+        heading: { id: 'heading', title: 'Heading', parent: 'parent', children: ['detail'] },
+        detail: { id: 'detail', title: 'Detail', parent: 'heading', children: [] },
+      }
+
+      const result = removeNode(nodes, {}, 'detail')
+
+      expect(result.nodes.parent.titleProjection).toBeUndefined()
+    })
+
+    it('removes stale projection when nested projected siblings are reordered', () => {
+      const sourceTitle = 'Heading\n  First\n  Second'
+      const nodes = {
+        parent: {
+          id: 'parent',
+          title: sourceTitle,
+          children: ['heading'],
+          titleProjection: {
+            sourceTitle,
+            childIds: ['heading'],
+            nodeIds: ['heading', 'first', 'second'],
+          },
+        },
+        heading: { id: 'heading', title: 'Heading', parent: 'parent', children: ['first', 'second'] },
+        first: { id: 'first', title: 'First', parent: 'heading', children: [] },
+        second: { id: 'second', title: 'Second', parent: 'heading', children: [] },
+      }
+
+      const result = moveNode(nodes, 'second', 'heading', 0)
+
+      expect(result.parent.titleProjection).toBeUndefined()
+    })
+
+    it('remaps projection child ids when duplicating a projected subtree', () => {
+      const nodes = {
+        root: { id: 'root', title: 'Workflow', children: ['parent'] },
+        parent: {
+          id: 'parent',
+          title: 'Source',
+          parent: 'root',
+          children: ['child'],
+          titleProjection: { sourceTitle: 'Source', childIds: ['child'], nodeIds: ['child'] },
+        },
+        child: { id: 'child', title: 'Source', parent: 'parent', children: [] },
+      }
+
+      const result = duplicateNode(nodes, {}, 'parent')
+      const duplicate = result.nodes[result.newRootId]
+
+      expect(duplicate.titleProjection).toEqual({
+        sourceTitle: 'Source',
+        childIds: duplicate.children,
+        nodeIds: duplicate.children,
+      })
+    })
+  })
+
   it('updates command', () => {
     const nodes = createSimpleTree()
     const result = updateNode(nodes, 'a', { command: '/instruct test' })
@@ -289,6 +437,46 @@ describe('duplicateNode', () => {
     const newA1Id = newA.children![0]
     expect(result.nodes[newA1Id].title).toBe('A1')
     expect(result.nodes[newA1Id].parent).toBe(result.newRootId)
+  })
+
+  it('duplicates projected prompt ownership so removing the copy cannot delete the source subtree', () => {
+    const sourceTitle = 'Heading\n  Detail'
+    const nodes: Record<string, NodeData> = {
+      root: { id: 'root', title: 'Workflow', children: ['source'] },
+      source: {
+        id: 'source',
+        title: sourceTitle,
+        parent: 'root',
+        children: ['heading'],
+        prompts: ['heading'],
+        titleProjection: {
+          sourceTitle,
+          childIds: ['heading'],
+          nodeIds: ['heading', 'detail'],
+        },
+      },
+      heading: { id: 'heading', title: 'Heading', parent: 'source', children: ['detail'] },
+      detail: { id: 'detail', title: 'Detail', parent: 'heading', children: [] },
+    }
+
+    const duplicated = duplicateNode(nodes, {}, 'source')
+    const copy = duplicated.nodes[duplicated.newRootId]
+    const copyHeadingId = duplicated.idMapping.heading
+    const copyDetailId = duplicated.idMapping.detail
+
+    expect(copy.prompts).toEqual([copyHeadingId])
+    expect(copy.titleProjection).toEqual({
+      sourceTitle,
+      childIds: [copyHeadingId],
+      nodeIds: [copyHeadingId, copyDetailId],
+    })
+
+    const afterRemovingCopyPrompts = removePromptChildren(duplicated.nodes, duplicated.newRootId)
+
+    expect(afterRemovingCopyPrompts[copyHeadingId]).toBeUndefined()
+    expect(afterRemovingCopyPrompts[copyDetailId]).toBeUndefined()
+    expect(afterRemovingCopyPrompts.heading).toBe(nodes.heading)
+    expect(afterRemovingCopyPrompts.detail).toBe(nodes.detail)
   })
 
   it('duplicates to different parent', () => {

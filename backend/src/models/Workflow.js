@@ -15,6 +15,15 @@ export const NodeTag = createSchema(
   {_id: false, timestamps: false},
 )
 
+const TitleProjection = createSchema(
+  {
+    sourceTitle: {type: String, required: true},
+    childIds: {type: [String], required: true},
+    nodeIds: {type: [String], required: true},
+  },
+  {_id: false, timestamps: false},
+)
+
 export const Node = createSchema(
   {
     id: {type: String, required: true},
@@ -37,6 +46,7 @@ export const Node = createSchema(
     autoshrink: {type: Boolean, default: false},
     command: {type: String, required: false},
     prompts: {type: [String]},
+    titleProjection: {type: TitleProjection, required: false},
   },
   {_id: false, timestamps: false},
 )

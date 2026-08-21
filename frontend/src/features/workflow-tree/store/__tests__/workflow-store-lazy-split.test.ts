@@ -45,6 +45,11 @@ describe('toggleExpanded — commandless lazy-split', () => {
     const { nodes: n } = store.getState()
     expect(n['n1'].children).toHaveLength(3)
     expect(n['n1'].prompts).toHaveLength(3)
+    expect(n['n1'].titleProjection).toEqual({
+      sourceTitle: 'Para 1\n\nPara 2\n\nPara 3',
+      childIds: n['n1'].children,
+      nodeIds: n['n1'].children,
+    })
 
     const paragraphs = n['n1'].children!.map(id => n[id]?.title)
     expect(paragraphs).toContain('Para 1')
@@ -68,6 +73,11 @@ describe('toggleExpanded — commandless lazy-split', () => {
     const [rootId] = materialized.n1.prompts!
     expect(materialized[rootId]?.title).toBe('Root')
     expect(materialized[rootId]?.children).toHaveLength(1)
+    expect(materialized.n1.titleProjection).toEqual({
+      sourceTitle: 'Root\r\n\r\n  Child',
+      childIds: [rootId],
+      nodeIds: [rootId, ...materialized[rootId].children!],
+    })
     expect(materialized[materialized[rootId]!.children![0]]?.title).toBe('Child')
     expect(store.getState().expandedIds.has('n1')).toBe(true)
   })

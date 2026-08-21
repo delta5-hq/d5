@@ -11,6 +11,7 @@ import { retainExistingIds } from './workflow-store-set-utils'
 import { computeRangeSelection } from './workflow-store-range-select'
 import { deriveExpandedIdsFromNodes } from '../hooks/use-tree-expansion'
 import { isCommandlessTextNode } from '@entities/workflow/lib'
+import { sanitizeTitleProjections } from '@entities/workflow/lib'
 import { deleteWorkflowFile, uploadWorkflowFile } from '../api/workflow-file-api'
 import { toast } from 'sonner'
 import { attachFileChildTransaction } from './workflow-attachment-transaction'
@@ -87,7 +88,7 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     try {
       const data = await apiFetch<WorkflowApiResponse>(`/workflow/${workflowId}`)
       if (requestVersion !== loadVersion) return
-      const newNodes = (data.nodes ?? {}) as WorkflowStoreState['nodes']
+      const newNodes = sanitizeTitleProjections((data.nodes ?? {}) as WorkflowStoreState['nodes'])
       const { selectedId, selectedIds, anchorId } = store.getState()
       const selectionStale = selectedId !== undefined && !(selectedId in newNodes)
       const anchorStale = anchorId !== undefined && !(anchorId in newNodes)

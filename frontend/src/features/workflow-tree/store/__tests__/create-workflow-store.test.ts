@@ -155,6 +155,27 @@ describe('createWorkflowStore', () => {
     expect(store.getState().error).toBeNull()
   })
 
+  it('load drops stale title projection without removing legacy children', async () => {
+    vi.mocked(apiFetch).mockResolvedValueOnce({
+      ...mockApiResponse,
+      nodes: {
+        root: {
+          id: 'root',
+          title: 'Edited',
+          children: ['child'],
+          titleProjection: { sourceTitle: 'Source', childIds: ['child'], nodeIds: ['child'] },
+        },
+        child: { id: 'child', title: 'Source', parent: 'root', children: [] },
+      },
+    })
+    const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)
+
+    await actions.load()
+
+    expect(store.getState().nodes.root.titleProjection).toBeUndefined()
+    expect(store.getState().nodes.root.children).toEqual(['child'])
+  })
+
   it('load sets error on failure', async () => {
     vi.mocked(apiFetch).mockRejectedValueOnce(new Error('Network error'))
     const { store, actions } = createWorkflowStore('wf-test', mockFormatMessage)

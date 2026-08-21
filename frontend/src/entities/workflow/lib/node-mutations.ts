@@ -1,6 +1,7 @@
 import type { NodeData, NodeId, EdgeData, EdgeId } from '@shared/base-types'
 import { generateUniqueNodeId, generateEdgeId } from '@shared/lib/generate-id'
 import { isValidNodeData, getDescendantIds, hasCircularReference } from './node-validation'
+import { remapTitleProjection, sanitizeTitleProjections, withoutTitleProjection } from './title-projection'
 
 export interface NodeMutationResult {
   nodes: Record<NodeId, NodeData>
@@ -122,7 +123,7 @@ export const updateNode = (
     parent: existingNode.parent,
   }
 
-  return { ...nodes, [nodeId]: updatedNode }
+  return sanitizeTitleProjections({ ...nodes, [nodeId]: updatedNode })
 }
 
 export const removeNode = (
@@ -164,7 +165,7 @@ export const removeNode = (
     }
   }
 
-  return { nodes: newNodes, edges: newEdges, removedNodeIds }
+  return { nodes: sanitizeTitleProjections(newNodes), edges: newEdges, removedNodeIds }
 }
 
 export const moveNode = (
@@ -213,13 +214,13 @@ export const moveNode = (
     const currentIndex = oldSiblings.indexOf(nodeId)
     if (currentIndex === targetIndex) return nodes
 
-    return {
+    return sanitizeTitleProjections({
       ...nodes,
       [oldParentId]: {
         ...nodes[oldParentId],
         children: nextTargetChildren,
       },
-    }
+    })
   }
 
   const newNodes = { ...nodes }
@@ -243,7 +244,7 @@ export const moveNode = (
     parent: newParentId,
   }
 
-  return newNodes
+  return sanitizeTitleProjections(newNodes)
 }
 
 export const addPromptChild = (
@@ -295,7 +296,7 @@ export const removePromptChildren = (nodes: Record<NodeId, NodeData>, parentId: 
     prompts: [],
   }
 
-  return newNodes
+  return { ...newNodes, [parentId]: withoutTitleProjection(newNodes[parentId]) }
 }
 
 export const orphanMatchingPromptChildren = (
@@ -375,9 +376,12 @@ export const duplicateNode = (
       id: newId,
       parent: newParent,
       children: (source.children ?? []).map(childId => idMapping[childId]).filter(Boolean),
+      ...(source.prompts !== undefined && {
+        prompts: source.prompts.map(promptId => idMapping[promptId]).filter((id): id is NodeId => Boolean(id)),
+      }),
     }
 
-    newNodes[newId] = newNode
+    newNodes[newId] = remapTitleProjection(newNode, idMapping)
   }
 
   const targetParent = newNodes[parentId]
@@ -471,5 +475,5 @@ export const wrapNodesInParent = (
     newNodes[id] = { ...newNodes[id], parent: newParentId }
   }
 
-  return { nodes: newNodes, edges, newParentId }
+  return { nodes: sanitizeTitleProjections(newNodes), edges, newParentId }
 }

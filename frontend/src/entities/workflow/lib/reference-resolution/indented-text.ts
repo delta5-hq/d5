@@ -1,6 +1,7 @@
 import type { NodeId } from '@shared/base-types'
 import type { NodeStore, EnrichedNodeData } from './node-store'
 import { clearStepsPrefix, matchesAnyCommand } from '@shared/lib/command-regexp'
+import { hasValidStoreTitleProjection } from '../title-projection'
 
 export interface TextLine {
   node: EnrichedNodeData
@@ -77,6 +78,19 @@ function resolveTitle(node: EnrichedNodeData, useCommand: boolean): string | und
   return useCommand ? node.command || node.title : node.title
 }
 
+function projectionDepthOffset(node: EnrichedNodeData, startNode: EnrichedNodeData, store: NodeStore): number {
+  let offset = 0
+  let parentId = node.parent
+  while (parentId) {
+    const parent = store.getNode(parentId)
+    if (!parent) break
+    if (hasValidStoreTitleProjection(parent, store)) offset += 1
+    if (parent.id === startNode.id) break
+    parentId = parent.parent
+  }
+  return offset
+}
+
 export function indentedText(startNode: EnrichedNodeData, store: NodeStore, params?: IndentedTextParams): TextLine[] {
   const {
     saveFirst = false,
@@ -95,9 +109,10 @@ export function indentedText(startNode: EnrichedNodeData, store: NodeStore, para
 
   const rawTitle = resolveTitle(startNode, useCommand)
   const headTitle = rawTitle ? clearStepsPrefix(rawTitle) : ''
+  const startTitleIsProjected = hasValidStoreTitleProjection(startNode, store)
   const head: TextLine = {
     node: startNode,
-    text: saveFirst || !matchesAnyCommand(headTitle) ? headTitle : '',
+    text: startTitleIsProjected ? '' : saveFirst || !matchesAnyCommand(headTitle) ? headTitle : '',
   }
 
   while (children.length > 0) {
@@ -105,8 +120,9 @@ export function indentedText(startNode: EnrichedNodeData, store: NodeStore, para
     const rawNodeTitle = resolveTitle(node, useCommand)
     const clearedTitle = rawNodeTitle ? clearStepsPrefix(rawNodeTitle) : ''
 
-    if (!matchesAnyCommand(clearedTitle) && node.id !== startNode.id) {
-      const indentation = (node.depth - startNode.depth + parentIndentation) * 2
+    if (!matchesAnyCommand(clearedTitle) && node.id !== startNode.id && !hasValidStoreTitleProjection(node, store)) {
+      const indentation =
+        (node.depth - startNode.depth + parentIndentation - projectionDepthOffset(node, startNode, store)) * 2
       let text = `${' '.repeat(indentation)}${clearedTitle}`
 
       const parentId = node.parent
