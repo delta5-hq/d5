@@ -30,6 +30,7 @@ const ENGINE_OUTPUT_WITH_COMPLETION_SYMBOL: [string, string][] = [
   ['validate passed on first attempt',                   'Task [✓]'],
   ['commodity/refine zero of N eligible',                'Task [✗ 0/3]'],
   ['validate all retries exhausted',                     'Task [✗ 3×]'],
+  ['validate retry withheld on side-effecting command',  'Task [✗ ⊘]'],
   ['validate invalid criterion',                         'Task [✗ !]'],
 ]
 
