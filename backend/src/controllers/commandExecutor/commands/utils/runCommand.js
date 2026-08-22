@@ -535,13 +535,14 @@ export const runCommand = async (
           allValidates.forEach((v, i) => {
             const validateNode = store.getNode(v.id) ?? v
             const cellPassed = lastResults[i]?.passed ?? false
+            const retryWithheldForCell = retryWithheld && !cellPassed
             const retryCount = cellPassed && !passed ? Math.max(0, attempt - 1) : attempt
             validateNode.title = appendValidateSuffix(validateNode.title || '', {
               passed: cellPassed,
               retryCount,
-              retryWithheld,
+              retryWithheld: retryWithheldForCell,
             })
-            if (retryWithheld) {
+            if (retryWithheldForCell) {
               validateNode.reliabilityMetadata = buildValidateRetryWithheldReliabilityMetadata({
                 cause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS,
                 requestedRetry: maxRetry,

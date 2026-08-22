@@ -10,6 +10,8 @@ export const generateId = (): string => nanoid()
 
 export const generateNodeId = (): NodeId => generateId()
 
+export const generateSessionId = (): string => generateId()
+
 export const generateEdgeId = (start: NodeId, end: NodeId): EdgeId => `${start}:${end}`
 
 export const generateUniqueNodeId = (existingIds: Set<string> | Record<string, unknown>): NodeId => {

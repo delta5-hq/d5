@@ -7,7 +7,7 @@ import type { WorkflowStoreState } from './workflow-store-types'
 import type { DebouncedPersister } from './workflow-store-persistence'
 import { retainExistingIds } from './workflow-store-set-utils'
 import { notifyExecutionStarted, notifyExecutionCompleted, notifyExecutionAborted } from './execution-genie-bridge'
-import { generateNodeId } from '@shared/lib/generate-id'
+import { generateNodeId, generateSessionId } from '@shared/lib/generate-id'
 import { ForkStreamClient } from '../api/streaming/fork-stream-client'
 import type { ForkEvent } from '../api/streaming/fork-event-types'
 import { applyForkEventToMap } from './fork-preview-state'
@@ -133,7 +133,7 @@ export function bindExecuteAction(
       const { workflowId, nodes, edges } = store.getState()
 
       const useStreaming = isValidRefineCell(node.command) || hasRefineDescendant(node.id, nodes)
-      const sessionId = useStreaming ? crypto.randomUUID() : undefined
+      const sessionId = useStreaming ? generateSessionId() : undefined
       let streamClient: ForkStreamClient | null = null
       const seenRefineIds = new Set<NodeId>()
 

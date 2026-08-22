@@ -508,6 +508,45 @@ describe('runCommand \u2014 /validate :retry side-effect containment', () => {
     mcpRun.mockRestore()
     validateSpy.mockRestore()
   })
+
+  it('mixed withheld group: the passing cell carries no withheld metadata and the failing cell carries it', async () => {
+    const store = buildStore({
+      root: {id: 'root', parent: null, command: '/qa-mcp perform external mutation', children: ['v0', 'v1']},
+      v0: validateNode('v0', '/validate criterion-A :retry=2'),
+      v1: validateNode('v1', '/validate criterion-B :retry=2'),
+    })
+    const mcpRun = jest.spyOn(MCPCommand.prototype, 'run').mockImplementation(async function (node) {
+      this.store.createNode({id: 'external-result', parent: node.id, title: 'external result'}, true)
+    })
+    let call = 0
+    const validateSpy = jest.spyOn(ValidateCommand.prototype, 'run').mockImplementation(async () => {
+      call++
+      return call === 1
+        ? {passed: true, criterion: 'criterion-A', reason: ''}
+        : {passed: false, criterion: 'criterion-B', reason: 'missing'}
+    })
+
+    await expect(
+      runCommand({
+        queryType: 'mcp:qa-mcp',
+        cell: store.getNode('root'),
+        store,
+        mcpAlias: sideEffectingMcpAlias,
+      }),
+    ).rejects.toBeInstanceOf(CriteriaFailedError)
+
+    expect(mcpRun).toHaveBeenCalledTimes(1)
+    expect(validateSpy).toHaveBeenCalledTimes(2)
+    expect(store.getNode('v0').title).toMatch(/\[\u2713\]/)
+    expect(store.getNode('v0').reliabilityMetadata).toBeUndefined()
+    expect(store.getNode('v1').title).toMatch(/\[\u2717 \u2298\]/)
+    expect(store.getNode('v1').reliabilityMetadata).toEqual(
+      expect.objectContaining({retryWithheld: true, requestedRetry: 2, failureCause: 'criteria-failed'}),
+    )
+
+    mcpRun.mockRestore()
+    validateSpy.mockRestore()
+  })
 })
 
 describe('runCommand \u2014 /validate: empty criterion is a configuration error', () => {
