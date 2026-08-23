@@ -36,6 +36,7 @@ export const ContainerRenderer = ({
   onDropFiles,
   activeDropTargetId,
   activeDropPosition,
+  dragSourceNode,
   autoEditNodeId,
 }: ContainerRendererProps) => {
   const ContainerComponent = container.config.component || DefaultContainerWrapper
@@ -52,6 +53,7 @@ export const ContainerRenderer = ({
         activeDropTargetId={activeDropTargetId}
         autoEditNodeId={autoEditNodeId}
         data={parentNode}
+        dragSourceNode={dragSourceNode}
         id={parentNode.id}
         isOpen={parentNode.isOpen}
         isSelected={selectedIds?.has(parentNode.id) ?? false}
@@ -97,6 +99,7 @@ export const ContainerRenderer = ({
               activeDropTargetId={activeDropTargetId}
               autoEditNodeId={autoEditNodeId}
               data={childNode}
+              dragSourceNode={dragSourceNode}
               id={childNode.id}
               isOpen={childNode.isOpen}
               isSelected={selectedIds?.has(childNode.id) ?? false}

@@ -70,3 +70,28 @@ export function parseTextToPromptSeeds(text: string): PromptSeed[] {
     .flatMap(block => groupByRoots(blockToLines(block)))
     .map(linesToTree)
 }
+
+const seedsToCanonicalLines = (seeds: readonly PromptSeed[], depth = 0): string[] =>
+  seeds.flatMap(seed => [`${' '.repeat(depth * 2)}${seed.title}`, ...seedsToCanonicalLines(seed.children, depth + 1)])
+
+/**
+ * Parse only when the established splitter can reproduce every canonical source
+ * line in order. Line-ending, blank-line, NBSP, and visible-newline sanitation
+ * intentionally follows blockToLines; indentation or hierarchy changes do not.
+ * Unsupported shapes fail closed so callers can leave the source node joined.
+ */
+export function parseLosslessTextToPromptSeeds(text: string): PromptSeed[] | null {
+  try {
+    const seeds = parseTextToPromptSeeds(text)
+    if (seeds.length === 0) return null
+
+    const sourceLines = blockToLines(text)
+    const recomposedLines = seedsToCanonicalLines(seeds)
+    return sourceLines.length === recomposedLines.length &&
+      sourceLines.every((line, index) => line === recomposedLines[index])
+      ? seeds
+      : null
+  } catch {
+    return null
+  }
+}

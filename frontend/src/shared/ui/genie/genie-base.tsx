@@ -6,7 +6,7 @@ import { RadialFlash, type RadialFlashRef } from './radial-flash'
 import './genie-reading.css'
 
 export type GenieState = 'idle' | 'busy' | 'busy-alert' | 'done-success' | 'done-failure'
-export type GenieVariant = 'full' | 'clipboard'
+export type GenieVariant = 'full' | 'clipboard' | 'clipboard-eyes'
 
 export interface GenieRef {
   flash: () => void
@@ -55,27 +55,30 @@ export const Genie = forwardRef<GenieRef, GenieProps>(
     const showBackFlash = state === 'busy-alert'
     const eyesOffset = -size * 0.11
     const isClipboardOnly = variant === 'clipboard'
+    const isClipboardEyes = variant === 'clipboard-eyes'
+    const showEyes = !isClipboardOnly
+    const showHandsAndFlash = showEyes && !isClipboardEyes
 
     useImperativeHandle(ref, () => ({
       flash: () => {
-        if (isClipboardOnly) return
+        if (!showHandsAndFlash) return
         flashRef.current?.flash()
       },
     }))
 
     return (
       <div className={className} style={{ position: 'relative', width: size, height: size }}>
-        {isClipboardOnly ? null : (
+        {showEyes ? (
           <div
             className={isBusy ? 'genie-reading' : undefined}
             style={{ position: 'absolute', top: eyesOffset, left: 0 }}
           >
             <GenieLottie eyeColor={eyeColor} size={size} variant={showBackFlash ? 'eyes-flash' : 'eyes'} />
           </div>
-        )}
+        ) : null}
         <Clipboard edgeColor={clipboardEdge} fillColor={clipboardFill} size={size} />
-        {isClipboardOnly ? null : <Hands fillColor={color} showRibs={showHandRibs} size={size} />}
-        {isClipboardOnly ? null : <RadialFlash flashColor={flashColor} nodeId={nodeId} ref={flashRef} size={size} />}
+        {showHandsAndFlash ? <Hands fillColor={color} showRibs={showHandRibs} size={size} /> : null}
+        {showHandsAndFlash ? <RadialFlash flashColor={flashColor} nodeId={nodeId} ref={flashRef} size={size} /> : null}
       </div>
     )
   },

@@ -1,7 +1,11 @@
-import type { RefObject } from 'react'
+import { forwardRef, useImperativeHandle, type RefObject } from 'react'
 import { Textarea } from '@shared/ui/textarea'
 import { cn } from '@shared/lib/utils'
 import { useEditableField } from './use-editable-field'
+
+export interface EditableTextAreaHandle {
+  startEditing: () => void
+}
 
 export interface EditableTextAreaProps {
   value: string
@@ -15,51 +19,50 @@ export interface EditableTextAreaProps {
   title?: string
 }
 
-export const EditableTextArea = ({
-  value,
-  onChange,
-  displayValue,
-  placeholder,
-  className,
-  editClassName,
-  autoFocus,
-  readOnlyClassName,
-  title,
-}: EditableTextAreaProps) => {
-  const { isEditing, editValue, inputRef, startEditing, setEditValue, commitEdit, handleKeyDown } = useEditableField({
-    value,
-    onChange,
-    autoFocus,
-    commitOnEnter: true,
-  })
+export const EditableTextArea = forwardRef<EditableTextAreaHandle, EditableTextAreaProps>(
+  (
+    { value, onChange, displayValue, placeholder, className, editClassName, autoFocus, readOnlyClassName, title },
+    ref,
+  ) => {
+    const { isEditing, editValue, inputRef, startEditing, setEditValue, commitEdit, handleKeyDown } = useEditableField({
+      value,
+      onChange,
+      autoFocus,
+      commitOnEnter: true,
+    })
 
-  if (isEditing) {
+    useImperativeHandle(ref, () => ({ startEditing }), [startEditing])
+
+    if (isEditing) {
+      return (
+        <Textarea
+          className={cn('min-h-24 resize-y text-sm leading-6', editClassName, className)}
+          onBlur={commitEdit}
+          onChange={e => setEditValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          ref={inputRef as RefObject<HTMLTextAreaElement>}
+          value={editValue}
+        />
+      )
+    }
+
     return (
-      <Textarea
-        className={cn('min-h-24 resize-y text-sm leading-6', editClassName, className)}
-        onBlur={commitEdit}
-        onChange={e => setEditValue(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        ref={inputRef as RefObject<HTMLTextAreaElement>}
-        value={editValue}
-      />
+      <span
+        className={cn(
+          'block cursor-text whitespace-pre-wrap rounded-md border border-transparent px-2 py-1 text-sm leading-6 transition-colors hover:border-border hover:bg-muted/70',
+          !value && 'text-muted-foreground italic',
+          readOnlyClassName,
+          className,
+        )}
+        onDoubleClick={startEditing}
+        style={{ touchAction: 'manipulation' }}
+        title={title}
+      >
+        {(displayValue ?? value) || placeholder}
+      </span>
     )
-  }
+  },
+)
 
-  return (
-    <span
-      className={cn(
-        'block cursor-text whitespace-pre-wrap rounded-md border border-transparent px-2 py-1 text-sm leading-6 transition-colors hover:border-border hover:bg-muted/70',
-        !value && 'text-muted-foreground italic',
-        readOnlyClassName,
-        className,
-      )}
-      onDoubleClick={startEditing}
-      style={{ touchAction: 'manipulation' }}
-      title={title}
-    >
-      {(displayValue ?? value) || placeholder}
-    </span>
-  )
-}
+EditableTextArea.displayName = 'EditableTextArea'

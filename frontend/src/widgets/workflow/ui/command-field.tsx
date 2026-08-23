@@ -240,7 +240,10 @@ export const CommandField = ({
             className,
           )}
           data-type="command-field"
-          onBlur={() => commit()}
+          onBlur={() => {
+            commit()
+            setAutocompleteOpen(false)
+          }}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}

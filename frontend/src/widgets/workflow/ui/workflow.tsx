@@ -9,10 +9,10 @@ import {
   useWorkflowNodes,
   useWorkflowRoot,
   useWorkflowActions,
+  useWorkflowExpandedIds,
   useWorkflowStatus,
   useWorkflowIsDirty,
   useIsNodeExecuting,
-  useIsPromptNode,
   useTreeKeyboardNavigation,
   useWorkflowExecutingNodeIds,
   type TreeDropPosition,
@@ -31,7 +31,7 @@ import { useAliases } from '@entities/aliases'
 import { toast } from 'sonner'
 import { useViewportBreakpoint } from '@shared/composables/use-viewport-breakpoint'
 import { EmptyWorkflowView } from './empty-workflow-view'
-import { DirtyIndicator } from './dirty-indicator'
+import { WorkflowRootHeader } from './workflow-root-header'
 import { NodeDetailPanel } from './node-detail-panel'
 import { DeleteConfirmDialog } from './delete-confirm-dialog'
 import { resolveWorkflowFileDropParentId } from '../lib/file-drop-target'
@@ -49,9 +49,12 @@ export const Workflow = ({ workflowId }: WorkflowProps) => (
 const WorkflowContent = () => {
   const nodes = useWorkflowNodes()
   const root = useWorkflowRoot()
+  const expandedIds = useWorkflowExpandedIds()
   const actions = useWorkflowActions()
   const { isLoading, error, isSaving } = useWorkflowStatus()
   const isDirty = useWorkflowIsDirty()
+  const rootNode = root ? nodes[root] : undefined
+  const rootIsOpen = Boolean(root && rootNode && (expandedIds.has(root) || rootNode.collapsed !== true))
   const { formatMessage } = useIntl()
   const { aliases } = useAliases()
   const isMobile = useViewportBreakpoint()
@@ -60,7 +63,6 @@ const WorkflowContent = () => {
   const selectedIds = useWorkflowSelectedIds()
   const selectedNode = useWorkflowNode(selectedId)
   const isSelectedNodeExecuting = useIsNodeExecuting(selectedId)
-  const isSelectedNodePrompt = useIsPromptNode(selectedId)
   const executingNodeIds = useWorkflowExecutingNodeIds()
   const [autoEditNodeId, setAutoEditNodeId] = useState<string | undefined>()
   const [autoFocusCommandNodeId, setAutoFocusCommandNodeId] = useState<string | undefined>()
@@ -142,6 +144,19 @@ const WorkflowContent = () => {
     [actions],
   )
 
+  const handleToggleRoot = useCallback(() => {
+    if (!root) return
+    actions.toggleExpanded(root)
+  }, [actions, root])
+
+  const handleSelectRoot = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      if (!root) return
+      handleSelect(root, nodes[root], event)
+    },
+    [handleSelect, nodes, root],
+  )
+
   const handleCreateRoot = useCallback(() => {
     const newId = actions.createRoot({ title: formatMessage({ id: 'workflowTree.rootNodeDefault' }) })
     if (newId) {
@@ -158,19 +173,6 @@ const WorkflowContent = () => {
         setAutoEditNodeId(newId)
         setFlashNodeId(newId)
       }
-    },
-    [actions],
-  )
-
-  const handleAddSibling = useCallback(
-    (nodeId: string): string | null => {
-      const newId = actions.addSibling(nodeId, { title: '' })
-      if (newId) {
-        actions.select(newId)
-        setAutoEditNodeId(newId)
-        setFlashNodeId(newId)
-      }
-      return newId
     },
     [actions],
   )
@@ -416,12 +418,19 @@ const WorkflowContent = () => {
         tabIndex={0}
       >
         <CardHeader className="workflow-editor-panel-header flex-shrink-0 border-b border-muted-foreground/10 pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="workflow-panel-title font-mono text-sm font-bold uppercase tracking-[0.08em]">
-              <FormattedMessage id="workflowTree.title" />
-            </CardTitle>
-            <DirtyIndicator isDirty={isDirty} isSaving={isSaving} />
-          </div>
+          <WorkflowRootHeader
+            autoEdit={autoEditNodeId === root}
+            isDirty={isDirty}
+            isOpen={rootIsOpen}
+            isSaving={isSaving}
+            isSelected={selectedIds.has(root)}
+            onAddChild={() => handleAddChild(root)}
+            onRename={newTitle => handleRename(root, newTitle)}
+            onSelect={handleSelectRoot}
+            onToggle={handleToggleRoot}
+            rootId={root}
+            rootNode={rootNode}
+          />
         </CardHeader>
         <CardContent className="flex-1 p-0 overflow-hidden min-h-0">
           <WorkflowSegmentTree
@@ -445,36 +454,26 @@ const WorkflowContent = () => {
         </CardContent>
       </Card>
 
-      <Card className="workflow-editor-panel relative min-w-0 flex-1 border-muted-foreground/15 bg-card/95 shadow-none">
-        <CardHeader className="workflow-editor-panel-header border-b border-muted-foreground/10 pb-2">
-          <CardTitle className="workflow-panel-title font-mono text-sm font-bold uppercase tracking-[0.08em]">
-            <FormattedMessage id="workflowTree.nodeDetails" />
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Card className="workflow-editor-panel relative flex min-w-0 flex-1 flex-col overflow-hidden border-muted-foreground/15 bg-card/95 shadow-none">
+        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           {selectedNode ? (
             <NodeDetailPanel
               autoFocusCommand={autoFocusCommandNodeId === selectedId}
               autoFocusTitle={false}
               executeDisabled={isSelectedNodeExecuting}
               isExecuting={isSelectedNodeExecuting}
-              isPrompt={isSelectedNodePrompt}
               key={selectedNode.id}
               node={selectedNode}
               onAbort={handleAbort}
-              onAddChild={handleAddChild}
-              onAddSibling={handleAddSibling}
               onClose={handleCloseDetailPanel}
               onCtrlEnterInCommand={handleCtrlEnterInCommand}
-              onDelete={handleDelete}
-              onDuplicateNode={handleDuplicateNode}
               onEnterInCommand={handleEnterInCommand}
               onExecute={handleExecute}
               onShiftCtrlEnterInCommand={handleShiftCtrlEnterInCommand}
               onUpdateNode={handleUpdateNode}
             />
           ) : (
-            <p className="workflow-empty-panel-callout rounded-2xl border border-dashed border-muted-foreground/25 bg-muted/35 px-4 py-5 text-sm text-muted-foreground">
+            <p className="workflow-empty-panel-callout m-4 rounded-2xl border border-dashed border-muted-foreground/25 bg-muted/35 px-4 py-5 text-sm text-muted-foreground">
               <FormattedMessage id="workflowTree.selectNode" />
             </p>
           )}

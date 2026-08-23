@@ -3,7 +3,7 @@ import type { NodeData, NodeId } from '@/shared/base-types/workflow'
 import type { TreeDropPosition } from './tree-drag'
 
 export interface TreeNodeCallbacks {
-  onToggle?: (id: string, sparkDelay?: number) => void
+  onToggle?: (id: string) => void
   onSelect?: (id: string, event?: MouseEvent) => void
   onAddChild?: (parentId: string) => void
   onDelete?: (nodeId: string) => void
@@ -18,6 +18,8 @@ export interface TreeNodeCallbacks {
   onDropFiles?: (parentId: string, files: FileList) => void
   activeDropTargetId?: string
   activeDropPosition?: TreeDropPosition
+  /** Source node being dragged via pointer, used to render the drop ghost. */
+  dragSourceNode?: NodeData
 }
 
 export interface TreeNode {

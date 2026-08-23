@@ -1015,3 +1015,72 @@ describe('computeSegments — Mixed Implicit and Explicit Containers', () => {
     expect(result.nodeToSegmentIndex.get('c1')).toBe(3)
   })
 })
+
+describe('computeSegments — excludeRootId', () => {
+  it('omits the excluded root but keeps its descendants', () => {
+    const treeState = createTreeState([
+      { id: 'root', depth: 0, isOpen: true, children: ['a', 'b'] },
+      { id: 'a', depth: 1 },
+      { id: 'b', depth: 1 },
+    ])
+
+    const result = computeSegments(treeState, { ...DEFAULT_OPTIONS, excludeRootId: 'root' })
+
+    expect(result.segments.map(s => (s.type === 'node' ? s.data.id : 'container'))).toEqual(['a', 'b'])
+    expect(result.nodeToSegmentIndex.has('root')).toBe(false)
+    expect(result.nodeToSegmentIndex.get('a')).toBe(0)
+    expect(result.nodeToSegmentIndex.get('b')).toBe(1)
+  })
+
+  it('does not affect segments when excludeRootId does not match any node', () => {
+    const treeState = createTreeState([
+      { id: 'root', depth: 0 },
+      { id: 'child1', depth: 1 },
+    ])
+
+    const without = computeSegments(treeState, DEFAULT_OPTIONS)
+    const withUnknown = computeSegments(treeState, { ...DEFAULT_OPTIONS, excludeRootId: 'nope' })
+
+    expect(withUnknown.segments).toEqual(without.segments)
+    expect(withUnknown.nodeToSegmentIndex).toEqual(without.nodeToSegmentIndex)
+  })
+
+  it('keeps a descendant container intact after excluding its parent', () => {
+    const treeState = createTreeState([
+      { id: 'root', depth: 0, isOpen: true, children: ['a'] },
+      { id: 'a', depth: 1, isOpen: true, children: ['a1', 'a2'], command: '/foreach' },
+      { id: 'a1', depth: 2 },
+      { id: 'a2', depth: 2 },
+    ])
+
+    const result = computeSegments(treeState, { ...DEFAULT_OPTIONS, excludeRootId: 'root' })
+
+    expect(result.segments).toHaveLength(1)
+    expect(result.segments[0]?.type).toBe('container')
+    if (result.segments[0]?.type === 'container') {
+      expect(result.segments[0].parentNode.id).toBe('a')
+      expect(result.segments[0].children.map(c => c.id)).toEqual(['a1', 'a2'])
+    }
+    expect(result.nodeToSegmentIndex.has('root')).toBe(false)
+    expect(result.nodeToSegmentIndex.get('a')).toBe(0)
+  })
+
+  it('returns empty state for an empty tree with excludeRootId', () => {
+    const treeState: TreeState = { records: {}, order: [] }
+
+    const result = computeSegments(treeState, { ...DEFAULT_OPTIONS, excludeRootId: 'root' })
+
+    expect(result.segments).toHaveLength(0)
+    expect(result.segmentHeights).toHaveLength(0)
+    expect(result.nodeToSegmentIndex.size).toBe(0)
+  })
+
+  it('omits the root when it is the only node', () => {
+    const treeState = createTreeState([{ id: 'root', depth: 0 }])
+
+    const result = computeSegments(treeState, { ...DEFAULT_OPTIONS, excludeRootId: 'root' })
+
+    expect(result.segments).toHaveLength(0)
+    expect(result.nodeToSegmentIndex.size).toBe(0)
+  })
+})

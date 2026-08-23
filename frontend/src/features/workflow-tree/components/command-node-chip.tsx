@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import {
   Bot,
@@ -17,6 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { getCommandRole, type CommandRole } from '@shared/constants/command-roles'
+import { getColorForRole } from '@shared/ui/genie/role-colors'
 import { BUILTIN_COMMANDS } from '@shared/lib/builtin-command-aliases'
 import { extractQueryTypeFromCommand, type DynamicAlias } from '@shared/lib/command-querytype-mapper'
 import { cn } from '@shared/lib/utils'
@@ -34,6 +36,9 @@ const ROLE_ICON: Record<CommandRole, LucideIcon> = {
   control: GitBranch,
   utility: Wrench,
 }
+
+const COMMANDLESS_CHIP_CLASS =
+  'border-dashed border-muted-foreground/30 bg-muted/40 text-muted-foreground ring-muted-foreground/10'
 
 type MotionLucideIcon = ReturnType<typeof motion.create<typeof Bot>>
 
@@ -63,28 +68,24 @@ function getCommandIcon(command: string, role: CommandRole | undefined): LucideI
   return role ? ROLE_ICON[role] : Wrench
 }
 
-function getCommandChipClass(role: CommandRole | undefined, assigned: boolean): string {
-  if (!assigned)
-    return 'border-dashed border-muted-foreground/30 bg-muted/40 text-muted-foreground ring-muted-foreground/10'
-  if (role === 'control') return 'border-accent/60 bg-accent/15 text-accent ring-accent/20'
-  if (role === 'search') return 'border-secondary/60 bg-secondary/10 text-secondary ring-secondary/20'
-  if (role === 'transform') return 'border-primary/50 bg-primary/10 text-primary ring-primary/20'
-  if (role === 'llm') return 'border-primary/45 bg-primary/10 text-primary ring-primary/20'
-  return 'border-muted-foreground/35 bg-muted/55 text-muted-foreground ring-muted-foreground/15'
-}
-
 export function truncateTitleForChip(title: string): string {
   return title.length > TITLE_CHIP_LIMIT ? title.slice(0, TITLE_CHIP_LIMIT) : title
 }
 
-export function getCommandChip(command: string | undefined, aliases: DynamicAlias[]) {
+export interface CommandChipDescriptor {
+  label: string
+  Icon: LucideIcon
+  testId: string
+  color?: string
+}
+
+export function getCommandChip(command: string | undefined, aliases: DynamicAlias[]): CommandChipDescriptor {
   const value = command?.trim()
   if (!value) {
     return {
       label: 'Not assigned',
       Icon: ClipboardList,
       testId: 'node-chip-commandless',
-      className: getCommandChipClass(undefined, false),
     }
   }
 
@@ -95,7 +96,7 @@ export function getCommandChip(command: string | undefined, aliases: DynamicAlia
     label: token || '/',
     Icon: getCommandIcon(value, role),
     testId: token === '/foreach' ? 'node-chip-foreach' : token === '/steps' ? 'node-chip-steps' : 'node-chip-command',
-    className: getCommandChipClass(role, true),
+    color: getColorForRole(role),
   }
 }
 
@@ -128,16 +129,19 @@ interface CommandChipProps {
 
 export const CommandChip = ({ command, aliases }: CommandChipProps) => {
   const chip = getCommandChip(command, aliases)
+  const assigned = chip.color !== undefined
+
   return (
     <span
       className={cn(
         'workflow-tree-command-chip inline-flex h-7 min-w-0 items-center gap-1.5 rounded-full border px-2.5 shadow-none ring-1 ring-inset',
         'font-mono text-xs font-bold leading-none tracking-[0.06em]',
         'transition-all duration-150 hover:-translate-y-0.5 hover:shadow-sm focus-within:ring-ring active:translate-y-0',
-        chip.className,
+        assigned ? 'workflow-tree-command-chip--role' : COMMANDLESS_CHIP_CLASS,
       )}
       data-chip-kind="command"
       data-testid={chip.testId}
+      style={assigned ? ({ '--chip-role-color': chip.color } as CSSProperties) : undefined}
     >
       <MotionChipIcon Icon={chip.Icon} />
       <span className="truncate">{chip.label}</span>

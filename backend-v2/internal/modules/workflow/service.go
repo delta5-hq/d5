@@ -54,6 +54,7 @@ func (s *WorkflowService) UpdateWorkflow(ctx context.Context, workflowId string,
 	}
 
 	if update.Nodes != nil {
+		reconcileNodeTitleProjections(*update.Nodes)
 		setDoc["nodes"] = *update.Nodes
 	}
 	if update.Edges != nil {
@@ -82,6 +83,17 @@ func (s *WorkflowService) UpdateWorkflow(ctx context.Context, workflowId string,
 	}
 
 	return nil
+}
+
+// reconcileNodeTitleProjections enforces the node/titleProjection invariant at
+// the write boundary: a projection whose recorded source title no longer
+// matches its node title is dropped, so a raw API write cannot persist
+// contradictory provenance the client-side sanitizer would normally remove.
+func reconcileNodeTitleProjections(nodes map[string]models.Node) {
+	for id, node := range nodes {
+		node.ClearStaleTitleProjection()
+		nodes[id] = node
+	}
 }
 
 func (s *WorkflowService) GetWorkflows(ctx context.Context, dto GetWorkflowsQuery) ([]models.Workflow, int64, error) {

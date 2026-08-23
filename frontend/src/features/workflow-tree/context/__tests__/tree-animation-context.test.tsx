@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest'
-import { renderHook } from '@testing-library/react'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { act, renderHook } from '@testing-library/react'
 import { type ReactNode } from 'react'
 import { TreeAnimationProvider, useTreeAnimation } from '../tree-animation-context'
+import { scheduleTreeAnimation, resetTreeAnimationState } from '../../core/tree-animation-store'
 
 const wrapper = ({ children }: { children: ReactNode }) => <TreeAnimationProvider>{children}</TreeAnimationProvider>
 
@@ -61,111 +62,77 @@ describe('TreeAnimationProvider — scheduleNewNodeFlash / consumeNewNodeFlash',
   })
 
   describe('isolation from spark animation state', () => {
+    beforeEach(() => {
+      resetTreeAnimationState()
+    })
+
     it('scheduleNewNodeFlash does not affect shouldAnimate', () => {
       const { result } = renderHook(() => useTreeAnimation(), { wrapper })
       result.current.scheduleNewNodeFlash('n1')
       expect(result.current.shouldAnimate('n1')).toBe(false)
     })
 
-    it('scheduleAnimation does not affect consumeNewNodeFlash', () => {
-      const { result } = renderHook(() => useTreeAnimation(), { wrapper })
-      result.current.scheduleAnimation(['n1'], 0)
-      expect(result.current.consumeNewNodeFlash('n1')).toBe(false)
-    })
-
     it('clearing spark animation does not consume new-node flash', () => {
       const { result } = renderHook(() => useTreeAnimation(), { wrapper })
       result.current.scheduleNewNodeFlash('n1')
-      result.current.scheduleAnimation(['n1'], 0)
-      result.current.clearAnimation('n1')
+      act(() => {
+        scheduleTreeAnimation(['n1'], 0)
+        result.current.clearAnimation('n1')
+      })
       expect(result.current.consumeNewNodeFlash('n1')).toBe(true)
     })
   })
 })
 
-describe('TreeAnimationProvider — scheduleAnimation / shouldAnimate / getBaseDelay / clearAnimation', () => {
-  describe('scheduleAnimation', () => {
-    it('marks nodes as needing animation', () => {
-      const { result } = renderHook(() => useTreeAnimation(), { wrapper })
-      result.current.scheduleAnimation(['a', 'b'], 10)
-      expect(result.current.shouldAnimate('a')).toBe(true)
-      expect(result.current.shouldAnimate('b')).toBe(true)
-    })
-
-    it('stores the provided baseDelay for each node', () => {
-      const { result } = renderHook(() => useTreeAnimation(), { wrapper })
-      result.current.scheduleAnimation(['n1'], 42)
-      expect(result.current.getBaseDelay('n1')).toBe(42)
-    })
-
-    it('scheduling an empty array is a no-op', () => {
-      const { result } = renderHook(() => useTreeAnimation(), { wrapper })
-      expect(() => result.current.scheduleAnimation([], 0)).not.toThrow()
-    })
-
-    it('later schedule for same node overwrites previous baseDelay', () => {
-      const { result } = renderHook(() => useTreeAnimation(), { wrapper })
-      result.current.scheduleAnimation(['n1'], 5)
-      result.current.scheduleAnimation(['n1'], 99)
-      expect(result.current.getBaseDelay('n1')).toBe(99)
-    })
+describe('TreeAnimationProvider — spark state delegation', () => {
+  beforeEach(() => {
+    resetTreeAnimationState()
   })
 
-  describe('shouldAnimate', () => {
-    it('returns false for unscheduled node', () => {
-      const { result } = renderHook(() => useTreeAnimation(), { wrapper })
-      expect(result.current.shouldAnimate('unknown')).toBe(false)
-    })
-
-    it('returns true after scheduling and false after clearing', () => {
-      const { result } = renderHook(() => useTreeAnimation(), { wrapper })
-      result.current.scheduleAnimation(['n1'], 0)
-      expect(result.current.shouldAnimate('n1')).toBe(true)
-      result.current.clearAnimation('n1')
-      expect(result.current.shouldAnimate('n1')).toBe(false)
-    })
+  it('delegates shouldAnimate to the shared tree animation store', () => {
+    const { result } = renderHook(() => useTreeAnimation(), { wrapper })
+    act(() => scheduleTreeAnimation(['a', 'b'], 10))
+    expect(result.current.shouldAnimate('a')).toBe(true)
+    expect(result.current.shouldAnimate('b')).toBe(true)
   })
 
-  describe('getBaseDelay', () => {
-    it('returns 0 for an unscheduled node', () => {
-      const { result } = renderHook(() => useTreeAnimation(), { wrapper })
-      expect(result.current.getBaseDelay('unknown')).toBe(0)
-    })
-
-    it('returns the stored delay after scheduling', () => {
-      const { result } = renderHook(() => useTreeAnimation(), { wrapper })
-      result.current.scheduleAnimation(['n1'], 7)
-      expect(result.current.getBaseDelay('n1')).toBe(7)
-    })
-
-    it('multiple nodes can have different base delays', () => {
-      const { result } = renderHook(() => useTreeAnimation(), { wrapper })
-      result.current.scheduleAnimation(['a'], 10)
-      result.current.scheduleAnimation(['b'], 20)
-      expect(result.current.getBaseDelay('a')).toBe(10)
-      expect(result.current.getBaseDelay('b')).toBe(20)
-    })
+  it('delegates getBaseDelay to the shared tree animation store', () => {
+    const { result } = renderHook(() => useTreeAnimation(), { wrapper })
+    act(() => scheduleTreeAnimation(['n1'], 42))
+    expect(result.current.getBaseDelay('n1')).toBe(42)
   })
 
-  describe('clearAnimation', () => {
-    it('removes node from pending set', () => {
-      const { result } = renderHook(() => useTreeAnimation(), { wrapper })
-      result.current.scheduleAnimation(['n1'], 0)
-      result.current.clearAnimation('n1')
-      expect(result.current.shouldAnimate('n1')).toBe(false)
-    })
+  it('returns 0 base delay for an unscheduled node', () => {
+    const { result } = renderHook(() => useTreeAnimation(), { wrapper })
+    expect(result.current.getBaseDelay('unknown')).toBe(0)
+  })
 
-    it('clearing an unscheduled node does not throw', () => {
-      const { result } = renderHook(() => useTreeAnimation(), { wrapper })
-      expect(() => result.current.clearAnimation('ghost')).not.toThrow()
-    })
+  it('delegates elapsed time to the shared tree animation store', () => {
+    const { result } = renderHook(() => useTreeAnimation(), { wrapper })
+    expect(result.current.getElapsed('unknown')).toBe(0)
+  })
 
-    it('clearing one node does not affect other scheduled nodes', () => {
-      const { result } = renderHook(() => useTreeAnimation(), { wrapper })
-      result.current.scheduleAnimation(['a', 'b'], 0)
-      result.current.clearAnimation('a')
-      expect(result.current.shouldAnimate('b')).toBe(true)
-    })
+  it('reacts when an existing row is scheduled after the provider mounted', () => {
+    const { result } = renderHook(() => useTreeAnimation(), { wrapper })
+    const initialVersion = result.current.animationVersion
+
+    act(() => scheduleTreeAnimation(['already-mounted']))
+
+    expect(result.current.animationVersion).toBeGreaterThan(initialVersion)
+    expect(result.current.shouldAnimate('already-mounted')).toBe(true)
+  })
+
+  it('delegates clearAnimation to the shared tree animation store', () => {
+    const { result } = renderHook(() => useTreeAnimation(), { wrapper })
+    act(() => scheduleTreeAnimation(['n1'], 0))
+    expect(result.current.shouldAnimate('n1')).toBe(true)
+    act(() => result.current.clearAnimation('n1'))
+    expect(result.current.shouldAnimate('n1')).toBe(false)
+  })
+
+  it('does not expose scheduleAnimation — scheduling lives in the store', () => {
+    const { result } = renderHook(() => useTreeAnimation(), { wrapper })
+    expect('scheduleAnimation' in result.current).toBe(false)
   })
 })
 

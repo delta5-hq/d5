@@ -91,7 +91,14 @@ export class WorkflowTreePage {
   }
 
   async toggleNodeExpand(nodeId: string): Promise<void> {
-    await this.node(nodeId).getByTestId('node-toggle').click()
+    const node = this.node(nodeId)
+    await node.waitFor({ state: 'visible' })
+    const rootToggle = node.getByTestId('root-toggle')
+    if ((await rootToggle.count()) > 0) {
+      await rootToggle.click()
+      return
+    }
+    await node.getByTestId('node-toggle').click()
   }
 
   private async blurInlineEdit(): Promise<void> {

@@ -255,6 +255,39 @@ describe('areTreeNodePropsEqual', () => {
     })
   })
 
+  describe('dragSourceNode semantics', () => {
+    it('undefined → node → not equal', () => {
+      const prev = { ...baseProps(), dragSourceNode: undefined }
+      const next = { ...baseProps(), dragSourceNode: makeNode() }
+      expect(areTreeNodePropsEqual(prev, next)).toBe(false)
+    })
+
+    it('node → undefined → not equal', () => {
+      const prev = { ...baseProps(), dragSourceNode: makeNode() }
+      const next = { ...baseProps(), dragSourceNode: undefined }
+      expect(areTreeNodePropsEqual(prev, next)).toBe(false)
+    })
+
+    it('node A → node B → not equal', () => {
+      const prev = { ...baseProps(), dragSourceNode: makeNode({ id: 'a' }) }
+      const next = { ...baseProps(), dragSourceNode: makeNode({ id: 'b' }) }
+      expect(areTreeNodePropsEqual(prev, next)).toBe(false)
+    })
+
+    it('same reference → equal', () => {
+      const source = makeNode({ id: 'a' })
+      const prev = { ...baseProps(), dragSourceNode: source }
+      const next = { ...baseProps(), dragSourceNode: source }
+      expect(areTreeNodePropsEqual(prev, next)).toBe(true)
+    })
+
+    it('both undefined → equal', () => {
+      const prev = { ...baseProps(), dragSourceNode: undefined }
+      const next = { ...baseProps(), dragSourceNode: undefined }
+      expect(areTreeNodePropsEqual(prev, next)).toBe(true)
+    })
+  })
+
   describe('callback identity', () => {
     it.each([
       { callback: 'onToggle' },

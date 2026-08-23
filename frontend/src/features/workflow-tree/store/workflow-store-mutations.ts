@@ -16,8 +16,6 @@ import {
   isStepsNode,
   applySequentialPrefixes,
   reorderAndRenumberStepsChildren,
-  sanitizeTitleProjections,
-  withTitleProjection,
   withoutTitleProjection,
 } from '@entities/workflow/lib'
 import { toast } from 'sonner'
@@ -25,7 +23,7 @@ import type { WorkflowStoreState } from './workflow-store-types'
 import type { DebouncedPersister } from './workflow-store-persistence'
 import type { HistoryStack } from './workflow-store-history'
 import { excludeIds } from './workflow-store-set-utils'
-import { parseTextToPromptSeeds, type PromptSeed } from './text-to-prompts-splitter'
+import { parseLosslessTextToPromptSeeds, type PromptSeed } from './text-to-prompts-splitter'
 import {
   collectAttachmentReferences,
   deleteAttachmentFiles,
@@ -306,63 +304,54 @@ export function bindMutationActions(
     nodes: Record<NodeId, NodeData>,
     branchParentId: NodeId,
     children: readonly PromptSeed[],
-  ): { nodes: Record<NodeId, NodeData>; count: number; nodeIds: NodeId[] } => {
+  ): { nodes: Record<NodeId, NodeData>; count: number } => {
     let currentNodes = nodes
     let count = 0
-    const nodeIds: NodeId[] = []
     for (const child of children) {
       const childResult = addChildNode(currentNodes, branchParentId, { title: child.title, parent: branchParentId })
       currentNodes = childResult.nodes
-      nodeIds.push(childResult.newId)
       const branch = appendBranch(currentNodes, childResult.newId, child.children)
       currentNodes = branch.nodes
-      nodeIds.push(...branch.nodeIds)
       count += 1 + branch.count
     }
-    return { nodes: currentNodes, count, nodeIds }
+    return { nodes: currentNodes, count }
   }
 
   const materializePromptSeed = (
     nodes: Record<NodeId, NodeData>,
     parentId: NodeId,
     seed: PromptSeed,
-  ): { nodes: Record<NodeId, NodeData>; count: number; rootId: NodeId; nodeIds: NodeId[] } => {
+  ): { nodes: Record<NodeId, NodeData>; count: number } => {
     const rootResult = addPromptChildPure(nodes, parentId, { title: seed.title, parent: parentId })
     const branch = appendBranch(rootResult.nodes, rootResult.newId, seed.children)
     return {
       nodes: branch.nodes,
       count: 1 + branch.count,
-      rootId: rootResult.newId,
-      nodeIds: [rootResult.newId, ...branch.nodeIds],
     }
   }
 
   const replacePromptChildren = (
     parentId: NodeId,
     seeds: readonly PromptSeed[],
-    sourceTitle?: string,
+    options: { clearSourceTitle?: boolean } = {},
   ): number | null => {
     const { nodes, edges, selectedId, selectedIds, anchorId, dirtyNodeIds, root } = store.getState()
     try {
       let nextNodes = removePromptChildrenPure(nodes, parentId)
       let imported = 0
-      const projectedRootIds: NodeId[] = []
-      const projectedNodeIds: NodeId[] = []
       for (const seed of seeds) {
         const materialized = materializePromptSeed(nextNodes, parentId, seed)
         nextNodes = materialized.nodes
         imported += materialized.count
-        projectedRootIds.push(materialized.rootId)
-        projectedNodeIds.push(...materialized.nodeIds)
       }
 
       const parent = nextNodes[parentId]
       if (parent) {
-        const nextParent =
-          sourceTitle !== undefined && parent.title === sourceTitle
-            ? withTitleProjection(parent, sourceTitle, projectedRootIds, projectedNodeIds)
-            : withoutTitleProjection(parent)
-        nextNodes = sanitizeTitleProjections({ ...nextNodes, [parentId]: nextParent })
+        const clearedParent = withoutTitleProjection(parent)
+        nextNodes = {
+          ...nextNodes,
+          [parentId]: options.clearSourceTitle ? { ...clearedParent, title: '' } : clearedParent,
+        }
       }
 
       const removedSet = new Set(Object.keys(nodes).filter(nodeId => !(nodeId in nextNodes)))
@@ -411,7 +400,9 @@ export function bindMutationActions(
 
   const importTextAsPrompts = (parentId: NodeId, text: string): number => {
     if (!text.trim()) return 0
-    return replacePromptChildren(parentId, parseTextToPromptSeeds(text), text) ?? 0
+    const seeds = parseLosslessTextToPromptSeeds(text)
+    if (!seeds) return 0
+    return replacePromptChildren(parentId, seeds, { clearSourceTitle: true }) ?? 0
   }
 
   const wrapNodes = (nodeIds: Set<NodeId>): NodeId | null => {

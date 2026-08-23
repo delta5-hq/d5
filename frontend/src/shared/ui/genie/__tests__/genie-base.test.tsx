@@ -104,6 +104,36 @@ describe('Genie', () => {
       })
     })
 
+    describe('clipboard-eyes variant', () => {
+      it('should render clipboard and eyes but no hands or flash', () => {
+        render(<Genie variant="clipboard-eyes" />)
+
+        expect(screen.getByTestId('genie-clipboard')).toBeInTheDocument()
+        expect(screen.getByTestId('genie-lottie')).toBeInTheDocument()
+        expect(screen.queryByTestId('genie-hands')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('genie-flash')).not.toBeInTheDocument()
+      })
+
+      it('should not render hands layer', () => {
+        render(<Genie variant="clipboard-eyes" />)
+
+        expect(screen.queryByTestId('genie-hands')).not.toBeInTheDocument()
+      })
+
+      it('should not render radial flash layer', () => {
+        render(<Genie variant="clipboard-eyes" />)
+
+        expect(screen.queryByTestId('genie-flash')).not.toBeInTheDocument()
+      })
+
+      it('should not throw when flash called', () => {
+        const ref = createRef<GenieRef>()
+        render(<Genie ref={ref} variant="clipboard-eyes" />)
+
+        expect(() => ref.current?.flash()).not.toThrow()
+      })
+    })
+
     it('should maintain clipboard across all variants', () => {
       const { rerender } = render(<Genie variant="full" />)
       expect(screen.getByTestId('genie-clipboard')).toBeInTheDocument()
@@ -315,6 +345,7 @@ describe('Genie', () => {
     const variants = [
       { variant: 'full' as const, expectedComponents: ['lottie', 'clipboard', 'hands', 'flash'] },
       { variant: 'clipboard' as const, expectedComponents: ['clipboard'] },
+      { variant: 'clipboard-eyes' as const, expectedComponents: ['lottie', 'clipboard'] },
     ]
 
     variants.forEach(({ variant, expectedComponents }) => {

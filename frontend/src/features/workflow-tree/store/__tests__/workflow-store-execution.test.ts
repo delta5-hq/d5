@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createStore } from '@shared/lib/store'
 import type { WorkflowStoreState } from '../workflow-store-types'
 import { INITIAL_WORKFLOW_STATE } from '../workflow-store-types'
@@ -8,6 +8,7 @@ import type { NodeData } from '@shared/base-types'
 
 vi.mock('@entities/workflow/lib', () => ({
   mergeWorkflowChanges: vi.fn(),
+  isPromptNode: vi.fn(() => false),
 }))
 
 vi.mock('../../api/execute-workflow-command', () => ({
@@ -20,9 +21,16 @@ vi.mock('../execution-genie-bridge', () => ({
   notifyExecutionAborted: vi.fn(),
 }))
 
+vi.mock('../../core/tree-animation-store', () => ({
+  scheduleTreeAnimation: vi.fn(),
+  clearTreeAnimation: vi.fn(),
+}))
+
 import { mergeWorkflowChanges } from '@entities/workflow/lib'
 import { executeWorkflowCommand } from '../../api/execute-workflow-command'
 import { notifyExecutionStarted, notifyExecutionCompleted, notifyExecutionAborted } from '../execution-genie-bridge'
+import { clearTreeAnimation, scheduleTreeAnimation } from '../../core/tree-animation-store'
+import { SPARK_DURATION_MS } from '../../core/constants'
 
 function makeStore(overrides: Partial<WorkflowStoreState> = {}) {
   return createStore<WorkflowStoreState>({
@@ -1577,6 +1585,158 @@ describe('bindExecuteAction', () => {
 
       const selected = store.getState().selectedId
       expect(['child1', 'child2']).toContain(selected)
+    })
+  })
+
+  describe('fan-out animation semantics', () => {
+    const foreachNode = { id: 'foreach', parent: 'chat', title: 'Fan out', command: '/foreach /chat @@' } as NodeData
+    const existingFanOutNodes = {
+      root: { id: 'root', children: ['chat'] } as NodeData,
+      chat: { id: 'chat', parent: 'root', children: ['foreach', 'leaf1', 'leaf2'] } as NodeData,
+      foreach: foreachNode,
+      leaf1: { id: 'leaf1', parent: 'chat', title: 'One', children: [] } as NodeData,
+      leaf2: { id: 'leaf2', parent: 'chat', title: 'Two', children: [] } as NodeData,
+    }
+    const foreachNodesChanged = {
+      leaf1: { ...existingFanOutNodes.leaf1, command: '/chat One', children: ['result1'] } as NodeData,
+      leaf2: { ...existingFanOutNodes.leaf2, command: '/chat Two', children: ['result2'] } as NodeData,
+      result1: { id: 'result1', parent: 'leaf1', title: 'One result' } as NodeData,
+      result2: { id: 'result2', parent: 'leaf2', title: 'Two result' } as NodeData,
+    }
+    const foreachMerged = {
+      nodes: {
+        ...existingFanOutNodes,
+        ...foreachNodesChanged,
+      },
+      edges: {},
+      root: 'root',
+      share: { access: [] },
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('schedules spark for existing populated leaves changed by backend /foreach execution', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: foreachNodesChanged })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce(foreachMerged)
+
+      const store = makeStore({ nodes: existingFanOutNodes, root: 'root', expandedIds: new Set(['chat']) })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(foreachNode, 'foreach')
+
+      expect(scheduleTreeAnimation).toHaveBeenCalledTimes(1)
+      expect(scheduleTreeAnimation).toHaveBeenCalledWith(
+        ['leaf1', 'leaf2'],
+        expect.any(Number),
+        expect.objectContaining({ leaf1: expect.any(Number), leaf2: expect.any(Number) }),
+      )
+      expect(vi.mocked(scheduleTreeAnimation).mock.calls[0]?.[1]).toBeGreaterThan(0)
+    })
+
+    it('does not schedule a fan-out spark for ordinary /execute', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({
+        nodesChanged: { child1: { id: 'child1', parent: 'n1', command: '/chat hi', children: [] } as NodeData },
+      })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: {
+          n1: { id: 'n1', children: ['child1'] } as NodeData,
+          child1: { id: 'child1', parent: 'n1', command: '/chat hi', children: [] } as NodeData,
+        },
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(stubNode, 'chat')
+
+      expect(scheduleTreeAnimation).not.toHaveBeenCalled()
+    })
+
+    it('keeps results hidden through every delayed spark, then reveals and clears pending animation state', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: foreachNodesChanged })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce(foreachMerged)
+
+      const store = makeStore({
+        nodes: existingFanOutNodes,
+        root: 'root',
+        expandedIds: new Set(['chat', 'leaf1', 'leaf2']),
+      })
+      const persister = makePersister()
+      const execute = makeExecute(store, persister)
+
+      await execute(foreachNode, 'foreach')
+
+      expect(store.getState().nodes['leaf1']?.collapsed).toBe(true)
+      expect(store.getState().nodes['leaf2']?.collapsed).toBe(true)
+      expect(store.getState().expandedIds.has('leaf1')).toBe(false)
+      expect(store.getState().expandedIds.has('leaf2')).toBe(false)
+      expect(persister.schedule).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(SPARK_DURATION_MS)
+
+      expect(store.getState().nodes['leaf1']?.collapsed).toBe(true)
+      expect(store.getState().nodes['leaf2']?.collapsed).toBe(true)
+
+      vi.runAllTimers()
+
+      expect(store.getState().nodes['leaf1']?.collapsed).toBe(false)
+      expect(store.getState().nodes['leaf2']?.collapsed).toBe(false)
+      expect(store.getState().expandedIds.has('leaf1')).toBe(true)
+      expect(store.getState().expandedIds.has('leaf2')).toBe(true)
+      expect(clearTreeAnimation).toHaveBeenCalledTimes(2)
+      expect(clearTreeAnimation).toHaveBeenCalledWith('leaf1')
+      expect(clearTreeAnimation).toHaveBeenCalledWith('leaf2')
+      expect(persister.schedule).toHaveBeenCalledTimes(1)
+    })
+
+    it('reveals a nested target path before animation while keeping its result hidden until completion', async () => {
+      const nestedNodes = {
+        root: { id: 'root', children: ['chat'] } as NodeData,
+        chat: { id: 'chat', parent: 'root', children: ['foreach', 'branch'] } as NodeData,
+        foreach: foreachNode,
+        branch: { id: 'branch', parent: 'chat', title: 'Branch', children: ['nested'], collapsed: true } as NodeData,
+        nested: { id: 'nested', parent: 'branch', title: 'Nested leaf', children: [] } as NodeData,
+      }
+      const nestedChanges = {
+        nested: { ...nestedNodes.nested, command: '/chat Nested leaf', children: ['nested-result'] } as NodeData,
+        'nested-result': { id: 'nested-result', parent: 'nested', title: 'Nested result' } as NodeData,
+      }
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: nestedChanges })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: { ...nestedNodes, ...nestedChanges },
+        edges: {},
+        root: 'root',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: nestedNodes, root: 'root', expandedIds: new Set(['chat']) })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(foreachNode, 'foreach')
+
+      expect(store.getState().nodes.branch?.collapsed).toBe(false)
+      expect(store.getState().expandedIds.has('branch')).toBe(true)
+      expect(store.getState().nodes.nested?.collapsed).toBe(true)
+      expect(store.getState().expandedIds.has('nested')).toBe(false)
+      expect(scheduleTreeAnimation).toHaveBeenCalledWith(
+        ['nested'],
+        expect.any(Number),
+        expect.objectContaining({ nested: expect.any(Number) }),
+      )
+
+      vi.runAllTimers()
+
+      expect(store.getState().nodes.nested?.collapsed).toBe(false)
+      expect(store.getState().expandedIds.has('nested')).toBe(true)
     })
   })
 })

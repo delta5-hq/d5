@@ -65,7 +65,7 @@
 
 .wire-tree-spark--active {
   opacity: 1;
-  animation: spark-travel 500ms ease-out forwards;
+  animation: spark-travel var(--wire-tree-spark-duration, 750ms) ease-out forwards;
 }
 
 /* Wire connector - L-shaped line from parent to child */
@@ -97,7 +97,7 @@
 }
 
 .wire-tree-connector--pulse {
-  animation: wire-pulse 600ms ease-out;
+  animation: wire-pulse var(--wire-tree-pulse-duration, 600ms) ease-out;
 }
 
 .wire-tree-node--entering {
@@ -171,6 +171,25 @@
   text-rendering: geometricPrecision;
 }
 
+/* The slash-verb caption takes its color from the canonical role palette
+   (role-colors.ts), which is the single source of truth for command roles. */
+.workflow-tree-command-chip--role {
+  color: var(--chip-role-color);
+  background: color-mix(in oklch, var(--chip-role-color) 12%, transparent);
+  border-color: color-mix(in oklch, var(--chip-role-color) 55%, transparent);
+  --tw-ring-color: color-mix(in oklch, var(--chip-role-color) 24%, transparent);
+}
+
+/* Thought-bubble tail leading from the Genie to the command chip. Decorative:
+   it must never intercept pointer or keyboard interaction. */
+.workflow-tree-thought-tail {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  pointer-events: none;
+  color: color-mix(in oklch, var(--muted-foreground) 55%, transparent);
+}
+
 .workflow-tree-title-chip {
   flex: 1 1 min(calc(20ch + 3.25rem), 100%);
   min-inline-size: 5.5rem;
@@ -192,8 +211,7 @@
 
 .workflow-editor-panel {
   background:
-    linear-gradient(180deg, color-mix(in oklch, var(--muted) 46%, transparent), transparent 6rem),
-    var(--card);
+    linear-gradient(180deg, color-mix(in oklch, var(--muted) 46%, transparent), transparent 6rem), var(--card);
 }
 
 .workflow-editor-panel::before {
@@ -243,6 +261,11 @@
 
   /* Reclaim ~38px (genie + its leading margin) so both chips fit the strip */
   .workflow-tree-node-icon {
+    display: none;
+  }
+
+  /* The thought tail decorates the Genie→chip link; without the Genie it is orphaned. */
+  .workflow-tree-thought-tail {
     display: none;
   }
 
@@ -346,6 +369,34 @@
   box-shadow:
     0 0 0 0.0625rem color-mix(in oklch, var(--background) 82%, transparent),
     0 0 0.5rem color-mix(in oklch, var(--primary) 34%, transparent);
+}
+
+/* Semi-transparent ghost of the dragged node at the drop location during an
+   inside drop. Decorative only: it never intercepts pointer or keyboard input. */
+.workflow-tree-ghost-node {
+  position: absolute;
+  inset: 0.1875rem 0.375rem 0.1875rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-inline: 0.625rem;
+  border-radius: 9999px;
+  border: 0.0625rem dashed color-mix(in oklch, var(--primary) 55%, transparent);
+  background: color-mix(in oklch, var(--background) 58%, transparent);
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: 80;
+}
+
+.workflow-tree-ghost-title {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--foreground);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -427,14 +427,23 @@ export default {
       untitled: 'Untitled',
       rename: 'Rename',
       editHint: 'Double-click to edit',
+      expandCollapse: 'Expand or collapse',
       preview: 'Preview',
       previewError: 'Preview failed',
+      output: 'Output',
+      run: 'Run',
+      auto: 'auto',
+      commandFooterHint: '{count} chars · ⏎ run',
     },
 
     status: {
       saving: 'Saving...',
       unsaved: 'Unsaved changes',
       saved: 'Saved',
+      done: 'done',
+      busy: 'busy',
+      failed: 'failed',
+      idle: 'idle',
     },
 
     deleteDialog: {

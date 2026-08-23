@@ -120,3 +120,15 @@ export function* createTreeWalker(treeData: FlatTreeData, refresh: boolean) {
     }
   }
 }
+
+/**
+ * Return the cumulative sparkDelay of a visible node, or 0 when the node is not
+ * in the walk (collapsed ancestor, missing node, or orphan). Reuses the same
+ * walker so fan-out base delays match the rendered delay values exactly.
+ */
+export function findNodeSparkDelay(treeData: FlatTreeData, targetId: string): number {
+  for (const value of createTreeWalker(treeData, true)) {
+    if (typeof value !== 'string' && value.id === targetId) return value.sparkDelay
+  }
+  return 0
+}

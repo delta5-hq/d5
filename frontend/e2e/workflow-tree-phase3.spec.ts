@@ -569,7 +569,7 @@ test.describe('Workflow tree Phase 3 flows', () => {
     expect(workflow.nodes.alpha.title).toBe('#3 Alpha')
   })
 
-  test('drag marker is visible before dropping across all row zones', async ({ page }) => {
+  test('drag marker or ghost is visible before dropping across all row zones', async ({ page }) => {
     const workflowId = await createWorkflow(page)
     await seedWorkflow(page, workflowId, {
       root: { id: 'root', title: 'Root', children: ['a', 'b'] },
@@ -593,9 +593,13 @@ test.describe('Workflow tree Phase 3 flows', () => {
       ['after', targetBox.y + targetBox.height - 2],
     ] as const) {
       await page.mouse.move(targetBox.x + targetBox.width / 2, y)
-      const marker = target.getByTestId('tree-drop-marker')
-      await expect(marker).toBeVisible()
-      await expect(marker).toHaveAttribute('data-drop-position', position)
+      if (position === 'inside') {
+        await expect(target.getByTestId('drag-ghost-node')).toBeVisible()
+      } else {
+        const marker = target.getByTestId('tree-drop-marker')
+        await expect(marker).toBeVisible()
+        await expect(marker).toHaveAttribute('data-drop-position', position)
+      }
     }
 
     await page.mouse.up()

@@ -26,6 +26,7 @@ import { areTreeNodePropsEqual } from '../core/tree-node-memo'
 import { useTreeAnimation } from '../context'
 import { useIsNodeDirty } from '../store/workflow-selectors'
 import { CommandChip, ScriptTitleIcon, truncateTitleForChip } from './command-node-chip'
+import { NodeDropGhost } from './node-drop-ghost'
 import '../styles/wire-tree.css'
 
 export type { TreeNodeProps }
@@ -95,13 +96,15 @@ function buildContinuationLines(
   return lines
 }
 
-function triggerAnimation(wireEl: SVGPathElement | null, sparkEl: HTMLDivElement | null) {
+function triggerAnimation(wireEl: SVGPathElement | null, sparkEl: HTMLDivElement | null, durationMs: number) {
   if (wireEl) {
+    wireEl.style.setProperty('--wire-tree-pulse-duration', `${Math.min(600, durationMs)}ms`)
     wireEl.classList.remove('wire-tree-connector--pulse')
     void wireEl.getBBox()
     wireEl.classList.add('wire-tree-connector--pulse')
   }
   if (sparkEl) {
+    sparkEl.style.setProperty('--wire-tree-spark-duration', `${durationMs}ms`)
     sparkEl.classList.remove('wire-tree-spark--active')
     void sparkEl.offsetWidth
     sparkEl.classList.add('wire-tree-spark--active')
@@ -132,6 +135,7 @@ export const TreeNodeDefault = ({
   onDropFiles,
   activeDropTargetId,
   activeDropPosition,
+  dragSourceNode,
 }: TreeNodeProps) => {
   const {
     node,
@@ -155,22 +159,28 @@ export const TreeNodeDefault = ({
   const genieState = useGenieState(id)
   const isDirty = useIsNodeDirty(id)
   const wireRef = useRef<SVGPathElement>(null)
-  const { shouldAnimate, getBaseDelay, clearAnimation, consumeNewNodeFlash } = useTreeAnimation()
+  const { shouldAnimate, getStartDelay, getRemainingDuration, animationVersion, clearAnimation, consumeNewNodeFlash } =
+    useTreeAnimation()
   const { formatMessage } = useIntl()
   const [nativeDropPosition, setNativeDropPosition] = useState<TreeDropPosition | undefined>()
   const dropPosition = activeDropTargetId === id ? activeDropPosition : nativeDropPosition
 
   useEffect(() => {
     if (depth > 0 && shouldAnimate(id)) {
-      const delay = Math.max(0, sparkDelay - getBaseDelay(id))
+      const delay = getStartDelay(id)
       const timer = setTimeout(() => {
-        triggerAnimation(wireRef.current, sparkRef.current)
+        const remainingDuration = getRemainingDuration(id)
+        if (remainingDuration <= 0) {
+          clearAnimation(id)
+          return
+        }
+        triggerAnimation(wireRef.current, sparkRef.current, remainingDuration)
         genieRef.current?.flash()
         clearAnimation(id)
       }, delay)
       return () => clearTimeout(timer)
     }
-  }, [id, depth, sparkDelay, shouldAnimate, getBaseDelay, clearAnimation])
+  }, [id, depth, sparkDelay, animationVersion, shouldAnimate, getStartDelay, getRemainingDuration, clearAnimation])
 
   useEffect(() => {
     if (consumeNewNodeFlash(id) && rowRef.current) {
@@ -184,9 +194,9 @@ export const TreeNodeDefault = ({
     (e: React.MouseEvent) => {
       e.stopPropagation()
       genieRef.current?.flash()
-      onToggle?.(id, sparkDelay)
+      onToggle?.(id)
     },
-    [id, sparkDelay, onToggle],
+    [id, onToggle],
   )
 
   const handleClick = useCallback(
@@ -361,7 +371,9 @@ export const TreeNodeDefault = ({
             <div className="wire-tree-spark" ref={sparkRef} style={{ offsetPath: `path('${sparkPath}')` }} />
           ) : null}
 
-          {dropPosition ? (
+          {dropPosition === 'inside' && dragSourceNode && dragSourceNode.id !== id ? (
+            <NodeDropGhost aliases={aliases} node={dragSourceNode} />
+          ) : dropPosition ? (
             <span
               aria-hidden="true"
               className="workflow-tree-drop-marker"
@@ -417,6 +429,15 @@ export const TreeNodeDefault = ({
               <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
             )}
           </span>
+
+          {depth > 0 && depth <= 4 ? (
+            <span aria-hidden="true" className="workflow-tree-thought-tail" data-testid="node-thought-tail">
+              <svg aria-hidden="true" className="h-3.5 w-4" fill="none" viewBox="0 0 16 14">
+                <circle cx="4" cy="10" r="1.8" stroke="currentColor" strokeWidth="1.2" />
+                <circle cx="9.5" cy="6.5" r="2.6" stroke="currentColor" strokeWidth="1.2" />
+              </svg>
+            </span>
+          ) : null}
 
           <span className="workflow-tree-chip-strip relative z-10 ml-2 flex min-w-0 flex-1 items-center gap-2 overflow-hidden pr-2">
             <CommandChip aliases={aliases} command={node.command} />

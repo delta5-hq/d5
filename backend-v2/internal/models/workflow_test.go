@@ -38,3 +38,60 @@ func TestNodePreservesCheckedSelectionState(t *testing.T) {
 		})
 	}
 }
+
+func TestNode_ClearStaleTitleProjection(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		node        Node
+		wantCleared bool
+	}{
+		{
+			name:        "nil projection stays nil",
+			node:        Node{Title: "Changed"},
+			wantCleared: false,
+		},
+		{
+			name: "matching source title is preserved",
+			node: Node{
+				Title: "Alpha\n\nBeta\n\nGamma",
+				TitleProjection: &TitleProjection{
+					SourceTitle: "Alpha\n\nBeta\n\nGamma",
+					ChildIDs:    []string{"child-1"},
+					NodeIDs:     []string{"child-1"},
+				},
+			},
+			wantCleared: false,
+		},
+		{
+			name: "stale source title is cleared",
+			node: Node{
+				Title: "Changed",
+				TitleProjection: &TitleProjection{
+					SourceTitle: "Alpha\n\nBeta\n\nGamma",
+					ChildIDs:    []string{"child-1"},
+					NodeIDs:     []string{"child-1"},
+				},
+			},
+			wantCleared: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			node := tc.node
+			node.ClearStaleTitleProjection()
+
+			if tc.wantCleared {
+				if node.TitleProjection != nil {
+					t.Fatalf("expected stale projection to be cleared, got %+v", node.TitleProjection)
+				}
+				return
+			}
+
+			if node.TitleProjection == nil && tc.node.TitleProjection != nil {
+				t.Fatal("expected projection to be preserved, got nil")
+			}
+			if node.TitleProjection != nil && node.TitleProjection.SourceTitle != node.Title {
+				t.Fatalf("preserved projection must match title: projection=%+v title=%q", node.TitleProjection, node.Title)
+			}
+		})
+	}
+}

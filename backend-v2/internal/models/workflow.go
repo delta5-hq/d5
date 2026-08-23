@@ -37,6 +37,16 @@ type Node struct {
 	McpFusionReport map[string]interface{} `json:"mcpFusionReport,omitempty" bson:"mcpFusionReport,omitempty"`
 }
 
+// ClearStaleTitleProjection drops provenance whose recorded source title no
+// longer matches the node title. The node title is the source of truth; a
+// stale projection would otherwise persist contradictory state on a raw API
+// write that bypasses the client-side sanitizer.
+func (n *Node) ClearStaleTitleProjection() {
+	if n.TitleProjection != nil && n.TitleProjection.SourceTitle != n.Title {
+		n.TitleProjection = nil
+	}
+}
+
 type TitleProjection struct {
 	SourceTitle string   `json:"sourceTitle" bson:"sourceTitle"`
 	ChildIDs    []string `json:"childIds" bson:"childIds"`

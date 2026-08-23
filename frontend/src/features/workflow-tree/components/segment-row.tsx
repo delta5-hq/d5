@@ -33,6 +33,7 @@ export const SegmentRow = ({
   onDropFiles,
   activeDropTargetId,
   activeDropPosition,
+  dragSourceNode,
   autoEditNodeId,
 }: SegmentRowProps) => {
   if (segment.type === 'node') {
@@ -48,6 +49,7 @@ export const SegmentRow = ({
         activeDropPosition={activeDropPosition}
         activeDropTargetId={activeDropTargetId}
         autoEditNodeId={autoEditNodeId}
+        dragSourceNode={dragSourceNode}
         isSelected={selectedIds?.has(record.id) ?? false}
         onAddChild={onAddChild}
         onDelete={onDelete}
@@ -74,6 +76,7 @@ export const SegmentRow = ({
         activeDropTargetId={activeDropTargetId}
         autoEditNodeId={autoEditNodeId}
         container={segment}
+        dragSourceNode={dragSourceNode}
         onAddChild={onAddChild}
         onDelete={onDelete}
         onDragHoverNode={onDragHoverNode}

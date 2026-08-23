@@ -7,6 +7,9 @@ import type { DebouncedPersister } from './workflow-store-persistence'
 import { retainExistingIds } from './workflow-store-set-utils'
 import { notifyExecutionStarted, notifyExecutionCompleted, notifyExecutionAborted } from './execution-genie-bridge'
 import { generateNodeId } from '@shared/lib/generate-id'
+import { clearTreeAnimation, scheduleTreeAnimation } from '../core/tree-animation-store'
+import { findNodeSparkDelay } from '../core/tree-walker'
+import { SPARK_DURATION_MS } from '../core/constants'
 
 function addExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): void {
   store.setState(prev => ({
@@ -32,6 +35,46 @@ function firstAnchoredNewNodeId(
     n => !(n.id in existingNodes) && n.parent !== undefined && childrenOfExecuted.has(n.parent),
   )
   return newNode?.id
+}
+
+function populatedExistingFanOutTargets(
+  nodesChanged: Record<string, NodeData>,
+  existingNodes: NodeDatas,
+  mergedNodes: NodeDatas,
+  executedNodeId: NodeId,
+): NodeData[] {
+  const fanOutRootId = existingNodes[executedNodeId]?.parent ?? executedNodeId
+  const resultParentIds = new Set(
+    Object.values(nodesChanged)
+      .filter(changed => !(changed.id in existingNodes) && changed.parent !== undefined)
+      .map(changed => changed.parent as NodeId),
+  )
+
+  return [...resultParentIds]
+    .map(id => nodesChanged[id] ?? mergedNodes[id])
+    .filter(
+      (candidate): candidate is NodeData =>
+        candidate !== undefined &&
+        candidate.id !== executedNodeId &&
+        candidate.id in existingNodes &&
+        Boolean(candidate.command?.trim()) &&
+        ancestorPathTo(mergedNodes, candidate.id, fanOutRootId) !== null,
+    )
+}
+
+function ancestorPathTo(nodes: NodeDatas, nodeId: NodeId, ancestorId: NodeId): NodeId[] | null {
+  const path: NodeId[] = []
+  const visited = new Set<NodeId>([nodeId])
+  let cursor = nodes[nodeId]?.parent
+
+  while (cursor !== undefined && !visited.has(cursor)) {
+    path.push(cursor)
+    if (cursor === ancestorId) return path
+    visited.add(cursor)
+    cursor = nodes[cursor]?.parent
+  }
+
+  return null
 }
 
 function removeExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): void {
@@ -131,12 +174,59 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
           : merged.nodes
       const nextExpandedIds = shouldRevealChildren ? new Set([...current.expandedIds, node.id]) : current.expandedIds
 
+      const fanOutTargets =
+        queryType === 'foreach' ? populatedExistingFanOutTargets(nodesChanged, nodes, mergedNodes, node.id) : []
+      const resultRevealParentIds = fanOutTargets.map(target => target.id)
+      const fanOutRootId = nodes[node.id]?.parent ?? node.id
+      const fanOutAncestorIds = new Set(
+        fanOutTargets.flatMap(target => ancestorPathTo(mergedNodes, target.id, fanOutRootId) ?? []),
+      )
+      const visibleNodes =
+        resultRevealParentIds.length > 0
+          ? (() => {
+              const nextNodes = { ...mergedNodes }
+              fanOutAncestorIds.forEach(id => {
+                if (nextNodes[id]) nextNodes[id] = { ...nextNodes[id], collapsed: false }
+              })
+              resultRevealParentIds.forEach(id => {
+                if (nextNodes[id]) nextNodes[id] = { ...nextNodes[id], collapsed: true }
+              })
+              return nextNodes
+            })()
+          : mergedNodes
+      const visibleExpandedIds =
+        resultRevealParentIds.length > 0
+          ? new Set([...nextExpandedIds, ...fanOutAncestorIds].filter(id => !resultRevealParentIds.includes(id)))
+          : nextExpandedIds
+
+      let resultRevealDelayMs = 0
+      if (fanOutTargets.length > 0) {
+        const initiatorSparkDelay = findNodeSparkDelay(
+          { nodes: visibleNodes, rootId: merged.root, expandedIds: visibleExpandedIds },
+          node.id,
+        )
+        const relativeTargetDelays = fanOutTargets.map(target =>
+          Math.max(
+            0,
+            findNodeSparkDelay(
+              { nodes: visibleNodes, rootId: merged.root, expandedIds: visibleExpandedIds },
+              target.id,
+            ) - initiatorSparkDelay,
+          ),
+        )
+        resultRevealDelayMs = Math.max(...relativeTargetDelays) + SPARK_DURATION_MS
+        const relativeDelayByNodeId = Object.fromEntries(
+          fanOutTargets.map((target, index) => [target.id, relativeTargetDelays[index]]),
+        )
+        scheduleTreeAnimation(resultRevealParentIds, initiatorSparkDelay, relativeDelayByNodeId)
+      }
+
       store.setState({
-        nodes: mergedNodes,
+        nodes: visibleNodes,
         edges: merged.edges ?? {},
         root: merged.root,
         isDirty: true,
-        expandedIds: nextExpandedIds,
+        expandedIds: visibleExpandedIds,
         ...(resolvedSelected !== undefined
           ? { selectedId: resolvedSelected }
           : selectionStale
@@ -145,7 +235,32 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
         ...(anchorStale ? { anchorId: undefined } : {}),
         ...(cleanedIds !== current.selectedIds ? { selectedIds: cleanedIds } : {}),
       })
+
+      if (resultRevealParentIds.length > 0) {
+        window.setTimeout(() => {
+          resultRevealParentIds.forEach(id => clearTreeAnimation(id))
+          store.setState(prev => {
+            const nextNodes = { ...prev.nodes }
+            const nextExpandedIds = new Set(prev.expandedIds)
+            for (const id of resultRevealParentIds) {
+              const existing = nextNodes[id]
+              if (existing) {
+                nextNodes[id] = { ...existing, collapsed: false }
+                nextExpandedIds.add(id)
+              }
+            }
+            return {
+              nodes: nextNodes,
+              expandedIds: nextExpandedIds,
+              isDirty: true,
+            }
+          })
+          persister.schedule()
+        }, resultRevealDelayMs)
+      }
+
       await persister.flush()
+
       notifyExecutionCompleted(node.id, true)
       return true
     } catch (error) {

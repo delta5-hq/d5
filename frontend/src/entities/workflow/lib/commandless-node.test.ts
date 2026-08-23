@@ -36,6 +36,14 @@ describe('isCommandlessTextNode', () => {
     it('returns true when the blank line contains whitespace', () => {
       expect(isCommandlessTextNode(node('a', { title: 'A\n \t\u00a0\nB' }))).toBe(true)
     })
+
+    it('returns true for an indented outline without a blank line', () => {
+      expect(isCommandlessTextNode(node('a', { title: 'A\n  A1\nB\n  B1' }))).toBe(true)
+    })
+
+    it('returns true for a single indented child under one root', () => {
+      expect(isCommandlessTextNode(node('a', { title: 'Heading\n  point' }))).toBe(true)
+    })
   })
 
   describe('negative cases', () => {
@@ -53,6 +61,10 @@ describe('isCommandlessTextNode', () => {
       ['bare CR', '\r'],
     ])('returns false when title uses a single %s line ending', (_encoding, lineBreak) => {
       expect(isCommandlessTextNode(node('a', { title: `A${lineBreak}B` }))).toBe(false)
+    })
+
+    it('returns false for a single line with only leading whitespace', () => {
+      expect(isCommandlessTextNode(node('a', { title: '  A' }))).toBe(false)
     })
 
     it('returns false when title is empty', () => {

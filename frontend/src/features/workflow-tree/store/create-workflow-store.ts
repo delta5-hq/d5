@@ -75,11 +75,12 @@ export function createWorkflowStore(workflowId: string, formatMessage: FormatMes
     // re-expand of a node that already has children must not overwrite user edits made since the first expand.
     const shouldMaterializeSplit =
       expanding && !!node && isCommandlessTextNode(node) && (node.children?.length ?? 0) === 0
+    let didMaterializeSplit = false
     if (shouldMaterializeSplit) {
-      mutations.importTextAsPrompts(nodeId, node.title ?? '')
+      didMaterializeSplit = mutations.importTextAsPrompts(nodeId, node.title ?? '') > 0
     }
     expansion.toggleExpanded(nodeId)
-    if (shouldMaterializeSplit) void persister.flush()
+    if (didMaterializeSplit) void persister.flush()
   }
 
   const load = async () => {

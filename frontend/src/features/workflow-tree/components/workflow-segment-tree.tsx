@@ -5,7 +5,6 @@ import { useStableCallback } from '@shared/lib/hooks'
 import { useNodeCacheCleanup } from '@shared/lib/use-node-cache-cleanup'
 import { VirtualizedSegmentTree } from '../virtualization/virtualized-segment-tree'
 import { useTreeWalker } from '../hooks/use-tree-walker'
-import { useAnimatedToggle } from '../hooks/use-animated-toggle'
 import { TreeAnimationProvider, useTreeAnimation } from '../context'
 import { useWorkflowExpandedIds, useWorkflowActions } from '../store'
 import { isCommandlessTextNode } from '@entities/workflow/lib'
@@ -73,7 +72,7 @@ const WorkflowSegmentTreeInner = ({
     dragging: boolean
   } | null>(null)
   const [activePointerDrop, setActivePointerDrop] = useState<
-    { targetId: string; position: TreeDropPosition } | undefined
+    { targetId: string; position: TreeDropPosition; source: NodeData } | undefined
   >()
 
   const cancelHoverExpansion = useCallback(() => {
@@ -97,7 +96,9 @@ const WorkflowSegmentTreeInner = ({
     }
   })
 
-  const handleToggle = useAnimatedToggle(nodes, expandedIds, toggleExpanded)
+  const handleToggle = useStableCallback((id: string) => {
+    toggleExpanded(id)
+  })
 
   const handleToggleChecked = useStableCallback((nodeId: string) => {
     const node = nodes[nodeId]
@@ -144,7 +145,8 @@ const WorkflowSegmentTreeInner = ({
     const position = getTreeDropPosition(clientY, rowElement.getBoundingClientRect())
     active.targetId = targetId
     active.position = position
-    setActivePointerDrop({ targetId, position })
+    const source = nodes[active.nodeId]
+    setActivePointerDrop(source ? { targetId, position, source } : undefined)
     if (position === 'inside') handleDragHoverNode(targetId)
     else cancelHoverExpansion()
   })
@@ -237,6 +239,7 @@ const WorkflowSegmentTreeInner = ({
               activeDropPosition={activePointerDrop?.position}
               activeDropTargetId={activePointerDrop?.targetId}
               autoEditNodeId={autoEditNodeId}
+              dragSourceNode={activePointerDrop?.source}
               height={height}
               onAddChild={handleAddChild}
               onDelete={onDelete}
@@ -253,6 +256,7 @@ const WorkflowSegmentTreeInner = ({
               onVisibleOrderChange={onVisibleOrderChange}
               onWrapNodes={onWrapNodes}
               overscanCount={overscanCount}
+              rootId={rootId}
               rowHeight={rowHeight}
               selectedIds={selectedIds}
               treeWalker={treeWalker}

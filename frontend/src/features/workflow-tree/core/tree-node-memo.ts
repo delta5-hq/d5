@@ -59,6 +59,7 @@ type ComparedKeys =
   | 'onDropFiles'
   | 'activeDropTargetId'
   | 'activeDropPosition'
+  | 'dragSourceNode'
 
 /* Build guard: adding a prop to TreeNodeProps without listing it here errors the return type below */
 type ExhaustiveCompareResult = Exclude<keyof TreeNodeProps, ComparedKeys> extends never ? boolean : never
@@ -99,6 +100,7 @@ export function areTreeNodePropsEqual(
   if (prev.onDropFiles !== next.onDropFiles) return false
   if ((prev.activeDropTargetId === prev.id) !== (next.activeDropTargetId === next.id)) return false
   if (prev.activeDropTargetId === prev.id && prev.activeDropPosition !== next.activeDropPosition) return false
+  if (prev.dragSourceNode !== next.dragSourceNode) return false
 
   return true
 }

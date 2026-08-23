@@ -46,17 +46,11 @@ function makeNode(overrides: Partial<NodeData> = {}): NodeData {
 
 function makeProps(
   node: NodeData,
-  isPrompt: boolean,
   overrides: Partial<Parameters<typeof NodeDetailPanel>[0]> = {},
 ): Parameters<typeof NodeDetailPanel>[0] {
   return {
     node,
-    isPrompt,
     onUpdateNode: vi.fn(),
-    onDelete: vi.fn(),
-    onDuplicateNode: vi.fn(),
-    onAddChild: vi.fn(),
-    onAddSibling: vi.fn(),
     onEnterInCommand: vi.fn(),
     onCtrlEnterInCommand: vi.fn(),
     onShiftCtrlEnterInCommand: vi.fn(),
@@ -69,195 +63,55 @@ function makeProps(
   }
 }
 
-function renderPanel(
-  node: NodeData,
-  isPrompt: boolean,
-  overrides: Partial<Parameters<typeof NodeDetailPanel>[0]> = {},
-) {
-  const props = makeProps(node, isPrompt, overrides)
+function renderPanel(node: NodeData, overrides: Partial<Parameters<typeof NodeDetailPanel>[0]> = {}) {
+  const props = makeProps(node, overrides)
   const result = render(<NodeDetailPanel {...props} />, { wrapper })
-  const rerenderPanel = (nextNode: NodeData, nextIsPrompt: boolean) =>
+  const rerenderPanel = (nextNode: NodeData) =>
     result.rerender(
       <IntlProvider locale="en" messages={messages.en}>
-        <NodeDetailPanel {...makeProps(nextNode, nextIsPrompt)} />
+        <NodeDetailPanel {...makeProps(nextNode, overrides)} />
       </IntlProvider>,
     )
   return { ...result, rerenderPanel }
 }
 
-describe('NodeDetailPanel — collapsible sections initial state', () => {
-  describe('Settings section', () => {
-    it('is expanded for a non-prompt node', () => {
-      renderPanel(makeNode({ command: '/chat test' }), false)
-      expect(screen.getByTestId('settings-trigger')).toHaveAttribute('data-state', 'open')
-    })
-
-    it('is collapsed for a prompt node', () => {
-      renderPanel(makeNode(), true)
-      expect(screen.getByTestId('settings-trigger')).toHaveAttribute('data-state', 'closed')
-    })
+describe('NodeDetailPanel — chat layout', () => {
+  it('shows auto badge when the title is derived from the command', () => {
+    renderPanel(makeNode({ command: '/chat hi', title: '/chat hi' }))
+    expect(screen.getByText('auto')).toBeInTheDocument()
   })
 
-  describe('Preview section', () => {
-    it('is collapsed for a non-prompt node when the node has content', () => {
-      renderPanel(makeNode({ command: '/chat test' }), false)
-      expect(screen.getByTestId('preview-trigger')).toHaveAttribute('data-state', 'closed')
-    })
-
-    it('is expanded for a prompt node', () => {
-      renderPanel(makeNode({ title: 'result text' }), true)
-      expect(screen.getByTestId('preview-trigger')).toHaveAttribute('data-state', 'open')
-    })
-
-    it('is absent when the node has no title, no command, and is not a prompt', () => {
-      renderPanel(makeNode({ title: undefined, command: undefined }), false)
-      expect(screen.queryByTestId('preview-trigger')).not.toBeInTheDocument()
-    })
-
-    it('is present when isPrompt is true even with no title and no command', () => {
-      renderPanel(makeNode({ title: undefined, command: undefined }), true)
-      expect(screen.getByTestId('preview-trigger')).toBeInTheDocument()
-    })
-
-    it('is present when the node has a title but no command and is not a prompt', () => {
-      renderPanel(makeNode({ title: 'some title', command: undefined }), false)
-      expect(screen.getByTestId('preview-trigger')).toBeInTheDocument()
-    })
-
-    it('is present when the node has a command but no title and is not a prompt', () => {
-      renderPanel(makeNode({ title: undefined, command: '/chat test' }), false)
-      expect(screen.getByTestId('preview-trigger')).toBeInTheDocument()
-    })
-  })
-})
-
-describe('NodeDetailPanel — collapsible state response to isPrompt prop change', () => {
-  it('collapses Settings when transitioning from non-prompt to prompt', () => {
-    const node = makeNode({ title: 'text' })
-    const { rerenderPanel } = renderPanel(node, false)
-    expect(screen.getByTestId('settings-trigger')).toHaveAttribute('data-state', 'open')
-    rerenderPanel(node, true)
-    expect(screen.getByTestId('settings-trigger')).toHaveAttribute('data-state', 'closed')
+  it('hides auto badge for a user-authored title', () => {
+    renderPanel(makeNode({ command: '/chat hi', title: 'My own title' }))
+    expect(screen.queryByText('auto')).not.toBeInTheDocument()
   })
 
-  it('expands Preview when transitioning from non-prompt to prompt', () => {
-    const node = makeNode({ title: 'text' })
-    const { rerenderPanel } = renderPanel(node, false)
-    expect(screen.getByTestId('preview-trigger')).toHaveAttribute('data-state', 'closed')
-    rerenderPanel(node, true)
-    expect(screen.getByTestId('preview-trigger')).toHaveAttribute('data-state', 'open')
+  it('renders the OUTPUT section with a grounded status line', () => {
+    renderPanel(makeNode({ command: '/chat hi' }))
+    expect(screen.getByTestId('output-section')).toBeInTheDocument()
+    expect(screen.getByTestId('output-status-line')).toHaveTextContent('idle · /chat')
   })
 
-  it('expands Settings when transitioning from prompt to non-prompt', () => {
-    const node = makeNode({ title: 'text' })
-    const { rerenderPanel } = renderPanel(node, true)
-    expect(screen.getByTestId('settings-trigger')).toHaveAttribute('data-state', 'closed')
-    rerenderPanel(node, false)
-    expect(screen.getByTestId('settings-trigger')).toHaveAttribute('data-state', 'open')
+  it('renders a role chip when the command is slash-prefixed', () => {
+    renderPanel(makeNode({ command: '/chat hi' }))
+    expect(screen.getByTestId('command-role-chip')).toHaveTextContent('/chat')
   })
 
-  it('collapses Preview when transitioning from prompt to non-prompt', () => {
-    const node = makeNode({ title: 'text' })
-    const { rerenderPanel } = renderPanel(node, true)
-    expect(screen.getByTestId('preview-trigger')).toHaveAttribute('data-state', 'open')
-    rerenderPanel(node, false)
-    expect(screen.getByTestId('preview-trigger')).toHaveAttribute('data-state', 'closed')
-  })
-})
-
-describe('NodeDetailPanel — collapsible user interaction', () => {
-  it('Settings can be collapsed by clicking the trigger on a non-prompt node', () => {
-    renderPanel(makeNode({ command: '/chat test' }), false)
-    const trigger = screen.getByTestId('settings-trigger')
-    expect(trigger).toHaveAttribute('data-state', 'open')
-    fireEvent.click(trigger)
-    expect(trigger).toHaveAttribute('data-state', 'closed')
+  it('omits the role chip when the draft is not slash-prefixed', () => {
+    renderPanel(makeNode({ command: 'plain text' }))
+    expect(screen.queryByTestId('command-role-chip')).not.toBeInTheDocument()
   })
 
-  it('Settings can be expanded by clicking the trigger on a prompt node', () => {
-    renderPanel(makeNode({ title: 'text' }), true)
-    const trigger = screen.getByTestId('settings-trigger')
-    expect(trigger).toHaveAttribute('data-state', 'closed')
-    fireEvent.click(trigger)
-    expect(trigger).toHaveAttribute('data-state', 'open')
+  it('shows the command character count in the composer footer', () => {
+    renderPanel(makeNode({ command: '/chat' }))
+    expect(screen.getByText(/chars · ⏎ run/)).toBeInTheDocument()
   })
 
-  it('Preview can be expanded by clicking the trigger on a non-prompt node', () => {
-    renderPanel(makeNode({ command: '/chat test' }), false)
-    const trigger = screen.getByTestId('preview-trigger')
-    expect(trigger).toHaveAttribute('data-state', 'closed')
-    fireEvent.click(trigger)
-    expect(trigger).toHaveAttribute('data-state', 'open')
-  })
-
-  it('Preview can be collapsed by clicking the trigger on a prompt node', () => {
-    renderPanel(makeNode({ title: 'text' }), true)
-    const trigger = screen.getByTestId('preview-trigger')
-    expect(trigger).toHaveAttribute('data-state', 'open')
-    fireEvent.click(trigger)
-    expect(trigger).toHaveAttribute('data-state', 'closed')
-  })
-
-  it('Settings and Preview are toggled independently', () => {
-    renderPanel(makeNode({ command: '/chat test' }), false)
-    fireEvent.click(screen.getByTestId('preview-trigger'))
-    expect(screen.getByTestId('settings-trigger')).toHaveAttribute('data-state', 'open')
-    expect(screen.getByTestId('preview-trigger')).toHaveAttribute('data-state', 'open')
-  })
-
-  it('isPrompt transition resets user-overridden state — manually opened Preview collapses when isPrompt reverts to false', () => {
-    const node = makeNode({ command: '/chat test' })
-    const { rerenderPanel } = renderPanel(node, false)
-    fireEvent.click(screen.getByTestId('preview-trigger'))
-    expect(screen.getByTestId('preview-trigger')).toHaveAttribute('data-state', 'open')
-    rerenderPanel(node, true)
-    rerenderPanel(node, false)
-    expect(screen.getByTestId('preview-trigger')).toHaveAttribute('data-state', 'closed')
-  })
-})
-
-describe('NodeDetailPanel — preview content visibility', () => {
-  it('preview content is in the DOM when the preview section is expanded', () => {
-    renderPanel(makeNode({ title: 'text' }), true)
-    expect(screen.getByTestId('node-preview-text')).toBeInTheDocument()
-  })
-
-  it('preview content is absent from the DOM when the preview section is collapsed', () => {
-    renderPanel(makeNode({ command: '/chat test' }), false)
-    expect(screen.queryByTestId('node-preview-text')).not.toBeInTheDocument()
-  })
-})
-
-describe('NodeDetailPanel — settings content visibility', () => {
-  it('execute button is in the DOM when settings is expanded', () => {
-    renderPanel(makeNode({ command: '/chat test' }), false)
-    expect(screen.getByTestId('execute-node-button')).toBeInTheDocument()
-  })
-
-  it('execute button is absent from the DOM when settings is collapsed', () => {
-    renderPanel(makeNode({ title: 'text' }), true)
-    expect(screen.queryByTestId('execute-node-button')).not.toBeInTheDocument()
-  })
-})
-
-describe('NodeDetailPanel — preview auto-expand on execution complete', () => {
-  it('expands preview when isExecuting transitions from true to false', () => {
-    const node = makeNode({ command: '/chat test' })
-    renderPanel(node, false, { isExecuting: false })
-    expect(screen.getByTestId('preview-trigger')).toHaveAttribute('data-state', 'closed')
-    expect(screen.queryByTestId('node-preview-text')).not.toBeInTheDocument()
-  })
-
-  it('preview starts collapsed when executing', () => {
-    const node = makeNode({ command: '/chat test' })
-    renderPanel(node, false, { isExecuting: true })
-    expect(screen.getByTestId('preview-trigger')).toHaveAttribute('data-state', 'closed')
-  })
-
-  it('preview expands for prompt nodes regardless of execution state', () => {
-    const node = makeNode({ title: 'result' })
-    renderPanel(node, true, { isExecuting: false })
-    expect(screen.getByTestId('preview-trigger')).toHaveAttribute('data-state', 'open')
+  it('rename button starts title editing', () => {
+    renderPanel(makeNode())
+    expect(screen.queryByDisplayValue('Test Node')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('rename-node-button'))
+    expect(screen.getByDisplayValue('Test Node')).toBeInTheDocument()
   })
 })
 
@@ -266,7 +120,7 @@ describe('NodeDetailPanel — Execute button behavior', () => {
     it('resolves static command to mapped queryType', () => {
       const node = makeNode({ command: '/web search query' })
       const onExecute = vi.fn().mockResolvedValue(true)
-      renderPanel(node, false, { onExecute })
+      renderPanel(node, { onExecute })
 
       fireEvent.click(screen.getByTestId('execute-node-button'))
 
@@ -276,7 +130,7 @@ describe('NodeDetailPanel — Execute button behavior', () => {
     it('resolves control-flow command to mapped queryType', () => {
       const node = makeNode({ command: '/foreach item in list' })
       const onExecute = vi.fn().mockResolvedValue(true)
-      renderPanel(node, false, { onExecute })
+      renderPanel(node, { onExecute })
 
       fireEvent.click(screen.getByTestId('execute-node-button'))
 
@@ -286,7 +140,7 @@ describe('NodeDetailPanel — Execute button behavior', () => {
     it('resolves LLM provider command to mapped queryType', () => {
       const node = makeNode({ command: '/claude explain this' })
       const onExecute = vi.fn().mockResolvedValue(true)
-      renderPanel(node, false, { onExecute })
+      renderPanel(node, { onExecute })
 
       fireEvent.click(screen.getByTestId('execute-node-button'))
 
@@ -296,7 +150,7 @@ describe('NodeDetailPanel — Execute button behavior', () => {
     it('handles command without trailing text', () => {
       const node = makeNode({ command: '/web' })
       const onExecute = vi.fn().mockResolvedValue(true)
-      renderPanel(node, false, { onExecute })
+      renderPanel(node, { onExecute })
 
       fireEvent.click(screen.getByTestId('execute-node-button'))
 
@@ -306,7 +160,7 @@ describe('NodeDetailPanel — Execute button behavior', () => {
     it('handles command with leading whitespace', () => {
       const node = makeNode({ command: '  /web search' })
       const onExecute = vi.fn().mockResolvedValue(true)
-      renderPanel(node, false, { onExecute })
+      renderPanel(node, { onExecute })
 
       fireEvent.click(screen.getByTestId('execute-node-button'))
 
@@ -318,7 +172,7 @@ describe('NodeDetailPanel — Execute button behavior', () => {
     it('calls onExecute when enabled', () => {
       const node = makeNode({ command: '/chat test' })
       const onExecute = vi.fn().mockResolvedValue(true)
-      renderPanel(node, false, { onExecute, executeDisabled: false })
+      renderPanel(node, { onExecute, executeDisabled: false })
 
       fireEvent.click(screen.getByTestId('execute-node-button'))
 
@@ -328,7 +182,7 @@ describe('NodeDetailPanel — Execute button behavior', () => {
     it('disables a non-slash command and shows validation feedback', () => {
       const node = makeNode({ command: 'not a slash command' })
       const onExecute = vi.fn().mockResolvedValue(true)
-      renderPanel(node, false, { onExecute, executeDisabled: false })
+      renderPanel(node, { onExecute, executeDisabled: false })
 
       expect(screen.getByTestId('execute-node-button')).toBeDisabled()
       expect(screen.getByTestId('command-validation-message')).toHaveTextContent('Enter a valid slash command')
@@ -341,7 +195,7 @@ describe('NodeDetailPanel — Execute button behavior', () => {
     it('enables an unregistered slash command so the backend can report the unknown-alias error', () => {
       const node = makeNode({ command: '/unregistered-alias task' })
       const onExecute = vi.fn().mockResolvedValue(true)
-      renderPanel(node, false, { onExecute, executeDisabled: false })
+      renderPanel(node, { onExecute, executeDisabled: false })
 
       expect(screen.getByTestId('execute-node-button')).toBeEnabled()
       expect(screen.queryByTestId('command-validation-message')).not.toBeInTheDocument()
@@ -350,7 +204,7 @@ describe('NodeDetailPanel — Execute button behavior', () => {
     it('validates the current command draft instead of the previous committed value', () => {
       const node = makeNode({ command: '' })
       const onExecute = vi.fn().mockResolvedValue(true)
-      renderPanel(node, false, { onExecute, executeDisabled: false })
+      renderPanel(node, { onExecute, executeDisabled: false })
       const commandField = screen.getByPlaceholderText(/command/i)
       const executeButton = screen.getByTestId('execute-node-button')
 
@@ -369,16 +223,10 @@ describe('NodeDetailPanel — Execute button behavior', () => {
 
       expect(onExecute).toHaveBeenCalledWith(expect.objectContaining({ command: '/chat ok again' }), 'chat')
     })
-    it('does not render when node is root', () => {
-      const node = makeNode({ command: '/chat test', parent: null })
-      renderPanel(node, true, {})
-
-      expect(screen.queryByTestId('execute-node-button')).not.toBeInTheDocument()
-    })
 
     it('empty command draft is disabled without showing a validation message', () => {
       const node = makeNode({ command: '' })
-      renderPanel(node, false, { executeDisabled: false })
+      renderPanel(node, { executeDisabled: false })
 
       expect(screen.getByTestId('execute-node-button')).toBeDisabled()
       expect(screen.queryByTestId('command-validation-message')).not.toBeInTheDocument()
@@ -386,7 +234,7 @@ describe('NodeDetailPanel — Execute button behavior', () => {
 
     it('executeDisabled prop disables the button even when the draft is a valid command', () => {
       const node = makeNode({ command: '/chat ok' })
-      renderPanel(node, false, { executeDisabled: true })
+      renderPanel(node, { executeDisabled: true })
 
       expect(screen.getByTestId('execute-node-button')).toBeDisabled()
     })
@@ -396,10 +244,10 @@ describe('NodeDetailPanel — Execute button behavior', () => {
       const nodeB = makeNode({ id: 'b', command: '' })
       const onExecute = vi.fn().mockResolvedValue(true)
 
-      const { rerender } = renderPanel(nodeA, false, { onExecute, executeDisabled: false })
+      const { rerender } = renderPanel(nodeA, { onExecute, executeDisabled: false })
       expect(screen.getByTestId('execute-node-button')).toBeEnabled()
 
-      rerender(<NodeDetailPanel {...makeProps(nodeB, false, { onExecute, executeDisabled: false })} />)
+      rerender(<NodeDetailPanel {...makeProps(nodeB, { onExecute, executeDisabled: false })} />)
 
       expect(screen.getByTestId('execute-node-button')).toBeDisabled()
       expect(screen.queryByTestId('command-validation-message')).not.toBeInTheDocument()
@@ -418,7 +266,7 @@ describe('NodeDetailPanel — handleCommandChange title sync', () => {
   it.each(COMMAND_DERIVED_CASES)('syncs both command and title to new command when %s', (_label, command, title) => {
     const node = makeNode({ command, title })
     const onUpdateNode = vi.fn()
-    renderPanel(node, false, { onUpdateNode })
+    renderPanel(node, { onUpdateNode })
 
     const textarea = screen.getByPlaceholderText(/command/i)
     fireEvent.change(textarea, { target: { value: '/chat list fruits' } })
@@ -433,7 +281,7 @@ describe('NodeDetailPanel — handleCommandChange title sync', () => {
   it('syncs title to new command when node has no title', () => {
     const node = makeNode({ command: '/chat list colors', title: undefined })
     const onUpdateNode = vi.fn()
-    renderPanel(node, false, { onUpdateNode })
+    renderPanel(node, { onUpdateNode })
 
     const textarea = screen.getByPlaceholderText(/command/i)
     fireEvent.change(textarea, { target: { value: '/chat list fruits' } })
@@ -453,7 +301,7 @@ describe('NodeDetailPanel — handleCommandChange title sync', () => {
   it.each(USER_AUTHORED_CASES)('updates only command when node has %s', (_label, command, title) => {
     const node = makeNode({ command, title })
     const onUpdateNode = vi.fn()
-    renderPanel(node, false, { onUpdateNode })
+    renderPanel(node, { onUpdateNode })
 
     const textarea = screen.getByPlaceholderText(/command/i)
     fireEvent.change(textarea, { target: { value: '/chat list fruits' } })
@@ -465,29 +313,29 @@ describe('NodeDetailPanel — handleCommandChange title sync', () => {
 
 describe('NodeDetailPanel — autoFocusTitle prop', () => {
   it('title field is in read-only mode when autoFocusTitle is false', () => {
-    renderPanel(makeNode(), false, { autoFocusTitle: false })
+    renderPanel(makeNode(), { autoFocusTitle: false })
 
     expect(screen.queryByDisplayValue('Test Node')).not.toBeInTheDocument()
   })
 
   it('title field enters edit mode when autoFocusTitle is true', () => {
-    renderPanel(makeNode(), false, { autoFocusTitle: true })
+    renderPanel(makeNode(), { autoFocusTitle: true })
 
     expect(screen.getByDisplayValue('Test Node')).toBeInTheDocument()
   })
 
   it('title field enters edit mode when autoFocusTitle transitions from false to true', () => {
     const node = makeNode()
-    const { rerender } = renderPanel(node, false, { autoFocusTitle: false })
+    const { rerender } = renderPanel(node, { autoFocusTitle: false })
     expect(screen.queryByDisplayValue('Test Node')).not.toBeInTheDocument()
 
-    rerender(<NodeDetailPanel {...makeProps(node, false, { autoFocusTitle: true })} />)
+    rerender(<NodeDetailPanel {...makeProps(node, { autoFocusTitle: true })} />)
 
     expect(screen.getByDisplayValue('Test Node')).toBeInTheDocument()
   })
 
   it('title field returns to read-only after user cancels the auto-focused edit', () => {
-    renderPanel(makeNode(), false, { autoFocusTitle: true })
+    renderPanel(makeNode(), { autoFocusTitle: true })
     const textarea = screen.getByDisplayValue('Test Node')
     fireEvent.keyDown(textarea, { key: 'Escape' })
 

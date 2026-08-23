@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseTextToPromptSeeds, type PromptSeed } from '../text-to-prompts-splitter'
+import { parseTextToPromptSeeds, parseLosslessTextToPromptSeeds, type PromptSeed } from '../text-to-prompts-splitter'
 
 const titles = (seeds: readonly PromptSeed[]): string[] => seeds.map(seed => seed.title)
 
@@ -184,5 +184,26 @@ describe('parseTextToPromptSeeds', () => {
         expect(seeds[1].children).toEqual([])
       }
     })
+  })
+})
+
+describe('parseLosslessTextToPromptSeeds', () => {
+  it.each([
+    ['LF hierarchy', 'A\n  A1\nB\n  B1'],
+    ['CRLF hierarchy', 'A\r\n  A1\r\nB\r\n  B1'],
+    ['bare CR hierarchy', 'A\r  A1\rB\r  B1'],
+    ['blank paragraphs', 'First paragraph\n\nOutline\n  sub a\n  sub b'],
+    ['NBSP indentation', 'A\n\u00a0\u00a0A1'],
+  ])('accepts canonical %s through the established parser', (_label, input) => {
+    expect(parseLosslessTextToPromptSeeds(input)).not.toBeNull()
+  })
+
+  it.each([
+    ['odd indentation', 'A\n A1'],
+    ['tab indentation', 'A\n\tA1'],
+    ['common and shrinking indentation that makes the parser underflow', '  A\n B'],
+    ['blank-delimited indented root whose source indentation cannot be reproduced', 'A\n\n  B'],
+  ])('fails closed for non-round-tripping %s', (_label, input) => {
+    expect(parseLosslessTextToPromptSeeds(input)).toBeNull()
   })
 })

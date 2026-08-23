@@ -39,6 +39,7 @@ export const SegmentRowComponent = ({ index, rowProps }: SegmentRowComponentProp
     onDropFiles: rowProps.onDropFiles,
     activeDropTargetId: rowProps.activeDropTargetId,
     activeDropPosition: rowProps.activeDropPosition,
+    dragSourceNode: rowProps.dragSourceNode,
     autoEditNodeId: rowProps.autoEditNodeId,
   }
 
@@ -53,6 +54,8 @@ interface VirtualizedSegmentTreeProps extends TreeNodeCallbacks {
   overscanCount?: number
   selectedIds?: Set<string>
   autoEditNodeId?: string
+  /** Root node ID to render outside the list; its descendants stay in place. */
+  rootId?: string
   onVisibleOrderChange?: (order: readonly string[]) => void
 }
 
@@ -78,7 +81,9 @@ export const VirtualizedSegmentTree = ({
   onDropFiles,
   activeDropTargetId,
   activeDropPosition,
+  dragSourceNode,
   autoEditNodeId,
+  rootId,
   onVisibleOrderChange,
 }: VirtualizedSegmentTreeProps) => {
   const listRef = useRef<ListImperativeAPI | null>(null)
@@ -88,16 +93,18 @@ export const VirtualizedSegmentTree = ({
     computeTree(treeWalker, { order: [], records: {} }, { refreshNodes: true }),
   )
 
-  const [segmentState, setSegmentState] = useState<SegmentState>(() => computeSegments(treeState, { rowHeight }))
+  const [segmentState, setSegmentState] = useState<SegmentState>(() =>
+    computeSegments(treeState, { rowHeight, excludeRootId: rootId }),
+  )
 
   useEffect(() => {
     if (prevTreeWalkerRef.current !== treeWalker) {
       prevTreeWalkerRef.current = treeWalker
       const newTreeState = computeTree(treeWalker, treeState, { refreshNodes: true })
       setTreeState(newTreeState)
-      setSegmentState(computeSegments(newTreeState, { rowHeight }))
+      setSegmentState(computeSegments(newTreeState, { rowHeight, excludeRootId: rootId }))
     }
-  }, [treeWalker, treeState, rowHeight])
+  }, [treeWalker, treeState, rowHeight, rootId])
 
   useEffect(() => {
     onVisibleOrderChange?.(treeState.order)
@@ -125,6 +132,7 @@ export const VirtualizedSegmentTree = ({
       onDropFiles,
       activeDropTargetId,
       activeDropPosition,
+      dragSourceNode,
       autoEditNodeId,
     }),
     [
@@ -146,6 +154,7 @@ export const VirtualizedSegmentTree = ({
       onDropFiles,
       activeDropTargetId,
       activeDropPosition,
+      dragSourceNode,
       autoEditNodeId,
     ],
   )
