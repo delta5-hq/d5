@@ -1,14 +1,14 @@
 package models
 
-// RefineMode distinguishes best-of-N strict execution from lenient fallback execution and commodity parallel execution.
-type RefineMode string
+// ElectMode distinguishes best-of-N strict execution from lenient fallback execution and commodity parallel execution.
+type ElectMode string
 
 const (
-	RefineModeStrict     RefineMode = "strict"
-	RefineModeBackFall   RefineMode = "fallback"
-	RefineModeCommodity  RefineMode = "commodity"
-	RefineModeInvalid    RefineMode = "invalid"
-	RefineModeSuppressed RefineMode = "suppressed"
+	ElectModeStrict     ElectMode = "strict"
+	ElectModeBackFall   ElectMode = "fallback"
+	ElectModeCommodity  ElectMode = "commodity"
+	ElectModeInvalid    ElectMode = "invalid"
+	ElectModeSuppressed ElectMode = "suppressed"
 )
 
 // SelectionLayer records whether the winner came from the eligible primary pool or the fallback pool.
@@ -113,13 +113,13 @@ type JudgeInputMetadata struct {
 	ResolvedJudgeFamilies []string `json:"resolvedJudgeFamilies" bson:"resolvedJudgeFamilies"`
 }
 
-// ReliabilityMetadata persists the judge's complete verdict for a /refine cell across page reloads.
+// ReliabilityMetadata persists the judge's complete verdict for a /elect cell across page reloads.
 // Written by the Node.js execution engine after fork selection; consumed by the frontend verdict drawer.
-// Attached to a Node as a pointer so nodes that have never run /refine carry no overhead.
+// Attached to a Node as a pointer so nodes that have never run /elect carry no overhead.
 type ReliabilityMetadata struct {
 	WinnerForkIndex         *int                       `json:"winnerForkIndex" bson:"winnerForkIndex"`
 	PerCriterionVerdict     []CriterionVerdict         `json:"perCriterionVerdict" bson:"perCriterionVerdict"`
-	Mode                    RefineMode                 `json:"mode" bson:"mode"`
+	Mode                    ElectMode                  `json:"mode" bson:"mode"`
 	SelectionLayer          SelectionLayer             `json:"selectionLayer" bson:"selectionLayer"`
 	FallbackUsed            bool                       `json:"fallbackUsed,omitempty" bson:"fallbackUsed,omitempty"`
 	GeneratorOnlyJudge      bool                       `json:"generatorOnlyJudge,omitempty" bson:"generatorOnlyJudge,omitempty"`

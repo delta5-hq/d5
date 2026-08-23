@@ -8,7 +8,7 @@ import {ForeachCommand} from '../ForeachCommand'
 import {ValidateCommand} from '../../reliability/core/ValidateCommand'
 import * as unknownCommandNode from './unknownCommandNode'
 import {VALIDATE_QUERY_TYPE} from '../../constants/validate'
-import {REFINE_QUERY_TYPE} from '../../constants/refine'
+import {ELECT_QUERY_TYPE} from '../../constants/elect'
 import {writeCachedIntegrationSettings} from './langchain/getLLM'
 
 jest.useFakeTimers()
@@ -610,7 +610,7 @@ describe('runCommand — commodity :n=N control parameter does not appear in gen
 describe('runCommand — modifier commands used as root', () => {
   it.each([
     {queryType: VALIDATE_QUERY_TYPE, command: '/validate criterion'},
-    {queryType: REFINE_QUERY_TYPE, command: '/refine :n=2'},
+    {queryType: ELECT_QUERY_TYPE, command: '/elect :n=2'},
   ])('writes [✗ !] suffix and error node without dispatching ($queryType)', async ({queryType, command}) => {
     const root = {id: 'root', parent: 'root', command, children: []}
     const store = new Store({userId: 'userId', nodes: {[root.id]: root}})
@@ -695,7 +695,7 @@ describe('runCommand — preventCommodityForks option', () => {
 
 describe('runCommand — store.withinForkExecution suppresses commodity forking inside forked subtrees', () => {
   it.each([2, 3, 5])(
-    'executes exactly once regardless of :n=%i — routing re-entry and /refine subtree both use this guard',
+    'executes exactly once regardless of :n=%i — routing re-entry and /elect subtree both use this guard',
     async n => {
       const root = {
         id: 'root',

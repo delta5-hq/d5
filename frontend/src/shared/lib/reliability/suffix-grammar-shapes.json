@@ -1,6 +1,6 @@
 {
   "historicalSuffixShapes": [
-    "[✓✗⚠]\\s+(\\d+\\/\\d+\\s+(best\\s+of\\s+\\d+(\\s+·\\s+[\\d.]+)?|first-survivor[^\\]]*|passed)|refined|refine\\s+failed)",
+    "[✓✗⚠]\\s+(\\d+\\/\\d+\\s+(best\\s+of\\s+\\d+(\\s+·\\s+[\\d.]+)?|first-survivor[^\\]]*|passed)|electd|elect\\s+failed)",
     "✓\\s+retry-\\d+",
     "✗\\s+\\d+\\s+attempts",
     "✗\\s+invalid",

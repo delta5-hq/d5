@@ -1,7 +1,7 @@
 /**
  * Verifies the memoization guard in runCommand.postProcessNode that pre-resolves
- * inner /refine topology on the shared store before outer forks are created.
- * Each outer fork's memoMap copy inherits inner /refine's resolved id and skips
+ * inner /elect topology on the shared store before outer forks are created.
+ * Each outer fork's memoMap copy inherits inner /elect's resolved id and skips
  * re-execution — producing additive (n+m) not multiplicative (n×m) fork cost.
  */
 import {runCommand} from '../../commands/utils/runCommand'
@@ -41,30 +41,30 @@ const buildNestedTree = () =>
         id: 'outerParent',
         parent: 'root',
         command: '/chat outer task',
-        children: ['outerRefine'],
+        children: ['outerElect'],
       },
-      outerRefine: {
-        id: 'outerRefine',
+      outerElect: {
+        id: 'outerElect',
         parent: 'outerParent',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: ['innerParent'],
       },
       innerParent: {
         id: 'innerParent',
-        parent: 'outerRefine',
+        parent: 'outerElect',
         command: '/chat inner task',
-        children: ['innerRefine'],
+        children: ['innerElect'],
       },
-      innerRefine: {
-        id: 'innerRefine',
+      innerElect: {
+        id: 'innerElect',
         parent: 'innerParent',
-        command: '/refine :n=3',
+        command: '/elect :n=3',
         children: [],
       },
     },
   })
 
-describe('nested /refine — memoization guard enforces additive not multiplicative fork cost', () => {
+describe('nested /elect — memoization guard enforces additive not multiplicative fork cost', () => {
   let chatRunSpy
 
   beforeEach(() => {
@@ -75,7 +75,7 @@ describe('nested /refine — memoization guard enforces additive not multiplicat
     chatRunSpy.mockRestore()
   })
 
-  it('memoization guard: /refine :n=2 wrapping /refine :n=3 costs 1+3+2=6 leaf calls, not 2×(3+1)=8 or 2×3=6 multiplicative', async () => {
+  it('memoization guard: /elect :n=2 wrapping /elect :n=3 costs 1+3+2=6 leaf calls, not 2×(3+1)=8 or 2×3=6 multiplicative', async () => {
     const store = buildNestedTree()
 
     await runCommand(

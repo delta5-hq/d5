@@ -64,8 +64,8 @@ describe('readCommodityN', () => {
 
   describe('non-commodity cell prefixes always return 1 regardless of :n= value', () => {
     it.each([
-      '/refine :n=3',
-      `/refine :n=${COMMODITY_N_MAX}`,
+      '/elect :n=3',
+      `/elect :n=${COMMODITY_N_MAX}`,
       '/validate :n=2 criterion',
       `/validate :n=${COMMODITY_N_MAX} criterion`,
       '/foreach :n=3 items',

@@ -68,7 +68,7 @@ describe('ValidateCommand — post-processed summary target', () => {
     expect(userMessage).not.toContain('RAW CHAT OUTPUT')
   })
 
-  it('validate under /refine (inside a fork) reads content from the chat grandparent when refine has no prompts yet', async () => {
+  it('validate under /elect (inside a fork) reads content from the chat grandparent when elect has no prompts yet', async () => {
     const invoke = jest.fn().mockResolvedValue({content: 'YES'})
     getLLM.mockReturnValue({llm: {invoke}})
 
@@ -76,7 +76,7 @@ describe('ValidateCommand — post-processed summary target', () => {
       chat: {
         id: 'chat',
         command: '/chat write something',
-        children: ['chat-output', 'refine'],
+        children: ['chat-output', 'elect'],
         prompts: ['chat-output'],
       },
       'chat-output': {
@@ -85,16 +85,16 @@ describe('ValidateCommand — post-processed summary target', () => {
         title: 'The winning candidate answer',
         children: [],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'chat',
-        command: '/refine :n=3',
+        command: '/elect :n=3',
         children: ['validate'],
         prompts: [],
       },
       validate: {
         id: 'validate',
-        parent: 'refine',
+        parent: 'elect',
         command: '/validate must be compelling',
         children: [],
       },
@@ -107,7 +107,7 @@ describe('ValidateCommand — post-processed summary target', () => {
     expect(userMessage).toContain('The winning candidate answer')
   })
 
-  it("validate under /refine reads refine's own prompts when they exist (winner already applied)", async () => {
+  it("validate under /elect reads elect's own prompts when they exist (winner already applied)", async () => {
     const invoke = jest.fn().mockResolvedValue({content: 'YES'})
     getLLM.mockReturnValue({llm: {invoke}})
 
@@ -115,7 +115,7 @@ describe('ValidateCommand — post-processed summary target', () => {
       chat: {
         id: 'chat',
         command: '/chat write something',
-        children: ['chat-output', 'refine'],
+        children: ['chat-output', 'elect'],
         prompts: ['chat-output'],
       },
       'chat-output': {
@@ -124,22 +124,22 @@ describe('ValidateCommand — post-processed summary target', () => {
         title: 'STALE CHAT OUTPUT — should not appear',
         children: [],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'chat',
-        command: '/refine :n=3',
+        command: '/elect :n=3',
         children: ['validate', 'winner-copy'],
         prompts: ['winner-copy'],
       },
       'winner-copy': {
         id: 'winner-copy',
-        parent: 'refine',
-        title: 'WINNER OUTPUT — the refined answer',
+        parent: 'elect',
+        title: 'WINNER OUTPUT — the electd answer',
         children: [],
       },
       validate: {
         id: 'validate',
-        parent: 'refine',
+        parent: 'elect',
         command: '/validate must be compelling',
         children: [],
       },
@@ -149,7 +149,7 @@ describe('ValidateCommand — post-processed summary target', () => {
 
     expect(result.passed).toBe(true)
     const userMessage = invoke.mock.calls[0][0][1].content
-    expect(userMessage).toContain('WINNER OUTPUT — the refined answer')
+    expect(userMessage).toContain('WINNER OUTPUT — the electd answer')
     expect(userMessage).not.toContain('STALE CHAT OUTPUT')
   })
 

@@ -577,7 +577,7 @@ describe('ExecutorController', () => {
   //   expect(responseBody.queryType).toBe(body.queryType)
   // })
 
-  // it('should execute /refine', async () => {
+  // it('should execute /elect', async () => {
   //   const root = {
   //     id: 'r7N6TRJttHd',
   //     x: 0,
@@ -603,13 +603,13 @@ describe('ExecutorController', () => {
   //   const body = {
   //     cell: {
   //       id: 'LQffD2r83pf',
-  //       title: '/refine Write a better story',
+  //       title: '/elect Write a better story',
   //       color: '@salmon-light',
   //       scale: 0.6666666666666666,
   //       width: 280.8,
   //       height: 405.59999999999997,
   //       autoshrink: false,
-  //       command: '/refine Write a better story',
+  //       command: '/elect Write a better story',
   //       prompts: [],
   //       tags: [],
   //       parent: 'r7N6TRJttHd',
@@ -617,19 +617,19 @@ describe('ExecutorController', () => {
   //       y: 140.39999999999998,
   //       children: [],
   //     },
-  //     queryType: 'refine',
+  //     queryType: 'elect',
   //     workflowNodes: {
   //       r7N6TRJttHd: root,
   //       tjbT7M4n2nD: workflowMaterials,
   //       LQffD2r83pf: {
   //         id: 'LQffD2r83pf',
-  //         title: '/refine Write a better story',
+  //         title: '/elect Write a better story',
   //         color: '@salmon-light',
   //         scale: 0.6666666666666666,
   //         width: 280.8,
   //         height: 405.59999999999997,
   //         autoshrink: false,
-  //         command: '/refine Write a better story',
+  //         command: '/elect Write a better story',
   //         prompts: [],
   //         tags: [],
   //         parent: 'r7N6TRJttHd',
@@ -651,13 +651,13 @@ describe('ExecutorController', () => {
   //   expect(responseBody.nodesChanged).toEqual([
   //     {
   //       id: 'LQffD2r83pf',
-  //       title: '/refine Write a better story',
+  //       title: '/elect Write a better story',
   //       color: '@salmon-light',
   //       scale: 0.6666666666666666,
   //       width: 280.8,
   //       height: 405.59999999999997,
   //       autoshrink: false,
-  //       command: '/refine Write a better story',
+  //       command: '/elect Write a better story',
   //       prompts: ['g26fG76b39g'],
   //       tags: [],
   //       parent: 'r7N6TRJttHd',
@@ -674,23 +674,23 @@ describe('ExecutorController', () => {
   //   ])
   //   expect(responseBody.cell.children).toEqual(['g26fG76b39g'])
   //   expect(responseBody.workflowNodes).toHaveProperty('g26fG76b39g')
-  //   expect(responseBody.queryType).toBe('refine')
+  //   expect(responseBody.queryType).toBe('elect')
   // })
 
   /*
    * REMOVED in P0.1: "should maintain output structure when executing steps feedback loop"
    *
-   * The deleted test wrapped a /steps cell containing a legacy /refine cell that
-   * iteratively transformed content via the /chatgpt feedback. Legacy /refine was
+   * The deleted test wrapped a /steps cell containing a legacy /elect cell that
+   * iteratively transformed content via the /chatgpt feedback. Legacy /elect was
    * removed in P0.1; the feedback-loop semantics it provided are now expected to
-   * land via /refine :n=N (P0.3-P0.11) and a /chatgpt-based prompt restructure.
+   * land via /elect :n=N (P0.3-P0.11) and a /chatgpt-based prompt restructure.
    *
    * Surviving architectural coverage:
    *   - /steps orchestration mechanics: runCommand.integrations.test.js (StepsCommand block)
    *   - post-processor priority + recursion: runCommand.postprocess.test.js
    *   - alias resolution + dispatch: this file, "alias resolution and queryType dispatch" describe
    *
-   * A new /steps + /chatgpt + /refine :n=N feedback-loop integration test will be
+   * A new /steps + /chatgpt + /elect :n=N feedback-loop integration test will be
    * added under P0.11 acceptance.
    */
 
@@ -832,9 +832,9 @@ describe('ExecutorController', () => {
         expect(MCPCommand.prototype.run).not.toHaveBeenCalled()
       })
 
-      it('should protect /refine from alias override even though top-level /refine is a modifier-root error', async () => {
+      it('should protect /elect from alias override even though top-level /elect is a modifier-root error', async () => {
         loadUserAliases.mockResolvedValueOnce({
-          mcp: [{alias: '/refine', name: 'Malicious Override'}],
+          mcp: [{alias: '/elect', name: 'Malicious Override'}],
           rpc: [],
         })
         generateNodeId.mockReturnValueOnce('childId')
@@ -842,15 +842,15 @@ describe('ExecutorController', () => {
         chainCallSpy.mockReturnValueOnce({text: 'Result'})
 
         const body = {
-          ...createTestWorkflow('test-cell', '/refine'),
-          queryType: 'refine',
+          ...createTestWorkflow('test-cell', '/elect'),
+          queryType: 'elect',
         }
 
         const response = await customerRequest.post(apiEndpoint).send(body)
 
         // Security: malicious alias was NOT invoked (the central protection invariant).
         expect(MCPCommand.prototype.run).not.toHaveBeenCalled()
-        // Behavior: top-level /refine now returns 200 with a visible [✗ !] error
+        // Behavior: top-level /elect now returns 200 with a visible [✗ !] error
         // node instead of a 500 — the alias-protection invariant is the security claim
         // being tested here; the response shape is an observable consequence.
         expect(response.status).toBe(200)

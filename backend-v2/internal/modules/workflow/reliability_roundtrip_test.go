@@ -12,7 +12,7 @@ func minimalReliabilityMetadata() models.ReliabilityMetadata {
 	return models.ReliabilityMetadata{
 		WinnerForkIndex:     intPtr(0),
 		PerCriterionVerdict: []models.CriterionVerdict{},
-		Mode:                models.RefineModeStrict,
+		Mode:                models.ElectModeStrict,
 		SelectionLayer:      models.SelectionLayerPrimary,
 		NoSignal:            false,
 		Eligible:            1,
@@ -123,7 +123,7 @@ func TestReliabilityMetadata_RequiredFields_RoundTrip(t *testing.T) {
 			name: "winner is fork 0 (zero value must not be omitted)",
 			metadata: models.ReliabilityMetadata{
 				WinnerForkIndex: intPtr(0),
-				Mode:            models.RefineModeStrict,
+				Mode:            models.ElectModeStrict,
 				SelectionLayer:  models.SelectionLayerPrimary,
 				Eligible:        1,
 				Total:           1,
@@ -134,7 +134,7 @@ func TestReliabilityMetadata_RequiredFields_RoundTrip(t *testing.T) {
 			name: "no-signal path with zero eligible and total",
 			metadata: models.ReliabilityMetadata{
 				WinnerForkIndex: intPtr(0),
-				Mode:            models.RefineModeStrict,
+				Mode:            models.ElectModeStrict,
 				SelectionLayer:  models.SelectionLayerPrimary,
 				NoSignal:        true,
 				Eligible:        0,
@@ -147,7 +147,7 @@ func TestReliabilityMetadata_RequiredFields_RoundTrip(t *testing.T) {
 			metadata: models.ReliabilityMetadata{
 				WinnerForkIndex:     intPtr(1),
 				PerCriterionVerdict: []models.CriterionVerdict{},
-				Mode:                models.RefineModeStrict,
+				Mode:                models.ElectModeStrict,
 				SelectionLayer:      models.SelectionLayerPrimary,
 				Eligible:            2,
 				Total:               3,
@@ -170,7 +170,7 @@ func TestReliabilityMetadata_RequiredFields_RoundTrip(t *testing.T) {
 						ForkRankings: []models.ForkRanking{{ForkIndex: 0, Rank: 1}, {ForkIndex: 2, Rank: 2}},
 					},
 				},
-				Mode:           models.RefineModeStrict,
+				Mode:           models.ElectModeStrict,
 				SelectionLayer: models.SelectionLayerPrimary,
 				Eligible:       3,
 				Total:          3,
@@ -181,7 +181,7 @@ func TestReliabilityMetadata_RequiredFields_RoundTrip(t *testing.T) {
 			name: "strict mode with primary selection layer",
 			metadata: models.ReliabilityMetadata{
 				WinnerForkIndex: intPtr(1),
-				Mode:            models.RefineModeStrict,
+				Mode:            models.ElectModeStrict,
 				SelectionLayer:  models.SelectionLayerPrimary,
 				Eligible:        2,
 				Total:           3,
@@ -192,7 +192,7 @@ func TestReliabilityMetadata_RequiredFields_RoundTrip(t *testing.T) {
 			name: "fallback mode with fallback selection layer",
 			metadata: models.ReliabilityMetadata{
 				WinnerForkIndex: intPtr(0),
-				Mode:            models.RefineModeBackFall,
+				Mode:            models.ElectModeBackFall,
 				SelectionLayer:  models.SelectionLayerFallback,
 				Eligible:        0,
 				Total:           2,
@@ -204,7 +204,7 @@ func TestReliabilityMetadata_RequiredFields_RoundTrip(t *testing.T) {
 			metadata: models.ReliabilityMetadata{
 				WinnerForkIndex:     nil,
 				PerCriterionVerdict: []models.CriterionVerdict{},
-				Mode:                models.RefineModeStrict,
+				Mode:                models.ElectModeStrict,
 				SelectionLayer:      models.SelectionLayerNone,
 				AllGateFiltered:     boolPtr(true),
 				Eligible:            0,
@@ -278,7 +278,7 @@ func TestReliabilityMetadata_OptionalFields_OmittedWhenAbsent(t *testing.T) {
 			name: "empty JudgeQualityWarnings slice omitted",
 			metadata: models.ReliabilityMetadata{
 				WinnerForkIndex:      intPtr(0),
-				Mode:                 models.RefineModeStrict,
+				Mode:                 models.ElectModeStrict,
 				SelectionLayer:       models.SelectionLayerPrimary,
 				Eligible:             1,
 				Total:                1,
@@ -291,7 +291,7 @@ func TestReliabilityMetadata_OptionalFields_OmittedWhenAbsent(t *testing.T) {
 			name: "TiebreakUsed nil while others set",
 			metadata: models.ReliabilityMetadata{
 				WinnerForkIndex: intPtr(1),
-				Mode:            models.RefineModeStrict,
+				Mode:            models.ElectModeStrict,
 				SelectionLayer:  models.SelectionLayerPrimary,
 				Eligible:        2,
 				Total:           2,
@@ -580,16 +580,16 @@ func TestJudgeWarningCondition_CanonicalSet(t *testing.T) {
 
 // Enum constant drift silently breaks the frontend verdict drawer.
 func TestReliabilityMetadata_EnumConstants_SerializeToCanonicalStrings(t *testing.T) {
-	t.Run("RefineMode", func(t *testing.T) {
+	t.Run("ElectMode", func(t *testing.T) {
 		tests := []struct {
-			value    models.RefineMode
+			value    models.ElectMode
 			wantJSON string
 		}{
-			{models.RefineModeStrict, `"strict"`},
-			{models.RefineModeBackFall, `"fallback"`},
-			{models.RefineModeCommodity, `"commodity"`},
-			{models.RefineModeInvalid, `"invalid"`},
-			{models.RefineModeSuppressed, `"suppressed"`},
+			{models.ElectModeStrict, `"strict"`},
+			{models.ElectModeBackFall, `"fallback"`},
+			{models.ElectModeCommodity, `"commodity"`},
+			{models.ElectModeInvalid, `"invalid"`},
+			{models.ElectModeSuppressed, `"suppressed"`},
 		}
 		for _, tt := range tests {
 			t.Run(string(tt.value), func(t *testing.T) {
@@ -598,7 +598,7 @@ func TestReliabilityMetadata_EnumConstants_SerializeToCanonicalStrings(t *testin
 					t.Fatalf("marshal failed: %v", err)
 				}
 				if string(got) != tt.wantJSON {
-					t.Errorf("RefineMode %q: want JSON %s, got %s", tt.value, tt.wantJSON, got)
+					t.Errorf("ElectMode %q: want JSON %s, got %s", tt.value, tt.wantJSON, got)
 				}
 			})
 		}
@@ -840,7 +840,7 @@ func TestReliabilityMetadata_JSONFieldNames(t *testing.T) {
 	})
 }
 
-// Nodes that never ran /refine must carry no metadata after round-trip.
+// Nodes that never ran /elect must carry no metadata after round-trip.
 func TestWorkflow_Nodes_ReliabilityMetadata_Isolation(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -851,12 +851,12 @@ func TestWorkflow_Nodes_ReliabilityMetadata_Isolation(t *testing.T) {
 		{
 			name: "single node with metadata",
 			nodes: map[string]models.Node{
-				"refine": {ID: "refine", ReliabilityMetadata: func() *models.ReliabilityMetadata {
+				"elect": {ID: "elect", ReliabilityMetadata: func() *models.ReliabilityMetadata {
 					m := minimalReliabilityMetadata()
 					return &m
 				}()},
 			},
-			wantMeta:    map[string]bool{"refine": true},
+			wantMeta:    map[string]bool{"elect": true},
 			description: "a single node with metadata must keep it after round-trip",
 		},
 		{
@@ -865,34 +865,34 @@ func TestWorkflow_Nodes_ReliabilityMetadata_Isolation(t *testing.T) {
 				"plain": {ID: "plain", Title: "plain node"},
 			},
 			wantMeta:    map[string]bool{"plain": false},
-			description: "a node that never ran /refine must have no metadata",
+			description: "a node that never ran /elect must have no metadata",
 		},
 		{
 			name: "mixed nodes — only annotated node carries metadata",
 			nodes: map[string]models.Node{
-				"plain": {ID: "plain", Title: "no refine"},
-				"refine": {ID: "refine", Title: "has refine", ReliabilityMetadata: func() *models.ReliabilityMetadata {
+				"plain": {ID: "plain", Title: "no elect"},
+				"elect": {ID: "elect", Title: "has elect", ReliabilityMetadata: func() *models.ReliabilityMetadata {
 					m := minimalReliabilityMetadata()
 					return &m
 				}()},
 			},
-			wantMeta:    map[string]bool{"plain": false, "refine": true},
-			description: "plain sibling must not acquire metadata when refine node has it",
+			wantMeta:    map[string]bool{"plain": false, "elect": true},
+			description: "plain sibling must not acquire metadata when elect node has it",
 		},
 		{
 			name: "multiple nodes each with independent metadata",
 			nodes: map[string]models.Node{
-				"refine-a": {ID: "refine-a", ReliabilityMetadata: &models.ReliabilityMetadata{
-					WinnerForkIndex: intPtr(0), Mode: models.RefineModeStrict,
+				"elect-a": {ID: "elect-a", ReliabilityMetadata: &models.ReliabilityMetadata{
+					WinnerForkIndex: intPtr(0), Mode: models.ElectModeStrict,
 					SelectionLayer: models.SelectionLayerPrimary, Eligible: 1, Total: 2,
 				}},
-				"refine-b": {ID: "refine-b", ReliabilityMetadata: &models.ReliabilityMetadata{
-					WinnerForkIndex: intPtr(1), Mode: models.RefineModeBackFall,
+				"elect-b": {ID: "elect-b", ReliabilityMetadata: &models.ReliabilityMetadata{
+					WinnerForkIndex: intPtr(1), Mode: models.ElectModeBackFall,
 					SelectionLayer: models.SelectionLayerFallback, Eligible: 0, Total: 3,
 				}},
 			},
-			wantMeta:    map[string]bool{"refine-a": true, "refine-b": true},
-			description: "multiple /refine nodes must each keep their own independent metadata",
+			wantMeta:    map[string]bool{"elect-a": true, "elect-b": true},
+			description: "multiple /elect nodes must each keep their own independent metadata",
 		},
 	}
 
@@ -919,11 +919,11 @@ func TestWorkflow_Nodes_ReliabilityMetadata_Isolation(t *testing.T) {
 				}
 			}
 			// Verify independent metadata values when multiple nodes have it
-			if a, ok := restored.Nodes["refine-a"]; ok && a.ReliabilityMetadata != nil {
-				if b, ok2 := restored.Nodes["refine-b"]; ok2 && b.ReliabilityMetadata != nil {
+			if a, ok := restored.Nodes["elect-a"]; ok && a.ReliabilityMetadata != nil {
+				if b, ok2 := restored.Nodes["elect-b"]; ok2 && b.ReliabilityMetadata != nil {
 					if winnerForkIndexEqual(a.ReliabilityMetadata.WinnerForkIndex, b.ReliabilityMetadata.WinnerForkIndex) &&
 						a.ReliabilityMetadata.Mode == b.ReliabilityMetadata.Mode {
-						t.Error("independent /refine nodes must not share metadata state")
+						t.Error("independent /elect nodes must not share metadata state")
 					}
 				}
 			}
@@ -948,22 +948,22 @@ func winnerForkIndexEqual(a, b *int) bool {
 func TestReliabilityMetadata_WinnerForkIndex_NullPath(t *testing.T) {
 	tests := []struct {
 		name        string
-		mode        models.RefineMode
+		mode        models.ElectMode
 		description string
 	}{
 		{
 			name:        "commodity mode nil winner",
-			mode:        models.RefineModeCommodity,
+			mode:        models.ElectModeCommodity,
 			description: "commodity mode: no winner fork is selected; WinnerForkIndex must be null in JSON",
 		},
 		{
 			name:        "fallback mode nil winner (no eligible fork promoted)",
-			mode:        models.RefineModeBackFall,
+			mode:        models.ElectModeBackFall,
 			description: "fallback mode with nil winner: no fork met criteria and fallback found nothing to promote",
 		},
 		{
 			name:        "strict mode nil winner (all forks below threshold)",
-			mode:        models.RefineModeStrict,
+			mode:        models.ElectModeStrict,
 			description: "strict mode with nil winner: all forks failed the quality threshold; no winner promoted",
 		},
 	}
@@ -1021,7 +1021,7 @@ func TestReliabilityMetadata_InvalidMode_RoundTrip(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := models.ReliabilityMetadata{
 				WinnerForkIndex:     nil,
-				Mode:                models.RefineModeInvalid,
+				Mode:                models.ElectModeInvalid,
 				SelectionLayer:      models.SelectionLayerPrimary,
 				PerCriterionVerdict: []models.CriterionVerdict{},
 				Eligible:            0,
@@ -1044,8 +1044,8 @@ func TestReliabilityMetadata_InvalidMode_RoundTrip(t *testing.T) {
 			if rm == nil {
 				t.Fatalf("%s: reliabilityMetadata must be non-nil after round-trip", tt.description)
 			}
-			if rm.Mode != models.RefineModeInvalid {
-				t.Errorf("%s: Mode mismatch: want %q, got %q", tt.description, models.RefineModeInvalid, rm.Mode)
+			if rm.Mode != models.ElectModeInvalid {
+				t.Errorf("%s: Mode mismatch: want %q, got %q", tt.description, models.ElectModeInvalid, rm.Mode)
 			}
 			if rm.FailureCause != tt.failureCause {
 				t.Errorf("%s: FailureCause mismatch: want %q, got %q", tt.description, tt.failureCause, rm.FailureCause)
@@ -1213,7 +1213,7 @@ func TestReliabilityMetadata_CommodityMode_RoundTrip(t *testing.T) {
 	m := models.ReliabilityMetadata{
 		WinnerForkIndex:     nil,
 		PerCriterionVerdict: []models.CriterionVerdict{},
-		Mode:                models.RefineModeCommodity,
+		Mode:                models.ElectModeCommodity,
 		SelectionLayer:      models.SelectionLayerPrimary,
 		NoSignal:            false,
 		Eligible:            3,
@@ -1227,8 +1227,8 @@ func TestReliabilityMetadata_CommodityMode_RoundTrip(t *testing.T) {
 	if rm == nil {
 		t.Fatal("reliabilityMetadata must be non-nil after round-trip")
 	}
-	if rm.Mode != models.RefineModeCommodity {
-		t.Errorf("Mode want %q, got %q", models.RefineModeCommodity, rm.Mode)
+	if rm.Mode != models.ElectModeCommodity {
+		t.Errorf("Mode want %q, got %q", models.ElectModeCommodity, rm.Mode)
 	}
 	if rm.WinnerForkIndex != nil {
 		t.Errorf("WinnerForkIndex must be nil, got %d", *rm.WinnerForkIndex)
@@ -1282,7 +1282,7 @@ func TestReliabilityMetadata_CommodityMode_PartialSuccess_RoundTrip(t *testing.T
 			m := models.ReliabilityMetadata{
 				WinnerForkIndex:      nil,
 				PerCriterionVerdict:  []models.CriterionVerdict{},
-				Mode:                 models.RefineModeCommodity,
+				Mode:                 models.ElectModeCommodity,
 				SelectionLayer:       models.SelectionLayerPrimary,
 				Eligible:             tt.eligible,
 				Total:                tt.total,
@@ -1618,7 +1618,7 @@ func TestDiscardedFork_OptionalFields_PreservedWhenSet(t *testing.T) {
 	}
 }
 
-// All three enum types (ForkStatus, RefineMode, SelectionLayer) share the same invariant — constant rename silently breaks the verdict drawer.
+// All three enum types (ForkStatus, ElectMode, SelectionLayer) share the same invariant — constant rename silently breaks the verdict drawer.
 func TestDiscardedFork_EnumConstants_SerializeToCanonicalStrings(t *testing.T) {
 	tests := []struct {
 		value    models.ForkStatus

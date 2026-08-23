@@ -1,10 +1,10 @@
 import debug from 'debug'
-import {resolveRefineCell} from '../reliability/core/resolveRefineCell'
+import {resolveElectCell} from '../reliability/core/resolveElectCell'
 import {runWithErrorNode} from './shared/runWithErrorNode'
 
-const log = debug('delta5:app:Command:Refine')
+const log = debug('delta5:app:Command:Elect')
 
-export class RefineCommand {
+export class ElectCommand {
   constructor(userId, workflowId, store) {
     this.userId = userId
     this.workflowId = workflowId
@@ -14,7 +14,7 @@ export class RefineCommand {
 
   async run(node, options = {}) {
     return runWithErrorNode(this.store, node, this.logError.bind(this), async () => {
-      await resolveRefineCell(node, this.store, options.memoMap ?? new Map(), options.signal ?? null)
+      await resolveElectCell(node, this.store, options.memoMap ?? new Map(), options.signal ?? null)
     })
   }
 }

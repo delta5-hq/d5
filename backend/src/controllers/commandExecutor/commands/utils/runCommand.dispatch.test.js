@@ -25,7 +25,7 @@ import {ClaudeService} from '../../../integrations/claude/ClaudeService'
 import {DOWNLOAD_QUERY_TYPE} from '../../constants/download'
 import {scrapeFiles} from '../../../utils/scrape'
 import WorkflowFile from '../../../../models/WorkflowFile'
-import {REFINE_QUERY_TYPE} from '../../constants/refine'
+import {ELECT_QUERY_TYPE} from '../../constants/elect'
 import {LLMChain} from '@langchain/classic/chains'
 import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
@@ -779,9 +779,9 @@ describe('internal research MCP slash parameter bridge', () => {
   })
 })
 
-describe('/refine top-level run (P0.488: modifier-root error)', () => {
+describe('/elect top-level run (P0.488: modifier-root error)', () => {
   /*
-   * Top-level /refine (queryType=REFINE_QUERY_TYPE) is intercepted by
+   * Top-level /elect (queryType=ELECT_QUERY_TYPE) is intercepted by
    * the modifierQueryTypes guard in runCommand before reaching CommandFactory.
    * It resolves (no throw) and writes a [✗ invalid] suffix + error child node,
    * giving the user a visible attribution instead of an opaque 500.
@@ -791,32 +791,32 @@ describe('/refine top-level run (P0.488: modifier-root error)', () => {
   })
 
   it('writes [✗ invalid] suffix and error node without throwing', async () => {
-    const refineNode = {
-      id: 'refineNode',
-      title: '/refine make it more concise',
-      command: '/refine make it more concise',
+    const electNode = {
+      id: 'electNode',
+      title: '/elect make it more concise',
+      command: '/elect make it more concise',
       children: [],
       parent: 'rootNode',
     }
     const rootNode = {
       id: 'rootNode',
       title: 'Workflow',
-      children: [refineNode.id],
+      children: [electNode.id],
     }
     const mockStore = new Store({
       userId,
       workflowId,
-      nodes: {refineNode, rootNode},
+      nodes: {electNode, rootNode},
     })
 
     await runCommand({
-      cell: refineNode,
-      queryType: REFINE_QUERY_TYPE,
+      cell: electNode,
+      queryType: ELECT_QUERY_TYPE,
       store: mockStore,
     })
 
     const outputNodes = mockStore.getOutput().nodes
-    const cellOut = outputNodes.find(n => n.id === 'refineNode')
+    const cellOut = outputNodes.find(n => n.id === 'electNode')
     expect(cellOut?.title).toMatch(/\[✗ !\]/)
     expect(outputNodes.some(n => n.title?.match(/requires a parent cell/i))).toBe(true)
   })
@@ -2707,7 +2707,7 @@ describe('commodity :n=N guard narrowness — native /chat fan-out is unaffected
   })
 })
 
-describe('/refine child-dispatch loop — pre-execute side-effecting child exactly once across N forks', () => {
+describe('/elect child-dispatch loop — pre-execute side-effecting child exactly once across N forks', () => {
   const childMcpAlias = {
     alias: '/child-mcp',
     serverUrl: 'http://localhost:3100/mcp',
@@ -2726,16 +2726,16 @@ describe('/refine child-dispatch loop — pre-execute side-effecting child exact
     outputFormat: 'text',
   }
 
-  const makeRefineStore = ({mcpAliases = [], rpcAliases = [], childCommand = ''} = {}) =>
+  const makeElectStore = ({mcpAliases = [], rpcAliases = [], childCommand = ''} = {}) =>
     new Store({
       userId: 'user1',
       workflowId: 'wf1',
       aliases: {mcp: mcpAliases, rpc: rpcAliases},
       nodes: {
         root: {id: 'root', children: ['parent']},
-        parent: {id: 'parent', parent: 'root', command: '/chat outer', children: ['refine'], prompts: []},
-        refine: {id: 'refine', parent: 'parent', command: '/refine :n=3', children: ['child'], prompts: []},
-        child: {id: 'child', parent: 'refine', command: childCommand, children: [], prompts: []},
+        parent: {id: 'parent', parent: 'root', command: '/chat outer', children: ['elect'], prompts: []},
+        elect: {id: 'elect', parent: 'parent', command: '/elect :n=3', children: ['child'], prompts: []},
+        child: {id: 'child', parent: 'elect', command: childCommand, children: [], prompts: []},
       },
     })
 
@@ -2744,11 +2744,11 @@ describe('/refine child-dispatch loop — pre-execute side-effecting child exact
   })
 
   it('MCP-alias child executes exactly once across N=3 forks', async () => {
-    const store = makeRefineStore({mcpAliases: [childMcpAlias], childCommand: '/child-mcp do external op'})
+    const store = makeElectStore({mcpAliases: [childMcpAlias], childCommand: '/child-mcp do external op'})
     const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
     MCPClientManager.callTool.mockResolvedValue({content: 'result', isError: false})
 
-    await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
 
     expect(MCPClientManager.callTool).toHaveBeenCalledTimes(1)
     chatSpy.mockRestore()
@@ -2756,21 +2756,21 @@ describe('/refine child-dispatch loop — pre-execute side-effecting child exact
 
   it('RPC-alias child executes exactly once across N=3 forks', async () => {
     mockSSHExecute.mockResolvedValue({stdout: 'out', stderr: '', exitCode: 0})
-    const store = makeRefineStore({rpcAliases: [childRpcAlias], childCommand: '/child-rpc run task'})
+    const store = makeElectStore({rpcAliases: [childRpcAlias], childCommand: '/child-rpc run task'})
     const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
 
-    await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
 
     expect(mockSSHExecute).toHaveBeenCalledTimes(1)
     chatSpy.mockRestore()
   })
 
   it('each fork sees the MCP child result — result is inherited via fork store deep clone', async () => {
-    const store = makeRefineStore({mcpAliases: [childMcpAlias], childCommand: '/child-mcp query'})
+    const store = makeElectStore({mcpAliases: [childMcpAlias], childCommand: '/child-mcp query'})
     const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
     MCPClientManager.callTool.mockResolvedValue({content: 'shared result', isError: false})
 
-    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
 
     expect(results).toHaveLength(3)
     expect(MCPClientManager.callTool).toHaveBeenCalledTimes(1)
@@ -2783,11 +2783,11 @@ describe('/refine child-dispatch loop — pre-execute side-effecting child exact
   })
 
   it('non-side-effecting child is not pre-executed — no sentinel in memoMap, no MCP callTool', async () => {
-    const store = makeRefineStore({childCommand: '/chat inner task'})
+    const store = makeElectStore({childCommand: '/chat inner task'})
     const memoMap = new Map()
     const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
 
-    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap})
+    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap})
 
     expect(results).toHaveLength(3)
     expect(memoMap.get('child')).not.toBe(MEMO_SENTINEL_PRE_EXECUTED_CHILD)

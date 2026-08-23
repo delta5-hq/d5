@@ -3,7 +3,7 @@ import {FORK_EVENT} from './ForkStreamEvent'
 export class NullForkProgressEmitter {
   forksStarted() {}
   forkSettled() {}
-  refineComplete() {}
+  electComplete() {}
 }
 
 class SSEForkProgressEmitter {
@@ -11,21 +11,21 @@ class SSEForkProgressEmitter {
     this._progress = progress
   }
 
-  forksStarted(refineNodeId, total) {
+  forksStarted(electNodeId, total) {
     for (let forkIndex = 0; forkIndex < total; forkIndex++) {
       this._progress.emitUpdate({
         type: FORK_EVENT.FORK_STARTED,
-        refineNodeId,
+        electNodeId,
         forkIndex,
         total,
       })
     }
   }
 
-  forkSettled(refineNodeId, result) {
+  forkSettled(electNodeId, result) {
     const payload = {
       type: FORK_EVENT.FORK_SETTLED,
-      refineNodeId,
+      electNodeId,
       forkIndex: result.forkIndex,
       status: result.status,
     }
@@ -35,10 +35,10 @@ class SSEForkProgressEmitter {
     this._progress.emitUpdate(payload)
   }
 
-  refineComplete(refineNodeId, winnerForkIndex, total, telemetry = {}) {
+  electComplete(electNodeId, winnerForkIndex, total, telemetry = {}) {
     const payload = {
-      type: FORK_EVENT.REFINE_COMPLETE,
-      refineNodeId,
+      type: FORK_EVENT.ELECT_COMPLETE,
+      electNodeId,
       winnerForkIndex,
       total,
     }

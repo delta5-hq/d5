@@ -8,7 +8,7 @@ import {extractForkLeafOutputs} from './ForkLeafExtractor'
 import {isSideEffectingDispatch} from './sideEffectingDispatch'
 import {COMMODITY_SUPPRESSION_CAUSE} from './failureSemantics'
 import {MEMO_SENTINEL_PRE_EXECUTED_CHILD} from './memoSentinels'
-import {isPostProcessorOrControlQuery, hasRefineDescendant} from './refineChildPredicates'
+import {isPostProcessorOrControlQuery, hasElectDescendant} from './electChildPredicates'
 
 /**
  * @typedef {import('../../commands/utils/Store').NodeData} NodeData
@@ -30,22 +30,22 @@ import {isPostProcessorOrControlQuery, hasRefineDescendant} from './refineChildP
  * @property {number} [requestedN]
  */
 
-function isSideEffectingParent(refineNode, store) {
-  const parentNode = store.getNode(refineNode.parent)
+function isSideEffectingParent(electNode, store) {
+  const parentNode = store.getNode(electNode.parent)
   if (!parentNode) return false
   const command = getNodeCommand(parentNode)
   const {queryType, mcpAlias, rpcAlias} = resolveCommand(command, store._aliases)
   return isSideEffectingDispatch({queryType, mcpAlias, rpcAlias})
 }
 
-async function preExecuteSideEffectingRefineChildren(refineNode, store, memoMap, signal) {
-  for (const childId of refineNode.children ?? []) {
+async function preExecuteSideEffectingElectChildren(electNode, store, memoMap, signal) {
+  for (const childId of electNode.children ?? []) {
     if (memoMap.has(childId)) continue
     const child = store.getNode(childId)
     if (!child) continue
     const query = getNodeCommand(child)
     if (isPostProcessorOrControlQuery(query)) continue
-    if (hasRefineDescendant(child, store)) continue
+    if (hasElectDescendant(child, store)) continue
     const {queryType, mcpAlias, rpcAlias} = resolveCommand(query, store._aliases)
     if (!queryType || !isSideEffectingDispatch({queryType, mcpAlias, rpcAlias})) continue
     await runCommand({queryType, cell: child, store, mcpAlias, rpcAlias, signal, memoMap}, new NullProgress())
@@ -74,16 +74,16 @@ function buildPreExecFailureResults(effectiveN, err) {
 }
 
 /**
- * Sets `refineNode.id` in `memoMap` as `'in-progress'` BEFORE the forks run.
- * Each fork receives a fork-local memoMap copy so nested /refine cells are
+ * Sets `electNode.id` in `memoMap` as `'in-progress'` BEFORE the forks run.
+ * Each fork receives a fork-local memoMap copy so nested /elect cells are
  * processed independently per fork (preventing cross-fork memoization races),
- * while still containing `refineNode.id` to prevent recursive re-entry into
- * this same /refine from within each fork.
+ * while still containing `electNode.id` to prevent recursive re-entry into
+ * this same /elect from within each fork.
  *
  * Returns one result per executed fork, including failures — the caller decides eligibility.
  *
  * @param {{
- *   refineNode: NodeData,
+ *   electNode: NodeData,
  *   store: Store,
  *   n: number,
  *   memoMap: Map<string, *>,
@@ -92,20 +92,20 @@ function buildPreExecFailureResults(effectiveN, err) {
  * }} params
  * @returns {Promise<ForkResult[]>} one result per executed fork; never throws.
  */
-export const runForks = async ({refineNode, store, n, memoMap, signal = null, onForkSettled = null}) => {
-  const parentNode = store.getNode(refineNode.parent)
+export const runForks = async ({electNode, store, n, memoMap, signal = null, onForkSettled = null}) => {
+  const parentNode = store.getNode(electNode.parent)
   if (!parentNode) {
-    throw new Error(`[SubtreeForkRunner] refineNode '${refineNode.id}' has no parent in store`)
+    throw new Error(`[SubtreeForkRunner] electNode '${electNode.id}' has no parent in store`)
   }
 
-  memoMap.set(refineNode.id, 'in-progress')
+  memoMap.set(electNode.id, 'in-progress')
 
-  const suppressedForSideEffect = n > 1 && isSideEffectingParent(refineNode, store)
+  const suppressedForSideEffect = n > 1 && isSideEffectingParent(electNode, store)
   const effectiveN = suppressedForSideEffect ? 1 : n
 
   if (!suppressedForSideEffect && effectiveN > 1) {
     try {
-      await preExecuteSideEffectingRefineChildren(refineNode, store, memoMap, signal)
+      await preExecuteSideEffectingElectChildren(electNode, store, memoMap, signal)
     } catch (preExecErr) {
       const results = buildPreExecFailureResults(effectiveN, preExecErr)
       results.forEach(r => onForkSettled?.(r))
@@ -190,11 +190,11 @@ export const runForks = async ({refineNode, store, n, memoMap, signal = null, on
 }
 /**
  * Callers use this to emit accurate fork-started counts before runForks resolves.
- * @param {NodeData} refineNode
+ * @param {NodeData} electNode
  * @param {Store} store
  * @param {number} n - Requested fork count
  * @returns {number}
  */
-export function computeEffectiveN(refineNode, store, n) {
-  return n > 1 && isSideEffectingParent(refineNode, store) ? 1 : n
+export function computeEffectiveN(electNode, store, n) {
+  return n > 1 && isSideEffectingParent(electNode, store) ? 1 : n
 }

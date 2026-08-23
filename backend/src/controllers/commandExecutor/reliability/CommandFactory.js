@@ -6,7 +6,7 @@ import {DeepseekCommand} from '../commands/DeepseekCommand'
 import {ForeachCommand} from '../commands/ForeachCommand'
 import {PerplexityCommand} from '../commands/PerplexityCommand'
 import {QwenCommand} from '../commands/QwenCommand'
-import {RefineCommand} from '../commands/RefineCommand'
+import {ElectCommand} from '../commands/ElectCommand'
 import {StepsCommand} from '../commands/StepsCommand'
 import {SummarizeCommand} from '../commands/SummarizeCommand'
 import {ValidateCommand} from '../commands/ValidateCommand'
@@ -22,7 +22,7 @@ import {DEEPSEEK_QUERY_TYPE} from '../constants/deepseek'
 import {FOREACH_QUERY_TYPE} from '../constants/foreach'
 import {PERPLEXITY_QUERY_TYPE} from '../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../constants/qwen'
-import {REFINE_QUERY_TYPE} from '../constants/refine'
+import {ELECT_QUERY_TYPE} from '../constants/elect'
 import {STEPS_QUERY_TYPE} from '../constants/steps'
 import {SUMMARIZE_QUERY_TYPE} from '../constants/summarize'
 import {VALIDATE_QUERY_TYPE} from '../constants/validate'
@@ -62,8 +62,8 @@ class CommandFactory {
         return new CustomLLMChatCommand(userId, workflowId, store)
       case COMPLETION_QUERY_TYPE:
         return new CompletionCommand(userId, workflowId, store, progress)
-      case REFINE_QUERY_TYPE:
-        return new RefineCommand(userId, workflowId, store)
+      case ELECT_QUERY_TYPE:
+        return new ElectCommand(userId, workflowId, store)
       case VALIDATE_QUERY_TYPE:
         return new ValidateCommand(userId, workflowId, store)
       default:
@@ -105,7 +105,7 @@ class CommandFactory {
         case STEPS_QUERY_TYPE:
           return command.run(resolvedCell, options)
 
-        case REFINE_QUERY_TYPE:
+        case ELECT_QUERY_TYPE:
         case VALIDATE_QUERY_TYPE:
           return command.run(resolvedCell)
 

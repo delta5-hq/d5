@@ -1,5 +1,5 @@
 import {getNodeCommand} from '../../commands/utils/isCommand'
-import {isValidRefineCell, readRefineN} from './refineParams'
+import {isValidElectCell, readElectN} from './electParams'
 
 /**
  * @typedef {import('../../commands/utils/Store').NodeData} NodeData
@@ -7,8 +7,8 @@ import {isValidRefineCell, readRefineN} from './refineParams'
  */
 
 /**
- * @typedef {Object} RefineEntry
- * @property {NodeData} refineNode
+ * @typedef {Object} ElectEntry
+ * @property {NodeData} electNode
  * @property {number} depth         - Distance from subtreeRoot (root = 0)
  * @property {number} parallelGroup - Shared by all entries at the same depth;
  *   entries in the same group are safe to evaluate concurrently
@@ -18,10 +18,10 @@ import {isValidRefineCell, readRefineN} from './refineParams'
 /**
  * @param {NodeData} subtreeRoot
  * @param {Store} store
- * @returns {RefineEntry[]} Deepest-first so inner /refine cells resolve before
+ * @returns {ElectEntry[]} Deepest-first so inner /elect cells resolve before
  *   outer ones observe them, keeping fork cost additive rather than multiplicative.
  */
-const RefineTopology = (subtreeRoot, store) => {
+const ElectTopology = (subtreeRoot, store) => {
   const collected = []
   collectDepthFirst(subtreeRoot, store, 0, collected)
 
@@ -40,8 +40,8 @@ const collectDepthFirst = (node, store, depth, collected) => {
   if (!node) return
 
   const command = getNodeCommand(node)
-  if (isValidRefineCell(command)) {
-    collected.push({refineNode: node, depth, n: readRefineN(command)})
+  if (isValidElectCell(command)) {
+    collected.push({electNode: node, depth, n: readElectN(command)})
   }
 
   for (const childId of node.children ?? []) {
@@ -50,8 +50,8 @@ const collectDepthFirst = (node, store, depth, collected) => {
 }
 
 /**
- * @param {Array<{refineNode: NodeData, depth: number, n: number}>} sorted
- * @returns {RefineEntry[]}
+ * @param {Array<{electNode: NodeData, depth: number, n: number}>} sorted
+ * @returns {ElectEntry[]}
  */
 const assignParallelGroups = sorted => {
   const depthToGroup = new Map()
@@ -65,4 +65,4 @@ const assignParallelGroups = sorted => {
   })
 }
 
-export default RefineTopology
+export default ElectTopology

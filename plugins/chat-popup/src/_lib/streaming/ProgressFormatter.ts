@@ -95,7 +95,7 @@ export class ProgressFormatter {
       ExtCommand: "Querying knowledge base...",
       MemorizeCommand: "Storing in memory...",
       DownloadCommand: "Downloading content...",
-      RefineCommand: "Refining output...",
+      ElectCommand: "Refining output...",
       CompletionCommand: "Running completion...",
     }
 
@@ -123,7 +123,7 @@ export class ProgressFormatter {
       ExtCommand: "Query completed",
       MemorizeCommand: "Memorization completed",
       DownloadCommand: "Download completed",
-      RefineCommand: "Refinement completed",
+      ElectCommand: "Refinement completed",
       CompletionCommand: "Completion done",
     }
 

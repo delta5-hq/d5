@@ -2,33 +2,33 @@ import StoreFork from './StoreFork'
 import {runForks, computeEffectiveN} from './SubtreeForkRunner'
 import {ForkJudge} from './ForkJudge'
 import OwnershipResolver from './OwnershipResolver'
-import {readRefineN, readRawRefineN, readFallbackFlag, readJudgeReasoningFlag} from './refineParams'
+import {readElectN, readRawElectN, readFallbackFlag, readJudgeReasoningFlag} from './electParams'
 import {projectForkCost} from './forkCostProjector'
 import {readForkLimit, exceedsForkLimit, forkLimitRefusalMessage} from './forkLimitParser'
-import {appendRefineSuffix, appendInvalidSuffix, stripReliabilitySuffix} from './reliabilitySuffix'
+import {appendElectSuffix, appendInvalidSuffix, stripReliabilitySuffix} from './reliabilitySuffix'
 import {getNodeCommand} from '../../commands/utils/isCommand'
 import {isValidateCell} from './validateParams'
 import {NullForkProgressEmitter} from './ForkProgressEmitter'
 import {buildReliabilityMetadata, buildSuppressedReliabilityMetadata} from './reliabilityMetadataFields'
 import {classifyNoWinner} from './failureSemantics'
-import {copyParentPromptOutputToRefine} from './refineWinnerOutput'
+import {copyParentPromptOutputToElect} from './electWinnerOutput'
 
 /**
  * @typedef {import('../../commands/utils/Store').NodeData} NodeData
  * @typedef {import('../../commands/utils/Store').default} Store
  */
 
-function writeErrorNode(refineNode, store, message) {
-  refineNode.title = appendInvalidSuffix(refineNode.title || '')
-  store.importer.createErrorNode(message, refineNode.id)
-  store.saveNodeToOutput(refineNode.id)
+function writeErrorNode(electNode, store, message) {
+  electNode.title = appendInvalidSuffix(electNode.title || '')
+  store.importer.createErrorNode(message, electNode.id)
+  store.saveNodeToOutput(electNode.id)
 }
 
 function missingNErrorMessage(rawN) {
   if (rawN !== null) {
-    return `Error: /refine :n=${rawN} is a no-op — minimum is :n=2`
+    return `Error: /elect :n=${rawN} is a no-op — minimum is :n=2`
   }
-  return 'Error: /refine requires :n=N (e.g. /refine :n=3)'
+  return 'Error: /elect requires :n=N (e.g. /elect :n=3)'
 }
 
 function flushValidateTitles(validates, sourceForkStore, outerStore) {
@@ -44,79 +44,79 @@ function flushValidateTitles(validates, sourceForkStore, outerStore) {
 }
 
 /**
- * @param {NodeData} refineNode
+ * @param {NodeData} electNode
  * @param {Store} store
  * @param {Map<string,*>} memoMap
  * @param {AbortSignal|null} [signal]
  */
-export async function resolveRefineCell(
-  refineNode,
+export async function resolveElectCell(
+  electNode,
   store,
   memoMap,
   signal = null,
   emitter = new NullForkProgressEmitter(),
 ) {
-  const query = getNodeCommand(refineNode)
-  const n = readRefineN(query)
+  const query = getNodeCommand(electNode)
+  const n = readElectN(query)
 
   if (!n) {
-    writeErrorNode(refineNode, store, missingNErrorMessage(readRawRefineN(query)))
+    writeErrorNode(electNode, store, missingNErrorMessage(readRawElectN(query)))
     return
   }
 
-  const cost = projectForkCost(refineNode, store)
+  const cost = projectForkCost(electNode, store)
   const limit = readForkLimit(query)
   if (exceedsForkLimit(cost, limit)) {
-    writeErrorNode(refineNode, store, forkLimitRefusalMessage(cost, limit))
+    writeErrorNode(electNode, store, forkLimitRefusalMessage(cost, limit))
     return
   }
 
   const fallback = readFallbackFlag(query)
   const judgeReasoningRequested = readJudgeReasoningFlag(query)
-  memoMap.set(refineNode.id, 'in-progress')
+  memoMap.set(electNode.id, 'in-progress')
 
-  const effectiveN = computeEffectiveN(refineNode, store, n)
-  emitter.forksStarted(refineNode.id, effectiveN)
+  const effectiveN = computeEffectiveN(electNode, store, n)
+  emitter.forksStarted(electNode.id, effectiveN)
 
-  const ownerMap = OwnershipResolver(refineNode, store)
-  const ownedValidates = ownerMap.get(refineNode.id) ?? []
+  const ownerMap = OwnershipResolver(electNode, store)
+  const ownedValidates = ownerMap.get(electNode.id) ?? []
 
-  const refineParentNode = store.getNode(refineNode.parent)
-  const siblingValidates = (refineParentNode?.children ?? [])
-    .filter(id => id !== refineNode.id)
+  const electParentNode = store.getNode(electNode.parent)
+  const siblingValidates = (electParentNode?.children ?? [])
+    .filter(id => id !== electNode.id)
     .map(id => store.getNode(id))
     .filter(n => n && isValidateCell(getNodeCommand(n)))
   const allValidates = [...ownedValidates, ...siblingValidates]
 
   const forkResults = await runForks({
-    refineNode,
+    electNode,
     store,
     n,
     memoMap,
     signal,
-    onForkSettled: result => emitter.forkSettled(refineNode.id, result),
+    onForkSettled: result => emitter.forkSettled(electNode.id, result),
   })
 
   const okCount = forkResults.filter(f => f.status === 'ok').length
-  const baseTitle = stripReliabilitySuffix(refineNode.title || '')
+  const baseTitle = stripReliabilitySuffix(electNode.title || '')
 
   const suppressedFork = forkResults.find(f => f.suppressed)
   if (suppressedFork) {
     const singleFork = forkResults[0]
     if (singleFork?.status === 'ok') {
       if (singleFork.forkStore) {
-        StoreFork.applyCandidate(store, singleFork.forkStore, refineNode.id)
-        copyParentPromptOutputToRefine({
+        StoreFork.applyCandidate(store, singleFork.forkStore, electNode.id)
+        copyParentPromptOutputToElect({
           sourceStore: singleFork.forkStore,
           targetStore: store,
-          parentNodeId: refineNode.parent,
-          refineNodeId: refineNode.id,
+          parentNodeId: electNode.parent,
+          electNodeId: electNode.id,
         })
         flushValidateTitles(allValidates, singleFork.forkStore, store)
       }
-      const winnerNode = store.getNode(refineNode.id)
+      const winnerNode = store.getNode(electNode.id)
       if (winnerNode) {
-        winnerNode.title = appendRefineSuffix(baseTitle, {
+        winnerNode.title = appendElectSuffix(baseTitle, {
           eligible: 1,
           total: 1,
           winnerForkIndex: 0,
@@ -125,14 +125,14 @@ export async function resolveRefineCell(
           cause: suppressedFork.cause,
           requestedN: suppressedFork.requestedN,
         })
-        store.saveNodeToOutput(refineNode.id)
+        store.saveNodeToOutput(electNode.id)
       }
-      emitter.refineComplete(refineNode.id, 0, 1)
-      memoMap.set(refineNode.id, singleFork.forkStore ?? null)
+      emitter.electComplete(electNode.id, 0, 1)
+      memoMap.set(electNode.id, singleFork.forkStore ?? null)
     } else {
-      const winnerNode = store.getNode(refineNode.id)
+      const winnerNode = store.getNode(electNode.id)
       if (winnerNode) {
-        winnerNode.title = appendRefineSuffix(baseTitle, {
+        winnerNode.title = appendElectSuffix(baseTitle, {
           eligible: 0,
           total: 1,
           winnerForkIndex: null,
@@ -146,14 +146,14 @@ export async function resolveRefineCell(
           failureCause,
           remediationHint,
         })
-        store.saveNodeToOutput(refineNode.id)
+        store.saveNodeToOutput(electNode.id)
       }
       store.importer.createErrorNode(
-        `/refine :n=${suppressedFork.requestedN ?? n} — the single suppressed run failed`,
-        refineNode.id,
+        `/elect :n=${suppressedFork.requestedN ?? n} — the single suppressed run failed`,
+        electNode.id,
       )
-      emitter.refineComplete(refineNode.id, null, 1)
-      memoMap.set(refineNode.id, null)
+      emitter.electComplete(electNode.id, null, 1)
+      memoMap.set(electNode.id, null)
     }
     return
   }
@@ -162,7 +162,7 @@ export async function resolveRefineCell(
   const verdict = await judge.selectWinner({
     forks: forkResults,
     validateNodes: allValidates,
-    parentNodeId: refineNode.parent,
+    parentNodeId: electNode.parent,
     fallback,
     signal,
     judgeReasoningRequested,
@@ -170,7 +170,7 @@ export async function resolveRefineCell(
 
   if (!verdict || verdict.winnerForkIndex === null) {
     const suffixEligible = verdict?.allGateFiltered ? 0 : okCount
-    refineNode.title = appendRefineSuffix(baseTitle, {
+    electNode.title = appendElectSuffix(baseTitle, {
       eligible: suffixEligible,
       total: effectiveN,
       fallback,
@@ -178,56 +178,53 @@ export async function resolveRefineCell(
       noSignal: verdict?.noSignal ?? false,
     })
     if (verdict) {
-      refineNode.reliabilityMetadata = buildReliabilityMetadata(verdict, forkResults, okCount, n)
+      electNode.reliabilityMetadata = buildReliabilityMetadata(verdict, forkResults, okCount, n)
     }
     store.importer.createErrorNode(
       verdict?.allGateFiltered
-        ? `/refine :n=${effectiveN} — all ${effectiveN} fork(s) produced empty or refusal output; revise the prompt`
-        : `/refine :n=${effectiveN} — all ${effectiveN} fork(s) failed; use :fallback to accept best degraded result`,
-      refineNode.id,
+        ? `/elect :n=${effectiveN} — all ${effectiveN} fork(s) produced empty or refusal output; revise the prompt`
+        : `/elect :n=${effectiveN} — all ${effectiveN} fork(s) failed; use :fallback to accept best degraded result`,
+      electNode.id,
     )
-    store.saveNodeToOutput(refineNode.id)
+    store.saveNodeToOutput(electNode.id)
     const diagnosticFork = forkResults.find(f => f.status === 'criteria-failed' && f.forkStore)
     if (diagnosticFork) {
       flushValidateTitles(allValidates, diagnosticFork.forkStore, store)
     }
-    emitter.refineComplete(refineNode.id, null, effectiveN)
-    memoMap.set(refineNode.id, null)
+    emitter.electComplete(electNode.id, null, effectiveN)
+    memoMap.set(electNode.id, null)
     return
   }
 
   const winnerFork = forkResults.find(f => f.forkIndex === verdict.winnerForkIndex)
   if (!winnerFork?.forkStore) {
-    refineNode.title = appendRefineSuffix(baseTitle, {
+    electNode.title = appendElectSuffix(baseTitle, {
       eligible: okCount,
       total: effectiveN,
       fallback,
       winnerForkIndex: null,
       noSignal: false,
     })
-    store.importer.createErrorNode(
-      `/refine :n=${effectiveN} — winner fork has no store (internal error)`,
-      refineNode.id,
-    )
-    store.saveNodeToOutput(refineNode.id)
-    emitter.refineComplete(refineNode.id, null, effectiveN)
-    memoMap.set(refineNode.id, null)
+    store.importer.createErrorNode(`/elect :n=${effectiveN} — winner fork has no store (internal error)`, electNode.id)
+    store.saveNodeToOutput(electNode.id)
+    emitter.electComplete(electNode.id, null, effectiveN)
+    memoMap.set(electNode.id, null)
     return
   }
-  StoreFork.applyCandidate(store, winnerFork.forkStore, refineNode.id)
-  copyParentPromptOutputToRefine({
+  StoreFork.applyCandidate(store, winnerFork.forkStore, electNode.id)
+  copyParentPromptOutputToElect({
     sourceStore: winnerFork.forkStore,
     targetStore: store,
-    parentNodeId: refineNode.parent,
-    refineNodeId: refineNode.id,
+    parentNodeId: electNode.parent,
+    electNodeId: electNode.id,
   })
 
-  // Sibling validates are outside the refine subtree — applyCandidate does not transfer their titles.
+  // Sibling validates are outside the elect subtree — applyCandidate does not transfer their titles.
   flushValidateTitles(allValidates, winnerFork.forkStore, store)
 
-  const winnerNode = store.getNode(refineNode.id)
+  const winnerNode = store.getNode(electNode.id)
   if (winnerNode) {
-    winnerNode.title = appendRefineSuffix(baseTitle, {
+    winnerNode.title = appendElectSuffix(baseTitle, {
       eligible: okCount,
       total: effectiveN,
       fallback: verdict.selectionLayer === 'fallback',
@@ -236,13 +233,13 @@ export async function resolveRefineCell(
       degradedInput: verdict.judgeInput?.degradedInput ?? false,
     })
     winnerNode.reliabilityMetadata = buildReliabilityMetadata(verdict, forkResults, okCount, n)
-    store.saveNodeToOutput(refineNode.id)
+    store.saveNodeToOutput(electNode.id)
   }
 
-  emitter.refineComplete(refineNode.id, verdict.winnerForkIndex, effectiveN, {
+  emitter.electComplete(electNode.id, verdict.winnerForkIndex, effectiveN, {
     fallbackUsed: verdict.selectionLayer === 'fallback',
     generatorOnlyJudge: verdict.generatorOnlyJudge ?? false,
     judgeReasoningRequested: verdict.judgeReasoningRequested ?? false,
   })
-  memoMap.set(refineNode.id, winnerFork.forkStore)
+  memoMap.set(electNode.id, winnerFork.forkStore)
 }

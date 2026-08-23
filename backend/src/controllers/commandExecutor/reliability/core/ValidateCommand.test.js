@@ -585,23 +585,23 @@ describe('ValidateCommand.run', () => {
   })
 })
 
-describe('refine-local validation content', () => {
-  it("when validate parent is /refine with no prompts, walks up to /refine's parent for content", async () => {
+describe('elect-local validation content', () => {
+  it("when validate parent is /elect with no prompts, walks up to /elect's parent for content", async () => {
     const store = buildStore({
       grandparent: {
         id: 'grandparent',
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'grandparent',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: ['v'],
       },
       v: {
         id: 'v',
-        parent: 'refine',
+        parent: 'elect',
         command: '/validate must include numbers',
         children: [],
       },
@@ -622,12 +622,12 @@ describe('refine-local validation content', () => {
     expect(result.passed).toBe(true)
   })
 
-  it('fails when /refine itself yields no content', async () => {
+  it('fails when /elect itself yields no content', async () => {
     const store = buildStore({
-      refine: {id: 'refine', command: '/refine :n=2', children: ['v']},
+      elect: {id: 'elect', command: '/elect :n=2', children: ['v']},
       v: {
         id: 'v',
-        parent: 'refine',
+        parent: 'elect',
         command: '/validate must include numbers',
         children: [],
       },
@@ -644,24 +644,24 @@ describe('refine-local validation content', () => {
     })
   })
 
-  it('falls through to extractor when /refine has no prompts and grandparent yields empty content', async () => {
+  it('falls through to extractor when /elect has no prompts and grandparent yields empty content', async () => {
     const store = buildStore({
       grandparent: {
         id: 'grandparent',
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
         prompts: [],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'grandparent',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: ['v'],
         prompts: [],
       },
       v: {
         id: 'v',
-        parent: 'refine',
+        parent: 'elect',
         command: '/validate must include numbers',
         children: [],
       },
@@ -681,12 +681,12 @@ describe('refine-local validation content', () => {
     })
   })
 
-  it('when /refine prompts array has a stale id (node absent from store), falls through to grandparent content', async () => {
+  it('when /elect prompts array has a stale id (node absent from store), falls through to grandparent content', async () => {
     const store = buildStore({
       grandparent: {
         id: 'grandparent',
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
         prompts: ['grandparent-output'],
       },
       'grandparent-output': {
@@ -695,16 +695,16 @@ describe('refine-local validation content', () => {
         title: 'grandparent content with numbers: 42',
         children: [],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'grandparent',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: ['v'],
         prompts: ['dangling-id'], // stale: node does not exist in store
       },
       v: {
         id: 'v',
-        parent: 'refine',
+        parent: 'elect',
         command: '/validate must include numbers',
         children: [],
       },
@@ -723,7 +723,7 @@ describe('refine-local validation content', () => {
     expect(result.passed).toBe(true)
   })
 
-  it('normal topology (validate parent is /chat, not /refine) is unaffected', async () => {
+  it('normal topology (validate parent is /chat, not /elect) is unaffected', async () => {
     const store = buildStore({
       chat: {id: 'chat', command: '/chat do task', children: ['v']},
       v: {
@@ -748,12 +748,12 @@ describe('refine-local validation content', () => {
     expect(capturedNode).toBe(store.getNode('chat'))
   })
 
-  it('when validate parent is /refine with materialized prompts, validates the winner prompt node — does not walk up to grandparent', async () => {
+  it('when validate parent is /elect with materialized prompts, validates the winner prompt node — does not walk up to grandparent', async () => {
     const store = buildStore({
       grandparent: {
         id: 'grandparent',
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
         prompts: ['grandparent-output'],
       },
       'grandparent-output': {
@@ -762,22 +762,22 @@ describe('refine-local validation content', () => {
         title: 'grandparent output — must NOT be used',
         children: [],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'grandparent',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: ['v'],
-        prompts: ['refine-winner'],
+        prompts: ['elect-winner'],
       },
-      'refine-winner': {
-        id: 'refine-winner',
-        parent: 'refine',
-        title: 'refine winner content with 42 numbers',
+      'elect-winner': {
+        id: 'elect-winner',
+        parent: 'elect',
+        title: 'elect winner content with 42 numbers',
         children: [],
       },
       v: {
         id: 'v',
-        parent: 'refine',
+        parent: 'elect',
         command: '/validate must include numbers',
         children: [],
       },
@@ -795,17 +795,17 @@ describe('refine-local validation content', () => {
     const result = await cmd.run(store.getNode('v'))
 
     const visitedIds = capturedNodes.map(n => n.id)
-    expect(visitedIds).toContain('refine-winner')
+    expect(visitedIds).toContain('elect-winner')
     expect(visitedIds).not.toContain('grandparent-output')
     expect(result.passed).toBe(true)
   })
 
-  it('when validate parent is /refine with materialized prompts, a failing criterion discriminates against grandparent content', async () => {
+  it('when validate parent is /elect with materialized prompts, a failing criterion discriminates against grandparent content', async () => {
     const store = buildStore({
       grandparent: {
         id: 'grandparent',
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
         prompts: ['grandparent-output'],
       },
       'grandparent-output': {
@@ -814,27 +814,27 @@ describe('refine-local validation content', () => {
         title: 'grandparent content also has numbers: 42',
         children: [],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'grandparent',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: ['v'],
-        prompts: ['refine-winner'],
+        prompts: ['elect-winner'],
       },
-      'refine-winner': {
-        id: 'refine-winner',
-        parent: 'refine',
-        title: 'refine winner output: no digits here',
+      'elect-winner': {
+        id: 'elect-winner',
+        parent: 'elect',
+        title: 'elect winner output: no digits here',
         children: [],
       },
       v: {
         id: 'v',
-        parent: 'refine',
+        parent: 'elect',
         command: '/validate must include numbers',
         children: [],
       },
     })
-    // grandparent content would pass (has "42"), refine's own output would not (no digits)
+    // grandparent content would pass (has "42"), elect's own output would not (no digits)
     // the verdict proves which content the judge received
     setupLLM(['NO: no numbers found'])
     NodeTextExtractor.mockImplementation(() => ({
@@ -848,49 +848,49 @@ describe('refine-local validation content', () => {
   })
 })
 
-describe('nested /refine: /validate checks nearest-enclosing refine winner, not outer refine', () => {
+describe('nested /elect: /validate checks nearest-enclosing elect winner, not outer elect', () => {
   // Structure:
-  //   outerRefine (/refine :n=2)
-  //     └── innerRefine (/refine :n=2)
+  //   outerElect (/elect :n=2)
+  //     └── innerElect (/elect :n=2)
   //           ├── innerWinner  ← the content /validate must check
   //           └── v (/validate)
-  //   outerWinner ← outer refine's winner; must NOT be used by v
+  //   outerWinner ← outer elect's winner; must NOT be used by v
   //
   // Criterion: "must contain INNER" passes for innerWinner, fails for outerWinner.
-  // If the walk-up logic mistakenly escapes to outerRefine's prompts, the test sees outerWinner's
+  // If the walk-up logic mistakenly escapes to outerElect's prompts, the test sees outerWinner's
   // content and the juror response doesn't match — a discriminating failure.
 
-  it('passes on inner-refine winner content and would fail on outer-refine content', async () => {
+  it('passes on inner-elect winner content and would fail on outer-elect content', async () => {
     const store = buildStore({
-      outerRefine: {
-        id: 'outerRefine',
-        command: '/refine :n=2',
-        children: ['innerRefine'],
+      outerElect: {
+        id: 'outerElect',
+        command: '/elect :n=2',
+        children: ['innerElect'],
         prompts: ['outerWinner'],
         parent: null,
       },
       outerWinner: {
         id: 'outerWinner',
-        parent: 'outerRefine',
-        title: 'outer refine winner: OUTER content only',
+        parent: 'outerElect',
+        title: 'outer elect winner: OUTER content only',
         children: [],
       },
-      innerRefine: {
-        id: 'innerRefine',
-        parent: 'outerRefine',
-        command: '/refine :n=2',
+      innerElect: {
+        id: 'innerElect',
+        parent: 'outerElect',
+        command: '/elect :n=2',
         children: ['v'],
         prompts: ['innerWinner'],
       },
       innerWinner: {
         id: 'innerWinner',
-        parent: 'innerRefine',
-        title: 'inner refine winner: INNER content',
+        parent: 'innerElect',
+        title: 'inner elect winner: INNER content',
         children: [],
       },
       v: {
         id: 'v',
-        parent: 'innerRefine',
+        parent: 'innerElect',
         command: '/validate must contain INNER',
         children: [],
       },
@@ -909,37 +909,37 @@ describe('nested /refine: /validate checks nearest-enclosing refine winner, not 
     expect(result.passed).toBe(true)
   })
 
-  it('fails when inner-refine winner does not satisfy the criterion, even if outer winner would pass', async () => {
+  it('fails when inner-elect winner does not satisfy the criterion, even if outer winner would pass', async () => {
     const store = buildStore({
-      outerRefine: {
-        id: 'outerRefine',
-        command: '/refine :n=2',
-        children: ['innerRefine'],
+      outerElect: {
+        id: 'outerElect',
+        command: '/elect :n=2',
+        children: ['innerElect'],
         prompts: ['outerWinner'],
         parent: null,
       },
       outerWinner: {
         id: 'outerWinner',
-        parent: 'outerRefine',
+        parent: 'outerElect',
         title: 'outer winner has INNER too — must not mislead the validate',
         children: [],
       },
-      innerRefine: {
-        id: 'innerRefine',
-        parent: 'outerRefine',
-        command: '/refine :n=2',
+      innerElect: {
+        id: 'innerElect',
+        parent: 'outerElect',
+        command: '/elect :n=2',
         children: ['v'],
         prompts: ['innerWinner'],
       },
       innerWinner: {
         id: 'innerWinner',
-        parent: 'innerRefine',
+        parent: 'innerElect',
         title: 'inner winner: only OUTER keyword here',
         children: [],
       },
       v: {
         id: 'v',
-        parent: 'innerRefine',
+        parent: 'innerElect',
         command: '/validate must contain INNER',
         children: [],
       },
@@ -955,7 +955,7 @@ describe('nested /refine: /validate checks nearest-enclosing refine winner, not 
 
     // Fails because innerWinner's title does NOT contain "INNER".
     // The outer winner's title does — proving the test would give a false PASS
-    // if the outer refine's content were used. This discriminates the two paths.
+    // if the outer elect's content were used. This discriminates the two paths.
     expect(result.passed).toBe(false)
   })
 })

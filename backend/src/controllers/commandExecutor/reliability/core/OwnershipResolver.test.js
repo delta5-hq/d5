@@ -16,7 +16,7 @@ describe('OwnershipResolver', () => {
       expect(OwnershipResolver(store.getNode('root'), store).size).toBe(0)
     })
 
-    it('returns empty map when tree has only /chat and /refine nodes', () => {
+    it('returns empty map when tree has only /chat and /elect nodes', () => {
       const store = buildStore({
         root: {id: 'root', children: ['chat', 'r']},
         chat: {
@@ -25,7 +25,7 @@ describe('OwnershipResolver', () => {
           command: '/chat do x',
           children: [],
         },
-        r: {id: 'r', parent: 'root', command: '/refine :n=2', children: []},
+        r: {id: 'r', parent: 'root', command: '/elect :n=2', children: []},
       })
       expect(OwnershipResolver(store.getNode('root'), store).size).toBe(0)
     })
@@ -42,8 +42,8 @@ describe('OwnershipResolver', () => {
     })
   })
 
-  describe('/validate with no enclosing /refine ancestor → UNOWNED bucket', () => {
-    it('assigns /validate to UNOWNED when it has no /refine ancestor', () => {
+  describe('/validate with no enclosing /elect ancestor → UNOWNED bucket', () => {
+    it('assigns /validate to UNOWNED when it has no /elect ancestor', () => {
       /*
        * root
        *   ├── chat (/chat)
@@ -85,17 +85,17 @@ describe('OwnershipResolver', () => {
     })
   })
 
-  describe('ownership rule: nearest enclosing /refine ancestor', () => {
-    it('/validate nested directly under /refine parent is owned by that /refine', () => {
+  describe('ownership rule: nearest enclosing /elect ancestor', () => {
+    it('/validate nested directly under /elect parent is owned by that /elect', () => {
       /*
        * parent (/chat)
-       *   ├── r (/refine :n=3)
+       *   ├── r (/elect :n=3)
        *   └── v (/validate criterion)
        *
-       * v's parent chain: v → parent (not /refine) → root (not /refine) → null
+       * v's parent chain: v → parent (not /elect) → root (not /elect) → null
        * → UNOWNED
        *
-       * Note: /refine is a sibling of /validate here, not an ancestor.
+       * Note: /elect is a sibling of /validate here, not an ancestor.
        */
       const store = buildStore({
         root: {id: 'root', children: ['parent']},
@@ -105,7 +105,7 @@ describe('OwnershipResolver', () => {
           command: '/chat',
           children: ['r', 'v'],
         },
-        r: {id: 'r', parent: 'parent', command: '/refine :n=3', children: []},
+        r: {id: 'r', parent: 'parent', command: '/elect :n=3', children: []},
         v: {
           id: 'v',
           parent: 'parent',
@@ -119,48 +119,48 @@ describe('OwnershipResolver', () => {
       expect(map.has('r')).toBe(false)
     })
 
-    it('/validate that IS inside a /refine node (as child of /refine) is owned by that /refine', () => {
+    it('/validate that IS inside a /elect node (as child of /elect) is owned by that /elect', () => {
       /*
-       * refineNode (/refine :n=3)
+       * electNode (/elect :n=3)
        *   └── v (/validate criterion)
        *
-       * v's parent chain: v → refineNode (isValidRefineCell → yes)
-       * → owned by refineNode
+       * v's parent chain: v → electNode (isValidElectCell → yes)
+       * → owned by electNode
        */
       const store = buildStore({
-        root: {id: 'root', children: ['refineNode']},
-        refineNode: {
-          id: 'refineNode',
+        root: {id: 'root', children: ['electNode']},
+        electNode: {
+          id: 'electNode',
           parent: 'root',
-          command: '/refine :n=3',
+          command: '/elect :n=3',
           children: ['v'],
         },
         v: {
           id: 'v',
-          parent: 'refineNode',
+          parent: 'electNode',
           command: '/validate criterion',
           children: [],
         },
       })
       const map = OwnershipResolver(store.getNode('root'), store)
-      expect(map.has('refineNode')).toBe(true)
-      expect(map.get('refineNode').map(n => n.id)).toEqual(['v'])
+      expect(map.has('electNode')).toBe(true)
+      expect(map.get('electNode').map(n => n.id)).toEqual(['v'])
     })
 
-    it('nearest-enclosing rule: inner /refine wins over outer /refine', () => {
+    it('nearest-enclosing rule: inner /elect wins over outer /elect', () => {
       /*
-       * outerR (/refine :n=2)
-       *   └── innerR (/refine :n=3)
+       * outerR (/elect :n=2)
+       *   └── innerR (/elect :n=3)
        *         └── v (/validate)
        *
-       * v's parent chain: v → innerR (isValidRefineCell → yes) → owned by innerR
+       * v's parent chain: v → innerR (isValidElectCell → yes) → owned by innerR
        */
       const store = buildStore({
-        outerR: {id: 'outerR', command: '/refine :n=2', children: ['innerR']},
+        outerR: {id: 'outerR', command: '/elect :n=2', children: ['innerR']},
         innerR: {
           id: 'innerR',
           parent: 'outerR',
-          command: '/refine :n=3',
+          command: '/elect :n=3',
           children: ['v'],
         },
         v: {
@@ -176,25 +176,25 @@ describe('OwnershipResolver', () => {
       expect(map.has('outerR')).toBe(false)
     })
 
-    it('/validate deeper in the subtree: walks up to find nearest /refine', () => {
+    it('/validate deeper in the subtree: walks up to find nearest /elect', () => {
       /*
-       * refineNode (/refine :n=3)
+       * electNode (/elect :n=3)
        *   └── chatChild (/chat)
        *         └── v (/validate criterion)
        *
-       * v's parent chain: v → chatChild → refineNode (yes) → owned by refineNode
+       * v's parent chain: v → chatChild → electNode (yes) → owned by electNode
        */
       const store = buildStore({
-        root: {id: 'root', children: ['refineNode']},
-        refineNode: {
-          id: 'refineNode',
+        root: {id: 'root', children: ['electNode']},
+        electNode: {
+          id: 'electNode',
           parent: 'root',
-          command: '/refine :n=3',
+          command: '/elect :n=3',
           children: ['chatChild'],
         },
         chatChild: {
           id: 'chatChild',
-          parent: 'refineNode',
+          parent: 'electNode',
           command: '/chat',
           children: ['v'],
         },
@@ -206,20 +206,20 @@ describe('OwnershipResolver', () => {
         },
       })
       const map = OwnershipResolver(store.getNode('root'), store)
-      expect(map.has('refineNode')).toBe(true)
-      expect(map.get('refineNode').map(n => n.id)).toEqual(['v'])
+      expect(map.has('electNode')).toBe(true)
+      expect(map.get('electNode').map(n => n.id)).toEqual(['v'])
     })
   })
 
-  describe('acceptance test: 4-validate subtree with one nested /refine', () => {
+  describe('acceptance test: 4-validate subtree with one nested /elect', () => {
     it('produces correct owner map', () => {
       /*
        * root
-       *   ├── outerR (/refine :n=2)
+       *   ├── outerR (/elect :n=2)
        *   │     ├── vA (/validate A)       ← owned by outerR
        *   │     ├── chat (/chat)
-       *   │     │     └── vB (/validate B) ← owned by outerR (no inner /refine)
-       *   │     └── innerR (/refine :n=3)
+       *   │     │     └── vB (/validate B) ← owned by outerR (no inner /elect)
+       *   │     └── innerR (/elect :n=3)
        *   │           └── vC (/validate C) ← owned by innerR (nearest)
        *   └── vD (/validate D)             ← UNOWNED
        */
@@ -228,7 +228,7 @@ describe('OwnershipResolver', () => {
         outerR: {
           id: 'outerR',
           parent: 'root',
-          command: '/refine :n=2',
+          command: '/elect :n=2',
           children: ['vA', 'chat', 'innerR'],
         },
         vA: {
@@ -252,7 +252,7 @@ describe('OwnershipResolver', () => {
         innerR: {
           id: 'innerR',
           parent: 'outerR',
-          command: '/refine :n=3',
+          command: '/elect :n=3',
           children: ['vC'],
         },
         vC: {
@@ -282,14 +282,14 @@ describe('OwnershipResolver', () => {
     })
   })
 
-  describe('each /validate is consumed exactly once (no bubbling to outer /refine)', () => {
-    it('/validate owned by inner /refine is NOT in outer /refine bucket', () => {
+  describe('each /validate is consumed exactly once (no bubbling to outer /elect)', () => {
+    it('/validate owned by inner /elect is NOT in outer /elect bucket', () => {
       const store = buildStore({
-        outerR: {id: 'outerR', command: '/refine :n=2', children: ['innerR']},
+        outerR: {id: 'outerR', command: '/elect :n=2', children: ['innerR']},
         innerR: {
           id: 'innerR',
           parent: 'outerR',
-          command: '/refine :n=3',
+          command: '/elect :n=3',
           children: ['v'],
         },
         v: {id: 'v', parent: 'innerR', command: '/validate', children: []},
@@ -300,35 +300,35 @@ describe('OwnershipResolver', () => {
     })
   })
 
-  describe('multiple /validates owned by the same /refine', () => {
-    it('all are collected under that /refine key', () => {
+  describe('multiple /validates owned by the same /elect', () => {
+    it('all are collected under that /elect key', () => {
       const store = buildStore({
-        refineNode: {
-          id: 'refineNode',
-          command: '/refine :n=2',
+        electNode: {
+          id: 'electNode',
+          command: '/elect :n=2',
           children: ['v1', 'v2', 'v3'],
         },
         v1: {
           id: 'v1',
-          parent: 'refineNode',
+          parent: 'electNode',
           command: '/validate A',
           children: [],
         },
         v2: {
           id: 'v2',
-          parent: 'refineNode',
+          parent: 'electNode',
           command: '/validate B',
           children: [],
         },
         v3: {
           id: 'v3',
-          parent: 'refineNode',
+          parent: 'electNode',
           command: '/validate C',
           children: [],
         },
       })
-      const map = OwnershipResolver(store.getNode('refineNode'), store)
-      expect(map.get('refineNode')).toHaveLength(3)
+      const map = OwnershipResolver(store.getNode('electNode'), store)
+      expect(map.get('electNode')).toHaveLength(3)
     })
   })
 
@@ -366,9 +366,9 @@ describe('OwnershipResolver', () => {
       expect(() => OwnershipResolver(store.getNode('root'), store)).toThrow(/node 'badValidate'/)
     })
 
-    it('throws even when the /validate has a /refine ancestor', () => {
+    it('throws even when the /validate has a /elect ancestor', () => {
       const store = buildStore({
-        r: {id: 'r', command: '/refine :n=2', children: ['v']},
+        r: {id: 'r', command: '/elect :n=2', children: ['v']},
         v: {
           id: 'v',
           parent: 'r',
@@ -396,17 +396,17 @@ describe('OwnershipResolver', () => {
       expect(map.get(UNOWNED).map(n => n.id)).toEqual(['v'])
     })
 
-    it('bare /refine (no :n=) is not a valid /refine ancestor — /validate becomes UNOWNED', () => {
+    it('bare /elect (no :n=) is not a valid /elect ancestor — /validate becomes UNOWNED', () => {
       const store = buildStore({
-        bareRefine: {id: 'bareRefine', command: '/refine', children: ['v']},
+        bareElect: {id: 'bareElect', command: '/elect', children: ['v']},
         v: {
           id: 'v',
-          parent: 'bareRefine',
+          parent: 'bareElect',
           command: '/validate criterion',
           children: [],
         },
       })
-      const map = OwnershipResolver(store.getNode('bareRefine'), store)
+      const map = OwnershipResolver(store.getNode('bareElect'), store)
       expect(map.has(UNOWNED)).toBe(true)
       expect(map.get(UNOWNED).map(n => n.id)).toEqual(['v'])
     })

@@ -46,7 +46,7 @@ const makeValidate = (id, criterion, n = 1) =>
   buildStore({
     [id]: {
       id,
-      parent: 'refine',
+      parent: 'elect',
       command: `/validate :n=${n} ${criterion}`,
       children: [],
     },

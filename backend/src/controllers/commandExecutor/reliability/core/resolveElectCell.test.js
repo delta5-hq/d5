@@ -1,4 +1,4 @@
-import {resolveRefineCell} from './resolveRefineCell'
+import {resolveElectCell} from './resolveElectCell'
 import StoreFork from './StoreFork'
 import {ForkJudge} from './ForkJudge'
 import OwnershipResolver from './OwnershipResolver'
@@ -12,7 +12,7 @@ jest.mock('debug', () => {
 
 jest.mock('./SubtreeForkRunner', () => ({
   runForks: jest.fn(),
-  computeEffectiveN: jest.fn((refineNode, store, n) => n),
+  computeEffectiveN: jest.fn((electNode, store, n) => n),
 }))
 jest.mock('./ForkJudge', () => ({ForkJudge: jest.fn()}))
 jest.mock('./OwnershipResolver', () => jest.fn())
@@ -29,7 +29,7 @@ const buildStore = (nodeMap, opts = {}) =>
     nodes: nodeMap,
   })
 
-const makeStore = (command = '/refine :n=3', opts = {}) => {
+const makeStore = (command = '/elect :n=3', opts = {}) => {
   const store = buildStore(
     {
       p1: {id: 'p1', children: ['r1']},
@@ -54,100 +54,100 @@ beforeEach(() => {
   }))
 })
 
-describe('resolveRefineCell — input guard: :n= absent or invalid', () => {
+describe('resolveElectCell — input guard: :n= absent or invalid', () => {
   it('writes "requires :n=N" error and skips runForks when :n= is absent', async () => {
-    const store = makeStore('/refine')
+    const store = makeStore('/elect')
     const node = store.getNode('r1')
 
-    await resolveRefineCell(node, store, new Map())
+    await resolveElectCell(node, store, new Map())
 
-    expect(store.importer.createErrorNode).toHaveBeenCalledWith(expect.stringContaining('/refine requires :n=N'), 'r1')
+    expect(store.importer.createErrorNode).toHaveBeenCalledWith(expect.stringContaining('/elect requires :n=N'), 'r1')
     expect(mockRunForks).not.toHaveBeenCalled()
   })
 
   it.each([
-    ['/refine :n=1', 1],
-    ['/refine :n=0', 0],
+    ['/elect :n=1', 1],
+    ['/elect :n=0', 0],
   ])('writes "is a no-op" error and skips runForks for %s', async (command, rawN) => {
     const store = makeStore(command)
     const node = store.getNode('r1')
 
-    await resolveRefineCell(node, store, new Map())
+    await resolveElectCell(node, store, new Map())
 
     expect(store.importer.createErrorNode).toHaveBeenCalledWith(
-      expect.stringContaining(`/refine :n=${rawN} is a no-op`),
+      expect.stringContaining(`/elect :n=${rawN} is a no-op`),
       'r1',
     )
     expect(mockRunForks).not.toHaveBeenCalled()
   })
 
   it('marks title with [✗ !] suffix when :n= is absent — failure visible on cell and via error child node', async () => {
-    const store = makeStore('/refine')
+    const store = makeStore('/elect')
     const node = store.getNode('r1')
 
-    await resolveRefineCell(node, store, new Map())
+    await resolveElectCell(node, store, new Map())
 
     expect(node.title).toBe('My Cell [✗ !]')
   })
 
   it('replaces any pre-existing reliability suffix with [✗ !] when :n= is absent', async () => {
-    const store = makeStore('/refine')
+    const store = makeStore('/elect')
     const node = store.getNode('r1')
     node.title = 'My Cell [✓ 2/3]'
 
-    await resolveRefineCell(node, store, new Map())
+    await resolveElectCell(node, store, new Map())
 
     expect(node.title).toBe('My Cell [✗ !]')
   })
 
   it('saves node to output when :n= is absent', async () => {
-    const store = makeStore('/refine')
+    const store = makeStore('/elect')
     const node = store.getNode('r1')
 
-    await resolveRefineCell(node, store, new Map())
+    await resolveElectCell(node, store, new Map())
 
     expect(store.saveNodeToOutput).toHaveBeenCalledWith('r1')
   })
 })
 
-describe('resolveRefineCell — input guard: fork cost exceeds :limit=', () => {
+describe('resolveElectCell — input guard: fork cost exceeds :limit=', () => {
   it('writes error node containing cost and limit values', async () => {
-    const store = makeStore('/refine :n=3 :limit=0')
+    const store = makeStore('/elect :n=3 :limit=0')
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store.importer.createErrorNode).toHaveBeenCalledWith(expect.stringContaining('exceeds limit'), 'r1')
   })
 
   it('skips runForks when cost exceeds limit', async () => {
-    const store = makeStore('/refine :n=3 :limit=0')
+    const store = makeStore('/elect :n=3 :limit=0')
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(mockRunForks).not.toHaveBeenCalled()
   })
 
   it('marks title with [✗ !] suffix when cost exceeds :limit= — failure visible on cell and via error child node', async () => {
-    const store = makeStore('/refine :n=3 :limit=0')
+    const store = makeStore('/elect :n=3 :limit=0')
     const node = store.getNode('r1')
 
-    await resolveRefineCell(node, store, new Map())
+    await resolveElectCell(node, store, new Map())
 
     expect(node.title).toBe('My Cell [✗ !]')
   })
 
   it('replaces any pre-existing reliability suffix with [✗ !] when cost exceeds :limit=', async () => {
-    const store = makeStore('/refine :n=3 :limit=0')
+    const store = makeStore('/elect :n=3 :limit=0')
     const node = store.getNode('r1')
     node.title = 'My Cell [✓ +1]'
 
-    await resolveRefineCell(node, store, new Map())
+    await resolveElectCell(node, store, new Map())
 
     expect(node.title).toBe('My Cell [✗ !]')
   })
 })
 
-describe('resolveRefineCell — memoMap lifecycle', () => {
+describe('resolveElectCell — memoMap lifecycle', () => {
   it('sets memoMap to in-progress before runForks is invoked', async () => {
     const store = makeStore()
     const memoMap = new Map()
@@ -158,7 +158,7 @@ describe('resolveRefineCell — memoMap lifecycle', () => {
       return []
     })
 
-    await resolveRefineCell(store.getNode('r1'), store, memoMap)
+    await resolveElectCell(store.getNode('r1'), store, memoMap)
 
     expect(capturedState).toBe('in-progress')
   })
@@ -169,7 +169,7 @@ describe('resolveRefineCell — memoMap lifecycle', () => {
     const store = makeStore()
     const memoMap = new Map()
 
-    await resolveRefineCell(store.getNode('r1'), store, memoMap)
+    await resolveElectCell(store.getNode('r1'), store, memoMap)
 
     expect(memoMap.get('r1')).toBeNull()
   })
@@ -187,7 +187,7 @@ describe('resolveRefineCell — memoMap lifecycle', () => {
     const store = makeStore()
     const memoMap = new Map()
 
-    await resolveRefineCell(store.getNode('r1'), store, memoMap)
+    await resolveElectCell(store.getNode('r1'), store, memoMap)
 
     expect(memoMap.get('r1')).toBe(winner)
   })
@@ -204,15 +204,15 @@ describe('resolveRefineCell — memoMap lifecycle', () => {
     const store = makeStore()
     const memoMap = new Map()
 
-    await resolveRefineCell(store.getNode('r1'), store, memoMap)
+    await resolveElectCell(store.getNode('r1'), store, memoMap)
 
     expect(memoMap.get('r1')).toBeNull()
   })
 })
 
-describe('resolveRefineCell — runForks invocation parameters', () => {
-  it('passes n, refineNode, store, memoMap, and null signal to runForks', async () => {
-    const store = makeStore('/refine :n=5')
+describe('resolveElectCell — runForks invocation parameters', () => {
+  it('passes n, electNode, store, memoMap, and null signal to runForks', async () => {
+    const store = makeStore('/elect :n=5')
     const node = store.getNode('r1')
     const memoMap = new Map()
     let capturedArgs
@@ -222,11 +222,11 @@ describe('resolveRefineCell — runForks invocation parameters', () => {
       return []
     })
 
-    await resolveRefineCell(node, store, memoMap)
+    await resolveElectCell(node, store, memoMap)
 
     expect(capturedArgs).toMatchObject({
       n: 5,
-      refineNode: node,
+      electNode: node,
       store,
       memoMap,
       signal: null,
@@ -243,15 +243,15 @@ describe('resolveRefineCell — runForks invocation parameters', () => {
       return []
     })
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map(), ac.signal)
+    await resolveElectCell(store.getNode('r1'), store, new Map(), ac.signal)
 
     expect(capturedSignal).toBe(ac.signal)
   })
 })
 
-describe('resolveRefineCell — ForkJudge instantiation and selectWinner parameters', () => {
+describe('resolveElectCell — ForkJudge instantiation and selectWinner parameters', () => {
   it('constructs ForkJudge with store._userId and store._workflowId', async () => {
-    const store = makeStore('/refine :n=2', {
+    const store = makeStore('/elect :n=2', {
       userId: 'alice',
       workflowId: 'wf99',
     })
@@ -270,13 +270,13 @@ describe('resolveRefineCell — ForkJudge instantiation and selectWinner paramet
       }
     })
 
-    await resolveRefineCell(node, store, new Map())
+    await resolveElectCell(node, store, new Map())
 
     expect(constructorArgs[0]).toBe('alice')
     expect(constructorArgs[1]).toBe('wf99')
   })
 
-  it('passes refineNode.parent as parentNodeId to selectWinner so judge reads the working cell content', async () => {
+  it('passes electNode.parent as parentNodeId to selectWinner so judge reads the working cell content', async () => {
     const store = makeStore()
     const winner = okForkStore()
     mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'ok', forkStore: winner}])
@@ -289,7 +289,7 @@ describe('resolveRefineCell — ForkJudge instantiation and selectWinner paramet
       }),
     }))
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(capturedParentNodeId).toBe('p1')
   })
@@ -309,7 +309,7 @@ describe('resolveRefineCell — ForkJudge instantiation and selectWinner paramet
       }),
     }))
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map(), ac.signal)
+    await resolveElectCell(store.getNode('r1'), store, new Map(), ac.signal)
 
     expect(capturedSignal).toBe(ac.signal)
   })
@@ -334,12 +334,12 @@ describe('resolveRefineCell — ForkJudge instantiation and selectWinner paramet
     }))
 
     const store = makeStore()
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(capturedValidateNodes).toEqual([validateNode])
   })
 
-  it('passes empty array to selectWinner when refine owns no validates', async () => {
+  it('passes empty array to selectWinner when elect owns no validates', async () => {
     MockOwnershipResolver.mockReturnValue(new Map())
 
     const winner = okForkStore()
@@ -354,13 +354,13 @@ describe('resolveRefineCell — ForkJudge instantiation and selectWinner paramet
     }))
 
     const store = makeStore()
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(capturedValidateNodes).toEqual([])
   })
 })
 
-describe('resolveRefineCell — all forks fail (strict mode)', () => {
+describe('resolveElectCell — all forks fail (strict mode)', () => {
   const allFailForks = n =>
     Array.from({length: n}, (_, i) => ({
       forkIndex: i,
@@ -375,10 +375,10 @@ describe('resolveRefineCell — all forks fail (strict mode)', () => {
     }))
   })
 
-  it('writes error node to the refine cell', async () => {
+  it('writes error node to the elect cell', async () => {
     const store = makeStore()
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store.importer.createErrorNode).toHaveBeenCalledWith(expect.stringContaining('all 3 fork(s) failed'), 'r1')
   })
@@ -386,7 +386,7 @@ describe('resolveRefineCell — all forks fail (strict mode)', () => {
   it('saves node to output after writing error', async () => {
     const store = makeStore()
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store.saveNodeToOutput).toHaveBeenCalledWith('r1')
   })
@@ -394,15 +394,15 @@ describe('resolveRefineCell — all forks fail (strict mode)', () => {
   it('does not call StoreFork.applyCandidate', async () => {
     const store = makeStore()
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(StoreFork.applyCandidate).not.toHaveBeenCalled()
   })
 
   it('suffix shows [✗ 0/N] when all forks fail at runtime', async () => {
-    const store = makeStore('/refine :n=3')
+    const store = makeStore('/elect :n=3')
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.r1.title).toBe('My Cell [✗ 0/3]')
   })
@@ -417,7 +417,7 @@ describe('resolveRefineCell — all forks fail (strict mode)', () => {
     const store = makeStore()
     const memoMap = new Map()
 
-    await resolveRefineCell(store.getNode('r1'), store, memoMap)
+    await resolveElectCell(store.getNode('r1'), store, memoMap)
 
     expect(store.importer.createErrorNode).toHaveBeenCalled()
     expect(memoMap.get('r1')).toBeNull()
@@ -427,13 +427,13 @@ describe('resolveRefineCell — all forks fail (strict mode)', () => {
   it('reliabilityMetadata is not written when no winner is selected (null verdict from judge)', async () => {
     const store = makeStore()
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.r1.reliabilityMetadata).toBeUndefined()
   })
 })
 
-describe('resolveRefineCell — all forks gate-filtered (allGateFiltered)', () => {
+describe('resolveElectCell — all forks gate-filtered (allGateFiltered)', () => {
   const okForks = n =>
     Array.from({length: n}, (_, i) => ({
       forkIndex: i,
@@ -463,17 +463,17 @@ describe('resolveRefineCell — all forks gate-filtered (allGateFiltered)', () =
 
   it.each([2, 3, 5])('suffix shows [✗ 0/%i] when all fork content fails the structural gate', async n => {
     mockRunForks.mockResolvedValue(okForks(n))
-    const store = makeStore(`/refine :n=${n}`)
+    const store = makeStore(`/elect :n=${n}`)
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.r1.title).toBe(`My Cell [✗ 0/${n}]`)
   })
 
   it('reliabilityMetadata is written and carries the allGateFiltered quality warning', async () => {
-    const store = makeStore('/refine :n=3')
+    const store = makeStore('/elect :n=3')
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.r1.reliabilityMetadata).toBeDefined()
     expect(store._nodes.r1.reliabilityMetadata.judgeQualityWarnings).toEqual([
@@ -489,9 +489,9 @@ describe('resolveRefineCell — all forks gate-filtered (allGateFiltered)', () =
   })
 
   it('error node message names empty/refusal output — does not suggest :fallback (inapplicable here)', async () => {
-    const store = makeStore('/refine :n=3')
+    const store = makeStore('/elect :n=3')
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const [msg] = store.importer.createErrorNode.mock.calls[0]
     expect(msg).toContain('empty or refusal output')
@@ -502,9 +502,9 @@ describe('resolveRefineCell — all forks gate-filtered (allGateFiltered)', () =
     'reliabilityMetadata.eligible counts ok-status forks regardless of gate filtering (n=%i)',
     async n => {
       mockRunForks.mockResolvedValue(okForks(n))
-      const store = makeStore(`/refine :n=${n}`)
+      const store = makeStore(`/elect :n=${n}`)
 
-      await resolveRefineCell(store.getNode('r1'), store, new Map())
+      await resolveElectCell(store.getNode('r1'), store, new Map())
 
       expect(store._nodes.r1.reliabilityMetadata.eligible).toBe(n)
       expect(store._nodes.r1.reliabilityMetadata.total).toBe(n)
@@ -512,7 +512,7 @@ describe('resolveRefineCell — all forks gate-filtered (allGateFiltered)', () =
   )
 })
 
-describe('resolveRefineCell — winner selected', () => {
+describe('resolveElectCell — winner selected', () => {
   let winner
 
   beforeEach(() => {
@@ -529,22 +529,22 @@ describe('resolveRefineCell — winner selected', () => {
     }))
   })
 
-  it('calls StoreFork.applyCandidate with winner forkStore and refine cell id', async () => {
+  it('calls StoreFork.applyCandidate with winner forkStore and elect cell id', async () => {
     const store = makeStore()
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(StoreFork.applyCandidate).toHaveBeenCalledWith(store, winner, 'r1')
   })
 
-  it('exposes the selected parent output as refine-owned prompt output', async () => {
+  it('exposes the selected parent output as elect-owned prompt output', async () => {
     const winnerStore = buildStore({
       p1: {
         id: 'p1',
         children: ['r1', 'winner-output'],
         prompts: ['winner-output'],
       },
-      r1: {id: 'r1', parent: 'p1', command: '/refine :n=3', children: []},
+      r1: {id: 'r1', parent: 'p1', command: '/elect :n=3', children: []},
       'winner-output': {
         id: 'winner-output',
         parent: 'p1',
@@ -558,7 +558,7 @@ describe('resolveRefineCell — winner selected', () => {
     ])
     const store = makeStore()
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const copiedPromptIds = store.getNode('r1').prompts
     expect(copiedPromptIds).toHaveLength(1)
@@ -574,7 +574,7 @@ describe('resolveRefineCell — winner selected', () => {
   it('saves node to output after applying winner', async () => {
     const store = makeStore()
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store.saveNodeToOutput).toHaveBeenCalledWith('r1')
   })
@@ -583,7 +583,7 @@ describe('resolveRefineCell — winner selected', () => {
     const store = makeStore()
     store._nodes.r1.title = 'My Cell [✓ 1/2]'
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const title = store._nodes.r1.title
     expect(title).not.toMatch(/\[✓ 1\/2\]/)
@@ -593,7 +593,7 @@ describe('resolveRefineCell — winner selected', () => {
   it('does not write an error node', async () => {
     const store = makeStore()
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store.importer.createErrorNode).not.toHaveBeenCalled()
   })
@@ -623,8 +623,8 @@ describe('resolveRefineCell — winner selected', () => {
       }),
     }))
 
-    const store = makeStore('/refine :n=2')
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    const store = makeStore('/elect :n=2')
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const meta = store._nodes.r1.reliabilityMetadata
     expect(meta).toMatchObject({
@@ -639,7 +639,7 @@ describe('resolveRefineCell — winner selected', () => {
     })
   })
 
-  it('propagates side-effect suppression evidence from fork result into refine metadata', async () => {
+  it('propagates side-effect suppression evidence from fork result into elect metadata', async () => {
     const winner = okForkStore()
     mockRunForks.mockResolvedValue([
       {
@@ -660,8 +660,8 @@ describe('resolveRefineCell — winner selected', () => {
       }),
     }))
 
-    const store = makeStore('/refine :n=3')
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    const store = makeStore('/elect :n=3')
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store.getNode('r1').reliabilityMetadata).toMatchObject({
       suppressed: true,
@@ -672,7 +672,7 @@ describe('resolveRefineCell — winner selected', () => {
     })
   })
 
-  it('suppressed /refine title suffix is [✓ 1/1] — never [✓ 1/N] which implies N−1 forks failed', async () => {
+  it('suppressed /elect title suffix is [✓ 1/1] — never [✓ 1/N] which implies N−1 forks failed', async () => {
     const winner = okForkStore()
     mockRunForks.mockResolvedValue([
       {
@@ -685,18 +685,18 @@ describe('resolveRefineCell — winner selected', () => {
         requestedN: 3,
       },
     ])
-    const store = makeStore('/refine :n=3')
+    const store = makeStore('/elect :n=3')
     store._nodes.r1.title = 'My Task'
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
     expect(store.getNode('r1').title).toMatch(/\[✓ 1\/1\]/)
     expect(store.getNode('r1').title).not.toMatch(/\[✓ 1\/3\]/)
   })
 
-  it('suppressed /refine calls emitter.refineComplete with winnerForkIndex=0 and total=1', async () => {
+  it('suppressed /elect calls emitter.electComplete with winnerForkIndex=0 and total=1', async () => {
     const makeEmitter = () => ({
       forksStarted: jest.fn(),
       forkSettled: jest.fn(),
-      refineComplete: jest.fn(),
+      electComplete: jest.fn(),
     })
     const winner = okForkStore()
     mockRunForks.mockResolvedValue([
@@ -710,13 +710,13 @@ describe('resolveRefineCell — winner selected', () => {
         requestedN: 3,
       },
     ])
-    const store = makeStore('/refine :n=3')
+    const store = makeStore('/elect :n=3')
     const emitter = makeEmitter()
-    await resolveRefineCell(store.getNode('r1'), store, new Map(), null, emitter)
-    expect(emitter.refineComplete).toHaveBeenCalledWith('r1', 0, 1)
+    await resolveElectCell(store.getNode('r1'), store, new Map(), null, emitter)
+    expect(emitter.electComplete).toHaveBeenCalledWith('r1', 0, 1)
   })
 
-  it('suppressed /refine sets memoMap to forkStore so downstream cells resolve against fork output', async () => {
+  it('suppressed /elect sets memoMap to forkStore so downstream cells resolve against fork output', async () => {
     const winner = okForkStore()
     mockRunForks.mockResolvedValue([
       {
@@ -729,14 +729,14 @@ describe('resolveRefineCell — winner selected', () => {
         requestedN: 3,
       },
     ])
-    const store = makeStore('/refine :n=3')
+    const store = makeStore('/elect :n=3')
     const memoMap = new Map()
-    await resolveRefineCell(store.getNode('r1'), store, memoMap)
+    await resolveElectCell(store.getNode('r1'), store, memoMap)
     expect(memoMap.get('r1')).toBe(winner)
   })
 
   it.each([['side-effecting-alias', 'side-effecting-alias', 3]])(
-    'suppression cause %s is forwarded to refine node metadata',
+    'suppression cause %s is forwarded to elect node metadata',
     async (_, cause, requestedN) => {
       const winner = okForkStore()
       mockRunForks.mockResolvedValue([
@@ -750,14 +750,14 @@ describe('resolveRefineCell — winner selected', () => {
           requestedN,
         },
       ])
-      const store = makeStore('/refine :n=3')
-      await resolveRefineCell(store.getNode('r1'), store, new Map())
+      const store = makeStore('/elect :n=3')
+      await resolveElectCell(store.getNode('r1'), store, new Map())
       expect(store.getNode('r1').reliabilityMetadata.cause).toBe(cause)
       expect(store.getNode('r1').reliabilityMetadata.suppressed).toBe(true)
     },
   )
 
-  it('suppressed /refine with forkStore:null — title, metadata, emitter, and memoMap still set; store operations skipped gracefully', async () => {
+  it('suppressed /elect with forkStore:null — title, metadata, emitter, and memoMap still set; store operations skipped gracefully', async () => {
     // forkStore can be null when the fork never materialised (e.g. SubtreeForkRunner
     // collapsed to effectiveN=1 and the fork store was not allocated).
     mockRunForks.mockResolvedValue([
@@ -771,16 +771,16 @@ describe('resolveRefineCell — winner selected', () => {
         requestedN: 2,
       },
     ])
-    const store = makeStore('/refine :n=2')
+    const store = makeStore('/elect :n=2')
     store._nodes.r1.title = 'Bare Task'
     const emitter = {
       forksStarted: jest.fn(),
       forkSettled: jest.fn(),
-      refineComplete: jest.fn(),
+      electComplete: jest.fn(),
     }
     const memoMap = new Map()
 
-    await resolveRefineCell(store.getNode('r1'), store, memoMap, null, emitter)
+    await resolveElectCell(store.getNode('r1'), store, memoMap, null, emitter)
 
     expect(store.getNode('r1').title).toMatch(/\[✓ 1\/1\]/)
     expect(store.getNode('r1').reliabilityMetadata).toMatchObject({
@@ -789,15 +789,15 @@ describe('resolveRefineCell — winner selected', () => {
       total: 1,
       eligible: 1,
     })
-    expect(emitter.refineComplete).toHaveBeenCalledWith('r1', 0, 1)
+    expect(emitter.electComplete).toHaveBeenCalledWith('r1', 0, 1)
     expect(memoMap.get('r1')).toBeNull()
   })
 
-  it('suppressed /refine whose single run fails reports collapsed count and no-winner status', async () => {
+  it('suppressed /elect whose single run fails reports collapsed count and no-winner status', async () => {
     const makeEmitter = () => ({
       forksStarted: jest.fn(),
       forkSettled: jest.fn(),
-      refineComplete: jest.fn(),
+      electComplete: jest.fn(),
     })
     mockRunForks.mockResolvedValue([
       {
@@ -810,13 +810,13 @@ describe('resolveRefineCell — winner selected', () => {
         requestedN: 3,
       },
     ])
-    const store = makeStore('/refine :n=3')
+    const store = makeStore('/elect :n=3')
     const emitter = makeEmitter()
-    await resolveRefineCell(store.getNode('r1'), store, new Map(), null, emitter)
+    await resolveElectCell(store.getNode('r1'), store, new Map(), null, emitter)
 
     expect(store._nodes.r1.title).toMatch(/\[✗ 0\/1\]/)
     expect(store._nodes.r1.title).not.toMatch(/3/)
-    expect(emitter.refineComplete).toHaveBeenCalledWith('r1', null, 1)
+    expect(emitter.electComplete).toHaveBeenCalledWith('r1', null, 1)
     expect(store._nodes.r1.reliabilityMetadata).toMatchObject({
       mode: 'suppressed',
       suppressed: true,
@@ -832,7 +832,7 @@ describe('resolveRefineCell — winner selected', () => {
     const makeEmitter = () => ({
       forksStarted: jest.fn(),
       forkSettled: jest.fn(),
-      refineComplete: jest.fn(),
+      electComplete: jest.fn(),
     })
     mockComputeEffectiveN.mockReturnValueOnce(1)
     mockRunForks.mockResolvedValue([
@@ -846,9 +846,9 @@ describe('resolveRefineCell — winner selected', () => {
         requestedN: 3,
       },
     ])
-    const store = makeStore('/refine :n=3')
+    const store = makeStore('/elect :n=3')
     const emitter = makeEmitter()
-    await resolveRefineCell(store.getNode('r1'), store, new Map(), null, emitter)
+    await resolveElectCell(store.getNode('r1'), store, new Map(), null, emitter)
 
     expect(emitter.forksStarted).toHaveBeenCalledWith('r1', 1)
     expect(emitter.forksStarted).not.toHaveBeenCalledWith('r1', 3)
@@ -878,8 +878,8 @@ describe('resolveRefineCell — winner selected', () => {
         mode: 'strict',
       }),
     }))
-    const store = makeStore('/refine :n=3')
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    const store = makeStore('/elect :n=3')
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.r1.title).toMatch(/\[✓ 1\/3\]/)
   })
@@ -899,8 +899,8 @@ describe('resolveRefineCell — winner selected', () => {
       }),
     }))
 
-    const store = makeStore('/refine :n=2')
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    const store = makeStore('/elect :n=2')
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.r1.reliabilityMetadata[field]).toStrictEqual(expected)
   })
@@ -915,8 +915,8 @@ describe('resolveRefineCell — winner selected', () => {
       }),
     }))
 
-    const store = makeStore('/refine :n=2')
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    const store = makeStore('/elect :n=2')
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.r1.reliabilityMetadata.tiebreakUsed).toBe(true)
   })
@@ -935,15 +935,15 @@ describe('resolveRefineCell — winner selected', () => {
       }),
     }))
 
-    const store = makeStore('/refine :n=3')
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    const store = makeStore('/elect :n=3')
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.r1.reliabilityMetadata.eligible).toBe(2)
     expect(store._nodes.r1.reliabilityMetadata.total).toBe(3)
   })
 })
 
-describe('resolveRefineCell — fallback selection layer', () => {
+describe('resolveElectCell — fallback selection layer', () => {
   let fallbackStore
 
   beforeEach(() => {
@@ -959,17 +959,17 @@ describe('resolveRefineCell — fallback selection layer', () => {
   })
 
   it('applies winner from fallback layer (criteria-failed fork)', async () => {
-    const store = makeStore('/refine :n=2 :fallback')
+    const store = makeStore('/elect :n=2 :fallback')
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(StoreFork.applyCandidate).toHaveBeenCalledWith(store, fallbackStore, 'r1')
   })
 
   it('reliabilityMetadata records fallback selectionLayer and mode', async () => {
-    const store = makeStore('/refine :n=2 :fallback')
+    const store = makeStore('/elect :n=2 :fallback')
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.r1.reliabilityMetadata).toMatchObject({
       selectionLayer: 'fallback',
@@ -981,7 +981,7 @@ describe('resolveRefineCell — fallback selection layer', () => {
   })
 })
 
-describe('resolveRefineCell — validate sibling titles transferred from winner fork', () => {
+describe('resolveElectCell — validate sibling titles transferred from winner fork', () => {
   it('transfers winner fork validate title to main store', async () => {
     const validateNode = {
       id: 'v1',
@@ -998,7 +998,7 @@ describe('resolveRefineCell — validate sibling titles transferred from winner 
           id: 'r1',
           parent: 'p1',
           title: 'My Cell',
-          command: '/refine :n=2',
+          command: '/elect :n=2',
           children: [],
         },
         v1: validateNode,
@@ -1033,7 +1033,7 @@ describe('resolveRefineCell — validate sibling titles transferred from winner 
     }))
     MockOwnershipResolver.mockReturnValue(new Map([['r1', [store.getNode('v1')]]]))
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.v1.title).toBe('/validate criterion [✓]')
     expect(store.saveNodeToOutput).toHaveBeenCalledWith('v1')
@@ -1048,7 +1048,7 @@ describe('resolveRefineCell — validate sibling titles transferred from winner 
           id: 'r1',
           parent: 'p1',
           title: 'My Cell',
-          command: '/refine :n=2',
+          command: '/elect :n=2',
           children: [],
         },
         v1: {
@@ -1082,7 +1082,7 @@ describe('resolveRefineCell — validate sibling titles transferred from winner 
     }))
     MockOwnershipResolver.mockReturnValue(new Map([['r1', [store.getNode('v1')]]]))
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.v1.title).toBe('original title')
     expect(store.saveNodeToOutput).not.toHaveBeenCalledWith('v1')
@@ -1101,15 +1101,15 @@ describe('resolveRefineCell — validate sibling titles transferred from winner 
     }))
     MockOwnershipResolver.mockReturnValue(new Map([['r1', []]]))
 
-    const store = makeStore('/refine :n=2')
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    const store = makeStore('/elect :n=2')
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
-    const nonRefineCallArgs = store.saveNodeToOutput.mock.calls.filter(([id]) => id !== 'r1')
-    expect(nonRefineCallArgs).toHaveLength(0)
+    const nonElectCallArgs = store.saveNodeToOutput.mock.calls.filter(([id]) => id !== 'r1')
+    expect(nonElectCallArgs).toHaveLength(0)
   })
 })
 
-describe('resolveRefineCell — noSignal routing: strict mode emits warning, fallback mode suppresses warning', () => {
+describe('resolveElectCell — noSignal routing: strict mode emits warning, fallback mode suppresses warning', () => {
   it('primary layer — all forks ok but jurors excluded → [⚠ ∅] suffix, metadata noSignal:true', async () => {
     const winner = okForkStore()
     const forks = [
@@ -1126,9 +1126,9 @@ describe('resolveRefineCell — noSignal routing: strict mode emits warning, fal
     MockForkJudge.mockImplementation(() => ({
       selectWinner: makeSelectWinner(verdict),
     }))
-    const store = makeStore('/refine :n=2')
+    const store = makeStore('/elect :n=2')
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.r1.title).toBe('My Cell [⚠ ∅]')
     expect(store._nodes.r1.reliabilityMetadata).toMatchObject({
@@ -1157,9 +1157,9 @@ describe('resolveRefineCell — noSignal routing: strict mode emits warning, fal
     MockForkJudge.mockImplementation(() => ({
       selectWinner: makeSelectWinner(verdict),
     }))
-    const store = makeStore('/refine :n=2')
+    const store = makeStore('/elect :n=2')
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.r1.title).toBe('My Cell [✓ 2/2]')
     expect(store._nodes.r1.reliabilityMetadata).toMatchObject({
@@ -1190,9 +1190,9 @@ describe('resolveRefineCell — noSignal routing: strict mode emits warning, fal
         },
       }),
     }))
-    const store = makeStore('/refine :n=2')
+    const store = makeStore('/elect :n=2')
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.r1.title).toBe('My Cell [✓ 2/2 ⚠]')
     expect(store._nodes.r1.reliabilityMetadata).toMatchObject({
@@ -1215,9 +1215,9 @@ describe('resolveRefineCell — noSignal routing: strict mode emits warning, fal
     MockForkJudge.mockImplementation(() => ({
       selectWinner: makeSelectWinner(verdict),
     }))
-    const store = makeStore('/refine :n=2 :fallback')
+    const store = makeStore('/elect :n=2 :fallback')
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.r1.title).toBe('My Cell [⚠ 0/2]')
     expect(store._nodes.r1.reliabilityMetadata).toMatchObject({
@@ -1246,9 +1246,9 @@ describe('resolveRefineCell — noSignal routing: strict mode emits warning, fal
     MockForkJudge.mockImplementation(() => ({
       selectWinner: makeSelectWinner(verdict),
     }))
-    const store = makeStore('/refine :n=2')
+    const store = makeStore('/elect :n=2')
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.r1.title).toBe('My Cell [⚠ ∅]')
     expect(store._nodes.r1.reliabilityMetadata).toMatchObject({
@@ -1277,9 +1277,9 @@ describe('resolveRefineCell — noSignal routing: strict mode emits warning, fal
     MockForkJudge.mockImplementation(() => ({
       selectWinner: makeSelectWinner(verdict),
     }))
-    const store = makeStore('/refine :n=2 :fallback')
+    const store = makeStore('/elect :n=2 :fallback')
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store._nodes.r1.title).toBe('My Cell [✓ 2/2]')
     expect(store._nodes.r1.reliabilityMetadata).toMatchObject({
@@ -1293,11 +1293,11 @@ describe('resolveRefineCell — noSignal routing: strict mode emits warning, fal
   })
 })
 
-describe('resolveRefineCell — ForkProgressEmitter integration', () => {
+describe('resolveElectCell — ForkProgressEmitter integration', () => {
   const makeEmitter = () => ({
     forksStarted: jest.fn(),
     forkSettled: jest.fn(),
-    refineComplete: jest.fn(),
+    electComplete: jest.fn(),
   })
 
   const twoOkForks = () => [
@@ -1321,27 +1321,27 @@ describe('resolveRefineCell — ForkProgressEmitter integration', () => {
     }))
   })
 
-  it('calls emitter.forksStarted with refineNodeId and n before forks run', async () => {
+  it('calls emitter.forksStarted with electNodeId and n before forks run', async () => {
     mockRunForks.mockResolvedValue(twoOkForks())
-    const store = makeStore('/refine :n=2')
+    const store = makeStore('/elect :n=2')
     const emitter = makeEmitter()
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map(), null, emitter)
+    await resolveElectCell(store.getNode('r1'), store, new Map(), null, emitter)
 
     expect(emitter.forksStarted).toHaveBeenCalledWith('r1', 2)
   })
 
-  it('calls emitter.refineComplete with winner index on success', async () => {
+  it('calls emitter.electComplete with winner index on success', async () => {
     mockRunForks.mockResolvedValue(twoOkForks())
-    const store = makeStore('/refine :n=2')
+    const store = makeStore('/elect :n=2')
     const emitter = makeEmitter()
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map(), null, emitter)
+    await resolveElectCell(store.getNode('r1'), store, new Map(), null, emitter)
 
-    expect(emitter.refineComplete).toHaveBeenCalledWith('r1', 0, 2, expect.any(Object))
+    expect(emitter.electComplete).toHaveBeenCalledWith('r1', 0, 2, expect.any(Object))
   })
 
-  it('calls emitter.refineComplete with null winner when all forks fail in strict mode', async () => {
+  it('calls emitter.electComplete with null winner when all forks fail in strict mode', async () => {
     mockRunForks.mockResolvedValue([
       {
         forkStore: null,
@@ -1374,22 +1374,22 @@ describe('resolveRefineCell — ForkProgressEmitter integration', () => {
         reason: 'err2',
       },
     ])
-    const store2 = makeStore('/refine :n=2')
+    const store2 = makeStore('/elect :n=2')
     const emitter = makeEmitter()
 
-    await resolveRefineCell(store2.getNode('r1'), store2, new Map(), null, emitter)
+    await resolveElectCell(store2.getNode('r1'), store2, new Map(), null, emitter)
 
-    expect(emitter.refineComplete).toHaveBeenCalledWith('r1', null, 2)
+    expect(emitter.electComplete).toHaveBeenCalledWith('r1', null, 2)
   })
 
   it('does not call emitter on guard-rejected cells', async () => {
-    const store = makeStore('/refine')
+    const store = makeStore('/elect')
     const emitter = makeEmitter()
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map(), null, emitter)
+    await resolveElectCell(store.getNode('r1'), store, new Map(), null, emitter)
 
     expect(emitter.forksStarted).not.toHaveBeenCalled()
-    expect(emitter.refineComplete).not.toHaveBeenCalled()
+    expect(emitter.electComplete).not.toHaveBeenCalled()
   })
 
   it('wires onForkSettled to emitter.forkSettled — called once per settled fork', async () => {
@@ -1399,10 +1399,10 @@ describe('resolveRefineCell — ForkProgressEmitter integration', () => {
       onForkSettled?.(forks[1])
       return forks
     })
-    const store = makeStore('/refine :n=2')
+    const store = makeStore('/elect :n=2')
     const emitter = makeEmitter()
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map(), null, emitter)
+    await resolveElectCell(store.getNode('r1'), store, new Map(), null, emitter)
 
     expect(emitter.forkSettled).toHaveBeenCalledTimes(2)
     expect(emitter.forkSettled).toHaveBeenCalledWith('r1', forks[0])
@@ -1410,17 +1410,17 @@ describe('resolveRefineCell — ForkProgressEmitter integration', () => {
   })
 
   it('does not call emitter when fork cost exceeds :limit= guard', async () => {
-    const store = makeStore('/refine :n=3 :limit=0')
+    const store = makeStore('/elect :n=3 :limit=0')
     const emitter = makeEmitter()
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map(), null, emitter)
+    await resolveElectCell(store.getNode('r1'), store, new Map(), null, emitter)
 
     expect(emitter.forksStarted).not.toHaveBeenCalled()
-    expect(emitter.refineComplete).not.toHaveBeenCalled()
+    expect(emitter.electComplete).not.toHaveBeenCalled()
   })
 })
 
-describe('resolveRefineCell — discardedForks in reliabilityMetadata', () => {
+describe('resolveElectCell — discardedForks in reliabilityMetadata', () => {
   beforeEach(() => {
     MockOwnershipResolver.mockReturnValue(new Map([['r1', []]]))
   })
@@ -1446,9 +1446,9 @@ describe('resolveRefineCell — discardedForks in reliabilityMetadata', () => {
         judgeQualityWarnings: [],
       }),
     }))
-    const store = makeStore('/refine :n=2')
+    const store = makeStore('/elect :n=2')
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const node = store.getNode('r1')
     expect(node.reliabilityMetadata.discardedForks).toEqual([{forkIndex: 1, status: 'ok'}])
@@ -1481,9 +1481,9 @@ describe('resolveRefineCell — discardedForks in reliabilityMetadata', () => {
         judgeQualityWarnings: [],
       }),
     }))
-    const store = makeStore('/refine :n=2')
+    const store = makeStore('/elect :n=2')
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const discarded = store.getNode('r1').reliabilityMetadata.discardedForks
     expect(discarded[0]).toMatchObject({
@@ -1509,9 +1509,9 @@ describe('resolveRefineCell — discardedForks in reliabilityMetadata', () => {
         judgeQualityWarnings: [],
       }),
     }))
-    const store = makeStore('/refine :n=2')
+    const store = makeStore('/elect :n=2')
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     expect(store.getNode('r1').reliabilityMetadata.discardedForks).toEqual([])
   })
@@ -1539,9 +1539,9 @@ describe('resolveRefineCell — discardedForks in reliabilityMetadata', () => {
         judgeQualityWarnings: [],
       }),
     }))
-    const store = makeStore('/refine :n=2')
+    const store = makeStore('/elect :n=2')
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const discarded = store.getNode('r1').reliabilityMetadata.discardedForks
     expect(discarded[0]).toMatchObject({
@@ -1573,18 +1573,18 @@ describe('resolveRefineCell — discardedForks in reliabilityMetadata', () => {
         judgeQualityWarnings: [],
       }),
     }))
-    const store = makeStore('/refine :n=3')
+    const store = makeStore('/elect :n=3')
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const discarded = store.getNode('r1').reliabilityMetadata.discardedForks
     expect(discarded.map(f => f.forkIndex)).not.toContain(1)
     expect(discarded).toHaveLength(2)
   })
 
-  describe('resolveRefineCell — null-guard: winner fork has no store', () => {
+  describe('resolveElectCell — null-guard: winner fork has no store', () => {
     it('creates error node and returns early when judge returns index pointing to runtime-failed fork', async () => {
-      const store = makeStore('/refine :n=2')
+      const store = makeStore('/elect :n=2')
       const memoMap = new Map()
       mockRunForks.mockResolvedValue([
         {
@@ -1620,7 +1620,7 @@ describe('resolveRefineCell — discardedForks in reliabilityMetadata', () => {
         }),
       }))
 
-      await resolveRefineCell(store.getNode('r1'), store, memoMap)
+      await resolveElectCell(store.getNode('r1'), store, memoMap)
 
       expect(require('./StoreFork').applyCandidate).not.toHaveBeenCalled()
       expect(store.importer.createErrorNode).toHaveBeenCalledWith(expect.stringContaining('internal error'), 'r1')
@@ -1628,7 +1628,7 @@ describe('resolveRefineCell — discardedForks in reliabilityMetadata', () => {
     })
 
     it('proceeds normally when winner fork has a valid forkStore', async () => {
-      const store = makeStore('/refine :n=2')
+      const store = makeStore('/elect :n=2')
       const memoMap = new Map()
       const winnerStore = okForkStore()
       mockRunForks.mockResolvedValue([
@@ -1658,7 +1658,7 @@ describe('resolveRefineCell — discardedForks in reliabilityMetadata', () => {
         }),
       }))
 
-      await resolveRefineCell(store.getNode('r1'), store, memoMap)
+      await resolveElectCell(store.getNode('r1'), store, memoMap)
 
       expect(require('./StoreFork').applyCandidate).toHaveBeenCalledWith(store, winnerStore, 'r1')
       expect(memoMap.get('r1')).toBe(winnerStore)
@@ -1666,9 +1666,9 @@ describe('resolveRefineCell — discardedForks in reliabilityMetadata', () => {
   })
 })
 
-describe('resolveRefineCell — verdict field propagation to reliabilityMetadata', () => {
+describe('resolveElectCell — verdict field propagation to reliabilityMetadata', () => {
   const makeRunWithVerdict = async verdictOverrides => {
-    const store = makeStore('/refine :n=2')
+    const store = makeStore('/elect :n=2')
     mockRunForks.mockResolvedValue([
       {forkIndex: 0, status: 'ok', forkStore: okForkStore()},
       {forkIndex: 1, status: 'ok', forkStore: okForkStore()},
@@ -1685,7 +1685,7 @@ describe('resolveRefineCell — verdict field propagation to reliabilityMetadata
         ...verdictOverrides,
       }),
     }))
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
     return store.getNode('r1').reliabilityMetadata
   }
 

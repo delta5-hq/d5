@@ -10,7 +10,7 @@ describe('isValidateCell', () => {
   describe('non-/validate commands → false', () => {
     it.each([
       '/chat must include numbers',
-      '/refine :n=3',
+      '/elect :n=3',
       '/summarize',
       '/foreach',
       '/outline',

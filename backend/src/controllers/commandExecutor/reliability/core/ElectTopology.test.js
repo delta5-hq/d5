@@ -1,4 +1,4 @@
-import RefineTopology from './RefineTopology'
+import ElectTopology from './ElectTopology'
 import Store from '../../commands/utils/Store'
 
 jest.mock('debug', () => {
@@ -11,19 +11,19 @@ const buildStore = nodeMap => new Store({userId: 'user1', nodes: nodeMap})
 
 /*
  * All tree shapes use ASCII diagrams in comments. Depth values are relative
- * to the subtreeRoot passed into RefineTopology (depth=0 for root itself).
+ * to the subtreeRoot passed into ElectTopology (depth=0 for root itself).
  */
 
-describe('RefineTopology', () => {
+describe('ElectTopology', () => {
   // Empty / trivial results
 
-  describe('result is empty when no valid /refine cells exist', () => {
+  describe('result is empty when no valid /elect cells exist', () => {
     it('empty tree (no children)', () => {
       const store = buildStore({root: {id: 'root', children: []}})
-      expect(RefineTopology(store.getNode('root'), store)).toEqual([])
+      expect(ElectTopology(store.getNode('root'), store)).toEqual([])
     })
 
-    it('tree with only non-refine commands', () => {
+    it('tree with only non-elect commands', () => {
       const store = buildStore({
         root: {id: 'root', children: ['chat', 'summarize']},
         chat: {
@@ -39,23 +39,23 @@ describe('RefineTopology', () => {
           children: [],
         },
       })
-      expect(RefineTopology(store.getNode('root'), store)).toEqual([])
+      expect(ElectTopology(store.getNode('root'), store)).toEqual([])
     })
 
-    it('bare /refine (no :n=) is excluded — it is a parse-time error', () => {
+    it('bare /elect (no :n=) is excluded — it is a parse-time error', () => {
       const store = buildStore({
         root: {id: 'root', children: ['r']},
-        r: {id: 'r', parent: 'root', command: '/refine', children: []},
+        r: {id: 'r', parent: 'root', command: '/elect', children: []},
       })
-      expect(RefineTopology(store.getNode('root'), store)).toEqual([])
+      expect(ElectTopology(store.getNode('root'), store)).toEqual([])
     })
 
-    it('/refine :n=1 is excluded — N below the minimum of 2', () => {
+    it('/elect :n=1 is excluded — N below the minimum of 2', () => {
       const store = buildStore({
         root: {id: 'root', children: ['r']},
-        r: {id: 'r', parent: 'root', command: '/refine :n=1', children: []},
+        r: {id: 'r', parent: 'root', command: '/elect :n=1', children: []},
       })
-      expect(RefineTopology(store.getNode('root'), store)).toEqual([])
+      expect(ElectTopology(store.getNode('root'), store)).toEqual([])
     })
 
     it('/refinement :n=3 is excluded — word-boundary mismatch', () => {
@@ -68,47 +68,47 @@ describe('RefineTopology', () => {
           children: [],
         },
       })
-      expect(RefineTopology(store.getNode('root'), store)).toEqual([])
+      expect(ElectTopology(store.getNode('root'), store)).toEqual([])
     })
   })
 
   // Entry shape
 
-  describe('RefineEntry shape', () => {
-    it('each entry exposes refineNode, depth, n, and parallelGroup with correct types', () => {
+  describe('ElectEntry shape', () => {
+    it('each entry exposes electNode, depth, n, and parallelGroup with correct types', () => {
       const store = buildStore({
         root: {id: 'root', children: ['r']},
-        r: {id: 'r', parent: 'root', command: '/refine :n=3', children: []},
+        r: {id: 'r', parent: 'root', command: '/elect :n=3', children: []},
       })
 
-      const [entry] = RefineTopology(store.getNode('root'), store)
+      const [entry] = ElectTopology(store.getNode('root'), store)
 
       expect(entry).toMatchObject({
-        refineNode: expect.objectContaining({id: 'r'}),
+        electNode: expect.objectContaining({id: 'r'}),
         depth: expect.any(Number),
         n: expect.any(Number),
         parallelGroup: expect.any(Number),
       })
     })
 
-    it('refineNode is the actual node object from the store', () => {
+    it('electNode is the actual node object from the store', () => {
       const store = buildStore({
         root: {id: 'root', children: ['r']},
-        r: {id: 'r', parent: 'root', command: '/refine :n=2', children: []},
+        r: {id: 'r', parent: 'root', command: '/elect :n=2', children: []},
       })
 
-      const [entry] = RefineTopology(store.getNode('root'), store)
+      const [entry] = ElectTopology(store.getNode('root'), store)
 
-      expect(entry.refineNode).toBe(store.getNode('r'))
+      expect(entry.electNode).toBe(store.getNode('r'))
     })
 
     it('n matches the :n= value parsed from the cell command', () => {
       const store = buildStore({
         root: {id: 'root', children: ['r']},
-        r: {id: 'r', parent: 'root', command: '/refine :n=7', children: []},
+        r: {id: 'r', parent: 'root', command: '/elect :n=7', children: []},
       })
 
-      const [entry] = RefineTopology(store.getNode('root'), store)
+      const [entry] = ElectTopology(store.getNode('root'), store)
       expect(entry.n).toBe(7)
     })
 
@@ -118,13 +118,13 @@ describe('RefineTopology', () => {
         r: {
           id: 'r',
           parent: 'root',
-          command: '/refine :n=4',
+          command: '/elect :n=4',
           title: '/chat something else',
           children: [],
         },
       })
 
-      const result = RefineTopology(store.getNode('root'), store)
+      const result = ElectTopology(store.getNode('root'), store)
       expect(result).toHaveLength(1)
       expect(result[0].n).toBe(4)
     })
@@ -132,10 +132,10 @@ describe('RefineTopology', () => {
     it('falls back to title when command is absent', () => {
       const store = buildStore({
         root: {id: 'root', children: ['r']},
-        r: {id: 'r', parent: 'root', title: '/refine :n=2', children: []},
+        r: {id: 'r', parent: 'root', title: '/elect :n=2', children: []},
       })
 
-      const result = RefineTopology(store.getNode('root'), store)
+      const result = ElectTopology(store.getNode('root'), store)
       expect(result).toHaveLength(1)
       expect(result[0].n).toBe(2)
     })
@@ -146,12 +146,12 @@ describe('RefineTopology', () => {
         r: {
           id: 'r',
           parent: 'root',
-          command: '/refine :n=3 :fallback',
+          command: '/elect :n=3 :fallback',
           children: [],
         },
       })
 
-      const result = RefineTopology(store.getNode('root'), store)
+      const result = ElectTopology(store.getNode('root'), store)
       expect(result).toHaveLength(1)
       expect(result[0].n).toBe(3)
     })
@@ -163,10 +163,10 @@ describe('RefineTopology', () => {
     it('direct child of root has depth=1', () => {
       const store = buildStore({
         root: {id: 'root', children: ['r']},
-        r: {id: 'r', parent: 'root', command: '/refine :n=2', children: []},
+        r: {id: 'r', parent: 'root', command: '/elect :n=2', children: []},
       })
 
-      const [entry] = RefineTopology(store.getNode('root'), store)
+      const [entry] = ElectTopology(store.getNode('root'), store)
       expect(entry.depth).toBe(1)
     })
 
@@ -174,19 +174,19 @@ describe('RefineTopology', () => {
       const store = buildStore({
         root: {id: 'root', children: ['mid']},
         mid: {id: 'mid', parent: 'root', command: '/chat', children: ['r']},
-        r: {id: 'r', parent: 'mid', command: '/refine :n=2', children: []},
+        r: {id: 'r', parent: 'mid', command: '/elect :n=2', children: []},
       })
 
-      const [entry] = RefineTopology(store.getNode('root'), store)
+      const [entry] = ElectTopology(store.getNode('root'), store)
       expect(entry.depth).toBe(2)
     })
 
     it('node passed as subtreeRoot has depth=0', () => {
       const store = buildStore({
-        r: {id: 'r', command: '/refine :n=2', children: []},
+        r: {id: 'r', command: '/elect :n=2', children: []},
       })
 
-      const [entry] = RefineTopology(store.getNode('r'), store)
+      const [entry] = ElectTopology(store.getNode('r'), store)
       expect(entry.depth).toBe(0)
     })
   })
@@ -197,28 +197,28 @@ describe('RefineTopology', () => {
     it('2-level nesting: inner before outer', () => {
       /*
        * root
-       *   └── outer  (/refine :n=2, depth=1)
-       *         └── inner  (/refine :n=3, depth=2)
+       *   └── outer  (/elect :n=2, depth=1)
+       *         └── inner  (/elect :n=3, depth=2)
        */
       const store = buildStore({
         root: {id: 'root', children: ['outer']},
         outer: {
           id: 'outer',
           parent: 'root',
-          command: '/refine :n=2',
+          command: '/elect :n=2',
           children: ['inner'],
         },
         inner: {
           id: 'inner',
           parent: 'outer',
-          command: '/refine :n=3',
+          command: '/elect :n=3',
           children: [],
         },
       })
 
-      const result = RefineTopology(store.getNode('root'), store)
+      const result = ElectTopology(store.getNode('root'), store)
 
-      expect(result.map(e => e.refineNode.id)).toEqual(['inner', 'outer'])
+      expect(result.map(e => e.electNode.id)).toEqual(['inner', 'outer'])
     })
 
     it('3-level nesting: deepest first throughout', () => {
@@ -233,21 +233,21 @@ describe('RefineTopology', () => {
         r1: {
           id: 'r1',
           parent: 'root',
-          command: '/refine :n=2',
+          command: '/elect :n=2',
           children: ['r2'],
         },
         r2: {
           id: 'r2',
           parent: 'r1',
-          command: '/refine :n=3',
+          command: '/elect :n=3',
           children: ['r3'],
         },
-        r3: {id: 'r3', parent: 'r2', command: '/refine :n=4', children: []},
+        r3: {id: 'r3', parent: 'r2', command: '/elect :n=4', children: []},
       })
 
-      const result = RefineTopology(store.getNode('root'), store)
+      const result = ElectTopology(store.getNode('root'), store)
 
-      expect(result.map(e => e.refineNode.id)).toEqual(['r3', 'r2', 'r1'])
+      expect(result.map(e => e.electNode.id)).toEqual(['r3', 'r2', 'r1'])
       expect(result.map(e => e.depth)).toEqual([3, 2, 1])
       expect(result.map(e => e.n)).toEqual([4, 3, 2])
     })
@@ -255,16 +255,16 @@ describe('RefineTopology', () => {
     it('mixed depths across branches: deepest of any branch is first', () => {
       /*
        * root
-       *   ├── left   (/refine :n=2, depth=1)
+       *   ├── left   (/elect :n=2, depth=1)
        *   └── mid    (/chat, depth=1)
-       *         └── deep   (/refine :n=5, depth=2)
+       *         └── deep   (/elect :n=5, depth=2)
        */
       const store = buildStore({
         root: {id: 'root', children: ['left', 'mid']},
         left: {
           id: 'left',
           parent: 'root',
-          command: '/refine :n=2',
+          command: '/elect :n=2',
           children: [],
         },
         mid: {
@@ -276,16 +276,16 @@ describe('RefineTopology', () => {
         deep: {
           id: 'deep',
           parent: 'mid',
-          command: '/refine :n=5',
+          command: '/elect :n=5',
           children: [],
         },
       })
 
-      const result = RefineTopology(store.getNode('root'), store)
+      const result = ElectTopology(store.getNode('root'), store)
 
-      expect(result[0].refineNode.id).toBe('deep')
+      expect(result[0].electNode.id).toBe('deep')
       expect(result[0].depth).toBe(2)
-      expect(result[1].refineNode.id).toBe('left')
+      expect(result[1].electNode.id).toBe('left')
       expect(result[1].depth).toBe(1)
     })
   })
@@ -296,10 +296,10 @@ describe('RefineTopology', () => {
     it('a single entry receives parallelGroup=0', () => {
       const store = buildStore({
         root: {id: 'root', children: ['r']},
-        r: {id: 'r', parent: 'root', command: '/refine :n=2', children: []},
+        r: {id: 'r', parent: 'root', command: '/elect :n=2', children: []},
       })
 
-      const [entry] = RefineTopology(store.getNode('root'), store)
+      const [entry] = ElectTopology(store.getNode('root'), store)
       expect(entry.parallelGroup).toBe(0)
     })
 
@@ -311,11 +311,11 @@ describe('RefineTopology', () => {
        */
       const store = buildStore({
         root: {id: 'root', children: ['rA', 'rB']},
-        rA: {id: 'rA', parent: 'root', command: '/refine :n=2', children: []},
-        rB: {id: 'rB', parent: 'root', command: '/refine :n=3', children: []},
+        rA: {id: 'rA', parent: 'root', command: '/elect :n=2', children: []},
+        rB: {id: 'rB', parent: 'root', command: '/elect :n=3', children: []},
       })
 
-      const result = RefineTopology(store.getNode('root'), store)
+      const result = ElectTopology(store.getNode('root'), store)
 
       expect(result).toHaveLength(2)
       expect(result[0].parallelGroup).toBe(result[1].parallelGroup)
@@ -324,17 +324,17 @@ describe('RefineTopology', () => {
     it('entries at different depths receive different parallelGroups', () => {
       const store = buildStore({
         root: {id: 'root', children: ['r1', 'chat']},
-        r1: {id: 'r1', parent: 'root', command: '/refine :n=2', children: []},
+        r1: {id: 'r1', parent: 'root', command: '/elect :n=2', children: []},
         chat: {
           id: 'chat',
           parent: 'root',
           command: '/chat',
           children: ['r2'],
         },
-        r2: {id: 'r2', parent: 'chat', command: '/refine :n=3', children: []},
+        r2: {id: 'r2', parent: 'chat', command: '/elect :n=3', children: []},
       })
 
-      const result = RefineTopology(store.getNode('root'), store)
+      const result = ElectTopology(store.getNode('root'), store)
 
       expect(result).toHaveLength(2)
       expect(result.find(e => e.depth === 2).parallelGroup).not.toBe(result.find(e => e.depth === 1).parallelGroup)
@@ -344,9 +344,9 @@ describe('RefineTopology', () => {
       /*
        * root
        *   ├── branchA  (/chat)
-       *   │     └── rA  (/refine :n=2, depth=2)
+       *   │     └── rA  (/elect :n=2, depth=2)
        *   └── branchB  (/chat)
-       *         └── rB  (/refine :n=3, depth=2)
+       *         └── rB  (/elect :n=3, depth=2)
        *
        * rA and rB are not siblings (different parents) but share depth=2 →
        * same parallelGroup, safe to run concurrently.
@@ -368,18 +368,18 @@ describe('RefineTopology', () => {
         rA: {
           id: 'rA',
           parent: 'branchA',
-          command: '/refine :n=2',
+          command: '/elect :n=2',
           children: [],
         },
         rB: {
           id: 'rB',
           parent: 'branchB',
-          command: '/refine :n=3',
+          command: '/elect :n=3',
           children: [],
         },
       })
 
-      const result = RefineTopology(store.getNode('root'), store)
+      const result = ElectTopology(store.getNode('root'), store)
 
       expect(result).toHaveLength(2)
       expect(result[0].parallelGroup).toBe(result[1].parallelGroup)
@@ -398,7 +398,7 @@ describe('RefineTopology', () => {
        */
       const store = buildStore({
         root: {id: 'root', children: ['r1', 'chat', 'chat2']},
-        r1: {id: 'r1', parent: 'root', command: '/refine :n=2', children: []},
+        r1: {id: 'r1', parent: 'root', command: '/elect :n=2', children: []},
         chat: {
           id: 'chat',
           parent: 'root',
@@ -408,13 +408,13 @@ describe('RefineTopology', () => {
         r2A: {
           id: 'r2A',
           parent: 'chat',
-          command: '/refine :n=3',
+          command: '/elect :n=3',
           children: [],
         },
         r2B: {
           id: 'r2B',
           parent: 'chat',
-          command: '/refine :n=4',
+          command: '/elect :n=4',
           children: [],
         },
         chat2: {
@@ -432,12 +432,12 @@ describe('RefineTopology', () => {
         r3: {
           id: 'r3',
           parent: 'chat3',
-          command: '/refine :n=5',
+          command: '/elect :n=5',
           children: [],
         },
       })
 
-      const result = RefineTopology(store.getNode('root'), store)
+      const result = ElectTopology(store.getNode('root'), store)
 
       expect(result).toHaveLength(4)
       const groups = [...new Set(result.map(e => e.parallelGroup))].sort((a, b) => a - b)
@@ -451,17 +451,17 @@ describe('RefineTopology', () => {
        */
       const store = buildStore({
         root: {id: 'root', children: ['r1', 'chat']},
-        r1: {id: 'r1', parent: 'root', command: '/refine :n=2', children: []},
+        r1: {id: 'r1', parent: 'root', command: '/elect :n=2', children: []},
         chat: {
           id: 'chat',
           parent: 'root',
           command: '/chat',
           children: ['r2'],
         },
-        r2: {id: 'r2', parent: 'chat', command: '/refine :n=3', children: []},
+        r2: {id: 'r2', parent: 'chat', command: '/elect :n=3', children: []},
       })
 
-      const result = RefineTopology(store.getNode('root'), store)
+      const result = ElectTopology(store.getNode('root'), store)
 
       const deepest = result.find(e => e.depth === 2)
       const shallow = result.find(e => e.depth === 1)
@@ -471,14 +471,14 @@ describe('RefineTopology', () => {
 
   // Traversal completeness
 
-  describe('traversal finds /refine cells at any depth through any node type', () => {
+  describe('traversal finds /elect cells at any depth through any node type', () => {
     it('traverses through /steps, /foreach, and /chat nodes', () => {
       /*
        * root
        *   └── steps (/steps)
        *         └── foreach (/foreach)
        *               └── chat (/chat)
-       *                     └── r (/refine :n=2, depth=4)
+       *                     └── r (/elect :n=2, depth=4)
        */
       const store = buildStore({
         root: {id: 'root', children: ['steps']},
@@ -500,41 +500,41 @@ describe('RefineTopology', () => {
           command: '/chat',
           children: ['r'],
         },
-        r: {id: 'r', parent: 'chat', command: '/refine :n=2', children: []},
+        r: {id: 'r', parent: 'chat', command: '/elect :n=2', children: []},
       })
 
-      const result = RefineTopology(store.getNode('root'), store)
+      const result = ElectTopology(store.getNode('root'), store)
 
       expect(result).toHaveLength(1)
-      expect(result[0].refineNode.id).toBe('r')
+      expect(result[0].electNode.id).toBe('r')
       expect(result[0].depth).toBe(4)
     })
 
-    it('finds all /refine cells in a wide flat tree', () => {
+    it('finds all /elect cells in a wide flat tree', () => {
       const children = ['r1', 'r2', 'r3', 'r4', 'r5']
       const nodes = {root: {id: 'root', children}}
       children.forEach(id => {
         nodes[id] = {
           id,
           parent: 'root',
-          command: '/refine :n=2',
+          command: '/elect :n=2',
           children: [],
         }
       })
 
-      const result = RefineTopology(buildStore(nodes).getNode('root'), buildStore(nodes))
+      const result = ElectTopology(buildStore(nodes).getNode('root'), buildStore(nodes))
       expect(result).toHaveLength(5)
       expect(result.every(e => e.depth === 1)).toBe(true)
       expect(result.every(e => e.parallelGroup === result[0].parallelGroup)).toBe(true)
     })
 
-    it('collects refine cells from both branches of a forked tree', () => {
+    it('collects elect cells from both branches of a forked tree', () => {
       /*
        * root
        *   ├── branchA
-       *   │     └── rA  (/refine :n=2)
+       *   │     └── rA  (/elect :n=2)
        *   └── branchB
-       *         └── rB  (/refine :n=3)
+       *         └── rB  (/elect :n=3)
        */
       const store = buildStore({
         root: {id: 'root', children: ['branchA', 'branchB']},
@@ -547,7 +547,7 @@ describe('RefineTopology', () => {
         rA: {
           id: 'rA',
           parent: 'branchA',
-          command: '/refine :n=2',
+          command: '/elect :n=2',
           children: [],
         },
         branchB: {
@@ -559,13 +559,13 @@ describe('RefineTopology', () => {
         rB: {
           id: 'rB',
           parent: 'branchB',
-          command: '/refine :n=3',
+          command: '/elect :n=3',
           children: [],
         },
       })
 
-      const result = RefineTopology(store.getNode('root'), store)
-      const ids = result.map(e => e.refineNode.id).sort()
+      const result = ElectTopology(store.getNode('root'), store)
+      const ids = result.map(e => e.electNode.id).sort()
       expect(ids).toEqual(['rA', 'rB'])
     })
   })
@@ -577,35 +577,35 @@ describe('RefineTopology', () => {
       const store = buildStore({
         root: {id: 'root', children: ['chat', 'r']},
         chat: {id: 'chat', parent: 'root', command: '/chat'},
-        r: {id: 'r', parent: 'root', command: '/refine :n=2', children: []},
+        r: {id: 'r', parent: 'root', command: '/elect :n=2', children: []},
       })
 
-      const result = RefineTopology(store.getNode('root'), store)
+      const result = ElectTopology(store.getNode('root'), store)
       expect(result).toHaveLength(1)
-      expect(result[0].refineNode.id).toBe('r')
+      expect(result[0].electNode.id).toBe('r')
     })
 
     it('skips child IDs that do not resolve in the store and continues traversal', () => {
       const store = buildStore({
         root: {id: 'root', children: ['ghost', 'r']},
-        r: {id: 'r', parent: 'root', command: '/refine :n=2', children: []},
+        r: {id: 'r', parent: 'root', command: '/elect :n=2', children: []},
       })
 
-      const result = RefineTopology(store.getNode('root'), store)
+      const result = ElectTopology(store.getNode('root'), store)
       expect(result).toHaveLength(1)
-      expect(result[0].refineNode.id).toBe('r')
+      expect(result[0].electNode.id).toBe('r')
     })
 
     it('handles null subtreeRoot without throwing', () => {
       const store = buildStore({})
-      expect(() => RefineTopology(null, store)).not.toThrow()
-      expect(RefineTopology(null, store)).toEqual([])
+      expect(() => ElectTopology(null, store)).not.toThrow()
+      expect(ElectTopology(null, store)).toEqual([])
     })
 
     it('handles undefined subtreeRoot without throwing', () => {
       const store = buildStore({})
-      expect(() => RefineTopology(undefined, store)).not.toThrow()
-      expect(RefineTopology(undefined, store)).toEqual([])
+      expect(() => ElectTopology(undefined, store)).not.toThrow()
+      expect(ElectTopology(undefined, store)).toEqual([])
     })
   })
 })

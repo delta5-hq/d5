@@ -24,15 +24,15 @@ export function applyForkEventToMap(
   const next = new Map(map)
 
   if (event.type === 'fork_started') {
-    const current = next.get(event.refineNodeId)
+    const current = next.get(event.electNodeId)
     const existingForks = current?.forks ?? []
-    next.set(event.refineNodeId, {
+    next.set(event.electNodeId, {
       total: event.total,
       forks: [...existingForks, { forkIndex: event.forkIndex, status: 'pending' }],
       winnerForkIndex: null,
     })
   } else if (event.type === 'fork_settled') {
-    const current = next.get(event.refineNodeId)
+    const current = next.get(event.electNodeId)
     if (current) {
       const updatedForks = current.forks.map(f =>
         f.forkIndex === event.forkIndex
@@ -45,12 +45,12 @@ export function applyForkEventToMap(
             }
           : f,
       )
-      next.set(event.refineNodeId, { ...current, forks: updatedForks })
+      next.set(event.electNodeId, { ...current, forks: updatedForks })
     }
-  } else if (event.type === 'refine_complete') {
-    const current = next.get(event.refineNodeId)
+  } else if (event.type === 'elect_complete') {
+    const current = next.get(event.electNodeId)
     if (current) {
-      next.set(event.refineNodeId, { ...current, winnerForkIndex: event.winnerForkIndex })
+      next.set(event.electNodeId, { ...current, winnerForkIndex: event.winnerForkIndex })
     }
   }
 

@@ -99,20 +99,20 @@ describe('commandRegex', () => {
         expect(commandRegex.scholar.test('/web search')).toBe(false)
       })
 
-      it('refine matches only /refine', () => {
-        expect(commandRegex.refine.test('/refine text')).toBe(true)
-        expect(commandRegex.refine.test('/validate criterion')).toBe(false)
-        expect(commandRegex.refine.test('/chatgpt text')).toBe(false)
+      it('elect matches only /elect', () => {
+        expect(commandRegex.elect.test('/elect text')).toBe(true)
+        expect(commandRegex.elect.test('/validate criterion')).toBe(false)
+        expect(commandRegex.elect.test('/chatgpt text')).toBe(false)
       })
 
       it('validate matches only /validate', () => {
         expect(commandRegex.validate.test('/validate criterion')).toBe(true)
-        expect(commandRegex.validate.test('/refine text')).toBe(false)
+        expect(commandRegex.validate.test('/elect text')).toBe(false)
         expect(commandRegex.validate.test('/chatgpt criterion')).toBe(false)
       })
 
       it('inline parameters after command are captured by the base pattern', () => {
-        expect(commandRegex.refine.test('/refine :n=3')).toBe(true)
+        expect(commandRegex.elect.test('/elect :n=3')).toBe(true)
         expect(commandRegex.validate.test('/validate :n=3 criterion text')).toBe(true)
         expect(commandRegex.validate.test('/validate :retry=5 criterion')).toBe(true)
       })
@@ -135,16 +135,16 @@ describe('commandRegex', () => {
         expect(commandRegex.foreachWithOrder.test('#10 /foreach item')).toBe(true)
       })
 
-      it('refineWithOrder matches with and without order prefix', () => {
-        expect(commandRegex.refineWithOrder.test('#2 /refine :n=3')).toBe(true)
-        expect(commandRegex.refineWithOrder.test('/refine :n=3')).toBe(true)
-        expect(commandRegex.refineWithOrder.test('/validate criterion')).toBe(false)
+      it('electWithOrder matches with and without order prefix', () => {
+        expect(commandRegex.electWithOrder.test('#2 /elect :n=3')).toBe(true)
+        expect(commandRegex.electWithOrder.test('/elect :n=3')).toBe(true)
+        expect(commandRegex.electWithOrder.test('/validate criterion')).toBe(false)
       })
 
       it('validateWithOrder matches with and without order prefix', () => {
         expect(commandRegex.validateWithOrder.test('#3 /validate criterion')).toBe(true)
         expect(commandRegex.validateWithOrder.test('/validate criterion')).toBe(true)
-        expect(commandRegex.validateWithOrder.test('/refine :n=3')).toBe(false)
+        expect(commandRegex.validateWithOrder.test('/elect :n=3')).toBe(false)
       })
     })
   })

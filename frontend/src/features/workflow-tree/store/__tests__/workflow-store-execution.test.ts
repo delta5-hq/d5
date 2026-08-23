@@ -26,15 +26,15 @@ vi.mock('../../api/streaming/fork-stream-client', () => ({
   }),
 }))
 
-vi.mock('@shared/lib/reliability/refine-params', () => ({
-  isValidRefineCell: vi.fn().mockReturnValue(false),
+vi.mock('@shared/lib/reliability/elect-params', () => ({
+  isValidElectCell: vi.fn().mockReturnValue(false),
 }))
 
 import { mergeWorkflowChanges } from '@entities/workflow/lib'
 import { executeWorkflowCommand } from '../../api/execute-workflow-command'
 import { notifyExecutionStarted, notifyExecutionCompleted, notifyExecutionAborted } from '../execution-genie-bridge'
 import { ForkStreamClient } from '../../api/streaming/fork-stream-client'
-import { isValidRefineCell } from '@shared/lib/reliability/refine-params'
+import { isValidElectCell } from '@shared/lib/reliability/elect-params'
 import type { ForkEvent } from '../../api/streaming/fork-event-types'
 
 function makeStore(overrides: Partial<WorkflowStoreState> = {}) {
@@ -1847,7 +1847,7 @@ describe('bindExecuteAction', () => {
 
   describe('fork preview clearing', () => {
     function activateStreaming(): void {
-      vi.mocked(isValidRefineCell).mockReturnValue(true)
+      vi.mocked(isValidElectCell).mockReturnValue(true)
       vi.mocked(ForkStreamClient).mockImplementation(function () {
         return {
           connect: vi.fn(),
@@ -1863,7 +1863,7 @@ describe('bindExecuteAction', () => {
       }
     }
 
-    it('clears only the refineNodeIds emitted by this execution, preserving sibling execution previews', async () => {
+    it('clears only the electNodeIds emitted by this execution, preserving sibling execution previews', async () => {
       activateStreaming()
       mockIdentityExecution(N1)
 
@@ -1871,7 +1871,7 @@ describe('bindExecuteAction', () => {
       const store = makeStore({ nodes: N1, root: 'n1', forkPreviews: new Map([['rSibling', siblingEntry]]) })
       const done = makeExecute(store, makePersister())(stubNode, 'query')
 
-      getStreamCallbacks().onForkEvent({ type: 'fork_started', refineNodeId: 'rOwn', forkIndex: 0, total: 2 })
+      getStreamCallbacks().onForkEvent({ type: 'fork_started', electNodeId: 'rOwn', forkIndex: 0, total: 2 })
 
       await done
 
@@ -1880,7 +1880,7 @@ describe('bindExecuteAction', () => {
     })
 
     it('non-streaming execution leaves forkPreviews entirely untouched', async () => {
-      vi.mocked(isValidRefineCell).mockReturnValue(false)
+      vi.mocked(isValidElectCell).mockReturnValue(false)
       mockIdentityExecution(N1)
 
       const entry = { total: 1, forks: [], winnerForkIndex: null }
@@ -1890,7 +1890,7 @@ describe('bindExecuteAction', () => {
       expect(store.getState().forkPreviews.has('rOther')).toBe(true)
     })
 
-    it('clears all refineNodeIds emitted across multiple refine descendants in one execution', async () => {
+    it('clears all electNodeIds emitted across multiple elect descendants in one execution', async () => {
       activateStreaming()
       mockIdentityExecution(N1)
 
@@ -1898,9 +1898,9 @@ describe('bindExecuteAction', () => {
       const done = makeExecute(store, makePersister())(stubNode, 'query')
 
       const cb = getStreamCallbacks()
-      cb.onForkEvent({ type: 'fork_started', refineNodeId: 'r1', forkIndex: 0, total: 2 })
-      cb.onForkEvent({ type: 'fork_started', refineNodeId: 'r2', forkIndex: 0, total: 3 })
-      cb.onForkEvent({ type: 'fork_started', refineNodeId: 'r3', forkIndex: 0, total: 2 })
+      cb.onForkEvent({ type: 'fork_started', electNodeId: 'r1', forkIndex: 0, total: 2 })
+      cb.onForkEvent({ type: 'fork_started', electNodeId: 'r2', forkIndex: 0, total: 3 })
+      cb.onForkEvent({ type: 'fork_started', electNodeId: 'r3', forkIndex: 0, total: 2 })
 
       await done
 
@@ -1920,8 +1920,8 @@ describe('bindExecuteAction', () => {
       expect(store.getState().forkPreviews.has('rOther')).toBe(true)
     })
 
-    it('does not construct ForkStreamClient when the executing node has no refine command or descendants', async () => {
-      vi.mocked(isValidRefineCell).mockReturnValue(false)
+    it('does not construct ForkStreamClient when the executing node has no elect command or descendants', async () => {
+      vi.mocked(isValidElectCell).mockReturnValue(false)
       mockIdentityExecution(N1)
 
       const store = makeStore({ nodes: N1, root: 'n1' })
@@ -1931,7 +1931,7 @@ describe('bindExecuteAction', () => {
     })
 
     it('omits streamSessionId from executeWorkflowCommand when execution is non-streaming', async () => {
-      vi.mocked(isValidRefineCell).mockReturnValue(false)
+      vi.mocked(isValidElectCell).mockReturnValue(false)
       mockIdentityExecution(N1)
 
       const store = makeStore({ nodes: N1, root: 'n1' })
@@ -1953,7 +1953,7 @@ describe('bindExecuteAction', () => {
     })
 
     it('awaits stream readiness (whenReady) BEFORE issuing the execute POST — closes the session-registration race that 400s streaming executions', async () => {
-      vi.mocked(isValidRefineCell).mockReturnValue(true)
+      vi.mocked(isValidElectCell).mockReturnValue(true)
       let executeCallsWhenReadyRan = -1
       const whenReady = vi.fn().mockImplementation(async () => {
         // capture how many execute POSTs had fired at the moment the readiness gate ran
@@ -1986,14 +1986,14 @@ describe('bindExecuteAction', () => {
       const done = makeExecute(store, makePersister())(stubNode, 'query')
 
       expect(store.getState().forkPreviews.has('rLive')).toBe(false)
-      getStreamCallbacks().onForkEvent({ type: 'fork_started', refineNodeId: 'rLive', forkIndex: 0, total: 2 })
+      getStreamCallbacks().onForkEvent({ type: 'fork_started', electNodeId: 'rLive', forkIndex: 0, total: 2 })
       expect(store.getState().forkPreviews.has('rLive')).toBe(true)
 
       resolveCmd({ nodesChanged: {} })
       await done
     })
 
-    it('deduplicates the same refineNodeId received from multiple fork events into a single deletion', async () => {
+    it('deduplicates the same electNodeId received from multiple fork events into a single deletion', async () => {
       activateStreaming()
       mockIdentityExecution(N1)
 
@@ -2001,9 +2001,9 @@ describe('bindExecuteAction', () => {
       const done = makeExecute(store, makePersister())(stubNode, 'query')
 
       const cb = getStreamCallbacks()
-      cb.onForkEvent({ type: 'fork_started', refineNodeId: 'rSame', forkIndex: 0, total: 2 })
-      cb.onForkEvent({ type: 'fork_settled', refineNodeId: 'rSame', forkIndex: 0, status: 'ok' })
-      cb.onForkEvent({ type: 'fork_started', refineNodeId: 'rSame', forkIndex: 1, total: 2 })
+      cb.onForkEvent({ type: 'fork_started', electNodeId: 'rSame', forkIndex: 0, total: 2 })
+      cb.onForkEvent({ type: 'fork_settled', electNodeId: 'rSame', forkIndex: 0, status: 'ok' })
+      cb.onForkEvent({ type: 'fork_started', electNodeId: 'rSame', forkIndex: 1, total: 2 })
 
       await done
 
@@ -2022,7 +2022,7 @@ describe('bindExecuteAction', () => {
       const store = makeStore({ nodes: N1, root: 'n1' })
       const done = makeExecute(store, makePersister())(stubNode, 'query')
 
-      getStreamCallbacks().onForkEvent({ type: 'fork_started', refineNodeId: 'rFailed', forkIndex: 0, total: 1 })
+      getStreamCallbacks().onForkEvent({ type: 'fork_started', electNodeId: 'rFailed', forkIndex: 0, total: 1 })
 
       rejectCmd(new Error('server error'))
       const result = await done
@@ -2031,7 +2031,7 @@ describe('bindExecuteAction', () => {
       expect(store.getState().forkPreviews.has('rFailed')).toBe(false)
     })
 
-    it('two concurrent streaming executions each clear only their own refineNodeIds', async () => {
+    it('two concurrent streaming executions each clear only their own electNodeIds', async () => {
       activateStreaming()
 
       vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
@@ -2049,8 +2049,8 @@ describe('bindExecuteAction', () => {
       const doneA = execute(stubNode, 'query')
       const doneB = execute(stubNodeB, 'query')
 
-      getStreamCallbacks(0).onForkEvent({ type: 'fork_started', refineNodeId: 'rA', forkIndex: 0, total: 1 })
-      getStreamCallbacks(1).onForkEvent({ type: 'fork_started', refineNodeId: 'rB', forkIndex: 0, total: 1 })
+      getStreamCallbacks(0).onForkEvent({ type: 'fork_started', electNodeId: 'rA', forkIndex: 0, total: 1 })
+      getStreamCallbacks(1).onForkEvent({ type: 'fork_started', electNodeId: 'rB', forkIndex: 0, total: 1 })
 
       expect(store.getState().forkPreviews.has('rA')).toBe(true)
       expect(store.getState().forkPreviews.has('rB')).toBe(true)

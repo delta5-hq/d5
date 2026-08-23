@@ -6,32 +6,32 @@ describe('applyForkEventToMap', () => {
   describe('fork_started', () => {
     it('adds a pending entry for each started fork', () => {
       const m = new Map<string, ForkPreviewState>()
-      const m1 = applyForkEventToMap(m, { type: 'fork_started', refineNodeId: 'r1', forkIndex: 0, total: 3 })
+      const m1 = applyForkEventToMap(m, { type: 'fork_started', electNodeId: 'r1', forkIndex: 0, total: 3 })
       expect(m1.get('r1')?.forks[0]).toEqual({ forkIndex: 0, status: 'pending' })
     })
 
     it('sets the total from the event', () => {
       const m = new Map<string, ForkPreviewState>()
-      const m1 = applyForkEventToMap(m, { type: 'fork_started', refineNodeId: 'r1', forkIndex: 0, total: 5 })
+      const m1 = applyForkEventToMap(m, { type: 'fork_started', electNodeId: 'r1', forkIndex: 0, total: 5 })
       expect(m1.get('r1')?.total).toBe(5)
     })
 
     it('accumulates multiple fork_started events for the same node', () => {
       const m = new Map<string, ForkPreviewState>()
-      const m1 = applyForkEventToMap(m, { type: 'fork_started', refineNodeId: 'r1', forkIndex: 0, total: 2 })
-      const m2 = applyForkEventToMap(m1, { type: 'fork_started', refineNodeId: 'r1', forkIndex: 1, total: 2 })
+      const m1 = applyForkEventToMap(m, { type: 'fork_started', electNodeId: 'r1', forkIndex: 0, total: 2 })
+      const m2 = applyForkEventToMap(m1, { type: 'fork_started', electNodeId: 'r1', forkIndex: 1, total: 2 })
       expect(m2.get('r1')?.forks).toHaveLength(2)
     })
 
     it('initialises winnerForkIndex as null', () => {
       const m = new Map<string, ForkPreviewState>()
-      const m1 = applyForkEventToMap(m, { type: 'fork_started', refineNodeId: 'r1', forkIndex: 0, total: 2 })
+      const m1 = applyForkEventToMap(m, { type: 'fork_started', electNodeId: 'r1', forkIndex: 0, total: 2 })
       expect(m1.get('r1')?.winnerForkIndex).toBeNull()
     })
 
     it('does not mutate the input map', () => {
       const m = new Map<string, ForkPreviewState>()
-      applyForkEventToMap(m, { type: 'fork_started', refineNodeId: 'r1', forkIndex: 0, total: 2 })
+      applyForkEventToMap(m, { type: 'fork_started', electNodeId: 'r1', forkIndex: 0, total: 2 })
       expect(m.has('r1')).toBe(false)
     })
   })
@@ -40,7 +40,7 @@ describe('applyForkEventToMap', () => {
     function baseMap(forks = 2): Map<string, ForkPreviewState> {
       let m = new Map<string, ForkPreviewState>()
       for (let i = 0; i < forks; i++) {
-        m = applyForkEventToMap(m, { type: 'fork_started', refineNodeId: 'r1', forkIndex: i, total: forks })
+        m = applyForkEventToMap(m, { type: 'fork_started', electNodeId: 'r1', forkIndex: i, total: forks })
       }
       return m
     }
@@ -49,7 +49,7 @@ describe('applyForkEventToMap', () => {
       const m1 = baseMap(2)
       const m2 = applyForkEventToMap(m1, {
         type: 'fork_settled',
-        refineNodeId: 'r1',
+        electNodeId: 'r1',
         forkIndex: 0,
         status: 'ok',
       })
@@ -60,7 +60,7 @@ describe('applyForkEventToMap', () => {
       const m1 = baseMap(2)
       const m2 = applyForkEventToMap(m1, {
         type: 'fork_settled',
-        refineNodeId: 'r1',
+        electNodeId: 'r1',
         forkIndex: 0,
         status: 'ok',
       })
@@ -71,7 +71,7 @@ describe('applyForkEventToMap', () => {
       const m1 = baseMap(2)
       const m2 = applyForkEventToMap(m1, {
         type: 'fork_settled',
-        refineNodeId: 'r1',
+        electNodeId: 'r1',
         forkIndex: 0,
         status: 'criteria-failed',
         failedAt: 'criterion text',
@@ -83,7 +83,7 @@ describe('applyForkEventToMap', () => {
       const m1 = baseMap(2)
       const m2 = applyForkEventToMap(m1, {
         type: 'fork_settled',
-        refineNodeId: 'r1',
+        electNodeId: 'r1',
         forkIndex: 0,
         status: 'runtime-failed',
         reason: 'network error',
@@ -91,22 +91,22 @@ describe('applyForkEventToMap', () => {
       expect(m2.get('r1')?.forks[0].reason).toBe('network error')
     })
 
-    it('is a no-op for unknown refineNodeId', () => {
+    it('is a no-op for unknown electNodeId', () => {
       const m1 = baseMap(2)
       const m2 = applyForkEventToMap(m1, {
         type: 'fork_settled',
-        refineNodeId: 'unknown',
+        electNodeId: 'unknown',
         forkIndex: 0,
         status: 'ok',
       })
       expect(m2).toEqual(m1)
     })
 
-    it('is a no-op for an unknown forkIndex within a known refineNodeId', () => {
+    it('is a no-op for an unknown forkIndex within a known electNodeId', () => {
       const m1 = baseMap(2)
       const m2 = applyForkEventToMap(m1, {
         type: 'fork_settled',
-        refineNodeId: 'r1',
+        electNodeId: 'r1',
         forkIndex: 99,
         status: 'ok',
       })
@@ -118,7 +118,7 @@ describe('applyForkEventToMap', () => {
       const m1 = baseMap(1)
       const m2 = applyForkEventToMap(m1, {
         type: 'fork_settled',
-        refineNodeId: 'r1',
+        electNodeId: 'r1',
         forkIndex: 0,
         status: 'ok',
       })
@@ -131,7 +131,7 @@ describe('applyForkEventToMap', () => {
       const m1 = baseMap(1)
       const m2 = applyForkEventToMap(m1, {
         type: 'fork_settled',
-        refineNodeId: 'r1',
+        electNodeId: 'r1',
         forkIndex: 0,
         status: 'criteria-failed',
       })
@@ -141,7 +141,7 @@ describe('applyForkEventToMap', () => {
     it('does not mutate the input map', () => {
       const m1 = baseMap(2)
       const before = JSON.stringify([...m1])
-      applyForkEventToMap(m1, { type: 'fork_settled', refineNodeId: 'r1', forkIndex: 0, status: 'ok' })
+      applyForkEventToMap(m1, { type: 'fork_settled', electNodeId: 'r1', forkIndex: 0, status: 'ok' })
       expect(JSON.stringify([...m1])).toBe(before)
     })
 
@@ -151,7 +151,7 @@ describe('applyForkEventToMap', () => {
         const leaves = [{ nodeId: 'n1', content: 'response text' }]
         const m2 = applyForkEventToMap(m1, {
           type: 'fork_settled',
-          refineNodeId: 'r1',
+          electNodeId: 'r1',
           forkIndex: 0,
           status: 'ok',
           leafOutputs: leaves,
@@ -163,7 +163,7 @@ describe('applyForkEventToMap', () => {
         const m1 = baseMap(1)
         const m2 = applyForkEventToMap(m1, {
           type: 'fork_settled',
-          refineNodeId: 'r1',
+          electNodeId: 'r1',
           forkIndex: 0,
           status: 'ok',
         })
@@ -175,7 +175,7 @@ describe('applyForkEventToMap', () => {
         const leaves = [{ nodeId: 'out1', content: 'winner content' }]
         const m2 = applyForkEventToMap(m1, {
           type: 'fork_settled',
-          refineNodeId: 'r1',
+          electNodeId: 'r1',
           forkIndex: 0,
           status: 'ok',
           leafOutputs: leaves,
@@ -189,7 +189,7 @@ describe('applyForkEventToMap', () => {
         const leaves = [{ nodeId: 'n1', content: 'partial content before failure' }]
         const m2 = applyForkEventToMap(m1, {
           type: 'fork_settled',
-          refineNodeId: 'r1',
+          electNodeId: 'r1',
           forkIndex: 0,
           status: 'criteria-failed',
           failedAt: 'must include numbers',
@@ -202,7 +202,7 @@ describe('applyForkEventToMap', () => {
         const m1 = baseMap(1)
         const m2 = applyForkEventToMap(m1, {
           type: 'fork_settled',
-          refineNodeId: 'r1',
+          electNodeId: 'r1',
           forkIndex: 0,
           status: 'runtime-failed',
           reason: 'provider error',
@@ -212,32 +212,32 @@ describe('applyForkEventToMap', () => {
     })
   })
 
-  describe('refine_complete', () => {
+  describe('elect_complete', () => {
     it('sets winnerForkIndex', () => {
       let m = new Map<string, ForkPreviewState>()
-      m = applyForkEventToMap(m, { type: 'fork_started', refineNodeId: 'r1', forkIndex: 0, total: 2 })
-      m = applyForkEventToMap(m, { type: 'refine_complete', refineNodeId: 'r1', winnerForkIndex: 1, total: 2 })
+      m = applyForkEventToMap(m, { type: 'fork_started', electNodeId: 'r1', forkIndex: 0, total: 2 })
+      m = applyForkEventToMap(m, { type: 'elect_complete', electNodeId: 'r1', winnerForkIndex: 1, total: 2 })
       expect(m.get('r1')?.winnerForkIndex).toBe(1)
     })
 
     it('allows null winnerForkIndex (all-failed)', () => {
       let m = new Map<string, ForkPreviewState>()
-      m = applyForkEventToMap(m, { type: 'fork_started', refineNodeId: 'r1', forkIndex: 0, total: 1 })
-      m = applyForkEventToMap(m, { type: 'refine_complete', refineNodeId: 'r1', winnerForkIndex: null, total: 1 })
+      m = applyForkEventToMap(m, { type: 'fork_started', electNodeId: 'r1', forkIndex: 0, total: 1 })
+      m = applyForkEventToMap(m, { type: 'elect_complete', electNodeId: 'r1', winnerForkIndex: null, total: 1 })
       expect(m.get('r1')?.winnerForkIndex).toBeNull()
     })
 
-    it('is a no-op for unknown refineNodeId', () => {
+    it('is a no-op for unknown electNodeId', () => {
       const m = new Map<string, ForkPreviewState>()
-      const m2 = applyForkEventToMap(m, { type: 'refine_complete', refineNodeId: 'r1', winnerForkIndex: 0, total: 2 })
+      const m2 = applyForkEventToMap(m, { type: 'elect_complete', electNodeId: 'r1', winnerForkIndex: 0, total: 2 })
       expect(m2.has('r1')).toBe(false)
     })
 
     it('preserves the forks array unchanged', () => {
       let m = new Map<string, ForkPreviewState>()
-      m = applyForkEventToMap(m, { type: 'fork_started', refineNodeId: 'r1', forkIndex: 0, total: 2 })
-      m = applyForkEventToMap(m, { type: 'fork_started', refineNodeId: 'r1', forkIndex: 1, total: 2 })
-      const m2 = applyForkEventToMap(m, { type: 'refine_complete', refineNodeId: 'r1', winnerForkIndex: 0, total: 2 })
+      m = applyForkEventToMap(m, { type: 'fork_started', electNodeId: 'r1', forkIndex: 0, total: 2 })
+      m = applyForkEventToMap(m, { type: 'fork_started', electNodeId: 'r1', forkIndex: 1, total: 2 })
+      const m2 = applyForkEventToMap(m, { type: 'elect_complete', electNodeId: 'r1', winnerForkIndex: 0, total: 2 })
       expect(m2.get('r1')?.forks).toHaveLength(2)
       expect(m2.get('r1')?.forks[0].status).toBe('pending')
       expect(m2.get('r1')?.forks[1].status).toBe('pending')
@@ -245,19 +245,19 @@ describe('applyForkEventToMap', () => {
 
     it('does not mutate the input map', () => {
       let m = new Map<string, ForkPreviewState>()
-      m = applyForkEventToMap(m, { type: 'fork_started', refineNodeId: 'r1', forkIndex: 0, total: 1 })
+      m = applyForkEventToMap(m, { type: 'fork_started', electNodeId: 'r1', forkIndex: 0, total: 1 })
       const before = JSON.stringify([...m])
-      applyForkEventToMap(m, { type: 'refine_complete', refineNodeId: 'r1', winnerForkIndex: 0, total: 1 })
+      applyForkEventToMap(m, { type: 'elect_complete', electNodeId: 'r1', winnerForkIndex: 0, total: 1 })
       expect(JSON.stringify([...m])).toBe(before)
     })
   })
 
-  describe('multiple refineNodeIds tracked independently', () => {
+  describe('multiple electNodeIds tracked independently', () => {
     it('events for different nodes do not interfere', () => {
       let m = new Map<string, ForkPreviewState>()
-      m = applyForkEventToMap(m, { type: 'fork_started', refineNodeId: 'r1', forkIndex: 0, total: 2 })
-      m = applyForkEventToMap(m, { type: 'fork_started', refineNodeId: 'r2', forkIndex: 0, total: 3 })
-      m = applyForkEventToMap(m, { type: 'fork_settled', refineNodeId: 'r1', forkIndex: 0, status: 'ok' })
+      m = applyForkEventToMap(m, { type: 'fork_started', electNodeId: 'r1', forkIndex: 0, total: 2 })
+      m = applyForkEventToMap(m, { type: 'fork_started', electNodeId: 'r2', forkIndex: 0, total: 3 })
+      m = applyForkEventToMap(m, { type: 'fork_settled', electNodeId: 'r1', forkIndex: 0, status: 'ok' })
 
       expect(m.get('r1')?.forks[0].status).toBe('ok')
       expect(m.get('r2')?.forks[0].status).toBe('pending')
@@ -265,11 +265,11 @@ describe('applyForkEventToMap', () => {
       expect(m.get('r2')?.total).toBe(3)
     })
 
-    it('refine_complete for one node does not affect another', () => {
+    it('elect_complete for one node does not affect another', () => {
       let m = new Map<string, ForkPreviewState>()
-      m = applyForkEventToMap(m, { type: 'fork_started', refineNodeId: 'r1', forkIndex: 0, total: 1 })
-      m = applyForkEventToMap(m, { type: 'fork_started', refineNodeId: 'r2', forkIndex: 0, total: 1 })
-      m = applyForkEventToMap(m, { type: 'refine_complete', refineNodeId: 'r1', winnerForkIndex: 0, total: 1 })
+      m = applyForkEventToMap(m, { type: 'fork_started', electNodeId: 'r1', forkIndex: 0, total: 1 })
+      m = applyForkEventToMap(m, { type: 'fork_started', electNodeId: 'r2', forkIndex: 0, total: 1 })
+      m = applyForkEventToMap(m, { type: 'elect_complete', electNodeId: 'r1', winnerForkIndex: 0, total: 1 })
 
       expect(m.get('r1')?.winnerForkIndex).toBe(0)
       expect(m.get('r2')?.winnerForkIndex).toBeNull()

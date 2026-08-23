@@ -2,7 +2,7 @@ const JUDGE_MARKERS = ['strict quality judge', 'rank from best', 'comma-separate
 const VERIFIER_MARKERS = ['strict quality verifier', 'Reply ONLY with YES or NO']
 const USEFULNESS_MARKERS = ['Does this input state that there was no useful info', 'Respond strictly "true" or "false"']
 const QA_MARKERS = ['Your only task is to answer a question', 'Context ```']
-const REFINE_MARKERS = ['Your only task is to refine the answer', 'Original answer ```', 'New context ```']
+const ELECT_MARKERS = ['Your only task is to elect the answer', 'Original answer ```', 'New context ```']
 const KNOWLEDGE_MAP_MARKERS = ['Your only task is making a knowledge map', 'Input: ```']
 const PREVIEW_CHARS = 500
 
@@ -35,7 +35,7 @@ const detectKind = corpus => {
   if (JUDGE_MARKERS.some(marker => lower.includes(marker.toLowerCase()))) return 'judge'
   if (VERIFIER_MARKERS.some(marker => lower.includes(marker.toLowerCase()))) return 'verifier'
   if (USEFULNESS_MARKERS.every(marker => lower.includes(marker.toLowerCase()))) return 'usefulness'
-  if (REFINE_MARKERS.every(marker => lower.includes(marker.toLowerCase()))) return 'refine'
+  if (ELECT_MARKERS.every(marker => lower.includes(marker.toLowerCase()))) return 'elect'
   if (QA_MARKERS.every(marker => lower.includes(marker.toLowerCase()))) return 'qa'
   if (KNOWLEDGE_MAP_MARKERS.every(marker => lower.includes(marker.toLowerCase()))) return 'knowledge-map'
   return 'generator'
@@ -97,12 +97,12 @@ const qaResponse = corpus => {
   return `mock-answer${question ? `: ${question}` : ''} :: ${context || 'empty context'}`
 }
 
-const refineResponse = corpus => {
+const electResponse = corpus => {
   const question = preview(extractQuestion(corpus))
   const original = preview(extractFencedValue(corpus, 'Original answer'))
   const context = preview(extractFencedValue(corpus, 'New context'))
   const evidence = context || original || 'empty context'
-  return `mock-refined-answer${question ? `: ${question}` : ''} :: ${evidence}`
+  return `mock-electd-answer${question ? `: ${question}` : ''} :: ${evidence}`
 }
 
 const knowledgeMapResponse = corpus => {
@@ -159,8 +159,8 @@ export const planResponse = (messages, synthesizeGeneratorContent) => {
       return usefulnessResponse(corpus)
     case 'qa':
       return qaResponse(corpus)
-    case 'refine':
-      return refineResponse(corpus)
+    case 'elect':
+      return electResponse(corpus)
     case 'knowledge-map':
       return knowledgeMapResponse(corpus)
     case 'generator':

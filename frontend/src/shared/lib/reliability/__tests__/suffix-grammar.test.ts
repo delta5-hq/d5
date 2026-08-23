@@ -14,8 +14,8 @@ const HISTORICAL_CANONICAL_TITLES = [
   ['first-survivor without judge', '/chat list [✓ 2/2 first-survivor · no judge]'],
   ['first-survivor with judge error', '/chat list [✓ 1/2 first-survivor · judge auth error]'],
   ['passed fraction', '/chat list [✗ 0/2 passed]'],
-  ['refined (v-pre-1)', '/chat list [✓ refined]'],
-  ['refine failed (v-pre-1)', '/chat list [✗ refine failed]'],
+  ['electd (v-pre-1)', '/chat list [✓ electd]'],
+  ['elect failed (v-pre-1)', '/chat list [✗ elect failed]'],
   ['validate retry (v1)', '/chat list [✓ retry-2]'],
   ['validate exhausted (v1)', '/chat list [✗ 3 attempts]'],
   ['invalid criterion (v1)', '/chat list [✗ invalid]'],
@@ -25,16 +25,16 @@ const HISTORICAL_CANONICAL_TITLES = [
 ] as const satisfies ReadonlyArray<[string, string]>
 
 const ENGINE_CANONICAL_TITLES = [
-  ['commodity/refine partial with degraded judge input', '/chat list [✓ 2/3 ⚠]'],
-  ['commodity/refine all K of N succeeded', '/chat list [✓ 2/3]'],
+  ['commodity/elect partial with degraded judge input', '/chat list [✓ 2/3 ⚠]'],
+  ['commodity/elect all K of N succeeded', '/chat list [✓ 2/3]'],
   ['validate passed after N retries', '/chat list [✓ +2]'],
   ['validate passed on first attempt', '/chat list [✓]'],
-  ['refine or commodity zero of N eligible', '/chat list [✗ 0/3]'],
+  ['elect or commodity zero of N eligible', '/chat list [✗ 0/3]'],
   ['validate all retries exhausted', '/chat list [✗ 3×]'],
   ['validate retry withheld', '/chat list [✗ ⊘]'],
   ['validate invalid criterion', '/chat list [✗ !]'],
-  ['refine no judge signal in strict mode', '/chat list [⚠ ∅]'],
-  ['refine fallback winner committed', '/chat list [⚠ 0/3]'],
+  ['elect no judge signal in strict mode', '/chat list [⚠ ∅]'],
+  ['elect fallback winner committed', '/chat list [⚠ 0/3]'],
 ] as const satisfies ReadonlyArray<[string, string]>
 
 // Shapes that resemble engine suffixes structurally but are NOT known suffix tokens.
@@ -203,7 +203,7 @@ describe('HISTORICAL_SUFFIX_RE', () => {
   })
 
   it('returns the same result across repeated test() calls on the same input', () => {
-    const title = '/chat list [✓ refined]'
+    const title = '/chat list [✓ electd]'
     for (let i = 0; i < 4; i++) {
       expect(HISTORICAL_SUFFIX_RE.test(title)).toBe(true)
     }
@@ -214,19 +214,19 @@ describe('HISTORICAL_SUFFIX_RE', () => {
   })
 
   it('tolerates trailing whitespace after the closing bracket', () => {
-    expect(HISTORICAL_SUFFIX_RE.test('/chat list [✓ refined] ')).toBe(true)
+    expect(HISTORICAL_SUFFIX_RE.test('/chat list [✓ electd] ')).toBe(true)
   })
 
   it('tolerates multiple spaces between title text and the opening bracket', () => {
-    expect(HISTORICAL_SUFFIX_RE.test('/chat list  [✓ refined]')).toBe(true)
+    expect(HISTORICAL_SUFFIX_RE.test('/chat list  [✓ electd]')).toBe(true)
   })
 
   it('matches when there is no space between title text and the opening bracket', () => {
-    expect(HISTORICAL_SUFFIX_RE.test('/chat list[✓ refined]')).toBe(true)
+    expect(HISTORICAL_SUFFIX_RE.test('/chat list[✓ electd]')).toBe(true)
   })
 
   it('matches when a tab precedes the opening bracket', () => {
-    expect(HISTORICAL_SUFFIX_RE.test('/chat list	[✓ refined]')).toBe(true)
+    expect(HISTORICAL_SUFFIX_RE.test('/chat list	[✓ electd]')).toBe(true)
   })
 
   describe('matches each historical canonical suffix token when trailing a title', () => {
@@ -245,8 +245,8 @@ describe('HISTORICAL_SUFFIX_RE', () => {
   describe('case-insensitive matching — i flag covers capitalized legacy prose', () => {
     it.each([
       ['uppercase BEST OF', '/chat list [✓ 2/2 BEST OF 2]'],
-      ['titlecase Refined', '/chat list [✓ Refined]'],
-      ['titlecase Refine Failed', '/chat list [✗ Refine Failed]'],
+      ['titlecase Electd', '/chat list [✓ Electd]'],
+      ['titlecase Elect Failed', '/chat list [✗ Elect Failed]'],
       ['uppercase PASSED', '/chat list [✗ 0/2 PASSED]'],
       ['uppercase FIRST-SURVIVOR', '/chat list [✓ 1/2 FIRST-SURVIVOR · no judge]'],
     ] as const satisfies ReadonlyArray<[string, string]>)('%s', (_label, title) => {
@@ -265,7 +265,7 @@ describe('HISTORICAL_SUFFIX_RE', () => {
   })
 
   it('does not match mid-title bracket that is not trailing', () => {
-    expect(HISTORICAL_SUFFIX_RE.test('[✓ refined] analysis')).toBe(false)
+    expect(HISTORICAL_SUFFIX_RE.test('[✓ electd] analysis')).toBe(false)
   })
 })
 
@@ -340,7 +340,7 @@ describe('ENGINE_SUFFIX_RE', () => {
       ['commodity large N all succeeded', '/chat list [✓ 99/100]'],
       ['commodity large N all failed', '/chat list [✗ 0/100]'],
       ['commodity large N partial with warning', '/chat list [✓ 99/100 ⚠]'],
-      ['refine fallback large N', '/chat list [⚠ 0/100]'],
+      ['elect fallback large N', '/chat list [⚠ 0/100]'],
     ] as const satisfies ReadonlyArray<[string, string]>)('%s', (_label, title) => {
       expect(ENGINE_SUFFIX_RE.test(title)).toBe(true)
     })
@@ -379,11 +379,11 @@ describe('HISTORICAL_SUFFIX_RE strip behaviour', () => {
   })
 
   it('strips suffix-only input to empty string', () => {
-    expect('[✓ refined]'.replace(HISTORICAL_SUFFIX_RE, '')).toBe('')
+    expect('[✓ electd]'.replace(HISTORICAL_SUFFIX_RE, '')).toBe('')
   })
 
   it('preserves a bracket in the middle of the title — only trailing suffix is consumed', () => {
-    expect('[topic] /chat list [✓ refined]'.replace(HISTORICAL_SUFFIX_RE, '')).toBe('[topic] /chat list')
+    expect('[topic] /chat list [✓ electd]'.replace(HISTORICAL_SUFFIX_RE, '')).toBe('[topic] /chat list')
   })
 
   it('does not alter a title whose bracket content is not a known suffix', () => {

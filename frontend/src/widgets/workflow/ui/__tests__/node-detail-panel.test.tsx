@@ -348,7 +348,7 @@ describe('NodeDetailPanel — handleCommandChange title sync', () => {
   const COMMAND_DERIVED_CASES = [
     ['title exactly equals command', '/chat list colors', '/chat list colors'],
     ['title is command plus bestOfN suffix', '/chat :n=2 list colors', '/chat :n=2 list colors [✓ 2/2 best of 2]'],
-    ['title is command plus refined suffix', '/chat list', '/chat list [✓ refined]'],
+    ['title is command plus electd suffix', '/chat list', '/chat list [✓ electd]'],
   ] as const
 
   it.each(COMMAND_DERIVED_CASES)('syncs both command and title to new command when %s', (_label, command, title) => {
@@ -399,69 +399,69 @@ describe('NodeDetailPanel — handleCommandChange title sync', () => {
   })
 })
 
-describe('NodeDetailPanel — refineCost hint', () => {
-  it('shows the cost hint when refineCost is a positive number', () => {
-    renderPanel(makeNode({ command: '/refine :n=2' }), false, { refineCost: 4 })
-    expect(screen.getByTestId('refine-cost-hint')).toBeInTheDocument()
+describe('NodeDetailPanel — electCost hint', () => {
+  it('shows the cost hint when electCost is a positive number', () => {
+    renderPanel(makeNode({ command: '/elect :n=2' }), false, { electCost: 4 })
+    expect(screen.getByTestId('elect-cost-hint')).toBeInTheDocument()
   })
 
-  it('hides the cost hint when refineCost is null', () => {
-    renderPanel(makeNode({ command: '/chat query' }), false, { refineCost: null })
-    expect(screen.queryByTestId('refine-cost-hint')).not.toBeInTheDocument()
+  it('hides the cost hint when electCost is null', () => {
+    renderPanel(makeNode({ command: '/chat query' }), false, { electCost: null })
+    expect(screen.queryByTestId('elect-cost-hint')).not.toBeInTheDocument()
   })
 
-  it('hides the cost hint when refineCost prop is omitted', () => {
+  it('hides the cost hint when electCost prop is omitted', () => {
     renderPanel(makeNode({ command: '/chat query' }), false)
-    expect(screen.queryByTestId('refine-cost-hint')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('elect-cost-hint')).not.toBeInTheDocument()
   })
 
-  it('shows the cost hint when refineCost is 0 (boundary: only null is hidden)', () => {
-    renderPanel(makeNode({ command: '/refine :n=2' }), false, { refineCost: 0 })
-    expect(screen.getByTestId('refine-cost-hint')).toBeInTheDocument()
+  it('shows the cost hint when electCost is 0 (boundary: only null is hidden)', () => {
+    renderPanel(makeNode({ command: '/elect :n=2' }), false, { electCost: 0 })
+    expect(screen.getByTestId('elect-cost-hint')).toBeInTheDocument()
   })
 })
 
-describe('NodeDetailPanel — refineCost over-limit warning', () => {
-  it('shows over-limit warning when refineCostExceedsLimit is true', () => {
-    renderPanel(makeNode({ command: '/refine :n=2' }), false, { refineCost: 10, refineCostExceedsLimit: true })
-    expect(screen.getByTestId('refine-cost-over-limit')).toBeInTheDocument()
+describe('NodeDetailPanel — electCost over-limit warning', () => {
+  it('shows over-limit warning when electCostExceedsLimit is true', () => {
+    renderPanel(makeNode({ command: '/elect :n=2' }), false, { electCost: 10, electCostExceedsLimit: true })
+    expect(screen.getByTestId('elect-cost-over-limit')).toBeInTheDocument()
   })
 
-  it('hides over-limit warning when refineCostExceedsLimit is false', () => {
-    renderPanel(makeNode({ command: '/refine :n=2' }), false, { refineCost: 4, refineCostExceedsLimit: false })
-    expect(screen.queryByTestId('refine-cost-over-limit')).not.toBeInTheDocument()
+  it('hides over-limit warning when electCostExceedsLimit is false', () => {
+    renderPanel(makeNode({ command: '/elect :n=2' }), false, { electCost: 4, electCostExceedsLimit: false })
+    expect(screen.queryByTestId('elect-cost-over-limit')).not.toBeInTheDocument()
   })
 
-  it('hides over-limit warning when refineCostExceedsLimit is omitted', () => {
-    renderPanel(makeNode({ command: '/refine :n=2' }), false, { refineCost: 4 })
-    expect(screen.queryByTestId('refine-cost-over-limit')).not.toBeInTheDocument()
+  it('hides over-limit warning when electCostExceedsLimit is omitted', () => {
+    renderPanel(makeNode({ command: '/elect :n=2' }), false, { electCost: 4 })
+    expect(screen.queryByTestId('elect-cost-over-limit')).not.toBeInTheDocument()
   })
 
   it('shows cost hint alongside over-limit warning when both apply', () => {
-    renderPanel(makeNode({ command: '/refine :n=2' }), false, { refineCost: 10, refineCostExceedsLimit: true })
-    expect(screen.getByTestId('refine-cost-hint')).toBeInTheDocument()
-    expect(screen.getByTestId('refine-cost-over-limit')).toBeInTheDocument()
+    renderPanel(makeNode({ command: '/elect :n=2' }), false, { electCost: 10, electCostExceedsLimit: true })
+    expect(screen.getByTestId('elect-cost-hint')).toBeInTheDocument()
+    expect(screen.getByTestId('elect-cost-over-limit')).toBeInTheDocument()
   })
 })
 
 describe('NodeDetailPanel — execute button gate', () => {
-  it('is disabled when refineCostExceedsLimit is true', () => {
-    renderPanel(makeNode({ command: '/refine :n=2' }), false, { refineCost: 30, refineCostExceedsLimit: true })
+  it('is disabled when electCostExceedsLimit is true', () => {
+    renderPanel(makeNode({ command: '/elect :n=2' }), false, { electCost: 30, electCostExceedsLimit: true })
     expect(screen.getByTestId('execute-node-button')).toBeDisabled()
   })
 
-  it('is not disabled by cost alone when refineCostExceedsLimit is false', () => {
-    renderPanel(makeNode({ command: '/refine :n=2' }), false, { refineCost: 10, refineCostExceedsLimit: false })
+  it('is not disabled by cost alone when electCostExceedsLimit is false', () => {
+    renderPanel(makeNode({ command: '/elect :n=2' }), false, { electCost: 10, electCostExceedsLimit: false })
     expect(screen.getByTestId('execute-node-button')).not.toBeDisabled()
   })
 
-  it('is not disabled when refineCostExceedsLimit is omitted', () => {
-    renderPanel(makeNode({ command: '/refine :n=2' }), false, { refineCost: 10 })
+  it('is not disabled when electCostExceedsLimit is omitted', () => {
+    renderPanel(makeNode({ command: '/elect :n=2' }), false, { electCost: 10 })
     expect(screen.getByTestId('execute-node-button')).not.toBeDisabled()
   })
 
-  it('is disabled when executeDisabled is true regardless of refineCostExceedsLimit', () => {
-    renderPanel(makeNode({ command: '/chat test' }), false, { executeDisabled: true, refineCostExceedsLimit: false })
+  it('is disabled when executeDisabled is true regardless of electCostExceedsLimit', () => {
+    renderPanel(makeNode({ command: '/chat test' }), false, { executeDisabled: true, electCostExceedsLimit: false })
     expect(screen.getByTestId('execute-node-button')).toBeDisabled()
   })
 })
@@ -479,31 +479,31 @@ describe('NodeDetailPanel — verdict button', () => {
   })
 
   it('shows the verdict button when reliabilityMetadata has non-empty perCriterionVerdict', () => {
-    renderPanel(makeNode({ command: '/refine :n=2' }), false, { reliabilityMetadata: makeMetadata() })
+    renderPanel(makeNode({ command: '/elect :n=2' }), false, { reliabilityMetadata: makeMetadata() })
     expect(screen.getByTestId('verdict-button')).toBeInTheDocument()
   })
 
   it('hides the verdict button when reliabilityMetadata is absent', () => {
-    renderPanel(makeNode({ command: '/refine :n=2' }), false)
+    renderPanel(makeNode({ command: '/elect :n=2' }), false)
     expect(screen.queryByTestId('verdict-button')).not.toBeInTheDocument()
   })
 
   it('hides the verdict button when perCriterionVerdict is empty', () => {
-    renderPanel(makeNode({ command: '/refine :n=2' }), false, {
+    renderPanel(makeNode({ command: '/elect :n=2' }), false, {
       reliabilityMetadata: makeMetadata({ perCriterionVerdict: [] }),
     })
     expect(screen.queryByTestId('verdict-button')).not.toBeInTheDocument()
   })
 
   it('clicking the verdict button opens the verdict drawer', () => {
-    renderPanel(makeNode({ command: '/refine :n=2' }), false, { reliabilityMetadata: makeMetadata() })
+    renderPanel(makeNode({ command: '/elect :n=2' }), false, { reliabilityMetadata: makeMetadata() })
     expect(screen.queryByTestId('criterion-verdict-drawer')).not.toBeInTheDocument()
     fireEvent.click(screen.getByTestId('verdict-button'))
     expect(screen.getByTestId('criterion-verdict-drawer')).toBeInTheDocument()
   })
 
   it('shows the forks inspector button for reliability metadata even when there are no discarded forks', () => {
-    renderPanel(makeNode({ command: '/refine :n=2' }), false, {
+    renderPanel(makeNode({ command: '/elect :n=2' }), false, {
       reliabilityMetadata: makeMetadata({ discardedForks: [], perCriterionVerdict: [] }),
     })
     expect(screen.getByTestId('forks-button')).toBeInTheDocument()
@@ -515,10 +515,10 @@ describe('NodeDetailPanel — title editor strips reliability suffix', () => {
   const SUFFIX_SHAPES = [
     ['validate pass first attempt', 'Work item [✓]', 'Work item', '[✓]'],
     ['validate pass after N retries', 'Work item [✓ +2]', 'Work item', '[✓ +2]'],
-    ['refine/commodity all succeeded', 'Work item [✓ 2/2]', 'Work item', '[✓ 2/2]'],
-    ['refine/commodity partial success', 'Work item [✓ 2/3]', 'Work item', '[✓ 2/3]'],
+    ['elect/commodity all succeeded', 'Work item [✓ 2/2]', 'Work item', '[✓ 2/2]'],
+    ['elect/commodity partial success', 'Work item [✓ 2/3]', 'Work item', '[✓ 2/3]'],
     ['commodity partial with warning', 'Work item [✓ 1/3 ⚠]', 'Work item', '[✓ 1/3 ⚠]'],
-    ['refine/commodity all failed', 'Work item [✗ 0/3]', 'Work item', '[✗ 0/3]'],
+    ['elect/commodity all failed', 'Work item [✗ 0/3]', 'Work item', '[✗ 0/3]'],
     ['validate all retries exhausted', 'Work item [✗ 3×]', 'Work item', '[✗ 3×]'],
     ['validate invalid criterion', 'Work item [✗ !]', 'Work item', '[✗ !]'],
     ['no judge signal', 'Work item [⚠ ∅]', 'Work item', '[⚠ ∅]'],
@@ -605,7 +605,7 @@ describe('NodeDetailPanel — commodity ceiling hint visibility', () => {
 
   describe('hint absent: non-commodity cell prefixes ignore :n= value', () => {
     it.each([
-      '/refine :n=3',
+      '/elect :n=3',
       '/validate :n=2 must mention revenue',
       '/foreach :n=3 items',
       '/steps :n=2',
@@ -638,7 +638,7 @@ describe('NodeDetailPanel — commodity ceiling hint visibility', () => {
     it('disappears when command changes from commodity :n=N to non-commodity :n=N', () => {
       const { rerenderPanel } = renderPanel(makeNode({ command: '/chat :n=2 query' }), false)
       expect(screen.getByTestId('commodity-ceiling-hint')).toBeInTheDocument()
-      rerenderPanel(makeNode({ command: '/refine :n=2 query' }), false)
+      rerenderPanel(makeNode({ command: '/elect :n=2 query' }), false)
       expect(screen.queryByTestId('commodity-ceiling-hint')).not.toBeInTheDocument()
     })
   })
@@ -721,9 +721,9 @@ describe('NodeDetailPanel — suppressed hint: cause routing inside suppressed-r
   })
 
   it('unrecognized or legacy cause falls through to suppressedRunHint — component is cause-agnostic', () => {
-    // 'side-effecting-refine-child' was removed in R3-1; component must not branch on cause values
+    // 'side-effecting-elect-child' was removed in R3-1; component must not branch on cause values
     renderPanel(makeNode({ command: '/chat :n=3 task' }), false, {
-      reliabilityMetadata: { ...baseSuppressed, cause: 'side-effecting-refine-child' },
+      reliabilityMetadata: { ...baseSuppressed, cause: 'side-effecting-elect-child' },
     })
     const hint = screen.getByTestId('suppressed-run-hint')
     expect(hint).toBeInTheDocument()
@@ -733,7 +733,7 @@ describe('NodeDetailPanel — suppressed hint: cause routing inside suppressed-r
 
   it('any suppressed cause uses the suppressed-run-hint container — no dead branch for legacy causes', () => {
     renderPanel(makeNode({ command: '/chat task' }), false, {
-      reliabilityMetadata: { ...baseSuppressed, cause: 'side-effecting-refine-child' },
+      reliabilityMetadata: { ...baseSuppressed, cause: 'side-effecting-elect-child' },
     })
     expect(screen.getByTestId('suppressed-run-hint')).toBeInTheDocument()
   })

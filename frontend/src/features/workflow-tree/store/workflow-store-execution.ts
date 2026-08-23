@@ -11,19 +11,19 @@ import { generateNodeId, generateSessionId } from '@shared/lib/generate-id'
 import { ForkStreamClient } from '../api/streaming/fork-stream-client'
 import type { ForkEvent } from '../api/streaming/fork-event-types'
 import { applyForkEventToMap } from './fork-preview-state'
-import { isValidRefineCell } from '@shared/lib/reliability/refine-params'
+import { isValidElectCell } from '@shared/lib/reliability/elect-params'
 
 // Keeps the executing indicator visible long enough to be perceivable under sub-frame substrates (NoopLLM, cache hits).
 const MIN_EXECUTING_VISIBLE_MS = 400
 
-function hasRefineDescendant(nodeId: NodeId, nodes: Record<NodeId, NodeData>): boolean {
+function hasElectDescendant(nodeId: NodeId, nodes: Record<NodeId, NodeData>): boolean {
   const node = nodes[nodeId]
   if (!node) return false
   for (const childId of node.children ?? []) {
     const child = nodes[childId]
     if (!child) continue
-    if (isValidRefineCell(child.command)) return true
-    if (hasRefineDescendant(childId, nodes)) return true
+    if (isValidElectCell(child.command)) return true
+    if (hasElectDescendant(childId, nodes)) return true
   }
   return false
 }
@@ -132,22 +132,22 @@ export function bindExecuteAction(
     try {
       const { workflowId, nodes, edges } = store.getState()
 
-      const useStreaming = isValidRefineCell(node.command) || hasRefineDescendant(node.id, nodes)
+      const useStreaming = isValidElectCell(node.command) || hasElectDescendant(node.id, nodes)
       const sessionId = useStreaming ? generateSessionId() : undefined
       let streamClient: ForkStreamClient | null = null
-      const seenRefineIds = new Set<NodeId>()
+      const seenElectIds = new Set<NodeId>()
 
       if (useStreaming && sessionId) {
         streamClient = new ForkStreamClient(sessionId, {
           onForkEvent: event => {
-            seenRefineIds.add(event.refineNodeId)
+            seenElectIds.add(event.electNodeId)
             applyForkEvent(store, event)
           },
         })
         streamClient.connect()
         // Gate the execute POST on the SSE session being registered. Firing the POST first races
         // stream-session registration on the backend, which 400s the execution and drops the
-        // parent's output (worst under rapid edit→run on refine/best-of-N). Best-effort: whenReady
+        // parent's output (worst under rapid edit→run on elect/best-of-N). Best-effort: whenReady
         // resolves on SSE open or a short timeout, so a stalled stream never blocks execution.
         await streamClient.whenReady()
       }
@@ -166,7 +166,7 @@ export function bindExecuteAction(
         responseReceived = true
       } finally {
         streamClient?.disconnect()
-        clearForkPreviews(store, seenRefineIds)
+        clearForkPreviews(store, seenElectIds)
       }
 
       if (!hasWorkflowChanges(response)) {

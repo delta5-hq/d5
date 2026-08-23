@@ -332,7 +332,7 @@ describe('DiscardedForksDrawer', () => {
   })
 
   describe('content source priority', () => {
-    it('falls back to discardedForks when winnerForkIndex is set (refine_complete has fired)', () => {
+    it('falls back to discardedForks when winnerForkIndex is set (elect_complete has fired)', () => {
       render(
         <DiscardedForksDrawer
           discardedForks={[discardedFork({ forkIndex: 7 })]}

@@ -1,6 +1,6 @@
 import type { IntegrationSettings, JudgeQualityWarning } from '@shared/base-types'
 import type { NodeData, NodeId } from '@shared/base-types'
-import { isValidRefineCell } from './refine-params'
+import { isValidElectCell } from './elect-params'
 import { VALIDATE_QUERY } from '@shared/lib/commands/command-constants'
 
 type LLMProviderKey = 'openai' | 'claude' | 'deepseek' | 'qwen' | 'yandex' | 'custom_llm'
@@ -48,14 +48,14 @@ export function computePreExecuteWarnings(
 ): JudgeQualityWarning[] {
   if (!nodeCommand) return []
 
-  const isRefine = isValidRefineCell(nodeCommand)
+  const isElect = isValidElectCell(nodeCommand)
   const isValidate = nodeCommand.startsWith(VALIDATE_QUERY)
-  if (!isRefine && !isValidate) return []
+  if (!isElect && !isValidate) return []
 
   const familyCount = getConfiguredFamilyCount(settings)
   const warnings: JudgeQualityWarning[] = []
 
-  if (isRefine) {
+  if (isElect) {
     if (familyCount <= 1) {
       warnings.push({ condition: 'singleProvider', severity: 'high' })
     } else if (hasOnlyLowestTierFamilies(settings)) {

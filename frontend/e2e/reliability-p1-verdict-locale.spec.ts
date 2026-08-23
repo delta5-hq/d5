@@ -19,26 +19,26 @@ test.describe('P1.4/P1.5/P1.6 — verdict drawer, locale, judge-quality (live)',
     const tree = new WorkflowTreePage(page)
     const { detail, rootId } = await selectRootAndOpenDetail(page)
 
-    // Root must be a content cell for /refine to attach (else "/refine requires a parent cell").
+    // Root must be a content cell for /elect to attach (else "/elect requires a parent cell").
     await detail.fillCommand('/chat :n=2 Write one short friendly greeting')
-    const refineId = await addChildCommand(page, tree, rootId, '/refine :n=2')
-    const validateId = await addChildCommand(page, tree, refineId, '/validate answer is non-empty')
+    const electId = await addChildCommand(page, tree, rootId, '/elect :n=2')
+    const validateId = await addChildCommand(page, tree, electId, '/validate answer is non-empty')
 
     await executeRoot(page, tree, rootId)
-    await awaitNodeTitle(page, refineId, COMPLETION_SUFFIX_RE)
+    await awaitNodeTitle(page, electId, COMPLETION_SUFFIX_RE)
 
-    // perCriterionVerdict / verdict-button may live on the refine or the validate cell — find it.
-    let carrier = refineId
-    await tree.selectNode(refineId)
+    // perCriterionVerdict / verdict-button may live on the elect or the validate cell — find it.
+    let carrier = electId
+    await tree.selectNode(electId)
     await detail.waitForComponent()
     if (!(await page.getByTestId('verdict-button').isVisible().catch(() => false))) {
       carrier = validateId
       await tree.selectNode(validateId)
       await detail.waitForComponent()
     }
-    console.log('P1.4 verdict-button carrier node:', carrier === refineId ? 'refine' : 'validate')
+    console.log('P1.4 verdict-button carrier node:', carrier === electId ? 'elect' : 'validate')
 
-    // P1.6 (pre-execute surface): log whether a judge-quality pre-execute warning renders on the refine cell.
+    // P1.6 (pre-execute surface): log whether a judge-quality pre-execute warning renders on the elect cell.
     const preWarn = page.getByTestId('pre-execute-warnings')
     console.log('P1.6 pre-execute-warnings visible:', await preWarn.isVisible().catch(() => false))
     if (await preWarn.isVisible().catch(() => false)) {
@@ -70,7 +70,7 @@ test.describe('P1.4/P1.5/P1.6 — verdict drawer, locale, judge-quality (live)',
     const url = page.url()
     await page.evaluate(() => localStorage.setItem('d5-locale', 'ru'))
     await page.goto(url)
-    await tree.selectNode(refineId)
+    await tree.selectNode(electId)
     await new NodeDetailPanelPage(page).waitForComponent()
     await expect(
       page.getByTestId('verdict-button'),

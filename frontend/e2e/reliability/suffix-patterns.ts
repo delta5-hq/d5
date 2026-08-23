@@ -3,4 +3,4 @@ export const COMMODITY_FULL_SUCCESS_SUFFIX_RE = (n: number): RegExp => new RegEx
 export const COMMODITY_OUTCOME_SUFFIX_RE = /\[(✓|✗) (\d+)\/(\d+)(?: ⚠)?\]/
 export const VALIDATE_VERDICT_RE = /\[(?:✓(?:\s+\+\d+)?|✗\s+\d+×)\]/
 export const VALIDATE_FAIL_RE = /\[✗\s+\d+×\]/
-export const REFINE_FALLBACK_SUFFIX_RE = /\[⚠ 0\/\d+\]/
+export const ELECT_FALLBACK_SUFFIX_RE = /\[⚠ 0\/\d+\]/

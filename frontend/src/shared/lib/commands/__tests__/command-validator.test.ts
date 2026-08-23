@@ -32,8 +32,8 @@ describe('command-validator', () => {
         it.each([
           ['/validate :n=3 Must include revenue figures'],
           ['/validate :retry=5 Must include revenue figures'],
-          ['/refine :n=3'],
-          ['/refine :n=3 :fallback'],
+          ['/elect :n=3'],
+          ['/elect :n=3 :fallback'],
         ])('returns true for %s', input => {
           expect(hasValidCommand(input)).toBe(true)
         })
@@ -75,7 +75,7 @@ describe('command-validator', () => {
 
       it('returns false for inline params attached without space', () => {
         expect(hasValidCommand('/validate:n=3')).toBe(false)
-        expect(hasValidCommand('/refine:n=2')).toBe(false)
+        expect(hasValidCommand('/elect:n=2')).toBe(false)
       })
     })
 

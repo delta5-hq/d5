@@ -377,13 +377,13 @@ describe('StoreFork', () => {
           steps: {
             id: 'steps',
             command: '/steps',
-            children: ['chat', 'refine'],
+            children: ['chat', 'elect'],
           },
           chat: {id: 'chat', parent: 'steps', command: '/chat', children: []},
-          refine: {
-            id: 'refine',
+          elect: {
+            id: 'elect',
             parent: 'steps',
-            command: '/refine :n=2',
+            command: '/elect :n=2',
             children: [],
           },
         },
@@ -395,7 +395,7 @@ describe('StoreFork', () => {
           steps: {
             id: 'steps',
             command: '/steps',
-            children: ['chat', 'refine', 'sum'],
+            children: ['chat', 'elect', 'sum'],
           },
           chat: {
             id: 'chat',
@@ -421,10 +421,10 @@ describe('StoreFork', () => {
             title: 'Summary output',
             children: [],
           },
-          refine: {
-            id: 'refine',
+          elect: {
+            id: 'elect',
             parent: 'steps',
-            command: '/refine :n=2',
+            command: '/elect :n=2',
             children: [],
           },
         },
@@ -442,7 +442,7 @@ describe('StoreFork', () => {
       expect(target._nodes.out1).toBeDefined()
       expect(target._nodes.sum).toBeDefined()
       expect(target._nodes.sumOut).toBeDefined()
-      expect(target._nodes.refine).toBeDefined()
+      expect(target._nodes.elect).toBeDefined()
 
       // Edges transferred
       expect(target._edges.e1).toBeDefined()

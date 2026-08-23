@@ -4,7 +4,7 @@ import {getIntegrationSettings, determineLLMType, getLLM} from '../../commands/u
 import {NodeTextExtractor} from '../../commands/utils/NodeTextExtractor'
 import {getNodeCommand, isOutlineSummarize, isSummarize} from '../../commands/utils/isCommand'
 import {isValidateCell, readValidateCriterion, readValidateN} from './validateParams'
-import {isValidRefineCell} from './refineParams'
+import {isValidElectCell} from './electParams'
 
 const log = debug('delta5:validate')
 
@@ -62,8 +62,8 @@ const extractValidationContent = async (parentNode, store) => {
     return promptOutputs.join('\n')
   }
 
-  // inside a fork before winner selection, refine has no output yet — validate the command being refined
-  if (isValidRefineCell(getNodeCommand(parentNode)) && !hasMaterializedPromptOutput(parentNode, store)) {
+  // inside a fork before winner selection, elect has no output yet — validate the command being electd
+  if (isValidElectCell(getNodeCommand(parentNode)) && !hasMaterializedPromptOutput(parentNode, store)) {
     const grandparent = store.getNode(parentNode.parent)
     if (grandparent) {
       const gpContent = await extractValidationContent(grandparent, store)

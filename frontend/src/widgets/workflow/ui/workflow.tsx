@@ -27,7 +27,7 @@ import { useClickOutside } from '@shared/lib/hooks'
 import { isSlashCommand } from '@shared/lib/commands/command-validator'
 import { matchesAnyCommandWithOrder } from '@shared/lib/command-validation'
 import { deriveNodeTitle } from '@shared/lib/reliability-suffix'
-import { isValidRefineCell } from '@shared/lib/reliability/refine-params'
+import { isValidElectCell } from '@shared/lib/reliability/elect-params'
 import { projectForkCost } from '@shared/lib/reliability/fork-cost-projector'
 import { readForkLimit, exceedsForkLimit } from '@shared/lib/reliability/fork-limit-parser'
 import { computePreExecuteWarnings } from '@shared/lib/reliability/judge-quality-warnings'
@@ -82,8 +82,8 @@ const WorkflowContent = () => {
 
   const hasValidCommand = useMemo(() => isSlashCommand(selectedNode?.command), [selectedNode?.command])
 
-  const selectedNodeRefineProjection = useMemo(() => {
-    if (!selectedNode || !isValidRefineCell(selectedNode.command)) return null
+  const selectedNodeElectProjection = useMemo(() => {
+    if (!selectedNode || !isValidElectCell(selectedNode.command)) return null
     const cost = projectForkCost(selectedNode, nodes)
     const limit = readForkLimit(selectedNode.command)
     return { cost, limitExceeded: exceedsForkLimit(cost, limit) }
@@ -403,6 +403,8 @@ const WorkflowContent = () => {
             <NodeDetailPanel
               autoFocusCommand={autoFocusCommandNodeId === selectedId}
               autoFocusTitle={autoEditNodeId === selectedId}
+              electCost={selectedNodeElectProjection?.cost ?? null}
+              electCostExceedsLimit={selectedNodeElectProjection?.limitExceeded ?? false}
               executeDisabled={isSelectedNodeExecuting || !hasValidCommand}
               forkPreview={selectedNodeForkPreview}
               isExecuting={isSelectedNodeExecuting}
@@ -423,8 +425,6 @@ const WorkflowContent = () => {
               onUpdateNode={handleUpdateNode}
               openDrawerForNodeId={openDrawerForNodeId}
               preExecuteWarnings={selectedNodePreExecuteWarnings}
-              refineCost={selectedNodeRefineProjection?.cost ?? null}
-              refineCostExceedsLimit={selectedNodeRefineProjection?.limitExceeded ?? false}
               reliabilityMetadata={selectedNode.reliabilityMetadata}
             />
           ) : (

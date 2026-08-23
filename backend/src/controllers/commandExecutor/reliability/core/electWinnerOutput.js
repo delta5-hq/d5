@@ -47,19 +47,19 @@ const copySubtree = (sourceStore, targetStore, sourceNodeId, targetParentId) => 
   return copied.id
 }
 
-export const copyParentPromptOutputToRefine = ({sourceStore, targetStore, parentNodeId, refineNodeId}) => {
+export const copyParentPromptOutputToElect = ({sourceStore, targetStore, parentNodeId, electNodeId}) => {
   const sourceParent = sourceStore.getNode(parentNodeId)
-  const targetRefine = targetStore.getNode(refineNodeId)
-  if (!sourceParent || !targetRefine) return []
+  const targetElect = targetStore.getNode(electNodeId)
+  if (!sourceParent || !targetElect) return []
 
-  clearPromptSubtrees(targetStore, refineNodeId)
+  clearPromptSubtrees(targetStore, electNodeId)
 
   const copiedPromptIds = (sourceParent.prompts ?? [])
-    .map(promptId => copySubtree(sourceStore, targetStore, promptId, refineNodeId))
+    .map(promptId => copySubtree(sourceStore, targetStore, promptId, electNodeId))
     .filter(Boolean)
 
   if (copiedPromptIds.length > 0) {
-    targetStore.addPromptsToNode(refineNodeId, copiedPromptIds)
+    targetStore.addPromptsToNode(electNodeId, copiedPromptIds)
   }
 
   return copiedPromptIds

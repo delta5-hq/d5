@@ -42,8 +42,8 @@ interface NodeDetailPanelProps {
   onAbort: (nodeId: NodeId) => void
   isExecuting: boolean
   executeDisabled: boolean
-  refineCost?: number | null
-  refineCostExceedsLimit?: boolean
+  electCost?: number | null
+  electCostExceedsLimit?: boolean
   reliabilityMetadata?: ReliabilityMetadata
   forkPreview?: ForkPreviewState
   preExecuteWarnings?: JudgeQualityWarning[]
@@ -69,8 +69,8 @@ export const NodeDetailPanel = ({
   onAbort,
   isExecuting,
   executeDisabled,
-  refineCost,
-  refineCostExceedsLimit,
+  electCost,
+  electCostExceedsLimit,
   reliabilityMetadata,
   forkPreview,
   preExecuteWarnings,
@@ -86,7 +86,7 @@ export const NodeDetailPanel = ({
   const mutationDisabled = isExecuting
   const { formatMessage } = useIntl()
   const showPreview = isPrompt || Boolean(node.command) || Boolean(node.title)
-  const canExecute = canExecuteNode(node.command, executeDisabled || refineCostExceedsLimit === true)
+  const canExecute = canExecuteNode(node.command, executeDisabled || electCostExceedsLimit === true)
   const siblingActionsEnabled = !isRoot && canExecute
 
   const commodityN = readCommodityN(node.command ?? '')
@@ -237,14 +237,14 @@ export const NodeDetailPanel = ({
                       placeholder={formatMessage({ id: 'workflowTree.node.commandPlaceholder' })}
                       value={node.command ?? ''}
                     />
-                    {typeof refineCost === 'number' ? (
-                      <span className="text-xs text-muted-foreground mt-1 block" data-testid="refine-cost-hint">
-                        <FormattedMessage id="workflowTree.node.refineCostHint" values={{ cost: refineCost }} />
+                    {typeof electCost === 'number' ? (
+                      <span className="text-xs text-muted-foreground mt-1 block" data-testid="elect-cost-hint">
+                        <FormattedMessage id="workflowTree.node.electCostHint" values={{ cost: electCost }} />
                       </span>
                     ) : null}
-                    {typeof refineCost === 'number' && refineCostExceedsLimit ? (
-                      <span className="text-xs text-destructive mt-1 block" data-testid="refine-cost-over-limit">
-                        <FormattedMessage id="workflowTree.node.refineCostOverLimit" values={{ cost: refineCost }} />
+                    {typeof electCost === 'number' && electCostExceedsLimit ? (
+                      <span className="text-xs text-destructive mt-1 block" data-testid="elect-cost-over-limit">
+                        <FormattedMessage id="workflowTree.node.electCostOverLimit" values={{ cost: electCost }} />
                       </span>
                     ) : null}
                     {commodityN > 1 ? (

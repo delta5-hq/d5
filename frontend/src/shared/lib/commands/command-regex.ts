@@ -72,8 +72,8 @@ export const commandRegex = {
   customLLMChat: createCommandPattern(['/custom']),
   customLLMChatWithOrder: createCommandPattern(['/custom'], true),
 
-  refine: createCommandPattern(['/refine']),
-  refineWithOrder: createCommandPattern(['/refine'], true),
+  elect: createCommandPattern(['/elect']),
+  electWithOrder: createCommandPattern(['/elect'], true),
 
   validate: createCommandPattern(['/validate']),
   validateWithOrder: createCommandPattern(['/validate'], true),

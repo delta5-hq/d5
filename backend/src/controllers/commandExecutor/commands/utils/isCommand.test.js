@@ -80,11 +80,11 @@ describe('getNodeCommand', () => {
     it('handles title-only post-process child node', () => {
       const postProcessNode = {
         id: 'child-456',
-        title: '/refine improve clarity',
+        title: '/elect improve clarity',
         parent: 'parent-node',
         children: [],
       }
-      expect(getNodeCommand(postProcessNode)).toBe('/refine improve clarity')
+      expect(getNodeCommand(postProcessNode)).toBe('/elect improve clarity')
     })
 
     it('handles foreach-generated node with command set', () => {

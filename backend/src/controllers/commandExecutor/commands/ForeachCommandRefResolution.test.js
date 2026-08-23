@@ -17,8 +17,8 @@ jest.mock('../ProgressReporter', () => ({
   })),
 }))
 
-jest.mock('../reliability/core/resolveRefineCell', () => ({resolveRefineCell: jest.fn()}))
-jest.mock('../reliability/core/RefineTopology', () => jest.fn(() => []))
+jest.mock('../reliability/core/resolveElectCell', () => ({resolveElectCell: jest.fn()}))
+jest.mock('../reliability/core/ElectTopology', () => jest.fn(() => []))
 
 jest.mock('./utils/runCommand', () => ({
   runCommand: jest.fn().mockResolvedValue(undefined),

@@ -1,4 +1,4 @@
-import {resolveRefineCell} from './resolveRefineCell'
+import {resolveElectCell} from './resolveElectCell'
 import OwnershipResolver from './OwnershipResolver'
 import Store from '../../commands/utils/Store'
 
@@ -18,7 +18,7 @@ jest.mock('./ForkProgressEmitter', () => ({
   NullForkProgressEmitter: jest.fn(() => ({
     forksStarted: jest.fn(),
     forkSettled: jest.fn(),
-    refineComplete: jest.fn(),
+    electComplete: jest.fn(),
   })),
 }))
 
@@ -47,7 +47,7 @@ const {NodeTextExtractor} = require('../../commands/utils/NodeTextExtractor')
 
 const buildStore = nodeMap => new Store({userId: 'user1', nodes: nodeMap})
 
-const makeRefineStore = () => {
+const makeElectStore = () => {
   const store = buildStore({
     p1: {
       id: 'p1',
@@ -59,8 +59,8 @@ const makeRefineStore = () => {
     r1: {
       id: 'r1',
       parent: 'p1',
-      title: 'Refine Cell',
-      command: '/refine :n=2',
+      title: 'Elect Cell',
+      command: '/elect :n=2',
       children: [],
     },
   })
@@ -69,7 +69,7 @@ const makeRefineStore = () => {
   return store
 }
 
-const make3ForkRefineStore = () => {
+const make3ForkElectStore = () => {
   const store = buildStore({
     p1: {
       id: 'p1',
@@ -81,8 +81,8 @@ const make3ForkRefineStore = () => {
     r1: {
       id: 'r1',
       parent: 'p1',
-      title: 'Refine Cell',
-      command: '/refine :n=3',
+      title: 'Elect Cell',
+      command: '/elect :n=3',
       children: [],
     },
   })
@@ -104,7 +104,7 @@ const makeForkStore = (forkIndex, n = 2) =>
       id: 'r1',
       parent: 'p1',
       title: `Fork-${forkIndex} result`,
-      command: `/refine :n=${n}`,
+      command: `/elect :n=${n}`,
       children: [],
     },
   })
@@ -128,7 +128,7 @@ beforeEach(() => {
   }))
 })
 
-describe('resolveRefineCell — real ForkJudge Borda scoring → reliabilityMetadata contract', () => {
+describe('resolveElectCell — real ForkJudge Borda scoring → reliabilityMetadata contract', () => {
   it('complete Borda tie: two forks, two criteria, opposing juror rankings — fork-0 wins by position; tiebreakUsed:true', async () => {
     getLLM.mockReturnValueOnce(mockLLMWithContent('1,2')).mockReturnValueOnce(mockLLMWithContent('2,1'))
 
@@ -146,8 +146,8 @@ describe('resolveRefineCell — real ForkJudge Borda scoring → reliabilityMeta
       {forkIndex: 1, status: 'ok', forkStore: makeForkStore(1)},
     ])
 
-    const store = makeRefineStore()
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    const store = makeElectStore()
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const meta = store.getNode('r1').reliabilityMetadata
     expect(meta.tiebreakUsed).toBe(true)
@@ -167,8 +167,8 @@ describe('resolveRefineCell — real ForkJudge Borda scoring → reliabilityMeta
       {forkIndex: 2, status: 'ok', forkStore: makeForkStore(2, 3)},
     ])
 
-    const store = make3ForkRefineStore()
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    const store = make3ForkElectStore()
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const meta = store.getNode('r1').reliabilityMetadata
     expect(meta.tiebreakUsed).toBe(true)
@@ -187,8 +187,8 @@ describe('resolveRefineCell — real ForkJudge Borda scoring → reliabilityMeta
       {forkIndex: 1, status: 'ok', forkStore: makeForkStore(1)},
     ])
 
-    const store = makeRefineStore()
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    const store = makeElectStore()
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const meta = store.getNode('r1').reliabilityMetadata
     expect(meta.tiebreakUsed).toBe(false)
@@ -206,8 +206,8 @@ describe('resolveRefineCell — real ForkJudge Borda scoring → reliabilityMeta
       {forkIndex: 1, status: 'ok', forkStore: makeForkStore(1)},
     ])
 
-    const store = makeRefineStore()
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    const store = makeElectStore()
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const meta = store.getNode('r1').reliabilityMetadata
 

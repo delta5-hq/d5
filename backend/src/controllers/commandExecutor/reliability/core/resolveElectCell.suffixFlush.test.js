@@ -1,4 +1,4 @@
-import {resolveRefineCell} from './resolveRefineCell'
+import {resolveElectCell} from './resolveElectCell'
 import Store from '../../commands/utils/Store'
 import {getNodeCommand} from '../../commands/utils/isCommand'
 import {ForkJudge} from './ForkJudge'
@@ -23,7 +23,7 @@ const makeOuterStore = () =>
     r1: {
       id: 'r1',
       title: 'Analyze competitors',
-      command: '/refine :n=2',
+      command: '/elect :n=2',
       children: ['v1'],
     },
     v1: {
@@ -37,7 +37,7 @@ const makeOuterStore = () =>
 
 const makeForkStoreWithValidateTitle = validateTitle =>
   buildStore({
-    r1: {id: 'r1', command: '/refine :n=2', children: ['v1']},
+    r1: {id: 'r1', command: '/elect :n=2', children: ['v1']},
     v1: {
       id: 'v1',
       parent: 'r1',
@@ -54,7 +54,7 @@ beforeEach(() => {
   }))
 })
 
-describe('resolveRefineCell — strict all-fail', () => {
+describe('resolveElectCell — strict all-fail', () => {
   describe('validate title sync to outer store', () => {
     it('single owned child validate title flushed from first criteria-failed fork', async () => {
       const store = makeOuterStore()
@@ -69,7 +69,7 @@ describe('resolveRefineCell — strict all-fail', () => {
         },
       ])
 
-      await resolveRefineCell(store.getNode('r1'), store, new Map())
+      await resolveElectCell(store.getNode('r1'), store, new Map())
 
       const outputNodes = store.getOutput().nodes
       const validate = outputNodes.find(n => n.id === 'v1')
@@ -87,7 +87,7 @@ describe('resolveRefineCell — strict all-fail', () => {
         {forkIndex: 1, status: 'criteria-failed', forkStore: fork1Store},
       ])
 
-      await resolveRefineCell(store.getNode('r1'), store, new Map())
+      await resolveElectCell(store.getNode('r1'), store, new Map())
 
       const outputNodes = store.getOutput().nodes
       const validate = outputNodes.find(n => n.id === 'v1')
@@ -97,7 +97,7 @@ describe('resolveRefineCell — strict all-fail', () => {
 
     it('all owned validate titles flushed for multi-criterion topology', async () => {
       const store = buildStore({
-        r1: {id: 'r1', command: '/refine :n=2', children: ['v1', 'v2']},
+        r1: {id: 'r1', command: '/elect :n=2', children: ['v1', 'v2']},
         v1: {
           id: 'v1',
           parent: 'r1',
@@ -114,7 +114,7 @@ describe('resolveRefineCell — strict all-fail', () => {
         },
       })
       const diagnosticForkStore = buildStore({
-        r1: {id: 'r1', command: '/refine :n=2', children: ['v1', 'v2']},
+        r1: {id: 'r1', command: '/elect :n=2', children: ['v1', 'v2']},
         v1: {
           id: 'v1',
           parent: 'r1',
@@ -144,14 +144,14 @@ describe('resolveRefineCell — strict all-fail', () => {
         },
       ])
 
-      await resolveRefineCell(store.getNode('r1'), store, new Map())
+      await resolveElectCell(store.getNode('r1'), store, new Map())
 
       const outputNodes = store.getOutput().nodes
       expect(outputNodes.find(n => n.id === 'v1')?.title).toBe('/validate must include companies [✗ 3×]')
       expect(outputNodes.find(n => n.id === 'v2')?.title).toBe('/validate must include revenue [✓]')
     })
 
-    it('refine cell carries [✗ 0/N] suffix in output', async () => {
+    it('elect cell carries [✗ 0/N] suffix in output', async () => {
       const store = makeOuterStore()
       const forkStore = makeForkStoreWithValidateTitle('/validate must include revenue figures [✗ 3×]')
 
@@ -160,14 +160,14 @@ describe('resolveRefineCell — strict all-fail', () => {
         {forkIndex: 1, status: 'criteria-failed', forkStore},
       ])
 
-      await resolveRefineCell(store.getNode('r1'), store, new Map())
+      await resolveElectCell(store.getNode('r1'), store, new Map())
 
       const outputNodes = store.getOutput().nodes
-      const refine = outputNodes.find(n => n.id === 'r1')
-      expect(refine).toBeDefined()
-      expect(refine.title).toMatch(/\[✗ 0\/2\]/)
+      const elect = outputNodes.find(n => n.id === 'r1')
+      expect(elect).toBeDefined()
+      expect(elect.title).toMatch(/\[✗ 0\/2\]/)
     })
-    it('judge noSignal + all forks ok → refine carries [⚠ ∅], validate not flushed (no diagnostic source)', async () => {
+    it('judge noSignal + all forks ok → elect carries [⚠ ∅], validate not flushed (no diagnostic source)', async () => {
       const store = makeOuterStore()
       const forkStore = makeForkStoreWithValidateTitle('/validate must include revenue figures [✓]')
 
@@ -179,16 +179,16 @@ describe('resolveRefineCell — strict all-fail', () => {
         selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: null, noSignal: true}),
       }))
 
-      await resolveRefineCell(store.getNode('r1'), store, new Map())
+      await resolveElectCell(store.getNode('r1'), store, new Map())
 
       const outputNodes = store.getOutput().nodes
-      const refine = outputNodes.find(n => n.id === 'r1')
-      expect(refine).toBeDefined()
-      expect(refine.title).toMatch(/\[⚠ ∅\]/)
+      const elect = outputNodes.find(n => n.id === 'r1')
+      expect(elect).toBeDefined()
+      expect(elect.title).toMatch(/\[⚠ ∅\]/)
       expect(outputNodes.find(n => n.id === 'v1')).toBeUndefined()
     })
 
-    it('judge noSignal + criteria-failed fork present → refine carries [⚠ ∅], validate IS flushed from diagnostic fork', async () => {
+    it('judge noSignal + criteria-failed fork present → elect carries [⚠ ∅], validate IS flushed from diagnostic fork', async () => {
       const store = makeOuterStore()
       const diagnosticForkStore = makeForkStoreWithValidateTitle('/validate must include revenue figures [✗ 2×]')
 
@@ -208,17 +208,17 @@ describe('resolveRefineCell — strict all-fail', () => {
         selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: null, noSignal: true}),
       }))
 
-      await resolveRefineCell(store.getNode('r1'), store, new Map())
+      await resolveElectCell(store.getNode('r1'), store, new Map())
 
       const outputNodes = store.getOutput().nodes
-      const refine = outputNodes.find(n => n.id === 'r1')
-      expect(refine.title).toMatch(/\[⚠ ∅\]/)
+      const elect = outputNodes.find(n => n.id === 'r1')
+      expect(elect.title).toMatch(/\[⚠ ∅\]/)
       const validate = outputNodes.find(n => n.id === 'v1')
       expect(validate).toBeDefined()
       expect(validate.title).toBe('/validate must include revenue figures [✗ 2×]')
     })
 
-    it('judge returns winnerForkIndex:null with noSignal:false → refine carries [✗ 0/N], not [⚠ ∅]', async () => {
+    it('judge returns winnerForkIndex:null with noSignal:false → elect carries [✗ 0/N], not [⚠ ∅]', async () => {
       const store = makeOuterStore()
       const forkStore = makeForkStoreWithValidateTitle('/validate must include revenue figures [✗ 3×]')
 
@@ -230,12 +230,12 @@ describe('resolveRefineCell — strict all-fail', () => {
         selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: null, noSignal: false}),
       }))
 
-      await resolveRefineCell(store.getNode('r1'), store, new Map())
+      await resolveElectCell(store.getNode('r1'), store, new Map())
 
       const outputNodes = store.getOutput().nodes
-      const refine = outputNodes.find(n => n.id === 'r1')
-      expect(refine.title).toMatch(/\[✗ 0\/2\]/)
-      expect(refine.title).not.toMatch(/no judge signal/)
+      const elect = outputNodes.find(n => n.id === 'r1')
+      expect(elect.title).toMatch(/\[✗ 0\/2\]/)
+      expect(elect.title).not.toMatch(/no judge signal/)
     })
   })
 
@@ -248,7 +248,7 @@ describe('resolveRefineCell — strict all-fail', () => {
         criterion: 'must include revenue figures',
       }
       const forkStore = buildStore({
-        r1: {id: 'r1', command: '/refine :n=2', children: ['v1']},
+        r1: {id: 'r1', command: '/elect :n=2', children: ['v1']},
         v1: {
           id: 'v1',
           parent: 'r1',
@@ -264,7 +264,7 @@ describe('resolveRefineCell — strict all-fail', () => {
         {forkIndex: 1, status: 'criteria-failed', forkStore},
       ])
 
-      await resolveRefineCell(store.getNode('r1'), store, new Map())
+      await resolveElectCell(store.getNode('r1'), store, new Map())
 
       const outputNodes = store.getOutput().nodes
       const validate = outputNodes.find(n => n.id === 'v1')
@@ -274,7 +274,7 @@ describe('resolveRefineCell — strict all-fail', () => {
   })
 
   describe('diagnostic source selection', () => {
-    it('all runtime-failed forks: no validate flush and refine carries [✗ 0/N] failure suffix', async () => {
+    it('all runtime-failed forks: no validate flush and elect carries [✗ 0/N] failure suffix', async () => {
       const store = makeOuterStore()
 
       mockRunForks.mockResolvedValue([
@@ -282,7 +282,7 @@ describe('resolveRefineCell — strict all-fail', () => {
         {forkIndex: 1, status: 'runtime-failed', forkStore: null},
       ])
 
-      await resolveRefineCell(store.getNode('r1'), store, new Map())
+      await resolveElectCell(store.getNode('r1'), store, new Map())
 
       const outputNodes = store.getOutput().nodes
       expect(outputNodes.find(n => n.id === 'v1')).toBeUndefined()
@@ -302,7 +302,7 @@ describe('resolveRefineCell — strict all-fail', () => {
         },
       ])
 
-      await resolveRefineCell(store.getNode('r1'), store, new Map())
+      await resolveElectCell(store.getNode('r1'), store, new Map())
 
       const outputNodes = store.getOutput().nodes
       const validate = outputNodes.find(n => n.id === 'v1')
@@ -312,9 +312,9 @@ describe('resolveRefineCell — strict all-fail', () => {
   })
 
   describe('ownership topology', () => {
-    it('grandchild validate two levels below /refine is flushed on all-fail', async () => {
+    it('grandchild validate two levels below /elect is flushed on all-fail', async () => {
       const store = buildStore({
-        r1: {id: 'r1', command: '/refine :n=2', children: ['step1']},
+        r1: {id: 'r1', command: '/elect :n=2', children: ['step1']},
         step1: {
           id: 'step1',
           parent: 'r1',
@@ -330,7 +330,7 @@ describe('resolveRefineCell — strict all-fail', () => {
         },
       })
       const forkStore = buildStore({
-        r1: {id: 'r1', command: '/refine :n=2', children: ['step1']},
+        r1: {id: 'r1', command: '/elect :n=2', children: ['step1']},
         step1: {
           id: 'step1',
           parent: 'r1',
@@ -351,7 +351,7 @@ describe('resolveRefineCell — strict all-fail', () => {
         {forkIndex: 1, status: 'criteria-failed', forkStore},
       ])
 
-      await resolveRefineCell(store.getNode('r1'), store, new Map())
+      await resolveElectCell(store.getNode('r1'), store, new Map())
 
       const outputNodes = store.getOutput().nodes
       expect(outputNodes.find(n => n.id === 'v1')?.title).toBe('/validate must be concise [✗ 2×]')
@@ -359,7 +359,7 @@ describe('resolveRefineCell — strict all-fail', () => {
 
     it('validate absent from diagnostic fork left at pre-fork title, not included in output', async () => {
       const store = buildStore({
-        r1: {id: 'r1', command: '/refine :n=2', children: ['v1']},
+        r1: {id: 'r1', command: '/elect :n=2', children: ['v1']},
         v1: {
           id: 'v1',
           parent: 'r1',
@@ -369,7 +369,7 @@ describe('resolveRefineCell — strict all-fail', () => {
         },
       })
       const diagnosticForkStore = buildStore({
-        r1: {id: 'r1', command: '/refine :n=2', children: []},
+        r1: {id: 'r1', command: '/elect :n=2', children: []},
       })
 
       mockRunForks.mockResolvedValue([
@@ -380,33 +380,33 @@ describe('resolveRefineCell — strict all-fail', () => {
         },
       ])
 
-      await resolveRefineCell(store.getNode('r1'), store, new Map())
+      await resolveElectCell(store.getNode('r1'), store, new Map())
 
       expect(store.getNode('v1').title).toBe('original title')
       expect(store.getOutput().nodes.find(n => n.id === 'v1')).toBeUndefined()
     })
 
-    it('no owned validates: flush is no-op, refine error node still written', async () => {
+    it('no owned validates: flush is no-op, elect error node still written', async () => {
       const store = buildStore({
-        r1: {id: 'r1', command: '/refine :n=2', children: []},
+        r1: {id: 'r1', command: '/elect :n=2', children: []},
       })
       const emptyForkStore = buildStore({
-        r1: {id: 'r1', command: '/refine :n=2', children: []},
+        r1: {id: 'r1', command: '/elect :n=2', children: []},
       })
 
       mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'criteria-failed', forkStore: emptyForkStore}])
 
-      await resolveRefineCell(store.getNode('r1'), store, new Map())
+      await resolveElectCell(store.getNode('r1'), store, new Map())
 
       const outputNodes = store.getOutput().nodes
-      const refineNode = outputNodes.find(n => n.id === 'r1')
-      expect(refineNode).toBeDefined()
-      expect(refineNode.title).toMatch(/\[✗ 0\/2\]/)
+      const electNode = outputNodes.find(n => n.id === 'r1')
+      expect(electNode).toBeDefined()
+      expect(electNode.title).toMatch(/\[✗ 0\/2\]/)
     })
   })
 })
 
-describe('resolveRefineCell — winner path: validate flush sources from winner fork, not criteria-failed fork', () => {
+describe('resolveElectCell — winner path: validate flush sources from winner fork, not criteria-failed fork', () => {
   it('mixed ok+criteria-failed run: owned validate title comes from winner fork store', async () => {
     const store = makeOuterStore()
     const winnerForkStore = makeForkStoreWithValidateTitle('/validate must include revenue figures [✓]')
@@ -420,7 +420,7 @@ describe('resolveRefineCell — winner path: validate flush sources from winner 
       selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: 0, selectionLayer: 'primary'}),
     }))
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const outputNodes = store.getOutput().nodes
     const validate = outputNodes.find(n => n.id === 'v1')
@@ -441,7 +441,7 @@ describe('resolveRefineCell — winner path: validate flush sources from winner 
       selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: 1, selectionLayer: 'primary'}),
     }))
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const outputNodes = store.getOutput().nodes
     const validate = outputNodes.find(n => n.id === 'v1')
@@ -449,14 +449,14 @@ describe('resolveRefineCell — winner path: validate flush sources from winner 
     expect(validate.title).toBe('/validate must include revenue figures [✓]')
   })
 
-  it('copies winning parent prompt output into refine-owned prompts for downstream references', async () => {
+  it('copies winning parent prompt output into elect-owned prompts for downstream references', async () => {
     const store = buildStore({
       parent: {id: 'parent', command: '/chat', children: ['r1']},
       r1: {
         id: 'r1',
         parent: 'parent',
         title: 'Analyze competitors',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: ['v1'],
       },
       v1: {
@@ -469,7 +469,7 @@ describe('resolveRefineCell — winner path: validate flush sources from winner 
     })
     const winnerForkStore = buildStore({
       parent: {id: 'parent', command: '/chat', children: ['r1', 'winner'], prompts: ['winner']},
-      r1: {id: 'r1', parent: 'parent', command: '/refine :n=2', children: ['v1']},
+      r1: {id: 'r1', parent: 'parent', command: '/elect :n=2', children: ['v1']},
       winner: {id: 'winner', parent: 'parent', title: 'WINNER_ONLY_TEXT', children: ['detail']},
       detail: {id: 'detail', parent: 'winner', title: 'winner detail', children: []},
       v1: {
@@ -489,18 +489,18 @@ describe('resolveRefineCell — winner path: validate flush sources from winner 
       selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: 0, selectionLayer: 'primary'}),
     }))
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
-    const refineNode = store.getNode('r1')
-    const copiedPromptIds = refineNode.prompts ?? []
+    const electNode = store.getNode('r1')
+    const copiedPromptIds = electNode.prompts ?? []
     expect(copiedPromptIds).toHaveLength(1)
     expect(copiedPromptIds).not.toContain('winner')
     expect(store.getNode(copiedPromptIds[0]).parent).toBe('r1')
     expect(store.getNode(copiedPromptIds[0]).title).toBe('WINNER_ONLY_TEXT')
 
     const extractor = new NodeTextExtractor(Infinity, node => getNodeCommand(node).startsWith('/validate'), store)
-    await expect(extractor.extractFullContent(refineNode)).resolves.toContain('WINNER_ONLY_TEXT')
-    await expect(extractor.extractFullContent(refineNode)).resolves.toContain('winner detail')
+    await expect(extractor.extractFullContent(electNode)).resolves.toContain('WINNER_ONLY_TEXT')
+    await expect(extractor.extractFullContent(electNode)).resolves.toContain('winner detail')
   })
 
   it('fallback winner from criteria-failed pool: validate title flushed from fallback winner fork store', async () => {
@@ -528,7 +528,7 @@ describe('resolveRefineCell — winner path: validate flush sources from winner 
       }),
     }))
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const outputNodes = store.getOutput().nodes
     const validate = outputNodes.find(n => n.id === 'v1')
@@ -537,8 +537,8 @@ describe('resolveRefineCell — winner path: validate flush sources from winner 
   })
 })
 
-describe('resolveRefineCell — winner path: reliabilityMetadata and memoMap contract', () => {
-  it('reliabilityMetadata on refine node includes judgeInput from verdict after winner selection', async () => {
+describe('resolveElectCell — winner path: reliabilityMetadata and memoMap contract', () => {
+  it('reliabilityMetadata on elect node includes judgeInput from verdict after winner selection', async () => {
     const store = makeOuterStore()
     const winnerForkStore = makeForkStoreWithValidateTitle('/validate must include revenue figures [✓]')
     const judgeInputFixture = {
@@ -565,10 +565,10 @@ describe('resolveRefineCell — winner path: reliabilityMetadata and memoMap con
       }),
     }))
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
-    const refineNode = store.getOutput().nodes.find(n => n.id === 'r1')
-    expect(refineNode?.reliabilityMetadata).toMatchObject({
+    const electNode = store.getOutput().nodes.find(n => n.id === 'r1')
+    expect(electNode?.reliabilityMetadata).toMatchObject({
       winnerForkIndex: 0,
       mode: 'strict',
       selectionLayer: 'primary',
@@ -580,7 +580,7 @@ describe('resolveRefineCell — winner path: reliabilityMetadata and memoMap con
 
   it('reliabilityMetadata.judgeInput is undefined when judge was not invoked (single candidate)', async () => {
     const store = buildStore({
-      r1: {id: 'r1', command: '/refine :n=2', children: []},
+      r1: {id: 'r1', command: '/elect :n=2', children: []},
     })
 
     mockRunForks.mockResolvedValue([
@@ -588,7 +588,7 @@ describe('resolveRefineCell — winner path: reliabilityMetadata and memoMap con
         forkIndex: 0,
         status: 'ok',
         forkStore: buildStore({
-          r1: {id: 'r1', command: '/refine :n=2', children: []},
+          r1: {id: 'r1', command: '/elect :n=2', children: []},
         }),
       },
       {forkIndex: 1, status: 'runtime-failed', forkStore: null},
@@ -606,10 +606,10 @@ describe('resolveRefineCell — winner path: reliabilityMetadata and memoMap con
       }),
     }))
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
-    const refineNode = store.getOutput().nodes.find(n => n.id === 'r1')
-    expect(refineNode?.reliabilityMetadata?.judgeInput).toBeUndefined()
+    const electNode = store.getOutput().nodes.find(n => n.id === 'r1')
+    expect(electNode?.reliabilityMetadata?.judgeInput).toBeUndefined()
   })
 
   it('memoMap carries the winner forkStore after successful resolution', async () => {
@@ -633,17 +633,17 @@ describe('resolveRefineCell — winner path: reliabilityMetadata and memoMap con
     }))
 
     const memoMap = new Map()
-    await resolveRefineCell(store.getNode('r1'), store, memoMap)
+    await resolveElectCell(store.getNode('r1'), store, memoMap)
 
     expect(memoMap.get('r1')).toBe(winnerForkStore)
   })
 
-  it('noSignal flag is suppressed in refine suffix when the command carries :fallback — fallback mode implies a winner was chosen regardless of judge ranking', async () => {
+  it('noSignal flag is suppressed in elect suffix when the command carries :fallback — fallback mode implies a winner was chosen regardless of judge ranking', async () => {
     const fallbackStore = buildStore({
       r1: {
         id: 'r1',
         title: 'Analyze competitors',
-        command: '/refine :n=2 :fallback',
+        command: '/elect :n=2 :fallback',
         children: ['v1'],
       },
       v1: {
@@ -672,11 +672,11 @@ describe('resolveRefineCell — winner path: reliabilityMetadata and memoMap con
       }),
     }))
 
-    await resolveRefineCell(fallbackStore.getNode('r1'), fallbackStore, new Map())
+    await resolveElectCell(fallbackStore.getNode('r1'), fallbackStore, new Map())
 
-    const refine = fallbackStore.getOutput().nodes.find(n => n.id === 'r1')
-    expect(refine?.title).not.toMatch(/no judge signal/)
-    expect(refine?.title).toMatch(/⚠ 0/)
+    const elect = fallbackStore.getOutput().nodes.find(n => n.id === 'r1')
+    expect(elect?.title).not.toMatch(/no judge signal/)
+    expect(elect?.title).toMatch(/⚠ 0/)
   })
 
   it('memoMap carries null after strict all-fail', async () => {
@@ -689,7 +689,7 @@ describe('resolveRefineCell — winner path: reliabilityMetadata and memoMap con
     ])
 
     const memoMap = new Map()
-    await resolveRefineCell(store.getNode('r1'), store, memoMap)
+    await resolveElectCell(store.getNode('r1'), store, memoMap)
 
     expect(memoMap.get('r1')).toBeNull()
   })
@@ -699,7 +699,7 @@ describe('sibling validate topology — flush on strict all-fail', () => {
   const makeSiblingStore = () =>
     buildStore({
       parent: {id: 'parent', command: '/chat', children: ['r1', 'sv']},
-      r1: {id: 'r1', parent: 'parent', command: '/refine :n=2', children: []},
+      r1: {id: 'r1', parent: 'parent', command: '/elect :n=2', children: []},
       sv: {
         id: 'sv',
         parent: 'parent',
@@ -712,7 +712,7 @@ describe('sibling validate topology — flush on strict all-fail', () => {
   const makeSiblingForkStore = validateTitle =>
     buildStore({
       parent: {id: 'parent', command: '/chat', children: ['r1', 'sv']},
-      r1: {id: 'r1', parent: 'parent', command: '/refine :n=2', children: []},
+      r1: {id: 'r1', parent: 'parent', command: '/elect :n=2', children: []},
       sv: {
         id: 'sv',
         parent: 'parent',
@@ -731,7 +731,7 @@ describe('sibling validate topology — flush on strict all-fail', () => {
       {forkIndex: 1, status: 'criteria-failed', forkStore},
     ])
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const outputNodes = store.getOutput().nodes
     const sibling = outputNodes.find(n => n.id === 'sv')
@@ -755,7 +755,7 @@ describe('sibling validate topology — flush on strict all-fail', () => {
       selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: 0, selectionLayer: 'primary'}),
     }))
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const outputNodes = store.getOutput().nodes
     const sibling = outputNodes.find(n => n.id === 'sv')
@@ -769,7 +769,7 @@ describe('sibling validate topology — flush on strict all-fail', () => {
       r1: {
         id: 'r1',
         parent: 'parent',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: ['dv'],
       },
       dv: {
@@ -793,7 +793,7 @@ describe('sibling validate topology — flush on strict all-fail', () => {
       r1: {
         id: 'r1',
         parent: 'parent',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: ['dv'],
       },
       dv: {
@@ -817,7 +817,7 @@ describe('sibling validate topology — flush on strict all-fail', () => {
       {forkIndex: 1, status: 'criteria-failed', forkStore},
     ])
 
-    await resolveRefineCell(store.getNode('r1'), store, new Map())
+    await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const outputNodes = store.getOutput().nodes
     expect(outputNodes.find(n => n.id === 'dv')?.title).toBe('/validate must be concise [✗ 3×]')

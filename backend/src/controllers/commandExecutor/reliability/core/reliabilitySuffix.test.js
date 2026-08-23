@@ -2,7 +2,7 @@ import {
   stripReliabilitySuffix,
   appendValidateSuffix,
   appendCommoditySuffix,
-  appendRefineSuffix,
+  appendElectSuffix,
   appendInvalidSuffix,
 } from './reliabilitySuffix'
 
@@ -15,8 +15,8 @@ const HISTORICAL_SUFFIX_VARIANTS = [
   ['passed fraction', 'Task [✗ 0/2 passed]', 'Task'],
   ['first-survivor without judge', 'Task [✓ 2/2 first-survivor · no judge]', 'Task'],
   ['first-survivor with judge error', 'Task [✓ 1/2 first-survivor · judge auth error]', 'Task'],
-  ['refined', 'Task [✓ refined]', 'Task'],
-  ['refine failed', 'Task [✗ refine failed]', 'Task'],
+  ['electd', 'Task [✓ electd]', 'Task'],
+  ['elect failed', 'Task [✗ elect failed]', 'Task'],
   ['validate pass after retry (v1)', 'Task [✓ retry-2]', 'Task'],
   ['validate fail exhausted (v1)', 'Task [✗ 3 attempts]', 'Task'],
   ['invalid criteria (v1)', 'Task [✗ invalid]', 'Task'],
@@ -29,14 +29,14 @@ const ENGINE_SUFFIX_VARIANTS = [
   ['validate: pass on first attempt', 'Task [✓]', 'Task'],
   ['validate: pass after retry', 'Task [✓ +2]', 'Task'],
   ['validate: all retries exhausted', 'Task [✗ 3×]', 'Task'],
-  ['refine: all forks eligible', 'Task [✓ 3/3]', 'Task'],
-  ['refine: some forks eligible', 'Task [✓ 2/3]', 'Task'],
-  ['refine: no forks eligible', 'Task [✗ 0/3]', 'Task'],
-  ['refine: no judge signal', 'Task [⚠ ∅]', 'Task'],
-  ['refine: fallback winner', 'Task [⚠ 0/3]', 'Task'],
+  ['elect: all forks eligible', 'Task [✓ 3/3]', 'Task'],
+  ['elect: some forks eligible', 'Task [✓ 2/3]', 'Task'],
+  ['elect: no forks eligible', 'Task [✗ 0/3]', 'Task'],
+  ['elect: no judge signal', 'Task [⚠ ∅]', 'Task'],
+  ['elect: fallback winner', 'Task [⚠ 0/3]', 'Task'],
   ['invalid command', 'Task [✗ !]', 'Task'],
-  ['refine: all forks eligible, degraded judge input', 'Task [✓ 3/3 ⚠]', 'Task'],
-  ['refine: some forks eligible, degraded judge input', 'Task [✓ 2/3 ⚠]', 'Task'],
+  ['elect: all forks eligible, degraded judge input', 'Task [✓ 3/3 ⚠]', 'Task'],
+  ['elect: some forks eligible, degraded judge input', 'Task [✓ 2/3 ⚠]', 'Task'],
   ['validate: retry withheld, criterion failed', 'Task [✗ ⊘]', 'Task'],
 ]
 
@@ -79,7 +79,7 @@ describe('stripReliabilitySuffix', () => {
     })
 
     it('reduces a historical-suffix-only title to an empty string', () => {
-      expect(stripReliabilitySuffix('[✓ refined]')).toBe('')
+      expect(stripReliabilitySuffix('[✓ electd]')).toBe('')
     })
 
     it('reduces an engine-suffix-only title to an empty string', () => {
@@ -220,9 +220,9 @@ describe('appendValidateSuffix', () => {
   })
 })
 
-// ─── appendRefineSuffix ───────────────────────────────────────────────────────
+// ─── appendElectSuffix ───────────────────────────────────────────────────────
 
-describe('appendRefineSuffix', () => {
+describe('appendElectSuffix', () => {
   describe('[✗ 0/N] — all forks disqualified, no winner committed', () => {
     describe('strict mode', () => {
       it.each([
@@ -232,7 +232,7 @@ describe('appendRefineSuffix', () => {
         [{eligible: 0, total: 1}, '[✗ 0/1]'],
         [{eligible: 0, total: 2, degradedInput: true}, '[✗ 0/2]'],
       ])('%o → %s', (opts, expected) => {
-        expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
+        expect(appendElectSuffix('Task', opts)).toBe(`Task ${expected}`)
       })
     })
 
@@ -252,7 +252,7 @@ describe('appendRefineSuffix', () => {
           '[✗ 0/2]',
         ],
       ])('%o → %s', (opts, expected) => {
-        expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
+        expect(appendElectSuffix('Task', opts)).toBe(`Task ${expected}`)
       })
     })
   })
@@ -284,7 +284,7 @@ describe('appendRefineSuffix', () => {
         '[⚠ 0/2]',
       ],
     ])('%o → %s', (opts, expected) => {
-      expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
+      expect(appendElectSuffix('Task', opts)).toBe(`Task ${expected}`)
     })
   })
 
@@ -295,7 +295,7 @@ describe('appendRefineSuffix', () => {
         [{eligible: 1, total: 2, noSignal: true}, '[⚠ ∅]'],
         [{eligible: 3, total: 5, noSignal: true}, '[⚠ ∅]'],
       ])('%o → %s', (opts, expected) => {
-        expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
+        expect(appendElectSuffix('Task', opts)).toBe(`Task ${expected}`)
       })
     })
 
@@ -322,7 +322,7 @@ describe('appendRefineSuffix', () => {
           '[⚠ ∅]',
         ],
       ])('%o → %s', (opts, expected) => {
-        expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
+        expect(appendElectSuffix('Task', opts)).toBe(`Task ${expected}`)
       })
     })
   })
@@ -338,7 +338,7 @@ describe('appendRefineSuffix', () => {
         [{eligible: 2, total: 2, noSignal: false}, '[✓ 2/2]'],
         [{eligible: 2, total: 2, degradedInput: false}, '[✓ 2/2]'],
       ])('%o → %s', (opts, expected) => {
-        expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
+        expect(appendElectSuffix('Task', opts)).toBe(`Task ${expected}`)
       })
     })
 
@@ -349,7 +349,7 @@ describe('appendRefineSuffix', () => {
         [{eligible: 2, total: 3, fallback: true, noSignal: true}, '[✓ 2/3]'],
         [{eligible: 2, total: 2, fallback: true, noSignal: true}, '[✓ 2/2]'],
       ])('%o → %s', (opts, expected) => {
-        expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
+        expect(appendElectSuffix('Task', opts)).toBe(`Task ${expected}`)
       })
     })
   })
@@ -361,12 +361,12 @@ describe('appendRefineSuffix', () => {
       [{eligible: 1, total: 2, degradedInput: true}, '[✓ 1/2 ⚠]'],
       [{eligible: 2, total: 2, degradedInput: true}, '[✓ 2/2 ⚠]'],
     ])('%o → %s', (opts, expected) => {
-      expect(appendRefineSuffix('Task', opts)).toBe(`Task ${expected}`)
+      expect(appendElectSuffix('Task', opts)).toBe(`Task ${expected}`)
     })
 
     it('noSignal:true takes precedence — ∅ not ⚠ trailer when judge produced no rankings', () => {
       expect(
-        appendRefineSuffix('Task', {
+        appendElectSuffix('Task', {
           eligible: 2,
           total: 2,
           noSignal: true,
@@ -377,7 +377,7 @@ describe('appendRefineSuffix', () => {
 
     it('fallback winner suffix takes precedence over degradedInput ⚠ trailer', () => {
       expect(
-        appendRefineSuffix('Task', {
+        appendElectSuffix('Task', {
           eligible: 0,
           total: 3,
           fallback: true,
@@ -390,7 +390,7 @@ describe('appendRefineSuffix', () => {
 
   describe('strips pre-existing reliability suffix before appending — no stacking across all known shapes', () => {
     it.each(ALL_SUFFIX_VARIANTS)('%s — replaced by [✓ 3/3]', (_, titleWithSuffix, base) => {
-      expect(appendRefineSuffix(titleWithSuffix, {eligible: 3, total: 3})).toBe(`${base} [✓ 3/3]`)
+      expect(appendElectSuffix(titleWithSuffix, {eligible: 3, total: 3})).toBe(`${base} [✓ 3/3]`)
     })
   })
 
@@ -403,14 +403,14 @@ describe('appendRefineSuffix', () => {
       [{eligible: 3, total: 3, degradedInput: true}, '[✓ 3/3 ⚠]'],
     ])('%o — result is clamped to exactly 80 chars with suffix at end', (opts, expectedSuffix) => {
       const longTitle = 'A'.repeat(79)
-      const result = appendRefineSuffix(longTitle, opts)
+      const result = appendElectSuffix(longTitle, opts)
       expect(result.length).toBe(80)
       expect(result.slice(-expectedSuffix.length)).toBe(expectedSuffix)
     })
   })
 
   it('empty title → suffix only', () => {
-    expect(appendRefineSuffix('', {eligible: 3, total: 3})).toBe('[✓ 3/3]')
+    expect(appendElectSuffix('', {eligible: 3, total: 3})).toBe('[✓ 3/3]')
   })
 
   describe('every output shape is strippable to its base title — round-trip invariant', () => {
@@ -423,7 +423,7 @@ describe('appendRefineSuffix', () => {
       [{eligible: 3, total: 3, degradedInput: true}],
       [{eligible: 2, total: 3, degradedInput: true}],
     ])('%o → stripped back to base title', opts => {
-      expect(stripReliabilitySuffix(appendRefineSuffix('Base', opts))).toBe('Base')
+      expect(stripReliabilitySuffix(appendElectSuffix('Base', opts))).toBe('Base')
     })
   })
 })

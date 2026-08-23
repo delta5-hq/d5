@@ -30,8 +30,8 @@ export const BUILTIN_COMMANDS = [
     description: 'Search and summarize academic papers via SerpAPI Scholar',
   },
   {
-    alias: '/refine',
-    queryType: 'refine',
+    alias: '/elect',
+    queryType: 'elect',
     description: 'Iteratively improve text through multiple LLM passes',
   },
   {

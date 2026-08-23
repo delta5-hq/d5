@@ -63,7 +63,7 @@ export function sanitizeRefineOutput(str) {
     .replace(/Question:/gi, ' ')
     .replace(/Original answer:/gi, ' ')
     .replace(/New (context|answer):/gi, ' ')
-    .replace(/(Refined )?answer:/gi, ' ')
+    .replace(/(Electd )?answer:/gi, ' ')
 }
 
 export class SearchRefineLLMChain extends LLMChain {
@@ -120,14 +120,12 @@ export class SummarizeCommand {
 
   async runRefinementQAChain(question, input_documents, llm, params) {
     const {signal, templates} = params || {}
-    const {
-      question: questionTemplate = QUESTION_PROMPT_TEMPLATE_EN,
-      refine: refineTemplate = REFINE_PROMPT_TEMPLATE_EN,
-    } = templates || {}
+    const {question: questionTemplate = QUESTION_PROMPT_TEMPLATE_EN, elect: electTemplate = REFINE_PROMPT_TEMPLATE_EN} =
+      templates || {}
 
     const refinePropmtTemplate = new PromptTemplate({
       inputVariables: ['question', 'existing_answer', 'context'],
-      template: refineTemplate,
+      template: electTemplate,
     })
     const questionPromptTemplate = new PromptTemplate({
       inputVariables: ['context', 'question'],

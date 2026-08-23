@@ -162,7 +162,7 @@ describe('extractForkLeafOutputs', () => {
   describe('parent cells without prompts (complex subtrees)', () => {
     it('returns [] for a parent that has children but no prompts — complex subtree case', () => {
       const store = makeStore({
-        parent: {id: 'parent', children: ['step1', 'refine']},
+        parent: {id: 'parent', children: ['step1', 'elect']},
         step1: {id: 'step1', prompts: ['out1']},
         out1: {id: 'out1', title: 'step output'},
       })

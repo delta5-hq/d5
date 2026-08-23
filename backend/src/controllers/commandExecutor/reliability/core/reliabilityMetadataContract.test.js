@@ -21,7 +21,7 @@ const FIXTURE_PATH = path.resolve(
 const fixture = JSON.parse(fs.readFileSync(FIXTURE_PATH, 'utf8'))
 
 // retryWithheld and requestedRetry are set only by buildValidateRetryWithheldReliabilityMetadata
-// (on validate nodes), not by buildReliabilityMetadata (on refine nodes). Exclude them when
+// (on validate nodes), not by buildReliabilityMetadata (on elect nodes). Exclude them when
 // testing buildReliabilityMetadata's key-path set.
 const VALIDATE_ONLY_FIELDS = ['retryWithheld', 'requestedRetry']
 const buildReliabilityMetadataFixture = Object.fromEntries(
@@ -282,7 +282,7 @@ describe('builder mode values are constrained to the declared cross-stack mode u
 
   function parseGoModeUnion() {
     const src = fs.readFileSync(GO_RELIABILITY_GO, 'utf8')
-    return [...src.matchAll(/RefineMode\s*=\s*"([^"]+)"/g)].map(m => m[1])
+    return [...src.matchAll(/ElectMode\s*=\s*"([^"]+)"/g)].map(m => m[1])
   }
 
   function allBuilderModes() {
@@ -301,7 +301,7 @@ describe('builder mode values are constrained to the declared cross-stack mode u
     }
   })
 
-  it('every fixed-mode builder emits a mode that is declared in the Go RefineMode enum', () => {
+  it('every fixed-mode builder emits a mode that is declared in the Go ElectMode enum', () => {
     const goModes = parseGoModeUnion()
     for (const mode of allBuilderModes()) {
       expect(goModes).toContain(mode)

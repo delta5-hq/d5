@@ -1,23 +1,23 @@
 import Store from '../../commands/utils/Store'
-import {copyParentPromptOutputToRefine} from './refineWinnerOutput'
+import {copyParentPromptOutputToElect} from './electWinnerOutput'
 
 const buildStore = nodes => new Store({userId: 'user1', nodes})
 
 const titlesById = (store, ids) => ids.map(id => store.getNode(id)?.title)
 
-describe('copyParentPromptOutputToRefine', () => {
-  it('copies every selected parent prompt as refine-owned prompt output without retaining fork node ids', () => {
+describe('copyParentPromptOutputToElect', () => {
+  it('copies every selected parent prompt as elect-owned prompt output without retaining fork node ids', () => {
     const target = buildStore({
-      parent: {id: 'parent', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', children: [], prompts: []},
+      parent: {id: 'parent', children: ['elect']},
+      elect: {id: 'elect', parent: 'parent', children: [], prompts: []},
     })
     const source = buildStore({
       parent: {
         id: 'parent',
-        children: ['refine', 'winnerA', 'winnerB'],
+        children: ['elect', 'winnerA', 'winnerB'],
         prompts: ['winnerA', 'winnerB'],
       },
-      refine: {id: 'refine', parent: 'parent', children: []},
+      elect: {id: 'elect', parent: 'parent', children: []},
       winnerA: {
         id: 'winnerA',
         parent: 'parent',
@@ -32,39 +32,39 @@ describe('copyParentPromptOutputToRefine', () => {
       },
     })
 
-    const copiedIds = copyParentPromptOutputToRefine({
+    const copiedIds = copyParentPromptOutputToElect({
       sourceStore: source,
       targetStore: target,
       parentNodeId: 'parent',
-      refineNodeId: 'refine',
+      electNodeId: 'elect',
     })
 
     expect(copiedIds).toHaveLength(2)
     expect(copiedIds).not.toEqual(expect.arrayContaining(['winnerA', 'winnerB']))
-    expect(target.getNode('refine').prompts).toEqual(copiedIds)
-    expect(target.getNode('refine').children).toEqual(copiedIds)
+    expect(target.getNode('elect').prompts).toEqual(copiedIds)
+    expect(target.getNode('elect').children).toEqual(copiedIds)
     expect(titlesById(target, copiedIds)).toEqual(['winner A', 'winner B'])
-    copiedIds.forEach(id => expect(target.getNode(id).parent).toBe('refine'))
+    copiedIds.forEach(id => expect(target.getNode(id).parent).toBe('elect'))
   })
 
-  it('replaces stale refine prompt subtrees before installing the new winner output', () => {
+  it('replaces stale elect prompt subtrees before installing the new winner output', () => {
     const target = buildStore({
-      parent: {id: 'parent', children: ['refine']},
-      refine: {
-        id: 'refine',
+      parent: {id: 'parent', children: ['elect']},
+      elect: {
+        id: 'elect',
         parent: 'parent',
         children: ['validate', 'oldPrompt'],
         prompts: ['oldPrompt'],
       },
       validate: {
         id: 'validate',
-        parent: 'refine',
+        parent: 'elect',
         command: '/validate must pass',
         children: [],
       },
       oldPrompt: {
         id: 'oldPrompt',
-        parent: 'refine',
+        parent: 'elect',
         title: 'old output',
         children: ['oldChild'],
       },
@@ -78,10 +78,10 @@ describe('copyParentPromptOutputToRefine', () => {
     const source = buildStore({
       parent: {
         id: 'parent',
-        children: ['refine', 'winner'],
+        children: ['elect', 'winner'],
         prompts: ['winner'],
       },
-      refine: {id: 'refine', parent: 'parent', children: []},
+      elect: {id: 'elect', parent: 'parent', children: []},
       winner: {
         id: 'winner',
         parent: 'parent',
@@ -90,32 +90,32 @@ describe('copyParentPromptOutputToRefine', () => {
       },
     })
 
-    const [copiedId] = copyParentPromptOutputToRefine({
+    const [copiedId] = copyParentPromptOutputToElect({
       sourceStore: source,
       targetStore: target,
       parentNodeId: 'parent',
-      refineNodeId: 'refine',
+      electNodeId: 'elect',
     })
 
     expect(target.getNode('oldPrompt')).toBeUndefined()
     expect(target.getNode('oldChild')).toBeUndefined()
     expect(target.getNode('validate')).toBeDefined()
-    expect(target.getNode('refine').children).toEqual(['validate', copiedId])
+    expect(target.getNode('elect').children).toEqual(['validate', copiedId])
     expect(target.getNode(copiedId).title).toBe('new output')
   })
 
   it('preserves nested children and nested prompt membership without duplicating prompt nodes as plain children', () => {
     const target = buildStore({
-      parent: {id: 'parent', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', children: [], prompts: []},
+      parent: {id: 'parent', children: ['elect']},
+      elect: {id: 'elect', parent: 'parent', children: [], prompts: []},
     })
     const source = buildStore({
       parent: {
         id: 'parent',
-        children: ['refine', 'winner'],
+        children: ['elect', 'winner'],
         prompts: ['winner'],
       },
-      refine: {id: 'refine', parent: 'parent', children: []},
+      elect: {id: 'elect', parent: 'parent', children: []},
       winner: {
         id: 'winner',
         parent: 'parent',
@@ -137,11 +137,11 @@ describe('copyParentPromptOutputToRefine', () => {
       },
     })
 
-    const [winnerCopyId] = copyParentPromptOutputToRefine({
+    const [winnerCopyId] = copyParentPromptOutputToElect({
       sourceStore: source,
       targetStore: target,
       parentNodeId: 'parent',
-      refineNodeId: 'refine',
+      electNodeId: 'elect',
     })
     const winnerCopy = target.getNode(winnerCopyId)
     const copiedPromptIds = winnerCopy.prompts
@@ -153,20 +153,20 @@ describe('copyParentPromptOutputToRefine', () => {
   })
 
   it("preserves file and image reference properties on copied nodes; file-content transfer is StoreFork.applyCandidate's responsibility", () => {
-    // copyParentPromptOutputToRefine copies node structure (including file/image ID references).
+    // copyParentPromptOutputToElect copies node structure (including file/image ID references).
     // In production, StoreFork.applyCandidate runs first and copies _files content so those IDs resolve.
     const target = buildStore({
-      parent: {id: 'parent', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', children: [], prompts: []},
+      parent: {id: 'parent', children: ['elect']},
+      elect: {id: 'elect', parent: 'parent', children: [], prompts: []},
     })
     target.createFile('winner-file', 'target-owned file')
     const source = buildStore({
       parent: {
         id: 'parent',
-        children: ['refine', 'winner'],
+        children: ['elect', 'winner'],
         prompts: ['winner'],
       },
-      refine: {id: 'refine', parent: 'parent', children: []},
+      elect: {id: 'elect', parent: 'parent', children: []},
       winner: {
         id: 'winner',
         parent: 'parent',
@@ -187,11 +187,11 @@ describe('copyParentPromptOutputToRefine', () => {
     source.createFile('winner-image', 'source winner image')
     source.createFile('child-file', 'source child file')
 
-    const [winnerCopyId] = copyParentPromptOutputToRefine({
+    const [winnerCopyId] = copyParentPromptOutputToElect({
       sourceStore: source,
       targetStore: target,
       parentNodeId: 'parent',
-      refineNodeId: 'refine',
+      electNodeId: 'elect',
     })
     const winnerCopy = target.getNode(winnerCopyId)
     const [childCopyId] = winnerCopy.children
@@ -207,15 +207,15 @@ describe('copyParentPromptOutputToRefine', () => {
     expect(target.getFile('child-file')).toBeUndefined()
   })
 
-  it('does not mutate the fork store refine node when copying winner output (shared-reference guard)', () => {
+  it('does not mutate the fork store elect node when copying winner output (shared-reference guard)', () => {
     // applyCandidate assigns fork nodes by reference — the fix must break that link before mutating
     const forkStore = buildStore({
       parent: {
         id: 'parent',
-        children: ['refine', 'winner'],
+        children: ['elect', 'winner'],
         prompts: ['winner'],
       },
-      refine: {id: 'refine', parent: 'parent', children: [], prompts: []},
+      elect: {id: 'elect', parent: 'parent', children: [], prompts: []},
       winner: {
         id: 'winner',
         parent: 'parent',
@@ -225,65 +225,65 @@ describe('copyParentPromptOutputToRefine', () => {
     })
 
     const outerStore = buildStore({
-      parent: {id: 'parent', children: ['refine']},
+      parent: {id: 'parent', children: ['elect']},
     })
-    outerStore._nodes['refine'] = forkStore._nodes['refine']
-    expect(outerStore._nodes['refine']).toBe(forkStore._nodes['refine'])
+    outerStore._nodes['elect'] = forkStore._nodes['elect']
+    expect(outerStore._nodes['elect']).toBe(forkStore._nodes['elect'])
 
-    copyParentPromptOutputToRefine({
+    copyParentPromptOutputToElect({
       sourceStore: forkStore,
       targetStore: outerStore,
       parentNodeId: 'parent',
-      refineNodeId: 'refine',
+      electNodeId: 'elect',
     })
 
-    expect(outerStore._nodes['refine']).not.toBe(forkStore._nodes['refine'])
-    expect(forkStore._nodes['refine'].prompts).toEqual([])
-    expect(outerStore.getNode('refine').prompts).toHaveLength(1)
-    expect(outerStore.getNode(outerStore.getNode('refine').prompts[0]).title).toBe('winner output')
+    expect(outerStore._nodes['elect']).not.toBe(forkStore._nodes['elect'])
+    expect(forkStore._nodes['elect'].prompts).toEqual([])
+    expect(outerStore.getNode('elect').prompts).toHaveLength(1)
+    expect(outerStore.getNode(outerStore.getNode('elect').prompts[0]).title).toBe('winner output')
   })
 
   it('returns an empty copy set and leaves target unchanged when either boundary node is missing', () => {
     const target = buildStore({
-      parent: {id: 'parent', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', children: [], prompts: []},
+      parent: {id: 'parent', children: ['elect']},
+      elect: {id: 'elect', parent: 'parent', children: [], prompts: []},
     })
     const source = buildStore({
       parent: {id: 'parent', children: [], prompts: []},
     })
 
     expect(
-      copyParentPromptOutputToRefine({
+      copyParentPromptOutputToElect({
         sourceStore: source,
         targetStore: target,
         parentNodeId: 'missing-parent',
-        refineNodeId: 'refine',
+        electNodeId: 'elect',
       }),
     ).toEqual([])
     expect(
-      copyParentPromptOutputToRefine({
+      copyParentPromptOutputToElect({
         sourceStore: source,
         targetStore: target,
         parentNodeId: 'parent',
-        refineNodeId: 'missing-refine',
+        electNodeId: 'missing-elect',
       }),
     ).toEqual([])
-    expect(target.getNode('refine').children).toEqual([])
-    expect(target.getNode('refine').prompts).toEqual([])
+    expect(target.getNode('elect').children).toEqual([])
+    expect(target.getNode('elect').prompts).toEqual([])
   })
 
   it('does not copy a file to the target when the source store has no content for that file id', () => {
     const target = buildStore({
-      parent: {id: 'parent', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', children: [], prompts: []},
+      parent: {id: 'parent', children: ['elect']},
+      elect: {id: 'elect', parent: 'parent', children: [], prompts: []},
     })
     const source = buildStore({
       parent: {
         id: 'parent',
-        children: ['refine', 'winner'],
+        children: ['elect', 'winner'],
         prompts: ['winner'],
       },
-      refine: {id: 'refine', parent: 'parent', children: []},
+      elect: {id: 'elect', parent: 'parent', children: []},
       winner: {
         id: 'winner',
         parent: 'parent',
@@ -293,35 +293,35 @@ describe('copyParentPromptOutputToRefine', () => {
       },
     })
 
-    const [winnerCopyId] = copyParentPromptOutputToRefine({
+    const [winnerCopyId] = copyParentPromptOutputToElect({
       sourceStore: source,
       targetStore: target,
       parentNodeId: 'parent',
-      refineNodeId: 'refine',
+      electNodeId: 'elect',
     })
 
     expect(target.getNode(winnerCopyId).file).toBe('unregistered-file')
     expect(target.getFile('unregistered-file')).toBeUndefined()
   })
 
-  it('returns an empty copy set when source parent has no prompts, and leaves target refine with no prompts', () => {
+  it('returns an empty copy set when source parent has no prompts, and leaves target elect with no prompts', () => {
     const target = buildStore({
-      parent: {id: 'parent', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', children: [], prompts: []},
+      parent: {id: 'parent', children: ['elect']},
+      elect: {id: 'elect', parent: 'parent', children: [], prompts: []},
     })
     const source = buildStore({
       parent: {id: 'parent', children: [], prompts: []},
-      refine: {id: 'refine', parent: 'parent', children: []},
+      elect: {id: 'elect', parent: 'parent', children: []},
     })
 
-    const result = copyParentPromptOutputToRefine({
+    const result = copyParentPromptOutputToElect({
       sourceStore: source,
       targetStore: target,
       parentNodeId: 'parent',
-      refineNodeId: 'refine',
+      electNodeId: 'elect',
     })
 
     expect(result).toEqual([])
-    expect(target.getNode('refine').prompts).toEqual([])
+    expect(target.getNode('elect').prompts).toEqual([])
   })
 })

@@ -1,6 +1,6 @@
 import type { NodeData, NodeDatas, NodeId } from '@shared/base-types'
 import { VALIDATE_QUERY } from '@shared/lib/commands/command-constants'
-import { isValidRefineCell, readRefineN } from './refine-params'
+import { isValidElectCell, readElectN } from './elect-params'
 import { readCommodityN } from './commodity-params'
 
 const isProperAncestor = (ancestorId: NodeId, nodeId: NodeId | undefined, nodes: NodeDatas): boolean => {
@@ -12,16 +12,16 @@ const isProperAncestor = (ancestorId: NodeId, nodeId: NodeId | undefined, nodes:
   return false
 }
 
-const collectAllNestedRefines = (node: NodeData, nodes: NodeDatas, excludeId: NodeId): NodeData[] => {
+const collectAllNestedElects = (node: NodeData, nodes: NodeDatas, excludeId: NodeId): NodeData[] => {
   const found: NodeData[] = []
   for (const childId of node.children ?? []) {
     if (childId === excludeId) continue
     const child = nodes[childId]
     if (!child) continue
-    if (isValidRefineCell(child.command)) {
+    if (isValidElectCell(child.command)) {
       found.push(child)
     } else {
-      found.push(...collectAllNestedRefines(child, nodes, excludeId))
+      found.push(...collectAllNestedElects(child, nodes, excludeId))
     }
   }
   return found
@@ -34,17 +34,17 @@ const countImmediateScope = (node: NodeData | undefined, nodes: NodeDatas, exclu
     if (childId === excludeId) continue
     const child = nodes[childId]
     if (!child) continue
-    if (isValidRefineCell(child.command)) continue
+    if (isValidElectCell(child.command)) continue
     count += countImmediateScope(child, nodes, excludeId)
   }
   return count
 }
 
-const directlyOwnedNestedRefines = (refineNode: NodeData, nodes: NodeDatas): NodeData[] => {
-  const parentNode = refineNode.parent ? nodes[refineNode.parent] : undefined
+const directlyOwnedNestedElects = (electNode: NodeData, nodes: NodeDatas): NodeData[] => {
+  const parentNode = electNode.parent ? nodes[electNode.parent] : undefined
   if (!parentNode) return []
 
-  const allNested = collectAllNestedRefines(parentNode, nodes, refineNode.id)
+  const allNested = collectAllNestedElects(parentNode, nodes, electNode.id)
 
   return allNested.filter(candidate => {
     if (!isProperAncestor(parentNode.id, candidate.parent, nodes)) return false
@@ -58,29 +58,29 @@ const directlyOwnedNestedRefines = (refineNode: NodeData, nodes: NodeDatas): Nod
   })
 }
 
-const countRefineChildrenScope = (refineNode: NodeData, nodes: NodeDatas): number => {
+const countElectChildrenScope = (electNode: NodeData, nodes: NodeDatas): number => {
   let cost = 0
-  for (const childId of refineNode.children ?? []) {
+  for (const childId of electNode.children ?? []) {
     const child = nodes[childId]
     if (!child) continue
-    if (!child.command || isValidRefineCell(child.command) || child.command.startsWith(VALIDATE_QUERY)) continue
+    if (!child.command || isValidElectCell(child.command) || child.command.startsWith(VALIDATE_QUERY)) continue
     cost += countImmediateScope(child, nodes, '')
   }
   return cost
 }
 
-export const projectForkCost = (refineNode: NodeData | undefined | null, nodes: NodeDatas): number => {
-  if (!refineNode) return 0
-  const n = readRefineN(refineNode.command)
+export const projectForkCost = (electNode: NodeData | undefined | null, nodes: NodeDatas): number => {
+  if (!electNode) return 0
+  const n = readElectN(electNode.command)
   if (!n) return 0
 
-  const parent = refineNode.parent ? nodes[refineNode.parent] : undefined
+  const parent = electNode.parent ? nodes[electNode.parent] : undefined
   if (!parent) return 0
 
-  const immediateScope = countImmediateScope(parent, nodes, refineNode.id)
-  const refineChildScope = countRefineChildrenScope(refineNode, nodes)
-  const perForkScope = refineChildScope > 0 ? refineChildScope : immediateScope
-  const ownedNested = directlyOwnedNestedRefines(refineNode, nodes)
+  const immediateScope = countImmediateScope(parent, nodes, electNode.id)
+  const electChildScope = countElectChildrenScope(electNode, nodes)
+  const perForkScope = electChildScope > 0 ? electChildScope : immediateScope
+  const ownedNested = directlyOwnedNestedElects(electNode, nodes)
   const nestedCost = ownedNested.reduce((sum, nr) => sum + projectForkCost(nr, nodes), 0)
 
   return n * perForkScope + nestedCost

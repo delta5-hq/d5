@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable no-undef */
+
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { ProgressStreamClient } from '../progress-stream-client'
 import type { GenieState } from '@shared/ui/genie'

@@ -67,7 +67,7 @@ describe('ForkStreamClient', () => {
       const client = new ForkStreamClient('sess-1', { onForkEvent })
       client.connect()
 
-      const forkEvent = { type: 'fork_started', refineNodeId: 'r1', forkIndex: 0, total: 3 }
+      const forkEvent = { type: 'fork_started', electNodeId: 'r1', forkIndex: 0, total: 3 }
       mockInstance.onmessage?.({ data: JSON.stringify({ type: 'update', data: forkEvent }) })
 
       expect(onForkEvent).toHaveBeenCalledWith(forkEvent)
@@ -108,8 +108,8 @@ describe('ForkStreamClient', () => {
       const client = new ForkStreamClient('sess-1', { onForkEvent })
       client.connect()
 
-      const ev1 = { type: 'fork_started', refineNodeId: 'r1', forkIndex: 0, total: 2 }
-      const ev2 = { type: 'fork_settled', refineNodeId: 'r1', forkIndex: 0, status: 'ok' }
+      const ev1 = { type: 'fork_started', electNodeId: 'r1', forkIndex: 0, total: 2 }
+      const ev2 = { type: 'fork_settled', electNodeId: 'r1', forkIndex: 0, status: 'ok' }
       mockInstance.onmessage?.({ data: JSON.stringify({ type: 'update', data: ev1 }) })
       mockInstance.onmessage?.({ data: JSON.stringify({ type: 'update', data: ev2 }) })
 

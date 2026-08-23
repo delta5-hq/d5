@@ -1,4 +1,4 @@
-import {REFINE_QUERY} from '../../constants/refine'
+import {ELECT_QUERY} from '../../constants/elect'
 import {VALIDATE_QUERY} from '../../constants/validate'
 import {FOREACH_QUERY} from '../../constants/foreach'
 import {STEPS_QUERY} from '../../constants/steps'
@@ -14,7 +14,7 @@ const COMMODITY_TOKEN_RE = new RegExp(`[ \\t]*${COMMODITY_N_RE.source}[ \\t]*`)
 export const COMMODITY_N_MAX = 10
 
 const NON_COMMODITY_PREFIXES = [
-  REFINE_QUERY,
+  ELECT_QUERY,
   VALIDATE_QUERY,
   FOREACH_QUERY,
   STEPS_QUERY,

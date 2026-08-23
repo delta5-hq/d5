@@ -313,7 +313,7 @@ export class DocumentRetriever extends SearchScrape {
   async runImprovementRefineChain(question, input_documents) {
     const docGroups = await this.groupAndSplitDocuments(input_documents)
 
-    const refineFunction = async (question, input_documents) => {
+    const electFunction = async (question, input_documents) => {
       const output = await this.runRefinementQAChain(question, input_documents)
 
       // Optimization: response longer than 500 tokens is considered useful
@@ -324,9 +324,9 @@ export class DocumentRetriever extends SearchScrape {
       return {output, input_documents}
     }
 
-    const refineTasks = docGroups.map(group => refineFunction(question, group))
+    const electTasks = docGroups.map(group => electFunction(question, group))
 
-    const data = (await Promise.allSettled(refineTasks))
+    const data = (await Promise.allSettled(electTasks))
       .filter(result => result.status === 'fulfilled' && result.value !== undefined)
       .map(result => result.value)
 

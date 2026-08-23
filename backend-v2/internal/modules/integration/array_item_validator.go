@@ -46,7 +46,7 @@ var reservedCommandAliases = newStringSet(
 	"/perplexity",
 	"/qwen",
 	"/reason",
-	"/refine",
+	"/elect",
 	"/scholar",
 	"/steps",
 	"/summarize",

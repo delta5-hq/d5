@@ -40,7 +40,7 @@ describe('FORK_LIMIT_SIZES', () => {
 
   it('every T-shirt key is parseable by readForkLimit and resolves to its budget', () => {
     for (const [key, budget] of Object.entries(FORK_LIMIT_SIZES)) {
-      expect(readForkLimit(`/refine :n=3 :limit=${key}`)).toBe(budget)
+      expect(readForkLimit(`/elect :n=3 :limit=${key}`)).toBe(budget)
     }
   })
 })
@@ -57,7 +57,7 @@ describe('readForkLimit', () => {
       expect(readForkLimit(input)).toBeNull()
     })
 
-    it.each(['/refine :n=3', '/refine :n=3 :fallback', '/chat do something', '/validate must include numbers'])(
+    it.each(['/elect :n=3', '/elect :n=3 :fallback', '/chat do something', '/validate must include numbers'])(
       'returns null for command without :limit= param: "%s"',
       cmd => {
         expect(readForkLimit(cmd)).toBeNull()
@@ -67,12 +67,12 @@ describe('readForkLimit', () => {
 
   describe('T-shirt size parsing', () => {
     it.each([
-      ['/refine :n=10 :limit=xxs', 10],
-      ['/refine :n=10 :limit=xs', 20],
-      ['/refine :n=10 :limit=s', 50],
-      ['/refine :n=10 :limit=l', 100],
-      ['/refine :n=10 :limit=xl', 200],
-      ['/refine :n=10 :limit=xxl', 500],
+      ['/elect :n=10 :limit=xxs', 10],
+      ['/elect :n=10 :limit=xs', 20],
+      ['/elect :n=10 :limit=s', 50],
+      ['/elect :n=10 :limit=l', 100],
+      ['/elect :n=10 :limit=xl', 200],
+      ['/elect :n=10 :limit=xxl', 500],
     ])('parses %s → %i', (cmd, expected) => {
       expect(readForkLimit(cmd)).toBe(expected)
     })
@@ -80,42 +80,42 @@ describe('readForkLimit', () => {
 
   describe('T-shirt prefix disambiguation (longer keys do not bleed into shorter prefixes)', () => {
     it(':limit=xxs is parsed as xxs (10), not xs (20)', () => {
-      expect(readForkLimit('/refine :limit=xxs')).toBe(FORK_LIMIT_SIZES.xxs)
+      expect(readForkLimit('/elect :limit=xxs')).toBe(FORK_LIMIT_SIZES.xxs)
     })
 
     it(':limit=xxl is parsed as xxl (500), not xl (200)', () => {
-      expect(readForkLimit('/refine :limit=xxl')).toBe(FORK_LIMIT_SIZES.xxl)
+      expect(readForkLimit('/elect :limit=xxl')).toBe(FORK_LIMIT_SIZES.xxl)
     })
 
     it(':limit=xl is parsed as xl (200), not l (100)', () => {
-      expect(readForkLimit('/refine :limit=xl')).toBe(FORK_LIMIT_SIZES.xl)
+      expect(readForkLimit('/elect :limit=xl')).toBe(FORK_LIMIT_SIZES.xl)
     })
   })
 
   describe('integer passthrough', () => {
     it.each([
-      ['/refine :n=3 :limit=1', 1],
-      ['/refine :n=3 :limit=30', 30],
-      ['/refine :n=3 :limit=999', 999],
+      ['/elect :n=3 :limit=1', 1],
+      ['/elect :n=3 :limit=30', 30],
+      ['/elect :n=3 :limit=999', 999],
     ])('parses %s → %i', (cmd, expected) => {
       expect(readForkLimit(cmd)).toBe(expected)
     })
 
     it(':limit=0 returns 0 (zero is a valid explicit cap)', () => {
-      expect(readForkLimit('/refine :n=3 :limit=0')).toBe(0)
+      expect(readForkLimit('/elect :n=3 :limit=0')).toBe(0)
     })
 
     it('parses when :limit= is the last token with no trailing space', () => {
-      expect(readForkLimit('/refine :limit=100')).toBe(100)
+      expect(readForkLimit('/elect :limit=100')).toBe(100)
     })
   })
 
   describe('parameter ordering — :limit= is position-independent', () => {
     it.each([
-      '/refine :limit=xs :n=10',
-      '/refine :n=10 :limit=xs',
-      '/refine :limit=xs :n=10 :fallback',
-      '/refine :n=10 :fallback :limit=xs',
+      '/elect :limit=xs :n=10',
+      '/elect :n=10 :limit=xs',
+      '/elect :limit=xs :n=10 :fallback',
+      '/elect :n=10 :fallback :limit=xs',
     ])('extracts xs budget from "%s"', cmd => {
       expect(readForkLimit(cmd)).toBe(FORK_LIMIT_SIZES.xs)
     })
@@ -123,29 +123,29 @@ describe('readForkLimit', () => {
 
   describe('invalid values → null', () => {
     it('ignores :limit=xs2 (T-shirt token with trailing chars)', () => {
-      expect(readForkLimit('/refine :n=3 :limit=xs2')).toBeNull()
+      expect(readForkLimit('/elect :n=3 :limit=xs2')).toBeNull()
     })
 
     it('ignores :limit=small (unrecognized word)', () => {
-      expect(readForkLimit('/refine :n=3 :limit=small')).toBeNull()
+      expect(readForkLimit('/elect :n=3 :limit=small')).toBeNull()
     })
 
     it('ignores :limit=3.5 (decimal — only whole integers are valid)', () => {
-      expect(readForkLimit('/refine :n=3 :limit=3.5')).toBeNull()
+      expect(readForkLimit('/elect :n=3 :limit=3.5')).toBeNull()
     })
 
     it('ignores :limit= with no value (empty after the equals sign)', () => {
-      expect(readForkLimit('/refine :n=3 :limit=')).toBeNull()
+      expect(readForkLimit('/elect :n=3 :limit=')).toBeNull()
     })
   })
 
   describe('multiple :limit= params — first match wins', () => {
     it('returns the first T-shirt limit when two T-shirt params are present', () => {
-      expect(readForkLimit('/refine :n=3 :limit=xs :limit=xxl')).toBe(FORK_LIMIT_SIZES.xs)
+      expect(readForkLimit('/elect :n=3 :limit=xs :limit=xxl')).toBe(FORK_LIMIT_SIZES.xs)
     })
 
     it('returns the first integer limit when two integer params are present', () => {
-      expect(readForkLimit('/refine :n=3 :limit=10 :limit=99')).toBe(10)
+      expect(readForkLimit('/elect :n=3 :limit=10 :limit=99')).toBe(10)
     })
   })
 })
@@ -190,30 +190,30 @@ describe('exceedsForkLimit', () => {
 
 describe('readForkLimit + exceedsForkLimit — pipeline composition', () => {
   it('no :limit= in command → cost is never blocked regardless of value', () => {
-    const limit = readForkLimit('/refine :n=3')
+    const limit = readForkLimit('/elect :n=3')
     expect(exceedsForkLimit(999, limit)).toBe(false)
   })
 
   it(':limit=xs command with cost within budget → not blocked', () => {
-    const limit = readForkLimit('/refine :n=3 :limit=xs')
+    const limit = readForkLimit('/elect :n=3 :limit=xs')
     expect(exceedsForkLimit(FORK_LIMIT_SIZES.xs, limit)).toBe(false)
   })
 
   it(':limit=xs command with cost exceeding budget → blocked', () => {
-    const limit = readForkLimit('/refine :n=3 :limit=xs')
+    const limit = readForkLimit('/elect :n=3 :limit=xs')
     expect(exceedsForkLimit(FORK_LIMIT_SIZES.xs + 1, limit)).toBe(true)
   })
 
   it('every T-shirt size: cost at exactly the budget is permitted', () => {
     for (const [key, budget] of Object.entries(FORK_LIMIT_SIZES)) {
-      const limit = readForkLimit(`/refine :n=2 :limit=${key}`)
+      const limit = readForkLimit(`/elect :n=2 :limit=${key}`)
       expect(exceedsForkLimit(budget, limit)).toBe(false)
     }
   })
 
   it('every T-shirt size: cost one above the budget is refused', () => {
     for (const [key, budget] of Object.entries(FORK_LIMIT_SIZES)) {
-      const limit = readForkLimit(`/refine :n=2 :limit=${key}`)
+      const limit = readForkLimit(`/elect :n=2 :limit=${key}`)
       expect(exceedsForkLimit(budget + 1, limit)).toBe(true)
     }
   })

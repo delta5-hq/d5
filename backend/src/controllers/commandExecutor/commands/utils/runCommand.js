@@ -10,20 +10,20 @@ import {MEMORIZE_QUERY, MEMORIZE_QUERY_TYPE} from '../../constants/memorize'
 import {OUTLINE_QUERY, OUTLINE_QUERY_TYPE, readSummarizeParam} from '../../constants/outline'
 import {PERPLEXITY_QUERY_TYPE} from '../../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../../constants/qwen'
-import {REFINE_QUERY} from '../../constants/refine'
+import {ELECT_QUERY} from '../../constants/elect'
 import {STEPS_QUERY_TYPE} from '../../constants/steps'
 import {SUMMARIZE_QUERY, SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
 import {VALIDATE_QUERY} from '../../constants/validate'
 import {ValidateCommand} from '../../reliability/core/ValidateCommand'
 import {readValidateRetry, hasValidCriterion} from '../../reliability/core/validateParams'
 import {CriteriaFailedError} from '../../reliability/core/CriteriaFailedError'
-import {resolveRefineCell} from '../../reliability/core/resolveRefineCell'
+import {resolveElectCell} from '../../reliability/core/resolveElectCell'
 import {createForkProgressEmitter} from '../../reliability/core/ForkProgressEmitter'
-import RefineTopology from '../../reliability/core/RefineTopology'
+import ElectTopology from '../../reliability/core/ElectTopology'
 import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {MCP_FUSION_QUERY_TYPE} from '../../constants/mcpFusion'
 import {isSideEffectingDispatch} from '../../reliability/core/sideEffectingDispatch'
-import {isPostProcessorOrControlQuery, hasRefineDescendant} from '../../reliability/core/refineChildPredicates'
+import {isPostProcessorOrControlQuery, hasElectDescendant} from '../../reliability/core/electChildPredicates'
 import {MEMO_SENTINEL_PRE_EXECUTED_CHILD} from '../../reliability/core/memoSentinels'
 import {YANDEX_QUERY_TYPE} from '../../constants/yandex'
 import {CONTROL_FLOW_COMMANDS, modifierQueryTypes} from '../../constants'
@@ -348,7 +348,7 @@ export const runCommand = async (
           if (command?.includes(SUMMARIZE_QUERY)) return 2
           if (command?.includes(MEMORIZE_QUERY)) return 3
           if (command?.includes(OUTLINE_QUERY) && readSummarizeParam(command)) return 4
-          if (command?.includes(REFINE_QUERY)) return 4.5
+          if (command?.includes(ELECT_QUERY)) return 4.5
           if (command?.startsWith(VALIDATE_QUERY)) return 5
           return 6
         }
@@ -402,43 +402,43 @@ export const runCommand = async (
           flag = true
         } else if (query?.startsWith(OUTLINE_QUERY) && readSummarizeParam(query)) {
           await dispatchOutlineSummarize(childNode, store, signal)
-        } else if (query?.startsWith(REFINE_QUERY)) {
+        } else if (query?.startsWith(ELECT_QUERY)) {
           if (!memoMap?.has(childNode.id)) {
             if (!memoMap) memoMap = new Map()
-            const refineParent = store.getNode(childNode.parent)
-            if (refineParent) {
-              for (const {refineNode: inner, depth} of RefineTopology(refineParent, store)) {
+            const electParent = store.getNode(childNode.parent)
+            if (electParent) {
+              for (const {electNode: inner, depth} of ElectTopology(electParent, store)) {
                 if (depth > 1 && inner.id !== childNode.id && !memoMap.has(inner.id)) {
-                  await resolveRefineCell(inner, store, memoMap, signal)
+                  await resolveElectCell(inner, store, memoMap, signal)
                 }
               }
             }
             const emitter = createForkProgressEmitter(progress)
-            await resolveRefineCell(childNode, store, memoMap, signal, emitter)
+            await resolveElectCell(childNode, store, memoMap, signal, emitter)
           } else if (memoMap?.get(childNode.id) === 'in-progress') {
-            for (const refineChildId of childNode.children ?? []) {
-              const refineChild = store.getNode(refineChildId)
-              if (!refineChild || ids.includes(refineChildId)) continue
-              const rcQuery = getNodeCommand(refineChild)
+            for (const electChildId of childNode.children ?? []) {
+              const electChild = store.getNode(electChildId)
+              if (!electChild || ids.includes(electChildId)) continue
+              const rcQuery = getNodeCommand(electChild)
               if (isPostProcessorOrControlQuery(rcQuery)) continue
-              // Skip children whose subtree contains /refine: memoization pre-resolution
+              // Skip children whose subtree contains /elect: memoization pre-resolution
               // already ran them; re-running would double-execute per outer fork.
-              if (hasRefineDescendant(refineChild, store)) continue
+              if (hasElectDescendant(electChild, store)) continue
               const {
                 queryType: rcQueryType,
                 mcpAlias: rcMcpAlias,
                 rpcAlias: rcRpcAlias,
               } = resolveCommand(rcQuery, store._aliases)
               if (rcQueryType) {
-                if (memoMap?.get(refineChildId) === MEMO_SENTINEL_PRE_EXECUTED_CHILD) {
-                  ids.push(refineChildId)
+                if (memoMap?.get(electChildId) === MEMO_SENTINEL_PRE_EXECUTED_CHILD) {
+                  ids.push(electChildId)
                   continue
                 }
-                ids.push(refineChildId)
+                ids.push(electChildId)
                 await runCommand(
                   {
                     queryType: rcQueryType,
-                    cell: refineChild,
+                    cell: electChild,
                     store,
                     mcpAlias: rcMcpAlias,
                     rpcAlias: rcRpcAlias,

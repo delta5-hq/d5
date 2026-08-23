@@ -1,6 +1,6 @@
 /**
  *
- * resolveRefineCell is NOT mocked — it runs naturally.
+ * resolveElectCell is NOT mocked — it runs naturally.
  * The test controls the result by mocking SubtreeForkRunner.runForks and ForkJudge.
  * StoreFork.applyCandidate is mocked to isolate store-merge side effects.
  */
@@ -41,8 +41,8 @@ jest.mock('../../reliability/core/StoreFork', () => ({
   },
 }))
 
-// RefineTopology must return empty to avoid triggering nested /refine resolution
-jest.mock('../../reliability/core/RefineTopology', () => jest.fn(() => []))
+// ElectTopology must return empty to avoid triggering nested /elect resolution
+jest.mock('../../reliability/core/ElectTopology', () => jest.fn(() => []))
 
 const {runForks: mockRunForks} = require('../../reliability/core/SubtreeForkRunner')
 const {ForkJudge: MockForkJudge} = require('../../reliability/core/ForkJudge')
@@ -59,12 +59,12 @@ const makeOkForkStore = () =>
       id: 'parent',
       parent: null,
       command: '/chat do task',
-      children: ['refine'],
+      children: ['elect'],
     },
-    refine: {
-      id: 'refine',
+    elect: {
+      id: 'elect',
       parent: 'parent',
-      command: '/refine :n=2',
+      command: '/elect :n=2',
       children: [],
     },
   })
@@ -79,7 +79,7 @@ beforeEach(() => {
 
 // ────────────────────────────────────────────────────────────────────────────
 // ────────────────────────────────────────────────────────────────────────────
-describe('/refine :n=2 strict mode — winner selected and applied', () => {
+describe('/elect :n=2 strict mode — winner selected and applied', () => {
   it('calls StoreFork.applyCandidate with the winning forkStore', async () => {
     const winnerForkStore = makeOkForkStore(0)
     const loserForkStore = makeOkForkStore(1)
@@ -97,12 +97,12 @@ describe('/refine :n=2 strict mode — winner selected and applied', () => {
         id: 'parent',
         parent: null,
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'parent',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: [],
       },
     })
@@ -115,10 +115,10 @@ describe('/refine :n=2 strict mode — winner selected and applied', () => {
     })
     spy.mockRestore()
 
-    expect(MockStoreFork.applyCandidate).toHaveBeenCalledWith(store, winnerForkStore, 'refine')
+    expect(MockStoreFork.applyCandidate).toHaveBeenCalledWith(store, winnerForkStore, 'elect')
   })
 
-  it('updates refine node title with ✓ suffix after winner is applied', async () => {
+  it('updates elect node title with ✓ suffix after winner is applied', async () => {
     const winnerForkStore = makeOkForkStore(0)
 
     mockRunForks.mockResolvedValue([
@@ -134,12 +134,12 @@ describe('/refine :n=2 strict mode — winner selected and applied', () => {
         id: 'parent',
         parent: null,
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'parent',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: [],
       },
     })
@@ -152,7 +152,7 @@ describe('/refine :n=2 strict mode — winner selected and applied', () => {
     })
     spy.mockRestore()
 
-    expect(store.getNode('refine').title).toMatch(/\[✓ 2\/2\]/)
+    expect(store.getNode('elect').title).toMatch(/\[✓ 2\/2\]/)
   })
 
   it('does NOT write an error node when a winner is found (strict mode)', async () => {
@@ -167,12 +167,12 @@ describe('/refine :n=2 strict mode — winner selected and applied', () => {
         id: 'parent',
         parent: null,
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'parent',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: [],
       },
     })
@@ -190,23 +190,23 @@ describe('/refine :n=2 strict mode — winner selected and applied', () => {
   })
 
   it('passes ownedValidates gathered by OwnershipResolver to ForkJudge.selectWinner', async () => {
-    // /validate is a child of /refine → OwnershipResolver assigns it to /refine
+    // /validate is a child of /elect → OwnershipResolver assigns it to /elect
     const winnerForkStore = buildStore({
       parent: {
         id: 'parent',
         parent: null,
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'parent',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: ['validate'],
       },
       validate: {
         id: 'validate',
-        parent: 'refine',
+        parent: 'elect',
         command: '/validate must include numbers',
         children: [],
       },
@@ -229,17 +229,17 @@ describe('/refine :n=2 strict mode — winner selected and applied', () => {
         id: 'parent',
         parent: null,
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'parent',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: ['validate'],
       },
       validate: {
         id: 'validate',
-        parent: 'refine',
+        parent: 'elect',
         command: '/validate must include numbers',
         children: [],
       },
@@ -260,24 +260,24 @@ describe('/refine :n=2 strict mode — winner selected and applied', () => {
 
 // ────────────────────────────────────────────────────────────────────────────
 // ────────────────────────────────────────────────────────────────────────────
-describe('/refine :n=3 :fallback — all forks fail criteria, commits highest-ranked', () => {
+describe('/elect :n=3 :fallback — all forks fail criteria, commits highest-ranked', () => {
   const makeFailedForkStore = () =>
     buildStore({
       parent: {
         id: 'parent',
         parent: null,
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'parent',
-        command: '/refine :n=3 :fallback',
+        command: '/elect :n=3 :fallback',
         children: ['validate'],
       },
       validate: {
         id: 'validate',
-        parent: 'refine',
+        parent: 'elect',
         command: '/validate must include numbers',
         children: [],
       },
@@ -320,17 +320,17 @@ describe('/refine :n=3 :fallback — all forks fail criteria, commits highest-ra
         id: 'parent',
         parent: null,
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'parent',
-        command: '/refine :n=3 :fallback',
+        command: '/elect :n=3 :fallback',
         children: ['validate'],
       },
       validate: {
         id: 'validate',
-        parent: 'refine',
+        parent: 'elect',
         command: '/validate must include numbers',
         children: [],
       },
@@ -345,10 +345,10 @@ describe('/refine :n=3 :fallback — all forks fail criteria, commits highest-ra
     spy.mockRestore()
 
     // f1 is fork at index 1 — the one the mocked judge selected
-    expect(MockStoreFork.applyCandidate).toHaveBeenCalledWith(store, f1, 'refine')
+    expect(MockStoreFork.applyCandidate).toHaveBeenCalledWith(store, f1, 'elect')
   })
 
-  it('updates refine node title with ⚠ fallback suffix including chosen fork index', async () => {
+  it('updates elect node title with ⚠ fallback suffix including chosen fork index', async () => {
     const f0 = makeFailedForkStore()
     const f1 = makeFailedForkStore()
     const f2 = makeFailedForkStore()
@@ -385,17 +385,17 @@ describe('/refine :n=3 :fallback — all forks fail criteria, commits highest-ra
         id: 'parent',
         parent: null,
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'parent',
-        command: '/refine :n=3 :fallback',
+        command: '/elect :n=3 :fallback',
         children: ['validate'],
       },
       validate: {
         id: 'validate',
-        parent: 'refine',
+        parent: 'elect',
         command: '/validate must include numbers',
         children: [],
       },
@@ -409,7 +409,7 @@ describe('/refine :n=3 :fallback — all forks fail criteria, commits highest-ra
     })
     spy.mockRestore()
 
-    const title = store.getNode('refine').title
+    const title = store.getNode('elect').title
     expect(title).toMatch(/⚠/)
     expect(title).toContain('0/3')
   })
@@ -444,12 +444,12 @@ describe('/refine :n=3 :fallback — all forks fail criteria, commits highest-ra
         id: 'parent',
         parent: null,
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'parent',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: [],
       },
     })
@@ -468,18 +468,18 @@ describe('/refine :n=3 :fallback — all forks fail criteria, commits highest-ra
   })
 })
 
-describe('/refine with absent or below-minimum :n= — parse-time refusal visible on cell', () => {
-  it.each([['/refine :n=1'], ['/refine :n=0'], ['/refine']])(
-    'appends [\u2717 invalid] to refine cell title and launches no forks for command "%s"',
+describe('/elect with absent or below-minimum :n= — parse-time refusal visible on cell', () => {
+  it.each([['/elect :n=1'], ['/elect :n=0'], ['/elect']])(
+    'appends [\u2717 invalid] to elect cell title and launches no forks for command "%s"',
     async command => {
       const store = buildStore({
         parent: {
           id: 'parent',
           parent: null,
           command: '/chat do task',
-          children: ['refine'],
+          children: ['elect'],
         },
-        refine: {id: 'refine', parent: 'parent', command, children: []},
+        elect: {id: 'elect', parent: 'parent', command, children: []},
       })
 
       const spy = chatSpy()
@@ -490,23 +490,23 @@ describe('/refine with absent or below-minimum :n= — parse-time refusal visibl
       })
       spy.mockRestore()
 
-      expect(store.getNode('refine').title).toMatch(/\[\u2717 !\]/)
+      expect(store.getNode('elect').title).toMatch(/\[\u2717 !\]/)
       expect(mockRunForks).not.toHaveBeenCalled()
     },
   )
 
   it.each([
-    ['/refine :n=1', 1],
-    ['/refine :n=0', 0],
+    ['/elect :n=1', 1],
+    ['/elect :n=0', 0],
   ])('error message names the actual below-minimum :n= value for command "%s"', async (command, rawN) => {
     const store = buildStore({
       parent: {
         id: 'parent',
         parent: null,
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {id: 'refine', parent: 'parent', command, children: []},
+      elect: {id: 'elect', parent: 'parent', command, children: []},
     })
     const createErrorSpy = jest.spyOn(store.importer, 'createErrorNode')
 
@@ -518,7 +518,7 @@ describe('/refine with absent or below-minimum :n= — parse-time refusal visibl
     })
     spy.mockRestore()
 
-    expect(createErrorSpy).toHaveBeenCalledWith(expect.stringContaining(`/refine :n=${rawN} is a no-op`), 'refine')
+    expect(createErrorSpy).toHaveBeenCalledWith(expect.stringContaining(`/elect :n=${rawN} is a no-op`), 'elect')
   })
 
   it('error message prompts for :n=N syntax when :n= is absent entirely', async () => {
@@ -527,12 +527,12 @@ describe('/refine with absent or below-minimum :n= — parse-time refusal visibl
         id: 'parent',
         parent: null,
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'parent',
-        command: '/refine',
+        command: '/elect',
         children: [],
       },
     })
@@ -546,29 +546,29 @@ describe('/refine with absent or below-minimum :n= — parse-time refusal visibl
     })
     spy.mockRestore()
 
-    expect(createErrorSpy).toHaveBeenCalledWith(expect.stringContaining('/refine requires :n=N'), 'refine')
+    expect(createErrorSpy).toHaveBeenCalledWith(expect.stringContaining('/elect requires :n=N'), 'elect')
   })
 })
 
-describe('in-progress /refine — descendant /validate executes inside fork', () => {
-  it('validate child of /refine runs when memoMap marks refine as in-progress', async () => {
+describe('in-progress /elect — descendant /validate executes inside fork', () => {
+  it('validate child of /elect runs when memoMap marks elect as in-progress', async () => {
     const {ValidateCommand} = require('../../reliability/core/ValidateCommand')
     const store = buildStore({
       parent: {
         id: 'parent',
         parent: null,
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'parent',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: ['v'],
       },
       v: {
         id: 'v',
-        parent: 'refine',
+        parent: 'elect',
         command: '/validate must include numbers',
         children: [],
       },
@@ -580,7 +580,7 @@ describe('in-progress /refine — descendant /validate executes inside fork', ()
       reason: '',
     })
     const spy = chatSpy()
-    const memoMap = new Map([['refine', 'in-progress']])
+    const memoMap = new Map([['elect', 'in-progress']])
 
     await runCommand({
       queryType: 'chat',
@@ -602,17 +602,17 @@ describe('in-progress /refine — descendant /validate executes inside fork', ()
         id: 'parent',
         parent: null,
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'parent',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: ['v'],
       },
       v: {
         id: 'v',
-        parent: 'refine',
+        parent: 'elect',
         command: '/validate must include numbers :retry=0',
         children: [],
       },
@@ -624,7 +624,7 @@ describe('in-progress /refine — descendant /validate executes inside fork', ()
       reason: 'no numbers found',
     })
     const spy = chatSpy()
-    const memoMap = new Map([['refine', 'in-progress']])
+    const memoMap = new Map([['elect', 'in-progress']])
 
     let thrown
     try {
@@ -645,24 +645,24 @@ describe('in-progress /refine — descendant /validate executes inside fork', ()
     expect(thrown.criterion).toBe('must include numbers')
   })
 
-  it('/refine with memoMap value other than in-progress is still skipped', async () => {
+  it('/elect with memoMap value other than in-progress is still skipped', async () => {
     const {ValidateCommand} = require('../../reliability/core/ValidateCommand')
     const store = buildStore({
       parent: {
         id: 'parent',
         parent: null,
         command: '/chat do task',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'parent',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: ['v'],
       },
       v: {
         id: 'v',
-        parent: 'refine',
+        parent: 'elect',
         command: '/validate must include numbers',
         children: [],
       },
@@ -675,7 +675,7 @@ describe('in-progress /refine — descendant /validate executes inside fork', ()
     })
     const spy = chatSpy()
     // null = resolved (all-fail), not 'in-progress'
-    const memoMap = new Map([['refine', null]])
+    const memoMap = new Map([['elect', null]])
 
     await runCommand({
       queryType: 'chat',

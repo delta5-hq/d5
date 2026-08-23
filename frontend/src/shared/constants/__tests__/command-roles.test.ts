@@ -20,7 +20,7 @@ describe('command-roles', () => {
     })
 
     it('should map transform query types to transform role', () => {
-      const transformTypes = ['summarize', 'refine']
+      const transformTypes = ['summarize', 'elect']
 
       transformTypes.forEach(type => {
         expect(QUERY_TYPE_ROLES[type]).toBe('transform')
@@ -48,7 +48,7 @@ describe('command-roles', () => {
       expect(QUERY_TYPE_ROLES['/reason']).toBe('llm')
       expect(QUERY_TYPE_ROLES['/web']).toBe('search')
       expect(QUERY_TYPE_ROLES['/scholar']).toBe('search')
-      expect(QUERY_TYPE_ROLES['/refine']).toBe('transform')
+      expect(QUERY_TYPE_ROLES['/elect']).toBe('transform')
       expect(QUERY_TYPE_ROLES['/foreach']).toBe('control')
     })
   })
@@ -65,7 +65,7 @@ describe('command-roles', () => {
     it('should return correct role for frontend command format', () => {
       expect(getCommandRole('/instruct')).toBe('llm')
       expect(getCommandRole('/web')).toBe('search')
-      expect(getCommandRole('/refine')).toBe('transform')
+      expect(getCommandRole('/elect')).toBe('transform')
       expect(getCommandRole('/foreach')).toBe('control')
     })
 
@@ -132,7 +132,7 @@ describe('command-roles', () => {
       const commonCommands = [
         { backend: 'web', frontend: '/web' },
         { backend: 'scholar', frontend: '/scholar' },
-        { backend: 'refine', frontend: '/refine' },
+        { backend: 'elect', frontend: '/elect' },
         { backend: 'foreach', frontend: '/foreach' },
       ]
 
@@ -183,7 +183,7 @@ describe('command-roles', () => {
     })
 
     it('should support tree node rendering', () => {
-      const treeNodeCommands = ['/instruct', '/reason', '/web', '/scholar', '/refine', '/foreach']
+      const treeNodeCommands = ['/instruct', '/reason', '/web', '/scholar', '/elect', '/foreach']
 
       treeNodeCommands.forEach(cmd => {
         const role = getCommandRole(cmd)

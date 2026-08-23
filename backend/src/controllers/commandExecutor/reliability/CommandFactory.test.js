@@ -10,7 +10,7 @@ import {EXT_QUERY_TYPE} from '../constants/ext'
 import {FOREACH_QUERY_TYPE} from '../constants/foreach'
 import {PERPLEXITY_QUERY_TYPE} from '../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../constants/qwen'
-import {REFINE_QUERY_TYPE} from '../constants/refine'
+import {ELECT_QUERY_TYPE} from '../constants/elect'
 import {STEPS_QUERY_TYPE} from '../constants/steps'
 import {SUMMARIZE_QUERY_TYPE} from '../constants/summarize'
 import {VALIDATE_QUERY_TYPE} from '../constants/validate'
@@ -236,7 +236,7 @@ describe('CommandFactory', () => {
         [STEPS_QUERY_TYPE, 'steps'],
         [FOREACH_QUERY_TYPE, 'foreach'],
         [SWITCH_QUERY_TYPE, 'switch'],
-        [REFINE_QUERY_TYPE, 'refine'],
+        [ELECT_QUERY_TYPE, 'elect'],
         [VALIDATE_QUERY_TYPE, 'validate'],
         [WEB_QUERY_TYPE, 'web'],
       ])('creates runner for %s (%s) command', queryType => {
@@ -290,11 +290,11 @@ describe('CommandFactory', () => {
         const cell = {id: 'cell1', command: '/chatgpt test', title: 'Test'}
 
         const chatRunner = CommandFactory.createRunner(CHAT_QUERY_TYPE, cell, 'context', 'prompt')
-        const refineRunner = CommandFactory.createRunner(COMPLETION_QUERY_TYPE, cell, 'context', 'prompt')
+        const electRunner = CommandFactory.createRunner(COMPLETION_QUERY_TYPE, cell, 'context', 'prompt')
 
         expect(typeof chatRunner).toBe('function')
-        expect(typeof refineRunner).toBe('function')
-        expect(chatRunner).not.toBe(refineRunner)
+        expect(typeof electRunner).toBe('function')
+        expect(chatRunner).not.toBe(electRunner)
       })
     })
   })

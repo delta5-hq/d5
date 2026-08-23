@@ -23,12 +23,12 @@ const minimalTree = () =>
       id: 'parent',
       parent: 'root',
       command: '/chat do something',
-      children: ['refine'],
+      children: ['elect'],
     },
-    refine: {
-      id: 'refine',
+    elect: {
+      id: 'elect',
       parent: 'parent',
-      command: '/refine :n=3',
+      command: '/elect :n=3',
       children: [],
     },
   })
@@ -40,28 +40,28 @@ beforeEach(() => {
 
 describe('runForks', () => {
   describe('missing parent', () => {
-    it('throws when refineNode has no parent field', async () => {
+    it('throws when electNode has no parent field', async () => {
       const store = buildStore({
-        refine: {id: 'refine', command: '/refine :n=2', children: []},
+        elect: {id: 'elect', command: '/elect :n=2', children: []},
       })
       const memoMap = new Map()
-      await expect(runForks({refineNode: store.getNode('refine'), store, n: 2, memoMap})).rejects.toThrow(
-        "[SubtreeForkRunner] refineNode 'refine' has no parent in store",
+      await expect(runForks({electNode: store.getNode('elect'), store, n: 2, memoMap})).rejects.toThrow(
+        "[SubtreeForkRunner] electNode 'elect' has no parent in store",
       )
     })
 
     it('throws when parent id does not resolve in store', async () => {
       const store = buildStore({
-        refine: {
-          id: 'refine',
+        elect: {
+          id: 'elect',
           parent: 'ghost',
-          command: '/refine :n=2',
+          command: '/elect :n=2',
           children: [],
         },
       })
       const memoMap = new Map()
-      await expect(runForks({refineNode: store.getNode('refine'), store, n: 2, memoMap})).rejects.toThrow(
-        "[SubtreeForkRunner] refineNode 'refine' has no parent in store",
+      await expect(runForks({electNode: store.getNode('elect'), store, n: 2, memoMap})).rejects.toThrow(
+        "[SubtreeForkRunner] electNode 'elect' has no parent in store",
       )
     })
   })
@@ -72,7 +72,7 @@ describe('runForks', () => {
       const memoMap = new Map()
 
       await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 2,
         memoMap,
@@ -86,7 +86,7 @@ describe('runForks', () => {
       const memoMap = new Map()
 
       await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 5,
         memoMap,
@@ -102,19 +102,19 @@ describe('runForks', () => {
           id: 'parent',
           parent: 'root',
           command: '/tool mutate',
-          children: ['refine'],
+          children: ['elect'],
         },
-        refine: {
-          id: 'refine',
+        elect: {
+          id: 'elect',
           parent: 'parent',
-          command: '/refine :n=3',
+          command: '/elect :n=3',
           children: [],
         },
       })
       store._aliases = {mcp: [{alias: '/tool'}], rpc: []}
 
       const results = await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 3,
         memoMap: new Map(),
@@ -144,19 +144,19 @@ describe('runForks', () => {
           id: 'parent',
           parent: 'root',
           command: '/ssh mutate',
-          children: ['refine'],
+          children: ['elect'],
         },
-        refine: {
-          id: 'refine',
+        elect: {
+          id: 'elect',
           parent: 'parent',
-          command: '/refine :n=3',
+          command: '/elect :n=3',
           children: [],
         },
       })
       store._aliases = {mcp: [], rpc: [{alias: '/ssh'}]}
 
       const results = await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 3,
         memoMap: new Map(),
@@ -180,18 +180,18 @@ describe('runForks', () => {
           id: 'parent',
           parent: 'root',
           command: '/mcp mutate',
-          children: ['refine'],
+          children: ['elect'],
         },
-        refine: {
-          id: 'refine',
+        elect: {
+          id: 'elect',
           parent: 'parent',
-          command: '/refine :n=3',
+          command: '/elect :n=3',
           children: [],
         },
       })
 
       const results = await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 3,
         memoMap: new Map(),
@@ -209,19 +209,19 @@ describe('runForks', () => {
           id: 'parent',
           parent: 'root',
           command: '/tool mutate',
-          children: ['refine'],
+          children: ['elect'],
         },
-        refine: {
-          id: 'refine',
+        elect: {
+          id: 'elect',
           parent: 'parent',
-          command: '/refine :n=1',
+          command: '/elect :n=1',
           children: [],
         },
       })
       store._aliases = {mcp: [{alias: '/tool'}], rpc: []}
 
       const results = await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 1,
         memoMap: new Map(),
@@ -238,7 +238,7 @@ describe('runForks', () => {
       const memoMap = new Map()
 
       await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 1,
         memoMap,
@@ -254,7 +254,7 @@ describe('runForks', () => {
       const memoMap = new Map()
 
       const results = await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 3,
         memoMap,
@@ -268,7 +268,7 @@ describe('runForks', () => {
       const memoMap = new Map()
 
       const results = await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 2,
         memoMap,
@@ -288,7 +288,7 @@ describe('runForks', () => {
       const memoMap = new Map()
 
       const results = await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 3,
         memoMap,
@@ -304,7 +304,7 @@ describe('runForks', () => {
         const memoMap = new Map()
 
         const results = await runForks({
-          refineNode: store.getNode('refine'),
+          electNode: store.getNode('elect'),
           store,
           n: 1,
           memoMap,
@@ -327,7 +327,7 @@ describe('runForks', () => {
         })
 
         const results = await runForks({
-          refineNode: store.getNode('refine'),
+          electNode: store.getNode('elect'),
           store,
           n: 1,
           memoMap,
@@ -342,7 +342,7 @@ describe('runForks', () => {
         mockRunCommand.mockRejectedValue(new Error('provider down'))
 
         const results = await runForks({
-          refineNode: store.getNode('refine'),
+          electNode: store.getNode('elect'),
           store,
           n: 1,
           memoMap,
@@ -367,7 +367,7 @@ describe('runForks', () => {
         })
 
         const results = await runForks({
-          refineNode: store.getNode('refine'),
+          electNode: store.getNode('elect'),
           store,
           n: 1,
           memoMap,
@@ -394,7 +394,7 @@ describe('runForks', () => {
         })
 
         const results = await runForks({
-          refineNode: store.getNode('refine'),
+          electNode: store.getNode('elect'),
           store,
           n: 3,
           memoMap,
@@ -420,7 +420,7 @@ describe('runForks', () => {
       })
 
       await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 3,
         memoMap,
@@ -441,7 +441,7 @@ describe('runForks', () => {
       })
 
       await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 2,
         memoMap,
@@ -461,7 +461,7 @@ describe('runForks', () => {
       })
 
       await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 3,
         memoMap,
@@ -485,7 +485,7 @@ describe('runForks', () => {
       })
 
       await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 2,
         memoMap,
@@ -495,19 +495,19 @@ describe('runForks', () => {
       expect(receivedStores[1]._nodes.parent.title).toBeUndefined()
     })
 
-    it('forks include nodes that are outside the refine subtree (full store snapshot)', async () => {
+    it('forks include nodes that are outside the elect subtree (full store snapshot)', async () => {
       const store = buildStore({
         root: {id: 'root', children: ['parent', 'sibling']},
         parent: {
           id: 'parent',
           parent: 'root',
           command: '/chat',
-          children: ['refine'],
+          children: ['elect'],
         },
-        refine: {
-          id: 'refine',
+        elect: {
+          id: 'elect',
           parent: 'parent',
-          command: '/refine :n=2',
+          command: '/elect :n=2',
           children: [],
         },
         sibling: {
@@ -525,7 +525,7 @@ describe('runForks', () => {
       })
 
       await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 2,
         memoMap,
@@ -539,17 +539,17 @@ describe('runForks', () => {
   })
 
   describe('memoMap re-entrancy guard', () => {
-    it('sets refineNode.id in memoMap before any runCommand call', async () => {
+    it('sets electNode.id in memoMap before any runCommand call', async () => {
       const store = minimalTree()
       const memoMap = new Map()
       const memoStateAtCallTime = []
 
       mockRunCommand.mockImplementation(async () => {
-        memoStateAtCallTime.push(memoMap.has('refine'))
+        memoStateAtCallTime.push(memoMap.has('elect'))
       })
 
       await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 3,
         memoMap,
@@ -558,34 +558,34 @@ describe('runForks', () => {
       expect(memoStateAtCallTime).toEqual([true, true, true])
     })
 
-    it("sets refineNode.id to 'in-progress' in memoMap", async () => {
+    it("sets electNode.id to 'in-progress' in memoMap", async () => {
       const store = minimalTree()
       const memoMap = new Map()
 
       mockRunCommand.mockImplementation(async () => {
-        expect(memoMap.get('refine')).toBe('in-progress')
+        expect(memoMap.get('elect')).toBe('in-progress')
       })
 
       await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 1,
         memoMap,
       })
     })
 
-    it('memoMap still contains refineNode.id after runForks completes', async () => {
+    it('memoMap still contains electNode.id after runForks completes', async () => {
       const store = minimalTree()
       const memoMap = new Map()
 
       await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 2,
         memoMap,
       })
 
-      expect(memoMap.has('refine')).toBe(true)
+      expect(memoMap.has('elect')).toBe(true)
     })
   })
 
@@ -600,7 +600,7 @@ describe('runForks', () => {
       })
 
       await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 3,
         memoMap,
@@ -612,16 +612,16 @@ describe('runForks', () => {
       expect(receivedMemoMaps[0]).not.toBe(receivedMemoMaps[2])
     })
 
-    it('each fork memoMap contains refineNode.id at call time', async () => {
+    it('each fork memoMap contains electNode.id at call time', async () => {
       const store = minimalTree()
       const memoMap = new Map()
 
       mockRunCommand.mockImplementation(async ({memoMap: m}) => {
-        expect(m.has('refine')).toBe(true)
+        expect(m.has('elect')).toBe(true)
       })
 
       await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 2,
         memoMap,
@@ -639,7 +639,7 @@ describe('runForks', () => {
       })
 
       await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 2,
         memoMap,
@@ -661,7 +661,7 @@ describe('runForks', () => {
       })
 
       await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 2,
         memoMap,
@@ -683,7 +683,7 @@ describe('runForks', () => {
       })
 
       await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 2,
         memoMap,
@@ -707,7 +707,7 @@ describe('runForks', () => {
       })
 
       await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 2,
         memoMap,
@@ -727,7 +727,7 @@ describe('runForks', () => {
       })
 
       await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 1,
         memoMap,
@@ -749,7 +749,7 @@ describe('runForks', () => {
       })
 
       const results = await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 3,
         memoMap,
@@ -769,7 +769,7 @@ describe('runForks', () => {
       mockRunCommand.mockRejectedValue(new Error('all fail'))
 
       const results = await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 3,
         memoMap,
@@ -790,7 +790,7 @@ describe('runForks', () => {
       })
 
       const results = await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 3,
         memoMap,
@@ -816,7 +816,7 @@ describe('runForks', () => {
       })
 
       const results = await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 3,
         memoMap,
@@ -841,7 +841,7 @@ describe('runForks', () => {
       })
 
       const results = await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 2,
         memoMap,
@@ -862,17 +862,17 @@ describe('runForks', () => {
           id: 'parent',
           parent: 'root',
           command: '/chat do task',
-          children: ['refine'],
+          children: ['elect'],
         },
-        refine: {
-          id: 'refine',
+        elect: {
+          id: 'elect',
           parent: 'parent',
-          command: '/refine :n=2 :fallback',
+          command: '/elect :n=2 :fallback',
           children: ['validate'],
         },
         validate: {
           id: 'validate',
-          parent: 'refine',
+          parent: 'elect',
           command: '/validate criterion',
           children: [],
         },
@@ -886,7 +886,7 @@ describe('runForks', () => {
       })
 
       const results = await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 2,
         memoMap,
@@ -907,24 +907,24 @@ describe('runForks', () => {
           id: 'innerParent',
           parent: 'root',
           command: '/chat inner task',
-          children: ['innerRefine'],
+          children: ['innerElect'],
         },
-        innerRefine: {
-          id: 'innerRefine',
+        innerElect: {
+          id: 'innerElect',
           parent: 'innerParent',
-          command: '/refine :n=3',
+          command: '/elect :n=3',
           children: [],
         },
         outerParent: {
           id: 'outerParent',
           parent: 'root',
           command: '/chat outer task',
-          children: ['outerRefine'],
+          children: ['outerElect'],
         },
-        outerRefine: {
-          id: 'outerRefine',
+        outerElect: {
+          id: 'outerElect',
           parent: 'outerParent',
-          command: '/refine :n=2',
+          command: '/elect :n=2',
           children: [],
         },
       })
@@ -932,13 +932,13 @@ describe('runForks', () => {
       const memoMap = new Map()
 
       await runForks({
-        refineNode: store.getNode('innerRefine'),
+        electNode: store.getNode('innerElect'),
         store,
         n: 3,
         memoMap,
       })
       await runForks({
-        refineNode: store.getNode('outerRefine'),
+        electNode: store.getNode('outerElect'),
         store,
         n: 2,
         memoMap,
@@ -954,24 +954,24 @@ describe('runForks', () => {
           id: 'innerParent',
           parent: 'root',
           command: '/chat inner task',
-          children: ['innerRefine'],
+          children: ['innerElect'],
         },
-        innerRefine: {
-          id: 'innerRefine',
+        innerElect: {
+          id: 'innerElect',
           parent: 'innerParent',
-          command: '/refine :n=3',
+          command: '/elect :n=3',
           children: [],
         },
         outerParent: {
           id: 'outerParent',
           parent: 'root',
           command: '/chat outer task',
-          children: ['outerRefine'],
+          children: ['outerElect'],
         },
-        outerRefine: {
-          id: 'outerRefine',
+        outerElect: {
+          id: 'outerElect',
           parent: 'outerParent',
-          command: '/refine :n=2',
+          command: '/elect :n=2',
           children: [],
         },
       })
@@ -979,7 +979,7 @@ describe('runForks', () => {
       const memoMap = new Map()
 
       await runForks({
-        refineNode: store.getNode('innerRefine'),
+        electNode: store.getNode('innerElect'),
         store,
         n: 3,
         memoMap,
@@ -987,11 +987,11 @@ describe('runForks', () => {
 
       const outerMemoSnapshots = []
       mockRunCommand.mockImplementation(async ({memoMap: m}) => {
-        outerMemoSnapshots.push(m.has('innerRefine'))
+        outerMemoSnapshots.push(m.has('innerElect'))
       })
 
       await runForks({
-        refineNode: store.getNode('outerRefine'),
+        electNode: store.getNode('outerElect'),
         store,
         n: 2,
         memoMap,
@@ -1009,19 +1009,19 @@ describe('runForks', () => {
           id: 'parent',
           parent: 'root',
           title: '/chat from title',
-          children: ['refine'],
+          children: ['elect'],
         },
-        refine: {
-          id: 'refine',
+        elect: {
+          id: 'elect',
           parent: 'parent',
-          command: '/refine :n=2',
+          command: '/elect :n=2',
           children: [],
         },
       })
       const memoMap = new Map()
 
       const results = await runForks({
-        refineNode: store.getNode('refine'),
+        electNode: store.getNode('elect'),
         store,
         n: 2,
         memoMap,
@@ -1047,7 +1047,7 @@ describe('P0.5(c): early-termination — CriteriaFailedError stops fork executio
     })
 
     const results = await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 1,
       memoMap,
@@ -1069,7 +1069,7 @@ describe('P0.5(c): early-termination — CriteriaFailedError stops fork executio
     })
 
     const results = await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 3,
       memoMap,
@@ -1091,7 +1091,7 @@ describe('onForkSettled callback', () => {
     const settled = []
 
     await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 3,
       memoMap,
@@ -1107,7 +1107,7 @@ describe('onForkSettled callback', () => {
     const indices = []
 
     await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 3,
       memoMap,
@@ -1123,7 +1123,7 @@ describe('onForkSettled callback', () => {
     const statuses = []
 
     await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 2,
       memoMap,
@@ -1140,7 +1140,7 @@ describe('onForkSettled callback', () => {
     const settled = []
 
     await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 2,
       memoMap,
@@ -1159,7 +1159,7 @@ describe('onForkSettled callback', () => {
     const settled = []
 
     await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 2,
       memoMap,
@@ -1176,7 +1176,7 @@ describe('onForkSettled callback', () => {
     const memoMap = new Map()
 
     const results = await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 2,
       memoMap,
@@ -1195,7 +1195,7 @@ describe('onForkSettled callback', () => {
     const settled = []
 
     await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 3,
       memoMap,
@@ -1212,7 +1212,7 @@ describe('onForkSettled callback', () => {
     const settled = []
 
     await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 2,
       memoMap,
@@ -1231,7 +1231,7 @@ describe('onForkSettled callback', () => {
     const settled = []
 
     await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 2,
       memoMap,
@@ -1248,7 +1248,7 @@ describe('onForkSettled callback', () => {
     const memoMap = new Map()
 
     const results = await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 3,
       memoMap,
@@ -1270,12 +1270,12 @@ describe('computeEffectiveN', () => {
         id: 'parent',
         parent: 'root',
         command: parentCommand,
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'parent',
-        command: '/refine :n=3',
+        command: '/elect :n=3',
         children: [],
       },
     })
@@ -1285,7 +1285,7 @@ describe('computeEffectiveN', () => {
 
   it('returns n for a non-side-effecting parent (chat)', () => {
     const store = buildStoreWithParent('/chat do something')
-    expect(computeEffectiveN(store.getNode('refine'), store, 3)).toBe(3)
+    expect(computeEffectiveN(store.getNode('elect'), store, 3)).toBe(3)
   })
 
   it('returns 1 for a side-effecting MCP-alias parent when n > 1', () => {
@@ -1293,7 +1293,7 @@ describe('computeEffectiveN', () => {
       mcp: [{alias: '/tool'}],
       rpc: [],
     })
-    expect(computeEffectiveN(store.getNode('refine'), store, 3)).toBe(1)
+    expect(computeEffectiveN(store.getNode('elect'), store, 3)).toBe(1)
   })
 
   it('returns 1 for a side-effecting MCP-alias parent when n = 2 (minimum collapse threshold)', () => {
@@ -1301,7 +1301,7 @@ describe('computeEffectiveN', () => {
       mcp: [{alias: '/tool'}],
       rpc: [],
     })
-    expect(computeEffectiveN(store.getNode('refine'), store, 2)).toBe(1)
+    expect(computeEffectiveN(store.getNode('elect'), store, 2)).toBe(1)
   })
 
   it('returns n unchanged when n = 1 even with a side-effecting parent — n=1 never needs collapse', () => {
@@ -1309,14 +1309,14 @@ describe('computeEffectiveN', () => {
       mcp: [{alias: '/tool'}],
       rpc: [],
     })
-    expect(computeEffectiveN(store.getNode('refine'), store, 1)).toBe(1)
+    expect(computeEffectiveN(store.getNode('elect'), store, 1)).toBe(1)
   })
 
   it('returns n when parentNode is absent — no parent means no suppression signal', () => {
     const store = buildStore({
-      refine: {id: 'refine', command: '/refine :n=3', children: []},
+      elect: {id: 'elect', command: '/elect :n=3', children: []},
     })
-    expect(computeEffectiveN(store.getNode('refine'), store, 5)).toBe(5)
+    expect(computeEffectiveN(store.getNode('elect'), store, 5)).toBe(5)
   })
 
   it('returns 1 for a side-effecting RPC-alias parent when n > 1', () => {
@@ -1324,12 +1324,12 @@ describe('computeEffectiveN', () => {
       mcp: [],
       rpc: [{alias: '/ssh'}],
     })
-    expect(computeEffectiveN(store.getNode('refine'), store, 4)).toBe(1)
+    expect(computeEffectiveN(store.getNode('elect'), store, 4)).toBe(1)
   })
 
   it('returns 1 for an /mcp fusion parent when n > 1', () => {
     const store = buildStoreWithParent('/mcp some-op')
-    expect(computeEffectiveN(store.getNode('refine'), store, 3)).toBe(1)
+    expect(computeEffectiveN(store.getNode('elect'), store, 3)).toBe(1)
   })
 })
 
@@ -1341,12 +1341,12 @@ describe('runForks — suppressed metadata propagates to failure shapes', () => 
         id: 'parent',
         parent: 'root',
         command: '/tool run',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'parent',
-        command: '/refine :n=3',
+        command: '/elect :n=3',
         children: [],
       },
     })
@@ -1359,7 +1359,7 @@ describe('runForks — suppressed metadata propagates to failure shapes', () => 
     mockRunCommand.mockRejectedValue(new CriteriaFailedError('quality', [{content: 'x'}]))
 
     const results = await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 3,
       memoMap: new Map(),
@@ -1379,7 +1379,7 @@ describe('runForks — suppressed metadata propagates to failure shapes', () => 
     mockRunCommand.mockRejectedValue(new Error('network error'))
 
     const results = await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 3,
       memoMap: new Map(),
@@ -1399,7 +1399,7 @@ describe('runForks — suppressed metadata propagates to failure shapes', () => 
     mockRunCommand.mockRejectedValue(new CriteriaFailedError('quality', [{content: 'x'}]))
 
     const results = await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 2,
       memoMap: new Map(),
@@ -1412,7 +1412,7 @@ describe('runForks — suppressed metadata propagates to failure shapes', () => 
   })
 })
 
-describe('preExecuteSideEffectingRefineChildren — pre-execution exclusion rules', () => {
+describe('preExecuteSideEffectingElectChildren — pre-execution exclusion rules', () => {
   const mcpAlias = {
     alias: '/tool',
     serverUrl: 'http://mcp',
@@ -1428,17 +1428,17 @@ describe('preExecuteSideEffectingRefineChildren — pre-execution exclusion rule
         id: 'parent',
         parent: 'root',
         command: '/chat do',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'parent',
-        command: '/refine :n=3',
+        command: '/elect :n=3',
         children: ['child'],
       },
       child: {
         id: 'child',
-        parent: 'refine',
+        parent: 'elect',
         command: '/validate quality',
         children: [],
       },
@@ -1446,7 +1446,7 @@ describe('preExecuteSideEffectingRefineChildren — pre-execution exclusion rule
     store._aliases = {mcp: [mcpAlias], rpc: []}
 
     await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 3,
       memoMap: new Map(),
@@ -1458,45 +1458,45 @@ describe('preExecuteSideEffectingRefineChildren — pre-execution exclusion rule
     expect(preExecCalls).toHaveLength(0)
   })
 
-  it('MCP-alias child whose subtree contains a nested /refine is excluded from pre-execution', async () => {
-    // hasRefineDescendant guard: running such a child pre-fork would double-execute the nested refine
+  it('MCP-alias child whose subtree contains a nested /elect is excluded from pre-execution', async () => {
+    // hasElectDescendant guard: running such a child pre-fork would double-execute the nested elect
     const store = buildStore({
       root: {id: 'root', children: ['parent']},
       parent: {
         id: 'parent',
         parent: 'root',
         command: '/chat do',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'parent',
-        command: '/refine :n=3',
+        command: '/elect :n=3',
         children: ['mcpChild'],
       },
       mcpChild: {
         id: 'mcpChild',
-        parent: 'refine',
+        parent: 'elect',
         command: '/tool run',
-        children: ['nestedRefine'],
+        children: ['nestedElect'],
       },
-      nestedRefine: {
-        id: 'nestedRefine',
+      nestedElect: {
+        id: 'nestedElect',
         parent: 'mcpChild',
-        command: '/refine :n=2',
+        command: '/elect :n=2',
         children: [],
       },
     })
     store._aliases = {mcp: [mcpAlias], rpc: []}
 
     await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 3,
       memoMap: new Map(),
     })
 
-    // mcpChild has a refine descendant: must NOT be pre-executed (would compound fork counts)
+    // mcpChild has a elect descendant: must NOT be pre-executed (would compound fork counts)
     const mcpChildCalls = mockRunCommand.mock.calls.filter(([params]) => params.cell?.id === 'mcpChild')
     expect(mcpChildCalls).toHaveLength(0)
   })
@@ -1508,17 +1508,17 @@ describe('preExecuteSideEffectingRefineChildren — pre-execution exclusion rule
         id: 'parent',
         parent: 'root',
         command: '/chat do',
-        children: ['refine'],
+        children: ['elect'],
       },
-      refine: {
-        id: 'refine',
+      elect: {
+        id: 'elect',
         parent: 'parent',
-        command: '/refine :n=3',
+        command: '/elect :n=3',
         children: ['child'],
       },
       child: {
         id: 'child',
-        parent: 'refine',
+        parent: 'elect',
         command: '/tool run',
         children: [],
       },
@@ -1527,7 +1527,7 @@ describe('preExecuteSideEffectingRefineChildren — pre-execution exclusion rule
     const memoMap = new Map([['child', 'already-set']])
 
     await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 3,
       memoMap,
@@ -1550,9 +1550,9 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
   const buildPreExecTree = () => {
     const store = buildStore({
       root: {id: 'root', children: ['parent']},
-      parent: {id: 'parent', parent: 'root', command: '/chat do', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', command: '/refine :n=3', children: ['child']},
-      child: {id: 'child', parent: 'refine', command: '/tool run', children: []},
+      parent: {id: 'parent', parent: 'root', command: '/chat do', children: ['elect']},
+      elect: {id: 'elect', parent: 'parent', command: '/elect :n=3', children: ['child']},
+      child: {id: 'child', parent: 'elect', command: '/tool run', children: []},
     })
     store._aliases = {mcp: [mcpAlias], rpc: []}
     return store
@@ -1563,9 +1563,7 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new CriteriaFailedError('must-be-valid', 2)
     })
     const store = buildPreExecTree()
-    await expect(
-      runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()}),
-    ).resolves.toBeDefined()
+    await expect(runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})).resolves.toBeDefined()
   })
 
   it('returns exactly N results when pre-exec throws CriteriaFailedError — one result per requested fork', async () => {
@@ -1573,7 +1571,7 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new CriteriaFailedError('must-be-valid', 2)
     })
     const store = buildPreExecTree()
-    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
     expect(results).toHaveLength(3)
   })
 
@@ -1582,7 +1580,7 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new CriteriaFailedError('must-be-valid', 2)
     })
     const store = buildPreExecTree()
-    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
     expect(results.every(r => r.status === 'criteria-failed')).toBe(true)
   })
 
@@ -1591,7 +1589,7 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new CriteriaFailedError('must-be-valid', 2)
     })
     const store = buildPreExecTree()
-    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
     for (const r of results) {
       expect(r.failedAt).toBe('must-be-valid')
       expect(r.attempts).toBe(2)
@@ -1603,7 +1601,7 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new CriteriaFailedError('criterion', 1)
     })
     const store = buildPreExecTree()
-    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
     const indices = results.map(r => r.forkIndex).sort((a, b) => a - b)
     expect(indices).toEqual([0, 1, 2])
   })
@@ -1613,7 +1611,7 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new CriteriaFailedError('criterion', 1)
     })
     const store = buildPreExecTree()
-    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
     expect(results.every(r => r.forkStore === null)).toBe(true)
   })
 
@@ -1624,7 +1622,7 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
     const store = buildPreExecTree()
     const settled = []
     await runForks({
-      refineNode: store.getNode('refine'),
+      electNode: store.getNode('elect'),
       store,
       n: 3,
       memoMap: new Map(),
@@ -1639,9 +1637,7 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new Error('network timeout')
     })
     const store = buildPreExecTree()
-    await expect(
-      runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()}),
-    ).resolves.toBeDefined()
+    await expect(runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})).resolves.toBeDefined()
   })
 
   it('returns N runtime-failed results when pre-exec throws a generic error', async () => {
@@ -1649,7 +1645,7 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new Error('network timeout')
     })
     const store = buildPreExecTree()
-    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
     expect(results).toHaveLength(3)
     expect(results.every(r => r.status === 'runtime-failed')).toBe(true)
   })
@@ -1659,7 +1655,7 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new Error('network timeout')
     })
     const store = buildPreExecTree()
-    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
     expect(results.every(r => r.reason === 'network timeout')).toBe(true)
   })
 
@@ -1670,7 +1666,7 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new CriteriaFailedError('criterion', 1)
     })
     const store = buildPreExecTree()
-    await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
     expect(callCount).toBe(1)
   })
 })
@@ -1681,9 +1677,9 @@ describe('runForks — pre-exec shared-child result and per-fork dispatch', () =
   const buildPreExecWithChildTree = () => {
     const store = buildStore({
       root: {id: 'root', children: ['parent']},
-      parent: {id: 'parent', parent: 'root', command: '/chat do', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', command: '/refine :n=3', children: ['child']},
-      child: {id: 'child', parent: 'refine', command: '/tool run', children: []},
+      parent: {id: 'parent', parent: 'root', command: '/chat do', children: ['elect']},
+      elect: {id: 'elect', parent: 'parent', command: '/elect :n=3', children: ['child']},
+      child: {id: 'child', parent: 'elect', command: '/tool run', children: []},
     })
     store._aliases = {mcp: [mcpAlias], rpc: []}
     return store
@@ -1699,7 +1695,7 @@ describe('runForks — pre-exec shared-child result and per-fork dispatch', () =
       }
     })
 
-    const results = await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
 
     for (const result of results) {
       expect(result.forkStore._nodes['child_output']).toBeDefined()
@@ -1711,9 +1707,9 @@ describe('runForks — pre-exec shared-child result and per-fork dispatch', () =
   it('non-side-effecting child dispatches once per fork — 3 executions for n=3', async () => {
     const store = buildStore({
       root: {id: 'root', children: ['parent']},
-      parent: {id: 'parent', parent: 'root', command: '/chat do', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', command: '/refine :n=3', children: ['child']},
-      child: {id: 'child', parent: 'refine', command: '/chat explain', children: []},
+      parent: {id: 'parent', parent: 'root', command: '/chat do', children: ['elect']},
+      elect: {id: 'elect', parent: 'parent', command: '/elect :n=3', children: ['child']},
+      child: {id: 'child', parent: 'elect', command: '/chat explain', children: []},
     })
     store._aliases = {mcp: [], rpc: []}
 
@@ -1726,7 +1722,7 @@ describe('runForks — pre-exec shared-child result and per-fork dispatch', () =
       }
     })
 
-    await runForks({refineNode: store.getNode('refine'), store, n: 3, memoMap: new Map()})
+    await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
 
     const childCalls = mockRunCommand.mock.calls.filter(([params]) => params.cell?.id === 'child')
     expect(childCalls).toHaveLength(3)

@@ -12,7 +12,7 @@ export const QUERY_TYPE_ROLES: Record<string, CommandRole> = {
   web: 'search',
   scholar: 'search',
   summarize: 'transform',
-  refine: 'transform',
+  elect: 'transform',
   foreach: 'control',
   switch: 'control',
   steps: 'control',
@@ -24,7 +24,7 @@ export const QUERY_TYPE_ROLES: Record<string, CommandRole> = {
   '/reason': 'llm',
   '/web': 'search',
   '/scholar': 'search',
-  '/refine': 'transform',
+  '/elect': 'transform',
   '/foreach': 'control',
 }
 

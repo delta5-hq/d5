@@ -1,6 +1,6 @@
 // Mirror of backend ForkStreamEvent.js + ForkLeafExtractor.js shapes.
 
-export type ForkEventType = 'fork_started' | 'fork_settled' | 'refine_complete'
+export type ForkEventType = 'fork_started' | 'fork_settled' | 'elect_complete'
 
 export interface ForkLeafOutput {
   nodeId: string
@@ -9,14 +9,14 @@ export interface ForkLeafOutput {
 
 export interface ForkStartedEvent {
   type: 'fork_started'
-  refineNodeId: string
+  electNodeId: string
   forkIndex: number
   total: number
 }
 
 export interface ForkSettledEvent {
   type: 'fork_settled'
-  refineNodeId: string
+  electNodeId: string
   forkIndex: number
   status: 'ok' | 'criteria-failed' | 'runtime-failed'
   failedAt?: string
@@ -24,11 +24,11 @@ export interface ForkSettledEvent {
   leafOutputs?: ForkLeafOutput[]
 }
 
-export interface RefineCompleteEvent {
-  type: 'refine_complete'
-  refineNodeId: string
+export interface ElectCompleteEvent {
+  type: 'elect_complete'
+  electNodeId: string
   winnerForkIndex: number | null
   total: number
 }
 
-export type ForkEvent = ForkStartedEvent | ForkSettledEvent | RefineCompleteEvent
+export type ForkEvent = ForkStartedEvent | ForkSettledEvent | ElectCompleteEvent

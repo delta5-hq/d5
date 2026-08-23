@@ -66,5 +66,5 @@ export const passesStructuralGate = (text, forkIndex = null, failureSignal = nul
 // Known ceiling: a soft HTTP-200 error body that arrives as non-empty, non-refusal prose
 // without a machine-readable failure signal is structurally indistinguishable from a
 // valid completion and passes this gate. Users who need semantic soft-error detection
-// must use /refine :n=N + /validate (judge layer).
+// must use /elect :n=N + /validate (judge layer).
 export const passesCommodityGate = (text, forkIndex = null) => passesBaseGate(text, forkIndex)

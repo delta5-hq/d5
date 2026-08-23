@@ -4,7 +4,7 @@ import { LLM_TIMEOUT, TIMEOUTS } from './config/test-timeouts'
 import {
   COMPLETION_SUFFIX_RE,
   COMMODITY_FULL_SUCCESS_SUFFIX_RE,
-  REFINE_FALLBACK_SUFFIX_RE,
+  ELECT_FALLBACK_SUFFIX_RE,
   VALIDATE_VERDICT_RE,
 } from './reliability/suffix-patterns'
 import { setupLLMWorkflow } from './reliability/workflow-lifecycle'
@@ -31,7 +31,7 @@ const COMMODITY_DETERMINISTIC_FULL_SUCCESS_CASES = [
   { n: 5, task: 'List 3 animals' },
 ] as const
 
-const REFINE_SUFFIX_CASES = [
+const ELECT_SUFFIX_CASES = [
   { n: 2, task: 'List 3 colors', suffixPattern: /\[✓ \d+\/2/ },
   { n: 3, task: 'List 3 fruits', suffixPattern: /\[(?:✓|✗) \d+\/3/ },
 ] as const
@@ -69,47 +69,47 @@ test.describe('Reliability execution contracts', () => {
     await expectNoCommodityTokenInChildren(page, tree)
   })
 
-  // ── Refine fork suffix ─────────────────────────────────────────────────────
+  // ── Elect fork suffix ─────────────────────────────────────────────────────
 
-  REFINE_SUFFIX_CASES.forEach(({ n, task, suffixPattern }) => {
-    test(`refine :n=${n} — suffix reports candidate count, not legacy [✓ refined]`, async ({ page }) => {
+  ELECT_SUFFIX_CASES.forEach(({ n, task, suffixPattern }) => {
+    test(`elect :n=${n} — suffix reports candidate count, not legacy [✓ electd]`, async ({ page }) => {
       const tree = new WorkflowTreePage(page)
       const { detail, rootId } = await selectRootAndOpenDetail(page)
       await detail.fillCommand(`/chat :n=${n} ${task}`)
-      const refineId = await addChildCommand(page, tree, rootId, `/refine :n=${n}`)
+      const electId = await addChildCommand(page, tree, rootId, `/elect :n=${n}`)
       await executeRoot(page, tree, rootId)
 
-      // The refine winner suffix lands via the streaming fork completion, which under parallel-worker
-      // load can lag well past the abort indicator clearing — a refine :n=3 runs the commodity :n=3
+      // The elect winner suffix lands via the streaming fork completion, which under parallel-worker
+      // load can lag well past the abort indicator clearing — a elect :n=3 runs the commodity :n=3
       // scope AND 3 judged forks. Do NOT reload here (unlike the validate verdict at :122): a reload
       // drops the in-flight SSE and can interrupt the fork completion before the suffix is written.
       // Poll the live title with the LLM-scale timeout instead.
-      const refineTitle = await awaitNodeTitle(page, refineId, COMPLETION_SUFFIX_RE, LLM_TIMEOUT)
-      expect(refineTitle).not.toMatch(/\[✓ refined\]/)
-      expect(refineTitle).toMatch(suffixPattern)
+      const electTitle = await awaitNodeTitle(page, electId, COMPLETION_SUFFIX_RE, LLM_TIMEOUT)
+      expect(electTitle).not.toMatch(/\[✓ electd\]/)
+      expect(electTitle).toMatch(suffixPattern)
     })
   })
 
-  test('refine :fallback — commits a fallback winner when all criteria-checked forks fail', async ({ page }) => {
+  test('elect :fallback — commits a fallback winner when all criteria-checked forks fail', async ({ page }) => {
     const tree = new WorkflowTreePage(page)
     const { detail, rootId } = await selectRootAndOpenDetail(page)
     await detail.fillCommand('/chat :n=2 Write one sentence about weather')
-    const refineId = await addChildCommand(page, tree, rootId, '/refine :n=2 :fallback')
-    const validateId = await addChildCommand(page, tree, refineId, '/validate MOCK_VALIDATE_FAIL — must never pass')
+    const electId = await addChildCommand(page, tree, rootId, '/elect :n=2 :fallback')
+    const validateId = await addChildCommand(page, tree, electId, '/validate MOCK_VALIDATE_FAIL — must never pass')
     await executeRoot(page, tree, rootId)
 
-    const refineTitle = await awaitNodeTitle(page, refineId, REFINE_FALLBACK_SUFFIX_RE, LLM_TIMEOUT)
+    const electTitle = await awaitNodeTitle(page, electId, ELECT_FALLBACK_SUFFIX_RE, LLM_TIMEOUT)
     await expectValidateFailure(page, validateId)
   })
 
-  test('nested refine — inner commands execute in each fork and descendant validate failure propagates', async ({
+  test('nested elect — inner commands execute in each fork and descendant validate failure propagates', async ({
     page,
   }) => {
     const tree = new WorkflowTreePage(page)
     const { detail, rootId } = await selectRootAndOpenDetail(page)
     await detail.fillCommand('/chat Write one sentence about the weather')
-    const refineId = await addChildCommand(page, tree, rootId, '/refine :n=2 :fallback')
-    const innerChatId = await addChildCommand(page, tree, refineId, '/chat Reply with exactly: HELLO WORLD')
+    const electId = await addChildCommand(page, tree, rootId, '/elect :n=2 :fallback')
+    const innerChatId = await addChildCommand(page, tree, electId, '/chat Reply with exactly: HELLO WORLD')
     const validateId = await addChildCommand(
       page,
       tree,
@@ -118,7 +118,7 @@ test.describe('Reliability execution contracts', () => {
     )
     await executeRoot(page, tree, rootId)
 
-    const refineTitle = await awaitNodeTitle(page, refineId, REFINE_FALLBACK_SUFFIX_RE, LLM_TIMEOUT)
+    const electTitle = await awaitNodeTitle(page, electId, ELECT_FALLBACK_SUFFIX_RE, LLM_TIMEOUT)
     await expectValidateFailure(page, validateId)
   })
 
@@ -204,7 +204,7 @@ test.describe('Reliability execution contracts', () => {
     expect(titleAfter).toMatch(COMMODITY_FULL_SUCCESS_SUFFIX_RE(2))
   })
 
-  test('commodity ceiling hint — shown for :n= commands, hidden for plain chat and /refine', async ({ page }) => {
+  test('commodity ceiling hint — shown for :n= commands, hidden for plain chat and /elect', async ({ page }) => {
     const { detail } = await selectRootAndOpenDetail(page)
 
     await detail.fillCommand('/chat :n=2 Say OK')
@@ -213,7 +213,7 @@ test.describe('Reliability execution contracts', () => {
     await detail.fillCommand('/chat Say OK')
     await expect(page.getByTestId('commodity-ceiling-hint')).not.toBeVisible()
 
-    await detail.fillCommand('/refine :n=2 Say OK')
+    await detail.fillCommand('/elect :n=2 Say OK')
     await expect(page.getByTestId('commodity-ceiling-hint')).not.toBeVisible()
   })
 
@@ -225,13 +225,13 @@ test.describe('Reliability execution contracts', () => {
     await rootDetail.waitForComponent()
     await rootDetail.fillCommand('/chat :n=2 List 3 fruits')
 
-    const refineId = await addChildCommand(page, tree, rootId, '/refine :n=2')
-    await tree.selectNode(refineId)
-    const refineDetail = new NodeDetailPanelPage(page)
-    await refineDetail.waitForComponent()
+    const electId = await addChildCommand(page, tree, rootId, '/elect :n=2')
+    await tree.selectNode(electId)
+    const electDetail = new NodeDetailPanelPage(page)
+    await electDetail.waitForComponent()
 
-    await executeAndWaitForCompletion(page, refineDetail)
+    await executeAndWaitForCompletion(page, electDetail)
 
-    const refineTitle = await awaitNodeTitle(page, refineId, COMPLETION_SUFFIX_RE)
+    const electTitle = await awaitNodeTitle(page, electId, COMPLETION_SUFFIX_RE)
   })
 })

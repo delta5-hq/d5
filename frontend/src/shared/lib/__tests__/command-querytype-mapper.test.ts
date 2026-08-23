@@ -31,9 +31,9 @@ describe('extractQueryTypeFromCommand - Command Mapping', () => {
     it.each([
       ['/validate :n=3 criterion', 'validate'],
       ['/validate :retry=5 criterion', 'validate'],
-      ['/refine :n=3', 'refine'],
-      ['/refine :n=3 :fallback', 'refine'],
-      ['/refine :n=2 :limit=xs', 'refine'],
+      ['/elect :n=3', 'elect'],
+      ['/elect :n=3 :fallback', 'elect'],
+      ['/elect :n=2 :limit=xs', 'elect'],
       ['/foreach --parallel=yes items', 'foreach'],
     ])('extractQueryTypeFromCommand(%s) → %s', (input, expected) => {
       expect(extractQueryTypeFromCommand(input)).toBe(expected)

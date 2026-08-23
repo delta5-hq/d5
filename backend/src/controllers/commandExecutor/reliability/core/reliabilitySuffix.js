@@ -38,20 +38,20 @@ export const appendCommoditySuffix = (title, {successCount, total}) => {
 // noSignal warns only in strict mode: fallback mode opts into degraded selection,
 // making the eligible-fraction suffix the correct signal when primary forks passed.
 // ⚠ trails ✓/✗ so pass/fail outcome and judge-quality signal remain orthogonal.
-const selectRefineSuffix = ({eligible, total, fallback, winnerForkIndex, noSignal, degradedInput}) => {
+const selectElectSuffix = ({eligible, total, fallback, winnerForkIndex, noSignal, degradedInput}) => {
   if (eligible === 0 && fallback && winnerForkIndex !== null) return `[⚠ 0/${total}]`
   if (noSignal && !fallback) return '[⚠ ∅]'
   if (eligible === 0) return `[✗ 0/${total}]`
   return `[✓ ${eligible}/${total}${degradedInput ? ' ⚠' : ''}]`
 }
 
-export const appendRefineSuffix = (
+export const appendElectSuffix = (
   title,
   {eligible, total, fallback = false, winnerForkIndex = null, noSignal = false, degradedInput = false},
 ) =>
   clamp(
     stripReliabilitySuffix(title),
-    selectRefineSuffix({
+    selectElectSuffix({
       eligible,
       total,
       fallback,

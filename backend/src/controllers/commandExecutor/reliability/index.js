@@ -2,14 +2,8 @@ export {default as CandidateEvaluator} from './core/CandidateEvaluator'
 export {default as StoreFork} from './core/StoreFork'
 export {default as CommandFactory} from './CommandFactory'
 export {default as NullProgress} from './core/NullProgress'
-export {default as RefineTopology} from './core/RefineTopology'
-export {
-  readRefineN,
-  readRawRefineN,
-  readFallbackFlag,
-  readJudgeReasoningFlag,
-  isValidRefineCell,
-} from './core/refineParams'
+export {default as ElectTopology} from './core/ElectTopology'
+export {readElectN, readRawElectN, readFallbackFlag, readJudgeReasoningFlag, isValidElectCell} from './core/electParams'
 export {runForks} from './core/SubtreeForkRunner'
 export {
   FORK_LIMIT_SIZES,
@@ -57,6 +51,6 @@ export {
   appendValidateSuffix,
   appendInvalidSuffix,
   appendCommoditySuffix,
-  appendRefineSuffix,
+  appendElectSuffix,
 } from './core/reliabilitySuffix'
-export {resolveRefineCell} from './core/resolveRefineCell'
+export {resolveElectCell} from './core/resolveElectCell'

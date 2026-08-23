@@ -13,14 +13,14 @@ const HISTORICAL_SUFFIX_VARIANTS = [
   ['bestOfN gate failure', '/chat list [✗ 0/2 passed]', '/chat list'],
   ['first-survivor without judge', '/chat list [✓ 2/2 first-survivor · no judge]', '/chat list'],
   ['first-survivor with judge error', '/chat list [✓ 1/2 first-survivor · judge auth error]', '/chat list'],
-  ['refined', '/chat list [✓ refined]', '/chat list'],
-  ['refine failed', '/chat list [✗ refine failed]', '/chat list'],
+  ['electd', '/chat list [✓ electd]', '/chat list'],
+  ['elect failed', '/chat list [✗ elect failed]', '/chat list'],
   // v1 shapes superseded by locale-neutral grammar
   ['validate passed after retry (v1)', '/chat list [✓ retry-2]', '/chat list'],
   ['validate failed all attempts (v1)', '/chat list [✗ 3 attempts]', '/chat list'],
-  ['refine no judge signal (v1)', '/chat list [⚠ no judge signal]', '/chat list'],
-  ['refine fallback with winner (v1)', '/chat list [⚠ fallback: 0/3 passed; chose fork-1]', '/chat list'],
-  ['refine fallback multi-digit (v1)', '/chat list [⚠ fallback: 0/12 passed; chose fork-11]', '/chat list'],
+  ['elect no judge signal (v1)', '/chat list [⚠ no judge signal]', '/chat list'],
+  ['elect fallback with winner (v1)', '/chat list [⚠ fallback: 0/3 passed; chose fork-1]', '/chat list'],
+  ['elect fallback multi-digit (v1)', '/chat list [⚠ fallback: 0/12 passed; chose fork-11]', '/chat list'],
   ['invalid empty criterion (v1)', '/chat list [✗ invalid]', '/chat list'],
 ] as const satisfies ReadonlyArray<[string, string, string]>
 
@@ -29,13 +29,13 @@ const ENGINE_SUFFIX_VARIANTS = [
   ['validate passed after N retries', '/chat list [✓ +2]', '/chat list'],
   ['validate failed all attempts', '/chat list [✗ 3×]', '/chat list'],
   ['validate invalid criterion', '/chat list [✗ !]', '/chat list'],
-  ['refine/commodity all succeeded', '/chat list [✓ 3/3]', '/chat list'],
-  ['refine/commodity partial success', '/chat list [✓ 2/3]', '/chat list'],
-  ['refine all forks eligible with degraded judge input', '/chat list [✓ 3/3 ⚠]', '/chat list'],
+  ['elect/commodity all succeeded', '/chat list [✓ 3/3]', '/chat list'],
+  ['elect/commodity partial success', '/chat list [✓ 2/3]', '/chat list'],
+  ['elect all forks eligible with degraded judge input', '/chat list [✓ 3/3 ⚠]', '/chat list'],
   ['commodity partial with warning', '/chat list [✓ 1/3 ⚠]', '/chat list'],
-  ['refine/commodity all failed', '/chat list [✗ 0/3]', '/chat list'],
-  ['refine no judge signal', '/chat list [⚠ ∅]', '/chat list'],
-  ['refine fallback winner committed', '/chat list [⚠ 0/3]', '/chat list'],
+  ['elect/commodity all failed', '/chat list [✗ 0/3]', '/chat list'],
+  ['elect no judge signal', '/chat list [⚠ ∅]', '/chat list'],
+  ['elect fallback winner committed', '/chat list [⚠ 0/3]', '/chat list'],
 ] as const satisfies ReadonlyArray<[string, string, string]>
 
 const ALL_SUFFIX_VARIANTS = [...HISTORICAL_SUFFIX_VARIANTS, ...ENGINE_SUFFIX_VARIANTS]
@@ -69,7 +69,7 @@ describe('stripReliabilitySuffix', () => {
     })
 
     it('reduces a suffix-only title to an empty string', () => {
-      expect(stripReliabilitySuffix('[✓ refined]')).toBe('')
+      expect(stripReliabilitySuffix('[✓ electd]')).toBe('')
     })
   })
 
@@ -229,9 +229,9 @@ describe('extractReliabilitySuffix', () => {
   })
 
   it('returns empty baseTitle when title is only a historical suffix', () => {
-    const { baseTitle, suffix } = extractReliabilitySuffix('[✓ refined]')
+    const { baseTitle, suffix } = extractReliabilitySuffix('[✓ electd]')
     expect(baseTitle).toBe('')
-    expect(suffix).toBe('[✓ refined]')
+    expect(suffix).toBe('[✓ electd]')
   })
 })
 

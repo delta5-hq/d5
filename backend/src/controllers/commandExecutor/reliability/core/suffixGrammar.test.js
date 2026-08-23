@@ -16,8 +16,8 @@ const HISTORICAL_CANONICAL_TITLES = [
   ['first-survivor without judge', 'Task [✓ 2/2 first-survivor · no judge]'],
   ['first-survivor with judge error', 'Task [✓ 1/2 first-survivor · judge auth error]'],
   ['passed fraction', 'Task [✗ 0/2 passed]'],
-  ['refined (v-pre-1)', 'Task [✓ refined]'],
-  ['refine failed (v-pre-1)', 'Task [✗ refine failed]'],
+  ['electd (v-pre-1)', 'Task [✓ electd]'],
+  ['elect failed (v-pre-1)', 'Task [✗ elect failed]'],
   ['validate retry (v1)', 'Task [✓ retry-2]'],
   ['validate exhausted (v1)', 'Task [✗ 3 attempts]'],
   ['invalid criterion (v1)', 'Task [✗ invalid]'],
@@ -27,16 +27,16 @@ const HISTORICAL_CANONICAL_TITLES = [
 ]
 
 const ENGINE_CANONICAL_TITLES = [
-  ['commodity/refine partial with degraded judge input', 'Task [✓ 2/3 ⚠]'],
-  ['commodity/refine all K of N succeeded', 'Task [✓ 2/3]'],
+  ['commodity/elect partial with degraded judge input', 'Task [✓ 2/3 ⚠]'],
+  ['commodity/elect all K of N succeeded', 'Task [✓ 2/3]'],
   ['validate passed after N retries', 'Task [✓ +2]'],
   ['validate passed on first attempt', 'Task [✓]'],
-  ['refine or commodity zero of N eligible', 'Task [✗ 0/3]'],
+  ['elect or commodity zero of N eligible', 'Task [✗ 0/3]'],
   ['validate all retries exhausted', 'Task [✗ 3×]'],
   ['validate retry withheld', 'Task [✗ ⊘]'],
   ['validate invalid criterion', 'Task [✗ !]'],
-  ['refine no judge signal in strict mode', 'Task [⚠ ∅]'],
-  ['refine fallback winner committed', 'Task [⚠ 0/3]'],
+  ['elect no judge signal in strict mode', 'Task [⚠ ∅]'],
+  ['elect fallback winner committed', 'Task [⚠ 0/3]'],
 ]
 
 // Shapes that resemble engine suffixes structurally but are NOT known suffix tokens.
@@ -205,7 +205,7 @@ describe('HISTORICAL_SUFFIX_RE', () => {
   })
 
   it('returns the same result across repeated test() calls on the same input', () => {
-    const title = 'Task [✓ refined]'
+    const title = 'Task [✓ electd]'
     for (let i = 0; i < 4; i++) {
       expect(HISTORICAL_SUFFIX_RE.test(title)).toBe(true)
     }
@@ -216,19 +216,19 @@ describe('HISTORICAL_SUFFIX_RE', () => {
   })
 
   it('tolerates trailing whitespace after the closing bracket', () => {
-    expect(HISTORICAL_SUFFIX_RE.test('Task [✓ refined] ')).toBe(true)
+    expect(HISTORICAL_SUFFIX_RE.test('Task [✓ electd] ')).toBe(true)
   })
 
   it('tolerates multiple spaces between title text and the opening bracket', () => {
-    expect(HISTORICAL_SUFFIX_RE.test('Task  [✓ refined]')).toBe(true)
+    expect(HISTORICAL_SUFFIX_RE.test('Task  [✓ electd]')).toBe(true)
   })
 
   it('matches when there is no space between title text and the opening bracket', () => {
-    expect(HISTORICAL_SUFFIX_RE.test('Task[✓ refined]')).toBe(true)
+    expect(HISTORICAL_SUFFIX_RE.test('Task[✓ electd]')).toBe(true)
   })
 
   it('matches when a tab precedes the opening bracket', () => {
-    expect(HISTORICAL_SUFFIX_RE.test('Task	[✓ refined]')).toBe(true)
+    expect(HISTORICAL_SUFFIX_RE.test('Task	[✓ electd]')).toBe(true)
   })
 
   describe('matches each historical canonical suffix token when trailing a title', () => {
@@ -247,8 +247,8 @@ describe('HISTORICAL_SUFFIX_RE', () => {
   describe('case-insensitive matching — i flag covers capitalized legacy prose', () => {
     it.each([
       ['uppercase BEST OF', 'Task [✓ 2/2 BEST OF 2]'],
-      ['titlecase Refined', 'Task [✓ Refined]'],
-      ['titlecase Refine Failed', 'Task [✗ Refine Failed]'],
+      ['titlecase Electd', 'Task [✓ Electd]'],
+      ['titlecase Elect Failed', 'Task [✗ Elect Failed]'],
       ['uppercase PASSED', 'Task [✗ 0/2 PASSED]'],
       ['uppercase FIRST-SURVIVOR', 'Task [✓ 1/2 FIRST-SURVIVOR · no judge]'],
     ])('%s', (_, title) => {
@@ -267,7 +267,7 @@ describe('HISTORICAL_SUFFIX_RE', () => {
   })
 
   it('does not match mid-title bracket that is not trailing', () => {
-    expect(HISTORICAL_SUFFIX_RE.test('[✓ refined] analysis')).toBe(false)
+    expect(HISTORICAL_SUFFIX_RE.test('[✓ electd] analysis')).toBe(false)
   })
 })
 
@@ -342,7 +342,7 @@ describe('ENGINE_SUFFIX_RE', () => {
       ['commodity large N all succeeded', 'Task [✓ 99/100]'],
       ['commodity large N all failed', 'Task [✗ 0/100]'],
       ['commodity large N partial with warning', 'Task [✓ 99/100 ⚠]'],
-      ['refine fallback large N', 'Task [⚠ 0/100]'],
+      ['elect fallback large N', 'Task [⚠ 0/100]'],
     ])('%s', (_, title) => {
       expect(ENGINE_SUFFIX_RE.test(title)).toBe(true)
     })
@@ -381,11 +381,11 @@ describe('HISTORICAL_SUFFIX_RE strip behaviour', () => {
   })
 
   it('strips suffix-only input to empty string', () => {
-    expect('[✓ refined]'.replace(HISTORICAL_SUFFIX_RE, '')).toBe('')
+    expect('[✓ electd]'.replace(HISTORICAL_SUFFIX_RE, '')).toBe('')
   })
 
   it('preserves a bracket in the middle of the title — only trailing suffix is consumed', () => {
-    expect('[topic] Task [✓ refined]'.replace(HISTORICAL_SUFFIX_RE, '')).toBe('[topic] Task')
+    expect('[topic] Task [✓ electd]'.replace(HISTORICAL_SUFFIX_RE, '')).toBe('[topic] Task')
   })
 
   it('does not alter a title whose bracket content is not a known suffix', () => {
