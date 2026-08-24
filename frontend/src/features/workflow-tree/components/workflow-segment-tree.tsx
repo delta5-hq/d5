@@ -19,10 +19,10 @@ export interface WorkflowSegmentTreeProps {
   autoEditNodeId?: string
   onSelect?: (id: string, node: NodeData, event?: MouseEvent) => void
   onAddChild?: (parentId: string) => void
+  onAddSibling?: (nodeId: string) => void
   onDelete?: (nodeId: string) => void
   onDuplicateNode?: (nodeId: string) => void
   onRename?: (nodeId: string, newTitle: string) => void
-  onRequestRename?: (nodeId: string) => void
   onWrapNodes?: (nodeId: string) => void
   onMoveNode?: (nodeId: string, targetNodeId: string, position: TreeDropPosition) => void
   onDropFiles?: (parentId: string, files: FileList) => void
@@ -42,10 +42,10 @@ const WorkflowSegmentTreeInner = ({
   autoEditNodeId,
   onSelect,
   onAddChild,
+  onAddSibling,
   onDelete,
   onDuplicateNode,
   onRename,
-  onRequestRename,
   onWrapNodes,
   onMoveNode,
   onDropFiles,
@@ -72,7 +72,7 @@ const WorkflowSegmentTreeInner = ({
     dragging: boolean
   } | null>(null)
   const [activePointerDrop, setActivePointerDrop] = useState<
-    { targetId: string; position: TreeDropPosition; source: NodeData } | undefined
+    { targetId: string; position: TreeDropPosition } | undefined
   >()
 
   const cancelHoverExpansion = useCallback(() => {
@@ -145,8 +145,11 @@ const WorkflowSegmentTreeInner = ({
     const position = getTreeDropPosition(clientY, rowElement.getBoundingClientRect())
     active.targetId = targetId
     active.position = position
-    const source = nodes[active.nodeId]
-    setActivePointerDrop(source ? { targetId, position, source } : undefined)
+    if (!nodes[active.nodeId]) {
+      setActivePointerDrop(undefined)
+      return
+    }
+    setActivePointerDrop({ targetId, position })
     if (position === 'inside') handleDragHoverNode(targetId)
     else cancelHoverExpansion()
   })
@@ -239,9 +242,9 @@ const WorkflowSegmentTreeInner = ({
               activeDropPosition={activePointerDrop?.position}
               activeDropTargetId={activePointerDrop?.targetId}
               autoEditNodeId={autoEditNodeId}
-              dragSourceNode={activePointerDrop?.source}
               height={height}
               onAddChild={handleAddChild}
+              onAddSibling={onAddSibling}
               onDelete={onDelete}
               onDragHoverNode={handleDragHoverNode}
               onDragLeaveNode={cancelHoverExpansion}
@@ -249,7 +252,6 @@ const WorkflowSegmentTreeInner = ({
               onDuplicateNode={onDuplicateNode}
               onPointerDragStartNode={handlePointerDragStartNode}
               onRename={onRename}
-              onRequestRename={onRequestRename}
               onSelect={handleSelect}
               onToggle={handleToggle}
               onToggleChecked={showCheckboxes ? handleToggleChecked : undefined}

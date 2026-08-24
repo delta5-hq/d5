@@ -24,10 +24,10 @@ export const ContainerRenderer = ({
   selectedIds,
   onSelect,
   onAddChild,
+  onAddSibling,
   onDelete,
   onDuplicateNode,
   onRename,
-  onRequestRename,
   onWrapNodes,
   onToggleChecked,
   onDragHoverNode,
@@ -36,7 +36,6 @@ export const ContainerRenderer = ({
   onDropFiles,
   activeDropTargetId,
   activeDropPosition,
-  dragSourceNode,
   autoEditNodeId,
 }: ContainerRendererProps) => {
   const ContainerComponent = container.config.component || DefaultContainerWrapper
@@ -53,11 +52,11 @@ export const ContainerRenderer = ({
         activeDropTargetId={activeDropTargetId}
         autoEditNodeId={autoEditNodeId}
         data={parentNode}
-        dragSourceNode={dragSourceNode}
         id={parentNode.id}
         isOpen={parentNode.isOpen}
         isSelected={selectedIds?.has(parentNode.id) ?? false}
         onAddChild={onAddChild}
+        onAddSibling={onAddSibling}
         onDelete={onDelete}
         onDragHoverNode={onDragHoverNode}
         onDragLeaveNode={onDragLeaveNode}
@@ -65,7 +64,6 @@ export const ContainerRenderer = ({
         onDuplicateNode={onDuplicateNode}
         onPointerDragStartNode={onPointerDragStartNode}
         onRename={onRename}
-        onRequestRename={onRequestRename}
         onSelect={onSelect}
         onToggle={onToggle}
         onToggleChecked={onToggleChecked}
@@ -99,11 +97,11 @@ export const ContainerRenderer = ({
               activeDropTargetId={activeDropTargetId}
               autoEditNodeId={autoEditNodeId}
               data={childNode}
-              dragSourceNode={dragSourceNode}
               id={childNode.id}
               isOpen={childNode.isOpen}
               isSelected={selectedIds?.has(childNode.id) ?? false}
               onAddChild={onAddChild}
+              onAddSibling={onAddSibling}
               onDelete={onDelete}
               onDragHoverNode={onDragHoverNode}
               onDragLeaveNode={onDragLeaveNode}
@@ -111,7 +109,6 @@ export const ContainerRenderer = ({
               onDuplicateNode={onDuplicateNode}
               onPointerDragStartNode={onPointerDragStartNode}
               onRename={onRename}
-              onRequestRename={onRequestRename}
               onSelect={onSelect}
               onToggle={onToggle}
               onToggleChecked={onToggleChecked}

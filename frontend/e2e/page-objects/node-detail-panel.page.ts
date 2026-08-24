@@ -42,6 +42,14 @@ export class NodeDetailPanelPage extends PageComponent {
     return this.page.getByTestId('rename-node-button')
   }
 
+  get titleRegion(): Locator {
+    return this.page.getByTestId('node-detail-title-region')
+  }
+
+  get titleActions(): Locator {
+    return this.page.getByTestId('node-detail-title-actions')
+  }
+
   get commandInput(): Locator {
     return this.root.locator('textarea')
   }

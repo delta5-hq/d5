@@ -293,6 +293,29 @@ test.describe('Workflow tree Phase 3 flows', () => {
     }
   })
 
+  test('overflow Add sibling creates a selected editable sibling and persists sibling order', async ({ page }) => {
+    const workflowId = await createWorkflow(page)
+    await seedWorkflow(page, workflowId, {
+      root: { id: 'root', title: 'Root', children: ['first'] },
+      first: { id: 'first', parent: 'root', title: 'First child', children: [] },
+    })
+
+    const tree = new WorkflowTreePage(page)
+    const first = tree.node('first')
+    await first.click({ button: 'right' })
+    await page.getByText('Add Sibling').focus()
+    await page.keyboard.press('Enter')
+
+    await expect(tree.nodesAtDepth(1)).toHaveCount(2, { timeout: TIMEOUTS.UI_UPDATE })
+    await expect(tree.nodesAtDepth(1).locator('textarea')).toBeVisible()
+    await expect(tree.selectedNodes).toHaveCount(1)
+    await expect(tree.selectedNodes.locator('textarea')).toBeVisible()
+
+    await expect.poll(async () => (await readWorkflow(page, workflowId)).nodes.root.children, {
+      timeout: TIMEOUTS.BACKEND_SYNC,
+    }).toHaveLength(2)
+  })
+
   test('inline title editor stays accessible at compact viewport', async ({ page }) => {
     await page.setViewportSize(COMPACT_VIEWPORT)
     const workflowId = await createWorkflow(page)
@@ -593,13 +616,10 @@ test.describe('Workflow tree Phase 3 flows', () => {
       ['after', targetBox.y + targetBox.height - 2],
     ] as const) {
       await page.mouse.move(targetBox.x + targetBox.width / 2, y)
-      if (position === 'inside') {
-        await expect(target.getByTestId('drag-ghost-node')).toBeVisible()
-      } else {
-        const marker = target.getByTestId('tree-drop-marker')
-        await expect(marker).toBeVisible()
-        await expect(marker).toHaveAttribute('data-drop-position', position)
-      }
+      const marker = target.getByTestId('tree-drop-marker')
+      await expect(marker).toBeVisible()
+      await expect(marker).toHaveAttribute('data-drop-position', position)
+      await expect(marker).toHaveText('')
     }
 
     await page.mouse.up()

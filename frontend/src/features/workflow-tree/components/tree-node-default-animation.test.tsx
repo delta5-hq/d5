@@ -1,10 +1,12 @@
-import { act, render } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { IntlProvider } from 'react-intl'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TreeAnimationProvider } from '../context'
 import { resetTreeAnimationState, scheduleTreeAnimation, shouldAnimateTree } from '../core/tree-animation-store'
 import type { TreeNodeProps } from '../core/types'
 import { TreeNodeDefault } from './tree-node-default'
+
+const flashSpy = vi.hoisted(() => vi.fn())
 
 Object.defineProperty(SVGElement.prototype, 'getBBox', {
   configurable: true,
@@ -19,7 +21,7 @@ vi.mock('@shared/ui/genie', async () => {
   const { forwardRef, useImperativeHandle } = await import('react')
   return {
     Genie: forwardRef((_props, ref) => {
-      useImperativeHandle(ref, () => ({ flash: vi.fn(), play: vi.fn(), reset: vi.fn() }))
+      useImperativeHandle(ref, () => ({ flash: flashSpy, play: vi.fn(), reset: vi.fn() }))
       return <div data-testid="genie" />
     }),
   }
@@ -58,6 +60,7 @@ describe('TreeNodeDefault fan-out animation', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(1_000)
+    flashSpy.mockClear()
     resetTreeAnimationState()
   })
 
@@ -75,6 +78,16 @@ describe('TreeNodeDefault fan-out animation', () => {
 
     expect(spark).toHaveClass('wire-tree-spark--active')
     expect(spark.style.getPropertyValue('--wire-tree-spark-duration')).toBe('750ms')
+  })
+
+  it('does not flash the genie when the row is expanded manually', () => {
+    const onToggle = vi.fn()
+    renderRowWith({ onToggle })
+
+    fireEvent.click(screen.getByTestId('node-toggle'))
+
+    expect(onToggle).toHaveBeenCalledWith('leaf1')
+    expect(flashSpy).not.toHaveBeenCalled()
   })
 
   it('bounds a late virtualized mount to the original completion deadline', () => {
@@ -101,3 +114,23 @@ describe('TreeNodeDefault fan-out animation', () => {
     expect(shouldAnimateTree('leaf1')).toBe(false)
   })
 })
+
+function renderRowWith(overrides: Partial<TreeNodeProps>) {
+  return render(
+    <IntlProvider
+      locale="en"
+      messages={{
+        delete: 'Delete',
+        'workflowTree.node.addChild': 'Add Child',
+        'workflowTree.node.addSibling': 'Add Sibling',
+        'workflowTree.node.duplicate': 'Duplicate',
+        'workflowTree.node.rename': 'Rename',
+        'workflowTree.node.wrapInCard': 'Wrap in card',
+      }}
+    >
+      <TreeAnimationProvider>
+        <TreeNodeDefault {...props} {...overrides} />
+      </TreeAnimationProvider>
+    </IntlProvider>,
+  )
+}

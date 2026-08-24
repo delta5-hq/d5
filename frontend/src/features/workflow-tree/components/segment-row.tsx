@@ -21,10 +21,10 @@ export const SegmentRow = ({
   selectedIds,
   onSelect,
   onAddChild,
+  onAddSibling,
   onDelete,
   onDuplicateNode,
   onRename,
-  onRequestRename,
   onWrapNodes,
   onToggleChecked,
   onDragHoverNode,
@@ -33,7 +33,6 @@ export const SegmentRow = ({
   onDropFiles,
   activeDropTargetId,
   activeDropPosition,
-  dragSourceNode,
   autoEditNodeId,
 }: SegmentRowProps) => {
   if (segment.type === 'node') {
@@ -49,9 +48,9 @@ export const SegmentRow = ({
         activeDropPosition={activeDropPosition}
         activeDropTargetId={activeDropTargetId}
         autoEditNodeId={autoEditNodeId}
-        dragSourceNode={dragSourceNode}
         isSelected={selectedIds?.has(record.id) ?? false}
         onAddChild={onAddChild}
+        onAddSibling={onAddSibling}
         onDelete={onDelete}
         onDragHoverNode={onDragHoverNode}
         onDragLeaveNode={onDragLeaveNode}
@@ -59,7 +58,6 @@ export const SegmentRow = ({
         onDuplicateNode={onDuplicateNode}
         onPointerDragStartNode={onPointerDragStartNode}
         onRename={onRename}
-        onRequestRename={onRequestRename}
         onSelect={onSelect}
         onToggle={onToggle}
         onToggleChecked={onToggleChecked}
@@ -76,8 +74,8 @@ export const SegmentRow = ({
         activeDropTargetId={activeDropTargetId}
         autoEditNodeId={autoEditNodeId}
         container={segment}
-        dragSourceNode={dragSourceNode}
         onAddChild={onAddChild}
+        onAddSibling={onAddSibling}
         onDelete={onDelete}
         onDragHoverNode={onDragHoverNode}
         onDragLeaveNode={onDragLeaveNode}
@@ -85,9 +83,10 @@ export const SegmentRow = ({
         onDuplicateNode={onDuplicateNode}
         onPointerDragStartNode={onPointerDragStartNode}
         onRename={onRename}
-        onRequestRename={onRequestRename}
         onSelect={onSelect}
         onToggle={onToggle}
+        onToggleChecked={onToggleChecked}
+        onWrapNodes={onWrapNodes}
         rowHeight={rowHeight}
         selectedIds={selectedIds}
       />

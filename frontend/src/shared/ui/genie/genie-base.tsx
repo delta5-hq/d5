@@ -6,7 +6,7 @@ import { RadialFlash, type RadialFlashRef } from './radial-flash'
 import './genie-reading.css'
 
 export type GenieState = 'idle' | 'busy' | 'busy-alert' | 'done-success' | 'done-failure'
-export type GenieVariant = 'full' | 'clipboard' | 'clipboard-eyes'
+export type GenieVariant = 'full' | 'clipboard'
 
 export interface GenieRef {
   flash: () => void
@@ -55,9 +55,8 @@ export const Genie = forwardRef<GenieRef, GenieProps>(
     const showBackFlash = state === 'busy-alert'
     const eyesOffset = -size * 0.11
     const isClipboardOnly = variant === 'clipboard'
-    const isClipboardEyes = variant === 'clipboard-eyes'
     const showEyes = !isClipboardOnly
-    const showHandsAndFlash = showEyes && !isClipboardEyes
+    const showHandsAndFlash = !isClipboardOnly
 
     useImperativeHandle(ref, () => ({
       flash: () => {

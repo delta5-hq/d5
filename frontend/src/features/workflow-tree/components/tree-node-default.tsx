@@ -1,20 +1,11 @@
 import React, { useRef, useCallback, useEffect, memo, useState } from 'react'
-import { ChevronRight, Folder, FolderOpen, FileText, Plus, Copy, Trash2, Pencil, PackagePlus } from 'lucide-react'
+import { ChevronRight, Folder, FolderOpen, FileText, Plus, Copy, Trash2, PackagePlus } from 'lucide-react'
 import { cn } from '@shared/lib/utils'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { Genie, type GenieRef } from '@shared/ui/genie'
 import { EditableTextArea } from '@shared/ui/editable-field'
-import { getCommandRole } from '@shared/constants/command-roles'
-import { getColorForRole } from '@shared/ui/genie/role-colors'
-import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import { useAliases } from '@entities/aliases'
-import {
-  ContextMenu,
-  ContextMenuTrigger,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-} from '@shared/ui/context-menu'
+import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } from '@shared/ui/context-menu'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { isCommandlessTextNode, normalizeNodeTitle } from '@entities/workflow/lib'
 import { useViewportBreakpoint } from '@shared/composables/use-viewport-breakpoint'
@@ -25,15 +16,11 @@ import { getTreeIndentLayout } from '../core/tree-layout'
 import { areTreeNodePropsEqual } from '../core/tree-node-memo'
 import { useTreeAnimation } from '../context'
 import { useIsNodeDirty } from '../store/workflow-selectors'
+import { getNodeGeniePresentation } from '../lib/node-genie-presenter'
 import { CommandChip, ScriptTitleIcon, truncateTitleForChip } from './command-node-chip'
-import { NodeDropGhost } from './node-drop-ghost'
 import '../styles/wire-tree.css'
 
 export type { TreeNodeProps }
-
-function getShowHandRibsFromDepth(depth: number): boolean {
-  return depth <= 2
-}
 
 /* Build wire path starting from parent center (matches spark path) */
 function buildWirePath(
@@ -124,9 +111,9 @@ export const TreeNodeDefault = ({
   wireExtendDown = 0,
   wireExtendUp = 0,
   onAddChild,
+  onAddSibling,
   onDelete,
   onDuplicateNode,
-  onRequestRename,
   onWrapNodes,
   onToggleChecked,
   onDragHoverNode,
@@ -135,7 +122,6 @@ export const TreeNodeDefault = ({
   onDropFiles,
   activeDropTargetId,
   activeDropPosition,
-  dragSourceNode,
 }: TreeNodeProps) => {
   const {
     node,
@@ -193,7 +179,6 @@ export const TreeNodeDefault = ({
   const handleToggle = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      genieRef.current?.flash()
       onToggle?.(id)
     },
     [id, onToggle],
@@ -213,6 +198,14 @@ export const TreeNodeDefault = ({
       onAddChild?.(id)
     },
     [id, onAddChild],
+  )
+
+  const handleAddSibling = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      onAddSibling?.(id)
+    },
+    [id, onAddSibling],
   )
 
   const handleDelete = useCallback(
@@ -306,14 +299,9 @@ export const TreeNodeDefault = ({
 
   const sparkPath = depth > 0 ? buildSparkPath(wireIndentX, ROW_HEIGHT, INDENT_PER_LEVEL, rowsFromParent) : ''
 
-  const hasCommand = Boolean(node.command?.trim())
   const normalizedTitle = normalizeNodeTitle(node.title)
   const displayedTitle = truncateTitleForChip(normalizedTitle)
-  const genieVariant = hasCommand ? 'full' : 'clipboard'
-  const genieColor = hasCommand
-    ? getColorForRole(getCommandRole(extractQueryTypeFromCommand(node.command, aliases)))
-    : 'var(--muted-foreground)'
-  const genieShowHandRibs = hasCommand && getShowHandRibsFromDepth(depth)
+  const geniePresentation = getNodeGeniePresentation(node, { aliases, depth })
 
   return (
     <ContextMenu>
@@ -371,9 +359,7 @@ export const TreeNodeDefault = ({
             <div className="wire-tree-spark" ref={sparkRef} style={{ offsetPath: `path('${sparkPath}')` }} />
           ) : null}
 
-          {dropPosition === 'inside' && dragSourceNode && dragSourceNode.id !== id ? (
-            <NodeDropGhost aliases={aliases} node={dragSourceNode} />
-          ) : dropPosition ? (
+          {dropPosition ? (
             <span
               aria-hidden="true"
               className="workflow-tree-drop-marker"
@@ -411,13 +397,13 @@ export const TreeNodeDefault = ({
           <span className="workflow-tree-node-icon relative z-10 flex-shrink-0 ml-1.5 transition-transform duration-150 group-hover:scale-110">
             {depth > 0 && depth <= 4 ? (
               <Genie
-                color={genieColor}
+                color={geniePresentation.color}
                 nodeId={id}
                 ref={genieRef}
-                showHandRibs={genieShowHandRibs}
+                showHandRibs={geniePresentation.showHandRibs}
                 size={32}
                 state={genieState}
-                variant={genieVariant}
+                variant={geniePresentation.variant}
               />
             ) : hasChildren ? (
               isOpen ? (
@@ -508,13 +494,9 @@ export const TreeNodeDefault = ({
       </ContextMenuTrigger>
 
       <ContextMenuContent>
-        <ContextMenuItem onClick={() => onRequestRename?.(id)}>
-          <Pencil className="mr-2 h-4 w-4" />
-          <FormattedMessage id="workflowTree.node.rename" />
-        </ContextMenuItem>
-        <ContextMenuItem onClick={() => onAddChild?.(id)}>
+        <ContextMenuItem disabled={isRoot} onClick={handleAddSibling}>
           <Plus className="mr-2 h-4 w-4" />
-          <FormattedMessage id="workflowTree.node.addChild" />
+          <FormattedMessage id="workflowTree.node.addSibling" />
         </ContextMenuItem>
         <ContextMenuItem disabled={isRoot} onClick={() => onDuplicateNode?.(id)}>
           <Copy className="mr-2 h-4 w-4" />
@@ -523,11 +505,6 @@ export const TreeNodeDefault = ({
         <ContextMenuItem disabled={isRoot} onClick={() => onWrapNodes?.(id)}>
           <PackagePlus className="mr-2 h-4 w-4" />
           <FormattedMessage id="workflowTree.node.wrapInCard" />
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem disabled={isRoot} onClick={() => onDelete?.(id)} variant="destructive">
-          <Trash2 className="mr-2 h-4 w-4" />
-          <FormattedMessage id="delete" />
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

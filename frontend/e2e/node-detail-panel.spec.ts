@@ -1,7 +1,32 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Locator } from '@playwright/test'
 import { adminLogin, createWorkflow } from './utils'
 import { WorkflowTreePage, NodeDetailPanelPage } from './page-objects'
 import { TIMEOUTS } from './config/test-timeouts'
+
+async function expectNoGeneratedInlineRail(locator: Locator) {
+  await expect
+    .poll(async () =>
+      locator.evaluate(element => {
+        const elementBox = element.getBoundingClientRect()
+        return (['::before', '::after'] as const).every(pseudo => {
+          const style = window.getComputedStyle(element, pseudo)
+          if (style.content === 'none' || style.content === 'normal') return true
+
+          const pseudoWidth = Number.parseFloat(style.width)
+          const leftInset = Number.parseFloat(style.insetInlineStart)
+          const rightInset = Number.parseFloat(style.insetInlineEnd)
+          const isInlineEdgeRail =
+            Number.isFinite(pseudoWidth) &&
+            pseudoWidth > 0 &&
+            pseudoWidth <= elementBox.width * 0.08 &&
+            (leftInset === 0 || rightInset === 0)
+
+          return !isInlineEdgeRail
+        })
+      }),
+    )
+    .toBe(true)
+}
 
 test.describe('Node detail panel — pointB3 chat contract', () => {
   let tree: WorkflowTreePage
@@ -32,6 +57,34 @@ test.describe('Node detail panel — pointB3 chat contract', () => {
     await expect(detail.commandInput).toBeVisible()
     await expect(detail.executeButton).toBeVisible()
     await expect(detail.renameButton).toBeVisible()
+    await expectNoGeneratedInlineRail(tree.treePanel)
+    await expectNoGeneratedInlineRail(detail.root)
+
+    const panelAppearance = await page.locator('.workflow-editor-panel').evaluateAll(panels =>
+      panels.map(panel => {
+        const style = window.getComputedStyle(panel)
+        const alphaMatch = style.backgroundColor.match(/\/\s*([\d.]+)\s*\)|,\s*([\d.]+)\s*\)$/)
+        return {
+          backgroundAlpha: Number(alphaMatch?.[1] ?? alphaMatch?.[2] ?? 1),
+          backgroundImage: style.backgroundImage,
+          borderInlineStart: `${style.borderInlineStartWidth} ${style.borderInlineStartColor}`,
+          borderInlineEnd: `${style.borderInlineEndWidth} ${style.borderInlineEndColor}`,
+        }
+      }),
+    )
+    expect(panelAppearance).toHaveLength(2)
+    for (const appearance of panelAppearance) {
+      expect(appearance.backgroundAlpha).toBeLessThan(1)
+      expect(appearance.backgroundImage).not.toBe('none')
+      expect(appearance.borderInlineStart).toBe(appearance.borderInlineEnd)
+    }
+
+    const [outputBorder, commandBorder] = await Promise.all(
+      ['output-message', 'command-composer'].map(testId =>
+        detail.root.getByTestId(testId).evaluate(element => window.getComputedStyle(element).borderTopColor),
+      ),
+    )
+    expect(commandBorder).toBe(outputBorder)
 
     const outputBox = await detail.outputSection.boundingBox()
     const commandBox = await detail.commandSection.boundingBox()
@@ -54,6 +107,11 @@ test.describe('Node detail panel — pointB3 chat contract', () => {
     const composerBox = await detail.commandInput.boundingBox()
     expect(composerBox).not.toBeNull()
     expect(composerBox!.height).toBeGreaterThanOrEqual(180)
+    const titleBox = await detail.titleRegion.boundingBox()
+    const actionBox = await detail.titleActions.boundingBox()
+    expect(titleBox).not.toBeNull()
+    expect(actionBox).not.toBeNull()
+    expect(titleBox!.x + titleBox!.width).toBeLessThanOrEqual(actionBox!.x)
   })
 
   test('rejects plain text and enables a slash command with a semantic role chip', async () => {

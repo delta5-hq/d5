@@ -118,13 +118,8 @@
 }
 
 [data-node-drop-position] {
-  background:
-    linear-gradient(90deg, color-mix(in oklch, var(--primary) 14%, transparent), transparent 72%),
-    color-mix(in oklch, var(--accent) 24%, transparent);
-  box-shadow:
-    inset 0.25rem 0 0 color-mix(in oklch, var(--primary) 92%, var(--accent)),
-    inset 0 0 0 0.0625rem color-mix(in oklch, var(--primary) 34%, transparent),
-    0 0 0.5rem color-mix(in oklch, var(--primary) 18%, transparent);
+  background: color-mix(in oklch, var(--accent) 18%, transparent);
+  box-shadow: inset 0 0 0 0.0625rem color-mix(in oklch, var(--primary) 34%, transparent);
   isolation: isolate;
   transition:
     background-color 120ms ease,
@@ -136,9 +131,7 @@
   outline: 0.125rem dashed color-mix(in oklch, var(--primary) 80%, var(--accent));
   outline-offset: -0.125rem;
   border-radius: 9999px;
-  box-shadow:
-    inset 0 0 0 0.125rem color-mix(in oklch, var(--primary) 70%, transparent),
-    0 0 0.5rem color-mix(in oklch, var(--primary) 24%, transparent);
+  box-shadow: inset 0 0 0 0.125rem color-mix(in oklch, var(--primary) 70%, transparent);
 }
 
 .workflow-tree-chip-strip {
@@ -207,26 +200,6 @@
 
 .workflow-tree-node-row[data-node-selected='true'] .workflow-tree-title-chip {
   border-color: color-mix(in oklch, var(--accent) 54%, var(--border));
-}
-
-.workflow-editor-panel {
-  background:
-    linear-gradient(180deg, color-mix(in oklch, var(--muted) 46%, transparent), transparent 6rem), var(--card);
-}
-
-.workflow-editor-panel::before {
-  content: '';
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 0;
-  width: 0.1875rem;
-  background: linear-gradient(
-    180deg,
-    color-mix(in oklch, var(--primary) 84%, var(--accent)),
-    color-mix(in oklch, var(--accent) 78%, transparent)
-  );
-  opacity: 0.78;
-  pointer-events: none;
 }
 
 .workflow-editor-panel-header {
@@ -338,13 +311,12 @@
 
 .workflow-tree-drop-marker[data-drop-position='before'],
 .workflow-tree-drop-marker[data-drop-position='after'] {
-  height: 0.75rem;
+  height: 0.5rem;
   border-radius: 9999px;
-  background: linear-gradient(90deg, var(--primary), var(--accent));
+  background: color-mix(in oklch, var(--primary) 88%, var(--accent));
   box-shadow:
-    0 0 0 0.25rem color-mix(in oklch, var(--background) 92%, transparent),
-    0 0 0 0.0625rem color-mix(in oklch, var(--primary) 55%, transparent),
-    0 0 0.5rem color-mix(in oklch, var(--primary) 38%, transparent);
+    0 0 0 0.1875rem color-mix(in oklch, var(--background) 94%, transparent),
+    0 0 0 0.0625rem color-mix(in oklch, var(--primary) 55%, transparent);
 }
 
 .workflow-tree-drop-marker[data-drop-position='before'] {
@@ -356,47 +328,13 @@
 }
 
 .workflow-tree-drop-marker[data-drop-position='inside'] {
-  inset: 0.1875rem 0.375rem 0.1875rem 1rem;
-  border: 0.1875rem dashed color-mix(in oklch, var(--primary) 88%, var(--accent));
-  border-radius: 9999px;
-  background:
-    repeating-linear-gradient(
-      90deg,
-      color-mix(in oklch, var(--primary) 30%, transparent) 0 0.625rem,
-      color-mix(in oklch, var(--accent) 24%, transparent) 0.625rem 1.25rem
-    ),
-    color-mix(in oklch, var(--primary) 18%, transparent);
-  box-shadow:
-    0 0 0 0.0625rem color-mix(in oklch, var(--background) 82%, transparent),
-    0 0 0.5rem color-mix(in oklch, var(--primary) 34%, transparent);
-}
-
-/* Semi-transparent ghost of the dragged node at the drop location during an
-   inside drop. Decorative only: it never intercepts pointer or keyboard input. */
-.workflow-tree-ghost-node {
   position: absolute;
-  inset: 0.1875rem 0.375rem 0.1875rem 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding-inline: 0.625rem;
+  inset: 0.1875rem 0.375rem 0.1875rem 0.75rem;
   border-radius: 9999px;
-  border: 0.0625rem dashed color-mix(in oklch, var(--primary) 55%, transparent);
-  background: color-mix(in oklch, var(--background) 58%, transparent);
-  opacity: 0.6;
+  border: 0.125rem dashed color-mix(in oklch, var(--primary) 62%, transparent);
+  background: color-mix(in oklch, var(--primary) 7%, transparent);
   pointer-events: none;
-  z-index: 80;
-}
-
-.workflow-tree-ghost-title {
-  min-width: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--foreground);
+  z-index: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {

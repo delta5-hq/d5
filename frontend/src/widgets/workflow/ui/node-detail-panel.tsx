@@ -2,8 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { NodeData, NodeId } from '@shared/base-types'
 import { Button } from '@shared/ui/button'
 import { Genie, type GenieState } from '@shared/ui/genie'
-import { getCommandRole } from '@shared/constants/command-roles'
-import { getColorForRole } from '@shared/ui/genie/role-colors'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import { canExecuteNode, isSlashCommand } from '@shared/lib/commands/command-validator'
@@ -11,6 +9,7 @@ import { useAliases } from '@entities/aliases'
 import { ArrowLeft, Loader2, Pencil, Play, Square } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
+import { getNodeGeniePresentation } from '@features/workflow-tree/lib/node-genie-presenter'
 import { isTitleDerivedFromCommand } from '@shared/lib/reliability-suffix'
 import { NodeTitleEditor } from './node-title-editor'
 import { NodePreviewSection } from './node-preview-section'
@@ -112,7 +111,8 @@ export const NodeDetailPanel = ({
   const autoTitle = isTitleDerivedFromCommand(node.title ?? '', node.command ?? '')
   const commandToken = commandDraft.trim().split(/\s+/)[0] ?? ''
   const commandIsSlash = commandToken.startsWith('/')
-  const genieColor = getColorForRole(getCommandRole(extractQueryTypeFromCommand(commandDraft, aliases)))
+  const geniePresentation = getNodeGeniePresentation({ command: commandDraft }, { aliases })
+  const genieColor = geniePresentation.color
   const firstToken = commandIsSlash ? commandToken : ''
   const statusLabel = formatMessage({ id: STATUS_KEY[genieState] })
 
@@ -120,7 +120,7 @@ export const NodeDetailPanel = ({
     <div className="flex h-full min-h-0 flex-col gap-3 p-4" data-testid="node-detail-panel">
       <button
         aria-label={formatMessage({ id: 'workflowTree.node.close' })}
-        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors 3xl:hidden"
+        className="flex w-fit items-center gap-1 rounded-full px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground 3xl:hidden"
         data-testid="close-detail-panel-button"
         onClick={onClose}
         type="button"
@@ -129,46 +129,61 @@ export const NodeDetailPanel = ({
         <FormattedMessage id="workflowTree.node.close" />
       </button>
 
-      <header className="flex shrink-0 items-center gap-2 border-b border-muted-foreground/10 pb-2">
-        <Genie color={genieColor} size={28} state={genieState} variant="clipboard-eyes" />
-        <NodeTitleEditor
-          autoFocus={autoFocusTitle}
-          className="min-w-0 flex-1 text-base font-semibold leading-6"
-          onChange={handleTitleChange}
-          ref={titleRef}
-          value={normalizeNodeTitle(node.title)}
+      <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 border-b border-muted-foreground/10 pb-2">
+        <Genie
+          className="mt-0.5 shrink-0"
+          color={genieColor}
+          size={28}
+          state={genieState}
+          variant={geniePresentation.variant}
         />
-        {autoTitle ? (
-          <span className="shrink-0 rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground">
-            <FormattedMessage id="workflowTree.node.auto" />
-          </span>
-        ) : null}
-        <button
-          aria-label={formatMessage({ id: 'workflowTree.node.rename' })}
-          className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          data-testid="rename-node-button"
-          onClick={() => titleRef.current?.startEditing()}
-          type="button"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </button>
+        <div className="min-w-0 overflow-hidden" data-testid="node-detail-title-region">
+          <NodeTitleEditor
+            autoFocus={autoFocusTitle}
+            className="w-full min-w-0 text-base font-semibold leading-6"
+            editClassName="box-border max-h-24 !w-full !min-w-0 !max-w-full resize-none overflow-x-hidden overflow-y-auto rounded-lg border-primary/40 bg-background px-2 py-1 text-base font-semibold leading-6 shadow-none"
+            onChange={handleTitleChange}
+            readOnlyClassName="block max-w-full truncate whitespace-nowrap border-0 bg-transparent px-0 py-0 hover:border-transparent hover:bg-transparent"
+            ref={titleRef}
+            value={normalizeNodeTitle(node.title)}
+          />
+        </div>
+        <div className="flex shrink-0 items-center gap-2" data-testid="node-detail-title-actions">
+          {autoTitle ? (
+            <span className="shrink-0 rounded-full border border-muted-foreground/20 bg-muted px-2 py-0.5 font-mono text-xs font-bold uppercase text-muted-foreground">
+              <FormattedMessage id="workflowTree.node.auto" />
+            </span>
+          ) : null}
+          <button
+            aria-label={formatMessage({ id: 'workflowTree.node.rename' })}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-muted-foreground/15 text-muted-foreground hover:border-accent/30 hover:bg-accent/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            data-testid="rename-node-button"
+            onClick={() => titleRef.current?.startEditing()}
+            type="button"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </header>
 
       <section className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="output-section">
-        <h2 className="mb-2 text-[11px] uppercase tracking-[0.5px] text-muted-foreground">
+        <h2 className="mb-2 text-xs font-medium uppercase text-muted-foreground">
           <FormattedMessage id="workflowTree.node.output" />
         </h2>
 
         <div className="flex items-start gap-3">
           <div
-            className="flex shrink-0 flex-col items-center gap-1 rounded-[11px] border bg-muted/40 p-1.5"
+            className="flex shrink-0 flex-col items-center gap-1 rounded-lg border border-muted-foreground/15 bg-muted/80 p-1.5"
             data-testid="output-genie"
           >
-            <Genie color={genieColor} size={40} state={genieState} variant="clipboard-eyes" />
+            <Genie color={genieColor} size={40} state={genieState} variant={geniePresentation.variant} />
             <span aria-hidden="true" className="h-0.5 w-5 rounded-full" style={{ backgroundColor: genieColor }} />
           </div>
 
-          <div className="min-w-0 flex-1 rounded-2xl rounded-tl-sm border bg-muted/30 p-2">
+          <div
+            className="min-w-0 flex-1 rounded-lg rounded-tl-sm border border-muted-foreground/15 bg-muted/70 p-2"
+            data-testid="output-message"
+          >
             <NodePreviewSection
               className="mt-0 min-h-[44px] max-h-[180px] border-0 bg-transparent p-0"
               includeHead={false}
@@ -182,21 +197,24 @@ export const NodeDetailPanel = ({
           </div>
         </div>
 
-        <p className="mt-1 text-[11px] font-mono text-muted-foreground" data-testid="output-status-line">
+        <p className="mt-1 font-mono text-xs text-muted-foreground" data-testid="output-status-line">
           {statusLabel}
           {firstToken ? ` · ${firstToken}` : ''}
         </p>
       </section>
 
       <section className="shrink-0 border-t border-muted-foreground/10 pt-3" data-testid="command-section">
-        <h2 className="mb-2 text-[11px] uppercase tracking-[0.5px] text-muted-foreground">
+        <h2 className="mb-2 text-xs font-medium uppercase text-muted-foreground">
           <FormattedMessage id="workflowTree.node.command" />
         </h2>
 
-        <div className="rounded-2xl border border-input bg-background p-3">
+        <div
+          className="rounded-lg border border-muted-foreground/15 bg-background p-3 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
+          data-testid="command-composer"
+        >
           {commandIsSlash ? (
             <span
-              className="mb-2 inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-xs"
+              className="mb-2 inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-xs font-bold"
               data-testid="command-role-chip"
               style={{
                 color: genieColor,
@@ -230,15 +248,15 @@ export const NodeDetailPanel = ({
             </p>
           ) : null}
 
-          <footer className="mt-2 flex items-center justify-between border-t border-muted-foreground/10 pt-2">
-            <span className="font-mono text-xs text-muted-foreground">
+          <footer className="mt-2 flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-muted-foreground/10 pt-2">
+            <span className="min-w-0 flex-1 truncate font-mono text-xs tabular-nums text-muted-foreground">
               {formatMessage(
                 { id: 'workflowTree.node.commandFooterHint' },
                 { count: commandDraft.length.toLocaleString() },
               )}
             </span>
 
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               {isExecuting ? (
                 <Button data-testid="abort-node-button" onClick={handleAbort} size="sm" variant="danger">
                   <Square className="mr-1 h-3 w-3" />

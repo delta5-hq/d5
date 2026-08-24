@@ -47,10 +47,10 @@ type ComparedKeys =
   | 'onToggle'
   | 'onSelect'
   | 'onAddChild'
+  | 'onAddSibling'
   | 'onDelete'
   | 'onDuplicateNode'
   | 'onRename'
-  | 'onRequestRename'
   | 'onWrapNodes'
   | 'onToggleChecked'
   | 'onDragHoverNode'
@@ -59,13 +59,12 @@ type ComparedKeys =
   | 'onDropFiles'
   | 'activeDropTargetId'
   | 'activeDropPosition'
-  | 'dragSourceNode'
 
 /* Build guard: adding a prop to TreeNodeProps without listing it here errors the return type below */
 type ExhaustiveCompareResult = Exclude<keyof TreeNodeProps, ComparedKeys> extends never ? boolean : never
 
 /**
- * Explicit enumeration of all 15 TreeNodeProps keys — zero per-call allocation.
+ * Explicit enumeration of TreeNodeProps keys — zero per-call allocation.
  * Return type is `ExhaustiveCompareResult`: resolves to `boolean` when ComparedKeys
  * covers every TreeNodeProps key. Adding a new prop without listing it makes the
  * return type `never`, erroring every `return` statement in this function.
@@ -88,10 +87,10 @@ export function areTreeNodePropsEqual(
   if (prev.onToggle !== next.onToggle) return false
   if (prev.onSelect !== next.onSelect) return false
   if (prev.onAddChild !== next.onAddChild) return false
+  if (prev.onAddSibling !== next.onAddSibling) return false
   if (prev.onDelete !== next.onDelete) return false
   if (prev.onDuplicateNode !== next.onDuplicateNode) return false
   if (prev.onRename !== next.onRename) return false
-  if (prev.onRequestRename !== next.onRequestRename) return false
   if (prev.onWrapNodes !== next.onWrapNodes) return false
   if (prev.onToggleChecked !== next.onToggleChecked) return false
   if (prev.onDragHoverNode !== next.onDragHoverNode) return false
@@ -100,7 +99,6 @@ export function areTreeNodePropsEqual(
   if (prev.onDropFiles !== next.onDropFiles) return false
   if ((prev.activeDropTargetId === prev.id) !== (next.activeDropTargetId === next.id)) return false
   if (prev.activeDropTargetId === prev.id && prev.activeDropPosition !== next.activeDropPosition) return false
-  if (prev.dragSourceNode !== next.dragSourceNode) return false
 
   return true
 }

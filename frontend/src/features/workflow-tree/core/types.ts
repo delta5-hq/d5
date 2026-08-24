@@ -6,10 +6,10 @@ export interface TreeNodeCallbacks {
   onToggle?: (id: string) => void
   onSelect?: (id: string, event?: MouseEvent) => void
   onAddChild?: (parentId: string) => void
+  onAddSibling?: (nodeId: string) => void
   onDelete?: (nodeId: string) => void
   onDuplicateNode?: (nodeId: string) => void
   onRename?: (nodeId: string, newTitle: string) => void
-  onRequestRename?: (nodeId: string) => void
   onWrapNodes?: (nodeId: string) => void
   onToggleChecked?: (nodeId: string) => void
   onDragHoverNode?: (nodeId: string) => void
@@ -18,8 +18,6 @@ export interface TreeNodeCallbacks {
   onDropFiles?: (parentId: string, files: FileList) => void
   activeDropTargetId?: string
   activeDropPosition?: TreeDropPosition
-  /** Source node being dragged via pointer, used to render the drop ghost. */
-  dragSourceNode?: NodeData
 }
 
 export interface TreeNode {

@@ -177,6 +177,18 @@ const WorkflowContent = () => {
     [actions],
   )
 
+  const handleAddSibling = useCallback(
+    (nodeId: string) => {
+      const newId = actions.addSibling(nodeId, { title: '' })
+      if (newId) {
+        actions.select(newId)
+        setAutoEditNodeId(newId)
+        setFlashNodeId(newId)
+      }
+    },
+    [actions],
+  )
+
   const handleUpdateNode = useCallback(
     (nodeId: string, updates: Parameters<typeof actions.updateNode>[1]) => {
       actions.updateNode(nodeId, updates)
@@ -201,14 +213,6 @@ const WorkflowContent = () => {
       }
     },
     [actions, nodes],
-  )
-
-  const handleRequestRename = useCallback(
-    (nodeId: string) => {
-      actions.select(nodeId)
-      setAutoEditNodeId(nodeId)
-    },
-    [actions],
   )
 
   const handleConfirmDelete = useCallback(() => {
@@ -410,7 +414,7 @@ const WorkflowContent = () => {
       ref={workspaceContainerRef}
     >
       <Card
-        className="workflow-editor-panel workflow-editor-panel--tree relative flex h-[68svh] min-h-72 max-h-[calc(100svh-8rem)] w-full min-w-0 shrink-0 flex-col border-muted-foreground/15 bg-card/95 shadow-none focus:outline-none md:h-auto md:min-h-0 md:max-h-none md:w-[32rem] xl:w-[34rem]"
+        className="workflow-editor-panel workflow-editor-panel--tree relative flex h-[68svh] min-h-72 max-h-[calc(100svh-8rem)] w-full min-w-0 shrink-0 flex-col border-muted-foreground/15 shadow-none focus:outline-none md:h-auto md:min-h-0 md:max-h-none md:w-[32rem] xl:w-[34rem]"
         data-testid="workflow-tree-panel"
         onDragOver={handleTreePanelDragOver}
         onDrop={handleTreePanelDrop}
@@ -438,12 +442,12 @@ const WorkflowContent = () => {
             flashNodeId={flashNodeId}
             nodes={nodes}
             onAddChild={handleAddChild}
+            onAddSibling={handleAddSibling}
             onDelete={handleDelete}
             onDropFiles={handleDropFiles}
             onDuplicateNode={handleDuplicateNode}
             onMoveNode={handleMoveNode}
             onRename={handleRename}
-            onRequestRename={handleRequestRename}
             onSelect={handleSelect}
             onVisibleOrderChange={handleVisibleOrderChange}
             onWrapNodes={handleWrapNodes}
@@ -454,7 +458,7 @@ const WorkflowContent = () => {
         </CardContent>
       </Card>
 
-      <Card className="workflow-editor-panel relative flex min-w-0 flex-1 flex-col overflow-hidden border-muted-foreground/15 bg-card/95 shadow-none">
+      <Card className="workflow-editor-panel relative flex min-w-0 flex-1 flex-col overflow-hidden border-muted-foreground/15 shadow-none">
         <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           {selectedNode ? (
             <NodeDetailPanel
@@ -473,7 +477,7 @@ const WorkflowContent = () => {
               onUpdateNode={handleUpdateNode}
             />
           ) : (
-            <p className="workflow-empty-panel-callout m-4 rounded-2xl border border-dashed border-muted-foreground/25 bg-muted/35 px-4 py-5 text-sm text-muted-foreground">
+            <p className="workflow-empty-panel-callout m-4 rounded-lg border border-dashed border-muted-foreground/25 bg-muted/35 px-4 py-5 text-sm text-muted-foreground">
               <FormattedMessage id="workflowTree.selectNode" />
             </p>
           )}

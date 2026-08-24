@@ -4,8 +4,10 @@ import { useIntl } from 'react-intl'
 import { cn } from '@shared/lib/utils'
 import { Genie } from '@shared/ui/genie'
 import { useGenieState } from '@shared/lib/use-genie-state'
+import { useAliases } from '@entities/aliases'
 import { isCommandlessTextNode, normalizeNodeTitle } from '@entities/workflow/lib'
 import type { NodeData } from '@shared/base-types'
+import { getNodeGeniePresentation } from '@features/workflow-tree/lib/node-genie-presenter'
 import { NodeTitleEditor } from './node-title-editor'
 import { DirtyIndicator } from './dirty-indicator'
 
@@ -37,16 +39,19 @@ export const WorkflowRootHeader = ({
   onRename,
 }: WorkflowRootHeaderProps) => {
   const { formatMessage } = useIntl()
+  const { aliases } = useAliases()
   const genieState = useGenieState(rootId)
   const canExpand = rootNode ? (rootNode.children?.length ?? 0) > 0 || isCommandlessTextNode(rootNode) : false
   const title = normalizeNodeTitle(rootNode?.title)
+  const geniePresentation = getNodeGeniePresentation(rootNode, { aliases, depth: 0 })
 
   return (
     <div className="flex min-w-0 items-center justify-between gap-2" data-testid="workflow-root-header">
       <div
         className={cn(
-          'flex min-w-0 flex-1 items-center gap-1 rounded-lg transition-colors',
-          isSelected && 'bg-accent/20 ring-1 ring-inset ring-accent/50',
+          'flex min-w-0 flex-1 items-center gap-1 rounded-full border border-transparent px-1 transition-colors',
+          'hover:border-accent/30 hover:bg-accent/20',
+          isSelected && 'border-accent/50 bg-accent/20 ring-1 ring-inset ring-accent/50',
         )}
         data-node-depth="0"
         data-node-id={rootId}
@@ -71,12 +76,19 @@ export const WorkflowRootHeader = ({
         >
           <ChevronRight className={cn('h-4 w-4 transition-transform duration-200 ease-out', isOpen && 'rotate-90')} />
         </button>
-        <Genie className="flex-shrink-0" size={24} state={genieState} variant="clipboard-eyes" />
+        <Genie
+          className="flex-shrink-0"
+          color={geniePresentation.color}
+          showHandRibs={geniePresentation.showHandRibs}
+          size={24}
+          state={genieState}
+          variant={geniePresentation.variant}
+        />
         <NodeTitleEditor
           autoFocus={autoEdit}
           className="min-w-0 flex-1 text-sm font-bold"
           displayValue={title}
-          editClassName="box-border h-7 min-h-7 max-h-20 !w-full !min-w-0 !max-w-full resize-none overflow-y-auto whitespace-pre-wrap rounded-md border-primary/40 bg-background px-1 py-1 text-sm font-bold leading-5 shadow-none"
+          editClassName="box-border h-7 min-h-7 max-h-20 !w-full !min-w-0 !max-w-full resize-none overflow-y-auto whitespace-pre-wrap rounded-full border-primary/40 bg-background px-2 py-1 text-sm font-bold leading-5 shadow-none"
           onChange={onRename}
           readOnlyClassName="block min-w-0 max-w-full truncate whitespace-nowrap border-0 bg-transparent px-1 py-0 leading-5 hover:border-transparent hover:bg-transparent"
           value={title}

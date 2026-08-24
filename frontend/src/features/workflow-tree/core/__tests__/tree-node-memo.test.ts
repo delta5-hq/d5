@@ -168,10 +168,10 @@ describe('areTreeNodePropsEqual', () => {
     onToggle: noop,
     onSelect: noop,
     onAddChild: noop,
+    onAddSibling: noop,
     onDelete: noop,
     onDuplicateNode: noop,
     onRename: noop,
-    onRequestRename: noop,
     wireExtendDown: 0,
     wireExtendUp: 0,
   })
@@ -255,48 +255,15 @@ describe('areTreeNodePropsEqual', () => {
     })
   })
 
-  describe('dragSourceNode semantics', () => {
-    it('undefined → node → not equal', () => {
-      const prev = { ...baseProps(), dragSourceNode: undefined }
-      const next = { ...baseProps(), dragSourceNode: makeNode() }
-      expect(areTreeNodePropsEqual(prev, next)).toBe(false)
-    })
-
-    it('node → undefined → not equal', () => {
-      const prev = { ...baseProps(), dragSourceNode: makeNode() }
-      const next = { ...baseProps(), dragSourceNode: undefined }
-      expect(areTreeNodePropsEqual(prev, next)).toBe(false)
-    })
-
-    it('node A → node B → not equal', () => {
-      const prev = { ...baseProps(), dragSourceNode: makeNode({ id: 'a' }) }
-      const next = { ...baseProps(), dragSourceNode: makeNode({ id: 'b' }) }
-      expect(areTreeNodePropsEqual(prev, next)).toBe(false)
-    })
-
-    it('same reference → equal', () => {
-      const source = makeNode({ id: 'a' })
-      const prev = { ...baseProps(), dragSourceNode: source }
-      const next = { ...baseProps(), dragSourceNode: source }
-      expect(areTreeNodePropsEqual(prev, next)).toBe(true)
-    })
-
-    it('both undefined → equal', () => {
-      const prev = { ...baseProps(), dragSourceNode: undefined }
-      const next = { ...baseProps(), dragSourceNode: undefined }
-      expect(areTreeNodePropsEqual(prev, next)).toBe(true)
-    })
-  })
-
   describe('callback identity', () => {
     it.each([
       { callback: 'onToggle' },
       { callback: 'onSelect' },
       { callback: 'onAddChild' },
+      { callback: 'onAddSibling' },
       { callback: 'onDelete' },
       { callback: 'onDuplicateNode' },
       { callback: 'onRename' },
-      { callback: 'onRequestRename' },
     ])('$callback ref change → not equal', ({ callback }) => {
       expect(areTreeNodePropsEqual(baseProps(), { ...baseProps(), [callback]: () => {} })).toBe(false)
     })
@@ -305,10 +272,10 @@ describe('areTreeNodePropsEqual', () => {
       const withUndefined = {
         ...baseProps(),
         onAddChild: undefined,
+        onAddSibling: undefined,
         onDelete: undefined,
         onDuplicateNode: undefined,
         onRename: undefined,
-        onRequestRename: undefined,
       }
       expect(areTreeNodePropsEqual(withUndefined, { ...withUndefined })).toBe(true)
     })
