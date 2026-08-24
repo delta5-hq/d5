@@ -403,6 +403,10 @@ export default {
       settings: 'Настройки',
       command: 'Команда',
       commandPlaceholder: 'Введите команду...',
+      electCriterionMustBeValidate:
+        'Перенесите критерий в соседнюю ячейку /validate; /elect принимает только параметры.',
+      validateRetryMustBeRefine: 'Оберните генерирующую команду в /refine :n=N; /validate выполняет одну проверку.',
+      invalidRefineSyntax: 'Используйте /refine :n=N без текста после параметра.',
       execute: 'Выполнить',
       executing: 'Выполняется...',
       abort: 'Прервать',
@@ -421,6 +425,8 @@ export default {
         '⚠ Только структурная проверка: отклоняются пустые, отказные и упавшие ответы. Мягкие ошибки (правдоподобный текст через HTTP 200) неотличимы от корректного вывода на этом уровне — используйте /elect + /validate для семантической проверки.',
       suppressedRunHint:
         '⚠ Один запуск — best-of-N подавлен для команды с побочными эффектами (запрошено :n={n}). Запуск {n} раз выполнил бы {n} реальных внешних операций.',
+      nestedReliabilitySuppressedHint:
+        '⚠ Один вариант внутри внешнего форка надёжности (запрошено :n={n}); вложенное разветвление свёрнуто, чтобы не умножать генерации.',
       retryWithheldHint:
         '⚠ Повтор удержан — родительская команда имеет побочные эффекты; запрошено :retry={n}, но повтор продублировал бы внешнюю операцию.',
       verdictButton: 'Показать вердикт',
@@ -459,7 +465,13 @@ export default {
       judgeQualitySeverityMedium: 'средний',
       judgeQualitySeverityLow: 'низкий',
       modeCommodity: 'товарный',
+      modeValidate: 'проверка',
+      modeRefine: 'уточнение',
       commodityLabel: '{eligible} из {total} форков выполнены успешно',
+      validatePassedLabel: 'Критерий пройден',
+      validateFailedLabel: 'Критерий не пройден',
+      refinePassedLabel: 'Критерий пройден за {attempts} из {requested} попыток',
+      refineFailedLabel: 'Критерий не пройден после {attempts} из {requested} попыток',
       commodityPartialWarning:
         'Частичный успех — {eligible} из {total} форков дали результат; {failed} завершились с ошибкой',
       fallbackUsedLabel:
@@ -487,6 +499,11 @@ export default {
       status_selected: 'выбранный победитель',
       'status_criteria-failed': 'критерий не выполнен',
       'status_runtime-failed': 'ошибка',
+      failureReasonMcpTool: 'Инструмент MCP сообщил об ошибке',
+      failureReasonHttpStatus: 'HTTP-транспорт вернул код ошибки',
+      failureReasonSshExit: 'SSH-команда завершилась с ненулевым кодом',
+      failureReasonRuntime: 'Ошибка выполнения команды',
+      failureReasonExecution: 'Команда создала узел ошибки выполнения',
       failedAt: 'критерий: {criterion}',
       attempts: '{count} попыток',
       selectionLabel: '{eligible} из {total} форков допущены; выбор: {layer}',

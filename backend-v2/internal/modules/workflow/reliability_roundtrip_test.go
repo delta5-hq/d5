@@ -62,6 +62,21 @@ func TestNode_ExecutionStatus_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestNode_ExecutionFailureSignal_RoundTrip(t *testing.T) {
+	restored := unmarshalNodeRoundTrip(t, models.Node{
+		ID:                   "n",
+		ExecutionStatus:      models.ExecutionStatusError,
+		ExecutionFailureType: models.ExecutionFailureHTTPStatus,
+		ExecutionFailureCode: 503,
+	})
+	if restored.ExecutionFailureType != models.ExecutionFailureHTTPStatus {
+		t.Fatalf("executionFailureType did not survive JSON round-trip: got %q", restored.ExecutionFailureType)
+	}
+	if restored.ExecutionFailureCode != 503 {
+		t.Fatalf("executionFailureCode did not survive JSON round-trip: got %d", restored.ExecutionFailureCode)
+	}
+}
+
 // omitempty applies to the pointer itself — a non-nil pointer with zero-value fields still produces JSON keys.
 func TestNode_ReliabilityMetadata_Presence(t *testing.T) {
 	tests := []struct {
@@ -588,6 +603,8 @@ func TestReliabilityMetadata_EnumConstants_SerializeToCanonicalStrings(t *testin
 			{models.ElectModeStrict, `"strict"`},
 			{models.ElectModeBackFall, `"fallback"`},
 			{models.ElectModeCommodity, `"commodity"`},
+			{models.ElectModeValidate, `"validate"`},
+			{models.ElectModeRefine, `"refine"`},
 			{models.ElectModeInvalid, `"invalid"`},
 			{models.ElectModeSuppressed, `"suppressed"`},
 		}

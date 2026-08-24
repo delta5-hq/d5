@@ -16,6 +16,7 @@ import {DEEPSEEK_QUERY} from './deepseek'
 import {CUSTOM_LLM_CHAT_QUERY} from './custom_llm'
 import {ELECT_QUERY} from './elect'
 import {VALIDATE_QUERY} from './validate'
+import {REFINE_QUERY} from './refine'
 import {COMPLETION_QUERY} from './completion'
 import {MEMORIZE_QUERY} from './memorize'
 import {EXT_QUERY} from './ext'
@@ -41,6 +42,7 @@ export const queryCommands = [
   CUSTOM_LLM_CHAT_QUERY,
   ELECT_QUERY,
   VALIDATE_QUERY,
+  REFINE_QUERY,
   COMPLETION_QUERY,
   MEMORIZE_QUERY,
   MCP_FUSION_QUERY,

@@ -1239,8 +1239,8 @@ describe('ExecutorController', () => {
         width: 280,
         height: 50,
         parent: 'root',
-        command: '/validate criterion :retry=0',
-        title: '/validate criterion :retry=0',
+        command: '/validate criterion',
+        title: '/validate criterion',
         children: [],
       }
       return {
@@ -1283,7 +1283,7 @@ describe('ExecutorController', () => {
 
       const validateChanged = body.nodesChanged?.find(n => n.id === 'v0')
       expect(validateChanged).toBeDefined()
-      expect(validateChanged.title).toMatch(/\[✗ 1×\]/)
+      expect(validateChanged.title).toMatch(/\[✗\]/)
     })
 
     it('emits emitComplete (not emitError) on CriteriaFailedError', async () => {

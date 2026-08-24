@@ -188,6 +188,28 @@ describe('StoreExecutionSnapshot', () => {
     expect(store.getFile('right-file')).toBe('changed right file content')
   })
 
+  it('retains a loser-attempt file that is still referenced outside the restored subtree', () => {
+    const store = buildStore()
+    store._files.shared = 'deduplicated shared content'
+    store.getNode('right-child').file = 'shared'
+    const bestSnapshot = captureStoreExecutionSnapshot(store, 'left')
+
+    store.createNode({
+      id: 'left-loser-file',
+      parent: 'left',
+      children: [],
+      title: 'loser attachment',
+      file: 'shared',
+    })
+    const loserSnapshot = captureStoreExecutionSnapshot(store, 'left')
+
+    restoreStoreExecutionSnapshot(store, bestSnapshot, {attemptSnapshots: [bestSnapshot, loserSnapshot]})
+
+    expect(store.getNode('left-loser-file')).toBeUndefined()
+    expect(store.getNode('right-child').file).toBe('shared')
+    expect(store.getFile('shared')).toBe('deduplicated shared content')
+  })
+
   it('restores node metadata and removes prompt descendants created after capture', () => {
     const store = buildStore()
     store.getNode('left').reliabilityMetadata = {

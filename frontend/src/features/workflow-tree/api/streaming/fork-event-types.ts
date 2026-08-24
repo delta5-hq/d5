@@ -5,6 +5,9 @@ export type ForkEventType = 'fork_started' | 'fork_settled' | 'elect_complete'
 export interface ForkLeafOutput {
   nodeId: string
   content: string
+  executionStatus?: string
+  executionFailureType?: string
+  executionFailureCode?: string | number
 }
 
 export interface ForkStartedEvent {

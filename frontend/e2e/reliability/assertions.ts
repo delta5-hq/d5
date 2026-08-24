@@ -2,11 +2,7 @@ import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 import { WorkflowTreePage } from '../page-objects'
 import { TIMEOUTS } from '../config/test-timeouts'
-import {
-  COMMODITY_FULL_SUCCESS_SUFFIX_RE,
-  COMMODITY_OUTCOME_SUFFIX_RE,
-  VALIDATE_FAIL_RE,
-} from './suffix-patterns'
+import { COMMODITY_FULL_SUCCESS_SUFFIX_RE, COMMODITY_OUTCOME_SUFFIX_RE, VALIDATE_FAIL_RE } from './suffix-patterns'
 import { persistedChildTitles } from './snapshot'
 import { nodeTitle, awaitNodeTitle } from './node-interaction'
 
@@ -35,14 +31,13 @@ export async function expectCommodityOutcomeMatchesChildren(
   const match = title.match(COMMODITY_OUTCOME_SUFFIX_RE)
   expect(match).not.toBeNull()
 
-  const [, status, successText, totalText] = match as RegExpMatchArray
+  const [, successText, totalText] = match as RegExpMatchArray
   const successCount = Number(successText)
   const total = Number(totalText)
 
   expect(total).toBe(expectedTotal)
   expect(successCount).toBeGreaterThanOrEqual(0)
   expect(successCount).toBeLessThanOrEqual(expectedTotal)
-  expect(status).toBe(successCount === 0 ? '✗' : '✓')
   expect(await persistedChildTitles(page, rootId)).toHaveLength(successCount)
   await expect(tree.nodes).toHaveCount(successCount + 1, { timeout: TIMEOUTS.BACKEND_SYNC })
 }

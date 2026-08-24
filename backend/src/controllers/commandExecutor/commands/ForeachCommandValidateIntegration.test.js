@@ -29,7 +29,7 @@ jest.mock('../reliability/core/ElectTopology', () => jest.fn(() => []))
 
 function buildForeachStore({
   leafTitles = ['Alpha', 'Beta', 'Gamma'],
-  validateCommands = ['/validate :retry=0 criterion'],
+  validateCommands = ['/validate criterion'],
   parallel = false,
 } = {}) {
   const leafIds = leafTitles.map(t => t.toLowerCase())
@@ -79,9 +79,9 @@ describe('/foreach /validate integrated execution contract', () => {
 
   describe('template isolation — authored /validate node survives outer execution unmodified', () => {
     it.each([
-      ['all-pass', '/validate :retry=0 always pass criterion'],
-      ['all-fail', `/validate :retry=0 ${MOCK_VERIFIER_FAIL_KEYWORD} reject all`],
-      ['mixed (content-keyed)', `/validate :retry=0 ${MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX}Beta`],
+      ['all-pass', '/validate always pass criterion'],
+      ['all-fail', `/validate ${MOCK_VERIFIER_FAIL_KEYWORD} reject all`],
+      ['mixed (content-keyed)', `/validate ${MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX}Beta`],
     ])('template title is verbatim after outer runCommand: %s', async (_label, validateCommand) => {
       const store = buildForeachStore({validateCommands: [validateCommand]})
 
@@ -99,8 +99,8 @@ describe('/foreach /validate integrated execution contract', () => {
     })
 
     it('two template children: both template titles preserved verbatim after execution', async () => {
-      const cmdA = '/validate :retry=0 criterion A'
-      const cmdB = '/validate :retry=0 criterion B'
+      const cmdA = '/validate criterion A'
+      const cmdB = '/validate criterion B'
       const store = buildForeachStore({validateCommands: [cmdA, cmdB]})
 
       await runCommand({queryType: FOREACH_QUERY_TYPE, cell: store.getNode('fe'), store}).catch(() => {})
@@ -114,7 +114,7 @@ describe('/foreach /validate integrated execution contract', () => {
       ['sequential', false],
       ['parallel', true],
     ])('%s mode: template title and output isolation hold across both execution modes', async (_label, parallel) => {
-      const cmd = '/validate :retry=0 criterion'
+      const cmd = '/validate criterion'
       const store = buildForeachStore({validateCommands: [cmd], parallel})
 
       await runCommand({queryType: FOREACH_QUERY_TYPE, cell: store.getNode('fe'), store}).catch(() => {})
@@ -133,7 +133,7 @@ describe('/foreach /validate integrated execution contract', () => {
       [['Alpha', 'Beta', 'Gamma'], 1, true],
       [['Alpha', 'Beta', 'Gamma'], 2, true],
     ])('leaves=%j, templates=%d, parallel=%s', async (leafTitles, templateCount, parallel) => {
-      const validateCommands = Array.from({length: templateCount}, (_, i) => `/validate :retry=0 criterion-${i}`)
+      const validateCommands = Array.from({length: templateCount}, (_, i) => `/validate criterion-${i}`)
       const store = buildForeachStore({leafTitles, validateCommands, parallel})
 
       await runCommand({queryType: FOREACH_QUERY_TYPE, cell: store.getNode('fe'), store}).catch(() => {})
@@ -164,7 +164,7 @@ describe('/foreach /validate integrated execution contract', () => {
     it('2 templates × 2 leaves: all four verdict nodes are parented under their respective leaves', async () => {
       const store = buildForeachStore({
         leafTitles: ['Alpha', 'Beta'],
-        validateCommands: ['/validate :retry=0 criterion A', '/validate :retry=0 criterion B'],
+        validateCommands: ['/validate criterion A', '/validate criterion B'],
       })
 
       await runCommand({queryType: FOREACH_QUERY_TYPE, cell: store.getNode('fe'), store}).catch(() => {})
@@ -197,14 +197,14 @@ describe('/foreach /validate integrated execution contract', () => {
       iterationValidatesInOutput(store).forEach(n => expect(n.title).toMatch(/\[✓\]/))
     })
 
-    it('all iterations fail: every verdict node carries [✗ N×]', async () => {
+    it('all iterations fail: every verdict node carries [✗]', async () => {
       const store = buildForeachStore({
-        validateCommands: [`/validate :retry=0 ${MOCK_VERIFIER_FAIL_KEYWORD} reject all`],
+        validateCommands: [`/validate ${MOCK_VERIFIER_FAIL_KEYWORD} reject all`],
       })
 
       await runCommand({queryType: FOREACH_QUERY_TYPE, cell: store.getNode('fe'), store}).catch(() => {})
 
-      iterationValidatesInOutput(store).forEach(n => expect(n.title).toMatch(/\[✗\s+\d+×\]/))
+      iterationValidatesInOutput(store).forEach(n => expect(n.title).toMatch(/\[✗\]/))
     })
 
     it.each([
@@ -213,7 +213,7 @@ describe('/foreach /validate integrated execution contract', () => {
     ])('conditional sentinel (%s): only the leaf whose content contains the token fails', async (_label, parallel) => {
       const store = buildForeachStore({
         leafTitles: ['Alpha', 'Beta', 'Gamma'],
-        validateCommands: [`/validate :retry=0 ${MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX}Beta`],
+        validateCommands: [`/validate ${MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX}Beta`],
         parallel,
       })
 
@@ -221,16 +221,13 @@ describe('/foreach /validate integrated execution contract', () => {
 
       const verdicts = iterationValidatesInOutput(store)
       expect(verdicts.filter(n => /\[✓\]/.test(n.title))).toHaveLength(2)
-      expect(verdicts.filter(n => /\[✗\s+\d+×\]/.test(n.title))).toHaveLength(1)
+      expect(verdicts.filter(n => /\[✗\]/.test(n.title))).toHaveLength(1)
     })
 
     it('two template criteria: each criterion is independently stamped per leaf', async () => {
       const store = buildForeachStore({
         leafTitles: ['Alpha'],
-        validateCommands: [
-          '/validate :retry=0 criterion A',
-          `/validate :retry=0 ${MOCK_VERIFIER_FAIL_KEYWORD} reject B`,
-        ],
+        validateCommands: ['/validate criterion A', `/validate ${MOCK_VERIFIER_FAIL_KEYWORD} reject B`],
       })
 
       await runCommand({queryType: FOREACH_QUERY_TYPE, cell: store.getNode('fe'), store}).catch(() => {})
@@ -238,15 +235,15 @@ describe('/foreach /validate integrated execution contract', () => {
       const verdicts = iterationValidatesInOutput(store)
       expect(verdicts).toHaveLength(2)
       expect(verdicts.filter(n => /\[✓\]/.test(n.title))).toHaveLength(1)
-      expect(verdicts.filter(n => /\[✗\s+\d+×\]/.test(n.title))).toHaveLength(1)
+      expect(verdicts.filter(n => /\[✗\]/.test(n.title))).toHaveLength(1)
     })
 
     it('two templates × three leaves: each criterion verdict is content-keyed to its iteration independently', async () => {
       const store = buildForeachStore({
         leafTitles: ['Alpha', 'Beta', 'Gamma'],
         validateCommands: [
-          `/validate :retry=0 ${MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX}Beta`,
-          `/validate :retry=0 ${MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX}Gamma`,
+          `/validate ${MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX}Beta`,
+          `/validate ${MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX}Gamma`,
         ],
       })
 
@@ -261,24 +258,24 @@ describe('/foreach /validate integrated execution contract', () => {
 
       const betaVerdicts = verdicts.filter(n => n.parent === 'beta')
       expect(betaVerdicts.filter(n => /\[✓\]/.test(n.title))).toHaveLength(1)
-      expect(betaVerdicts.filter(n => /\[✗\s+\d+×\]/.test(n.title))).toHaveLength(1)
+      expect(betaVerdicts.filter(n => /\[✗\]/.test(n.title))).toHaveLength(1)
 
       const gammaVerdicts = verdicts.filter(n => n.parent === 'gamma')
       expect(gammaVerdicts.filter(n => /\[✓\]/.test(n.title))).toHaveLength(1)
-      expect(gammaVerdicts.filter(n => /\[✗\s+\d+×\]/.test(n.title))).toHaveLength(1)
+      expect(gammaVerdicts.filter(n => /\[✗\]/.test(n.title))).toHaveLength(1)
     })
   })
 
   describe('error propagation — outer foreach call completes regardless of per-leaf verdict', () => {
     it('resolves without throwing when all iterations pass', async () => {
-      const store = buildForeachStore({validateCommands: ['/validate :retry=0 always passes']})
+      const store = buildForeachStore({validateCommands: ['/validate always passes']})
 
       await expect(runCommand({queryType: FOREACH_QUERY_TYPE, cell: store.getNode('fe'), store})).resolves.not.toThrow()
     })
 
     it('resolves without throwing even when all iterations fail — per-leaf errors are iteration-scoped', async () => {
       const store = buildForeachStore({
-        validateCommands: [`/validate :retry=0 ${MOCK_VERIFIER_FAIL_KEYWORD} reject all`],
+        validateCommands: [`/validate ${MOCK_VERIFIER_FAIL_KEYWORD} reject all`],
       })
 
       await expect(runCommand({queryType: FOREACH_QUERY_TYPE, cell: store.getNode('fe'), store})).resolves.not.toThrow()
@@ -287,7 +284,7 @@ describe('/foreach /validate integrated execution contract', () => {
     it('resolves without throwing when iteration outcomes are mixed (some pass, some fail)', async () => {
       const store = buildForeachStore({
         leafTitles: ['Alpha', 'Beta', 'Gamma'],
-        validateCommands: [`/validate :retry=0 ${MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX}Beta`],
+        validateCommands: [`/validate ${MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX}Beta`],
       })
 
       await expect(runCommand({queryType: FOREACH_QUERY_TYPE, cell: store.getNode('fe'), store})).resolves.not.toThrow()
@@ -296,7 +293,7 @@ describe('/foreach /validate integrated execution contract', () => {
     it('output contains all verdict nodes regardless of individual iteration outcomes', async () => {
       const store = buildForeachStore({
         leafTitles: ['Alpha', 'Beta', 'Gamma'],
-        validateCommands: [`/validate :retry=0 ${MOCK_VERIFIER_FAIL_KEYWORD} reject all`],
+        validateCommands: [`/validate ${MOCK_VERIFIER_FAIL_KEYWORD} reject all`],
       })
 
       await runCommand({queryType: FOREACH_QUERY_TYPE, cell: store.getNode('fe'), store}).catch(() => {})
@@ -338,8 +335,8 @@ describe('/foreach /validate integrated execution contract', () => {
           vc: {
             id: 'vc',
             parent: 'chat',
-            command: '/validate :retry=0 always passes',
-            title: '/validate :retry=0 always passes',
+            command: '/validate always passes',
+            title: '/validate always passes',
             children: [],
           },
         },

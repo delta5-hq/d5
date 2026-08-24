@@ -25,14 +25,18 @@ const HISTORICAL_CANONICAL_TITLES = [
 ] as const satisfies ReadonlyArray<[string, string]>
 
 const ENGINE_CANONICAL_TITLES = [
-  ['commodity/elect partial with degraded judge input', '/chat list [✓ 2/3 ⚠]'],
-  ['commodity/elect all K of N succeeded', '/chat list [✓ 2/3]'],
+  ['commodity partial execution', '/chat list [↻ 2/3 ⚠]'],
+  ['commodity all K of N returned', '/chat list [↻ 2/3]'],
+  ['elect partial with degraded judge input', '/chat list [✓ 2/3 ⚠]'],
+  ['elect K of N eligible', '/chat list [✓ 2/3]'],
   ['validate passed after N retries', '/chat list [✓ +2]'],
+  ['refine passed after N attempts', '/chat list [✓ 2×]'],
   ['validate passed on first attempt', '/chat list [✓]'],
   ['elect or commodity zero of N eligible', '/chat list [✗ 0/3]'],
   ['validate all retries exhausted', '/chat list [✗ 3×]'],
   ['validate retry withheld', '/chat list [✗ ⊘]'],
   ['validate invalid criterion', '/chat list [✗ !]'],
+  ['validate predicate failed', '/chat list [✗]'],
   ['elect no judge signal in strict mode', '/chat list [⚠ ∅]'],
   ['elect fallback winner committed', '/chat list [⚠ 0/3]'],
 ] as const satisfies ReadonlyArray<[string, string]>
@@ -44,7 +48,6 @@ const ENGINE_NON_MATCHING_TITLES = [
   ['freeform ✓ text', '/chat list [✓ approved by manager]'],
   ['freeform ✗ text', '/chat list [✗ invalid output]'],
   ['freeform ⚠ text', '/chat list [⚠ needs attention]'],
-  ['bare ✗ no content', '/chat list [✗]'],
   ['✓ + without trailing digit', '/chat list [✓ +]'],
   ['✗ lone number without ×', '/chat list [✗ 3]'],
   ['✗ × without leading number', '/chat list [✗ ×]'],
@@ -325,6 +328,7 @@ describe('ENGINE_SUFFIX_RE', () => {
   describe('matches single-fork N=1 tokens', () => {
     it.each([
       ['all 1 of 1 succeeded', '/chat list [✓ 1/1]'],
+      ['one commodity execution returned', '/chat list [↻ 1/1]'],
       ['all 1 of 1 failed', '/chat list [✗ 0/1]'],
       ['fallback committed 0 of 1', '/chat list [⚠ 0/1]'],
       ['1 of 1 with degraded judge input', '/chat list [✓ 1/1 ⚠]'],
@@ -337,9 +341,9 @@ describe('ENGINE_SUFFIX_RE', () => {
     it.each([
       ['validate passed after many retries', '/chat list [✓ +10]'],
       ['validate all 999 retries exhausted', '/chat list [✗ 999×]'],
-      ['commodity large N all succeeded', '/chat list [✓ 99/100]'],
-      ['commodity large N all failed', '/chat list [✗ 0/100]'],
-      ['commodity large N partial with warning', '/chat list [✓ 99/100 ⚠]'],
+      ['commodity large N all returned', '/chat list [↻ 100/100]'],
+      ['commodity large N none returned', '/chat list [↻ 0/100 ⚠]'],
+      ['commodity large N partial with warning', '/chat list [↻ 99/100 ⚠]'],
       ['elect fallback large N', '/chat list [⚠ 0/100]'],
     ] as const satisfies ReadonlyArray<[string, string]>)('%s', (_label, title) => {
       expect(ENGINE_SUFFIX_RE.test(title)).toBe(true)

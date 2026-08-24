@@ -29,6 +29,8 @@ const MODE_I18N_KEY: Record<ReliabilityMetadata['mode'], string> = {
   strict: 'workflowTree.verdictDrawer.modeStrict',
   fallback: 'workflowTree.verdictDrawer.modeFallback',
   commodity: 'workflowTree.verdictDrawer.modeCommodity',
+  validate: 'workflowTree.verdictDrawer.modeValidate',
+  refine: 'workflowTree.verdictDrawer.modeRefine',
   invalid: 'workflowTree.verdictDrawer.modeInvalid',
   suppressed: 'workflowTree.verdictDrawer.modeSuppressed',
 }
@@ -63,7 +65,10 @@ export const CriterionVerdictDrawer = ({ open, onOpenChange, metadata }: Criteri
     winnerForkIndex,
     judgeQualityWarnings,
     failureCause,
+    attempts,
+    requestedN,
   } = metadata
+  const isElectMode = mode === 'strict' || mode === 'fallback'
 
   return (
     <GlassSheet onOpenChange={onOpenChange} open={open}>
@@ -84,16 +89,40 @@ export const CriterionVerdictDrawer = ({ open, onOpenChange, metadata }: Criteri
                 }}
               />
             </div>
-            {mode !== 'invalid' ? (
+            {isElectMode ? (
               <div>
-                {mode === 'commodity' ? (
-                  <FormattedMessage id="workflowTree.verdictDrawer.commodityLabel" values={{ eligible, total }} />
-                ) : (
-                  <FormattedMessage id="workflowTree.verdictDrawer.eligibleLabel" values={{ eligible, total }} />
-                )}
+                <FormattedMessage id="workflowTree.verdictDrawer.eligibleLabel" values={{ eligible, total }} />
               </div>
             ) : null}
-            {winnerForkIndex === null && mode !== 'commodity' && mode !== 'invalid' ? (
+            {mode === 'commodity' ? (
+              <div>
+                <FormattedMessage id="workflowTree.verdictDrawer.commodityLabel" values={{ eligible, total }} />
+              </div>
+            ) : null}
+            {mode === 'validate' ? (
+              <div>
+                <FormattedMessage
+                  id={
+                    eligible === 1
+                      ? 'workflowTree.verdictDrawer.validatePassedLabel'
+                      : 'workflowTree.verdictDrawer.validateFailedLabel'
+                  }
+                />
+              </div>
+            ) : null}
+            {mode === 'refine' ? (
+              <div>
+                <FormattedMessage
+                  id={
+                    eligible === 1
+                      ? 'workflowTree.verdictDrawer.refinePassedLabel'
+                      : 'workflowTree.verdictDrawer.refineFailedLabel'
+                  }
+                  values={{ attempts: attempts ?? total, requested: requestedN ?? total }}
+                />
+              </div>
+            ) : null}
+            {winnerForkIndex === null && isElectMode ? (
               <div className="font-medium text-accent">
                 <FormattedMessage id="workflowTree.verdictDrawer.noWinnerLabel" />
               </div>

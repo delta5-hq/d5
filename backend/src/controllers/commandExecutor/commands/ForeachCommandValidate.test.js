@@ -393,7 +393,7 @@ describe('ForeachCommand end-to-end — cloned /validate verdict written into st
   })
 
   it('failing validate: cloned validate cell carries [✗] suffix; template title unchanged', async () => {
-    const store = buildForeachStore({validateCommand: '/validate :retry=0 criterion'})
+    const store = buildForeachStore({validateCommand: '/validate criterion'})
 
     await makeCmd(store).run(store.getNode('fe'), {})
     const i1 = store.getNode('i1')
@@ -410,7 +410,7 @@ describe('ForeachCommand end-to-end — cloned /validate verdict written into st
     await realRunCommand({queryType: 'chat', cell: store.getNode('i1'), store}, null).catch(() => {})
 
     expect(store.getNode(cloneId).title).toMatch(/✗/)
-    expect(store.getNode('vt0').title).toBe('/validate :retry=0 criterion')
+    expect(store.getNode('vt0').title).toBe('/validate criterion')
     expect(validateSpy).toHaveBeenCalled()
 
     chatSpy.mockRestore()
@@ -420,7 +420,7 @@ describe('ForeachCommand end-to-end — cloned /validate verdict written into st
   it.each([[2], [3]])(
     'sequential: %d iteration leaves — each clone carries its own independent verdict, no cross-contamination',
     async itemCount => {
-      const store = buildForeachStore({parallel: false, itemCount, validateCommand: '/validate :retry=0 criterion'})
+      const store = buildForeachStore({parallel: false, itemCount, validateCommand: '/validate criterion'})
       await makeCmd(store).run(store.getNode('fe'), {})
 
       const cloneIds = Array.from({length: itemCount}, (_, i) => store.getNode(`i${i + 1}`).children[0])
@@ -439,7 +439,7 @@ describe('ForeachCommand end-to-end — cloned /validate verdict written into st
       }
 
       cloneIds.forEach((id, i) => expect(store.getNode(id).title).toMatch(i % 2 === 0 ? /✓/ : /✗/))
-      expect(store.getNode('vt0').title).toBe('/validate :retry=0 criterion')
+      expect(store.getNode('vt0').title).toBe('/validate criterion')
 
       chatSpy.mockRestore()
       validateSpy.mockRestore()
@@ -480,7 +480,7 @@ describe('ForeachCommand end-to-end — cloned /validate verdict written into st
   it.each([[2], [3]])(
     'parallel: %d concurrent iterations — each clone carries its own independent verdict, no cross-contamination',
     async itemCount => {
-      const store = buildForeachStore({parallel: true, itemCount, validateCommand: '/validate :retry=0 criterion'})
+      const store = buildForeachStore({parallel: true, itemCount, validateCommand: '/validate criterion'})
       await makeCmd(store).run(store.getNode('fe'), {})
 
       const cloneIds = Array.from({length: itemCount}, (_, i) => store.getNode(`i${i + 1}`).children[0])
@@ -500,7 +500,7 @@ describe('ForeachCommand end-to-end — cloned /validate verdict written into st
       )
 
       cloneIds.forEach((id, i) => expect(store.getNode(id).title).toMatch(i % 2 === 0 ? /✓/ : /✗/))
-      expect(store.getNode('vt0').title).toBe('/validate :retry=0 criterion')
+      expect(store.getNode('vt0').title).toBe('/validate criterion')
 
       chatSpy.mockRestore()
       validateSpy.mockRestore()

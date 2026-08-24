@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { readElectN, isValidElectCell } from '../elect-params'
+import { readElectN, readElectTrailingText, isValidElectCell } from '../elect-params'
 
 describe('readElectN', () => {
   describe('absent or malformed :n=', () => {
@@ -20,9 +20,21 @@ describe('readElectN', () => {
     it('returns 100 for a large :n=100', () => expect(readElectN('/elect :n=100')).toBe(100))
     it('returns the value when :n= is followed by other params', () =>
       expect(readElectN('/elect :n=2 :fallback')).toBe(2))
-    it('extracts :n= from any command string regardless of command prefix', () =>
-      expect(readElectN('/chat :n=3 query')).toBe(3))
+    it('does not extract :n= from a different command', () => expect(readElectN('/chat :n=3 query')).toBeNull())
+    it('does not extract :n= from an elect lookalike', () => expect(readElectN('/elective :n=3')).toBeNull())
     it('returns the first :n= match when multiple appear', () => expect(readElectN('/elect :n=3 :n=5')).toBe(3))
+    it('rejects decimal :n values instead of silently truncating', () => expect(readElectN('/elect :n=3.5')).toBeNull())
+  })
+})
+
+describe('readElectTrailingText', () => {
+  it.each(['/elect :n=3', '/elect :n=3 :fallback', '/elect :limit=s :judge_reasoning :n=3'])(
+    'returns empty for parameter-only grammar: %s',
+    command => expect(readElectTrailingText(command)).toBe(''),
+  )
+
+  it('preserves a criterion that the backend would otherwise ignore', () => {
+    expect(readElectTrailingText('/elect :n=3 must cite sources')).toBe('must cite sources')
   })
 })
 

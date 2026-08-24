@@ -219,6 +219,15 @@ describe('JUDGE_WARNING_CONDITION constants', () => {
 })
 
 describe('deterministicFailureReason', () => {
+  it.each([
+    ['mcp-tool-error', STRUCTURAL_GATE_REJECTION_REASON.MCP_TOOL_ERROR],
+    ['http-status-error', STRUCTURAL_GATE_REJECTION_REASON.HTTP_STATUS_ERROR],
+    ['ssh-exit-error', STRUCTURAL_GATE_REJECTION_REASON.SSH_EXIT_ERROR],
+    ['runtime-error', STRUCTURAL_GATE_REJECTION_REASON.RUNTIME_ERROR],
+  ])('preserves the typed %s signal through the structural gate', (executionFailureType, expected) => {
+    expect(deterministicFailureReason({executionStatus: 'error', executionFailureType})).toBe(expected)
+  })
+
   it('classifies execution error node', () => {
     expect(deterministicFailureReason({executionStatus: 'error'})).toBe(
       STRUCTURAL_GATE_REJECTION_REASON.EXECUTION_ERROR,

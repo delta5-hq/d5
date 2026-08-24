@@ -33,7 +33,7 @@ test.describe('structural guard — fork-control command used standalone', () =>
     const { tree, detail, rootId } = await selectRootAndOpenDetail(page)
     // The root is the only cell — no content above it. A user typing /elect here has no
     // parent scope to elect, so the fork-control command is structurally invalid.
-    await detail.fillCommand('/elect :n=2 improve the text above')
+    await detail.fillCommand('/elect :n=2')
 
     await executeRoot(page, tree, rootId)
 

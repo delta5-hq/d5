@@ -28,14 +28,23 @@ export const REMEDIATION_HINT = Object.freeze({
 
 export const COMMODITY_SUPPRESSION_CAUSE = Object.freeze({
   SIDE_EFFECTING_ALIAS: 'side-effecting-alias',
+  NESTED_RELIABILITY_FORK: 'nested-reliability-fork',
 })
 
 export const STRUCTURAL_GATE_REJECTION_REASON = Object.freeze({
   EXECUTION_ERROR: 'execution-error',
+  MCP_TOOL_ERROR: 'mcp-tool-error',
+  HTTP_STATUS_ERROR: 'http-status-error',
+  SSH_EXIT_ERROR: 'ssh-exit-error',
+  RUNTIME_ERROR: 'runtime-error',
 })
 
 export function deterministicFailureReason(signal = {}) {
   if (!signal) return null
+  if (signal.executionFailureType === 'mcp-tool-error') return STRUCTURAL_GATE_REJECTION_REASON.MCP_TOOL_ERROR
+  if (signal.executionFailureType === 'http-status-error') return STRUCTURAL_GATE_REJECTION_REASON.HTTP_STATUS_ERROR
+  if (signal.executionFailureType === 'ssh-exit-error') return STRUCTURAL_GATE_REJECTION_REASON.SSH_EXIT_ERROR
+  if (signal.executionFailureType === 'runtime-error') return STRUCTURAL_GATE_REJECTION_REASON.RUNTIME_ERROR
   if (signal.executionStatus === 'error') return STRUCTURAL_GATE_REJECTION_REASON.EXECUTION_ERROR
   return null
 }

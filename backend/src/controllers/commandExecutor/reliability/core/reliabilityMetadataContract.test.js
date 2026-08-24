@@ -9,6 +9,8 @@ import {
   buildForkRankingEntry,
   buildValidateRetryWithheldReliabilityMetadata,
   buildCommodityReliabilityMetadata,
+  buildRefineReliabilityMetadata,
+  buildValidateReliabilityMetadata,
   buildSuppressedReliabilityMetadata,
   buildInvalidReliabilityMetadata,
 } from './reliabilityMetadataFields'
@@ -23,9 +25,9 @@ const fixture = JSON.parse(fs.readFileSync(FIXTURE_PATH, 'utf8'))
 // retryWithheld and requestedRetry are set only by buildValidateRetryWithheldReliabilityMetadata
 // (on validate nodes), not by buildReliabilityMetadata (on elect nodes). Exclude them when
 // testing buildReliabilityMetadata's key-path set.
-const VALIDATE_ONLY_FIELDS = ['retryWithheld', 'requestedRetry']
+const SPECIALIZED_MODE_ONLY_FIELDS = ['attempts', 'retryWithheld', 'requestedRetry']
 const buildReliabilityMetadataFixture = Object.fromEntries(
-  Object.entries(fixture).filter(([k]) => !VALIDATE_ONLY_FIELDS.includes(k)),
+  Object.entries(fixture).filter(([k]) => !SPECIALIZED_MODE_ONLY_FIELDS.includes(k)),
 )
 
 // Arrays use only their first element — shape matters, not element count.
@@ -152,6 +154,7 @@ describe('reliabilityMetadata field-set contract', () => {
     it('fixture top-level key set matches the Go ReliabilityMetadata field names', () => {
       expect(Object.keys(fixture).sort()).toEqual([
         'allGateFiltered',
+        'attempts',
         'cause',
         'discardedForks',
         'eligible',
@@ -288,6 +291,8 @@ describe('builder mode values are constrained to the declared cross-stack mode u
   function allBuilderModes() {
     return [
       buildCommodityReliabilityMetadata({successCount: 1, total: 2, forkOutcomes: []}).mode,
+      buildValidateReliabilityMetadata({passed: true}).mode,
+      buildRefineReliabilityMetadata({passed: true, attempts: 1, requestedN: 3}).mode,
       buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias', requestedN: 3}).mode,
       buildValidateRetryWithheldReliabilityMetadata({cause: 'x', requestedRetry: 1, passedCount: 0, total: 1}).mode,
       buildInvalidReliabilityMetadata({failureCause: 'missing-parent'}).mode,

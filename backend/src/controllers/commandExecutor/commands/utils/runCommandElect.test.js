@@ -6,6 +6,8 @@
  */
 import {runCommand} from './runCommand'
 import Store from './Store'
+import {MCP_FUSION_QUERY_TYPE} from '../../constants/mcpFusion'
+import {MEMO_SENTINEL_PRE_EXECUTED_CHILD} from '../../reliability/core/memoSentinels'
 
 jest.mock('debug', () => {
   const fn = jest.fn(() => fn)
@@ -75,6 +77,36 @@ beforeEach(() => {
     selectWinner: jest.fn().mockResolvedValue(null),
   }))
   mockRunForks.mockResolvedValue([])
+})
+
+describe('/elect fusion-child exactly-once sentinel', () => {
+  it('does not execute a fusion child again after SubtreeForkRunner pre-executed it', async () => {
+    const store = buildStore({
+      parent: {id: 'parent', command: '/chat do task', children: ['elect']},
+      elect: {id: 'elect', parent: 'parent', command: '/elect :n=2', children: ['fusion']},
+      fusion: {id: 'fusion', parent: 'elect', command: '/mcp use configured tools', children: []},
+    })
+    const fusionRun = jest.spyOn(require('../MCPFusionCommand').MCPFusionCommand.prototype, 'run').mockResolvedValue({})
+
+    await runCommand({
+      queryType: MCP_FUSION_QUERY_TYPE,
+      cell: store.getNode('fusion'),
+      store,
+      preventPostProcess: true,
+    })
+
+    const memoMap = new Map([
+      ['elect', 'in-progress'],
+      ['fusion', MEMO_SENTINEL_PRE_EXECUTED_CHILD],
+    ])
+    const parentRun = chatSpy()
+    await runCommand({queryType: 'chat', cell: store.getNode('parent'), store, memoMap})
+
+    expect(parentRun).toHaveBeenCalledTimes(1)
+    expect(fusionRun).toHaveBeenCalledTimes(1)
+    fusionRun.mockRestore()
+    parentRun.mockRestore()
+  })
 })
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -613,7 +645,7 @@ describe('in-progress /elect — descendant /validate executes inside fork', () 
       v: {
         id: 'v',
         parent: 'elect',
-        command: '/validate must include numbers :retry=0',
+        command: '/validate must include numbers',
         children: [],
       },
     })

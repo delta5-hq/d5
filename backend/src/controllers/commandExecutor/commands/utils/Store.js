@@ -22,6 +22,8 @@
  * @property {string[]} [prompts] - List of prompt ids that created from command execution
  * @property {Object} [reliabilityMetadata] - Judge verdict from /elect :n=N execution; includes winner, criteria rankings, and fork counts
  * @property {string} [executionStatus] - Machine-readable execution outcome for engine-created output nodes
+ * @property {string} [executionFailureType] - Safe typed transport/runtime failure category
+ * @property {number|string} [executionFailureCode] - Safe status or exit code when available
  */
 
 /**
@@ -397,7 +399,11 @@ class Store {
   orphanPromptNode(node) {
     const parentNode = this.getNode(node.parent)
 
-    if (parentNode) this.editNode({id: parentNode.id, prompts: parentNode.prompts.filter(id => id !== node.id)})
+    if (parentNode)
+      this.editNode({
+        id: parentNode.id,
+        prompts: parentNode.prompts.filter(id => id !== node.id),
+      })
   }
 
   /**

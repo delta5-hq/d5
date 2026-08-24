@@ -1642,7 +1642,7 @@ describe('CompletionCommand — commodity :n=N routing contract', () => {
     },
   )
 
-  it('commodity suffix [✓ K/N] is written to the cell when routed via COMPLETION_QUERY_TYPE with :n=3', async () => {
+  it('commodity non-verdict suffix [↻ K/N] is written when routed via COMPLETION_QUERY_TYPE with :n=3', async () => {
     const node = {
       id: 'node',
       parent: 'root',
@@ -1660,7 +1660,7 @@ describe('CompletionCommand — commodity :n=N routing contract', () => {
     await runCommand({cell: node, queryType: COMPLETION_QUERY_TYPE, store})
 
     expect(chatSpy).toHaveBeenCalledTimes(3)
-    expect(store.getNode(node.id).title).toMatch(/\[✓/)
+    expect(store.getNode(node.id).title).toMatch(/\[↻/)
   })
 })
 
@@ -1768,25 +1768,25 @@ describe('commodity :n=N — direct CHAT_QUERY_TYPE path (no CompletionCommand r
       name: 'all attempts produce output',
       outcomes: ['alpha', 'beta'],
       childTitles: ['alpha', 'beta'],
-      suffix: /\[✓ 2\/2\]$/,
+      suffix: /\[↻ 2\/2\]$/,
     },
     {
       name: 'provider/runtime error attempts are excluded while valid short output survives',
       outcomes: [new Error('provider rejected credentials'), 'hello'],
       childTitles: ['hello'],
-      suffix: /\[✓ 1\/2 ⚠\]$/,
+      suffix: /\[↻ 1\/2 ⚠\]$/,
     },
     {
       name: 'provider/runtime error and refusal attempts are both excluded',
       outcomes: [new Error('provider rejected credentials'), "I'm sorry, I cannot help with that.", 'ok'],
       childTitles: ['ok'],
-      suffix: /\[✓ 1\/3 ⚠\]$/,
+      suffix: /\[↻ 1\/3 ⚠\]$/,
     },
     {
       name: 'all attempts fail before producing acceptable output',
       outcomes: [new Error('provider rejected credentials'), new Error('provider rejected credentials')],
       childTitles: [],
-      suffix: /\[✗ 0\/2\]$/,
+      suffix: /\[↻ 0\/2 ⚠\]$/,
     },
   ])('commodity merge classifies fork outcomes: $name', async ({outcomes, childTitles, suffix}) => {
     const result = await runDirectCommodity(outcomes)
@@ -1997,7 +1997,7 @@ describe('MCPCommand run test', () => {
       mcpAlias,
     })
 
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Connection refused'), mcpNode.id)
+    expect(errorSpy).toHaveBeenCalledWith('Error: MCP command execution failed', mcpNode.id, {type: 'runtime-error'})
   })
 
   it('should handle error when MCP tool returns isError', async () => {
@@ -2023,7 +2023,7 @@ describe('MCPCommand run test', () => {
       mcpAlias,
     })
 
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Tool execution failed'), mcpNode.id)
+    expect(errorSpy).toHaveBeenCalledWith('Error: MCP tool reported failure', mcpNode.id, {type: 'mcp-tool-error'})
   })
 
   it('should handle empty MCP response by creating placeholder node', async () => {
@@ -2246,8 +2246,9 @@ describe('RPCCommand run test', () => {
     expect(output.nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: 'Error: SSH connection failed',
+          title: 'Error: RPC command execution failed',
           parent: rpcNode.id,
+          executionFailureType: 'runtime-error',
         }),
       ]),
     )
@@ -2338,8 +2339,9 @@ describe('RPCCommand run test', () => {
     expect(output.nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: 'Error: ACP process timeout',
+          title: 'Error: RPC command execution failed',
           parent: rpcNode.id,
+          executionFailureType: 'runtime-error',
         }),
       ]),
     )
@@ -2410,8 +2412,9 @@ describe('RPCCommand run test', () => {
     expect(output.nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: expect.stringMatching(/Error:.*Unknown RPC protocol/),
+          title: 'Error: RPC command execution failed',
           parent: rpcNode.id,
+          executionFailureType: 'runtime-error',
         }),
       ]),
     )

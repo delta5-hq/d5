@@ -27,14 +27,18 @@ const HISTORICAL_CANONICAL_TITLES = [
 ]
 
 const ENGINE_CANONICAL_TITLES = [
-  ['commodity/elect partial with degraded judge input', 'Task [✓ 2/3 ⚠]'],
-  ['commodity/elect all K of N succeeded', 'Task [✓ 2/3]'],
+  ['commodity partial execution', 'Task [↻ 2/3 ⚠]'],
+  ['commodity all K of N returned', 'Task [↻ 2/3]'],
+  ['elect partial with degraded judge input', 'Task [✓ 2/3 ⚠]'],
+  ['elect K of N eligible', 'Task [✓ 2/3]'],
   ['validate passed after N retries', 'Task [✓ +2]'],
+  ['refine passed after N attempts', 'Task [✓ 2×]'],
   ['validate passed on first attempt', 'Task [✓]'],
   ['elect or commodity zero of N eligible', 'Task [✗ 0/3]'],
   ['validate all retries exhausted', 'Task [✗ 3×]'],
   ['validate retry withheld', 'Task [✗ ⊘]'],
   ['validate invalid criterion', 'Task [✗ !]'],
+  ['validate predicate failed', 'Task [✗]'],
   ['elect no judge signal in strict mode', 'Task [⚠ ∅]'],
   ['elect fallback winner committed', 'Task [⚠ 0/3]'],
 ]
@@ -46,7 +50,6 @@ const ENGINE_NON_MATCHING_TITLES = [
   ['freeform ✓ text', 'Task [✓ approved by manager]'],
   ['freeform ✗ text', 'Task [✗ invalid output]'],
   ['freeform ⚠ text', 'Task [⚠ needs attention]'],
-  ['bare ✗ no content', 'Task [✗]'],
   ['✓ + without trailing digit', 'Task [✓ +]'],
   ['✗ lone number without ×', 'Task [✗ 3]'],
   ['✗ × without leading number', 'Task [✗ ×]'],
@@ -327,6 +330,7 @@ describe('ENGINE_SUFFIX_RE', () => {
   describe('matches single-fork N=1 tokens', () => {
     it.each([
       ['all 1 of 1 succeeded', 'Task [✓ 1/1]'],
+      ['one commodity execution returned', 'Task [↻ 1/1]'],
       ['all 1 of 1 failed', 'Task [✗ 0/1]'],
       ['fallback committed 0 of 1', 'Task [⚠ 0/1]'],
       ['1 of 1 with degraded judge input', 'Task [✓ 1/1 ⚠]'],
@@ -339,9 +343,9 @@ describe('ENGINE_SUFFIX_RE', () => {
     it.each([
       ['validate passed after many retries', 'Task [✓ +10]'],
       ['validate all 100 retries exhausted', 'Task [✗ 999×]'],
-      ['commodity large N all succeeded', 'Task [✓ 99/100]'],
-      ['commodity large N all failed', 'Task [✗ 0/100]'],
-      ['commodity large N partial with warning', 'Task [✓ 99/100 ⚠]'],
+      ['commodity large N all returned', 'Task [↻ 100/100]'],
+      ['commodity large N none returned', 'Task [↻ 0/100 ⚠]'],
+      ['commodity large N partial with warning', 'Task [↻ 99/100 ⚠]'],
       ['elect fallback large N', 'Task [⚠ 0/100]'],
     ])('%s', (_, title) => {
       expect(ENGINE_SUFFIX_RE.test(title)).toBe(true)

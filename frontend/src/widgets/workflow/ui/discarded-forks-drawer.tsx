@@ -30,6 +30,14 @@ const STATUS_CLASS: Record<string, string> = {
   selected: 'text-success',
 }
 
+const FAILURE_REASON_I18N_KEY: Record<string, string> = {
+  'mcp-tool-error': 'workflowTree.discardedForks.failureReasonMcpTool',
+  'http-status-error': 'workflowTree.discardedForks.failureReasonHttpStatus',
+  'ssh-exit-error': 'workflowTree.discardedForks.failureReasonSshExit',
+  'runtime-error': 'workflowTree.discardedForks.failureReasonRuntime',
+  'execution-error': 'workflowTree.discardedForks.failureReasonExecution',
+}
+
 const ForkRow = ({ forkIndex, status, failedAt, reason, attempts, isPending, isWinner, leafOutputs }: ForkRowProps) => {
   const displayStatus = isWinner ? 'selected' : isPending ? 'pending' : status
   const statusClass = STATUS_CLASS[displayStatus] ?? 'text-muted-foreground'
@@ -62,7 +70,7 @@ const ForkRow = ({ forkIndex, status, failedAt, reason, attempts, isPending, isW
       ) : null}
       {reason ? (
         <p className="text-xs text-destructive pl-2 truncate" title={reason}>
-          {reason}
+          {FAILURE_REASON_I18N_KEY[reason] ? <FormattedMessage id={FAILURE_REASON_I18N_KEY[reason]} /> : reason}
         </p>
       ) : null}
       {leafOutputs?.map(lo => (

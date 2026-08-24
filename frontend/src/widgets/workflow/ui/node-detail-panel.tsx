@@ -7,6 +7,11 @@ import { getColorForRole } from '@shared/ui/genie/role-colors'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import { canExecuteNode } from '@shared/lib/commands/command-validator'
+import {
+  isReliabilitySyntaxErrorReason,
+  validateCommandForExecution,
+  type ReliabilitySyntaxErrorReason,
+} from '@shared/lib/command-validation'
 import { useAliases } from '@entities/aliases'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@shared/ui/collapsible'
 import { Eye, FileText, Folder, Play, Loader2, Square, Copy, Trash2, Plus, ChevronRight, ArrowLeft } from 'lucide-react'
@@ -53,6 +58,12 @@ interface NodeDetailPanelProps {
   onDrawerOpened?: () => void
 }
 
+const RELIABILITY_SYNTAX_ERROR_I18N_KEY: Record<ReliabilitySyntaxErrorReason, string> = {
+  elect_criterion_must_be_validate: 'workflowTree.node.electCriterionMustBeValidate',
+  validate_retry_must_be_refine: 'workflowTree.node.validateRetryMustBeRefine',
+  invalid_refine_syntax: 'workflowTree.node.invalidRefineSyntax',
+}
+
 export const NodeDetailPanel = ({
   node,
   isPrompt,
@@ -86,7 +97,12 @@ export const NodeDetailPanel = ({
   const mutationDisabled = isExecuting
   const { formatMessage } = useIntl()
   const showPreview = isPrompt || Boolean(node.command) || Boolean(node.title)
-  const canExecute = canExecuteNode(node.command, executeDisabled || electCostExceedsLimit === true)
+  const commandValidation = validateCommandForExecution(node.command, false, aliases)
+  const reliabilitySyntaxError = isReliabilitySyntaxErrorReason(commandValidation.reason)
+    ? commandValidation.reason
+    : null
+  const canExecute =
+    canExecuteNode(node.command, executeDisabled || electCostExceedsLimit === true) && !reliabilitySyntaxError
   const siblingActionsEnabled = !isRoot && canExecute
 
   const commodityN = readCommodityN(node.command ?? '')
@@ -135,9 +151,10 @@ export const NodeDetailPanel = ({
   )
 
   const handleExecute = useCallback(async () => {
+    if (reliabilitySyntaxError) return
     const queryType = extractQueryTypeFromCommand(node.command, aliases)
     await onExecute(node, queryType)
-  }, [node, onExecute, aliases])
+  }, [node, onExecute, aliases, reliabilitySyntaxError])
 
   const handleAbort = useCallback(() => {
     onAbort(node.id)
@@ -160,13 +177,21 @@ export const NodeDetailPanel = ({
   }, [node.id, onAddSibling])
 
   const handleEnterInCommand = useCallback(
-    (committedCommand: string) => onEnterInCommand(node.id, committedCommand),
-    [node.id, onEnterInCommand],
+    (committedCommand: string) => {
+      const validation = validateCommandForExecution(committedCommand, false, aliases)
+      if (isReliabilitySyntaxErrorReason(validation.reason)) return
+      onEnterInCommand(node.id, committedCommand)
+    },
+    [node.id, onEnterInCommand, aliases],
   )
 
   const handleCtrlEnterInCommand = useCallback(
-    (committedCommand: string) => onCtrlEnterInCommand(node.id, committedCommand),
-    [node.id, onCtrlEnterInCommand],
+    (committedCommand: string) => {
+      const validation = validateCommandForExecution(committedCommand, false, aliases)
+      if (isReliabilitySyntaxErrorReason(validation.reason)) return
+      onCtrlEnterInCommand(node.id, committedCommand)
+    },
+    [node.id, onCtrlEnterInCommand, aliases],
   )
 
   const handleShiftCtrlEnterInCommand = useCallback(
@@ -237,6 +262,11 @@ export const NodeDetailPanel = ({
                       placeholder={formatMessage({ id: 'workflowTree.node.commandPlaceholder' })}
                       value={node.command ?? ''}
                     />
+                    {reliabilitySyntaxError ? (
+                      <span className="text-xs text-destructive mt-1 block" data-testid="command-validation-error">
+                        <FormattedMessage id={RELIABILITY_SYNTAX_ERROR_I18N_KEY[reliabilitySyntaxError]} />
+                      </span>
+                    ) : null}
                     {typeof electCost === 'number' ? (
                       <span className="text-xs text-muted-foreground mt-1 block" data-testid="elect-cost-hint">
                         <FormattedMessage id="workflowTree.node.electCostHint" values={{ cost: electCost }} />
@@ -270,7 +300,11 @@ export const NodeDetailPanel = ({
                     {reliabilityMetadata?.mode === 'suppressed' || reliabilityMetadata?.suppressed ? (
                       <span className="text-xs text-accent mt-1 block" data-testid="suppressed-run-hint">
                         <FormattedMessage
-                          id="workflowTree.node.suppressedRunHint"
+                          id={
+                            reliabilityMetadata.cause === 'nested-reliability-fork'
+                              ? 'workflowTree.node.nestedReliabilitySuppressedHint'
+                              : 'workflowTree.node.suppressedRunHint'
+                          }
                           values={{ n: reliabilityMetadata.requestedN ?? '' }}
                         />
                       </span>

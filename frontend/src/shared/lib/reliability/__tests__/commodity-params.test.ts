@@ -61,6 +61,7 @@ describe('readCommodityN', () => {
       `/elect :n=${COMMODITY_N_MAX}`,
       '/validate :n=2 criterion',
       `/validate :n=${COMMODITY_N_MAX} criterion`,
+      '/refine :n=3',
       '/foreach :n=3 items',
       '/steps :n=2',
       '/switch :n=5 condition',
@@ -72,6 +73,11 @@ describe('readCommodityN', () => {
       expect(readCommodityN(cmd)).toBe(1)
     })
   })
+
+  it.each(['/refinement :n=3', '/elective :n=3', '/validateResult :n=3'])(
+    'does not treat a neighboring dynamic alias as a reserved control command: %s',
+    command => expect(readCommodityN(command)).toBe(3),
+  )
 })
 
 describe('stripCommodityN', () => {

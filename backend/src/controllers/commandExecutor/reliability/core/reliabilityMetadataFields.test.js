@@ -13,6 +13,8 @@ import {
   COMMODITY_PARTIAL_SUCCESS_WARNING,
   buildSuppressedReliabilityMetadata,
   buildValidateRetryWithheldReliabilityMetadata,
+  buildValidateReliabilityMetadata,
+  buildRefineReliabilityMetadata,
 } from './reliabilityMetadataFields'
 
 const minimalVerdict = {
@@ -1347,8 +1349,43 @@ describe('COMMODITY_SUPPRESSION_CAUSE', () => {
     }).toThrow()
   })
 
-  it('contains exactly the one canonical cause string', () => {
-    expect(new Set(Object.values(COMMODITY_SUPPRESSION_CAUSE))).toEqual(new Set(['side-effecting-alias']))
+  it('contains exactly the canonical collapse cause strings', () => {
+    expect(new Set(Object.values(COMMODITY_SUPPRESSION_CAUSE))).toEqual(
+      new Set(['side-effecting-alias', 'nested-reliability-fork']),
+    )
+  })
+})
+
+describe('pure validate and refine metadata builders', () => {
+  it.each([
+    [true, 1, undefined],
+    [false, 0, 'criteria-failed'],
+  ])('validate passed=%s records a one-shot verdict', (passed, eligible, failureCause) => {
+    expect(buildValidateReliabilityMetadata({passed})).toEqual({
+      winnerForkIndex: null,
+      perCriterionVerdict: [],
+      mode: 'validate',
+      selectionLayer: 'primary',
+      noSignal: false,
+      tiebreakUsed: false,
+      eligible,
+      total: 1,
+      ...(failureCause ? {failureCause} : {}),
+      discardedForks: [],
+    })
+  })
+
+  it('refine records the actual and requested attempt counts', () => {
+    expect(buildRefineReliabilityMetadata({passed: false, attempts: 2, requestedN: 4})).toEqual(
+      expect.objectContaining({
+        mode: 'refine',
+        eligible: 0,
+        total: 2,
+        attempts: 2,
+        requestedN: 4,
+        failureCause: 'criteria-failed',
+      }),
+    )
   })
 })
 

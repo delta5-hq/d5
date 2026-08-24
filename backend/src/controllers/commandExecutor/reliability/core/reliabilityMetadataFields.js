@@ -44,7 +44,13 @@ export function buildReliabilityMetadata(verdict, forkResults, okCount, n) {
     tiebreakUsed: verdict.tiebreakUsed ?? false,
     eligible: okCount,
     total: n,
-    ...(suppressedFork ? {suppressed: true, cause: suppressedFork.cause, requestedN: suppressedFork.requestedN} : {}),
+    ...(suppressedFork
+      ? {
+          suppressed: true,
+          cause: suppressedFork.cause,
+          requestedN: suppressedFork.requestedN,
+        }
+      : {}),
     judgeInput: verdict.judgeInput,
     judgeQualityWarnings: verdict.judgeQualityWarnings ?? [],
     ...(verdict.selectionLayer === 'fallback' ? {fallbackUsed: true} : {}),
@@ -78,7 +84,45 @@ export function buildCommodityReliabilityMetadata({successCount, total, forkOutc
     ...(allFailed ? {failureCause: FAILURE_CAUSE.RUNTIME_FAILED} : {}),
     discardedForks: forkOutcomes
       .filter(f => !f.succeeded)
-      .map(f => buildDiscardedFork({forkIndex: f.forkIndex, status: 'runtime-failed'})),
+      .map(f =>
+        buildDiscardedFork({
+          forkIndex: f.forkIndex,
+          status: 'runtime-failed',
+        }),
+      ),
+  }
+}
+
+export function buildRefineReliabilityMetadata({passed, attempts, requestedN, suppressedCause}) {
+  return {
+    winnerForkIndex: null,
+    perCriterionVerdict: [],
+    mode: 'refine',
+    selectionLayer: 'primary',
+    noSignal: false,
+    tiebreakUsed: false,
+    eligible: passed ? 1 : 0,
+    total: attempts,
+    attempts,
+    requestedN,
+    ...(suppressedCause ? {suppressed: true, cause: suppressedCause} : {}),
+    ...(!passed ? {failureCause: FAILURE_CAUSE.CRITERIA_FAILED} : {}),
+    discardedForks: [],
+  }
+}
+
+export function buildValidateReliabilityMetadata({passed}) {
+  return {
+    winnerForkIndex: null,
+    perCriterionVerdict: [],
+    mode: 'validate',
+    selectionLayer: 'primary',
+    noSignal: false,
+    tiebreakUsed: false,
+    eligible: passed ? 1 : 0,
+    total: 1,
+    ...(!passed ? {failureCause: FAILURE_CAUSE.CRITERIA_FAILED} : {}),
+    discardedForks: [],
   }
 }
 

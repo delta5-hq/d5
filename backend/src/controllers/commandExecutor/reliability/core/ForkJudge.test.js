@@ -1014,11 +1014,38 @@ describe('ForkJudge.selectWinner — structural gate on candidate content', () =
       expect(result.allGateFiltered).toBe(false)
     })
 
+    it.each(['mcp-tool-error', 'http-status-error', 'ssh-exit-error', 'runtime-error'])(
+      'persists the discriminating %s reason on the structurally rejected fork',
+      async executionFailureType => {
+        mockContentSequence(SUBSTANTIVE_A, SUBSTANTIVE_B)
+        const rejectedFork = makeFork(0, 'ok', {
+          leafOutputs: [
+            {
+              nodeId: 'err',
+              content: 'Error: safe detail',
+              executionStatus: 'error',
+              executionFailureType,
+            },
+          ],
+        })
+
+        const result = await makeJudge().selectWinner({
+          forks: [rejectedFork, makeFork(1)],
+          validateNodes: [],
+          parentNodeId: 'parent',
+          fallback: false,
+        })
+
+        expect(result.winnerForkIndex).toBe(1)
+        expect(rejectedFork.reason).toBe(executionFailureType)
+      },
+    )
+
     it.each([
       ['no executionStatus field', {}],
       ['executionStatus success', {executionStatus: 'success'}],
-    ])('%s does NOT trigger structural gate rejection — only executionStatus=error does', async (_, extra) => {
-      // The structural gate only rejects on executionStatus==='error'.
+    ])('%s does NOT trigger structural gate rejection', async (_, extra) => {
+      // The structural gate rejects only typed failure signals or executionStatus:error.
       // Forks without that status pass the gate and proceed to the LLM judge.
       NodeTextExtractor.mockImplementation(() => ({extractFullContent: jest.fn().mockResolvedValue(SUBSTANTIVE_A)}))
       const fork0 = makeFork(0, 'ok', {leafOutputs: [{nodeId: 'n0', content: SUBSTANTIVE_A, ...extra}]})

@@ -165,7 +165,7 @@ describe('RPCCommand', () => {
       })
       const command = new RPCCommand(userId, workflowId, mockStore, sshAliasConfig)
 
-      await expect(command.executeSSH('test')).rejects.toThrow('SSH RPC failed with exit code 1: error message')
+      await expect(command.executeSSH('test')).rejects.toThrow('SSH RPC failed with exit code 1')
     })
 
     it('throws nonzero SSH exit without appending empty stderr details', async () => {
@@ -180,7 +180,7 @@ describe('RPCCommand', () => {
       await expect(command.executeSSH('test')).rejects.not.toThrow(/: $/)
     })
 
-    it('truncates long SSH stderr in the thrown error message', async () => {
+    it('does not expose long SSH stderr in the thrown error message', async () => {
       mockSSHExecutor.execute.mockResolvedValue({
         stdout: '',
         stderr: 'x'.repeat(600),
@@ -188,7 +188,7 @@ describe('RPCCommand', () => {
       })
       const command = new RPCCommand(userId, workflowId, mockStore, sshAliasConfig)
 
-      await expect(command.executeSSH('test')).rejects.toThrow(`SSH RPC failed with exit code 255: ${'x'.repeat(500)}…`)
+      await expect(command.executeSSH('test')).rejects.toThrow('SSH RPC failed with exit code 255')
     })
 
     it('includes workingDir when specified', async () => {
@@ -245,12 +245,12 @@ describe('RPCCommand', () => {
     })
 
     it.each([
-      [400, 'bad request', 'HTTP RPC failed with status 400: bad request'],
-      [404, 'not found', 'HTTP RPC failed with status 404: not found'],
-      [500, 'upstream failure', 'HTTP RPC failed with status 500: upstream failure'],
+      [400, 'bad request', 'HTTP RPC failed with status 400'],
+      [404, 'not found', 'HTTP RPC failed with status 404'],
+      [500, 'upstream failure', 'HTTP RPC failed with status 500'],
       [502, '', 'HTTP RPC failed with status 502'],
-      [503, '  gateway\n\nunavailable  ', 'HTTP RPC failed with status 503: gateway unavailable'],
-      [504, 'x'.repeat(600), `HTTP RPC failed with status 504: ${'x'.repeat(500)}…`],
+      [503, '  gateway\n\nunavailable  ', 'HTTP RPC failed with status 503'],
+      [504, 'x'.repeat(600), 'HTTP RPC failed with status 504'],
       [520, '   ', 'HTTP RPC failed with status 520'],
     ])('rejects HTTP status %s with a normalized safe error message', async (status, body, expectedMessage) => {
       mockHTTPExecutor.execute.mockResolvedValue({
@@ -305,15 +305,18 @@ describe('RPCCommand', () => {
         isError: true,
       })
       const command = new RPCCommand(userId, workflowId, mockStore, httpAliasConfig)
+      command.logError = jest.fn()
       const node = {id: 'node-http-error', command: '/webhook1 execute'}
 
       await command.run(node, null, null)
 
       expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(
-        'Error: HTTP RPC failed with status 503: upstream unavailable',
+        'Error: HTTP RPC failed with status 503',
         'node-http-error',
+        {type: 'http-status-error', code: 503},
       )
       expect(mockStore.importer.createNodes).not.toHaveBeenCalled()
+      expect(command.logError.mock.calls[0][0]).not.toHaveProperty('body')
     })
 
     it('parses JSON output when outputFormat is json', async () => {
@@ -342,7 +345,9 @@ describe('RPCCommand', () => {
 
       await command.run(node, null, 'test')
 
-      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: Connection failed', 'node5')
+      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: RPC command execution failed', 'node5', {
+        type: 'runtime-error',
+      })
     })
 
     it('creates an error node for SSH nonzero exit', async () => {
@@ -352,15 +357,18 @@ describe('RPCCommand', () => {
         exitCode: 126,
       })
       const command = new RPCCommand(userId, workflowId, mockStore, sshAliasConfig)
+      command.logError = jest.fn()
       const node = {id: 'node-ssh-error', command: '/vm1 deploy'}
 
       await command.run(node, null, null)
 
       expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(
-        'Error: SSH RPC failed with exit code 126: permission denied',
+        'Error: SSH RPC failed with exit code 126',
         'node-ssh-error',
+        {type: 'ssh-exit-error', code: 126},
       )
       expect(mockStore.importer.createNodes).not.toHaveBeenCalled()
+      expect(command.logError.mock.calls[0][0]).not.toHaveProperty('stderr')
     })
 
     it('throws on unknown protocol', async () => {
@@ -370,10 +378,9 @@ describe('RPCCommand', () => {
 
       await command.run(node, null, 'test')
 
-      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(
-        expect.stringContaining('Unknown RPC protocol'),
-        'node6',
-      )
+      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: RPC command execution failed', 'node6', {
+        type: 'runtime-error',
+      })
     })
 
     it('creates placeholder when output is empty', async () => {
@@ -1094,7 +1101,9 @@ describe('RPCCommand', () => {
       await command.run(node, null, null, {signal: abortController.signal})
 
       expect(mockHTTPExecutor.execute).not.toHaveBeenCalled()
-      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: Operation aborted', 'node1')
+      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: RPC command execution failed', 'node1', {
+        type: 'runtime-error',
+      })
     })
 
     it('accepts run with no options parameter for backward compatibility', async () => {
@@ -1173,13 +1182,15 @@ describe('RPCCommand', () => {
           name: 'SandboxUnavailableError',
         }),
       ],
-    ])('surfaces .message of %s thrown by executeACP as the error node content', async (_label, err) => {
+    ])('classifies %s thrown by executeACP as a safe runtime failure', async (_label, err) => {
       const command = new RPCCommand(userId, workflowId, mockStore, acpAliasConfig)
       jest.spyOn(command, 'executeACP').mockRejectedValue(err)
 
       await command.run(node, null, '/agent1 do work')
 
-      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(`Error: ${err.message}`, node.id)
+      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: RPC command execution failed', node.id, {
+        type: 'runtime-error',
+      })
     })
 
     it('persists session ID returned by executeACP', async () => {

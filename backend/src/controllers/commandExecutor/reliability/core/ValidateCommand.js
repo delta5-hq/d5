@@ -5,6 +5,7 @@ import {NodeTextExtractor} from '../../commands/utils/NodeTextExtractor'
 import {getNodeCommand, isOutlineSummarize, isSummarize} from '../../commands/utils/isCommand'
 import {isValidateCell, readValidateCriterion, readValidateN} from './validateParams'
 import {isValidElectCell} from './electParams'
+import {isRefineCell} from './refineParams'
 
 const log = debug('delta5:validate')
 
@@ -62,8 +63,12 @@ const extractValidationContent = async (parentNode, store) => {
     return promptOutputs.join('\n')
   }
 
-  // inside a fork before winner selection, elect has no output yet — validate the command being electd
-  if (isValidElectCell(getNodeCommand(parentNode)) && !hasMaterializedPromptOutput(parentNode, store)) {
+  // Reliability modifiers have no generated output of their own. Their predicate
+  // evaluates the command immediately above the modifier.
+  if (
+    (isValidElectCell(getNodeCommand(parentNode)) || isRefineCell(getNodeCommand(parentNode))) &&
+    !hasMaterializedPromptOutput(parentNode, store)
+  ) {
     const grandparent = store.getNode(parentNode.parent)
     if (grandparent) {
       const gpContent = await extractValidationContent(grandparent, store)

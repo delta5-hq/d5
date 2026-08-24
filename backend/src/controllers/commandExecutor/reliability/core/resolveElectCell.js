@@ -2,7 +2,7 @@ import StoreFork from './StoreFork'
 import {runForks, computeEffectiveN} from './SubtreeForkRunner'
 import {ForkJudge} from './ForkJudge'
 import OwnershipResolver from './OwnershipResolver'
-import {readElectN, readRawElectN, readFallbackFlag, readJudgeReasoningFlag} from './electParams'
+import {readElectN, readRawElectN, readFallbackFlag, readJudgeReasoningFlag, readElectTrailingText} from './electParams'
 import {projectForkCost} from './forkCostProjector'
 import {readForkLimit, exceedsForkLimit, forkLimitRefusalMessage} from './forkLimitParser'
 import {appendElectSuffix, appendInvalidSuffix, stripReliabilitySuffix} from './reliabilitySuffix'
@@ -43,6 +43,23 @@ function flushValidateTitles(validates, sourceForkStore, outerStore) {
   }
 }
 
+function flushNestedReliabilityDiagnostics(rootNode, sourceForkStore, outerStore) {
+  const stack = [...(rootNode.children ?? [])]
+  while (stack.length > 0) {
+    const nodeId = stack.pop()
+    const sourceNode = sourceForkStore.getNode(nodeId)
+    if (!sourceNode) continue
+    stack.push(...(sourceNode.children ?? []).filter(id => !(sourceNode.prompts ?? []).includes(id)))
+    const mode = sourceNode.reliabilityMetadata?.mode
+    if (!['validate', 'refine', 'invalid', 'suppressed'].includes(mode)) continue
+    const targetNode = outerStore.getNode(nodeId)
+    if (!targetNode) continue
+    targetNode.title = sourceNode.title
+    targetNode.reliabilityMetadata = sourceNode.reliabilityMetadata
+    outerStore.saveNodeToOutput(nodeId)
+  }
+}
+
 /**
  * @param {NodeData} electNode
  * @param {Store} store
@@ -58,6 +75,16 @@ export async function resolveElectCell(
 ) {
   const query = getNodeCommand(electNode)
   const n = readElectN(query)
+  const trailingText = readElectTrailingText(query)
+
+  if (trailingText) {
+    writeErrorNode(
+      electNode,
+      store,
+      `Error: /elect does not accept criterion text; add a sibling /validate cell instead (unexpected: "${trailingText}")`,
+    )
+    return
+  }
 
   if (!n) {
     writeErrorNode(electNode, store, missingNErrorMessage(readRawElectN(query)))
@@ -137,7 +164,9 @@ export async function resolveElectCell(
           total: 1,
           winnerForkIndex: null,
         })
-        const {failureCause, remediationHint} = classifyNoWinner({forkResults: [singleFork]})
+        const {failureCause, remediationHint} = classifyNoWinner({
+          forkResults: [singleFork],
+        })
         winnerNode.reliabilityMetadata = buildSuppressedReliabilityMetadata({
           cause: suppressedFork.cause,
           requestedN: suppressedFork.requestedN,
@@ -170,7 +199,15 @@ export async function resolveElectCell(
 
   if (!verdict || verdict.winnerForkIndex === null) {
     const suffixEligible = verdict?.allGateFiltered ? 0 : okCount
-    electNode.title = appendElectSuffix(baseTitle, {
+    const diagnosticFork = forkResults.find(f => f.status === 'criteria-failed' && f.forkStore)
+    if (diagnosticFork) {
+      // Preserve modifier diagnostics only. Strict /elect still selects no failed
+      // candidate and therefore never transfers generated output without :fallback.
+      flushNestedReliabilityDiagnostics(electNode, diagnosticFork.forkStore, store)
+      flushValidateTitles(allValidates, diagnosticFork.forkStore, store)
+    }
+    const currentElect = store.getNode(electNode.id) ?? electNode
+    currentElect.title = appendElectSuffix(baseTitle, {
       eligible: suffixEligible,
       total: effectiveN,
       fallback,
@@ -178,19 +215,15 @@ export async function resolveElectCell(
       noSignal: verdict?.noSignal ?? false,
     })
     if (verdict) {
-      electNode.reliabilityMetadata = buildReliabilityMetadata(verdict, forkResults, okCount, n)
+      currentElect.reliabilityMetadata = buildReliabilityMetadata(verdict, forkResults, okCount, n)
     }
     store.importer.createErrorNode(
       verdict?.allGateFiltered
         ? `/elect :n=${effectiveN} — all ${effectiveN} fork(s) produced empty or refusal output; revise the prompt`
         : `/elect :n=${effectiveN} — all ${effectiveN} fork(s) failed; use :fallback to accept best degraded result`,
-      electNode.id,
+      currentElect.id,
     )
-    store.saveNodeToOutput(electNode.id)
-    const diagnosticFork = forkResults.find(f => f.status === 'criteria-failed' && f.forkStore)
-    if (diagnosticFork) {
-      flushValidateTitles(allValidates, diagnosticFork.forkStore, store)
-    }
+    store.saveNodeToOutput(currentElect.id)
     emitter.electComplete(electNode.id, null, effectiveN)
     memoMap.set(electNode.id, null)
     return

@@ -1,6 +1,7 @@
 import {getNodeCommand} from '../../commands/utils/isCommand'
 import {isValidateCell} from './validateParams'
 import {isValidElectCell} from './electParams'
+import {isRefineCell} from './refineParams'
 
 export const UNOWNED = null
 
@@ -38,6 +39,9 @@ const walkSubtree = (node, store, ownerMap) => {
     assignToOwnerMap(node, store, ownerMap)
     return
   }
+  // /refine owns its predicate children and consumes them before /elect judges
+  // the resulting attempt; they must not bubble into the enclosing elect jury.
+  if (isRefineCell(getNodeCommand(node))) return
   for (const childId of node.children ?? []) {
     walkSubtree(store.getNode(childId), store, ownerMap)
   }

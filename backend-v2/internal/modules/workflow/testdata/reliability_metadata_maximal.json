@@ -54,6 +54,7 @@
   "suppressed": true,
   "cause": "side-effecting-alias",
   "requestedN": 3,
+  "attempts": 2,
   "retryWithheld": true,
   "requestedRetry": 2
 }

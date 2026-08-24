@@ -55,6 +55,28 @@ beforeEach(() => {
 })
 
 describe('resolveElectCell — input guard: :n= absent or invalid', () => {
+  it('rejects trailing criterion text visibly and never starts forks', async () => {
+    const store = makeStore('/elect :n=3 must cite sources')
+    const node = store.getNode('r1')
+
+    await resolveElectCell(node, store, new Map())
+
+    expect(store.importer.createErrorNode).toHaveBeenCalledWith(
+      expect.stringContaining('add a sibling /validate cell'),
+      'r1',
+    )
+    expect(node.title).toBe('My Cell [✗ !]')
+    expect(mockRunForks).not.toHaveBeenCalled()
+  })
+
+  it('keeps empty trailing whitespace on the normal elect path', async () => {
+    const store = makeStore('/elect :n=3   ')
+
+    await resolveElectCell(store.getNode('r1'), store, new Map())
+
+    expect(mockRunForks).toHaveBeenCalledTimes(1)
+  })
+
   it('writes "requires :n=N" error and skips runForks when :n= is absent', async () => {
     const store = makeStore('/elect')
     const node = store.getNode('r1')

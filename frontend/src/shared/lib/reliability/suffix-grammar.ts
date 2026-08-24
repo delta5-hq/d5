@@ -13,14 +13,18 @@ export const HISTORICAL_SUFFIX_SHAPES: readonly string[] = Object.freeze([
 
 // Every shape the suffix-appender functions emit must appear here so re-execution strips the prior suffix.
 export const ENGINE_SUFFIX_SHAPES: readonly string[] = Object.freeze([
+  '↻ \\d+/\\d+ ⚠',
+  '↻ \\d+/\\d+',
   '✓ \\d+/\\d+ ⚠',
   '✓ \\d+/\\d+',
   '✓ \\+\\d+',
+  '✓ \\d+×',
   '✓',
   '✗ 0/\\d+',
   '✗ \\d+×',
   '✗ ⊘',
   '✗ !',
+  '✗',
   '⚠ ∅',
   '⚠ 0/\\d+',
 ])

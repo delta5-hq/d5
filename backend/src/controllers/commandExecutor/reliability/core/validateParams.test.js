@@ -1,4 +1,4 @@
-import {isValidateCell, readValidateN, readValidateRetry, readValidateCriterion} from './validateParams'
+import {isValidateCell, readValidateN, hasValidateRetry, readValidateCriterion} from './validateParams'
 
 describe('isValidateCell', () => {
   describe('falsy input → false', () => {
@@ -86,38 +86,22 @@ describe('readValidateN', () => {
   })
 })
 
-describe('readValidateRetry', () => {
-  describe('absent or falsy → 3 (spec default)', () => {
-    it.each([null, undefined, ''])('returns 3 for %p', input => {
-      expect(readValidateRetry(input)).toBe(3)
-    })
-
-    it('returns 3 when :retry= is absent', () => {
-      expect(readValidateRetry('/validate must include numbers')).toBe(3)
-    })
+describe('hasValidateRetry', () => {
+  it.each([null, undefined, '', '/validate criterion'])('returns false for %p', command => {
+    expect(hasValidateRetry(command)).toBe(false)
   })
 
-  describe('valid :retry= values', () => {
-    it.each([
-      ['/validate :retry=0 criteria', 0],
-      ['/validate :retry=1 criteria', 1],
-      ['/validate :retry=5 criteria', 5],
-      ['/validate :retry=10 criteria', 10],
-    ])('parses "%s" → %i', (cmd, expected) => {
-      expect(readValidateRetry(cmd)).toBe(expected)
-    })
-  })
+  it.each(['/validate :retry=0 criterion', '/validate criterion :retry=3'])(
+    'flags legacy retry ownership in %s',
+    command => {
+      expect(hasValidateRetry(command)).toBe(true)
+    },
+  )
 
-  describe(':retry can be combined with other params', () => {
-    it('extracts :retry= from command with :n= and criteria', () => {
-      expect(readValidateRetry('/validate :n=3 :retry=2 must mention competitors')).toBe(2)
-    })
-  })
-
-  describe('multiple :retry= params — first match wins', () => {
-    it('returns first :retry= value when multiple appear', () => {
-      expect(readValidateRetry('/validate :retry=2 :retry=7 criterion')).toBe(2)
-    })
+  it('does not classify a longer malformed token as legacy retry ownership', () => {
+    const command = '/validate criterion :retry=2abc'
+    expect(hasValidateRetry(command)).toBe(false)
+    expect(readValidateCriterion(command)).toBe('criterion :retry=2abc')
   })
 })
 

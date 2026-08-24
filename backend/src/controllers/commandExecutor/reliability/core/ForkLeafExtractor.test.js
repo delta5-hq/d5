@@ -55,6 +55,35 @@ describe('extractForkLeafOutputs', () => {
       ])
     })
 
+    it.each([
+      ['mcp-tool-error', undefined],
+      ['http-status-error', 503],
+      ['ssh-exit-error', 126],
+      ['runtime-error', undefined],
+    ])('preserves typed %s failure evidence without raw payload fields', (executionFailureType, code) => {
+      const store = makeStore({
+        parent: {id: 'parent', prompts: ['out1']},
+        out1: {
+          id: 'out1',
+          title: 'Error: safe detail',
+          executionStatus: 'error',
+          executionFailureType,
+          ...(code !== undefined ? {executionFailureCode: code} : {}),
+          rawProviderPayload: 'secret payload',
+        },
+      })
+
+      expect(extractForkLeafOutputs(store, 'parent')).toEqual([
+        {
+          nodeId: 'out1',
+          content: 'Error: safe detail',
+          executionStatus: 'error',
+          executionFailureType,
+          ...(code !== undefined ? {executionFailureCode: code} : {}),
+        },
+      ])
+    })
+
     it('does not include transport-signal fields — isError, httpStatus, exitCode are not part of LeafOutput', () => {
       const store = makeStore({
         parent: {id: 'parent', prompts: ['out1']},

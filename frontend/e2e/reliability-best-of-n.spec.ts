@@ -46,7 +46,7 @@ test.describe('Reliability execution contracts', () => {
   // ── Commodity fork count and suffix ────────────────────────────────────────
 
   COMMODITY_DETERMINISTIC_FULL_SUCCESS_CASES.forEach(({ n, task }) => {
-    test(`commodity :n=${n} — full-success suffix [✓ N/N] and child count equal N`, async ({ page }) => {
+    test(`commodity :n=${n} — full-success suffix [↻ N/N] and child count equal N`, async ({ page }) => {
       const { tree, rootId } = await executeCommodityCommand(page, `/chat :n=${n} ${task}`)
       await expectCommodityFullSuccess(page, tree, rootId, n)
     })
@@ -139,7 +139,7 @@ test.describe('Reliability execution contracts', () => {
     await awaitNodeTitle(page, validateId, VALIDATE_VERDICT_RE, LLM_TIMEOUT)
   })
 
-  test('validate — exhaustion suffix [✗ N×] written when MOCK_VALIDATE_FAIL criterion always rejects', async ({ page }) => {
+  test('validate — pure one-shot [✗] verdict written when MOCK_VALIDATE_FAIL criterion rejects', async ({ page }) => {
     const tree = new WorkflowTreePage(page)
     const { detail, rootId } = await selectRootAndOpenDetail(page)
     await detail.fillCommand('/chat :n=2 List 3 colors')
@@ -164,14 +164,16 @@ test.describe('Reliability execution contracts', () => {
 
   // ── UI state and persistence ───────────────────────────────────────────────
 
-  test('executing visual state — abort button appears during execution and disappears on completion', async ({ page }) => {
+  test('executing visual state — abort button appears during execution and disappears on completion', async ({
+    page,
+  }) => {
     const { tree, detail, rootId } = await selectRootAndOpenDetail(page)
     await detail.fillCommand('/chat List 3 colors')
     // A single /chat under the mock backend keeps the root in executingNodeIds for only a
-    // sub-second, optimistic-then-cleared window, which raced the transient abort button under
-    // Firefox + parallel-worker load. A failing /validate with retries re-runs the parent
-    // sequentially, holding the root "executing" for a reliably observable window.
-    await addChildCommand(page, tree, rootId, '/validate MOCK_VALIDATE_FAIL — never passes :retry=2')
+    // sub-second, optimistic-then-cleared window. A failing /refine owns real parent retries,
+    // holding the root "executing" for a reliably observable window.
+    const refineId = await addChildCommand(page, tree, rootId, '/refine :n=3')
+    await addChildCommand(page, tree, refineId, '/validate MOCK_VALIDATE_FAIL — never passes')
     await tree.selectNode(rootId)
     await detail.waitForComponent()
 
@@ -213,7 +215,7 @@ test.describe('Reliability execution contracts', () => {
     await detail.fillCommand('/chat Say OK')
     await expect(page.getByTestId('commodity-ceiling-hint')).not.toBeVisible()
 
-    await detail.fillCommand('/elect :n=2 Say OK')
+    await detail.fillCommand('/elect :n=2')
     await expect(page.getByTestId('commodity-ceiling-hint')).not.toBeVisible()
   })
 

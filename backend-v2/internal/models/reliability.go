@@ -1,12 +1,14 @@
 package models
 
-// ElectMode distinguishes best-of-N strict execution from lenient fallback execution and commodity parallel execution.
+// ElectMode distinguishes the persisted execution semantics of reliability modifiers.
 type ElectMode string
 
 const (
 	ElectModeStrict     ElectMode = "strict"
 	ElectModeBackFall   ElectMode = "fallback"
 	ElectModeCommodity  ElectMode = "commodity"
+	ElectModeValidate   ElectMode = "validate"
+	ElectModeRefine     ElectMode = "refine"
 	ElectModeInvalid    ElectMode = "invalid"
 	ElectModeSuppressed ElectMode = "suppressed"
 )
@@ -131,6 +133,7 @@ type ReliabilityMetadata struct {
 	Suppressed              bool                       `json:"suppressed,omitempty" bson:"suppressed,omitempty"`
 	Cause                   string                     `json:"cause,omitempty" bson:"cause,omitempty"`
 	RequestedN              int                        `json:"requestedN,omitempty" bson:"requestedN,omitempty"`
+	Attempts                int                        `json:"attempts,omitempty" bson:"attempts,omitempty"`
 	RetryWithheld           bool                       `json:"retryWithheld,omitempty" bson:"retryWithheld,omitempty"`
 	RequestedRetry          int                        `json:"requestedRetry,omitempty" bson:"requestedRetry,omitempty"`
 	JudgeInput              *JudgeInputMetadata        `json:"judgeInput,omitempty" bson:"judgeInput,omitempty"`

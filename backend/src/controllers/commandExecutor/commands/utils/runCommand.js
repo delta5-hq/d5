@@ -11,11 +11,13 @@ import {OUTLINE_QUERY, OUTLINE_QUERY_TYPE, readSummarizeParam} from '../../const
 import {PERPLEXITY_QUERY_TYPE} from '../../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../../constants/qwen'
 import {ELECT_QUERY} from '../../constants/elect'
+import {REFINE_QUERY} from '../../constants/refine'
 import {STEPS_QUERY_TYPE} from '../../constants/steps'
 import {SUMMARIZE_QUERY, SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
 import {VALIDATE_QUERY} from '../../constants/validate'
 import {ValidateCommand} from '../../reliability/core/ValidateCommand'
-import {readValidateRetry, hasValidCriterion} from '../../reliability/core/validateParams'
+import {hasValidateRetry, hasValidCriterion} from '../../reliability/core/validateParams'
+import {readRawRefineN, readRefineN, readRefineTrailingText} from '../../reliability/core/refineParams'
 import {CriteriaFailedError} from '../../reliability/core/CriteriaFailedError'
 import {resolveElectCell} from '../../reliability/core/resolveElectCell'
 import {createForkProgressEmitter} from '../../reliability/core/ForkProgressEmitter'
@@ -31,18 +33,20 @@ import ProgressReporter from '../../ProgressReporter'
 import {
   CommandFactory,
   buildInvalidReliabilityMetadata,
+  buildRefineReliabilityMetadata,
+  buildValidateReliabilityMetadata,
   buildSuppressedReliabilityMetadata,
-  buildValidateRetryWithheldReliabilityMetadata,
   COMMODITY_SUPPRESSION_CAUSE,
   FAILURE_CAUSE,
   REMEDIATION_HINT,
 } from '../../reliability'
 import {
   stripReliabilitySuffix,
+  appendRefineSuffix,
   appendValidateSuffix,
   appendInvalidSuffix,
 } from '../../reliability/core/reliabilitySuffix'
-import {getNodeCommand, isValidate, isOutlineSummarize} from './isCommand'
+import {getNodeCommand, isElect, isRefine, isValidate, isOutlineSummarize} from './isCommand'
 import {mergeCommodityForkOutputs} from '../../reliability/core/commodityForkMerge'
 import {resolveCommand} from './queryTypeResolver'
 import {ForeachCommand} from '../ForeachCommand'
@@ -114,10 +118,10 @@ function buildExecutionOptions(signal) {
   return signalOptions(signal) ?? {}
 }
 
-function buildValidateRetryContext(originalContext, criterion, reason) {
+function buildRefineAttemptContext(originalContext, criterion, reason) {
   const injected = reason
-    ? `[Validation retry] Ensure your response satisfies: "${criterion}". Previous attempt failed because: ${reason}. `
-    : `[Validation retry] Ensure your response satisfies: "${criterion}". `
+    ? `[Refinement attempt] Ensure your response satisfies: "${criterion}". Previous attempt failed because: ${reason}. `
+    : `[Refinement attempt] Ensure your response satisfies: "${criterion}". `
   return injected + (originalContext || '')
 }
 
@@ -129,18 +133,58 @@ function firstFailedValidate(results) {
   return results.find(result => !result?.passed)
 }
 
-function buildValidateAttempt(attempt, results, store, rootId) {
+function buildRefineAttempt(attempts, results, store, rootId) {
   return {
-    attempt,
+    attempts,
     results,
     passedCount: countPassingValidates(results),
     snapshot: captureStoreExecutionSnapshot(store, rootId),
   }
 }
 
-function isBetterValidateAttempt(candidate, best) {
+function isBetterRefineAttempt(candidate, best) {
   if (!best) return true
   return candidate.passedCount > best.passedCount
+}
+
+function writeInvalidModifier(node, store, message, failureCause = FAILURE_CAUSE.INVALID_CRITERIA) {
+  const current = store.getNode(node.id) ?? node
+  current.title = appendInvalidSuffix(current.title || '')
+  current.reliabilityMetadata = buildInvalidReliabilityMetadata({
+    failureCause,
+    remediationHint: REMEDIATION_HINT.ADJUST_CRITERIA,
+  })
+  store.importer.createErrorNode(message, current.id)
+  store.saveNodeToOutput(current.id)
+}
+
+async function evaluateValidateGroup(validates, store, signal) {
+  const invalid = validates.filter(
+    node => !hasValidCriterion(getNodeCommand(node)) || hasValidateRetry(getNodeCommand(node)),
+  )
+  if (invalid.length > 0) {
+    invalid.forEach(node => {
+      const command = getNodeCommand(node)
+      const message = hasValidateRetry(command)
+        ? 'Error: /validate :retry is unsupported — wrap the generating command with /refine :n=N'
+        : 'Error: /validate requires criterion text'
+      writeInvalidModifier(node, store, message)
+    })
+    throw new CriteriaFailedError('', 1)
+  }
+
+  const validateCommand = new ValidateCommand(store._userId, store._workflowId, store)
+  const results = await Promise.all(validates.map(node => validateCommand.run(node, {signal})))
+  validates.forEach((node, index) => {
+    const current = store.getNode(node.id) ?? node
+    const passed = results[index]?.passed ?? false
+    current.title = appendValidateSuffix(current.title || '', {
+      passed,
+    })
+    current.reliabilityMetadata = buildValidateReliabilityMetadata({passed})
+    store.saveNodeToOutput(current.id)
+  })
+  return results
 }
 
 /**
@@ -276,10 +320,11 @@ export const runCommand = async (
     mcpAlias,
     rpcAlias,
   })
-  const isForkReentry = preventCommodityForks || store.withinForkExecution
-  const requestedCommodityN = isForkReentry ? 1 : readCommodityN(getNodeCommand(cell))
+  const requestedCommodityN = readCommodityN(getNodeCommand(cell))
+  const suppressedForNestedReliability = !preventCommodityForks && store.withinForkExecution && requestedCommodityN > 1
   const suppressedForSideEffect = sideEffectingDispatch && requestedCommodityN > 1
-  const commodityN = suppressedForSideEffect ? 1 : requestedCommodityN
+  const commodityN =
+    preventCommodityForks || suppressedForNestedReliability || suppressedForSideEffect ? 1 : requestedCommodityN
 
   if (commodityN > 1) {
     await runCommodityForks({
@@ -327,11 +372,13 @@ export const runCommand = async (
     createUnknownCommandNode(store, cell)
   }
 
-  if (suppressedForSideEffect) {
+  if (suppressedForSideEffect || suppressedForNestedReliability) {
     const executedNode = store.getNode(cell.id)
     if (executedNode) {
       executedNode.reliabilityMetadata = buildSuppressedReliabilityMetadata({
-        cause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS,
+        cause: suppressedForSideEffect
+          ? COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS
+          : COMMODITY_SUPPRESSION_CAUSE.NESTED_RELIABILITY_FORK,
         requestedN: requestedCommodityN,
       })
       store.saveNodeToOutput(cell.id)
@@ -349,6 +396,7 @@ export const runCommand = async (
           if (command?.includes(MEMORIZE_QUERY)) return 3
           if (command?.includes(OUTLINE_QUERY) && readSummarizeParam(command)) return 4
           if (command?.includes(ELECT_QUERY)) return 4.5
+          if (command?.startsWith(REFINE_QUERY)) return 4.75
           if (command?.startsWith(VALIDATE_QUERY)) return 5
           return 6
         }
@@ -402,7 +450,7 @@ export const runCommand = async (
           flag = true
         } else if (query?.startsWith(OUTLINE_QUERY) && readSummarizeParam(query)) {
           await dispatchOutlineSummarize(childNode, store, signal)
-        } else if (query?.startsWith(ELECT_QUERY)) {
+        } else if (isElect(childNode)) {
           if (!memoMap?.has(childNode.id)) {
             if (!memoMap) memoMap = new Map()
             const electParent = store.getNode(childNode.parent)
@@ -430,6 +478,9 @@ export const runCommand = async (
                 rpcAlias: rcRpcAlias,
               } = resolveCommand(rcQuery, store._aliases)
               if (rcQueryType) {
+                // SubtreeForkRunner pre-executes side-effecting elect children once in the
+                // source store and records this sentinel. Every fork observes the cloned
+                // output; skipping here is the exactly-once half of that two-part mechanism.
                 if (memoMap?.get(electChildId) === MEMO_SENTINEL_PRE_EXECUTED_CHILD) {
                   ids.push(electChildId)
                   continue
@@ -451,112 +502,106 @@ export const runCommand = async (
             }
             await postProcessNode(childNode, ids)
           }
+        } else if (isRefine(childNode)) {
+          const query = getNodeCommand(childNode)
+          const maxAttempts = readRefineN(query)
+          const trailingText = readRefineTrailingText(query)
+          const refineValidates = (childNode.children ?? []).map(id => store.getNode(id)).filter(isValidate)
+
+          refineValidates.forEach(node => ids.push(node.id))
+
+          if (!maxAttempts || trailingText) {
+            const rawN = readRawRefineN(query)
+            writeInvalidModifier(
+              childNode,
+              store,
+              trailingText
+                ? `Error: /refine accepts only :n=N; unexpected text: "${trailingText}"`
+                : rawN === 0
+                ? 'Error: /refine :n=0 is a no-op — minimum is :n=1'
+                : 'Error: /refine requires :n=N (e.g. /refine :n=3)',
+            )
+            postProcessProgress.dispose()
+            continue
+          }
+
+          if (refineValidates.length === 0) {
+            writeInvalidModifier(childNode, store, 'Error: /refine requires at least one direct /validate child')
+            postProcessProgress.dispose()
+            continue
+          }
+
+          postProcessTracker = await postProcessProgress.add('RefineCommand.run')
+          let attempts = 1
+          let results = await evaluateValidateGroup(refineValidates, store, signal)
+          let bestAttempt = buildRefineAttempt(attempts, results, store, cell.id)
+          const attemptSnapshots = [bestAttempt.snapshot]
+          let firstFail = firstFailedValidate(results)
+          const retryWithheld = Boolean(firstFail && sideEffectingDispatch && maxAttempts > 1)
+
+          while (firstFail && attempts < maxAttempts && !sideEffectingDispatch) {
+            const retryContext = buildRefineAttemptContext(context, firstFail.criterion, firstFail.reason)
+            await executeCommandWithProgress(
+              queryType,
+              retryContext,
+              prompt,
+              cell,
+              store,
+              progress,
+              buildExecutionOptions(signal),
+            )
+            await postProcessNode(store.getNode(cell.id), [childNode.id, ...refineValidates.map(v => v.id)])
+            throwIfAborted(signal)
+            attempts++
+            results = await evaluateValidateGroup(refineValidates, store, signal)
+            const currentAttempt = buildRefineAttempt(attempts, results, store, cell.id)
+            attemptSnapshots.push(currentAttempt.snapshot)
+            if (isBetterRefineAttempt(currentAttempt, bestAttempt)) bestAttempt = currentAttempt
+            firstFail = firstFailedValidate(results)
+            if (!firstFail) bestAttempt = currentAttempt
+          }
+
+          restoreStoreExecutionSnapshot(store, bestAttempt.snapshot, {attemptSnapshots})
+          results = bestAttempt.results
+          const passed = !firstFailedValidate(results)
+          refineValidates.forEach((node, index) => {
+            const current = store.getNode(node.id) ?? node
+            const validatePassed = results[index]?.passed ?? false
+            current.title = appendValidateSuffix(current.title || '', {
+              passed: validatePassed,
+            })
+            current.reliabilityMetadata = buildValidateReliabilityMetadata({passed: validatePassed})
+            store.saveNodeToOutput(current.id)
+          })
+          const currentRefine = store.getNode(childNode.id) ?? childNode
+          currentRefine.title = appendRefineSuffix(currentRefine.title || '', {
+            passed,
+            attempts,
+          })
+          currentRefine.reliabilityMetadata = buildRefineReliabilityMetadata({
+            passed,
+            attempts,
+            requestedN: maxAttempts,
+            ...(retryWithheld
+              ? {
+                  suppressedCause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS,
+                }
+              : {}),
+          })
+          store.saveNodeToOutput(currentRefine.id)
+
+          if (!passed) {
+            const failed = firstFailedValidate(results)
+            throw new CriteriaFailedError(failed?.criterion ?? '', attempts)
+          }
         } else if (isValidate(childNode)) {
           const remainingValidates = sortedNodes.filter(n => isValidate(n) && !ids.includes(n.id))
           remainingValidates.forEach(v => ids.push(v.id))
           const allValidates = [childNode, ...remainingValidates]
-
-          const emptyCriterionNodes = allValidates.filter(v => !hasValidCriterion(getNodeCommand(v)))
-          if (emptyCriterionNodes.length > 0) {
-            emptyCriterionNodes.forEach(v => {
-              v.title = appendInvalidSuffix(v.title || '')
-              v.reliabilityMetadata = buildInvalidReliabilityMetadata({
-                failureCause: FAILURE_CAUSE.INVALID_CRITERIA,
-                remediationHint: REMEDIATION_HINT.ADJUST_CRITERIA,
-              })
-              store.saveNodeToOutput(v.id)
-            })
-            throw new CriteriaFailedError('', 0)
-          }
-
-          const maxRetry = Math.max(...allValidates.map(v => readValidateRetry(getNodeCommand(v))))
-          const validateCommand = new ValidateCommand(store._userId, store._workflowId, store)
           postProcessTracker = await postProcessProgress.add('ValidateCommand.run')
-
-          let attempt = 0
-          let passed = false
-          let lastFailCriterion = ''
-          let lastFailReason = ''
-          let lastResults = allValidates.map(() => ({
-            passed: false,
-            criterion: '',
-            reason: '',
-          }))
-          let bestAttempt = null
-          let retryWithheld = false
-
-          while (attempt <= maxRetry) {
-            if (attempt > 0 && sideEffectingDispatch) {
-              retryWithheld = true
-              break
-            }
-
-            if (attempt > 0) {
-              const retryContext = buildValidateRetryContext(context, lastFailCriterion, lastFailReason)
-              await executeCommandWithProgress(
-                queryType,
-                retryContext,
-                prompt,
-                cell,
-                store,
-                progress,
-                buildExecutionOptions(signal),
-              )
-              await postProcessNode(
-                store.getNode(cell.id),
-                allValidates.map(v => v.id),
-              )
-            }
-
-            throwIfAborted(signal)
-            lastResults = await Promise.all(allValidates.map(v => validateCommand.run(v, {signal})))
-            const currentAttempt = buildValidateAttempt(attempt, lastResults, store, cell.id)
-            if (isBetterValidateAttempt(currentAttempt, bestAttempt)) {
-              bestAttempt = currentAttempt
-            }
-
-            const firstFail = firstFailedValidate(lastResults)
-
-            if (!firstFail) {
-              passed = true
-              bestAttempt = currentAttempt
-              break
-            }
-            lastFailCriterion = firstFail.criterion
-            lastFailReason = firstFail.reason
-            attempt++
-          }
-
-          if (bestAttempt) {
-            restoreStoreExecutionSnapshot(store, bestAttempt.snapshot)
-            lastResults = bestAttempt.results
-          }
-
-          allValidates.forEach((v, i) => {
-            const validateNode = store.getNode(v.id) ?? v
-            const cellPassed = lastResults[i]?.passed ?? false
-            const retryWithheldForCell = retryWithheld && !cellPassed
-            const retryCount = cellPassed && !passed ? Math.max(0, attempt - 1) : attempt
-            validateNode.title = appendValidateSuffix(validateNode.title || '', {
-              passed: cellPassed,
-              retryCount,
-              retryWithheld: retryWithheldForCell,
-            })
-            if (retryWithheldForCell) {
-              validateNode.reliabilityMetadata = buildValidateRetryWithheldReliabilityMetadata({
-                cause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS,
-                requestedRetry: maxRetry,
-                passedCount: countPassingValidates(lastResults),
-                total: allValidates.length,
-              })
-            }
-            store.saveNodeToOutput(validateNode.id)
-          })
-
-          if (!passed) {
-            const bestFail = firstFailedValidate(lastResults)
-            throw new CriteriaFailedError(bestFail?.criterion ?? lastFailCriterion, attempt)
-          }
+          const results = await evaluateValidateGroup(allValidates, store, signal)
+          const failed = firstFailedValidate(results)
+          if (failed) throw new CriteriaFailedError(failed.criterion, 1)
         }
 
         if (postProcessTracker) postProcessProgress.remove(postProcessTracker)

@@ -1,4 +1,11 @@
-import {readRawElectN, readElectN, readFallbackFlag, readJudgeReasoningFlag, isValidElectCell} from './electParams'
+import {
+  readRawElectN,
+  readElectN,
+  readFallbackFlag,
+  readJudgeReasoningFlag,
+  readElectTrailingText,
+  isValidElectCell,
+} from './electParams'
 
 describe('readRawElectN', () => {
   describe('falsy input → null', () => {
@@ -18,6 +25,10 @@ describe('readRawElectN', () => {
 
     it('returns null for alphabetic content (:n=abc)', () => {
       expect(readRawElectN('/elect :n=abc')).toBeNull()
+    })
+
+    it('does not parse an elect lookalike command', () => {
+      expect(readRawElectN('/elective :n=3')).toBeNull()
     })
   })
 
@@ -69,9 +80,12 @@ describe('readElectN', () => {
   })
 
   describe('absent :n= parameter → null', () => {
-    it.each(['/elect', '/elect :fallback', '/chat', '/validate criteria'])('returns null for "%s"', command => {
-      expect(readElectN(command)).toBeNull()
-    })
+    it.each(['/elect', '/elect :fallback', '/elective :n=3', '/chat', '/validate criteria'])(
+      'returns null for "%s"',
+      command => {
+        expect(readElectN(command)).toBeNull()
+      },
+    )
   })
 
   describe('N below the minimum threshold of 2 → null', () => {
@@ -116,9 +130,26 @@ describe('readElectN', () => {
       expect(readElectN('/elect :n=abc')).toBeNull()
     })
 
-    it('truncates decimal at the integer part (:n=3.5 → 3)', () => {
-      expect(readElectN('/elect :n=3.5')).toBe(3)
+    it('rejects decimal content instead of silently truncating it', () => {
+      expect(readElectN('/elect :n=3.5')).toBeNull()
     })
+  })
+})
+
+describe('readElectTrailingText', () => {
+  it.each(['/elect :n=3', '/elect :n=3 :fallback', '/elect :limit=s :judge_reasoning :n=4', '/elect :n=3   '])(
+    'accepts the parameter-only grammar: %s',
+    command => {
+      expect(readElectTrailingText(command)).toBe('')
+    },
+  )
+
+  it.each([
+    ['/elect :n=3 must be concise', 'must be concise'],
+    ['/elect :n=3 :fallback must cite sources', 'must cite sources'],
+    ['/elect :n=3 :unknown', ':unknown'],
+  ])('returns inert trailing text from %s', (command, expected) => {
+    expect(readElectTrailingText(command)).toBe(expected)
   })
 })
 

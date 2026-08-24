@@ -3,6 +3,8 @@
  * @property {string} nodeId
  * @property {string} content - capped at LEAF_PREVIEW_MAX_CHARS
  * @property {string} [executionStatus]
+ * @property {string} [executionFailureType]
+ * @property {number|string} [executionFailureCode]
  */
 
 export const LEAF_PREVIEW_MAX_CHARS = 500
@@ -20,5 +22,7 @@ export function extractForkLeafOutputs(forkStore, parentNodeId) {
       nodeId: node.id,
       content: node.title.slice(0, LEAF_PREVIEW_MAX_CHARS),
       ...(node.executionStatus ? {executionStatus: node.executionStatus} : {}),
+      ...(node.executionFailureType ? {executionFailureType: node.executionFailureType} : {}),
+      ...(node.executionFailureCode !== undefined ? {executionFailureCode: node.executionFailureCode} : {}),
     }))
 }

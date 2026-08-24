@@ -59,6 +59,8 @@ export type NodeContent = {
   mcpFusionReport?: MCPFusionReportData
   reliabilityMetadata?: ReliabilityMetadata
   executionStatus?: 'error'
+  executionFailureType?: 'mcp-tool-error' | 'http-status-error' | 'ssh-exit-error' | 'runtime-error'
+  executionFailureCode?: number
   /** Container config for grouping children */
   container?: {
     type: string
@@ -111,7 +113,7 @@ export type DiscardedFork = {
 export type ReliabilityMetadata = {
   winnerForkIndex: number | null
   perCriterionVerdict: CriterionVerdict[]
-  mode: 'strict' | 'fallback' | 'commodity' | 'invalid' | 'suppressed'
+  mode: 'strict' | 'fallback' | 'commodity' | 'validate' | 'refine' | 'invalid' | 'suppressed'
   selectionLayer: 'primary' | 'fallback' | 'none'
   noSignal: boolean
   /** best-of-N was collapsed to a single execution (e.g. side-effecting MCP/RPC alias) */
@@ -120,6 +122,8 @@ export type ReliabilityMetadata = {
   cause?: string
   /** the N originally requested via commodity :n=N before suppression */
   requestedN?: number
+  /** number of parent-command executions actually performed by /refine */
+  attempts?: number
   /** /validate retry was withheld because the parent is a side-effecting command */
   retryWithheld?: boolean
   /** the :retry=R value the user requested that was withheld */

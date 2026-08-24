@@ -1,4 +1,4 @@
-import {getNodeCommand, isSteps, isForeach, isSummarize, isValidate} from './isCommand'
+import {getNodeCommand, isSteps, isForeach, isSummarize, isElect, isRefine, isValidate} from './isCommand'
 
 describe('getNodeCommand', () => {
   describe('field precedence', () => {
@@ -234,12 +234,28 @@ describe('isValidate', () => {
       [{title: '/foreach validate'}, 'different title'],
       [{command: 'validate without slash'}, 'missing slash'],
       [{title: 'text mentions /validate inside'}, 'not prefix'],
+      [{command: '/validateResult criterion'}, 'lookalike command'],
       [null, 'null node'],
       [undefined, 'undefined node'],
       [{}, 'empty object'],
     ])('returns false for: %s', node => {
       expect(isValidate(node)).toBe(false)
     })
+  })
+})
+
+describe('exact reliability modifier predicates', () => {
+  it.each(['/elect', '/elect :n=2'])('recognizes elect command %s', command => {
+    expect(isElect({command})).toBe(true)
+  })
+
+  it.each(['/refine', '/refine :n=3'])('recognizes refine command %s', command => {
+    expect(isRefine({command})).toBe(true)
+  })
+
+  it.each(['/elective :n=2', '/refinery :n=3'])('rejects modifier lookalike %s', command => {
+    expect(isElect({command})).toBe(false)
+    expect(isRefine({command})).toBe(false)
   })
 })
 

@@ -231,7 +231,10 @@ describe('runCommand - Post-process dispatch', () => {
 
       await runCommand({queryType: 'chat', cell: root, store, userId: 'userId'})
 
-      expect(createErrorSpy).toHaveBeenCalledWith(expect.stringContaining('/elect requires :n=N'), electNode.id)
+      expect(createErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('/elect does not accept criterion text'),
+        electNode.id,
+      )
       expect(electNode.title).toMatch(/\[✗ !\]/)
     })
 

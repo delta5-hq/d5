@@ -33,6 +33,11 @@ describe('checkIsPostProccess', () => {
       expect(checkIsPostProccess('/validate')).toBeTruthy()
       expect(checkIsPostProccess('/validate criteria here')).toBeTruthy()
     })
+
+    it('should identify /refine as requiring exclusion', () => {
+      expect(checkIsPostProccess('/refine')).toBeTruthy()
+      expect(checkIsPostProccess('/refine :n=3')).toBeTruthy()
+    })
   })
 
   describe('regular commands', () => {
@@ -81,6 +86,8 @@ describe('checkIsPostProccess', () => {
     it('should require exact prefix match', () => {
       expect(checkIsPostProccess('pre/validate')).toBeFalsy()
       expect(checkIsPostProccess(' /validate')).toBeFalsy()
+      expect(checkIsPostProccess('/elective :n=2')).toBeFalsy()
+      expect(checkIsPostProccess('/refinery :n=3')).toBeFalsy()
     })
   })
 })

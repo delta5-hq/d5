@@ -17,26 +17,36 @@ type SuffixGrammarShapes = { engineSuffixShapes: string[] }
 
 const BACKEND_SHAPES: SuffixGrammarShapes = JSON.parse(
   fs.readFileSync(
-    path.resolve(__dirname, '../../../backend/src/controllers/commandExecutor/reliability/core/suffixGrammarShapes.json'),
+    path.resolve(
+      __dirname,
+      '../../../backend/src/controllers/commandExecutor/reliability/core/suffixGrammarShapes.json',
+    ),
     'utf8',
   ),
 )
 
 // Adding a new engine shape to the backend requires a matching case below.
 const ENGINE_OUTPUT_WITH_COMPLETION_SYMBOL: [string, string][] = [
-  ['commodity/elect all K of N succeeded',              'Task [✓ 2/3]'],
-  ['commodity/elect partial with degraded judge input',  'Task [✓ 2/3 ⚠]'],
-  ['validate passed after N retries',                    'Task [✓ +2]'],
-  ['validate passed on first attempt',                   'Task [✓]'],
-  ['commodity/elect zero of N eligible',                'Task [✗ 0/3]'],
-  ['validate all retries exhausted',                     'Task [✗ 3×]'],
-  ['validate retry withheld on side-effecting command',  'Task [✗ ⊘]'],
-  ['validate invalid criterion',                         'Task [✗ !]'],
+  ['elect partial with degraded judge input', 'Task [✓ 2/3 ⚠]'],
+  ['elect selected K of N', 'Task [✓ 2/3]'],
+  ['historical validate retry pass', 'Task [✓ +2]'],
+  ['refine passed after N attempts', 'Task [✓ 2×]'],
+  ['validate passed', 'Task [✓]'],
+  ['elect zero of N eligible', 'Task [✗ 0/3]'],
+  ['refine exhausted N attempts', 'Task [✗ 3×]'],
+  ['historical validate retry withheld', 'Task [✗ ⊘]'],
+  ['invalid reliability modifier', 'Task [✗ !]'],
+  ['validate failed', 'Task [✗]'],
+]
+
+const ENGINE_OUTPUT_COMMODITY: [string, string][] = [
+  ['commodity partial or all failed', 'Task [↻ 1/3 ⚠]'],
+  ['commodity all succeeded', 'Task [↻ 3/3]'],
 ]
 
 const ENGINE_OUTPUT_WARNING_ONLY: [string, string][] = [
-  ['elect no judge signal in strict mode',  'Task [⚠ ∅]'],
-  ['elect fallback winner committed',        'Task [⚠ 0/3]'],
+  ['elect no judge signal in strict mode', 'Task [⚠ ∅]'],
+  ['elect fallback winner committed', 'Task [⚠ 0/3]'],
 ]
 
 // ─── Parity with canonical backend grammar ────────────────────────────────────
@@ -52,6 +62,11 @@ test.describe('canonical engine shape count parity', () => {
   test('ENGINE_OUTPUT_WARNING_ONLY covers every ⚠ engine shape', () => {
     const warningShapeCount = BACKEND_SHAPES.engineSuffixShapes.filter(s => s.startsWith('⚠')).length
     expect(ENGINE_OUTPUT_WARNING_ONLY).toHaveLength(warningShapeCount)
+  })
+
+  test('ENGINE_OUTPUT_COMMODITY covers every ↻ engine shape', () => {
+    const commodityShapeCount = BACKEND_SHAPES.engineSuffixShapes.filter(s => s.startsWith('↻')).length
+    expect(ENGINE_OUTPUT_COMMODITY).toHaveLength(commodityShapeCount)
   })
 })
 
@@ -70,6 +85,12 @@ test.describe('COMPLETION_SUFFIX_RE — broad execution-gate detector', () => {
     })
   }
 
+  for (const [label, title] of ENGINE_OUTPUT_COMMODITY) {
+    test(`does not mistake non-verdict commodity telemetry for completion: ${label}`, () => {
+      expect(title).not.toMatch(COMPLETION_SUFFIX_RE)
+    })
+  }
+
   test('does not match a plain user bracket with no completion symbol', () => {
     expect('Task [review pending]').not.toMatch(COMPLETION_SUFFIX_RE)
   })
@@ -79,40 +100,39 @@ test.describe('COMPLETION_SUFFIX_RE — broad execution-gate detector', () => {
 
 test.describe('COMMODITY_FULL_SUCCESS_SUFFIX_RE — exact K=N all-succeeded form', () => {
   for (const n of [1, 2, 3, 5]) {
-    test(`matches [✓ ${n}/${n}] for n=${n}`, () => {
-      expect(`Task [✓ ${n}/${n}]`).toMatch(COMMODITY_FULL_SUCCESS_SUFFIX_RE(n))
+    test(`matches [↻ ${n}/${n}] for n=${n}`, () => {
+      expect(`Task [↻ ${n}/${n}]`).toMatch(COMMODITY_FULL_SUCCESS_SUFFIX_RE(n))
     })
   }
 
-  test('does not match partial success [✓ 1/2] for n=2', () => {
-    expect('Task [✓ 1/2]').not.toMatch(COMMODITY_FULL_SUCCESS_SUFFIX_RE(2))
+  test('does not match partial success [↻ 1/2] for n=2', () => {
+    expect('Task [↻ 1/2]').not.toMatch(COMMODITY_FULL_SUCCESS_SUFFIX_RE(2))
   })
 
-  test('does not match mismatched total [✓ 3/3] for n=2', () => {
-    expect('Task [✓ 3/3]').not.toMatch(COMMODITY_FULL_SUCCESS_SUFFIX_RE(2))
+  test('does not match mismatched total [↻ 3/3] for n=2', () => {
+    expect('Task [↻ 3/3]').not.toMatch(COMMODITY_FULL_SUCCESS_SUFFIX_RE(2))
   })
 
-  test('does not match degraded form [✓ 2/2 ⚠] — warning state is not clean full success', () => {
-    expect('Task [✓ 2/2 ⚠]').not.toMatch(COMMODITY_FULL_SUCCESS_SUFFIX_RE(2))
+  test('does not match degraded form [↻ 2/2 ⚠] — warning state is not clean full success', () => {
+    expect('Task [↻ 2/2 ⚠]').not.toMatch(COMMODITY_FULL_SUCCESS_SUFFIX_RE(2))
   })
 })
 
 // ─── COMMODITY_OUTCOME_SUFFIX_RE ──────────────────────────────────────────────
 
-test.describe('COMMODITY_OUTCOME_SUFFIX_RE — fraction reporting for commodity/elect nodes', () => {
+test.describe('COMMODITY_OUTCOME_SUFFIX_RE — non-verdict commodity fraction reporting', () => {
   const matchCases: [string, string][] = [
-    ['all succeeded',           'Task [✓ 3/3]'],
-    ['partial success',         'Task [✓ 1/3]'],
-    ['all failed',              'Task [✗ 0/3]'],
-    ['partial with warning',    'Task [✓ 2/3 ⚠]'],
+    ['all succeeded', 'Task [↻ 3/3]'],
+    ['partial success', 'Task [↻ 1/3 ⚠]'],
+    ['all failed', 'Task [↻ 0/3 ⚠]'],
   ]
 
   const rejectCases: [string, string][] = [
-    ['validate pass (no fraction)',       'Task [✓]'],
-    ['validate retry pass (no fraction)', 'Task [✓ +2]'],
-    ['validate all retries exhausted',    'Task [✗ 3×]'],
-    ['validate invalid criterion',        'Task [✗ !]'],
-    ['elect fallback (⚠ symbol)',         'Task [⚠ 0/3]'],
+    ['validate pass (no fraction)', 'Task [✓]'],
+    ['historical validate retry pass (no fraction)', 'Task [✓ +2]'],
+    ['refine exhaustion', 'Task [✗ 3×]'],
+    ['validate invalid criterion', 'Task [✗ !]'],
+    ['elect fallback (⚠ symbol)', 'Task [⚠ 0/3]'],
   ]
 
   for (const [label, title] of matchCases) {
@@ -127,27 +147,18 @@ test.describe('COMMODITY_OUTCOME_SUFFIX_RE — fraction reporting for commodity/
     })
   }
 
-  test('extracts successCount and total as capture groups from [✓ 2/3]', () => {
-    const match = 'Task [✓ 2/3]'.match(COMMODITY_OUTCOME_SUFFIX_RE)
+  test('extracts successCount and total as capture groups from [↻ 2/3 ⚠]', () => {
+    const match = 'Task [↻ 2/3 ⚠]'.match(COMMODITY_OUTCOME_SUFFIX_RE)
     expect(match).not.toBeNull()
-    expect(match![2]).toBe('2')
-    expect(match![3]).toBe('3')
+    expect(match![1]).toBe('2')
+    expect(match![2]).toBe('3')
   })
 
-  test('extracts zero successCount from [✗ 0/5] and status symbol ✗', () => {
-    const match = 'Task [✗ 0/5]'.match(COMMODITY_OUTCOME_SUFFIX_RE)
+  test('extracts zero successCount from [↻ 0/5 ⚠]', () => {
+    const match = 'Task [↻ 0/5 ⚠]'.match(COMMODITY_OUTCOME_SUFFIX_RE)
     expect(match).not.toBeNull()
-    expect(match![1]).toBe('✗')
-    expect(match![2]).toBe('0')
-    expect(match![3]).toBe('5')
-  })
-
-  test('extracts groups from degraded form [✓ 2/3 ⚠] — warning flag does not disturb fraction capture', () => {
-    const match = 'Task [✓ 2/3 ⚠]'.match(COMMODITY_OUTCOME_SUFFIX_RE)
-    expect(match).not.toBeNull()
-    expect(match![1]).toBe('✓')
-    expect(match![2]).toBe('2')
-    expect(match![3]).toBe('3')
+    expect(match![1]).toBe('0')
+    expect(match![2]).toBe('5')
   })
 })
 
@@ -155,17 +166,17 @@ test.describe('COMMODITY_OUTCOME_SUFFIX_RE — fraction reporting for commodity/
 
 test.describe('VALIDATE_VERDICT_RE — any validate outcome (pass or fail)', () => {
   const matchCases: [string, string][] = [
-    ['pass on first attempt',  'Task [✓]'],
-    ['pass after retries',     'Task [✓ +3]'],
-    ['all retries exhausted',  'Task [✗ 3×]'],
+    ['pass', 'Task [✓]'],
+    ['fail', 'Task [✗]'],
   ]
 
   const rejectCases: [string, string][] = [
-    ['commodity fraction',     'Task [✓ 2/3]'],
-    ['commodity zero',         'Task [✗ 0/3]'],
-    ['invalid criterion',      'Task [✗ !]'],
-    ['elect fallback',        'Task [⚠ 0/3]'],
-    ['no judge signal',        'Task [⚠ ∅]'],
+    ['commodity fraction', 'Task [↻ 2/3]'],
+    ['refine pass', 'Task [✓ 2×]'],
+    ['refine fail', 'Task [✗ 3×]'],
+    ['invalid criterion', 'Task [✗ !]'],
+    ['elect fallback', 'Task [⚠ 0/3]'],
+    ['no judge signal', 'Task [⚠ ∅]'],
   ]
 
   for (const [label, title] of matchCases) {
@@ -183,25 +194,21 @@ test.describe('VALIDATE_VERDICT_RE — any validate outcome (pass or fail)', () 
 
 // ─── VALIDATE_FAIL_RE ─────────────────────────────────────────────────────────
 
-test.describe('VALIDATE_FAIL_RE — validate failure only (all retries exhausted)', () => {
-  test('matches all-retries-exhausted form [✗ 3×]', () => {
-    expect('Task [✗ 3×]').toMatch(VALIDATE_FAIL_RE)
-  })
-
-  test('matches single-retry-exhausted form [✗ 1×]', () => {
-    expect('Task [✗ 1×]').toMatch(VALIDATE_FAIL_RE)
+test.describe('VALIDATE_FAIL_RE — pure validate failure only', () => {
+  test('matches pure predicate failure [✗]', () => {
+    expect('Task [✗]').toMatch(VALIDATE_FAIL_RE)
   })
 
   test('does not match validate pass on first attempt [✓]', () => {
     expect('Task [✓]').not.toMatch(VALIDATE_FAIL_RE)
   })
 
-  test('does not match validate retry pass [✓ +2]', () => {
-    expect('Task [✓ +2]').not.toMatch(VALIDATE_FAIL_RE)
+  test('does not match refine failure [✗ 2×]', () => {
+    expect('Task [✗ 2×]').not.toMatch(VALIDATE_FAIL_RE)
   })
 
-  test('does not match commodity failure [✗ 0/3]', () => {
-    expect('Task [✗ 0/3]').not.toMatch(VALIDATE_FAIL_RE)
+  test('does not match commodity failure telemetry [↻ 0/3 ⚠]', () => {
+    expect('Task [↻ 0/3 ⚠]').not.toMatch(VALIDATE_FAIL_RE)
   })
 
   test('does not match invalid criterion [✗ !]', () => {
@@ -228,15 +235,15 @@ test.describe('ELECT_FALLBACK_SUFFIX_RE — elect committed a fallback winner wh
     expect('Task [⚠ 1/3]').not.toMatch(ELECT_FALLBACK_SUFFIX_RE)
   })
 
-  test('does not match commodity success [✓ 2/3]', () => {
-    expect('Task [✓ 2/3]').not.toMatch(ELECT_FALLBACK_SUFFIX_RE)
+  test('does not match commodity success telemetry [↻ 2/3]', () => {
+    expect('Task [↻ 2/3]').not.toMatch(ELECT_FALLBACK_SUFFIX_RE)
   })
 })
 
 // ─── VALIDATE_FAIL_RE is a strict subset of VALIDATE_VERDICT_RE ──────────────
 
 test.describe('VALIDATE_FAIL_RE is a strict subset of VALIDATE_VERDICT_RE', () => {
-  const FAIL_CASES = ['Task [✗ 1×]', 'Task [✗ 3×]']
+  const FAIL_CASES = ['Task [✗]']
 
   for (const title of FAIL_CASES) {
     test(`"${title}" matches VALIDATE_FAIL_RE and therefore also VALIDATE_VERDICT_RE`, () => {
@@ -259,11 +266,11 @@ test.describe('invalid criterion [✗ !] — matched by COMPLETION_SUFFIX_RE onl
     expect(INVALID_CRITERION).not.toMatch(COMMODITY_OUTCOME_SUFFIX_RE)
   })
 
-  test('does not match VALIDATE_VERDICT_RE — not a retried-pass or retry-exhausted outcome', () => {
+  test('does not match VALIDATE_VERDICT_RE — not a pure predicate outcome', () => {
     expect(INVALID_CRITERION).not.toMatch(VALIDATE_VERDICT_RE)
   })
 
-  test('does not match VALIDATE_FAIL_RE — retry count N× form is absent', () => {
+  test('does not match VALIDATE_FAIL_RE — pure failure token is absent', () => {
     expect(INVALID_CRITERION).not.toMatch(VALIDATE_FAIL_RE)
   })
 })

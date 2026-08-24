@@ -86,28 +86,28 @@ describe('mergeCommodityForkOutputs', () => {
       name: 'all forks succeed',
       forks: [[successPrompt('a')], [successPrompt('b')], [successPrompt('c')]],
       result: {successCount: 3, total: 3},
-      suffix: /\[✓ 3\/3\]$/,
+      suffix: /\[↻ 3\/3\]$/,
       copiedTitles: ['Successful answer a', 'Successful answer b', 'Successful answer c'],
     },
     {
       name: 'mixed successful, machine-error, refusal, and empty forks',
       forks: [[successPrompt('a')], [taggedErrorPrompt('b')], [refusalPrompt('c')], [emptyPrompt('d')]],
       result: {successCount: 1, total: 4},
-      suffix: /\[✓ 1\/4 ⚠\]$/,
+      suffix: /\[↻ 1\/4 ⚠\]$/,
       copiedTitles: ['Successful answer a'],
     },
     {
       name: 'all forks fail structurally or by execution status',
       forks: [[], [taggedErrorPrompt('b')], [refusalPrompt('c')], [emptyPrompt('d')]],
       result: {successCount: 0, total: 4},
-      suffix: /\[✗ 0\/4\]$/,
+      suffix: /\[↻ 0\/4 ⚠\]$/,
       copiedTitles: [],
     },
     {
       name: 'fork success count is per fork, while successful prompt children are all copied',
       forks: [[successPrompt('a'), successPrompt('b')], [successPrompt('c')]],
       result: {successCount: 2, total: 2},
-      suffix: /\[✓ 2\/2\]$/,
+      suffix: /\[↻ 2\/2\]$/,
       copiedTitles: ['Successful answer a', 'Successful answer b', 'Successful answer c'],
     },
   ])('$name', ({forks, result, suffix, copiedTitles}) => {
@@ -138,7 +138,7 @@ describe('mergeCommodityForkOutputs', () => {
       name: 'new successes replace previous prompt subtrees and become current prompt ownership',
       forkGroups: [[successPrompt('new-generated')]],
       result: {successCount: 1, total: 1},
-      suffix: /\[✓ 1\/1\]$/,
+      suffix: /\[↻ 1\/1\]$/,
       children: ['/validate Must remain', 'Successful answer new-generated'],
       prompts: ['Successful answer new-generated'],
     },
@@ -146,7 +146,7 @@ describe('mergeCommodityForkOutputs', () => {
       name: 'all failed forks clear previous prompt subtrees without copying failed outputs',
       forkGroups: [[taggedErrorPrompt('err')], [refusalPrompt('refusal')]],
       result: {successCount: 0, total: 2},
-      suffix: /\[✗ 0\/2\]$/,
+      suffix: /\[↻ 0\/2 ⚠\]$/,
       children: ['/validate Must remain'],
       prompts: [],
     },
@@ -262,7 +262,7 @@ describe('mergeCommodityForkOutputs', () => {
 
     expect(firstResult).toEqual({successCount: 2, total: 2})
     expect(secondResult).toEqual({successCount: 1, total: 2})
-    expect(store.getNode(ROOT_ID).title).toMatch(/^\[✓ 1\/2 ⚠\]$/)
+    expect(store.getNode(ROOT_ID).title).toMatch(/^\[↻ 1\/2 ⚠\]$/)
     expect(childTitles(store)).toEqual(['Successful answer second-a'])
     expect(promptTitles(store)).toEqual(['Successful answer second-a'])
     expect(nodeTitles(store)).not.toEqual(

@@ -25,7 +25,11 @@ import { FormattedMessage, useIntl } from 'react-intl'
 import { getDescendantIds, normalizeNodeTitle, hasUsableRoot } from '@entities/workflow/lib'
 import { useClickOutside } from '@shared/lib/hooks'
 import { isSlashCommand } from '@shared/lib/commands/command-validator'
-import { matchesAnyCommandWithOrder } from '@shared/lib/command-validation'
+import {
+  isReliabilitySyntaxErrorReason,
+  matchesAnyCommandWithOrder,
+  validateCommandForExecution,
+} from '@shared/lib/command-validation'
 import { deriveNodeTitle } from '@shared/lib/reliability-suffix'
 import { isValidElectCell } from '@shared/lib/reliability/elect-params'
 import { projectForkCost } from '@shared/lib/reliability/fork-cost-projector'
@@ -283,6 +287,8 @@ const WorkflowContent = () => {
       const node = nodes[nodeId]
       if (!node) return
       if (!matchesAnyCommandWithOrder(committedCommand, aliases)) return
+      const validation = validateCommandForExecution(committedCommand, false, aliases)
+      if (isReliabilitySyntaxErrorReason(validation.reason)) return
       const queryType = extractQueryTypeFromCommand(committedCommand, aliases)
       void actions.executeCommand(
         { ...node, command: committedCommand, title: deriveNodeTitle(node, committedCommand) },
@@ -296,7 +302,9 @@ const WorkflowContent = () => {
     (nodeId: string, committedCommand: string) => {
       const node = nodes[nodeId]
       if (!node) return
-      const isExecutable = matchesAnyCommandWithOrder(committedCommand, aliases)
+      const validation = validateCommandForExecution(committedCommand, false, aliases)
+      const isExecutable =
+        matchesAnyCommandWithOrder(committedCommand, aliases) && !isReliabilitySyntaxErrorReason(validation.reason)
       if (isExecutable) {
         const queryType = extractQueryTypeFromCommand(committedCommand, aliases)
         void actions.executeCommand(

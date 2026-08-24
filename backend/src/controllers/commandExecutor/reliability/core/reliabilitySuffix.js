@@ -14,16 +14,13 @@ export const stripReliabilitySuffix = title => {
   return title.replace(HISTORICAL_SUFFIX_RE, '').replace(ENGINE_SUFFIX_RE, '')
 }
 
-export const appendValidateSuffix = (title, {passed, retryCount, retryWithheld = false}) => {
+export const appendValidateSuffix = (title, {passed}) => {
   const base = stripReliabilitySuffix(title)
-  let suffix
-  if (retryWithheld && !passed) {
-    suffix = '[✗ ⊘]'
-  } else {
-    suffix = passed ? (retryCount > 0 ? `[✓ +${retryCount}]` : '[✓]') : `[✗ ${retryCount}×]`
-  }
-  return clamp(base, suffix)
+  return clamp(base, passed ? '[✓]' : '[✗]')
 }
+
+export const appendRefineSuffix = (title, {passed, attempts}) =>
+  clamp(stripReliabilitySuffix(title), passed ? `[✓ ${attempts}×]` : `[✗ ${attempts}×]`)
 
 export const appendInvalidSuffix = title => clamp(stripReliabilitySuffix(title), '[✗ !]')
 
@@ -31,7 +28,11 @@ export const appendCommoditySuffix = (title, {successCount, total}) => {
   const base = stripReliabilitySuffix(title)
   const partial = successCount > 0 && successCount < total
   const suffix =
-    successCount === 0 ? `[✗ 0/${total}]` : partial ? `[✓ ${successCount}/${total} ⚠]` : `[✓ ${successCount}/${total}]`
+    successCount === 0
+      ? `[↻ 0/${total} ⚠]`
+      : partial
+      ? `[↻ ${successCount}/${total} ⚠]`
+      : `[↻ ${successCount}/${total}]`
   return clamp(base, suffix)
 }
 

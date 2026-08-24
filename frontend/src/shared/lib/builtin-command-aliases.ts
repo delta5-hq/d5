@@ -37,7 +37,12 @@ export const BUILTIN_COMMANDS = [
   {
     alias: '/validate',
     queryType: 'validate',
-    description: 'Validate parent node content against a criterion',
+    description: 'Validate parent node content once against a criterion',
+  },
+  {
+    alias: '/refine',
+    queryType: 'refine',
+    description: 'Retry a parent command until its direct validation criteria pass',
   },
   {
     alias: '/foreach',

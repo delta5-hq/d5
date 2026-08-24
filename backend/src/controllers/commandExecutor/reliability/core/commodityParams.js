@@ -1,11 +1,13 @@
 import {ELECT_QUERY} from '../../constants/elect'
 import {VALIDATE_QUERY} from '../../constants/validate'
+import {REFINE_QUERY} from '../../constants/refine'
 import {FOREACH_QUERY} from '../../constants/foreach'
 import {STEPS_QUERY} from '../../constants/steps'
 import {SWITCH_QUERY, CASE_QUERY} from '../../constants/switch'
 import {SUMMARIZE_QUERY} from '../../constants/summarize'
 import {MEMORIZE_QUERY} from '../../constants/memorize'
 import {OUTLINE_QUERY} from '../../constants/outline'
+import {matchesCommand} from '../../constants/matchesCommand'
 
 const COMMODITY_N_RE = /:n=(\d+)/
 
@@ -16,6 +18,7 @@ export const COMMODITY_N_MAX = 10
 const NON_COMMODITY_PREFIXES = [
   ELECT_QUERY,
   VALIDATE_QUERY,
+  REFINE_QUERY,
   FOREACH_QUERY,
   STEPS_QUERY,
   SWITCH_QUERY,
@@ -26,7 +29,7 @@ const NON_COMMODITY_PREFIXES = [
 ]
 
 const isNonCommodityCell = command =>
-  typeof command === 'string' && NON_COMMODITY_PREFIXES.some(p => command.startsWith(p))
+  typeof command === 'string' && NON_COMMODITY_PREFIXES.some(prefix => matchesCommand(command, prefix))
 
 export const readCommodityN = command => {
   if (!command || isNonCommodityCell(command)) return 1

@@ -1,6 +1,7 @@
 import {
   ELECT_QUERY,
   VALIDATE_QUERY,
+  REFINE_QUERY,
   FOREACH_QUERY,
   STEPS_QUERY,
   SWITCH_QUERY,
@@ -17,6 +18,7 @@ export const COMMODITY_N_MAX = 10
 const NON_COMMODITY_PREFIXES = [
   ELECT_QUERY,
   VALIDATE_QUERY,
+  REFINE_QUERY,
   FOREACH_QUERY,
   STEPS_QUERY,
   SWITCH_QUERY,
@@ -26,8 +28,11 @@ const NON_COMMODITY_PREFIXES = [
   OUTLINE_QUERY,
 ] as const
 
+const matchesCommand = (command: string, keyword: string): boolean =>
+  command === keyword || (command.startsWith(keyword) && /\s/.test(command.charAt(keyword.length)))
+
 const isNonCommodityCell = (command: string): boolean =>
-  NON_COMMODITY_PREFIXES.some(prefix => command.startsWith(prefix))
+  NON_COMMODITY_PREFIXES.some(prefix => matchesCommand(command, prefix))
 
 export const readCommodityN = (command: string | undefined): number => {
   if (!command || isNonCommodityCell(command)) return 1

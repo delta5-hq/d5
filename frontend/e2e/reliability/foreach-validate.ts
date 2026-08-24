@@ -15,7 +15,7 @@ export async function assertForeachValidateContractFor(page: Page, foreachComman
   const betaId = await addChildCommand(page, tree, batchId, 'Beta')
   const gammaId = await addChildCommand(page, tree, batchId, 'Gamma')
   const foreachId = await addChildCommand(page, tree, batchId, foreachCommand)
-  await addChildCommand(page, tree, foreachId, `/validate :retry=0 ${contentKeyedSentinel} — Beta fails only`)
+  await addChildCommand(page, tree, foreachId, `/validate ${contentKeyedSentinel} — Beta fails only`)
 
   await tree.selectNode(foreachId)
   const foreachDetail = new NodeDetailPanelPage(page)
@@ -23,11 +23,7 @@ export async function assertForeachValidateContractFor(page: Page, foreachComman
   await executeAndWaitForCompletion(page, foreachDetail)
 
   const snapshot = await loadWorkflowSnapshot(page)
-  const validateVerdicts = validateTitlesOwnedByIterations(
-    snapshot,
-    contentKeyedSentinel,
-    [alphaId, betaId, gammaId],
-  )
+  const validateVerdicts = validateTitlesOwnedByIterations(snapshot, contentKeyedSentinel, [alphaId, betaId, gammaId])
 
   expect(validateVerdicts).toHaveLength(3)
   expect(validateVerdicts.filter(title => /\[✓\]/.test(title))).toHaveLength(2)

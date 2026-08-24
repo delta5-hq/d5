@@ -94,7 +94,6 @@ describe('stripReliabilitySuffix', () => {
           'Task [✗ 1/3]',
           'Task [✗ 1/3]',
         ],
-        ['bare ✗ with no content after symbol', 'Task [✗]', 'Task [✗]'],
         ['⚠ non-zero fallback eligible count', 'Task [⚠ 1/3]', 'Task [⚠ 1/3]'],
       ] as const satisfies ReadonlyArray<[string, string, string]>)('%s', (_label, titleWithBrackets, expected) => {
         expect(stripReliabilitySuffix(titleWithBrackets)).toBe(expected)

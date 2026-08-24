@@ -56,7 +56,10 @@ describe('CriterionVerdictDrawer — mode label', () => {
     ['strict', 'strict'],
     ['fallback', 'fallback'],
     ['commodity', 'commodity'],
+    ['validate', 'validate'],
+    ['refine', 'refine'],
     ['invalid', 'invalid'],
+    ['suppressed', 'suppressed'],
   ] as Array<[ReliabilityMetadata['mode'], string]>)('renders "%s" mode in the header', (mode, expectedText) => {
     renderDrawer(makeMetadata({ mode }))
     expect(drawerContent()).toContain(expectedText)
@@ -79,6 +82,27 @@ describe('CriterionVerdictDrawer — eligible / total label', () => {
   it('renders "forks succeeded" wording in commodity mode', () => {
     renderDrawer(makeMetadata({ mode: 'commodity', eligible: 2, total: 4 }))
     expect(drawerContent()).toMatch(/2 of 4 forks succeeded/)
+  })
+
+  it.each([
+    [1, 'Criterion passed'],
+    [0, 'Criterion failed'],
+  ])('renders the pure validate verdict without elect wording (eligible=%i)', (eligible, expected) => {
+    renderDrawer(makeMetadata({ mode: 'validate', eligible, total: 1, winnerForkIndex: null }))
+    expect(drawerContent()).toContain(expected)
+    expect(drawerContent()).not.toMatch(/forks passed|No winner selected/)
+  })
+
+  it.each([
+    [1, 'Criterion passed after 2 of 3 attempts'],
+    [0, 'Criterion failed after 3 of 3 attempts'],
+  ])('renders the refine attempt outcome without elect wording (eligible=%i)', (eligible, expected) => {
+    const attempts = eligible === 1 ? 2 : 3
+    renderDrawer(
+      makeMetadata({ mode: 'refine', eligible, total: attempts, attempts, requestedN: 3, winnerForkIndex: null }),
+    )
+    expect(drawerContent()).toContain(expected)
+    expect(drawerContent()).not.toMatch(/forks passed|No winner selected/)
   })
 
   it('suppresses the eligible / total label entirely in invalid mode', () => {
@@ -111,6 +135,14 @@ describe('CriterionVerdictDrawer — no-winner label', () => {
     renderDrawer(makeMetadata({ mode: 'invalid', winnerForkIndex: null }))
     expect(screen.queryByText(/No winner selected/i)).not.toBeInTheDocument()
   })
+
+  it.each(['validate', 'refine', 'suppressed'] as ReliabilityMetadata['mode'][])(
+    'suppresses elect-only no-winner label in %s mode',
+    mode => {
+      renderDrawer(makeMetadata({ mode, winnerForkIndex: null }))
+      expect(screen.queryByText(/No winner selected/i)).not.toBeInTheDocument()
+    },
+  )
 
   it('suppresses no-winner label when a winner is present', () => {
     renderDrawer(makeMetadata({ mode: 'strict', winnerForkIndex: 0 }))

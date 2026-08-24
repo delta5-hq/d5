@@ -82,8 +82,29 @@ function renderPanel(
         <NodeDetailPanel {...makeProps(nextNode, nextIsPrompt)} />
       </IntlProvider>,
     )
-  return { ...result, rerenderPanel }
+  return { ...result, rerenderPanel, props }
 }
+
+describe('NodeDetailPanel — reliability command grammar', () => {
+  it.each([
+    ['/elect :n=3 must cite sources', /Move the criterion to a sibling \/validate cell/i],
+    ['/validate :retry=2 criterion', /Wrap the generating command with \/refine/i],
+    ['/refine :n=3 unexpected', /Use \/refine :n=N without trailing text/i],
+  ])('blocks button execution and shows a localized reason for %s', (command, expectedMessage) => {
+    const { props } = renderPanel(makeNode({ command }), false)
+
+    expect(screen.getByTestId('execute-node-button')).toBeDisabled()
+    expect(screen.getByTestId('command-validation-error')).toHaveTextContent(expectedMessage)
+    fireEvent.click(screen.getByTestId('execute-node-button'))
+    expect(props.onExecute).not.toHaveBeenCalled()
+  })
+
+  it('keeps a neighboring slash alias executable and shows no reserved-command error', () => {
+    renderPanel(makeNode({ command: '/refinement :n=3' }), false)
+    expect(screen.getByTestId('execute-node-button')).not.toBeDisabled()
+    expect(screen.queryByTestId('command-validation-error')).not.toBeInTheDocument()
+  })
+})
 
 describe('NodeDetailPanel — collapsible sections initial state', () => {
   describe('Settings section', () => {
@@ -718,6 +739,16 @@ describe('NodeDetailPanel — suppressed hint: cause routing inside suppressed-r
     expect(hint).toBeInTheDocument()
     expect(hint).toHaveTextContent('best-of-N suppressed')
     expect(hint).toHaveTextContent(':n=3')
+  })
+
+  it('nested-reliability-fork cause explains that multiplied generations were collapsed', () => {
+    renderPanel(makeNode({ command: '/chat :n=3 task' }), false, {
+      reliabilityMetadata: { ...baseSuppressed, cause: 'nested-reliability-fork' },
+    })
+    const hint = screen.getByTestId('suppressed-run-hint')
+    expect(hint).toHaveTextContent('outer reliability fork')
+    expect(hint).toHaveTextContent(':n=3')
+    expect(hint).toHaveTextContent('multiplied generations')
   })
 
   it('unrecognized or legacy cause falls through to suppressedRunHint — component is cause-agnostic', () => {

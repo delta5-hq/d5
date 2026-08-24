@@ -78,6 +78,9 @@ export const commandRegex = {
   validate: createCommandPattern(['/validate']),
   validateWithOrder: createCommandPattern(['/validate'], true),
 
+  refine: createCommandPattern(['/refine']),
+  refineWithOrder: createCommandPattern(['/refine'], true),
+
   completion: createCommandPattern(['/chat']),
   completionWithOrder: createCommandPattern(['/chat'], true),
 

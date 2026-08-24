@@ -3,7 +3,14 @@ export {default as StoreFork} from './core/StoreFork'
 export {default as CommandFactory} from './CommandFactory'
 export {default as NullProgress} from './core/NullProgress'
 export {default as ElectTopology} from './core/ElectTopology'
-export {readElectN, readRawElectN, readFallbackFlag, readJudgeReasoningFlag, isValidElectCell} from './core/electParams'
+export {
+  readElectN,
+  readRawElectN,
+  readFallbackFlag,
+  readJudgeReasoningFlag,
+  readElectTrailingText,
+  isValidElectCell,
+} from './core/electParams'
 export {runForks} from './core/SubtreeForkRunner'
 export {
   FORK_LIMIT_SIZES,
@@ -16,10 +23,11 @@ export {projectForkCost} from './core/forkCostProjector'
 export {
   isValidateCell,
   readValidateN,
-  readValidateRetry,
+  hasValidateRetry,
   readValidateCriterion,
   hasValidCriterion,
 } from './core/validateParams'
+export {isRefineCell, isValidRefineCell, readRawRefineN, readRefineN, readRefineTrailingText} from './core/refineParams'
 export {default as OwnershipResolver, UNOWNED, ValidateChildrenError} from './core/OwnershipResolver'
 export {ValidateCommand} from './core/ValidateCommand'
 export {CriteriaFailedError} from './core/CriteriaFailedError'
@@ -37,6 +45,8 @@ export {FAILURE_CAUSE, REMEDIATION_HINT, COMMODITY_SUPPRESSION_CAUSE, classifyNo
 export {
   buildReliabilityMetadata,
   buildCommodityReliabilityMetadata,
+  buildRefineReliabilityMetadata,
+  buildValidateReliabilityMetadata,
   buildInvalidReliabilityMetadata,
   buildSuppressedReliabilityMetadata,
   buildValidateRetryWithheldReliabilityMetadata,
@@ -49,6 +59,7 @@ export {
 export {
   stripReliabilitySuffix,
   appendValidateSuffix,
+  appendRefineSuffix,
   appendInvalidSuffix,
   appendCommoditySuffix,
   appendElectSuffix,

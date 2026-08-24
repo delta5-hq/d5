@@ -1,16 +1,17 @@
 import {ELECT_QUERY} from '../../constants/elect'
 
-const N_PATTERN = /:n=(\d+)/
+const N_PATTERN = /:n=(\d+)(?=\s|$)/
 const FALLBACK_PATTERN = /:fallback(?=\s|$)/
 const JUDGE_REASONING_PATTERN = /:judge_reasoning(?=\s|$)/
 const ELECT_CELL_PATTERN = new RegExp(`^${ELECT_QUERY.replace('/', '\\/')}(?:\\s|$)`)
+const KNOWN_PARAM_PATTERNS = [N_PATTERN, FALLBACK_PATTERN, JUDGE_REASONING_PATTERN, /:limit=\S+(?=\s|$)/]
 
 /**
  * @param {string} command
  * @returns {number|null} Raw `:n=` integer without range clamping; null when absent or non-numeric.
  */
 export const readRawElectN = command => {
-  if (!command) return null
+  if (!command || !ELECT_CELL_PATTERN.test(command)) return null
   const match = command.match(N_PATTERN)
   return match ? parseInt(match[1], 10) : null
 }
@@ -33,6 +34,13 @@ export const readFallbackFlag = command => {
 }
 
 export const readJudgeReasoningFlag = command => typeof command === 'string' && JUDGE_REASONING_PATTERN.test(command)
+
+export const readElectTrailingText = command => {
+  if (!command || !ELECT_CELL_PATTERN.test(command)) return ''
+  let text = command.replace(ELECT_CELL_PATTERN, '')
+  for (const pattern of KNOWN_PARAM_PATTERNS) text = text.replace(pattern, '')
+  return text.trim()
+}
 
 /**
  * @param {string} command

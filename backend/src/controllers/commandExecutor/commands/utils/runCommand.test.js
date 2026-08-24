@@ -428,39 +428,39 @@ describe('runCommand — commodity :n=N on plain LLM cells', () => {
     {
       name: 'all forks produce substantive output',
       outcomes: ['success', 'success'],
-      suffix: /\[✓ 2\/2\]/,
+      suffix: /\[↻ 2\/2\]/,
       childCount: 2,
     },
     {
       name: 'all three forks produce substantive output',
       outcomes: ['success', 'success', 'success'],
-      suffix: /\[✓ 3\/3\]/,
+      suffix: /\[↻ 3\/3\]/,
       childCount: 3,
     },
     {
       name: 'one refusal and one substantive output',
       outcomes: ['refusal', 'success'],
-      suffix: /\[✓ 1\/2 ⚠\]/,
+      suffix: /\[↻ 1\/2 ⚠\]/,
       childCount: 1,
     },
     {
       name: 'all forks produce refusal output',
       outcomes: ['refusal', 'refusal', 'refusal'],
-      suffix: /\[✗ 0\/3\]/,
+      suffix: /\[↻ 0\/3 ⚠\]/,
       childCount: 0,
     },
-    {name: 'no fork produces output', outcomes: ['none', 'none'], suffix: /\[✗ 0\/2\]/, childCount: 0},
-    {name: 'all forks produce empty output', outcomes: ['empty', 'empty'], suffix: /\[✗ 0\/2\]/, childCount: 0},
+    {name: 'no fork produces output', outcomes: ['none', 'none'], suffix: /\[↻ 0\/2 ⚠\]/, childCount: 0},
+    {name: 'all forks produce empty output', outcomes: ['empty', 'empty'], suffix: /\[↻ 0\/2 ⚠\]/, childCount: 0},
     {
       name: 'all forks produce machine-tagged error nodes',
       outcomes: ['error', 'error', 'error'],
-      suffix: /\[✗ 0\/3\]/,
+      suffix: /\[↻ 0\/3 ⚠\]/,
       childCount: 0,
     },
     {
       name: 'one machine-tagged error and one substantive output',
       outcomes: ['error', 'success'],
-      suffix: /\[✓ 1\/2 ⚠\]/,
+      suffix: /\[↻ 1\/2 ⚠\]/,
       childCount: 1,
     },
   ])('classifies commodity fork outcomes: $name', async ({outcomes, suffix, childCount}) => {
@@ -547,7 +547,7 @@ describe('runCommand — commodity :n=N with real ChatCommand + NoopLLM (MOCK_EX
 
     const children = Object.values(store._nodes).filter(nd => nd.parent === root.id)
     expect(children).toHaveLength(n)
-    expect(store._nodes.root.title).toMatch(new RegExp(`\\[✓ ${n}/${n}\\]`))
+    expect(store._nodes.root.title).toMatch(new RegExp(`\\[↻ ${n}/${n}\\]`))
   })
 })
 
@@ -715,7 +715,7 @@ describe('runCommand — store.withinForkExecution suppresses commodity forking 
     },
   )
 
-  it('writes no commodity suffix when store.withinForkExecution is true', async () => {
+  it('persists a visible nested-reliability collapse reason when store.withinForkExecution is true', async () => {
     const root = {
       id: 'root',
       parent: 'root',
@@ -728,6 +728,12 @@ describe('runCommand — store.withinForkExecution suppresses commodity forking 
     await runCommand({queryType: 'chat', cell: root, store})
     spy.mockRestore()
     expect(root.title ?? '').not.toMatch(/\[/)
+    expect(root.reliabilityMetadata).toMatchObject({
+      mode: 'suppressed',
+      cause: 'nested-reliability-fork',
+      requestedN: 3,
+      total: 1,
+    })
   })
 
   it('runs once when store.withinForkExecution is true and no :n= is present', async () => {

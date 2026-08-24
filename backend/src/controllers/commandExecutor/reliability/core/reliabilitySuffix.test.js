@@ -1,6 +1,7 @@
 import {
   stripReliabilitySuffix,
   appendValidateSuffix,
+  appendRefineSuffix,
   appendCommoditySuffix,
   appendElectSuffix,
   appendInvalidSuffix,
@@ -26,9 +27,13 @@ const HISTORICAL_SUFFIX_VARIANTS = [
 ]
 
 const ENGINE_SUFFIX_VARIANTS = [
-  ['validate: pass on first attempt', 'Task [✓]', 'Task'],
-  ['validate: pass after retry', 'Task [✓ +2]', 'Task'],
-  ['validate: all retries exhausted', 'Task [✗ 3×]', 'Task'],
+  ['validate: pass', 'Task [✓]', 'Task'],
+  ['validate: fail', 'Task [✗]', 'Task'],
+  ['legacy validate: pass after retry', 'Task [✓ +2]', 'Task'],
+  ['refine: passed after attempts', 'Task [✓ 2×]', 'Task'],
+  ['refine: exhausted attempts', 'Task [✗ 3×]', 'Task'],
+  ['commodity: all forks returned', 'Task [↻ 3/3]', 'Task'],
+  ['commodity: partial forks returned', 'Task [↻ 2/3 ⚠]', 'Task'],
   ['elect: all forks eligible', 'Task [✓ 3/3]', 'Task'],
   ['elect: some forks eligible', 'Task [✓ 2/3]', 'Task'],
   ['elect: no forks eligible', 'Task [✗ 0/3]', 'Task'],
@@ -109,7 +114,6 @@ describe('stripReliabilitySuffix', () => {
         ['✓ freeform text', 'Report [✓ approved by manager]', 'Report [✓ approved by manager]'],
         ['✗ freeform text', 'My analysis [✗ invalid output]', 'My analysis [✗ invalid output]'],
         ['⚠ freeform text', 'My note [⚠ needs attention]', 'My note [⚠ needs attention]'],
-        ['bare ✗ (no content after symbol)', 'Task [✗]', 'Task [✗]'],
         ['✓ + without trailing digit', 'Task [✓ +]', 'Task [✓ +]'],
         ['✓ lone number (not a fraction)', 'Task [✓ 3]', 'Task [✓ 3]'],
         ['✗ lone number without × suffix', 'Task [✗ 3]', 'Task [✗ 3]'],
@@ -131,71 +135,23 @@ describe('stripReliabilitySuffix', () => {
 // ─── appendValidateSuffix ─────────────────────────────────────────────────────
 
 describe('appendValidateSuffix', () => {
-  describe('[✓] — pass on first attempt', () => {
-    it('retryCount=0 → [✓]', () => {
-      expect(appendValidateSuffix('My task', {passed: true, retryCount: 0})).toBe('My task [✓]')
-    })
-  })
-
-  describe('[✓ +K] — pass after one or more retries', () => {
-    it.each([
-      [1, 'My task [✓ +1]'],
-      [2, 'My task [✓ +2]'],
-      [5, 'My task [✓ +5]'],
-    ])('retryCount=%i → %s', (retryCount, expected) => {
-      expect(appendValidateSuffix('My task', {passed: true, retryCount})).toBe(expected)
-    })
-  })
-
-  describe('[✗ N×] — all retries exhausted', () => {
-    it.each([
-      [0, 'My task [✗ 0×]'],
-      [1, 'My task [✗ 1×]'],
-      [3, 'My task [✗ 3×]'],
-    ])('retryCount=%i → %s', (retryCount, expected) => {
-      expect(appendValidateSuffix('My task', {passed: false, retryCount})).toBe(expected)
-    })
-  })
-
-  describe('[✗ ⊘] — retry withheld on a failed criterion', () => {
-    it('retryWithheld:true + passed:false → [✗ ⊘] regardless of retryCount', () => {
-      expect(appendValidateSuffix('Task', {passed: false, retryCount: 0, retryWithheld: true})).toBe('Task [✗ ⊘]')
-    })
-
-    it('retryWithheld:true + passed:true → [✓] — group flag does not override a passing cell', () => {
-      expect(appendValidateSuffix('Task', {passed: true, retryCount: 0, retryWithheld: true})).toBe('Task [✓]')
-    })
-
-    it('retryWithheld:true + passed:true + retryCount>0 → [✓ +K] — retry credit preserved', () => {
-      expect(appendValidateSuffix('Task', {passed: true, retryCount: 2, retryWithheld: true})).toBe('Task [✓ +2]')
-    })
-
-    it('retryWithheld:false is the default — passing cell still gets [✓]', () => {
-      expect(appendValidateSuffix('Task', {passed: true, retryCount: 0, retryWithheld: false})).toBe('Task [✓]')
-    })
-
-    it('retryWithheld:false is the default — failing cell still gets [✗ N×]', () => {
-      expect(appendValidateSuffix('Task', {passed: false, retryCount: 3, retryWithheld: false})).toBe('Task [✗ 3×]')
-    })
-
-    it('[✗ ⊘] is strippable to base title — round-trip invariant', () => {
-      expect(
-        stripReliabilitySuffix(appendValidateSuffix('Base', {passed: false, retryCount: 0, retryWithheld: true})),
-      ).toBe('Base')
-    })
+  it.each([
+    [true, 'My task [✓]'],
+    [false, 'My task [✗]'],
+  ])('renders the one-shot predicate verdict passed=%s', (passed, expected) => {
+    expect(appendValidateSuffix('My task', {passed})).toBe(expected)
   })
 
   describe('strips pre-existing reliability suffix before appending — no stacking across all known shapes', () => {
     it.each(ALL_SUFFIX_VARIANTS)('%s — replaced by [✓]', (_, titleWithSuffix, base) => {
-      expect(appendValidateSuffix(titleWithSuffix, {passed: true, retryCount: 0})).toBe(`${base} [✓]`)
+      expect(appendValidateSuffix(titleWithSuffix, {passed: true})).toBe(`${base} [✓]`)
     })
   })
 
   describe('title clamping to 80-character maximum', () => {
     it.each([
-      [{passed: true, retryCount: 0}, '[✓]'],
-      [{passed: true, retryCount: 2}, '[✓ +2]'],
-      [{passed: false, retryCount: 3}, '[✗ 3×]'],
+      [{passed: true}, '[✓]'],
+      [{passed: false}, '[✗]'],
     ])('%o — result is clamped to exactly 80 chars with suffix at end', (opts, expectedSuffix) => {
       const longTitle = 'A'.repeat(79)
       const result = appendValidateSuffix(longTitle, opts)
@@ -205,18 +161,24 @@ describe('appendValidateSuffix', () => {
   })
 
   it('empty title → suffix only', () => {
-    expect(appendValidateSuffix('', {passed: true, retryCount: 0})).toBe('[✓]')
+    expect(appendValidateSuffix('', {passed: true})).toBe('[✓]')
   })
 
   describe('every output shape is strippable to its base title — round-trip invariant', () => {
-    it.each([
-      [{passed: true, retryCount: 0}],
-      [{passed: true, retryCount: 2}],
-      [{passed: false, retryCount: 3}],
-      [{passed: false, retryCount: 0, retryWithheld: true}],
-    ])('%o → stripped back to base title', opts => {
+    it.each([[{passed: true}], [{passed: false}]])('%o → stripped back to base title', opts => {
       expect(stripReliabilitySuffix(appendValidateSuffix('Base', opts))).toBe('Base')
     })
+  })
+})
+
+describe('appendRefineSuffix', () => {
+  it.each([
+    [{passed: true, attempts: 1}, 'Task [✓ 1×]'],
+    [{passed: true, attempts: 2}, 'Task [✓ 2×]'],
+    [{passed: false, attempts: 3}, 'Task [✗ 3×]'],
+  ])('renders the actual attempt count for %o', (opts, expected) => {
+    expect(appendRefineSuffix('Task', opts)).toBe(expected)
+    expect(stripReliabilitySuffix(expected)).toBe('Task')
   })
 })
 
@@ -431,46 +393,46 @@ describe('appendElectSuffix', () => {
 // ─── appendCommoditySuffix ────────────────────────────────────────────────────
 
 describe('appendCommoditySuffix', () => {
-  describe('[✓ K/N] — all forks produced output (full success)', () => {
+  describe('[↻ K/N] — all forks produced output without claiming a gate verdict', () => {
     it.each([
-      [{successCount: 2, total: 2}, 'Task [✓ 2/2]'],
-      [{successCount: 5, total: 5}, 'Task [✓ 5/5]'],
-      [{successCount: 1, total: 1}, 'Task [✓ 1/1]'],
+      [{successCount: 2, total: 2}, 'Task [↻ 2/2]'],
+      [{successCount: 5, total: 5}, 'Task [↻ 5/5]'],
+      [{successCount: 1, total: 1}, 'Task [↻ 1/1]'],
     ])('%o → %s', (opts, expected) => {
       expect(appendCommoditySuffix('Task', opts)).toBe(expected)
     })
   })
 
-  describe('[✓ K/N ⚠] — some but not all forks produced output (partial success)', () => {
+  describe('[↻ K/N ⚠] — some but not all forks produced output', () => {
     it.each([
-      [{successCount: 1, total: 3}, 'Task [✓ 1/3 ⚠]'],
-      [{successCount: 2, total: 5}, 'Task [✓ 2/5 ⚠]'],
-      [{successCount: 1, total: 2}, 'Task [✓ 1/2 ⚠]'],
+      [{successCount: 1, total: 3}, 'Task [↻ 1/3 ⚠]'],
+      [{successCount: 2, total: 5}, 'Task [↻ 2/5 ⚠]'],
+      [{successCount: 1, total: 2}, 'Task [↻ 1/2 ⚠]'],
     ])('%o → %s', (opts, expected) => {
       expect(appendCommoditySuffix('Task', opts)).toBe(expected)
     })
   })
 
-  describe('[✗ 0/N] — no fork produced output', () => {
+  describe('[↻ 0/N ⚠] — no fork produced output without claiming predicate failure', () => {
     it.each([
-      [{successCount: 0, total: 2}, 'Task [✗ 0/2]'],
-      [{successCount: 0, total: 5}, 'Task [✗ 0/5]'],
+      [{successCount: 0, total: 2}, 'Task [↻ 0/2 ⚠]'],
+      [{successCount: 0, total: 5}, 'Task [↻ 0/5 ⚠]'],
     ])('%o → %s', (opts, expected) => {
       expect(appendCommoditySuffix('Task', opts)).toBe(expected)
     })
   })
 
   describe('strips pre-existing reliability suffix before appending — no stacking across all known shapes', () => {
-    it.each(ALL_SUFFIX_VARIANTS)('%s — replaced by [✓ 2/2]', (_, titleWithSuffix, base) => {
-      expect(appendCommoditySuffix(titleWithSuffix, {successCount: 2, total: 2})).toBe(`${base} [✓ 2/2]`)
+    it.each(ALL_SUFFIX_VARIANTS)('%s — replaced by [↻ 2/2]', (_, titleWithSuffix, base) => {
+      expect(appendCommoditySuffix(titleWithSuffix, {successCount: 2, total: 2})).toBe(`${base} [↻ 2/2]`)
     })
   })
 
   describe('title clamping to 80-character maximum', () => {
     it.each([
-      [{successCount: 2, total: 2}, '[✓ 2/2]'],
-      [{successCount: 1, total: 3}, '[✓ 1/3 ⚠]'],
-      [{successCount: 0, total: 2}, '[✗ 0/2]'],
+      [{successCount: 2, total: 2}, '[↻ 2/2]'],
+      [{successCount: 1, total: 3}, '[↻ 1/3 ⚠]'],
+      [{successCount: 0, total: 2}, '[↻ 0/2 ⚠]'],
     ])('%o — result is clamped to exactly 80 chars with suffix at end', (opts, expectedSuffix) => {
       const longTitle = 'A'.repeat(79)
       const result = appendCommoditySuffix(longTitle, opts)
@@ -480,7 +442,7 @@ describe('appendCommoditySuffix', () => {
   })
 
   it('empty title → suffix only', () => {
-    expect(appendCommoditySuffix('', {successCount: 2, total: 2})).toBe('[✓ 2/2]')
+    expect(appendCommoditySuffix('', {successCount: 2, total: 2})).toBe('[↻ 2/2]')
   })
 
   describe('every output shape is strippable to its base title — round-trip invariant', () => {
