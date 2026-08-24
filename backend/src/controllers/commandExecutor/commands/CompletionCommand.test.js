@@ -188,8 +188,20 @@ describe('CompletionCommand', () => {
     it('forwards the abort signal to runCommand', async () => {
       const controller = new AbortController()
       const command = new CompletionCommand(userId, workflowId, makeStore())
-      await command.run(mockCell, {signal: controller.signal})
+      await command.run(mockCell, undefined, undefined, {signal: controller.signal})
       expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({signal: controller.signal}))
+    })
+
+    it('forwards refinement context and the original prompt to the selected provider dispatch', async () => {
+      const command = new CompletionCommand(userId, workflowId, makeStore())
+      await command.run(mockCell, '[Refinement attempt] failed criterion. ', '/chat original prompt')
+
+      expect(runCommand.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          context: '[Refinement attempt] failed criterion. ',
+          prompt: '/chat original prompt',
+        }),
+      )
     })
 
     it('forwards the cell to runCommand', async () => {

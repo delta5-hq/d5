@@ -169,7 +169,19 @@ describe('CommandFactory', () => {
         },
       )
 
-      it.each([COMPLETION_QUERY_TYPE, FOREACH_QUERY_TYPE, STEPS_QUERY_TYPE])(
+      it('passes context, prompt, and invocation options through the completion provider selector', async () => {
+        const signal = new AbortController().signal
+        const runSpy = spyOnRun(COMPLETION_QUERY_TYPE)
+        const runner = CommandFactory.createRunner(COMPLETION_QUERY_TYPE, mockCell, mockContext, mockPrompt, {signal})
+
+        await runner(mockStore)
+
+        expect(runSpy).toHaveBeenCalledWith(expect.any(Object), mockContext, mockPrompt, {signal})
+
+        runSpy.mockRestore()
+      })
+
+      it.each([FOREACH_QUERY_TYPE, STEPS_QUERY_TYPE])(
         'passes invocation options to option-object runner %s',
         async queryType => {
           const signal = new AbortController().signal

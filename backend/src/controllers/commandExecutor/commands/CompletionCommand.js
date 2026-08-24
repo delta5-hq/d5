@@ -67,14 +67,16 @@ export class CompletionCommand {
     this.logError = this.log.extend('ERROR*', '::')
   }
 
-  async run(cell, options = {}) {
+  async run(cell, context, prompt, options = {}) {
     if (!this.store) {
-      return this._resolveAndRun(cell, options)
+      return this._resolveAndRun(cell, context, prompt, options)
     }
-    return runWithErrorNode(this.store, cell, this.logError.bind(this), () => this._resolveAndRun(cell, options))
+    return runWithErrorNode(this.store, cell, this.logError.bind(this), () =>
+      this._resolveAndRun(cell, context, prompt, options),
+    )
   }
 
-  async _resolveAndRun(cell, options = {}) {
+  async _resolveAndRun(cell, context, prompt, options = {}) {
     const {signal} = options
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     if (!settings) throw new Error('No integration enabled')
@@ -92,6 +94,8 @@ export class CompletionCommand {
     return runCommand(
       {
         queryType,
+        context,
+        prompt,
         cell,
         store: this.store,
         preventPostProcess: true,

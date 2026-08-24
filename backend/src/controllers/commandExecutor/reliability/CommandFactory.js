@@ -101,6 +101,8 @@ class CommandFactory {
           return command.run(resolvedCell, prompt, options)
 
         case COMPLETION_QUERY_TYPE:
+          return command.run(resolvedCell, context, prompt, options)
+
         case FOREACH_QUERY_TYPE:
         case STEPS_QUERY_TYPE:
           return command.run(resolvedCell, options)
