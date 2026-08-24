@@ -375,11 +375,12 @@ e2e-frontend:
     reports:
       junit: ./frontend/junit.xml
     paths:
-      - frontend/playwright-report
       - frontend/test-results
       - frontend/vite-e2e.log
       - backend-v2/backend-e2e.log
-      - backend-v2/backend-e2e.log
+    exclude:
+      - frontend/test-results/**/*.webm
+    expire_in: 1 week
     when: always
   needs:
     - build-backend-v2
