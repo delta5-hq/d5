@@ -45,7 +45,7 @@ describe('ElectCommand', () => {
   })
 
   it.each([
-    ['standard error', new Error('elect failed')],
+    ['standard error', new Error('refine failed')],
     ['typed error', new TypeError('invalid elect state')],
   ])('creates one error node when the elect resolver throws a %s', async (_label, error) => {
     resolveElectCell.mockRejectedValueOnce(error)

@@ -369,7 +369,7 @@ describe('NodeDetailPanel — handleCommandChange title sync', () => {
   const COMMAND_DERIVED_CASES = [
     ['title exactly equals command', '/chat list colors', '/chat list colors'],
     ['title is command plus bestOfN suffix', '/chat :n=2 list colors', '/chat :n=2 list colors [✓ 2/2 best of 2]'],
-    ['title is command plus electd suffix', '/chat list', '/chat list [✓ electd]'],
+    ['title is command plus refined suffix', '/chat list', '/chat list [✓ refined]'],
   ] as const
 
   it.each(COMMAND_DERIVED_CASES)('syncs both command and title to new command when %s', (_label, command, title) => {

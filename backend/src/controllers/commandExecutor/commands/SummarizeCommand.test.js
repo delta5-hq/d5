@@ -89,14 +89,14 @@ describe('SummarizeCommand', () => {
     jest.spyOn(command, 'replyDefault').mockImplementation(async () => 'summarized output')
 
     // Mock runRefinementQAChain and runAgentExecutor but keep track of calls
-    command.runRefinementQAChain = jest.fn().mockResolvedValue('electd output')
+    command.runRefinementQAChain = jest.fn().mockResolvedValue('refined output')
     command.runAgentExecutor = jest.fn().mockResolvedValue('agent output')
 
     // Mock translate for language tests
     command.translate = jest.fn().mockResolvedValue('translated output')
 
     jest.spyOn(RefineDocumentsChain.prototype, 'invoke').mockResolvedValue({
-      output_text: 'electd text',
+      output_text: 'refined text',
     })
   })
 

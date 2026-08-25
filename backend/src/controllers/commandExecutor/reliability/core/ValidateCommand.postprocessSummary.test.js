@@ -134,7 +134,7 @@ describe('ValidateCommand — post-processed summary target', () => {
       'winner-copy': {
         id: 'winner-copy',
         parent: 'elect',
-        title: 'WINNER OUTPUT — the electd answer',
+        title: 'WINNER OUTPUT — the refined answer',
         children: [],
       },
       validate: {
@@ -149,7 +149,7 @@ describe('ValidateCommand — post-processed summary target', () => {
 
     expect(result.passed).toBe(true)
     const userMessage = invoke.mock.calls[0][0][1].content
-    expect(userMessage).toContain('WINNER OUTPUT — the electd answer')
+    expect(userMessage).toContain('WINNER OUTPUT — the refined answer')
     expect(userMessage).not.toContain('STALE CHAT OUTPUT')
   })
 

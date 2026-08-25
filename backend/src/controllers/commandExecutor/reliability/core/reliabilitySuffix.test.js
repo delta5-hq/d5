@@ -16,8 +16,8 @@ const HISTORICAL_SUFFIX_VARIANTS = [
   ['passed fraction', 'Task [✗ 0/2 passed]', 'Task'],
   ['first-survivor without judge', 'Task [✓ 2/2 first-survivor · no judge]', 'Task'],
   ['first-survivor with judge error', 'Task [✓ 1/2 first-survivor · judge auth error]', 'Task'],
-  ['electd', 'Task [✓ electd]', 'Task'],
-  ['elect failed', 'Task [✗ elect failed]', 'Task'],
+  ['refined', 'Task [✓ refined]', 'Task'],
+  ['refine failed', 'Task [✗ refine failed]', 'Task'],
   ['validate pass after retry (v1)', 'Task [✓ retry-2]', 'Task'],
   ['validate fail exhausted (v1)', 'Task [✗ 3 attempts]', 'Task'],
   ['invalid criteria (v1)', 'Task [✗ invalid]', 'Task'],
@@ -84,7 +84,7 @@ describe('stripReliabilitySuffix', () => {
     })
 
     it('reduces a historical-suffix-only title to an empty string', () => {
-      expect(stripReliabilitySuffix('[✓ electd]')).toBe('')
+      expect(stripReliabilitySuffix('[✓ refined]')).toBe('')
     })
 
     it('reduces an engine-suffix-only title to an empty string', () => {

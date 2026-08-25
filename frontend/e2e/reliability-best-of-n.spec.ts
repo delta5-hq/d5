@@ -72,7 +72,7 @@ test.describe('Reliability execution contracts', () => {
   // ── Elect fork suffix ─────────────────────────────────────────────────────
 
   ELECT_SUFFIX_CASES.forEach(({ n, task, suffixPattern }) => {
-    test(`elect :n=${n} — suffix reports candidate count, not legacy [✓ electd]`, async ({ page }) => {
+    test(`elect :n=${n} — suffix reports candidate count, not legacy [✓ refined]`, async ({ page }) => {
       const tree = new WorkflowTreePage(page)
       const { detail, rootId } = await selectRootAndOpenDetail(page)
       await detail.fillCommand(`/chat :n=${n} ${task}`)
@@ -85,7 +85,7 @@ test.describe('Reliability execution contracts', () => {
       // drops the in-flight SSE and can interrupt the fork completion before the suffix is written.
       // Poll the live title with the LLM-scale timeout instead.
       const electTitle = await awaitNodeTitle(page, electId, COMPLETION_SUFFIX_RE, LLM_TIMEOUT)
-      expect(electTitle).not.toMatch(/\[✓ electd\]/)
+      expect(electTitle).not.toMatch(/\[✓ refined\]/)
       expect(electTitle).toMatch(suffixPattern)
     })
   })

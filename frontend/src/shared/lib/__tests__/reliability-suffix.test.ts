@@ -13,8 +13,8 @@ const HISTORICAL_SUFFIX_VARIANTS = [
   ['bestOfN gate failure', '/chat list [✗ 0/2 passed]', '/chat list'],
   ['first-survivor without judge', '/chat list [✓ 2/2 first-survivor · no judge]', '/chat list'],
   ['first-survivor with judge error', '/chat list [✓ 1/2 first-survivor · judge auth error]', '/chat list'],
-  ['electd', '/chat list [✓ electd]', '/chat list'],
-  ['elect failed', '/chat list [✗ elect failed]', '/chat list'],
+  ['refined', '/chat list [✓ refined]', '/chat list'],
+  ['refine failed', '/chat list [✗ refine failed]', '/chat list'],
   // v1 shapes superseded by locale-neutral grammar
   ['validate passed after retry (v1)', '/chat list [✓ retry-2]', '/chat list'],
   ['validate failed all attempts (v1)', '/chat list [✗ 3 attempts]', '/chat list'],
@@ -69,7 +69,7 @@ describe('stripReliabilitySuffix', () => {
     })
 
     it('reduces a suffix-only title to an empty string', () => {
-      expect(stripReliabilitySuffix('[✓ electd]')).toBe('')
+      expect(stripReliabilitySuffix('[✓ refined]')).toBe('')
     })
   })
 
@@ -228,9 +228,9 @@ describe('extractReliabilitySuffix', () => {
   })
 
   it('returns empty baseTitle when title is only a historical suffix', () => {
-    const { baseTitle, suffix } = extractReliabilitySuffix('[✓ electd]')
+    const { baseTitle, suffix } = extractReliabilitySuffix('[✓ refined]')
     expect(baseTitle).toBe('')
-    expect(suffix).toBe('[✓ electd]')
+    expect(suffix).toBe('[✓ refined]')
   })
 })
 

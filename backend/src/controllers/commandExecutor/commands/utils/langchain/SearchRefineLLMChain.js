@@ -6,7 +6,7 @@ export function sanitizeRefineOutput(str) {
     .replace(/Question:/gi, ' ')
     .replace(/Original answer:/gi, ' ')
     .replace(/New (context|answer):/gi, ' ')
-    .replace(/(Electd )?answer:/gi, ' ')
+    .replace(/(Refined )?answer:/gi, ' ')
 }
 
 export class SearchRefineLLMChain extends LLMChain {

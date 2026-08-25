@@ -102,7 +102,7 @@ const electResponse = corpus => {
   const original = preview(extractFencedValue(corpus, 'Original answer'))
   const context = preview(extractFencedValue(corpus, 'New context'))
   const evidence = context || original || 'empty context'
-  return `mock-electd-answer${question ? `: ${question}` : ''} :: ${evidence}`
+  return `mock-refined-answer${question ? `: ${question}` : ''} :: ${evidence}`
 }
 
 const knowledgeMapResponse = corpus => {
