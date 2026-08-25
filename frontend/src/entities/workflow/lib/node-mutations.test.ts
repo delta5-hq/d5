@@ -426,6 +426,17 @@ describe('duplicateNode', () => {
     expect(result.nodes['root'].children).toContain(result.newRootId)
   })
 
+  it('duplicates a persisted leaf whose absent prompts list is encoded as null', () => {
+    const nodes = createSimpleTree()
+    nodes.b = { ...nodes.b, prompts: null } as unknown as NodeData
+
+    const result = duplicateNode(nodes, {}, 'b')
+
+    expect(result.nodes[result.newRootId].title).toBe('B')
+    expect(result.nodes[result.newRootId].prompts).toBeUndefined()
+    expect(result.nodes.root.children).toContain(result.newRootId)
+  })
+
   it('duplicates subtree with descendants', () => {
     const nodes = createSimpleTree()
     const result = duplicateNode(nodes, {}, 'a')

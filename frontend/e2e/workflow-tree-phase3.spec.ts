@@ -311,9 +311,30 @@ test.describe('Workflow tree Phase 3 flows', () => {
     await expect(tree.selectedNodes).toHaveCount(1)
     await expect(tree.selectedNodes.locator('textarea')).toBeVisible()
 
-    await expect.poll(async () => (await readWorkflow(page, workflowId)).nodes.root.children, {
-      timeout: TIMEOUTS.BACKEND_SYNC,
-    }).toHaveLength(2)
+    await expect
+      .poll(async () => (await readWorkflow(page, workflowId)).nodes.root.children, {
+        timeout: TIMEOUTS.BACKEND_SYNC,
+      })
+      .toHaveLength(2)
+  })
+
+  test('overflow Duplicate copies a persisted node with a null prompts field', async ({ page }) => {
+    const workflowId = await createWorkflow(page)
+    await seedWorkflow(page, workflowId, {
+      root: { id: 'root', title: 'Root', children: ['source'] },
+      source: { id: 'source', parent: 'root', title: 'Persisted source', command: '/chat hello', children: [] },
+    })
+
+    const tree = new WorkflowTreePage(page)
+    await tree.node('source').click({ button: 'right' })
+    await page.getByText('Duplicate', { exact: true }).click()
+
+    await expect(tree.nodesAtDepth(1)).toHaveCount(2, { timeout: TIMEOUTS.UI_UPDATE })
+    await expect
+      .poll(async () => (await readWorkflow(page, workflowId)).nodes.root.children, {
+        timeout: TIMEOUTS.BACKEND_SYNC,
+      })
+      .toHaveLength(2)
   })
 
   test('inline title editor stays accessible at compact viewport', async ({ page }) => {

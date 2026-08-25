@@ -377,7 +377,11 @@ export const duplicateNode = (
       parent: newParent,
       children: (source.children ?? []).map(childId => idMapping[childId]).filter(Boolean),
       ...(source.prompts !== undefined && {
-        prompts: source.prompts.map(promptId => idMapping[promptId]).filter((id): id is NodeId => Boolean(id)),
+        // Persisted workflows encode an absent prompts list as null. Normalize
+        // that wire shape instead of attempting to map it during duplication.
+        prompts: Array.isArray(source.prompts)
+          ? source.prompts.map(promptId => idMapping[promptId]).filter((id): id is NodeId => Boolean(id))
+          : undefined,
       }),
     }
 
