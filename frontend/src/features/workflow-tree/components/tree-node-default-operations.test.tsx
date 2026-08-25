@@ -39,6 +39,26 @@ const props: TreeNodeProps = {
 }
 
 describe('TreeNodeDefault row operations', () => {
+  it('renders a gapless thought tail only when the full Genie is present', () => {
+    const { container } = renderRowWith({})
+
+    expect(screen.getByTestId('node-thought-tail')).toBeInTheDocument()
+    expect(container.querySelector('.workflow-tree-chip-strip')).toHaveClass('ml-0')
+    expect(screen.getByTestId('node-thought-tail').querySelector('circle:last-child')).toHaveAttribute('cx', '13')
+  })
+
+  it('omits the thought tail for a clipboard-only row', () => {
+    const { container } = renderRowWith({
+      data: {
+        ...props.data,
+        node: { ...props.data.node, command: undefined },
+      },
+    })
+
+    expect(screen.queryByTestId('node-thought-tail')).not.toBeInTheDocument()
+    expect(container.querySelector('.workflow-tree-chip-strip')).toHaveClass('ml-2')
+  })
+
   it('routes Add sibling from the overflow menu', async () => {
     const onAddSibling = vi.fn()
     const { container } = renderRowWith({ onAddSibling })

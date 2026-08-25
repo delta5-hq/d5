@@ -302,6 +302,7 @@ export const TreeNodeDefault = ({
   const normalizedTitle = normalizeNodeTitle(node.title)
   const displayedTitle = truncateTitleForChip(normalizedTitle)
   const geniePresentation = getNodeGeniePresentation(node, { aliases, depth })
+  const showThoughtTail = depth > 0 && depth <= 4 && geniePresentation.variant === 'full'
 
   return (
     <ContextMenu>
@@ -416,16 +417,21 @@ export const TreeNodeDefault = ({
             )}
           </span>
 
-          {depth > 0 && depth <= 4 ? (
+          {showThoughtTail ? (
             <span aria-hidden="true" className="workflow-tree-thought-tail" data-testid="node-thought-tail">
               <svg aria-hidden="true" className="h-3.5 w-4" fill="none" viewBox="0 0 16 14">
                 <circle cx="4" cy="10" r="1.8" stroke="currentColor" strokeWidth="1.2" />
-                <circle cx="9.5" cy="6.5" r="2.6" stroke="currentColor" strokeWidth="1.2" />
+                <circle cx="13" cy="6.5" r="2.6" stroke="currentColor" strokeWidth="1.2" />
               </svg>
             </span>
           ) : null}
 
-          <span className="workflow-tree-chip-strip relative z-10 ml-2 flex min-w-0 flex-1 items-center gap-2 overflow-hidden pr-2">
+          <span
+            className={cn(
+              'workflow-tree-chip-strip relative z-10 flex min-w-0 flex-1 items-center gap-2 overflow-hidden pr-2',
+              showThoughtTail ? 'ml-0' : 'ml-2',
+            )}
+          >
             <CommandChip aliases={aliases} command={node.command} />
             <span
               className="workflow-tree-title-chip relative isolate flex h-7 min-w-0 flex-1 items-center gap-1.5 overflow-hidden rounded-full border border-muted-foreground/25 px-2.5 font-medium text-foreground shadow-none ring-1 ring-inset ring-background/80 transition-shadow duration-150 focus-within:border-ring focus-within:ring-ring"

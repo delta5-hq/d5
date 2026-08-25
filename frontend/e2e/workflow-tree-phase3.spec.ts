@@ -502,6 +502,21 @@ test.describe('Workflow tree Phase 3 flows', () => {
     await expect(tree.node('chat').getByTestId('node-chip-command')).toBeVisible()
     await expect(tree.node('plain').getByTestId('node-chip-commandless')).toBeVisible()
 
+    const chatThoughtTail = tree.node('chat').getByTestId('node-thought-tail')
+    await expect(chatThoughtTail).toBeVisible()
+    await expect(tree.node('plain').getByTestId('node-thought-tail')).toHaveCount(0)
+    const visualGap = await chatThoughtTail
+      .locator('circle')
+      .last()
+      .evaluate(bubble => {
+        const commandChip = bubble
+          .closest('[data-testid="node-thought-tail"]')
+          ?.nextElementSibling?.querySelector('[data-chip-kind="command"]')
+        if (!(commandChip instanceof HTMLElement)) return Number.POSITIVE_INFINITY
+        return commandChip.getBoundingClientRect().left - bubble.getBoundingClientRect().right
+      })
+    expect(visualGap).toBeLessThanOrEqual(1)
+
     const titleChip = tree.node('plain').getByTestId('node-chip-title')
     await expect(titleChip).toContainText(longTitle.slice(0, 20))
     await expect(titleChip).not.toContainText(longTitle.slice(20))
