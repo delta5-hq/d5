@@ -326,7 +326,6 @@ func TestCrossTypeAliasValidation(t *testing.T) {
 	t.Run("MultipleItemsSameType_EnforceCrossTypeUniqueness", func(t *testing.T) {
 		cleanupTestIntegrations(t, db, scope.UserID)
 
-		// Add multiple MCP items
 		for i := 1; i <= 3; i++ {
 			mcpItem := map[string]interface{}{
 				"alias":     "/mcp" + string(rune('0'+i)),
@@ -339,7 +338,6 @@ func TestCrossTypeAliasValidation(t *testing.T) {
 			}
 		}
 
-		// Attempt to add RPC with alias matching ANY of the MCP items
 		rpcItem := map[string]interface{}{
 			"alias":           "/mcp2",
 			"protocol":        "ssh",
@@ -361,7 +359,6 @@ func TestCrossTypeAliasValidation(t *testing.T) {
 	t.Run("ValidationOrderPreservation", func(t *testing.T) {
 		cleanupTestIntegrations(t, db, scope.UserID)
 
-		// Add MCP item
 		mcpItem := map[string]interface{}{
 			"alias":     "/shared",
 			"transport": "stdio",
@@ -533,7 +530,6 @@ func TestCrossTypeAliasValidation(t *testing.T) {
 		user1Scope := ScopeIdentifier{UserID: user1ID, WorkflowID: nil}
 		user2Scope := ScopeIdentifier{UserID: user2ID, WorkflowID: nil}
 
-		// User 1: Add MCP with /tool
 		mcp1 := map[string]interface{}{
 			"alias":     "/tool",
 			"transport": "stdio",
@@ -544,8 +540,6 @@ func TestCrossTypeAliasValidation(t *testing.T) {
 			t.Fatalf("User 1 MCP failed: %v", err)
 		}
 
-		// User 2: Should be able to add RPC with same /tool alias
-		// (different user, so no cross-type collision)
 		rpc2 := map[string]interface{}{
 			"alias":           "/tool",
 			"protocol":        "ssh",
@@ -558,8 +552,6 @@ func TestCrossTypeAliasValidation(t *testing.T) {
 			t.Errorf("User 2 should be able to use same alias as User 1, got error: %v", err)
 		}
 
-		// But User 2 should NOT be able to add MCP with same /tool alias
-		// (same user, cross-type collision)
 		mcp2 := map[string]interface{}{
 			"alias":     "/tool",
 			"transport": "sse",
@@ -576,7 +568,6 @@ func TestCrossTypeAliasValidation(t *testing.T) {
 		userID := "user-scope-isolation"
 		cleanupTestIntegrations(t, db, userID)
 
-		// Setup: User-level MCP /qa
 		userScope := ScopeIdentifier{UserID: userID, WorkflowID: nil}
 		mcpUser := map[string]interface{}{
 			"alias":     "/qa",
@@ -618,7 +609,6 @@ func TestCrossTypeAliasValidation(t *testing.T) {
 			t.Errorf("Workflow 1 MCP /qa should succeed as same-type override of global, got: %v", err)
 		}
 
-		// Workflow 2: Add MCP /qa (should succeed - different scope from wf1)
 		mcpWf2 := map[string]interface{}{
 			"alias":     "/qa",
 			"transport": "stdio",
@@ -627,6 +617,40 @@ func TestCrossTypeAliasValidation(t *testing.T) {
 		}
 		if err := service.AddArrayItem(ctx, wf2Scope, "mcp", mcpWf2); err != nil {
 			t.Errorf("Workflow 2 MCP should succeed (different scope from wf1), got: %v", err)
+		}
+	})
+
+	t.Run("ValidationConsultsLiveStateAfterAliasRelocated", func(t *testing.T) {
+		userID := "live-state-relocation"
+		cleanupTestIntegrations(t, db, userID)
+		scope := ScopeIdentifier{UserID: userID, WorkflowID: nil}
+
+		if err := service.AddArrayItem(ctx, scope, "mcp", map[string]interface{}{
+			"alias": "/tool", "transport": "stdio", "command": "cmd", "toolName": "t",
+		}); err != nil {
+			t.Fatalf("seed mcp[/tool]: %v", err)
+		}
+		if err := service.DeleteArrayItem(ctx, scope, "mcp", "/tool"); err != nil {
+			t.Fatalf("delete mcp[/tool]: %v", err)
+		}
+		if err := service.AddArrayItem(ctx, scope, "rpc", map[string]interface{}{
+			"alias": "/tool", "protocol": "ssh", "host": "h", "username": "u",
+			"privateKey": "k", "commandTemplate": "c",
+		}); err != nil {
+			t.Fatalf("add rpc[/tool]: %v", err)
+		}
+
+		err := service.AddArrayItem(ctx, scope, "mcp", map[string]interface{}{
+			"alias": "/tool", "transport": "stdio", "command": "cmd", "toolName": "t2",
+		})
+		if err == nil {
+			t.Fatal("expected rejection: /tool now lives in rpc, adding to mcp must fail")
+		}
+		if !strings.Contains(err.Error(), "rpc") {
+			t.Errorf("rejection error must name 'rpc' (where alias currently lives), got: %v", err)
+		}
+		if strings.Contains(err.Error(), "mcp") && !strings.Contains(err.Error(), "rpc") {
+			t.Errorf("rejection must not name stale field 'mcp', got: %v", err)
 		}
 	})
 }

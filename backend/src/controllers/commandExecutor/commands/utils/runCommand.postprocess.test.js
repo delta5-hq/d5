@@ -42,10 +42,10 @@ describe('runCommand - Post-process dispatch', () => {
 
   /*
    * Architectural invariants of postProcessNode that survive the legacy
-   * /refine removal. Tests are anchored on /summarize, /memorize, /outline
+   * /elect removal. Tests are anchored on /summarize, /memorize, /outline
    * (the surviving post-processors that all set flag=true and trigger the
    * same recursion / progress / sibling-independence machinery the legacy
-   * /refine used to exercise).
+   * /elect used to exercise).
    */
   describe('execution order', () => {
     it('runs post-process children by priority: summarize < memorize < outline', async () => {
@@ -206,54 +206,57 @@ describe('runCommand - Post-process dispatch', () => {
   })
 
   /*
-   * Legacy /refine (years-old transform) was removed in P0.1. The current
-   * behaviour for any /refine cell is to emit a visible error node so users
-   * discover the migration immediately. The new /refine :n=N best-of-N
+   * Legacy /elect (years-old transform) was removed in P0.1. The current
+   * behaviour for any /elect cell is to emit a visible error node so users
+   * discover the migration immediately. The new /elect :n=N best-of-N
    * mechanism arrives in P0.3-P0.11 and will replace this error path.
    */
-  describe('legacy /refine — parse-time error (P0.1)', () => {
-    it('emits a visible error node for any /refine cell', async () => {
+  describe('legacy /elect — parse-time error (P0.1)', () => {
+    it('emits a visible error node for any /elect cell', async () => {
       const root = {
         id: 'root',
         parent: 'root',
         command: '/chatgpt test',
-        children: ['refine'],
+        children: ['elect'],
         prompts: ['o1'],
       }
-      const refineNode = {id: 'refine', parent: root.id, command: '/refine make concise'}
+      const electNode = {id: 'elect', parent: root.id, command: '/elect make concise'}
       const store = buildNodes({
         [root.id]: root,
         o1: {id: 'o1', parent: root.id, title: 'Text'},
-        [refineNode.id]: refineNode,
+        [electNode.id]: electNode,
       })
 
       const createErrorSpy = jest.spyOn(store.importer, 'createErrorNode')
 
       await runCommand({queryType: 'chat', cell: root, store, userId: 'userId'})
 
-      expect(createErrorSpy).toHaveBeenCalledWith(expect.stringContaining('/refine requires :n=N'), refineNode.id)
-      expect(refineNode.title).not.toMatch(/\[/)
+      expect(createErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('/elect does not accept criterion text'),
+        electNode.id,
+      )
+      expect(electNode.title).toMatch(/\[✗ !\]/)
     })
 
-    it('does not recurse into /refine children (no flag=true)', async () => {
+    it('does not recurse into /elect children (no flag=true)', async () => {
       const root = {
         id: 'root',
         parent: 'root',
         command: '/chatgpt test',
-        children: ['refine'],
+        children: ['elect'],
         prompts: ['o1'],
       }
-      const refineNode = {
-        id: 'refine',
+      const electNode = {
+        id: 'elect',
         parent: root.id,
-        command: '/refine x',
+        command: '/elect x',
         children: ['nestedSummarize'],
       }
       const store = buildNodes({
         [root.id]: root,
         o1: {id: 'o1', parent: root.id, title: 'Text'},
-        [refineNode.id]: refineNode,
-        nestedSummarize: {id: 'nestedSummarize', parent: refineNode.id, command: '/summarize'},
+        [electNode.id]: electNode,
+        nestedSummarize: {id: 'nestedSummarize', parent: electNode.id, command: '/summarize'},
       })
 
       const summarizeSpy = jest.spyOn(SummarizeCommand.prototype, 'run').mockResolvedValue()

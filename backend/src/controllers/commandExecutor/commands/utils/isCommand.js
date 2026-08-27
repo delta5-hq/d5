@@ -2,6 +2,10 @@ import {FOREACH_QUERY} from '../../constants/foreach'
 import {OUTLINE_PARAM_SUMMARIZE_REGEX, OUTLINE_QUERY} from '../../constants/outline'
 import {clearStepsPrefix, STEPS_QUERY} from '../../constants/steps'
 import {SUMMARIZE_QUERY} from '../../constants/summarize'
+import {VALIDATE_QUERY} from '../../constants/validate'
+import {REFINE_QUERY} from '../../constants/refine'
+import {ELECT_QUERY} from '../../constants/elect'
+import {matchesCommand} from '../../constants/matchesCommand'
 
 /**
  * @param {Object} node
@@ -47,6 +51,28 @@ export const isSummarize = node => {
   }
 
   return false
+}
+
+export const isValidate = node => {
+  if (!node) return false
+
+  const field = getNodeCommand(node)
+
+  if (field) {
+    return matchesCommand(field, VALIDATE_QUERY)
+  }
+
+  return false
+}
+
+export const isRefine = node => {
+  if (!node) return false
+  return matchesCommand(getNodeCommand(node), REFINE_QUERY)
+}
+
+export const isElect = node => {
+  if (!node) return false
+  return matchesCommand(getNodeCommand(node), ELECT_QUERY)
 }
 
 export const isOutlineSummarize = str => {

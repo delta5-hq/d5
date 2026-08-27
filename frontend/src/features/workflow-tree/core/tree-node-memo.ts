@@ -51,6 +51,7 @@ type ComparedKeys =
   | 'onDuplicateNode'
   | 'onRename'
   | 'onRequestRename'
+  | 'onSuffixClick'
 
 /* Build guard: adding a prop to TreeNodeProps without listing it here errors the return type below */
 type ExhaustiveCompareResult = Exclude<keyof TreeNodeProps, ComparedKeys> extends never ? boolean : never
@@ -83,6 +84,7 @@ export function areTreeNodePropsEqual(
   if (prev.onDuplicateNode !== next.onDuplicateNode) return false
   if (prev.onRename !== next.onRename) return false
   if (prev.onRequestRename !== next.onRequestRename) return false
+  if (prev.onSuffixClick !== next.onSuffixClick) return false
 
   return true
 }

@@ -91,7 +91,7 @@ describe('queryTypeResolver', () => {
         ['/foreach', 'foreach'],
         ['/switch', 'switch'],
         ['/summarize', 'summarize'],
-        ['/refine', 'refine'],
+        ['/elect', 'elect'],
         ['/memorize', 'memorize'],
       ])('resolves control-flow: %s → %s', (input, expected) => {
         expect(resolveQueryType(input, {mcpAliases, rpcAliases})).toBe(expected)

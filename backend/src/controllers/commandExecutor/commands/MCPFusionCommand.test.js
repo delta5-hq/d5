@@ -45,6 +45,7 @@ const makeStore = (mcpAliases = []) => {
   const store = new Store({userId, workflowId, nodes: {node1: {id: 'node1', title: 'parent'}}})
   store._aliases = {mcp: mcpAliases}
   store.importer.createNodes = jest.fn()
+  store.importer.createErrorNode = jest.fn()
   return store
 }
 const getFirstOutputNode = store => {
@@ -256,8 +257,8 @@ describe('MCPFusionCommand', () => {
       const cmd = new MCPFusionCommand(userId, workflowId, mockStore)
       await expect(cmd.run(node, undefined, '/mcp task')).resolves.toBeUndefined()
 
-      expect(mockStore.importer.createNodes).toHaveBeenCalledWith(expect.stringContaining('Error:'), 'node1')
-      expect(mockStore.importer.createNodes.mock.calls[0][0]).toMatch(/No MCP integrations/)
+      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(expect.stringContaining('Error:'), 'node1')
+      expect(mockStore.importer.createErrorNode.mock.calls[0][0]).toMatch(/No MCP integrations/)
     })
 
     it('creates error node when LLM lacks tool-calling capability', async () => {
@@ -270,7 +271,7 @@ describe('MCPFusionCommand', () => {
       const cmd = new MCPFusionCommand(userId, workflowId, mockStore)
       await cmd.run(node, undefined, '/mcp task')
 
-      expect(mockStore.importer.createNodes).toHaveBeenCalledWith(expect.stringContaining('Error:'), 'node1')
+      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(expect.stringContaining('Error:'), 'node1')
       expect(MCPClientManager.withMultipleClientsTolerant).not.toHaveBeenCalled()
     })
 
@@ -282,7 +283,7 @@ describe('MCPFusionCommand', () => {
       const cmd = new MCPFusionCommand(userId, workflowId, mockStore)
       await cmd.run(node, undefined, '/mcp task')
 
-      expect(mockStore.importer.createNodes).toHaveBeenCalledWith(expect.stringContaining('Error:'), 'node1')
+      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(expect.stringContaining('Error:'), 'node1')
       expect(MCPClientManager.withMultipleClientsTolerant).not.toHaveBeenCalled()
     })
 
@@ -376,7 +377,7 @@ describe('MCPFusionCommand', () => {
       const cmd = new MCPFusionCommand(userId, workflowId, mockStore)
       await cmd.run(node, undefined, '/mcp task')
 
-      expect(mockStore.importer.createNodes).toHaveBeenCalledWith(expect.stringContaining('Error:'), 'node1')
+      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(expect.stringContaining('Error:'), 'node1')
     })
 
     it('creates error node and does not throw when agent invocation fails', async () => {
@@ -393,7 +394,7 @@ describe('MCPFusionCommand', () => {
       const cmd = new MCPFusionCommand(userId, workflowId, mockStore)
       await expect(cmd.run(node, undefined, '/mcp task')).resolves.toBeUndefined()
 
-      expect(mockStore.importer.createNodes).toHaveBeenCalledWith(expect.stringContaining('Error:'), 'node1')
+      expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(expect.stringContaining('Error:'), 'node1')
     })
   })
 

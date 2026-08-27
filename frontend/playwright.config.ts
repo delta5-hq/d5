@@ -26,7 +26,7 @@ export default defineConfig({
     baseURL: E2E_BASE_URL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: process.env.CI ? 'off' : 'retain-on-failure',
     actionTimeout: process.env.CI ? 30000 : 10000,
     navigationTimeout: process.env.CI ? 60000 : 30000,
     headless: true,

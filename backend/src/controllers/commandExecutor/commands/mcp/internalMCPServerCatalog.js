@@ -1,11 +1,15 @@
-import internalMCPServerCatalog from '../../../../../../shared-contracts/internal-mcp-server-catalog.json'
-
 const INTERNAL_SERVER_URI_PREFIX = 'd5-internal://mcp-server/'
 const INTERNAL_SERVER_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
+const INTERNAL_MCP_SERVER_DEFINITIONS = {
+  'research-rag': {script: 'research-rag/server.js'},
+  scraper: {script: 'scraper/server.js'},
+  outliner: {script: 'outliner/server.js'},
+}
+
 const INTERNAL_MCP_SERVER_CATALOG = Object.freeze(
   Object.fromEntries(
-    Object.entries(internalMCPServerCatalog).map(([serverId, server]) => [serverId, Object.freeze(server)]),
+    Object.entries(INTERNAL_MCP_SERVER_DEFINITIONS).map(([serverId, server]) => [serverId, Object.freeze(server)]),
   ),
 )
 

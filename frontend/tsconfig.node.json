@@ -34,5 +34,6 @@
       "@/*": ["*"]
     }
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "eslint.config.ts", "plugins"],
+  "exclude": ["plugins/__fixtures__"]
 }

@@ -127,4 +127,26 @@ describe('selectJurors', () => {
     const families = jurors.map(j => j.family)
     expect(families).not.toContain('OpenAI')
   })
+  it('uses tier-99 fallback for a generatorFamily not registered in STRENGTH_TIERS', () => {
+    const s = mkSettings('Claude', 'OpenAI')
+    const jurors = selectJurors(2, 'UnknownModel', s)
+    expect(jurors).toHaveLength(2)
+    expect(jurors.every(j => !j.duplicate)).toBe(true)
+  })
+})
+
+describe('isConfigured credential validation', () => {
+  it.each([
+    ['whitespace-only apiKey', {openai: {apiKey: '   '}}],
+    ['empty string apiKey', {openai: {apiKey: ''}}],
+    ['absent apiKey field', {openai: {}}],
+    ['empty apiRootUrl for CustomLLM', {custom_llm: {apiRootUrl: ''}}],
+    ['whitespace-only apiRootUrl for CustomLLM', {custom_llm: {apiRootUrl: '  '}}],
+  ])('excludes provider when credential has %s', (_, settings) => {
+    expect(getConfiguredFamilies(settings)).toHaveLength(0)
+  })
+
+  it('includes CustomLLM when apiRootUrl is a non-empty string', () => {
+    expect(getConfiguredFamilies({custom_llm: {apiRootUrl: 'http://my-llm'}})).toContain('CustomLLM')
+  })
 })

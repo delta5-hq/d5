@@ -22,9 +22,9 @@ const buildCompletionBody = ({modelUri, messages, completionOptions}) => ({
 export const extractCompletionText = response => response?.result?.alternatives?.[0]?.message?.text
 
 class YandexService {
-  completions = async ({modelUri, messages, completionOptions, apiKey, folderId}) => {
+  completions = async ({modelUri, messages, completionOptions, apiKey, folderId, signal}) => {
     const body = buildCompletionBody({modelUri, messages, completionOptions})
-    const response = await yandexService.completion({...body, apiKey, folderId})
+    const response = await yandexService.completion({...body, apiKey, folderId}, {signal})
     return {id: 'operation-id', done: true, response}
   }
 

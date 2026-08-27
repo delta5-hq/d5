@@ -47,7 +47,7 @@ export enum YandexGPTModel {
   GPT_PRO_RC = 'yandexgpt/rc',
   GPT_PRO_DEPRECATED = 'yandexgpt/deprecated',
   GPT_32K_LATEST = 'yandexgpt-32k/latest',
-  GPT_32K_RC = 'yandexgpt/rc',
+  GPT_32K_RC = 'yandexgpt-32k/rc',
   GPT_32K_DEPRECATED = 'yandexgpt-32k/deprecated',
   LLAMA_8B_LATEST = 'llama-lite/latest',
   LLAMA_70B_LATEST = 'llama/latest',

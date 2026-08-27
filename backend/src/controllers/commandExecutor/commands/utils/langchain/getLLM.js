@@ -9,7 +9,6 @@ import {
 } from './getModelSettings'
 import {
   DEEPSEEK_DEFAULT_MODEL,
-  CustomLLMApiType,
   CUSTOM_LLM_DEFAULT_MODEL,
   OPENAI_COMPATIBLE_API_TYPES,
   QWEN_DEFAULT_MODEL,
@@ -22,15 +21,50 @@ import {QWEN_API_URL, DEEPSEEK_API_URL} from '../../../../../shared/config/const
 import {ChatClaude} from './Anthropic'
 import {CustomLLMChat, CustomEmbeddings} from './CustomLLMChat'
 import {createNoopEmbeddings, createNoopLLM} from './noopLLM'
-import {Model, detectConfiguredProvider, loadIntegrationSettings} from './IntegrationSettingsLoader'
+import {Model, detectConfiguredProvider} from './IntegrationSettingsLoader'
 import {NATIVE_EMBEDDINGS_TYPES, resolveEmbeddingsFallbackType} from './EmbeddingsFallbackResolver'
-import {
-  getCachedIntegrationSettings,
-  hasCachedIntegrationSettings,
-  setCachedIntegrationSettings,
-} from './IntegrationSettingsCache'
+import IntegrationFacade from '../../../../../repositories/IntegrationFacade'
+import {USER_DEFAULT_MODEL} from '../../../../../shared/config/constants'
+import {resolveSettings} from './IntegrationSettingsResolver'
+import {canUseMockExternalServices} from './MockExternalServices'
+import {resolveCustomLLMSettings} from './customLLMSettings'
 
 export {Model}
+
+const integrationSettingsCacheKeyPart = value => {
+  if (value === null) return 'null'
+  if (value === undefined) return 'undefined'
+
+  const stringValue = String(value)
+  return `${typeof value}:${stringValue.length}:${stringValue}`
+}
+
+const integrationSettingsCacheKey = (userId, workflowId) =>
+  `${integrationSettingsCacheKeyPart(userId)}|${integrationSettingsCacheKeyPart(workflowId)}`
+
+const readCachedIntegrationSettings = (store, userId, workflowId) => {
+  if (!store?._integrationSettingsCache) return null
+
+  const key = integrationSettingsCacheKey(userId, workflowId)
+  if (store._integrationSettingsCache instanceof Map) {
+    return store._integrationSettingsCache.get(key) || null
+  }
+
+  if (store._integrationSettingsCache.key === key) {
+    return store._integrationSettingsCache.settings
+  }
+
+  return null
+}
+
+export const writeCachedIntegrationSettings = (store, userId, workflowId = null, settings) => {
+  if (!store) return
+
+  const key = integrationSettingsCacheKey(userId, workflowId)
+  const cache = store._integrationSettingsCache instanceof Map ? store._integrationSettingsCache : new Map()
+  cache.set(key, settings)
+  store._integrationSettingsCache = cache
+}
 
 export const determineLLMType = settings => {
   const {model = 'auto'} = settings || {}
@@ -41,17 +75,36 @@ export const determineLLMType = settings => {
 }
 
 export const getIntegrationSettings = async (userId, workflowId = null, store = null) => {
-  if (hasCachedIntegrationSettings(store, userId, workflowId)) {
-    return getCachedIntegrationSettings(store, userId, workflowId)
+  const cachedSettings = readCachedIntegrationSettings(store, userId, workflowId)
+  if (cachedSettings) {
+    return cachedSettings
   }
 
-  const settings = await loadIntegrationSettings(userId, workflowId)
+  let fetched = {merged: null, workflowDoc: null}
+  try {
+    fetched = await IntegrationFacade.findMergedDecryptedWithMetadata(userId, workflowId)
+  } catch (e) {
+    if (!canUseMockExternalServices()) {
+      throw e
+    }
+  }
 
-  return setCachedIntegrationSettings(store, userId, workflowId, settings)
+  const {settings, workflowDoc} = resolveSettings({...fetched, userId, workflowId})
+
+  if (workflowDoc && settings.model === USER_DEFAULT_MODEL) {
+    const workflowProvider = detectConfiguredProvider(workflowDoc)
+    if (workflowProvider) {
+      settings.model = workflowProvider
+    }
+  }
+
+  writeCachedIntegrationSettings(store, userId, workflowId, settings)
+
+  return settings
 }
 
 export const getLLM = ({type, settings, log, thinkingBudgetTokens = null}) => {
-  if (process.env.MOCK_EXTERNAL_SERVICES === 'true') {
+  if (canUseMockExternalServices()) {
     return createNoopLLM()
   }
   switch (type) {
@@ -135,17 +188,7 @@ export const getLLM = ({type, settings, log, thinkingBudgetTokens = null}) => {
       return {llm, chunkSize}
     }
     case Model.CustomLLM: {
-      const {
-        apiRootUrl = '',
-        apiType = CustomLLMApiType.OpenAI_Compatible,
-        maxTokens = 30000,
-        apiKey,
-        model,
-      } = settings?.custom_llm || {}
-
-      if (!apiRootUrl) {
-        throw new Error('Custom LLM API URL not configured. Set it in Integration Settings.')
-      }
+      const {apiRootUrl, apiType, apiKey, maxTokens = 30000, model} = resolveCustomLLMSettings(settings)
 
       const resolvedModel = model || (OPENAI_COMPATIBLE_API_TYPES.has(apiType) ? CUSTOM_LLM_DEFAULT_MODEL : undefined)
 
@@ -238,7 +281,7 @@ const buildNativeEmbeddings = (type, settings) => {
 }
 
 export const getEmbeddings = ({type, settings}) => {
-  if (process.env.MOCK_EXTERNAL_SERVICES === 'true') {
+  if (canUseMockExternalServices()) {
     return {
       ...createNoopEmbeddings(),
       storageType: EmbStorageType.openai,

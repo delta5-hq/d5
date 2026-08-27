@@ -415,6 +415,9 @@ export default {
       settings: 'Settings',
       command: 'Command',
       commandPlaceholder: 'Enter command...',
+      electCriterionMustBeValidate: 'Move the criterion to a sibling /validate cell; /elect accepts parameters only.',
+      validateRetryMustBeRefine: 'Wrap the generating command with /refine :n=N; /validate evaluates once.',
+      invalidRefineSyntax: 'Use /refine :n=N without trailing text.',
       execute: 'Execute',
       executing: 'Executing...',
       abort: 'Abort',
@@ -427,6 +430,96 @@ export default {
       editHint: 'Double-click to edit',
       preview: 'Preview',
       previewError: 'Preview failed',
+      electCostHint: '⚡ ~{cost} LLM {cost, plural, one {call} other {calls}}',
+      electCostOverLimit: '⛔ Exceeds :limit= — will be refused ({cost} calls)',
+      commodityCeilingHint:
+        '⚠ Structural-only: catches empty, refusal, and thrown-error outputs. Soft errors (well-formed HTTP 200 error text) are undetectable at this tier — use /elect + /validate for semantic checking.',
+      suppressedRunHint:
+        '⚠ Single run — best-of-N suppressed for a side-effecting command (requested :n={n}). Running it {n} times would fire {n} real external operations.',
+      nestedReliabilitySuppressedHint:
+        '⚠ Single draw inside the outer reliability fork (requested :n={n}); nested fan-out was collapsed to prevent multiplied generations.',
+      retryWithheldHint:
+        '⚠ Retry withheld — this parent is side-effecting; requested :retry={n} but replaying it would duplicate the external operation.',
+      verdictButton: 'View verdict',
+    },
+
+    verdictDrawer: {
+      title: 'Per-criterion verdict',
+      winnerLabel: '(winner)',
+      criterionLabel: 'Criterion',
+      rankingsLabel: 'Fork rankings',
+      forkLabel: 'Fork {index}',
+      rankLabel: '#{rank}',
+      winnerEvidenceLabel: 'Winner ranked #{rank} of {total} for this criterion',
+      modeStrict: 'strict',
+      modeFallback: 'fallback',
+      modeLabel: 'Mode: {mode}',
+      eligibleLabel: '{eligible} of {total} forks passed',
+      noSignalWarning: 'No juror rankings collected — winner selected by position',
+      tiebreakWarning: 'Winner selected by tiebreak — cross-family ranking was not decisive',
+      judgeQualityWarningsTitle: 'Judge quality warnings',
+      judgeQualityWarning_singleProvider:
+        'Single provider configured — cross-family judging impossible; judge inherits generator bias',
+      judgeQualityWarning_lowestTierOnly: 'Only lowest-tier models configured — reliability bound is loose',
+      judgeQualityWarning_juryDuplicates:
+        'Jury size exceeds distinct families — some jurors are same-family duplicates',
+      judgeQualityWarning_fallbackWithWeakJudge:
+        'Fallback mode with weak judge — degraded output accepted with reduced confidence',
+      judgeQualityWarning_noReasoningMode:
+        'No reasoning-capable model configured — judge operates without extended analysis',
+      judgeQualityWarning_allGateFiltered:
+        'All candidates were structurally rejected — fallback cannot rescue empty or refusal output',
+      judgeQualityWarning_degradedInput:
+        'Per-fork token budget too small for full-context evaluation — judge ranked on truncated input; confidence is reduced',
+      judgeQualityWarning_commodityPartialSuccess:
+        'Some parallel forks failed — result reflects successful forks only; partial execution',
+      judgeQualitySeverityHigh: 'high',
+      judgeQualitySeverityMedium: 'medium',
+      judgeQualitySeverityLow: 'low',
+      modeCommodity: 'commodity',
+      modeValidate: 'validate',
+      modeRefine: 'refine',
+      commodityLabel: '{eligible} of {total} forks succeeded',
+      validatePassedLabel: 'Criterion passed',
+      validateFailedLabel: 'Criterion failed',
+      refinePassedLabel: 'Criterion passed after {attempts} of {requested} attempts',
+      refineFailedLabel: 'Criterion failed after {attempts} of {requested} attempts',
+      commodityPartialWarning:
+        'Partial success — {eligible} of {total} forks produced output; {failed} failed at runtime',
+      fallbackUsedLabel: 'Fallback winner committed — no fork passed primary criteria; least-bad fork promoted',
+      noWinnerLabel: 'No winner selected',
+      generatorOnlyJudgeLabel: 'Generator and judge share the same provider — cross-family independence not possible',
+      judgeReasoningRequestedLabel: 'Extended judge reasoning requested (:judge_reasoning)',
+      modeInvalid: 'invalid',
+      modeSuppressed: 'suppressed',
+      failureCauseMissingParent:
+        'This command requires a parent cell — move it below an existing workflow cell before running',
+      failureCauseInvalidCriteria:
+        'Validate criterion is empty — add criterion text to the /validate command before running',
+      commodityAllFailedWarning:
+        'All {total} parallel forks failed at runtime — check provider availability and try again',
+    },
+
+    discardedForks: {
+      title: 'Fork runs',
+      forkLabel: 'Fork {index}',
+      totalLabel: '{total} forks',
+      statusPending: 'running…',
+      status_ok: 'passed',
+      status_selected: 'selected winner',
+      'status_criteria-failed': 'criteria failed',
+      'status_runtime-failed': 'error',
+      failureReasonMcpTool: 'MCP tool reported an error',
+      failureReasonHttpStatus: 'HTTP transport returned a non-success status',
+      failureReasonSshExit: 'SSH command returned a nonzero exit code',
+      failureReasonRuntime: 'Command execution failed at runtime',
+      failureReasonExecution: 'Command produced an execution error',
+      failedAt: 'criterion: {criterion}',
+      attempts: '{count} attempts',
+      selectionLabel: '{eligible} of {total} forks eligible; selection: {layer}',
+      failureCauseLabel: 'failure: {cause}',
+      judgeInputLabel: 'judge compared {count} candidates; per-fork budget {budget} chars',
+      discardedForksButton: 'Show forks',
     },
 
     status: {

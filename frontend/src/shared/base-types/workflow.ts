@@ -57,6 +57,10 @@ export type NodeContent = {
   collapsed?: boolean
   parent?: NodeId
   mcpFusionReport?: MCPFusionReportData
+  reliabilityMetadata?: ReliabilityMetadata
+  executionStatus?: 'error'
+  executionFailureType?: 'mcp-tool-error' | 'http-status-error' | 'ssh-exit-error' | 'runtime-error'
+  executionFailureCode?: number
   /** Container config for grouping children */
   container?: {
     type: string
@@ -73,6 +77,84 @@ export type NodeData = NodeContent & {
 }
 
 export type NodeDatas = Record<NodeId, NodeData>
+
+export type ForkRanking = {
+  forkIndex: number
+  rank: number
+}
+
+export type JudgeQualityWarning = {
+  condition:
+    | 'singleProvider'
+    | 'lowestTierOnly'
+    | 'juryDuplicates'
+    | 'fallbackWithWeakJudge'
+    | 'noReasoningMode'
+    | 'allGateFiltered'
+    | 'degradedInput'
+    | 'commodityPartialSuccess'
+  severity: 'high' | 'medium' | 'low'
+}
+
+export type CriterionVerdict = {
+  criterionId: string
+  criterion: string
+  forkRankings: ForkRanking[]
+}
+
+export type DiscardedFork = {
+  forkIndex: number
+  status: 'ok' | 'criteria-failed' | 'runtime-failed'
+  failedAt?: string
+  reason?: string
+  attempts?: number
+}
+
+export type ReliabilityMetadata = {
+  winnerForkIndex: number | null
+  perCriterionVerdict: CriterionVerdict[]
+  mode: 'strict' | 'fallback' | 'commodity' | 'validate' | 'refine' | 'invalid' | 'suppressed'
+  selectionLayer: 'primary' | 'fallback' | 'none'
+  noSignal: boolean
+  /** best-of-N was collapsed to a single execution (e.g. side-effecting MCP/RPC alias) */
+  suppressed?: boolean
+  /** why the run was collapsed to one, e.g. 'side-effecting-alias' */
+  cause?: string
+  /** the N originally requested via commodity :n=N before suppression */
+  requestedN?: number
+  /** number of parent-command executions actually performed by /refine */
+  attempts?: number
+  /** /validate retry was withheld because the parent is a side-effecting command */
+  retryWithheld?: boolean
+  /** the :retry=R value the user requested that was withheld */
+  requestedRetry?: number
+  tiebreakUsed?: boolean
+  fallbackUsed?: boolean
+  generatorOnlyJudge?: boolean
+  judgeReasoningRequested?: boolean
+  eligible: number
+  total: number
+  failureCause?:
+    | 'structural-gate'
+    | 'criteria-failed'
+    | 'runtime-failed'
+    | 'no-eligible-forks'
+    | 'no-judge-signal'
+    | 'missing-parent'
+    | 'invalid-criteria'
+  remediationHint?: 'revise-prompt' | 'check-provider' | 'adjust-criteria' | 'none'
+  allGateFiltered?: boolean
+  judgeInput?: JudgeInputMetadata
+  judgeQualityWarnings?: JudgeQualityWarning[]
+  discardedForks?: DiscardedFork[]
+}
+
+export type JudgeInputMetadata = {
+  candidateCount: number
+  perForkBudgetChars: number
+  degradedInput: boolean
+  resolvedJudgeFamilies: string[]
+}
 
 export type EdgeContent = {
   id?: EdgeId

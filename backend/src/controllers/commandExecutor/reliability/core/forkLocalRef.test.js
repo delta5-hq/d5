@@ -94,8 +94,20 @@ describe('findInNodeMap — resolves against the nodeMap it receives', () => {
 describe('StoreFork.applyCandidate — does not contaminate sibling forks', () => {
   it('applies winner to target but leaves sibling fork store intact', () => {
     const nodes = {
-      root: {id: 'root', parent: null, depth: 0, title: '', children: ['cell']},
-      cell: {id: 'cell', parent: 'root', depth: 1, title: 'original', children: []},
+      root: {
+        id: 'root',
+        parent: null,
+        depth: 0,
+        title: '',
+        children: ['cell'],
+      },
+      cell: {
+        id: 'cell',
+        parent: 'root',
+        depth: 1,
+        title: 'original',
+        children: [],
+      },
     }
     const target = buildStore(nodes)
     const winnerFork = StoreFork.createFork(target)
@@ -112,8 +124,20 @@ describe('StoreFork.applyCandidate — does not contaminate sibling forks', () =
 
   it('multiple sibling forks all remain independent after applyCandidate', () => {
     const nodes = {
-      root: {id: 'root', parent: null, depth: 0, title: '', children: ['cell']},
-      cell: {id: 'cell', parent: 'root', depth: 1, title: 'original', children: []},
+      root: {
+        id: 'root',
+        parent: null,
+        depth: 0,
+        title: '',
+        children: ['cell'],
+      },
+      cell: {
+        id: 'cell',
+        parent: 'root',
+        depth: 1,
+        title: 'original',
+        children: [],
+      },
     }
     const target = buildStore(nodes)
     const forks = Array.from({length: 3}, (_, i) => {

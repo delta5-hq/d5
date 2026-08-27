@@ -56,7 +56,7 @@ to render fast, cost little, and reuse verified outputs across renders.
     (/chat, /claude, /qwen, /deepseek,
      /perplexity, /yandex, /custom)               7 commands
   Post-processors over deterministic input        cacheable
-    (/summarize, /memorize, /outline, /refine)    4 commands
+    (/summarize, /memorize, /outline, /elect)    4 commands
   Static control flow                             passthrough
     (/steps, /foreach, /switch, /case, /validate) 5 commands
 

@@ -1,5 +1,7 @@
 /* Centralized timeout constants for E2E tests */
 
+export const LLM_TIMEOUT = 120_000
+
 export const TIMEOUTS = {
   SIDEBAR_TRANSITION: 300,
   SIDEBAR_ANIMATION: 500,

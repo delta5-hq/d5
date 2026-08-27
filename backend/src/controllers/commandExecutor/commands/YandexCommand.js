@@ -11,6 +11,7 @@ import {clearReferences} from './references/utils/referenceUtils'
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
+import {throwIfAborted, throwIfAbortError} from './utils/executionSignal'
 import {createContextForChat} from './utils/createContextForChat'
 
 const log = debug('delta5:app:Command:Yandex')
@@ -36,7 +37,7 @@ export class YandexCommand {
     this.logError = this.log.extend('ERROR*', '::')
   }
 
-  async replyYandex(messages, userId, workflowId, store) {
+  async replyYandex(messages, userId, workflowId, store, options = {}) {
     const settings = await getIntegrationSettings(userId, workflowId, store)
     const {folder_id, model, ...credentials} = settings?.yandex || {}
 
@@ -48,12 +49,18 @@ export class YandexCommand {
 
     const modelUri = `gpt://${folder_id}/${model || YANDEX_DEFAULT_MODEL}`
 
-    const response = await YandexService.completionWithRetry({messages, modelUri, folderId: folder_id, ...credentials})
+    const response = await YandexService.completionWithRetry({
+      messages,
+      modelUri,
+      folderId: folder_id,
+      ...credentials,
+      ...options,
+    })
 
     return extractCompletionText(response)
   }
 
-  async run(node, context, originalPrompt) {
+  async run(node, context, originalPrompt, options = {}) {
     try {
       let prompt = originalPrompt
       const title = node?.command || node?.title
@@ -86,21 +93,32 @@ export class YandexCommand {
           userMessage,
         ]
 
-        const text = (await this.replyYandex(messages, this.userId, this.workflowId, this.store))?.replaceAll('**', '')
+        const text = (await this.replyYandex(messages, this.userId, this.workflowId, this.store, options))?.replaceAll(
+          '**',
+          '',
+        )
 
+        throwIfAborted(options.signal)
         this.store.importer.createTable(text, node.id)
       } else {
         const messages = [userMessage]
-        const text = (await this.replyYandex(messages, this.userId, this.workflowId, this.store))?.replaceAll('**', '')
+        const text = (await this.replyYandex(messages, this.userId, this.workflowId, this.store, options))?.replaceAll(
+          '**',
+          '',
+        )
 
         if (readJoinParam(title)) {
+          throwIfAborted(options.signal)
           this.store.importer.createJoinNode(text, node.id)
         } else {
+          throwIfAborted(options.signal)
           this.store.importer.createNodes(text, node.id)
         }
       }
     } catch (e) {
+      throwIfAbortError(e)
       this.logError(e)
+      throwIfAborted(options.signal)
       this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }
   }

@@ -9,10 +9,20 @@ export interface WorkflowNodeSetupResult {
 }
 
 export async function setupWorkflowWithNode(page: Page): Promise<WorkflowNodeSetupResult> {
-  await page.getByTestId('create-first-node').click()
-
   const tree = new WorkflowTreePage(page)
-  await tree.firstNode.waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
+  const createButton = page.getByTestId('create-first-node')
+
+  // Workflow may already contain a root node from a previous setup (e.g., after page.reload()
+  // mid-test). Race the create-first-node button vs an existing first node, then act on
+  // whichever appears. If the node already exists, skip the click; otherwise click to create.
+  await Promise.race([
+    createButton.waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC }),
+    tree.firstNode.waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC }),
+  ])
+  if (!(await tree.firstNode.isVisible())) {
+    await createButton.click()
+    await tree.firstNode.waitFor({ state: 'visible', timeout: TIMEOUTS.BACKEND_SYNC })
+  }
 
   const rootNodeId = await tree.rootNodeId()
   await tree.selectNode(rootNodeId)

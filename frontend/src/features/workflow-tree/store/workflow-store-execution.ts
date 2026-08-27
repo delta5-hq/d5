@@ -1,12 +1,59 @@
 import type { Store } from '@shared/lib/store'
 import type { NodeData, NodeId, WorkflowContentData, NodeDatas } from '@shared/base-types'
 import { mergeWorkflowChanges } from '@entities/workflow/lib'
+import { holdMinDuration } from '@shared/lib/async'
 import { executeWorkflowCommand } from '../api/execute-workflow-command'
 import type { WorkflowStoreState } from './workflow-store-types'
 import type { DebouncedPersister } from './workflow-store-persistence'
 import { retainExistingIds } from './workflow-store-set-utils'
 import { notifyExecutionStarted, notifyExecutionCompleted, notifyExecutionAborted } from './execution-genie-bridge'
-import { generateNodeId } from '@shared/lib/generate-id'
+import { generateNodeId, generateSessionId } from '@shared/lib/generate-id'
+import { ForkStreamClient } from '../api/streaming/fork-stream-client'
+import type { ForkEvent } from '../api/streaming/fork-event-types'
+import { applyForkEventToMap } from './fork-preview-state'
+import { isValidElectCell } from '@shared/lib/reliability/elect-params'
+
+// Keeps the executing indicator visible long enough to be perceivable under sub-frame substrates (NoopLLM, cache hits).
+const MIN_EXECUTING_VISIBLE_MS = 400
+
+function hasElectDescendant(nodeId: NodeId, nodes: Record<NodeId, NodeData>): boolean {
+  const node = nodes[nodeId]
+  if (!node) return false
+  for (const childId of node.children ?? []) {
+    const child = nodes[childId]
+    if (!child) continue
+    if (isValidElectCell(child.command)) return true
+    if (hasElectDescendant(childId, nodes)) return true
+  }
+  return false
+}
+
+function applyForkEvent(store: Store<WorkflowStoreState>, event: ForkEvent): void {
+  store.setState(prev => ({
+    ...prev,
+    forkPreviews: applyForkEventToMap(prev.forkPreviews, event),
+  }))
+}
+
+function clearForkPreviews(store: Store<WorkflowStoreState>, ids: Set<NodeId>): void {
+  if (ids.size === 0) return
+  store.setState(prev => {
+    const next = new Map(prev.forkPreviews)
+    for (const id of ids) {
+      next.delete(id)
+    }
+    return { ...prev, forkPreviews: next }
+  })
+}
+
+export interface ExecuteActionOptions {
+  minExecutingVisibleMs?: number
+}
+
+export interface ExecutionActions {
+  executeCommand: (node: NodeData, queryType: string) => Promise<boolean>
+  abortExecution: (nodeId: NodeId) => void
+}
 
 function addExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): void {
   store.setState(prev => ({
@@ -34,6 +81,17 @@ function firstAnchoredNewNodeId(
   return newNode?.id
 }
 
+function hasRecordEntries(record: Record<string, unknown> | undefined): boolean {
+  return Object.keys(record ?? {}).length > 0
+}
+
+function hasWorkflowChanges(response: {
+  nodesChanged?: Record<string, NodeData>
+  edgesChanged?: Record<string, unknown>
+}): boolean {
+  return hasRecordEntries(response.nodesChanged) || hasRecordEntries(response.edgesChanged)
+}
+
 function removeExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): void {
   store.setState(prev => {
     const next = new Set(prev.executingNodeIds)
@@ -42,12 +100,12 @@ function removeExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): 
   })
 }
 
-export interface ExecutionActions {
-  executeCommand: (node: NodeData, queryType: string) => Promise<boolean>
-  abortExecution: (nodeId: NodeId) => void
-}
-
-export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: DebouncedPersister): ExecutionActions {
+export function bindExecuteAction(
+  store: Store<WorkflowStoreState>,
+  persister: DebouncedPersister,
+  options: ExecuteActionOptions = {},
+): ExecutionActions {
+  const minVisibleMs = options.minExecutingVisibleMs ?? MIN_EXECUTING_VISIBLE_MS
   const abortControllers = new Map<NodeId, AbortController>()
 
   const abortExecution = (nodeId: NodeId): void => {
@@ -64,38 +122,54 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
 
     const controller = new AbortController()
     abortControllers.set(node.id, controller)
+    const indicatorStartMs = Date.now()
     addExecutingNode(store, node.id)
     notifyExecutionStarted(node.id)
 
     let responseReceived = false
+    let wasAborted = false
+
     try {
       const { workflowId, nodes, edges } = store.getState()
 
-      const response = await executeWorkflowCommand({
-        queryType,
-        cell: node,
-        workflowNodes: nodes,
-        workflowEdges: edges,
-        workflowId,
-        signal: controller.signal,
-      })
-      responseReceived = true
+      const useStreaming = isValidElectCell(node.command) || hasElectDescendant(node.id, nodes)
+      const sessionId = useStreaming ? generateSessionId() : undefined
+      let streamClient: ForkStreamClient | null = null
+      const seenElectIds = new Set<NodeId>()
 
-      if (Object.keys(response.nodesChanged ?? {}).length === 0) {
-        const emptyNodeId = generateNodeId()
-        store.setState(prev => {
-          const parent = prev.nodes[node.id]
-          if (!parent) return prev
-          const emptyNode: NodeData = { id: emptyNodeId, title: '(no output)', parent: node.id }
-          const updatedParent: NodeData = { ...parent, children: [...(parent.children ?? []), emptyNodeId] }
-          return {
-            nodes: { ...prev.nodes, [node.id]: updatedParent, [emptyNodeId]: emptyNode },
-            expandedIds: new Set([...prev.expandedIds, node.id]),
-            selectedId: emptyNodeId,
-            isDirty: true,
-          }
+      if (useStreaming && sessionId) {
+        streamClient = new ForkStreamClient(sessionId, {
+          onForkEvent: event => {
+            seenElectIds.add(event.electNodeId)
+            applyForkEvent(store, event)
+          },
         })
-        await persister.flush()
+        streamClient.connect()
+        // Gate the execute POST on the SSE session being registered. Firing the POST first races
+        // stream-session registration on the backend, which 400s the execution and drops the
+        // parent's output (worst under rapid edit→run on elect/best-of-N). Best-effort: whenReady
+        // resolves on SSE open or a short timeout, so a stalled stream never blocks execution.
+        await streamClient.whenReady()
+      }
+
+      let response
+      try {
+        response = await executeWorkflowCommand({
+          queryType,
+          cell: node,
+          workflowNodes: nodes,
+          workflowEdges: edges,
+          workflowId,
+          signal: controller.signal,
+          ...(sessionId ? { streamSessionId: sessionId } : {}),
+        })
+        responseReceived = true
+      } finally {
+        streamClient?.disconnect()
+        clearForkPreviews(store, seenElectIds)
+      }
+
+      if (!hasWorkflowChanges(response)) {
         notifyExecutionCompleted(node.id, true)
         return true
       }
@@ -148,6 +222,7 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
       return true
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
+        wasAborted = true
         notifyExecutionAborted(node.id)
       } else {
         if (!responseReceived) {
@@ -171,6 +246,9 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
       return false
     } finally {
       abortControllers.delete(node.id)
+      if (!wasAborted) {
+        await holdMinDuration(indicatorStartMs, minVisibleMs)
+      }
       removeExecutingNode(store, node.id)
     }
   }

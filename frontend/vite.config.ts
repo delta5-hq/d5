@@ -4,10 +4,9 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import svgr from 'vite-plugin-svgr'
 import obfuscatorPlugin from 'vite-plugin-javascript-obfuscator'
+import { versionPlugin } from './plugins/version-plugin'
 
-// https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  // Load environment variables from .env files
   const env = loadEnv(mode, process.cwd(), '')
 
   return {
@@ -15,10 +14,9 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       svgr(),
-      // Remove crossorigin attribute for Safari compatibility
-      // Safari has stricter CORS enforcement even for same-origin when crossorigin is present
-      // See: https://github.com/vitejs/vite/issues/6648
+      versionPlugin(),
       {
+        // Safari enforces CORS even for same-origin requests when crossorigin is present: https://github.com/vitejs/vite/issues/6648
         name: 'remove-crossorigin',
         transformIndexHtml(html) {
           return html.replace(/ crossorigin/g, '')
@@ -70,7 +68,7 @@ export default defineConfig(({ mode }) => {
       globals: true,
       environment: 'jsdom',
       setupFiles: './src/test/setup.ts',
-      include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+      include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'plugins/**/*.test.ts'],
       exclude: ['node_modules/', 'e2e/', '**/*.spec.ts', '**/*.spec.tsx', '**/archive/**'],
       coverage: {
         provider: 'v8',

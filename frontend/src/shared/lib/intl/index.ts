@@ -1,4 +1,5 @@
 import en from './en'
+import ru from './ru'
 
 type TranslationValue = string | TranslationGroup
 
@@ -22,6 +23,7 @@ const flatten = (obj: TranslationGroup): FlatTranslations =>
 
 const all = {
   en: flatten(en),
+  ru: flatten(ru),
 }
 
 export default all

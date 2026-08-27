@@ -8,6 +8,7 @@ import (
 
 	"backend-v2/internal/common/constants"
 	"backend-v2/internal/common/errors"
+	"backend-v2/internal/common/types"
 	"backend-v2/internal/common/utils"
 	"backend-v2/internal/models"
 
@@ -157,8 +158,7 @@ func (s *WorkflowService) CreateWorkflow(ctx context.Context, dto CreateWorkflow
 
 	limit := dto.GetLimit()
 
-	/* Allow unlimited workflows only for org_subscribers (matching Node.js backend) */
-	isOrgSubscriber := utils.Contains(dto.Auth.Roles, string(constants.Org_subscriber))
+	isOrgSubscriber := hasOrgSubscriberRole(dto.Auth)
 
 	if limit > 0 && total >= limit && !isOrgSubscriber {
 		return nil, errors.NewHTTPError(402, fmt.Sprintf("Workflow limit reached %v", limit))
@@ -195,6 +195,10 @@ func (s *WorkflowService) CreateWorkflow(ctx context.Context, dto CreateWorkflow
 	}
 
 	return &data, nil
+}
+
+func hasOrgSubscriberRole(auth *types.JwtPayload) bool {
+	return auth != nil && utils.Contains(auth.Roles, string(constants.Org_subscriber))
 }
 
 func (s *WorkflowService) DeleteWorkflow(ctx context.Context, workflowId string, access WorkflowAccess) *errors.HTTPError {

@@ -1,20 +1,16 @@
-# Multi-stage build optimized for layer caching
 FROM golang:1.25-alpine AS builder
+ARG BUILD_VERSION=dev
 
 WORKDIR /build
 
-# Copy dependency files first (better cache utilization)
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source code
 COPY . .
 
-# Build binaries (main service + cmd/* helpers)
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o service . \
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w -X backend-v2/internal/config.BuildVersion=${BUILD_VERSION}" -o service . \
  && CGO_ENABLED=0 GOOS=linux go build -o seed-users ./cmd/seed-users
 
-# Runtime stage - minimal image
 FROM alpine:3.21
 
 # hadolint ignore=DL3018

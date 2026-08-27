@@ -15,7 +15,7 @@ jest.mock('./utils/runCommand')
 const mockCell = {id: 'cell1'}
 
 const makeStore = () => ({
-  importer: {createNodes: jest.fn()},
+  importer: {createNodes: jest.fn(), createErrorNode: jest.fn()},
   _integrationSettingsCache: null,
 })
 
@@ -115,7 +115,7 @@ describe('CompletionCommand', () => {
       const command = new CompletionCommand(userId, workflowId, store)
       await command.run(mockCell)
       expect(runCommand).not.toHaveBeenCalled()
-      expect(store.importer.createNodes).toHaveBeenCalledWith('Error: No integration enabled', mockCell.id)
+      expect(store.importer.createErrorNode).toHaveBeenCalledWith('Error: No integration enabled', mockCell.id)
     })
 
     it.each([
@@ -131,7 +131,7 @@ describe('CompletionCommand', () => {
       const command = new CompletionCommand(userId, workflowId, store)
       await command.run(mockCell)
       expect(runCommand).not.toHaveBeenCalled()
-      expect(store.importer.createNodes).toHaveBeenCalledWith(
+      expect(store.importer.createErrorNode).toHaveBeenCalledWith(
         expect.stringMatching(/^Error: No LLM provider/),
         mockCell.id,
       )
@@ -142,7 +142,7 @@ describe('CompletionCommand', () => {
       runCommand.mockRejectedValue(new Error('downstream failure'))
       const command = new CompletionCommand(userId, workflowId, store)
       await command.run(mockCell)
-      expect(store.importer.createNodes).toHaveBeenCalledWith('Error: downstream failure', mockCell.id)
+      expect(store.importer.createErrorNode).toHaveBeenCalledWith('Error: downstream failure', mockCell.id)
     })
 
     it('resolves without throwing when store is present, regardless of error type', async () => {
@@ -179,11 +179,29 @@ describe('CompletionCommand', () => {
       expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({preventPostProcess: true}))
     })
 
+    it('always sets preventCommodityForks to true', async () => {
+      const command = new CompletionCommand(userId, workflowId, makeStore())
+      await command.run(mockCell)
+      expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({preventCommodityForks: true}))
+    })
+
     it('forwards the abort signal to runCommand', async () => {
       const controller = new AbortController()
       const command = new CompletionCommand(userId, workflowId, makeStore())
-      await command.run(mockCell, {signal: controller.signal})
+      await command.run(mockCell, undefined, undefined, {signal: controller.signal})
       expect(runCommand.mock.calls[0][0]).toEqual(expect.objectContaining({signal: controller.signal}))
+    })
+
+    it('forwards refinement context and the original prompt to the selected provider dispatch', async () => {
+      const command = new CompletionCommand(userId, workflowId, makeStore())
+      await command.run(mockCell, '[Refinement attempt] failed criterion. ', '/chat original prompt')
+
+      expect(runCommand.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          context: '[Refinement attempt] failed criterion. ',
+          prompt: '/chat original prompt',
+        }),
+      )
     })
 
     it('forwards the cell to runCommand', async () => {

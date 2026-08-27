@@ -1,4 +1,4 @@
-.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e start-backend-e2e start-backend-v2-e2e start-frontend-e2e stop stop-dev stop-e2e ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend build-backend build-backend-v2 build-frontend test-backend test-backend-v2 test-frontend e2e-backend-v2 e2e-frontend e2e-frontend-throttled e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks test-hook clean-e2e clean-all fix-permissions cleanup-old-data e2e-disk-preflight
+.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e start-backend-e2e start-backend-v2-e2e start-frontend-e2e stop stop-dev stop-e2e ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend check-no-legacy-version-symbols check-suffix-grammar-parity sync-suffix-grammar forbid-range-assertions forbid-staged-agent-artifacts build-backend build-backend-v2 build-frontend test-backend test-backend-v2 test-frontend test-scripts e2e-backend-v2 e2e-frontend e2e-frontend-throttled e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks test-hook clean-e2e clean-all fix-permissions cleanup-old-data e2e-disk-preflight probe-version probe-version-e2e
 
 # Configuration
 DOCKER_NETWORK := d5-dev-network
@@ -14,6 +14,8 @@ FRONTEND_PORT := 5173
 E2E_BACKEND_V2_PORT := 3003
 E2E_NODEJS_BACKEND_PORT := 3005
 E2E_FRONTEND_PORT := 5174
+SUFFIX_GRAMMAR_BACKEND := backend/src/controllers/commandExecutor/reliability/core/suffixGrammarShapes.json
+SUFFIX_GRAMMAR_FRONTEND := frontend/src/shared/lib/reliability/suffix-grammar-shapes.json
 
 help:
 	@echo "Available targets:"
@@ -41,6 +43,9 @@ help:
 	@echo "  make test-backend        - Run backend unit tests"
 	@echo "  make test-backend-v2     - Run backend-v2 unit tests"
 	@echo "  make test-frontend       - Run frontend unit tests (Vitest)"
+	@echo "  make test-scripts        - Run shell script unit tests (version.sh)"
+	@echo "  make probe-version       - Verify running dev services match working-tree version (run before web-qa)"
+	@echo "  make probe-version-e2e   - Same check against E2E ports"
 	@echo ""
 	@echo "Setup:"
 	@echo "  make e2e-db-init         - Initialize E2E database with test fixtures"
@@ -69,10 +74,22 @@ help:
 	@echo "  make clean-all           - Clean all build and test artifacts"
 
 # Centralized commands (all modules)
-lint: lint-backend lint-backend-v2 lint-docker-backend-v2 lint-docker-backend lint-docker-frontend lint-frontend
+check-no-legacy-version-symbols:
+	@bash scripts/ci-helpers.sh check_no_legacy_version_symbols
+
+check-suffix-grammar-parity:
+	@diff $(SUFFIX_GRAMMAR_FRONTEND) $(SUFFIX_GRAMMAR_BACKEND) > /dev/null 2>&1 \
+	  || (echo "ERROR: suffix-grammar-shapes.json is out of sync — run: make sync-suffix-grammar" && exit 1)
+	@echo "✓ suffix-grammar-shapes.json parity confirmed"
+
+sync-suffix-grammar:
+	@cp $(SUFFIX_GRAMMAR_BACKEND) $(SUFFIX_GRAMMAR_FRONTEND)
+	@echo "✓ suffix-grammar-shapes.json synced frontend ← backend"
+
+lint: lint-backend lint-backend-v2 lint-docker-backend-v2 lint-docker-backend lint-docker-frontend lint-frontend check-no-legacy-version-symbols check-suffix-grammar-parity
 	@echo "✓ All modules linted"
 
-test: test-backend test-backend-v2 test-frontend
+test: test-backend test-backend-v2 test-frontend test-scripts
 	@echo "✓ All modules tested"
 
 build: build-backend build-backend-v2 build-frontend
@@ -230,8 +247,26 @@ stop-e2e:
 stop: stop-dev stop-e2e
 	@echo "✓ All services stopped"
 
-ci-local: lint build test
+forbid-range-assertions:
+	@bash scripts/ci/forbid-range-assertions-on-counts.sh
+
+forbid-staged-agent-artifacts:
+	@bash scripts/ci/forbid-staged-agent-artifacts.sh
+
+ci-local: lint build test forbid-range-assertions forbid-staged-agent-artifacts
 	@echo "✓ Pre-commit checks passed"
+
+probe-version:
+	@bash scripts/probe-version.sh \
+		"go-backend=http://localhost:$(BACKEND_PORT)/api/v2/version" \
+		"node-backend=http://localhost:$(NODEJS_BACKEND_PORT)/version" \
+		"frontend=http://localhost:$(FRONTEND_PORT)/version"
+
+probe-version-e2e:
+	@bash scripts/probe-version.sh \
+		"go-backend=http://localhost:$(E2E_BACKEND_V2_PORT)/api/v2/version" \
+		"node-backend=http://localhost:$(E2E_NODEJS_BACKEND_PORT)/version" \
+		"frontend=http://localhost:$(E2E_FRONTEND_PORT)/version"
 
 lint-backend:
 	@bash scripts/ci-helpers.sh lint_node backend
@@ -270,6 +305,15 @@ test-frontend:
 	@echo "→ Running frontend unit tests..."
 	@cd frontend && npm test -- --run
 
+test-scripts:
+	@echo "→ Running shell script tests..."
+	@bash scripts/version.test.sh
+	@bash scripts/probe-version.test.sh
+	@node --test scripts/ci/__tests__/legacy-version-symbol-gate.test.mjs
+	@node --test scripts/ci/__tests__/range-assertion-gate.test.mjs
+	@node --test scripts/ci/__tests__/staged-agent-artifact-gate.test.mjs
+	@node --test scripts/ci/__tests__/determinism-gate.test.mjs
+
 start-backend-e2e:
 	@echo "→ Building Node.js backend..."
 	@cd backend && pnpm run build > /dev/null 2>&1
@@ -279,6 +323,9 @@ start-backend-e2e:
 		MONGO_URI='$(MONGO_E2E_URI)' \
 		JWT_SECRET='$(JWT_SECRET)' \
 		MOCK_EXTERNAL_SERVICES=true \
+		NODE_ENV=e2e \
+		D5_ALLOW_MOCK_EXTERNAL_SERVICES=true \
+		MOCK_FORK_SETTLE_DELAY_MS=300 \
 		OPENAI_API_KEY= \
 		CLAUDE_API_KEY= \
 		PERPLEXITY_API_KEY= \
@@ -392,15 +439,13 @@ ci-full: ci-local e2e
 	@echo "✓ Full CI pipeline completed"
 
 install-hooks:
-	@echo "→ Installing git hooks..."
-	@cp .git-hooks/pre-commit .git/hooks/pre-commit
-	@chmod +x .git/hooks/pre-commit
-	@cp .git-hooks/pre-push .git/hooks/pre-push
-	@chmod +x .git/hooks/pre-push
+	@echo "→ Activating tracked git hooks from .git-hooks/ via core.hooksPath (no copy, never stale)..."
+	@chmod +x .git-hooks/pre-commit .git-hooks/pre-push
+	@git config --local core.hooksPath .git-hooks
 	@# Keepalive prevents the ref-discovery SSH session from idling out
 	@# during ci-full, which otherwise breaks the post-hook pack upload.
 	@git config --local core.sshCommand "ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=240 -o TCPKeepAlive=yes"
-	@echo "✓ Git hooks installed (pre-commit + pre-push) with SSH keepalive"
+	@echo "✓ Git hooks active from .git-hooks/ (pre-commit + pre-push) with SSH keepalive"
 
 setup-build-tools:
 	@bash scripts/setup-build-tools.sh

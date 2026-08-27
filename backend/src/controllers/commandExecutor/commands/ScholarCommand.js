@@ -13,6 +13,7 @@ import {CITATIONS_STRING, calculateMaxChunksFromSize} from '../constants'
 import {referencePatterns} from './references/utils/referencePatterns'
 import {clearReferences} from './references/utils/referenceUtils'
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
+import {throwIfAbortError, throwIfAborted} from './utils/executionSignal'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 
@@ -39,6 +40,7 @@ export class ScholarCommand {
     this.logError = this.log.extend('ERROR*', '::')
   }
   async createResponseScholar(node, userInput, params) {
+    throwIfAborted(params?.signal)
     const lang = params?.lang
     const serpApiParams = {...SERP_API_SCHOLAR_PARAMS, as_ylo: params?.minYear}
 
@@ -66,6 +68,8 @@ export class ScholarCommand {
 
     let result = await searchTool.getKnowledgeMapWebExt(userInput)
 
+    throwIfAborted(params?.signal)
+
     result = await conditionallyTranslate(result, lang, llm, this.logError, settings)
 
     if (params?.citations) {
@@ -91,7 +95,7 @@ export class ScholarCommand {
     }
   }
 
-  async run(node, originalPrompt) {
+  async run(node, originalPrompt, options = {}) {
     try {
       let prompt = originalPrompt
       const title = node?.command || node?.title
@@ -104,12 +108,15 @@ export class ScholarCommand {
         )
       }
 
-      const params = this.getParams(title)
+      const params = {...this.getParams(title), signal: options.signal}
       const text = await this.createResponseScholar(node, prompt, params)
 
+      throwIfAborted(options.signal)
       this.store.importer.createNodes(text, node.id)
     } catch (e) {
+      throwIfAbortError(e)
       this.logError(e)
+      throwIfAborted(options.signal)
       this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }
   }

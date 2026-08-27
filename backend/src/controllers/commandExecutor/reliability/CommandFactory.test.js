@@ -5,20 +5,20 @@ import {CLAUDE_QUERY_TYPE} from '../constants/claude'
 import {COMPLETION_QUERY_TYPE} from '../constants/completion'
 import {CUSTOM_LLM_CHAT_QUERY_TYPE} from '../constants/custom_llm'
 import {DEEPSEEK_QUERY_TYPE} from '../constants/deepseek'
+import {DOWNLOAD_QUERY_TYPE} from '../constants/download'
+import {EXT_QUERY_TYPE} from '../constants/ext'
 import {FOREACH_QUERY_TYPE} from '../constants/foreach'
 import {PERPLEXITY_QUERY_TYPE} from '../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../constants/qwen'
-import {REFINE_QUERY_TYPE} from '../constants/refine'
+import {ELECT_QUERY_TYPE} from '../constants/elect'
 import {STEPS_QUERY_TYPE} from '../constants/steps'
 import {SUMMARIZE_QUERY_TYPE} from '../constants/summarize'
 import {VALIDATE_QUERY_TYPE} from '../constants/validate'
 import {SWITCH_QUERY_TYPE} from '../constants/switch'
-import {YANDEX_QUERY_TYPE} from '../constants/yandex'
 import {WEB_QUERY_TYPE} from '../constants/web'
+import {YANDEX_QUERY_TYPE} from '../constants/yandex'
 import {SCHOLAR_QUERY_TYPE} from '../constants/scholar'
-import {EXT_QUERY_TYPE} from '../constants/ext'
 import {OUTLINE_QUERY_TYPE} from '../constants/outline'
-import {DOWNLOAD_QUERY_TYPE} from '../constants/download'
 import {MEMORIZE_QUERY_TYPE} from '../constants/memorize'
 
 jest.mock('debug', () => {
@@ -28,6 +28,32 @@ jest.mock('debug', () => {
 })
 
 describe('CommandFactory', () => {
+  const commandModules = {
+    [CHAT_QUERY_TYPE]: ['../commands/ChatCommand', 'ChatCommand'],
+    [CLAUDE_QUERY_TYPE]: ['../commands/ClaudeCommand', 'ClaudeCommand'],
+    [COMPLETION_QUERY_TYPE]: ['../commands/CompletionCommand', 'CompletionCommand'],
+    [CUSTOM_LLM_CHAT_QUERY_TYPE]: ['../commands/CustomLLMChatCommand', 'CustomLLMChatCommand'],
+    [DEEPSEEK_QUERY_TYPE]: ['../commands/DeepseekCommand', 'DeepseekCommand'],
+    [EXT_QUERY_TYPE]: ['../commands/ExtCommand', 'ExtCommand'],
+    [FOREACH_QUERY_TYPE]: ['../commands/ForeachCommand', 'ForeachCommand'],
+    [MEMORIZE_QUERY_TYPE]: ['../commands/MemorizeCommand', 'MemorizeCommand'],
+    [OUTLINE_QUERY_TYPE]: ['../commands/OutlineCommand', 'OutlineCommand'],
+    [PERPLEXITY_QUERY_TYPE]: ['../commands/PerplexityCommand', 'PerplexityCommand'],
+    [QWEN_QUERY_TYPE]: ['../commands/QwenCommand', 'QwenCommand'],
+    [SCHOLAR_QUERY_TYPE]: ['../commands/ScholarCommand', 'ScholarCommand'],
+    [STEPS_QUERY_TYPE]: ['../commands/StepsCommand', 'StepsCommand'],
+    [SUMMARIZE_QUERY_TYPE]: ['../commands/SummarizeCommand', 'SummarizeCommand'],
+    [SWITCH_QUERY_TYPE]: ['../commands/SwitchCommand', 'SwitchCommand'],
+    [WEB_QUERY_TYPE]: ['../commands/WebCommand', 'WebCommand'],
+    [YANDEX_QUERY_TYPE]: ['../commands/YandexCommand', 'YandexCommand'],
+  }
+
+  const spyOnRun = queryType => {
+    const [modulePath, exportName] = commandModules[queryType]
+    const CommandClass = require(modulePath)[exportName]
+    return jest.spyOn(CommandClass.prototype, 'run').mockResolvedValue()
+  }
+
   describe('createCommand', () => {
     const mockStore = {
       _userId: 'user1',
@@ -107,6 +133,68 @@ describe('CommandFactory', () => {
 
         expect(runner1).not.toBe(runner2)
       })
+
+      it.each([
+        CHAT_QUERY_TYPE,
+        CLAUDE_QUERY_TYPE,
+        PERPLEXITY_QUERY_TYPE,
+        QWEN_QUERY_TYPE,
+        DEEPSEEK_QUERY_TYPE,
+        CUSTOM_LLM_CHAT_QUERY_TYPE,
+        YANDEX_QUERY_TYPE,
+      ])('passes invocation options to context/prompt runner %s', async queryType => {
+        const signal = new AbortController().signal
+        const runSpy = spyOnRun(queryType)
+        const runner = CommandFactory.createRunner(queryType, mockCell, mockContext, mockPrompt, {signal})
+
+        await runner(mockStore)
+
+        expect(runSpy).toHaveBeenCalledWith(expect.any(Object), mockContext, mockPrompt, {signal})
+
+        runSpy.mockRestore()
+      })
+
+      it.each([SUMMARIZE_QUERY_TYPE, SWITCH_QUERY_TYPE])(
+        'passes invocation options to prompt runner %s',
+        async queryType => {
+          const signal = new AbortController().signal
+          const runSpy = spyOnRun(queryType)
+          const runner = CommandFactory.createRunner(queryType, mockCell, mockContext, mockPrompt, {signal})
+
+          await runner(mockStore)
+
+          expect(runSpy).toHaveBeenCalledWith(expect.any(Object), mockPrompt, {signal})
+
+          runSpy.mockRestore()
+        },
+      )
+
+      it('passes context, prompt, and invocation options through the completion provider selector', async () => {
+        const signal = new AbortController().signal
+        const runSpy = spyOnRun(COMPLETION_QUERY_TYPE)
+        const runner = CommandFactory.createRunner(COMPLETION_QUERY_TYPE, mockCell, mockContext, mockPrompt, {signal})
+
+        await runner(mockStore)
+
+        expect(runSpy).toHaveBeenCalledWith(expect.any(Object), mockContext, mockPrompt, {signal})
+
+        runSpy.mockRestore()
+      })
+
+      it.each([FOREACH_QUERY_TYPE, STEPS_QUERY_TYPE])(
+        'passes invocation options to option-object runner %s',
+        async queryType => {
+          const signal = new AbortController().signal
+          const runSpy = spyOnRun(queryType)
+          const runner = CommandFactory.createRunner(queryType, mockCell, mockContext, mockPrompt, {signal})
+
+          await runner(mockStore)
+
+          expect(runSpy).toHaveBeenCalledWith(expect.any(Object), {signal})
+
+          runSpy.mockRestore()
+        },
+      )
     })
 
     describe('store parameter handling', () => {
@@ -147,16 +235,22 @@ describe('CommandFactory', () => {
         [COMPLETION_QUERY_TYPE, 'completion'],
         [CLAUDE_QUERY_TYPE, 'claude'],
         [DEEPSEEK_QUERY_TYPE, 'deepseek'],
+        [DOWNLOAD_QUERY_TYPE, 'download'],
+        [EXT_QUERY_TYPE, 'ext'],
         [QWEN_QUERY_TYPE, 'qwen'],
         [PERPLEXITY_QUERY_TYPE, 'perplexity'],
         [CUSTOM_LLM_CHAT_QUERY_TYPE, 'custom_llm_chat'],
         [YANDEX_QUERY_TYPE, 'yandex'],
+        [OUTLINE_QUERY_TYPE, 'outline'],
+        [MEMORIZE_QUERY_TYPE, 'memorize'],
+        [SCHOLAR_QUERY_TYPE, 'scholar'],
         [SUMMARIZE_QUERY_TYPE, 'summarize'],
         [STEPS_QUERY_TYPE, 'steps'],
         [FOREACH_QUERY_TYPE, 'foreach'],
         [SWITCH_QUERY_TYPE, 'switch'],
-        [REFINE_QUERY_TYPE, 'refine'],
+        [ELECT_QUERY_TYPE, 'elect'],
         [VALIDATE_QUERY_TYPE, 'validate'],
+        [WEB_QUERY_TYPE, 'web'],
       ])('creates runner for %s (%s) command', queryType => {
         const runner = CommandFactory.createRunner(queryType, mockCell, mockContext, mockPrompt)
 
@@ -208,11 +302,11 @@ describe('CommandFactory', () => {
         const cell = {id: 'cell1', command: '/chatgpt test', title: 'Test'}
 
         const chatRunner = CommandFactory.createRunner(CHAT_QUERY_TYPE, cell, 'context', 'prompt')
-        const refineRunner = CommandFactory.createRunner(COMPLETION_QUERY_TYPE, cell, 'context', 'prompt')
+        const electRunner = CommandFactory.createRunner(COMPLETION_QUERY_TYPE, cell, 'context', 'prompt')
 
         expect(typeof chatRunner).toBe('function')
-        expect(typeof refineRunner).toBe('function')
-        expect(chatRunner).not.toBe(refineRunner)
+        expect(typeof electRunner).toBe('function')
+        expect(chatRunner).not.toBe(electRunner)
       })
     })
   })

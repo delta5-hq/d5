@@ -176,7 +176,6 @@ test.describe('Workflow tree node deletion', () => {
       await detail.addChild()
       await tree.treePanel.press('Escape')
 
-      await tree.toggleNodeExpand(childA)
       await expect(tree.nodes).toHaveCount(3, { timeout: TIMEOUTS.BACKEND_SYNC })
 
       const grandchildId = await tree.nodeIdAt(2)

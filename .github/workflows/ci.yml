@@ -2,6 +2,7 @@ name: CI Pipeline
 
 on:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   lint-docker-frontend:
@@ -96,6 +97,13 @@ jobs:
 
   test-backend-v2:
     runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:4.2.8
+        ports:
+          - 27017:27017
+    env:
+      TEST_MONGO_URI: mongodb://localhost:27017/delta5_integration_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -103,8 +111,58 @@ jobs:
           go-version: '1.25'
           cache-dependency-path: backend-v2/go.sum
       - run: cd backend-v2 && go mod download
-      - run: cd backend-v2 && go test -v -coverprofile=coverage.out ./...
+      - run: cd backend-v2 && go test -tags integration -v -coverprofile=coverage.out ./...
       - run: cd backend-v2 && go tool cover -func=coverage.out
+
+
+  test-frontend-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: cd frontend && pnpm install --frozen-lockfile
+      - run: cd frontend && pnpm run genversion
+      - run: cd frontend && pnpm run test -- --run
+
+
+  guard-source-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Legacy version symbol gate
+        run: bash scripts/ci-helpers.sh check_no_legacy_version_symbols
+      - name: Range-assertion count gate
+        run: bash scripts/ci/forbid-range-assertions-on-counts.sh
+      - name: Agent-artifact gate (PR diff vs base)
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          git diff origin/${{ github.base_ref }}...HEAD --name-only | bash scripts/ci/forbid-staged-agent-artifacts.sh --from-stdin
+
+  test-ci-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Gate unit tests
+        run: |
+          node --test scripts/ci/__tests__/legacy-version-symbol-gate.test.mjs
+          node --test scripts/ci/__tests__/range-assertion-gate.test.mjs
+          node --test scripts/ci/__tests__/staged-agent-artifact-gate.test.mjs
+          node --test scripts/ci/__tests__/determinism-gate.test.mjs
 
   build-frontend:
     runs-on: ubuntu-latest
@@ -250,6 +308,7 @@ jobs:
           name: backend-e2e-logs
           path: backend-v2/backend-e2e.log
 
+
   e2e-frontend:
     runs-on: ubuntu-latest
     needs: build-backend-v2
@@ -304,7 +363,7 @@ jobs:
       - run: DROP_DB=true bash backend-v2/e2e-db-init.sh
       - run: |
           cd backend
-          MOCK_EXTERNAL_SERVICES=true PORT="${NODEJS_BACKEND_PORT}" MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" nohup node build/index.js > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
+          NODE_ENV=e2e D5_ALLOW_MOCK_EXTERNAL_SERVICES=true MOCK_EXTERNAL_SERVICES=true MOCK_FORK_SETTLE_DELAY_MS=300 PORT="${NODEJS_BACKEND_PORT}" MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" nohup node build/index.js > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
           sleep 5
           if ! kill -0 $(cat backend-e2e.pid); then
             echo "Node.js backend failed to start"

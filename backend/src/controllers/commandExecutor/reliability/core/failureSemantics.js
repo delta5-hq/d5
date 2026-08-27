@@ -1,0 +1,85 @@
+export const JUDGE_WARNING_CONDITION = Object.freeze({
+  ALL_GATE_FILTERED: 'allGateFiltered',
+  SINGLE_PROVIDER: 'singleProvider',
+  LOWEST_TIER_ONLY: 'lowestTierOnly',
+  NO_REASONING_MODE: 'noReasoningMode',
+  DEGRADED_INPUT: 'degradedInput',
+  JURY_DUPLICATES: 'juryDuplicates',
+  FALLBACK_WITH_WEAK_JUDGE: 'fallbackWithWeakJudge',
+  COMMODITY_PARTIAL_SUCCESS: 'commodityPartialSuccess',
+})
+
+export const FAILURE_CAUSE = Object.freeze({
+  STRUCTURAL_GATE: 'structural-gate',
+  CRITERIA_FAILED: 'criteria-failed',
+  RUNTIME_FAILED: 'runtime-failed',
+  NO_ELIGIBLE_FORKS: 'no-eligible-forks',
+  NO_JUDGE_SIGNAL: 'no-judge-signal',
+  MISSING_PARENT: 'missing-parent',
+  INVALID_CRITERIA: 'invalid-criteria',
+})
+
+export const REMEDIATION_HINT = Object.freeze({
+  REVISE_PROMPT: 'revise-prompt',
+  CHECK_PROVIDER: 'check-provider',
+  ADJUST_CRITERIA: 'adjust-criteria',
+  NONE: 'none',
+})
+
+export const COMMODITY_SUPPRESSION_CAUSE = Object.freeze({
+  SIDE_EFFECTING_ALIAS: 'side-effecting-alias',
+  NESTED_RELIABILITY_FORK: 'nested-reliability-fork',
+})
+
+export const STRUCTURAL_GATE_REJECTION_REASON = Object.freeze({
+  EXECUTION_ERROR: 'execution-error',
+  MCP_TOOL_ERROR: 'mcp-tool-error',
+  HTTP_STATUS_ERROR: 'http-status-error',
+  SSH_EXIT_ERROR: 'ssh-exit-error',
+  RUNTIME_ERROR: 'runtime-error',
+})
+
+export function deterministicFailureReason(signal = {}) {
+  if (!signal) return null
+  if (signal.executionFailureType === 'mcp-tool-error') return STRUCTURAL_GATE_REJECTION_REASON.MCP_TOOL_ERROR
+  if (signal.executionFailureType === 'http-status-error') return STRUCTURAL_GATE_REJECTION_REASON.HTTP_STATUS_ERROR
+  if (signal.executionFailureType === 'ssh-exit-error') return STRUCTURAL_GATE_REJECTION_REASON.SSH_EXIT_ERROR
+  if (signal.executionFailureType === 'runtime-error') return STRUCTURAL_GATE_REJECTION_REASON.RUNTIME_ERROR
+  if (signal.executionStatus === 'error') return STRUCTURAL_GATE_REJECTION_REASON.EXECUTION_ERROR
+  return null
+}
+
+export function classifyNoWinner({allGateFiltered = false, noSignal = false, forkResults = []}) {
+  if (allGateFiltered) {
+    return {
+      failureCause: FAILURE_CAUSE.STRUCTURAL_GATE,
+      remediationHint: REMEDIATION_HINT.REVISE_PROMPT,
+    }
+  }
+
+  if (noSignal) {
+    return {
+      failureCause: FAILURE_CAUSE.NO_JUDGE_SIGNAL,
+      remediationHint: REMEDIATION_HINT.NONE,
+    }
+  }
+
+  if (forkResults.length > 0 && forkResults.every(f => f.status === 'runtime-failed')) {
+    return {
+      failureCause: FAILURE_CAUSE.RUNTIME_FAILED,
+      remediationHint: REMEDIATION_HINT.CHECK_PROVIDER,
+    }
+  }
+
+  if (forkResults.length > 0 && forkResults.every(f => f.status === 'criteria-failed')) {
+    return {
+      failureCause: FAILURE_CAUSE.CRITERIA_FAILED,
+      remediationHint: REMEDIATION_HINT.ADJUST_CRITERIA,
+    }
+  }
+
+  return {
+    failureCause: FAILURE_CAUSE.NO_ELIGIBLE_FORKS,
+    remediationHint: REMEDIATION_HINT.NONE,
+  }
+}

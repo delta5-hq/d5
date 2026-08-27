@@ -17,7 +17,7 @@ export const rpcAliasToQueryType = alias => `${RPC_PREFIX}${alias.replace(/^\//,
 
 /**
  * Resolves queryType with category-aware priority:
- * 1. Control-flow built-ins (NON-overridable: steps, foreach, switch, summarize, refine, memorize)
+ * 1. Control-flow built-ins (NON-overridable: steps, foreach, switch, summarize, elect, memorize)
  * 2. User aliases (MCP/RPC - CAN override LLM built-ins)
  * 3. LLM built-ins (overridable: chat, claude, qwen, web, scholar, etc.)
  *

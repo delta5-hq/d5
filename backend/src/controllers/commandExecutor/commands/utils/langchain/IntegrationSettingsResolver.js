@@ -1,5 +1,6 @@
 import {USER_DEFAULT_MODEL} from '../../../../../shared/config/constants'
 import {CLAUDE_DEFAULT_MODEL as FALLBACK_CLAUDE_DEFAULT_MODEL} from '../../../../../constants'
+import {canUseMockExternalServices} from './MockExternalServices'
 
 // Both env-fill and credential-presence checks derive from this map — add a provider here only.
 const PROVIDER_CREDENTIAL_ENV_MAP = {
@@ -62,7 +63,7 @@ export const resolveSettings = ({merged, workflowDoc, userId, workflowId}) => {
   fillAbsentCredentialsFromEnv(settings)
   fillProviderDefaults(settings)
 
-  if (process.env.MOCK_EXTERNAL_SERVICES === 'true') {
+  if (canUseMockExternalServices()) {
     return {settings, workflowDoc}
   }
 

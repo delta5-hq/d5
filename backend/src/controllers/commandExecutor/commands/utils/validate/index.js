@@ -79,6 +79,22 @@ export const validateNodeData = nodeData => {
     throw new Error(`Node "${id}": "command" must be a string`)
   }
 
+  if (nodeData.executionStatus && typeof nodeData.executionStatus !== 'string') {
+    throw new Error(`Node "${id}": "executionStatus" must be a string`)
+  }
+
+  if (nodeData.executionFailureType && typeof nodeData.executionFailureType !== 'string') {
+    throw new Error(`Node "${id}": "executionFailureType" must be a string`)
+  }
+
+  if (
+    nodeData.executionFailureCode !== undefined &&
+    typeof nodeData.executionFailureCode !== 'string' &&
+    typeof nodeData.executionFailureCode !== 'number'
+  ) {
+    throw new Error(`Node "${id}": "executionFailureCode" must be a string or number`)
+  }
+
   if (nodeData.prompts && !Array.isArray(nodeData.prompts)) {
     throw new Error(`Node "${id}": "prompts" must be an array of strings`)
   } else if (nodeData.prompts && nodeData.prompts.some(prompt => typeof prompt !== 'string')) {

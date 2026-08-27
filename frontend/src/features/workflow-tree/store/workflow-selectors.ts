@@ -1,6 +1,7 @@
 import { useSelector, shallowEqual } from '@shared/lib/store'
 import type { NodeData, NodeId, EdgeData, EdgeId } from '@shared/base-types'
 import type { WorkflowStoreState, WorkflowStoreActions } from './workflow-store-types'
+import type { ForkPreviewState } from './fork-preview-state'
 import { useWorkflowStore } from './workflow-store-provider'
 import { isPromptNode } from '@entities/workflow/lib'
 
@@ -83,4 +84,9 @@ export function useIsPromptNode(nodeId: NodeId | undefined): boolean {
 export function useIsNodeDirty(nodeId: NodeId | undefined): boolean {
   const { store } = useWorkflowStore()
   return useSelector(store, s => (nodeId !== undefined ? s.dirtyNodeIds.has(nodeId) : false))
+}
+
+export function useNodeForkPreview(nodeId: NodeId | undefined): ForkPreviewState | undefined {
+  const { store } = useWorkflowStore()
+  return useSelector(store, s => (nodeId !== undefined ? s.forkPreviews.get(nodeId) : undefined))
 }

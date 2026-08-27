@@ -81,6 +81,7 @@ describe('MCPCommand', () => {
     jest.clearAllMocks()
     mockStore = makeStore()
     mockStore.importer.createNodes = jest.fn()
+    mockStore.importer.createErrorNode = jest.fn()
     MCPClientManager.callTool.mockResolvedValue({
       isError: false,
       content: 'MCP result text',
@@ -286,7 +287,9 @@ describe('MCPCommand', () => {
         const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
 
         await cmd.run(node, undefined, '/coder1 test')
-        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: tool error detail', 'node')
+        expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: MCP tool reported failure', 'node', {
+          type: 'mcp-tool-error',
+        })
       })
 
       it('does not throw to caller when the tool reports isError', async () => {
@@ -311,13 +314,19 @@ describe('MCPCommand', () => {
           'named Error subclass',
           Object.assign(new Error('subprocess sandbox unavailable'), {name: 'SandboxUnavailableError'}),
         ],
-      ])('surfaces .message of %s thrown by callTool as the error node content', async (_label, err) => {
+      ])('classifies %s thrown by callTool as a safe runtime failure', async (_label, err) => {
         MCPClientManager.callTool.mockRejectedValue(err)
         const cmd = new MCPCommand(userId, workflowId, mockStore, httpAliasConfig)
 
         await cmd.run(node, undefined, '/coder1 test')
 
-        expect(mockStore.importer.createNodes).toHaveBeenCalledWith(`Error: ${err.message}`, node.id)
+        expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(
+          'Error: MCP command execution failed',
+          node.id,
+          {
+            type: 'runtime-error',
+          },
+        )
       })
     })
   })
@@ -408,7 +417,9 @@ describe('MCPCommand', () => {
         const cmd = new MCPCommand(userId, workflowId, mockStore, autoConfig)
 
         await cmd.run(node, undefined, '/coder1 build')
-        expect(mockStore.importer.createNodes).toHaveBeenCalledWith('Error: server unreachable', 'node')
+        expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith('Error: MCP command execution failed', 'node', {
+          type: 'runtime-error',
+        })
       })
 
       it('does not throw to caller when the agent run throws', async () => {
@@ -444,7 +455,11 @@ describe('MCPCommand', () => {
         await cmd.run(node, undefined, '/coder1 task')
 
         expect(MCPClientManager.withClient).not.toHaveBeenCalled()
-        expect(mockStore.importer.createNodes).toHaveBeenCalledWith(expect.stringContaining('Error:'), node.id)
+        expect(mockStore.importer.createErrorNode).toHaveBeenCalledWith(
+          'Error: MCP command execution failed',
+          node.id,
+          {type: 'runtime-error'},
+        )
       })
     })
   })

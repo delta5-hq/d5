@@ -1,6 +1,9 @@
 package integration
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 type DocumentEmptinessChecker struct {
 	llmFieldNames []string
@@ -21,7 +24,29 @@ func NewDocumentEmptinessChecker() *DocumentEmptinessChecker {
 }
 
 func (c *DocumentEmptinessChecker) IsEmpty(doc map[string]interface{}) bool {
-	return !c.hasAnyLLMFields(doc) && !c.hasArrayItems(doc, "mcp") && !c.hasArrayItems(doc, "rpc")
+	if c.hasAnyLLMFields(doc) {
+		return false
+	}
+	for fieldName := range registeredArrayFields {
+		if c.hasArrayItems(doc, fieldName) {
+			return false
+		}
+	}
+	return true
+}
+
+// Merged with a scope filter it forms an atomic conditional-remove predicate:
+// the document is only deleted when it is empty, preventing a concurrent add from
+// racing past the emptiness check and removing a non-empty document.
+func (c *DocumentEmptinessChecker) MongoEmptyConditions() bson.M {
+	conditions := bson.M{}
+	for fieldName := range registeredArrayFields {
+		conditions[fieldName+".0"] = bson.M{"$exists": false}
+	}
+	for _, llmField := range c.llmFieldNames {
+		conditions[llmField] = nil
+	}
+	return conditions
 }
 
 func (c *DocumentEmptinessChecker) hasAnyLLMFields(doc map[string]interface{}) bool {

@@ -42,44 +42,34 @@ describe('extractCommandAlias', () => {
 
 describe('createUnknownCommandNode', () => {
   const makeStore = () => ({
-    importer: {createNodes: jest.fn()},
+    importer: {createNodes: jest.fn(), createErrorNode: jest.fn()},
   })
 
-  it('creates a node whose title contains the extracted alias', () => {
+  it('creates an error node titled with the extracted alias, parented to the cell', () => {
     const store = makeStore()
     const cell = {id: 'cell-1', command: '/deleted-alias run something'}
 
     createUnknownCommandNode(store, cell)
 
-    expect(store.importer.createNodes).toHaveBeenCalledWith('Error: Unknown command "/deleted-alias"', 'cell-1')
+    expect(store.importer.createErrorNode).toHaveBeenCalledWith('Error: Unknown command "/deleted-alias"', 'cell-1')
   })
 
-  it('creates a node parented to the cell id', () => {
-    const store = makeStore()
-    const cell = {id: 'target-cell', command: '/gone'}
-
-    createUnknownCommandNode(store, cell)
-
-    const [, parentId] = store.importer.createNodes.mock.calls[0]
-    expect(parentId).toBe('target-cell')
-  })
-
-  it('creates a node with (unknown) alias when cell has no command', () => {
+  it('falls back to (unknown) alias in the error node title when the cell has no command', () => {
     const store = makeStore()
     const cell = {id: 'cell-2', command: undefined}
 
     createUnknownCommandNode(store, cell)
 
-    expect(store.importer.createNodes).toHaveBeenCalledWith('Error: Unknown command "(unknown)"', 'cell-2')
+    expect(store.importer.createErrorNode).toHaveBeenCalledWith('Error: Unknown command "(unknown)"', 'cell-2')
   })
 
-  it('error message always starts with "Error:" prefix matching the codebase convention', () => {
+  it('uses createErrorNode rather than createNodes to attach execution-error status to the output', () => {
     const store = makeStore()
     const cell = {id: 'cell-3', command: '/any-alias'}
 
     createUnknownCommandNode(store, cell)
 
-    const [message] = store.importer.createNodes.mock.calls[0]
-    expect(message).toMatch(/^Error:/)
+    expect(store.importer.createErrorNode).toHaveBeenCalledTimes(1)
+    expect(store.importer.createNodes).not.toHaveBeenCalled()
   })
 })

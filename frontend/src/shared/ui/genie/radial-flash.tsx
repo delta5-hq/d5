@@ -88,11 +88,14 @@ export const RadialFlash = forwardRef<RadialFlashRef, RadialFlashProps>(
     useEffect(() => {
       if (!containerRef.current || initializedRef.current) return
       initializedRef.current = true
+      let cancelled = false
 
       const initPlayer = async () => {
         await loadPlayerRuntime()
+        if (cancelled) return
 
         const waitForPlayer = () => {
+          if (cancelled || typeof window === 'undefined') return
           if (window.TgsPlayer && containerRef.current && !playerRef.current) {
             const cachedPlayer = playerCache.get(playerId)
             if (cachedPlayer) {
@@ -114,6 +117,7 @@ export const RadialFlash = forwardRef<RadialFlashRef, RadialFlashProps>(
       initPlayer()
 
       return () => {
+        cancelled = true
         if (stopTimerRef.current) {
           clearTimeout(stopTimerRef.current)
         }

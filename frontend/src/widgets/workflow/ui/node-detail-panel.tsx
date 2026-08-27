@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { NodeData, NodeId } from '@shared/base-types'
+import type { NodeData, NodeId, ReliabilityMetadata, JudgeQualityWarning } from '@shared/base-types'
 import { Button } from '@shared/ui/button'
 import { Genie } from '@shared/ui/genie'
 import { getCommandRole } from '@shared/constants/command-roles'
@@ -7,16 +7,29 @@ import { getColorForRole } from '@shared/ui/genie/role-colors'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import { canExecuteNode } from '@shared/lib/commands/command-validator'
+import {
+  isReliabilitySyntaxErrorReason,
+  validateCommandForExecution,
+  type ReliabilitySyntaxErrorReason,
+} from '@shared/lib/command-validation'
 import { useAliases } from '@entities/aliases'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@shared/ui/collapsible'
 import { Eye, FileText, Folder, Play, Loader2, Square, Copy, Trash2, Plus, ChevronRight, ArrowLeft } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
-import { isTitleDerivedFromCommand } from '@shared/lib/reliability-suffix'
+import {
+  attachReliabilitySuffix,
+  extractReliabilitySuffix,
+  isTitleDerivedFromCommand,
+} from '@shared/lib/reliability-suffix'
 import { NodeTitleEditor } from './node-title-editor'
 import { NodePreviewSection } from './node-preview-section'
 import { McpFusionReportPanel } from './mcp-fusion-report-panel'
 import { CommandField } from './command-field'
+import { CriterionVerdictDrawer } from './criterion-verdict-drawer'
+import { DiscardedForksDrawer } from './discarded-forks-drawer'
+import type { ForkPreviewState } from '@features/workflow-tree/store/fork-preview-state'
+import { readCommodityN } from '@shared/lib/reliability/commodity-params'
 
 interface NodeDetailPanelProps {
   node: NodeData
@@ -34,8 +47,21 @@ interface NodeDetailPanelProps {
   onAbort: (nodeId: NodeId) => void
   isExecuting: boolean
   executeDisabled: boolean
+  electCost?: number | null
+  electCostExceedsLimit?: boolean
+  reliabilityMetadata?: ReliabilityMetadata
+  forkPreview?: ForkPreviewState
+  preExecuteWarnings?: JudgeQualityWarning[]
   autoFocusTitle?: boolean
   autoFocusCommand?: boolean
+  openDrawerForNodeId?: string
+  onDrawerOpened?: () => void
+}
+
+const RELIABILITY_SYNTAX_ERROR_I18N_KEY: Record<ReliabilitySyntaxErrorReason, string> = {
+  elect_criterion_must_be_validate: 'workflowTree.node.electCriterionMustBeValidate',
+  validate_retry_must_be_refine: 'workflowTree.node.validateRetryMustBeRefine',
+  invalid_refine_syntax: 'workflowTree.node.invalidRefineSyntax',
 }
 
 export const NodeDetailPanel = ({
@@ -54,8 +80,15 @@ export const NodeDetailPanel = ({
   onAbort,
   isExecuting,
   executeDisabled,
+  electCost,
+  electCostExceedsLimit,
+  reliabilityMetadata,
+  forkPreview,
+  preExecuteWarnings,
   autoFocusTitle,
   autoFocusCommand,
+  openDrawerForNodeId,
+  onDrawerOpened,
 }: NodeDetailPanelProps) => {
   const { aliases } = useAliases()
   const genieState = useGenieState(node.id)
@@ -64,11 +97,28 @@ export const NodeDetailPanel = ({
   const mutationDisabled = isExecuting
   const { formatMessage } = useIntl()
   const showPreview = isPrompt || Boolean(node.command) || Boolean(node.title)
-  const canExecute = canExecuteNode(node.command, executeDisabled)
+  const commandValidation = validateCommandForExecution(node.command, false, aliases)
+  const reliabilitySyntaxError = isReliabilitySyntaxErrorReason(commandValidation.reason)
+    ? commandValidation.reason
+    : null
+  const canExecute =
+    canExecuteNode(node.command, executeDisabled || electCostExceedsLimit === true) && !reliabilitySyntaxError
   const siblingActionsEnabled = !isRoot && canExecute
+
+  const commodityN = readCommodityN(node.command ?? '')
+  const { baseTitle: nodeTitleBase, suffix: nodeTitleSuffix } = extractReliabilitySuffix(normalizeNodeTitle(node.title))
 
   const [settingsOpen, setSettingsOpen] = useState(!isPrompt)
   const [previewOpen, setPreviewOpen] = useState(isPrompt)
+  const [verdictOpen, setVerdictOpen] = useState(false)
+  const [forksOpen, setForksOpen] = useState(false)
+
+  useEffect(() => {
+    if (openDrawerForNodeId !== node.id) return
+    onDrawerOpened?.()
+    if (!reliabilityMetadata) return
+    setVerdictOpen(true)
+  }, [openDrawerForNodeId, node.id, reliabilityMetadata, onDrawerOpened])
   const previousExecutingRef = useRef(isExecuting)
 
   useEffect(() => {
@@ -87,9 +137,9 @@ export const NodeDetailPanel = ({
 
   const handleTitleChange = useCallback(
     (title: string) => {
-      onUpdateNode(node.id, { title })
+      onUpdateNode(node.id, { title: attachReliabilitySuffix(title, nodeTitleSuffix) })
     },
-    [node.id, onUpdateNode],
+    [node.id, nodeTitleSuffix, onUpdateNode],
   )
 
   const handleCommandChange = useCallback(
@@ -101,9 +151,10 @@ export const NodeDetailPanel = ({
   )
 
   const handleExecute = useCallback(async () => {
+    if (reliabilitySyntaxError) return
     const queryType = extractQueryTypeFromCommand(node.command, aliases)
     await onExecute(node, queryType)
-  }, [node, onExecute, aliases])
+  }, [node, onExecute, aliases, reliabilitySyntaxError])
 
   const handleAbort = useCallback(() => {
     onAbort(node.id)
@@ -126,13 +177,21 @@ export const NodeDetailPanel = ({
   }, [node.id, onAddSibling])
 
   const handleEnterInCommand = useCallback(
-    (committedCommand: string) => onEnterInCommand(node.id, committedCommand),
-    [node.id, onEnterInCommand],
+    (committedCommand: string) => {
+      const validation = validateCommandForExecution(committedCommand, false, aliases)
+      if (isReliabilitySyntaxErrorReason(validation.reason)) return
+      onEnterInCommand(node.id, committedCommand)
+    },
+    [node.id, onEnterInCommand, aliases],
   )
 
   const handleCtrlEnterInCommand = useCallback(
-    (committedCommand: string) => onCtrlEnterInCommand(node.id, committedCommand),
-    [node.id, onCtrlEnterInCommand],
+    (committedCommand: string) => {
+      const validation = validateCommandForExecution(committedCommand, false, aliases)
+      if (isReliabilitySyntaxErrorReason(validation.reason)) return
+      onCtrlEnterInCommand(node.id, committedCommand)
+    },
+    [node.id, onCtrlEnterInCommand, aliases],
   )
 
   const handleShiftCtrlEnterInCommand = useCallback(
@@ -183,7 +242,7 @@ export const NodeDetailPanel = ({
                     autoFocus={autoFocusTitle}
                     className="flex-1 font-medium"
                     onChange={handleTitleChange}
-                    value={normalizeNodeTitle(node.title)}
+                    value={nodeTitleBase}
                   />
                 </div>
 
@@ -191,17 +250,94 @@ export const NodeDetailPanel = ({
                   <span className="text-muted-foreground text-xs pt-2">
                     <FormattedMessage id="workflowTree.node.command" />
                   </span>
-                  <CommandField
-                    autoFocus={autoFocusCommand}
-                    className="min-h-[80px] text-xs font-mono w-full"
-                    nodeId={node.id}
-                    onChange={handleCommandChange}
-                    onCtrlEnter={siblingActionsEnabled ? handleCtrlEnterInCommand : undefined}
-                    onEnter={handleEnterInCommand}
-                    onShiftCtrlEnter={siblingActionsEnabled ? handleShiftCtrlEnterInCommand : undefined}
-                    placeholder={formatMessage({ id: 'workflowTree.node.commandPlaceholder' })}
-                    value={node.command ?? ''}
-                  />
+                  <div>
+                    <CommandField
+                      autoFocus={autoFocusCommand}
+                      className="min-h-[80px] text-xs font-mono w-full"
+                      nodeId={node.id}
+                      onChange={handleCommandChange}
+                      onCtrlEnter={siblingActionsEnabled ? handleCtrlEnterInCommand : undefined}
+                      onEnter={handleEnterInCommand}
+                      onShiftCtrlEnter={siblingActionsEnabled ? handleShiftCtrlEnterInCommand : undefined}
+                      placeholder={formatMessage({ id: 'workflowTree.node.commandPlaceholder' })}
+                      value={node.command ?? ''}
+                    />
+                    {reliabilitySyntaxError ? (
+                      <span className="text-xs text-destructive mt-1 block" data-testid="command-validation-error">
+                        <FormattedMessage id={RELIABILITY_SYNTAX_ERROR_I18N_KEY[reliabilitySyntaxError]} />
+                      </span>
+                    ) : null}
+                    {typeof electCost === 'number' ? (
+                      <span className="text-xs text-muted-foreground mt-1 block" data-testid="elect-cost-hint">
+                        <FormattedMessage id="workflowTree.node.electCostHint" values={{ cost: electCost }} />
+                      </span>
+                    ) : null}
+                    {typeof electCost === 'number' && electCostExceedsLimit ? (
+                      <span className="text-xs text-destructive mt-1 block" data-testid="elect-cost-over-limit">
+                        <FormattedMessage id="workflowTree.node.electCostOverLimit" values={{ cost: electCost }} />
+                      </span>
+                    ) : null}
+                    {commodityN > 1 ? (
+                      <span className="text-xs text-accent mt-1 block" data-testid="commodity-ceiling-hint">
+                        <FormattedMessage id="workflowTree.node.commodityCeilingHint" />
+                      </span>
+                    ) : null}
+                    {preExecuteWarnings && preExecuteWarnings.length > 0 ? (
+                      <div className="mt-1 space-y-0.5" data-testid="pre-execute-warnings">
+                        {preExecuteWarnings.map(w => (
+                          <span
+                            className={
+                              w.severity === 'high' ? 'text-xs text-destructive block' : 'text-xs text-accent block'
+                            }
+                            data-testid={`pre-execute-warning-${w.condition}`}
+                            key={w.condition}
+                          >
+                            <FormattedMessage id={`workflowTree.verdictDrawer.judgeQualityWarning_${w.condition}`} />
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {reliabilityMetadata?.mode === 'suppressed' || reliabilityMetadata?.suppressed ? (
+                      <span className="text-xs text-accent mt-1 block" data-testid="suppressed-run-hint">
+                        <FormattedMessage
+                          id={
+                            reliabilityMetadata.cause === 'nested-reliability-fork'
+                              ? 'workflowTree.node.nestedReliabilitySuppressedHint'
+                              : 'workflowTree.node.suppressedRunHint'
+                          }
+                          values={{ n: reliabilityMetadata.requestedN ?? '' }}
+                        />
+                      </span>
+                    ) : null}
+                    {reliabilityMetadata?.retryWithheld ? (
+                      <span className="text-xs text-accent mt-1 block" data-testid="retry-withheld-hint">
+                        <FormattedMessage
+                          id="workflowTree.node.retryWithheldHint"
+                          values={{ n: reliabilityMetadata.requestedRetry ?? '' }}
+                        />
+                      </span>
+                    ) : null}
+                    {reliabilityMetadata?.perCriterionVerdict?.length ? (
+                      <button
+                        className="text-xs text-primary underline underline-offset-2 mt-1 block hover:opacity-80 transition-opacity"
+                        data-testid="verdict-button"
+                        onClick={() => setVerdictOpen(true)}
+                        type="button"
+                      >
+                        <FormattedMessage id="workflowTree.node.verdictButton" />
+                      </button>
+                    ) : null}
+                    {forkPreview || reliabilityMetadata ? (
+                      <button
+                        className="text-xs text-primary underline underline-offset-2 mt-1 block hover:opacity-80 transition-opacity"
+                        data-testid="forks-button"
+                        onClick={() => setForksOpen(true)}
+                        type="button"
+                      >
+                        <FormattedMessage id="workflowTree.discardedForks.discardedForksButton" />
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2 pt-2">
@@ -307,6 +443,20 @@ export const NodeDetailPanel = ({
             ) : null}
           </CollapsibleContent>
         </Collapsible>
+      ) : null}
+
+      {reliabilityMetadata ? (
+        <CriterionVerdictDrawer metadata={reliabilityMetadata} onOpenChange={setVerdictOpen} open={verdictOpen} />
+      ) : null}
+      {forkPreview || reliabilityMetadata ? (
+        <DiscardedForksDrawer
+          discardedForks={reliabilityMetadata?.discardedForks}
+          forkPreview={forkPreview}
+          metadata={reliabilityMetadata}
+          nodeId={node.id}
+          onOpenChange={setForksOpen}
+          open={forksOpen}
+        />
       ) : null}
     </div>
   )

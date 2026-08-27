@@ -293,7 +293,7 @@ describe('YandexCommand', () => {
         {role: 'user', text: 'Context:\n```\n```\nпридумай 2 поисковых запроса\n  для научной статьи на тему'},
       ]
 
-      expect(replySpy).toHaveBeenCalledWith(messages, expect.anything(), expect.anything(), expect.anything())
+      expect(replySpy).toHaveBeenCalledWith(messages, expect.anything(), expect.anything(), expect.anything(), {})
       replySpy.mockRestore()
     })
 

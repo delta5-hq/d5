@@ -90,4 +90,75 @@ describe('NoopChatModel', () => {
       content: 'fixed-response',
     })
   })
+
+  describe('MOCK_FORK_SETTLE_DELAY_MS', () => {
+    beforeEach(() => jest.useFakeTimers())
+    afterEach(() => {
+      jest.useRealTimers()
+      delete process.env.MOCK_FORK_SETTLE_DELAY_MS
+    })
+
+    it('resolves immediately when MOCK_FORK_SETTLE_DELAY_MS is not set', async () => {
+      const model = new NoopChatModel({plan: fixedPlan})
+      const p = model.invoke([{content: 'x'}])
+      jest.runAllTimers()
+      await expect(p).resolves.toMatchObject({content: 'fixed-response'})
+    })
+
+    it('delays invoke by the configured milliseconds', async () => {
+      process.env.MOCK_FORK_SETTLE_DELAY_MS = '500'
+      const model = new NoopChatModel({plan: fixedPlan})
+
+      let resolved = false
+      const p = model.invoke([{content: 'x'}]).then(r => {
+        resolved = true
+        return r
+      })
+
+      jest.advanceTimersByTime(499)
+      await Promise.resolve()
+      expect(resolved).toBe(false)
+
+      jest.advanceTimersByTime(1)
+      await Promise.resolve()
+      await p
+      expect(resolved).toBe(true)
+    })
+
+    it('aborts during the delay when signal fires', async () => {
+      process.env.MOCK_FORK_SETTLE_DELAY_MS = '1000'
+      const model = new NoopChatModel({plan: fixedPlan})
+      const controller = new AbortController()
+
+      const p = model.invoke([{content: 'x'}], {signal: controller.signal})
+      controller.abort()
+      jest.runAllTimers()
+
+      await expect(p).rejects.toMatchObject({name: 'AbortError'})
+    })
+
+    it('ignores zero and resolves immediately', async () => {
+      process.env.MOCK_FORK_SETTLE_DELAY_MS = '0'
+      const model = new NoopChatModel({plan: fixedPlan})
+      const p = model.invoke([{content: 'x'}])
+      jest.runAllTimers()
+      await expect(p).resolves.toMatchObject({content: 'fixed-response'})
+    })
+
+    it('ignores negative values and resolves immediately', async () => {
+      process.env.MOCK_FORK_SETTLE_DELAY_MS = '-500'
+      const model = new NoopChatModel({plan: fixedPlan})
+      const p = model.invoke([{content: 'x'}])
+      jest.runAllTimers()
+      await expect(p).resolves.toMatchObject({content: 'fixed-response'})
+    })
+
+    it('ignores non-numeric string values and resolves immediately', async () => {
+      process.env.MOCK_FORK_SETTLE_DELAY_MS = 'not-a-number'
+      const model = new NoopChatModel({plan: fixedPlan})
+      const p = model.invoke([{content: 'x'}])
+      jest.runAllTimers()
+      await expect(p).resolves.toMatchObject({content: 'fixed-response'})
+    })
+  })
 })

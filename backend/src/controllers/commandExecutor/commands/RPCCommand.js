@@ -10,29 +10,23 @@ import {SessionIdExtractor} from './rpc/SessionIdExtractor'
 import {SessionIdInjector} from './rpc/SessionIdInjector'
 import IntegrationSessionRepository from '../../../repositories/IntegrationSessionRepository'
 import {resolveExternalCommandPrompt} from './shared/resolveExternalCommandPrompt'
+import {EXECUTION_FAILURE_TYPE} from './utils/executionNodeStatus'
 
 const log = debug('delta5:app:Command:RPC')
 
-const MAX_HTTP_ERROR_BODY_LENGTH = 500
-
-const normalizeHTTPErrorBody = body => {
-  if (!body) return ''
-
-  const text = String(body).replace(/\s+/g, ' ').trim()
-  if (!text) return ''
-
-  if (text.length <= MAX_HTTP_ERROR_BODY_LENGTH) return text
-  return `${text.slice(0, MAX_HTTP_ERROR_BODY_LENGTH)}…`
+class RPCSSHExitError extends Error {
+  constructor(exitCode) {
+    super(`SSH RPC failed with exit code ${exitCode}`)
+    this.name = 'RPCSSHExitError'
+    this.exitCode = exitCode
+  }
 }
 
 class RPCHTTPStatusError extends Error {
-  constructor(status, body) {
-    const bodyPreview = normalizeHTTPErrorBody(body)
-    const details = bodyPreview ? `: ${bodyPreview}` : ''
-    super(`HTTP RPC failed with status ${status}${details}`)
+  constructor(status) {
+    super(`HTTP RPC failed with status ${status}`)
     this.name = 'RPCHTTPStatusError'
     this.status = status
-    this.body = body
   }
 }
 
@@ -57,14 +51,22 @@ export class RPCCommand {
 
     const injector = new SessionIdInjector(commandTemplate, lastSessionId)
     const templateWithSession = injector.inject()
-    const command = interpolateTemplate(templateWithSession, prompt, {escapeMode: 'shell'})
+    const command = interpolateTemplate(templateWithSession, prompt, {
+      escapeMode: 'shell',
+    })
 
     const executor = new SSHExecutor()
 
     let client = null
     if (this.sshClientPool) {
       try {
-        client = await this.sshClientPool.getOrCreate({host, port, username, privateKey, passphrase})
+        client = await this.sshClientPool.getOrCreate({
+          host,
+          port,
+          username,
+          privateKey,
+          passphrase,
+        })
       } catch (err) {
         this.logError(`Failed to get shared SSH client, falling back to own connection: ${err.message}`)
       }
@@ -83,7 +85,8 @@ export class RPCCommand {
     })
 
     if (exitCode !== 0) {
-      this.logError(`SSH command failed with exit code ${exitCode}: ${stderr}`)
+      this.logError(`SSH command failed with exit code ${exitCode}`)
+      throw new RPCSSHExitError(exitCode)
     }
 
     return stdout || stderr
@@ -120,7 +123,7 @@ export class RPCCommand {
 
     if (isError) {
       this.logError(`HTTP request failed with status ${status}`)
-      throw new RPCHTTPStatusError(status, responseBody)
+      throw new RPCHTTPStatusError(status)
     }
 
     return responseBody
@@ -129,7 +132,10 @@ export class RPCCommand {
   async executeACP(prompt, progressReporter = null, signal = null) {
     const {command, args, env, timeoutMs, workingDir, autoApprove, allowedTools, lastSessionId} = this.aliasConfig
 
-    const permissionPolicy = ACPPermissionPolicy.fromIntegrationConfig({autoApprove, allowedTools})
+    const permissionPolicy = ACPPermissionPolicy.fromIntegrationConfig({
+      autoApprove,
+      allowedTools,
+    })
     const executor = new ACPExecutor()
 
     const onUpdate = progressReporter?.emitUpdate ? update => progressReporter.emitUpdate(update) : null
@@ -194,7 +200,15 @@ export class RPCCommand {
       this.store.importer.createNodes(parsedOutput || '(empty RPC response)', node.id)
     } catch (e) {
       this.logError(e)
-      this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
+      const failureSignal =
+        e instanceof RPCHTTPStatusError
+          ? {type: EXECUTION_FAILURE_TYPE.HTTP_STATUS_ERROR, code: e.status}
+          : e instanceof RPCSSHExitError
+          ? {type: EXECUTION_FAILURE_TYPE.SSH_EXIT_ERROR, code: e.exitCode}
+          : {type: EXECUTION_FAILURE_TYPE.RUNTIME_ERROR}
+      const safeMessage =
+        e instanceof RPCHTTPStatusError || e instanceof RPCSSHExitError ? e.message : 'RPC command execution failed'
+      this.store.importer.createErrorNode(`Error: ${safeMessage}`, node.id, failureSignal)
     }
   }
 

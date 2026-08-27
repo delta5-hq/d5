@@ -6,7 +6,7 @@ import {DeepseekCommand} from '../commands/DeepseekCommand'
 import {ForeachCommand} from '../commands/ForeachCommand'
 import {PerplexityCommand} from '../commands/PerplexityCommand'
 import {QwenCommand} from '../commands/QwenCommand'
-import {RefineCommand} from '../commands/RefineCommand'
+import {ElectCommand} from '../commands/ElectCommand'
 import {StepsCommand} from '../commands/StepsCommand'
 import {SummarizeCommand} from '../commands/SummarizeCommand'
 import {ValidateCommand} from '../commands/ValidateCommand'
@@ -22,7 +22,7 @@ import {DEEPSEEK_QUERY_TYPE} from '../constants/deepseek'
 import {FOREACH_QUERY_TYPE} from '../constants/foreach'
 import {PERPLEXITY_QUERY_TYPE} from '../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../constants/qwen'
-import {REFINE_QUERY_TYPE} from '../constants/refine'
+import {ELECT_QUERY_TYPE} from '../constants/elect'
 import {STEPS_QUERY_TYPE} from '../constants/steps'
 import {SUMMARIZE_QUERY_TYPE} from '../constants/summarize'
 import {VALIDATE_QUERY_TYPE} from '../constants/validate'
@@ -62,8 +62,8 @@ class CommandFactory {
         return new CustomLLMChatCommand(userId, workflowId, store)
       case COMPLETION_QUERY_TYPE:
         return new CompletionCommand(userId, workflowId, store, progress)
-      case REFINE_QUERY_TYPE:
-        return new RefineCommand(userId, workflowId, store)
+      case ELECT_QUERY_TYPE:
+        return new ElectCommand(userId, workflowId, store)
       case VALIDATE_QUERY_TYPE:
         return new ValidateCommand(userId, workflowId, store)
       default:
@@ -81,7 +81,7 @@ class CommandFactory {
    * @param {string} prompt - Prompt string
    * @returns {Function} (store, progress) => Promise<void>
    */
-  static createRunner(queryType, cell, context, prompt) {
+  static createRunner(queryType, cell, context, prompt, options = {}) {
     return async (store, progress) => {
       const command = this.createCommand(queryType, store, progress)
       const resolvedCell = store.getNode(cell.id) || cell
@@ -94,18 +94,20 @@ class CommandFactory {
         case DEEPSEEK_QUERY_TYPE:
         case CUSTOM_LLM_CHAT_QUERY_TYPE:
         case YANDEX_QUERY_TYPE:
-          return command.run(resolvedCell, context, prompt)
+          return command.run(resolvedCell, context, prompt, options)
 
         case SUMMARIZE_QUERY_TYPE:
         case SWITCH_QUERY_TYPE:
-          return command.run(resolvedCell, prompt)
+          return command.run(resolvedCell, prompt, options)
 
         case COMPLETION_QUERY_TYPE:
+          return command.run(resolvedCell, context, prompt, options)
+
         case FOREACH_QUERY_TYPE:
         case STEPS_QUERY_TYPE:
-          return command.run(resolvedCell)
+          return command.run(resolvedCell, options)
 
-        case REFINE_QUERY_TYPE:
+        case ELECT_QUERY_TYPE:
         case VALIDATE_QUERY_TYPE:
           return command.run(resolvedCell)
 

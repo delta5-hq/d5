@@ -1,7 +1,7 @@
 import {runWithErrorNode} from './runWithErrorNode'
 
 const makeStore = () => ({
-  importer: {createNodes: jest.fn()},
+  importer: {createErrorNode: jest.fn()},
 })
 
 const makeNode = id => ({id})
@@ -21,9 +21,9 @@ describe('runWithErrorNode', () => {
       expect(result).toBe(42)
     })
 
-    it('does not call createNodes', async () => {
+    it('does not call createErrorNode', async () => {
       await runWithErrorNode(store, makeNode('n1'), logError, async () => 'ok')
-      expect(store.importer.createNodes).not.toHaveBeenCalled()
+      expect(store.importer.createErrorNode).not.toHaveBeenCalled()
     })
 
     it('does not call logError', async () => {
@@ -48,18 +48,32 @@ describe('runWithErrorNode', () => {
       expect(logError).toHaveBeenCalledWith(err)
     })
 
-    it('calls createNodes on the correct node id', async () => {
+    it('calls createErrorNode on the correct node id', async () => {
       await runWithErrorNode(store, makeNode('target-node'), logError, async () => {
         throw new Error('fail')
       })
-      expect(store.importer.createNodes).toHaveBeenCalledWith(expect.any(String), 'target-node')
+      expect(store.importer.createErrorNode).toHaveBeenCalledWith(expect.any(String), 'target-node')
     })
 
-    it('calls createNodes exactly once per thrown error', async () => {
+    it('calls createErrorNode exactly once per thrown error', async () => {
       await runWithErrorNode(store, makeNode('n1'), logError, async () => {
         throw new Error('single')
       })
-      expect(store.importer.createNodes).toHaveBeenCalledTimes(1)
+      expect(store.importer.createErrorNode).toHaveBeenCalledTimes(1)
+    })
+
+    it.each([
+      ['DOMException AbortError', new DOMException('aborted', 'AbortError')],
+      ['Error named AbortError', Object.assign(new Error('Operation cancelled'), {name: 'AbortError'})],
+    ])('rethrows %s without logging or creating an error node', async (_label, err) => {
+      await expect(
+        runWithErrorNode(store, makeNode('n1'), logError, async () => {
+          throw err
+        }),
+      ).rejects.toBe(err)
+
+      expect(logError).not.toHaveBeenCalled()
+      expect(store.importer.createErrorNode).not.toHaveBeenCalled()
     })
   })
 
@@ -73,14 +87,14 @@ describe('runWithErrorNode', () => {
       await runWithErrorNode(store, makeNode('n1'), logError, async () => {
         throw err
       })
-      expect(store.importer.createNodes).toHaveBeenCalledWith(`Error: ${err.message}`, 'n1')
+      expect(store.importer.createErrorNode).toHaveBeenCalledWith(`Error: ${err.message}`, 'n1')
     })
 
     it('falls back to "Unknown error" when Error.message is empty', async () => {
       await runWithErrorNode(store, makeNode('n1'), logError, async () => {
         throw new Error('')
       })
-      expect(store.importer.createNodes).toHaveBeenCalledWith('Error: Unknown error', 'n1')
+      expect(store.importer.createErrorNode).toHaveBeenCalledWith('Error: Unknown error', 'n1')
     })
   })
 
@@ -95,7 +109,7 @@ describe('runWithErrorNode', () => {
       await runWithErrorNode(store, makeNode('n1'), logError, async () => {
         throw thrown // eslint-disable-line no-throw-literal
       })
-      expect(store.importer.createNodes).toHaveBeenCalledWith(expectedMessage, 'n1')
+      expect(store.importer.createErrorNode).toHaveBeenCalledWith(expectedMessage, 'n1')
     })
   })
 })

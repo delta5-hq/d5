@@ -25,13 +25,17 @@ import {ClaudeService} from '../../../integrations/claude/ClaudeService'
 import {DOWNLOAD_QUERY_TYPE} from '../../constants/download'
 import {scrapeFiles} from '../../../utils/scrape'
 import WorkflowFile from '../../../../models/WorkflowFile'
-import {REFINE_QUERY_TYPE} from '../../constants/refine'
+import {ELECT_QUERY_TYPE} from '../../constants/elect'
 import {LLMChain} from '@langchain/classic/chains'
 import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
 import {COMPLETION_QUERY_TYPE} from '../../constants/completion'
 import {MEMORIZE_QUERY_TYPE} from '../../constants/memorize'
+import {MCP_FUSION_QUERY_TYPE} from '../../constants/mcpFusion'
+import {MCPFusionCommand} from '../MCPFusionCommand'
 import * as MCPClientManager from '../mcp/MCPClientManager'
+import {runForks} from '../../reliability/core/SubtreeForkRunner'
+import {MEMO_SENTINEL_PRE_EXECUTED_CHILD} from '../../reliability/core/memoSentinels'
 /* eslint-disable no-unused-vars */
 import {SSHExecutor} from '../rpc/SSHExecutor'
 import {HTTPExecutor} from '../rpc/HTTPExecutor'
@@ -775,46 +779,46 @@ describe('internal research MCP slash parameter bridge', () => {
   })
 })
 
-describe('/refine top-level run', () => {
-  const makeRefineStore = (command, extraNodes = {}) => {
-    const refineNode = {
-      id: 'refineNode',
-      title: command,
-      command,
-      children: [],
-      parent: 'rootNode',
-    }
-    const rootNode = {id: 'rootNode', title: 'Workflow', children: [refineNode.id]}
-    const store = new Store({userId, workflowId, nodes: {refineNode, rootNode, ...extraNodes}})
-    return {store, refineNode}
-  }
-
-  const expectErrorChildOf = (store, parentId, titleMatcher) =>
-    expect(store.getOutput().nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({title: expect.stringContaining(titleMatcher), parent: parentId}),
-      ]),
-    )
-
+describe('/elect top-level run (P0.488: modifier-root error)', () => {
+  /*
+   * Top-level /elect (queryType=ELECT_QUERY_TYPE) is intercepted by
+   * the modifierQueryTypes guard in runCommand before reaching CommandFactory.
+   * It resolves (no throw) and writes a [✗ invalid] suffix + error child node,
+   * giving the user a visible attribution instead of an opaque 500.
+   */
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
-  it('resolves and produces a visible error node when :n= is absent', async () => {
-    const {store, refineNode} = makeRefineStore('/refine make it more concise')
+  it('writes [✗ invalid] suffix and error node without throwing', async () => {
+    const electNode = {
+      id: 'electNode',
+      title: '/elect make it more concise',
+      command: '/elect make it more concise',
+      children: [],
+      parent: 'rootNode',
+    }
+    const rootNode = {
+      id: 'rootNode',
+      title: 'Workflow',
+      children: [electNode.id],
+    }
+    const mockStore = new Store({
+      userId,
+      workflowId,
+      nodes: {electNode, rootNode},
+    })
 
-    await runCommand({cell: refineNode, queryType: REFINE_QUERY_TYPE, store})
+    await runCommand({
+      cell: electNode,
+      queryType: ELECT_QUERY_TYPE,
+      store: mockStore,
+    })
 
-    expectErrorChildOf(store, refineNode.id, '/refine requires :n=N')
-  })
-
-  it('resolves and produces a visible error node when projected cost exceeds :limit=', async () => {
-    // :limit= guards against runaway fork budgets; cost is checked before any fork is spawned
-    const {store, refineNode} = makeRefineStore('/refine :n=2 :limit=1 trim this')
-
-    await runCommand({cell: refineNode, queryType: REFINE_QUERY_TYPE, store})
-
-    expectErrorChildOf(store, refineNode.id, 'exceeds limit')
+    const outputNodes = mockStore.getOutput().nodes
+    const cellOut = outputNodes.find(n => n.id === 'electNode')
+    expect(cellOut?.title).toMatch(/\[✗ !\]/)
+    expect(outputNodes.some(n => n.title?.match(/requires a parent cell/i))).toBe(true)
   })
 })
 
@@ -999,7 +1003,7 @@ describe('SummarizeCommand run test', () => {
     const llmSpy = jest.spyOn(LLMChain.prototype, 'invoke').mockResolvedValue({output_text: ''})
     const translateSpy = jest.spyOn(require('./translate'), 'translate')
 
-    const errorSpy = jest.spyOn(mockStore.importer, 'createNodes')
+    const errorSpy = jest.spyOn(mockStore.importer, 'createErrorNode').mockImplementation(() => {})
 
     await runCommand({
       cell: summarizeNode,
@@ -1509,6 +1513,317 @@ describe('CompletionCommand run test', () => {
   })
 })
 
+describe('CompletionCommand — commodity :n=N routing contract', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it.each([2, 3, 5, 10])(
+    'routes /chat :n=%i through COMPLETION_QUERY_TYPE producing exactly %i provider invocations',
+    async n => {
+      const node = {
+        id: 'node',
+        parent: 'root',
+        command: `/chat :n=${n} task`,
+        children: [],
+      }
+      const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+      const store = new Store({userId, workflowId, nodes: {node, root}})
+
+      getIntegrationSettings.mockResolvedValue({...settings, model: Model.OpenAI})
+
+      let llmCallCount = 0
+      jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI').mockImplementation(async () => {
+        llmCallCount++
+        return `output ${llmCallCount}`
+      })
+
+      await runCommand({cell: node, queryType: COMPLETION_QUERY_TYPE, store})
+
+      expect(llmCallCount).toBe(n)
+    },
+  )
+
+  it.each([1, 2, 3])(':n=%i token is stripped from all LLM messages when routed via COMPLETION_QUERY_TYPE', async n => {
+    const node = {
+      id: 'node',
+      parent: 'root',
+      command: `/chat :n=${n} Reply with one word: hello`,
+      children: [],
+    }
+    const root = {
+      id: 'root',
+      parent: null,
+      title: 'Workflow',
+      children: [node.id],
+    }
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    getIntegrationSettings.mockResolvedValue({
+      ...settings,
+      model: Model.OpenAI,
+    })
+
+    const allMessages = []
+    jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI').mockImplementation(async messages => {
+      allMessages.push(...messages)
+      return 'hello'
+    })
+
+    await runCommand({cell: node, queryType: COMPLETION_QUERY_TYPE, store})
+
+    expect(allMessages.length).toBeGreaterThan(0)
+    allMessages.forEach(msg => {
+      expect(msg.content).not.toMatch(/:n=\d+/)
+      expect(msg.content).toContain('Reply with one word: hello')
+    })
+  })
+
+  it('routes /chat :n=1 through COMPLETION_QUERY_TYPE as a single non-forked invocation', async () => {
+    const node = {
+      id: 'node',
+      parent: 'root',
+      command: '/chat :n=1 task',
+      children: [],
+    }
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    getIntegrationSettings.mockResolvedValue({...settings, model: Model.OpenAI})
+    let llmCallCount = 0
+    jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI').mockImplementation(async () => {
+      llmCallCount++
+      return 'out'
+    })
+
+    await runCommand({cell: node, queryType: COMPLETION_QUERY_TYPE, store})
+
+    expect(llmCallCount).toBe(1)
+    expect(store.getNode(node.id).title ?? '').not.toMatch(/\[/)
+  })
+
+  it.each([
+    [Model.Claude, 'ClaudeService.sendMessages', () => ClaudeService.sendMessages],
+    [Model.YandexGPT, 'YandexService.completionWithRetry', () => YandexService.completionWithRetry],
+  ])(
+    'routes /chat :n=2 through %s family producing exactly 2 provider invocations — no double-fork',
+    async (model, _label, getSpy) => {
+      const node = {
+        id: 'node',
+        parent: 'root',
+        command: '/chat :n=2 task',
+        children: [],
+      }
+      const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+      const store = new Store({userId, workflowId, nodes: {node, root}})
+
+      getIntegrationSettings.mockResolvedValue({...settings, model})
+
+      const mockResponse =
+        model === Model.Claude
+          ? {content: [{type: 'text', text: 'ok'}]}
+          : {
+              result: {
+                alternatives: [{message: {text: 'ok'}}],
+                usage: {inputTextTokens: 0, completionTokens: 0, totalTokens: 0},
+              },
+            }
+
+      let callCount = 0
+      const spy = getSpy()
+      spy.mockImplementation(async () => {
+        callCount++
+        return mockResponse
+      })
+
+      await runCommand({cell: node, queryType: COMPLETION_QUERY_TYPE, store})
+
+      expect(callCount).toBe(2)
+    },
+  )
+
+  it('commodity non-verdict suffix [↻ K/N] is written when routed via COMPLETION_QUERY_TYPE with :n=3', async () => {
+    const node = {
+      id: 'node',
+      parent: 'root',
+      command: '/chat :n=3 task',
+      children: [],
+    }
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    getIntegrationSettings.mockResolvedValue({...settings, model: Model.OpenAI})
+    const chatSpy = jest
+      .spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI')
+      .mockResolvedValue('A well-formed response output from the language model.')
+
+    await runCommand({cell: node, queryType: COMPLETION_QUERY_TYPE, store})
+
+    expect(chatSpy).toHaveBeenCalledTimes(3)
+    expect(store.getNode(node.id).title).toMatch(/\[↻/)
+  })
+})
+
+describe('commodity :n=N — direct CHAT_QUERY_TYPE path (no CompletionCommand routing)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it.each([2, 3, 5])('routes exactly %i LLM invocations with :n=%i on direct CHAT_QUERY_TYPE', async n => {
+    const node = {
+      id: 'node',
+      parent: 'root',
+      command: `/chat :n=${n} task`,
+      children: [],
+    }
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    let callCount = 0
+    jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI').mockImplementation(async () => {
+      callCount++
+      return `output ${callCount}`
+    })
+
+    await runCommand({cell: node, queryType: CHAT_QUERY_TYPE, store})
+
+    expect(callCount).toBe(n)
+  })
+
+  it(':n=N token is absent from messages sent to the LLM on direct CHAT_QUERY_TYPE', async () => {
+    const node = {
+      id: 'node',
+      parent: 'root',
+      command: '/chat :n=2 Reply with one word: hello',
+      children: [],
+    }
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    const allMessages = []
+    jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI').mockImplementation(async messages => {
+      allMessages.push(...messages)
+      return 'hello'
+    })
+
+    await runCommand({cell: node, queryType: CHAT_QUERY_TYPE, store})
+
+    expect(allMessages.length).toBeGreaterThan(0)
+    allMessages.forEach(msg => {
+      expect(msg.content).not.toMatch(/:n=\d+/)
+      expect(msg.content).toContain('Reply with one word: hello')
+    })
+  })
+
+  it('generated child node titles do not contain :n= on direct CHAT_QUERY_TYPE', async () => {
+    const node = {
+      id: 'node',
+      parent: 'root',
+      command: '/chat :n=2 Reply with one word: hello',
+      children: [],
+    }
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI').mockResolvedValue('hello')
+
+    await runCommand({cell: node, queryType: CHAT_QUERY_TYPE, store})
+
+    const childNodes = store.getOutput().nodes.filter(n => n.parent === node.id)
+    expect(childNodes.length).toBeGreaterThan(0)
+    childNodes.forEach(n => {
+      expect(n.title).not.toMatch(/:n=\d+/)
+    })
+  })
+
+  const runDirectCommodity = async outcomes => {
+    const node = {
+      id: 'node',
+      parent: 'root',
+      command: `/chat :n=${outcomes.length} task`,
+      children: [],
+    }
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    const chat = jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI')
+    outcomes.forEach(outcome => {
+      if (outcome instanceof Error) chat.mockRejectedValueOnce(outcome)
+      else chat.mockResolvedValueOnce(outcome)
+    })
+
+    await runCommand({cell: node, queryType: CHAT_QUERY_TYPE, store})
+
+    return {
+      childTitles: store
+        .getOutput()
+        .nodes.filter(n => n.parent === node.id)
+        .map(n => n.title),
+      cellTitle: store.getNode(node.id).title,
+    }
+  }
+
+  it.each([
+    {
+      name: 'all attempts produce output',
+      outcomes: ['alpha', 'beta'],
+      childTitles: ['alpha', 'beta'],
+      suffix: /\[↻ 2\/2\]$/,
+    },
+    {
+      name: 'provider/runtime error attempts are excluded while valid short output survives',
+      outcomes: [new Error('provider rejected credentials'), 'hello'],
+      childTitles: ['hello'],
+      suffix: /\[↻ 1\/2 ⚠\]$/,
+    },
+    {
+      name: 'provider/runtime error and refusal attempts are both excluded',
+      outcomes: [new Error('provider rejected credentials'), "I'm sorry, I cannot help with that.", 'ok'],
+      childTitles: ['ok'],
+      suffix: /\[↻ 1\/3 ⚠\]$/,
+    },
+    {
+      name: 'all attempts fail before producing acceptable output',
+      outcomes: [new Error('provider rejected credentials'), new Error('provider rejected credentials')],
+      childTitles: [],
+      suffix: /\[↻ 0\/2 ⚠\]$/,
+    },
+  ])('commodity merge classifies fork outcomes: $name', async ({outcomes, childTitles, suffix}) => {
+    const result = await runDirectCommodity(outcomes)
+
+    expect(result.childTitles).toEqual(childTitles)
+    expect(result.cellTitle).toMatch(suffix)
+  })
+})
+
+describe('commodity :n=N — generated child titles contain only task text (COMPLETION_QUERY_TYPE)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('child node titles written to the store do not contain :n= after commodity run via routing', async () => {
+    const node = {
+      id: 'node',
+      parent: 'root',
+      command: '/chat :n=2 Reply with one word: hello',
+      children: [],
+    }
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    getIntegrationSettings.mockResolvedValue({...settings, model: Model.OpenAI})
+    jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI').mockResolvedValue('hello')
+
+    await runCommand({cell: node, queryType: COMPLETION_QUERY_TYPE, store})
+
+    const childNodes = store.getOutput().nodes.filter(n => n.parent === node.id)
+    expect(childNodes.length).toBeGreaterThan(0)
+    childNodes.forEach(n => {
+      expect(n.title).not.toMatch(/:n=\d+/)
+    })
+  })
+})
+
 describe('/memorize dispatch test', () => {
   beforeEach(() => {
     jest.clearAllMocks()
@@ -1674,7 +1989,7 @@ describe('MCPCommand run test', () => {
     })
 
     MCPClientManager.callTool.mockRejectedValueOnce(new Error('Connection refused'))
-    const errorSpy = jest.spyOn(mockStore.importer, 'createNodes')
+    const errorSpy = jest.spyOn(mockStore.importer, 'createErrorNode').mockImplementation(() => {})
 
     await runCommand({
       cell: mcpNode,
@@ -1682,7 +1997,7 @@ describe('MCPCommand run test', () => {
       mcpAlias,
     })
 
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Connection refused'), mcpNode.id)
+    expect(errorSpy).toHaveBeenCalledWith('Error: MCP command execution failed', mcpNode.id, {type: 'runtime-error'})
   })
 
   it('should handle error when MCP tool returns isError', async () => {
@@ -1700,7 +2015,7 @@ describe('MCPCommand run test', () => {
     })
 
     MCPClientManager.callTool.mockResolvedValueOnce({content: 'Tool execution failed', isError: true})
-    const errorSpy = jest.spyOn(mockStore.importer, 'createNodes')
+    const errorSpy = jest.spyOn(mockStore.importer, 'createErrorNode').mockImplementation(() => {})
 
     await runCommand({
       cell: mcpNode,
@@ -1708,7 +2023,7 @@ describe('MCPCommand run test', () => {
       mcpAlias,
     })
 
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Tool execution failed'), mcpNode.id)
+    expect(errorSpy).toHaveBeenCalledWith('Error: MCP tool reported failure', mcpNode.id, {type: 'mcp-tool-error'})
   })
 
   it('should handle empty MCP response by creating placeholder node', async () => {
@@ -1931,8 +2246,9 @@ describe('RPCCommand run test', () => {
     expect(output.nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: 'Error: SSH connection failed',
+          title: 'Error: RPC command execution failed',
           parent: rpcNode.id,
+          executionFailureType: 'runtime-error',
         }),
       ]),
     )
@@ -2023,8 +2339,9 @@ describe('RPCCommand run test', () => {
     expect(output.nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: 'Error: ACP process timeout',
+          title: 'Error: RPC command execution failed',
           parent: rpcNode.id,
+          executionFailureType: 'runtime-error',
         }),
       ]),
     )
@@ -2095,8 +2412,9 @@ describe('RPCCommand run test', () => {
     expect(output.nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: expect.stringMatching(/Error:.*Unknown RPC protocol/),
+          title: 'Error: RPC command execution failed',
           parent: rpcNode.id,
+          executionFailureType: 'runtime-error',
         }),
       ]),
     )
@@ -2178,5 +2496,305 @@ describe('/download dispatch routing', () => {
     scrapeFiles.mockRejectedValueOnce(new Error('Connection refused'))
 
     await expect(runCommand({cell: node, queryType: DOWNLOAD_QUERY_TYPE, store: mockStore})).resolves.not.toThrow()
+  })
+})
+
+describe('commodity :n=N × MCP alias', () => {
+  const mcpSeamAlias = {
+    alias: '/qa-mcp',
+    serverUrl: 'http://localhost:3100/mcp',
+    transport: 'streamable-http',
+    toolName: 'run',
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it.each([2, 3, 5])(
+    'suppresses the fan-out for /qa-mcp :n=%i — invokes the MCP tool exactly once, one output node, honest suppression metadata',
+    async n => {
+      const node = {id: 'node', parent: 'root', command: `/qa-mcp :n=${n} task-prompt`, children: []}
+      const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+      const store = new Store({userId, workflowId, nodes: {node, root}})
+
+      MCPClientManager.callTool.mockResolvedValue({content: 'result', isError: false})
+
+      await runCommand({cell: node, store, mcpAlias: mcpSeamAlias})
+
+      expect(MCPClientManager.callTool).toHaveBeenCalledTimes(1)
+      expect(store.getOutput().nodes.filter(m => m.parent === node.id)).toHaveLength(1)
+      expect(store.getNode(node.id).reliabilityMetadata).toEqual(
+        expect.objectContaining({
+          suppressed: true,
+          cause: 'side-effecting-alias',
+          requestedN: n,
+          mode: 'suppressed',
+          total: 1,
+          eligible: 1,
+        }),
+      )
+    },
+  )
+
+  it.each([1, 2, 3])(':n=%i token is absent from the MCP tool payload of the single suppressed execution', async n => {
+    const node = {id: 'node', parent: 'root', command: `/qa-mcp :n=${n} task-prompt`, children: []}
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    MCPClientManager.callTool.mockResolvedValue({content: 'result', isError: false})
+
+    await runCommand({cell: node, store, mcpAlias: mcpSeamAlias})
+
+    MCPClientManager.callTool.mock.calls.forEach(([callArgs]) => {
+      expect(callArgs.toolArguments.prompt).not.toMatch(/:n=/)
+      expect(callArgs.toolArguments.prompt).toContain('task-prompt')
+    })
+  })
+
+  it('@@ and ## references are resolved within MCP payload after :n=N is stripped', async () => {
+    const {commandNode, nodes} = createReferenceWorkflow({
+      nodeId: 'mcpNode',
+      command: '/qa-mcp :n=2 @@topic and ##_source',
+      refDefinition: '@topic seam-topic',
+      hashDefinition: '#_source seam-source',
+    })
+    const store = new Store({userId, workflowId, nodes})
+
+    MCPClientManager.callTool.mockResolvedValue({content: 'r', isError: false})
+
+    await runCommand({cell: commandNode, store, mcpAlias: mcpSeamAlias})
+
+    expect(MCPClientManager.callTool).toHaveBeenCalledTimes(1)
+    MCPClientManager.callTool.mock.calls.forEach(([callArgs]) => {
+      expect(callArgs.toolArguments.prompt).not.toMatch(/:n=/)
+      expectResolvedExternalPrompt(callArgs.toolArguments.prompt, ['seam-topic', 'seam-source'])
+    })
+  })
+})
+
+describe('commodity :n=N × RPC alias', () => {
+  const rpcSeamAlias = {
+    alias: '/qa-rpc',
+    protocol: 'ssh',
+    host: 'vm1.example.com',
+    port: 22,
+    username: 'deploy',
+    privateKey: 'fake-key',
+    commandTemplate: '{{prompt}}',
+    outputFormat: 'text',
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it.each([2, 3, 5])(
+    'suppresses the fan-out for /qa-rpc :n=%i — runs the SSH command exactly once, one output node, honest suppression metadata',
+    async n => {
+      const node = {id: 'node', parent: 'root', command: `/qa-rpc :n=${n} task-prompt`, children: []}
+      const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+      const store = new Store({userId, workflowId, nodes: {node, root}})
+
+      mockSSHExecute.mockResolvedValue({stdout: 'rpc-result', stderr: '', exitCode: 0})
+
+      await runCommand({cell: node, store, rpcAlias: rpcSeamAlias})
+
+      expect(mockSSHExecute).toHaveBeenCalledTimes(1)
+      expect(store.getOutput().nodes.filter(m => m.parent === node.id)).toHaveLength(1)
+      expect(store.getNode(node.id).reliabilityMetadata).toEqual(
+        expect.objectContaining({
+          suppressed: true,
+          cause: 'side-effecting-alias',
+          requestedN: n,
+          mode: 'suppressed',
+          total: 1,
+          eligible: 1,
+        }),
+      )
+    },
+  )
+
+  it.each([1, 2, 3])(
+    ':n=%i token is absent from the SSH command string of the single suppressed execution',
+    async n => {
+      const node = {id: 'node', parent: 'root', command: `/qa-rpc :n=${n} task-prompt`, children: []}
+      const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+      const store = new Store({userId, workflowId, nodes: {node, root}})
+
+      mockSSHExecute.mockResolvedValue({stdout: 'rpc-result', stderr: '', exitCode: 0})
+
+      await runCommand({cell: node, store, rpcAlias: rpcSeamAlias})
+
+      mockSSHExecute.mock.calls.forEach(([params]) => {
+        expect(params.command).not.toMatch(/:n=/)
+        expect(params.command).toContain('task-prompt')
+      })
+    },
+  )
+
+  it('@@ and ## references are resolved within RPC command string after :n=N is stripped', async () => {
+    const {commandNode, nodes} = createReferenceWorkflow({
+      nodeId: 'rpcNode',
+      command: '/qa-rpc :n=2 @@topic and ##_source',
+      refDefinition: '@topic seam-topic',
+      hashDefinition: '#_source seam-source',
+    })
+    const store = new Store({userId, workflowId, nodes})
+
+    mockSSHExecute.mockResolvedValue({stdout: 'r', stderr: '', exitCode: 0})
+
+    await runCommand({cell: commandNode, store, rpcAlias: rpcSeamAlias})
+
+    expect(mockSSHExecute).toHaveBeenCalledTimes(1)
+    mockSSHExecute.mock.calls.forEach(([params]) => {
+      expect(params.command).not.toMatch(/:n=/)
+      expectResolvedExternalPrompt(params.command, ['seam-topic', 'seam-source'])
+    })
+  })
+})
+
+describe('commodity :n=N × /mcp fusion (MCP_FUSION_QUERY_TYPE, no alias param)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('suppresses the fan-out for /mcp :n=3 — invokes the fusion command exactly once, one output node, honest suppression metadata', async () => {
+    const node = {id: 'node', parent: 'root', command: '/mcp :n=3 task-prompt', children: []}
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    const runSpy = jest.spyOn(MCPFusionCommand.prototype, 'run').mockImplementation(async function (cell) {
+      this.store.createNode({title: 'fusion-result', parent: cell.id})
+    })
+
+    await runCommand({cell: node, queryType: MCP_FUSION_QUERY_TYPE, store})
+
+    expect(runSpy).toHaveBeenCalledTimes(1)
+    expect(store.getOutput().nodes.filter(m => m.parent === node.id)).toHaveLength(1)
+    expect(store.getNode(node.id).reliabilityMetadata).toEqual(
+      expect.objectContaining({
+        suppressed: true,
+        cause: 'side-effecting-alias',
+        requestedN: 3,
+        mode: 'suppressed',
+        total: 1,
+        eligible: 1,
+      }),
+    )
+  })
+})
+
+describe('commodity :n=N guard narrowness — native /chat fan-out is unaffected', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('native /chat :n=3 still creates exactly 3 forks / 3 output nodes with no suppression metadata', async () => {
+    const node = {id: 'node', parent: 'root', command: '/chat :n=3 task', children: []}
+    const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+    const store = new Store({userId, workflowId, nodes: {node, root}})
+
+    let callCount = 0
+    jest.spyOn(ChatCommand.prototype, 'replyChatOpenAIAPI').mockImplementation(async () => {
+      callCount++
+      return `A well-formed response output ${callCount}`
+    })
+
+    await runCommand({cell: node, queryType: CHAT_QUERY_TYPE, store})
+
+    expect(callCount).toBe(3)
+    expect(store.getOutput().nodes.filter(m => m.parent === node.id)).toHaveLength(3)
+    expect(store.getNode(node.id).reliabilityMetadata.mode).toBe('commodity')
+    expect(store.getNode(node.id).reliabilityMetadata.suppressed).toBeUndefined()
+  })
+})
+
+describe('/elect child-dispatch loop — pre-execute side-effecting child exactly once across N forks', () => {
+  const childMcpAlias = {
+    alias: '/child-mcp',
+    serverUrl: 'http://localhost:3100/mcp',
+    transport: 'streamable-http',
+    toolName: 'run',
+  }
+
+  const childRpcAlias = {
+    alias: '/child-rpc',
+    protocol: 'ssh',
+    host: 'vm.example.com',
+    port: 22,
+    username: 'user',
+    privateKey: 'key',
+    commandTemplate: '{{prompt}}',
+    outputFormat: 'text',
+  }
+
+  const makeElectStore = ({mcpAliases = [], rpcAliases = [], childCommand = ''} = {}) =>
+    new Store({
+      userId: 'user1',
+      workflowId: 'wf1',
+      aliases: {mcp: mcpAliases, rpc: rpcAliases},
+      nodes: {
+        root: {id: 'root', children: ['parent']},
+        parent: {id: 'parent', parent: 'root', command: '/chat outer', children: ['elect'], prompts: []},
+        elect: {id: 'elect', parent: 'parent', command: '/elect :n=3', children: ['child'], prompts: []},
+        child: {id: 'child', parent: 'elect', command: childCommand, children: [], prompts: []},
+      },
+    })
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('MCP-alias child executes exactly once across N=3 forks', async () => {
+    const store = makeElectStore({mcpAliases: [childMcpAlias], childCommand: '/child-mcp do external op'})
+    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+    MCPClientManager.callTool.mockResolvedValue({content: 'result', isError: false})
+
+    await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
+
+    expect(MCPClientManager.callTool).toHaveBeenCalledTimes(1)
+    chatSpy.mockRestore()
+  })
+
+  it('RPC-alias child executes exactly once across N=3 forks', async () => {
+    mockSSHExecute.mockResolvedValue({stdout: 'out', stderr: '', exitCode: 0})
+    const store = makeElectStore({rpcAliases: [childRpcAlias], childCommand: '/child-rpc run task'})
+    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+
+    await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
+
+    expect(mockSSHExecute).toHaveBeenCalledTimes(1)
+    chatSpy.mockRestore()
+  })
+
+  it('each fork sees the MCP child result — result is inherited via fork store deep clone', async () => {
+    const store = makeElectStore({mcpAliases: [childMcpAlias], childCommand: '/child-mcp query'})
+    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+    MCPClientManager.callTool.mockResolvedValue({content: 'shared result', isError: false})
+
+    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
+
+    expect(results).toHaveLength(3)
+    expect(MCPClientManager.callTool).toHaveBeenCalledTimes(1)
+    // Each fork store inherits the pre-executed child state (deep clone of shared store)
+    const sharedChildState = store.getNode('child')
+    for (const result of results) {
+      expect(result.forkStore.getNode('child')).toEqual(sharedChildState)
+    }
+    chatSpy.mockRestore()
+  })
+
+  it('non-side-effecting child is not pre-executed — no sentinel in memoMap, no MCP callTool', async () => {
+    const store = makeElectStore({childCommand: '/chat inner task'})
+    const memoMap = new Map()
+    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+
+    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap})
+
+    expect(results).toHaveLength(3)
+    expect(memoMap.get('child')).not.toBe(MEMO_SENTINEL_PRE_EXECUTED_CHILD)
+    expect(MCPClientManager.callTool).not.toHaveBeenCalled()
+    chatSpy.mockRestore()
   })
 })

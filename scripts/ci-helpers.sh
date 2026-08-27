@@ -107,20 +107,64 @@ lint_node() {
   fi
 }
 
+# Top-level acceptance-test function names that must appear as "pass" in every
+# test_go run. Add an entry when a new mandatory integration or concurrency suite
+# is introduced. Remove an entry only when the corresponding test is deleted.
+_BACKEND_V2_REQUIRED_ACCEPTANCE_TESTS=(
+  "TestAddArrayItem_ScopeDocumentSingularity"
+  "TestAddArrayItem_AliasUniquenessUnderConcurrency"
+  "TestCrossTypeAliasValidation"
+)
+
+# Returns 0 when every name in the required-tests list appears as "pass" in the
+# go-test JSON stream written to <json_file>. Logs each absent or non-passing
+# test to stderr and returns 1 if any are missing, failed, or skipped.
+_assert_acceptance_tests_passed() {
+  local json_file="$1"; shift
+  local all_passed=true
+
+  for test_name in "$@"; do
+    if ! grep -F '"Action":"pass"' "$json_file" | grep -qF '"Test":"'"${test_name}"'"'; then
+      log_error "Acceptance test absent or did not pass: ${test_name}"
+      all_passed=false
+    fi
+  done
+
+  [ "$all_passed" = true ]
+}
+
 test_go() {
   local module_path="${1:-.}"
   cd "$module_path" || exit 1
-  
-  log_info "Running Go unit tests..."
+
+  local capture_file
+  capture_file="$(mktemp)"
+
+  log_info "Running Go tests (tags: integration)..."
+
+  local runner_exit
   if command -v go >/dev/null 2>&1; then
-    go test -v ./...
+    go test -tags integration -json ./... 2>&1 | tee "$capture_file"
+    runner_exit="${PIPESTATUS[0]}"
   else
     log_warning "Go not installed, using Docker..."
     ensure_docker_network
     docker run --rm --network "$DOCKER_NETWORK" \
+      --env TEST_MONGO_URI="${TEST_MONGO_URI:-}" \
       -v "$(pwd)":/app -w /app golang:1.23-alpine \
-      go test -v ./...
+      go test -tags integration -json ./... 2>&1 | tee "$capture_file"
+    runner_exit="${PIPESTATUS[0]}"
   fi
+
+  local assert_exit=0
+  if [ "$runner_exit" -eq 0 ]; then
+    _assert_acceptance_tests_passed "$capture_file" "${_BACKEND_V2_REQUIRED_ACCEPTANCE_TESTS[@]}"
+    assert_exit=$?
+  fi
+
+  rm -f "$capture_file"
+  [ "$runner_exit" -ne 0 ] && return "$runner_exit"
+  return "$assert_exit"
 }
 
 test_node() {
@@ -139,12 +183,19 @@ test_node() {
 build_go() {
   local module_path="${1:-.}"
   local binary_name="${2:-service}"
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   cd "$module_path" || exit 1
-  
-  log_info "Building Go binary via Docker..."
+
+  local version
+  version="$("${script_dir}/version.sh")"
+
+  log_info "Building Go binary via Docker (version: ${version})..."
   ensure_docker_network
-  
-  docker build --network "$DOCKER_NETWORK" --target builder -t "${binary_name}-builder" . > /tmp/go-build.log 2>&1 || {
+
+  docker build --network "$DOCKER_NETWORK" --target builder \
+    --build-arg "BUILD_VERSION=${version}" \
+    -t "${binary_name}-builder" . > /tmp/go-build.log 2>&1 || {
     log_error "Build failed"
     tail -30 /tmp/go-build.log
     return 1
@@ -161,15 +212,20 @@ build_go() {
 
 build_node() {
   local module_path="${1:-.}"
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   cd "$module_path" || exit 1
-  
-  log_info "Building Node.js project..."
-  npm run build > /tmp/node-build.log 2>&1 || {
+
+  local version
+  version="$("${script_dir}/version.sh")"
+
+  log_info "Building Node.js project (version: ${version})..."
+  BUILD_VERSION="${version}" npm run build > /tmp/node-build.log 2>&1 || {
     log_error "Build failed"
     tail -30 /tmp/node-build.log
     return 1
   }
-  
+
   log_success "Build complete"
 }
 
@@ -244,6 +300,73 @@ reclaim_e2e_artefacts() {
   rm -rf backend-v2/e2e/.jest-cache
   rm -rf /tmp/playwright-artifacts-* /tmp/playwright-* 2>/dev/null || true
   log_success "E2E artefacts reclaimed"
+}
+
+check_no_legacy_version_symbols() {
+  local repo_root
+  repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+
+  local patterns=(
+    'BUILD_REVISION'
+    'bakeRevision'
+    'bakedRevision'
+    'buildRevision'
+    'revisionPlugin'
+    'revision-plugin'
+    'build-revision'
+    'probe-revision'
+    'BuildRevision'
+  )
+  local retired_ci_guard_make='check-no-stale-''revision'
+  local retired_ci_guard_shell='check_no_stale_''revision'
+  patterns+=("${retired_ci_guard_make}" "${retired_ci_guard_shell}")
+
+  local pattern
+  pattern="$(IFS='|'; echo "${patterns[*]}")"
+
+  local hits
+  hits=$(grep -rn \
+    --include="*.go" --include="*.ts" --include="*.tsx" \
+    --include="*.js" --include="*.json" --include="*.sh" \
+    --include="Makefile" --include="*.md" \
+    --exclude-dir=node_modules --exclude-dir=dist \
+    --exclude-dir=logs --exclude-dir=.git \
+    --exclude="ci-helpers.sh" \
+    --exclude="TODO.md" \
+    -E "$pattern" \
+    "$repo_root/scripts" \
+    "$repo_root/backend-v2" \
+    "$repo_root/frontend/src" \
+    "$repo_root/frontend/plugins" \
+    "$repo_root/backend/src" \
+    "$repo_root/backend/scripts" \
+    "$repo_root/backend/package.json" \
+    "$repo_root/Makefile" \
+    "$repo_root/.github/docs" \
+    2>/dev/null || true)
+
+  # Also check Dockerfiles (exact filename, not matched by --include)
+  local dockerfile_hits
+  dockerfile_hits=$(grep -rn \
+    --include="Dockerfile" \
+    --exclude-dir=node_modules --exclude-dir=.git \
+    -E "$pattern" \
+    "$repo_root" 2>/dev/null || true)
+
+  local lessons_hits=""
+  if [ -f "$repo_root/.github/docs/lessons-360.md" ]; then
+    lessons_hits=$(grep -n -E "$pattern" "$repo_root/.github/docs/lessons-360.md" 2>/dev/null || true)
+  fi
+
+  local all_hits="${hits}${dockerfile_hits}${lessons_hits}"
+
+  if [ -n "$all_hits" ]; then
+    log_error "Legacy build-version symbols found — rename is incomplete:"
+    echo "$all_hits" >&2
+    return 1
+  fi
+
+  log_success "No legacy build-version symbols found"
 }
 
 if [ -n "$1" ]; then

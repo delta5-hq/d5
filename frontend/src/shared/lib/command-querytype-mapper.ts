@@ -4,6 +4,8 @@ export const COMMAND_TO_QUERYTYPE_MAP: Record<string, string> = Object.fromEntri
   BUILTIN_COMMANDS.map(command => [command.alias, command.queryType]),
 )
 
+export type CommandQuery = keyof typeof COMMAND_TO_QUERYTYPE_MAP
+
 export const COMMAND_DESCRIPTIONS: Record<string, string> = Object.fromEntries(
   BUILTIN_COMMANDS.map(command => [command.alias, command.description]),
 )
@@ -15,7 +17,7 @@ export interface DynamicAlias {
 }
 
 export function getFullCommandMap(dynamicAliases?: DynamicAlias[]): Record<string, string> {
-  const fullMap = { ...COMMAND_TO_QUERYTYPE_MAP }
+  const fullMap: Record<string, string> = { ...COMMAND_TO_QUERYTYPE_MAP }
 
   if (dynamicAliases) {
     dynamicAliases.forEach(({ alias, queryType }) => {

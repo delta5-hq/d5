@@ -13,26 +13,41 @@ const (
 	MediaFullWidth MediaPosition = "fullWidth"
 )
 
+type ExecutionStatus string
+type ExecutionFailureType string
+
+const (
+	ExecutionStatusError       ExecutionStatus      = "error"
+	ExecutionFailureMCPTool    ExecutionFailureType = "mcp-tool-error"
+	ExecutionFailureHTTPStatus ExecutionFailureType = "http-status-error"
+	ExecutionFailureSSHExit    ExecutionFailureType = "ssh-exit-error"
+	ExecutionFailureRuntime    ExecutionFailureType = "runtime-error"
+)
+
 type Node struct {
-	ID              string                 `json:"id" bson:"id"`
-	Children        []string               `json:"children" bson:"children"`
-	Image           string                 `json:"image" bson:"image"`
-	ImagePosition   MediaPosition          `json:"imagePosition" bson:"imagePosition"`
-	Video           string                 `json:"video" bson:"video"`
-	File            string                 `json:"file" bson:"file"`
-	Title           string                 `json:"title" bson:"title"`
-	Collapsed       bool                   `json:"collapsed" bson:"collapsed"`
-	Color           string                 `json:"color" bson:"color"`
-	BorderColor     string                 `json:"borderColor" bson:"borderColor"`
-	Scale           int                    `json:"scale" bson:"scale"`
-	Parent          string                 `json:"parent" bson:"parent"`
-	X               int64                  `json:"x" bson:"x"`
-	Y               int64                  `json:"y" bson:"y"`
-	Width           int                    `json:"width" bson:"width"`
-	Height          int                    `json:"height" bson:"height"`
-	Command         string                 `json:"command" bson:"command"`
-	Prompts         []string               `json:"prompts" bson:"prompts"`
-	McpFusionReport map[string]interface{} `json:"mcpFusionReport,omitempty" bson:"mcpFusionReport,omitempty"`
+	ID                   string                 `json:"id" bson:"id"`
+	Children             []string               `json:"children" bson:"children"`
+	Image                string                 `json:"image" bson:"image"`
+	ImagePosition        MediaPosition          `json:"imagePosition" bson:"imagePosition"`
+	Video                string                 `json:"video" bson:"video"`
+	File                 string                 `json:"file" bson:"file"`
+	Title                string                 `json:"title" bson:"title"`
+	Collapsed            bool                   `json:"collapsed" bson:"collapsed"`
+	Color                string                 `json:"color" bson:"color"`
+	BorderColor          string                 `json:"borderColor" bson:"borderColor"`
+	Scale                int                    `json:"scale" bson:"scale"`
+	Parent               string                 `json:"parent" bson:"parent"`
+	X                    int64                  `json:"x" bson:"x"`
+	Y                    int64                  `json:"y" bson:"y"`
+	Width                int                    `json:"width" bson:"width"`
+	Height               int                    `json:"height" bson:"height"`
+	Command              string                 `json:"command" bson:"command"`
+	Prompts              []string               `json:"prompts" bson:"prompts"`
+	ReliabilityMetadata  *ReliabilityMetadata   `json:"reliabilityMetadata,omitempty" bson:"reliabilityMetadata,omitempty"`
+	ExecutionStatus      ExecutionStatus        `json:"executionStatus,omitempty" bson:"executionStatus,omitempty"`
+	ExecutionFailureType ExecutionFailureType   `json:"executionFailureType,omitempty" bson:"executionFailureType,omitempty"`
+	ExecutionFailureCode int                    `json:"executionFailureCode,omitempty" bson:"executionFailureCode,omitempty"`
+	McpFusionReport      map[string]interface{} `json:"mcpFusionReport,omitempty" bson:"mcpFusionReport,omitempty"`
 }
 
 type Edge struct {

@@ -3,15 +3,14 @@ import {clearCommandsWithParams} from '../constants'
 import {clearStepsPrefix} from '../constants/steps'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import {readJoinParam, readTableParam} from '../constants/yandex'
-import {getIntegrationSettings, getLLM} from './utils/langchain/getLLM'
-import {getOpenaiModelSettings} from './utils/langchain/getModelSettings'
-import {ChatOpenAI} from '@langchain/openai'
+import {getIntegrationSettings, getLLM, Model} from './utils/langchain/getLLM'
 import {HumanMessage, SystemMessage} from '@langchain/core/messages'
 import {referencePatterns} from './references/utils/referencePatterns'
 import {clearReferences} from './references/utils/referenceUtils'
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
+import {throwIfAborted, throwIfAbortError} from './utils/executionSignal'
 import {createContextForChat} from './utils/createContextForChat'
 
 const log = debug('delta5:app:Command:Chat')
@@ -28,39 +27,19 @@ export class ChatCommand {
     this.logError = this.log.extend('ERROR*', '::')
   }
 
-  async replyChatOpenAIAPI(messages) {
+  async replyChatOpenAIAPI(messages, options = {}) {
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
-    const {openai} = settings
+    const {llm} = getLLM({type: Model.OpenAI, settings, log: this.log})
 
-    const lmMessages = messages.map(m =>
-      m.role === 'system' ? new SystemMessage(m.content) : new HumanMessage(m.content),
+    const result = await llm.invoke(
+      messages.map(m => (m.role === 'system' ? new SystemMessage(m.content) : new HumanMessage(m.content))),
+      options,
     )
-
-    if (process.env.MOCK_EXTERNAL_SERVICES === 'true') {
-      const {llm} = getLLM({type: null, settings})
-      const result = await llm.invoke(lmMessages)
-      return result.content
-    }
-
-    if (!openai?.apiKey) {
-      throw new Error(
-        'OpenAI API key not configured. Set it in Integration Settings or set the OPENAI_API_KEY environment variable.',
-      )
-    }
-
-    const {model: resolvedModel} = getOpenaiModelSettings(openai?.model)
-
-    const llm = new ChatOpenAI({
-      apiKey: openai.apiKey,
-      model: resolvedModel,
-    })
-
-    const result = await llm.invoke(lmMessages)
 
     return result.content
   }
 
-  async run(node, context, originalPrompt) {
+  async run(node, context, originalPrompt, options = {}) {
     try {
       let prompt = originalPrompt
       const title = node?.command || node?.title
@@ -87,20 +66,25 @@ export class ChatCommand {
           },
         ]
 
-        const text = await this.replyChatOpenAIAPI(messages)
+        const text = await this.replyChatOpenAIAPI(messages, options)
 
+        throwIfAborted(options.signal)
         this.store.importer.createTable(text, node.id)
       } else {
-        const text = await this.replyChatOpenAIAPI([{role: 'user', content: prompt}])
+        const text = await this.replyChatOpenAIAPI([{role: 'user', content: prompt}], options)
 
         if (readJoinParam(title)) {
+          throwIfAborted(options.signal)
           this.store.importer.createJoinNode(text, node.id)
         } else {
+          throwIfAborted(options.signal)
           this.store.importer.createNodes(text, node.id)
         }
       }
     } catch (e) {
+      throwIfAbortError(e)
       this.logError(e)
+      throwIfAborted(options.signal)
       this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }
   }

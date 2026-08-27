@@ -2,8 +2,10 @@ import debug from 'debug'
 import {SystemMessage, HumanMessage} from '@langchain/core/messages'
 import {getIntegrationSettings, determineLLMType, getLLM} from '../../commands/utils/langchain/getLLM'
 import {NodeTextExtractor} from '../../commands/utils/NodeTextExtractor'
-import {getNodeCommand} from '../../commands/utils/isCommand'
+import {getNodeCommand, isOutlineSummarize, isSummarize} from '../../commands/utils/isCommand'
 import {isValidateCell, readValidateCriterion, readValidateN} from './validateParams'
+import {isValidElectCell} from './electParams'
+import {isRefineCell} from './refineParams'
 
 const log = debug('delta5:validate')
 
@@ -22,6 +24,61 @@ const parseJurorResponse = raw => {
 
 const skipValidateFn = node => isValidateCell(getNodeCommand(node))
 
+const hasMaterializedPromptOutput = (node, store) => (node.prompts ?? []).some(promptId => store.getNode(promptId))
+
+const isSummaryPostProcessor = node => isSummarize(node) || isOutlineSummarize(getNodeCommand(node))
+
+const extractValidationContent = async (parentNode, store) => {
+  const extractor = new NodeTextExtractor(Infinity, skipValidateFn, store)
+  const summaryOutputs = []
+
+  for (const childId of parentNode.children ?? []) {
+    const child = store.getNode(childId)
+    if (!child || !isSummaryPostProcessor(child) || !hasMaterializedPromptOutput(child, store)) {
+      continue
+    }
+
+    const content = await extractor.extractFullContent(child)
+    if (content.trim()) {
+      summaryOutputs.push(content)
+    }
+  }
+
+  if (summaryOutputs.length) {
+    return summaryOutputs.join('\n')
+  }
+
+  // children may include stale superseded nodes from prior retry attempts
+  const promptOutputs = []
+  for (const promptId of parentNode.prompts ?? []) {
+    const promptNode = store.getNode(promptId)
+    if (!promptNode) continue
+    const content = await extractor.extractFullContent(promptNode)
+    if (content.trim()) {
+      promptOutputs.push(content)
+    }
+  }
+
+  if (promptOutputs.length) {
+    return promptOutputs.join('\n')
+  }
+
+  // Reliability modifiers have no generated output of their own. Their predicate
+  // evaluates the command immediately above the modifier.
+  if (
+    (isValidElectCell(getNodeCommand(parentNode)) || isRefineCell(getNodeCommand(parentNode))) &&
+    !hasMaterializedPromptOutput(parentNode, store)
+  ) {
+    const grandparent = store.getNode(parentNode.parent)
+    if (grandparent) {
+      const gpContent = await extractValidationContent(grandparent, store)
+      if (gpContent.trim()) return gpContent
+    }
+  }
+
+  return extractor.extractFullContent(parentNode)
+}
+
 export class ValidateCommand {
   constructor(userId, workflowId, store) {
     this.userId = userId
@@ -37,12 +94,10 @@ export class ValidateCommand {
     const n = readValidateN(command)
 
     const parentNode = this.store.getNode(validateNode.parent)
-    if (!parentNode) return {passed: true, criterion, reason: ''}
+    if (!parentNode) return {passed: false, criterion, reason: 'parent cell is missing'}
+    const content = await extractValidationContent(parentNode, this.store)
 
-    const extractor = new NodeTextExtractor(Infinity, skipValidateFn, this.store)
-    const content = await extractor.extractFullContent(parentNode)
-
-    if (!content.trim()) return {passed: true, criterion, reason: ''}
+    if (!content.trim()) return {passed: false, criterion, reason: 'parent output is empty'}
 
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
     const llmType = determineLLMType(settings)

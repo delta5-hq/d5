@@ -14,8 +14,9 @@ import {STEPS_PREFIX_REGEX} from './steps'
 import {DOWNLOAD_QUERY} from './download'
 import {DEEPSEEK_QUERY} from './deepseek'
 import {CUSTOM_LLM_CHAT_QUERY} from './custom_llm'
-import {REFINE_QUERY} from './refine'
+import {ELECT_QUERY} from './elect'
 import {VALIDATE_QUERY} from './validate'
+import {REFINE_QUERY} from './refine'
 import {COMPLETION_QUERY} from './completion'
 import {MEMORIZE_QUERY} from './memorize'
 import {EXT_QUERY} from './ext'
@@ -39,8 +40,9 @@ export const queryCommands = [
   DOWNLOAD_QUERY,
   DEEPSEEK_QUERY,
   CUSTOM_LLM_CHAT_QUERY,
-  REFINE_QUERY,
+  ELECT_QUERY,
   VALIDATE_QUERY,
+  REFINE_QUERY,
   COMPLETION_QUERY,
   MEMORIZE_QUERY,
   MCP_FUSION_QUERY,
@@ -340,25 +342,25 @@ export const commandRegExp = {
   },
 
   /**
-   * Matches refine command pattern
-   * @returns RegExp that matches /refine command at the start of a string
-   * @example '/refine hello' -> matches, '/outline hello' -> doesn't match
+   * Matches elect command pattern
+   * @returns RegExp that matches /elect command at the start of a string
+   * @example '/elect hello' -> matches, '/outline hello' -> doesn't match
    */
-  get refine() {
-    return createCommandRegex(REFINE_QUERY)
+  get elect() {
+    return createCommandRegex(ELECT_QUERY)
   },
 
   /**
-   * Matches refine command pattern with optional order prefix
-   * @returns RegExp that matches /refine command optionally preceded by an order number
-   * @example '#1 /refine hello' -> matches, '/refine hello' -> matches
+   * Matches elect command pattern with optional order prefix
+   * @returns RegExp that matches /elect command optionally preceded by an order number
+   * @example '#1 /elect hello' -> matches, '/elect hello' -> matches
    */
-  get refineWithOrder() {
-    return createCommandRegex(REFINE_QUERY, true)
+  get electWithOrder() {
+    return createCommandRegex(ELECT_QUERY, true)
   },
 
   /**
-   * Matches refine command pattern
+   * Matches elect command pattern
    * @returns RegExp that matches /chat command at the start of a string
    * @example '/chat hello' -> matches, '/outline hello' -> doesn't match
    */
@@ -367,7 +369,7 @@ export const commandRegExp = {
   },
 
   /**
-   * Matches refine command pattern with optional order prefix
+   * Matches elect command pattern with optional order prefix
    * @returns RegExp that matches /chat command optionally preceded by an order number
    * @example '#1 /chat hello' -> matches, '/chat hello' -> matches
    */
