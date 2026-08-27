@@ -347,7 +347,7 @@ e2e-frontend:
     - cd backend
     - npm ci
     - npm run build
-    - MOCK_EXTERNAL_SERVICES=true PORT="3004" MONGO_URI="mongodb://mongo:27017/delta5_${CI_JOB_ID}" JWT_SECRET="test-jwt-secret-change-in-production" D5_ALLOW_UNSANDBOXED_SPAWN=true nohup node build/index.js > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
+    - MOCK_EXTERNAL_SERVICES=true NODE_ENV=e2e D5_ALLOW_MOCK_EXTERNAL_SERVICES=true MOCK_FORK_SETTLE_DELAY_MS=300 PORT="3004" MONGO_URI="mongodb://mongo:27017/delta5_${CI_JOB_ID}" JWT_SECRET="test-jwt-secret-change-in-production" D5_ALLOW_UNSANDBOXED_SPAWN=true nohup node build/index.js > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
     - sleep 5
     - if ! kill -0 $(cat backend-e2e.pid); then echo "Node.js backend failed to start"; cat backend-e2e.log; exit 1; fi
     - cd ../backend-v2

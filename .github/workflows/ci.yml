@@ -363,7 +363,7 @@ jobs:
       - run: DROP_DB=true bash backend-v2/e2e-db-init.sh
       - run: |
           cd backend
-          NODE_ENV=e2e D5_ALLOW_MOCK_EXTERNAL_SERVICES=true MOCK_EXTERNAL_SERVICES=true PORT="${NODEJS_BACKEND_PORT}" MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" nohup node build/index.js > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
+          NODE_ENV=e2e D5_ALLOW_MOCK_EXTERNAL_SERVICES=true MOCK_EXTERNAL_SERVICES=true MOCK_FORK_SETTLE_DELAY_MS=300 PORT="${NODEJS_BACKEND_PORT}" MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" nohup node build/index.js > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
           sleep 5
           if ! kill -0 $(cat backend-e2e.pid); then
             echo "Node.js backend failed to start"

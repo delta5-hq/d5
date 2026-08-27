@@ -4,6 +4,15 @@ import {
   MOCK_EXTERNAL_SERVICES_PRODUCTION_ERROR,
 } from '../config/mockExternalServices'
 
+export const E2E_MOCK_FORK_SETTLE_DELAY_MS = '300'
+
+export const E2E_MOCK_RUNTIME_LAUNCH_TOKENS = [
+  'MOCK_EXTERNAL_SERVICES=true',
+  'D5_ALLOW_MOCK_EXTERNAL_SERVICES=true',
+  'NODE_ENV=e2e',
+  `MOCK_FORK_SETTLE_DELAY_MS=${E2E_MOCK_FORK_SETTLE_DELAY_MS}`,
+]
+
 export const MOCK_FLAG_CASES = [
   ['true', true],
   [' true ', false],
