@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   scheduleTreeAnimation,
   shouldAnimateTree,
+  getPendingTreeAnimationNodeIds,
   getTreeAnimationBaseDelay,
   getTreeAnimationElapsedMs,
   getTreeAnimationStartDelayMs,
@@ -26,6 +27,7 @@ describe('tree-animation-store', () => {
       scheduleTreeAnimation(['a', 'b'], 10)
       expect(shouldAnimateTree('a')).toBe(true)
       expect(shouldAnimateTree('b')).toBe(true)
+      expect(getPendingTreeAnimationNodeIds()).toEqual(['a', 'b'])
     })
 
     it('stores the provided baseDelay for each node', () => {

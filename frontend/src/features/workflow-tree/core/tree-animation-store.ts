@@ -50,6 +50,11 @@ export function shouldAnimateTree(nodeId: string): boolean {
   return pendingSpark.has(nodeId)
 }
 
+/** Pending direct fan-out targets, in the order supplied by the execution response. */
+export function getPendingTreeAnimationNodeIds(): string[] {
+  return [...pendingSpark.keys()]
+}
+
 export function getTreeAnimationBaseDelay(nodeId: string): number {
   return pendingSpark.get(nodeId)?.baseDelay ?? 0
 }

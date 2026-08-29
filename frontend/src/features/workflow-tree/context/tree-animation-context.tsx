@@ -1,6 +1,7 @@
 import { createContext, useContext, useCallback, useRef, useMemo, useSyncExternalStore, type ReactNode } from 'react'
 import {
   shouldAnimateTree,
+  getPendingTreeAnimationNodeIds,
   getTreeAnimationBaseDelay,
   getTreeAnimationElapsedMs,
   getTreeAnimationStartDelayMs,
@@ -13,6 +14,8 @@ import {
 interface AnimationContextValue {
   /** Check if a node should animate (was just scheduled by execution fan-out) */
   shouldAnimate: (nodeId: string) => boolean
+  /** Pending direct fan-out targets, used to reveal their virtualized rows before the spark starts. */
+  getPendingNodeIds: () => string[]
   /** Retrieve the base sparkDelay of the trigger that scheduled this node */
   getBaseDelay: (nodeId: string) => number
   /** Retrieve wall-clock time elapsed since this node's animation was scheduled */
@@ -72,6 +75,7 @@ export const TreeAnimationProvider = ({ children }: TreeAnimationProviderProps) 
   const value = useMemo(
     () => ({
       shouldAnimate: shouldAnimateTree,
+      getPendingNodeIds: getPendingTreeAnimationNodeIds,
       getBaseDelay: getTreeAnimationBaseDelay,
       getElapsed: getTreeAnimationElapsedMs,
       getStartDelay: getTreeAnimationStartDelayMs,
