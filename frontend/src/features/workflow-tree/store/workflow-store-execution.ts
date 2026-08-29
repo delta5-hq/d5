@@ -37,13 +37,42 @@ function firstAnchoredNewNodeId(
   return newNode?.id
 }
 
-function populatedExistingFanOutTargets(
-  nodesChanged: Record<string, NodeData>,
+function nodeCommand(node: NodeData | undefined): string {
+  return node?.command || node?.title || ''
+}
+
+function isForeachNode(node: NodeData | undefined): boolean {
+  return nodeCommand(node).trimStart().startsWith('/foreach')
+}
+
+function fanOutRootForExecution(
   existingNodes: NodeDatas,
   mergedNodes: NodeDatas,
   executedNodeId: NodeId,
+  queryType: string,
+): NodeId | undefined {
+  const executedNode = existingNodes[executedNodeId] ?? mergedNodes[executedNodeId]
+  if (queryType === 'foreach' || isForeachNode(executedNode)) {
+    return executedNode?.parent ?? executedNodeId
+  }
+
+  const hasForeachPostProcessor = Object.values(mergedNodes).some(
+    candidate =>
+      isForeachNode(candidate) &&
+      candidate.id !== executedNodeId &&
+      ancestorPathTo(mergedNodes, candidate.id, executedNodeId) !== null,
+  )
+
+  return hasForeachPostProcessor ? executedNodeId : undefined
+}
+
+function populatedFanOutTargets(
+  nodesChanged: Record<string, NodeData>,
+  existingNodes: NodeDatas,
+  mergedNodes: NodeDatas,
+  fanOutRootId: NodeId,
+  executedNodeId: NodeId,
 ): NodeData[] {
-  const fanOutRootId = existingNodes[executedNodeId]?.parent ?? executedNodeId
   const resultParentIds = new Set(
     Object.values(nodesChanged)
       .filter(changed => !(changed.id in existingNodes) && changed.parent !== undefined)
@@ -56,7 +85,6 @@ function populatedExistingFanOutTargets(
       (candidate): candidate is NodeData =>
         candidate !== undefined &&
         candidate.id !== executedNodeId &&
-        candidate.id in existingNodes &&
         Boolean(candidate.command?.trim()) &&
         ancestorPathTo(mergedNodes, candidate.id, fanOutRootId) !== null,
     )
@@ -174,12 +202,14 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
           : merged.nodes
       const nextExpandedIds = shouldRevealChildren ? new Set([...current.expandedIds, node.id]) : current.expandedIds
 
+      const fanOutRootId = fanOutRootForExecution(nodes, mergedNodes, node.id, queryType)
       const fanOutTargets =
-        queryType === 'foreach' ? populatedExistingFanOutTargets(nodesChanged, nodes, mergedNodes, node.id) : []
+        fanOutRootId === undefined
+          ? []
+          : populatedFanOutTargets(nodesChanged, nodes, mergedNodes, fanOutRootId, node.id)
       const resultRevealParentIds = fanOutTargets.map(target => target.id)
-      const fanOutRootId = nodes[node.id]?.parent ?? node.id
       const fanOutAncestorIds = new Set(
-        fanOutTargets.flatMap(target => ancestorPathTo(mergedNodes, target.id, fanOutRootId) ?? []),
+        fanOutTargets.flatMap(target => ancestorPathTo(mergedNodes, target.id, fanOutRootId ?? node.id) ?? []),
       )
       const visibleNodes =
         resultRevealParentIds.length > 0

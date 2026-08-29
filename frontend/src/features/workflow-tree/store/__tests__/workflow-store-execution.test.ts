@@ -1639,6 +1639,110 @@ describe('bindExecuteAction', () => {
       expect(vi.mocked(scheduleTreeAnimation).mock.calls[0]?.[1]).toBeGreaterThan(0)
     })
 
+    it('reconstructs fan-out when a parent command triggers its /foreach post-processor', async () => {
+      const parentCommand = {
+        id: 'chat',
+        parent: 'root',
+        title: 'Prepare topics',
+        command: '/chat prepare topics',
+        children: ['foreach'],
+      } as NodeData
+      const before = {
+        root: { id: 'root', children: ['chat'] } as NodeData,
+        chat: parentCommand,
+        foreach: { id: 'foreach', parent: 'chat', command: '/foreach /chat @@', children: [] } as NodeData,
+      }
+      const changes = {
+        generated: {
+          id: 'generated',
+          parent: 'chat',
+          title: 'Generated topic',
+          command: '/chat Generated topic',
+          children: ['generated-result'],
+        } as NodeData,
+        'generated-result': { id: 'generated-result', parent: 'generated', title: 'Generated result' } as NodeData,
+      }
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: changes })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: {
+          ...before,
+          chat: { ...parentCommand, children: ['foreach', 'generated'] },
+          ...changes,
+        },
+        edges: {},
+        root: 'root',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: before, root: 'root', expandedIds: new Set(['chat']) })
+      await makeExecute(store, makePersister())(parentCommand, 'chat')
+
+      expect(scheduleTreeAnimation).toHaveBeenCalledWith(
+        ['generated'],
+        expect.any(Number),
+        expect.objectContaining({ generated: expect.any(Number) }),
+      )
+      expect(store.getState().nodes.generated?.collapsed).toBe(true)
+      expect(store.getState().expandedIds.has('generated')).toBe(false)
+
+      vi.runAllTimers()
+
+      expect(store.getState().nodes.generated?.collapsed).toBe(false)
+      expect(store.getState().expandedIds.has('generated')).toBe(true)
+    })
+
+    it('reveals an arbitrary-depth generated path before animating its populated leaf', async () => {
+      const parentCommand = {
+        id: 'chat',
+        parent: 'root',
+        command: '/chat prepare hierarchy',
+        children: ['foreach'],
+      } as NodeData
+      const before = {
+        root: { id: 'root', children: ['chat'] } as NodeData,
+        chat: parentCommand,
+        foreach: { id: 'foreach', parent: 'chat', command: '/foreach /chat @@', children: [] } as NodeData,
+      }
+      const changes = {
+        branch: { id: 'branch', parent: 'chat', title: 'Branch', children: ['nested'], collapsed: true } as NodeData,
+        nested: { id: 'nested', parent: 'branch', title: 'Nested', children: ['leaf'], collapsed: true } as NodeData,
+        leaf: {
+          id: 'leaf',
+          parent: 'nested',
+          title: 'Leaf',
+          command: '/chat Leaf',
+          children: ['leaf-result'],
+        } as NodeData,
+        'leaf-result': { id: 'leaf-result', parent: 'leaf', title: 'Leaf result' } as NodeData,
+      }
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: changes })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: {
+          ...before,
+          chat: { ...parentCommand, children: ['foreach', 'branch'] },
+          ...changes,
+        },
+        edges: {},
+        root: 'root',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: before, root: 'root', expandedIds: new Set(['chat']) })
+      await makeExecute(store, makePersister())(parentCommand, 'chat')
+
+      expect(store.getState().nodes.branch?.collapsed).toBe(false)
+      expect(store.getState().nodes.nested?.collapsed).toBe(false)
+      expect(store.getState().expandedIds.has('branch')).toBe(true)
+      expect(store.getState().expandedIds.has('nested')).toBe(true)
+      expect(store.getState().nodes.leaf?.collapsed).toBe(true)
+      expect(store.getState().expandedIds.has('leaf')).toBe(false)
+      expect(scheduleTreeAnimation).toHaveBeenCalledWith(
+        ['leaf'],
+        expect.any(Number),
+        expect.objectContaining({ leaf: expect.any(Number) }),
+      )
+    })
+
     it('does not schedule a fan-out spark for ordinary /execute', async () => {
       vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({
         nodesChanged: { child1: { id: 'child1', parent: 'n1', command: '/chat hi', children: [] } as NodeData },
@@ -1657,6 +1761,31 @@ describe('bindExecuteAction', () => {
       const execute = makeExecute(store, makePersister())
 
       await execute(stubNode, 'chat')
+
+      expect(scheduleTreeAnimation).not.toHaveBeenCalled()
+    })
+
+    it('does not infer fan-out from a nested command result without a /foreach post-processor', async () => {
+      const chatNode = { id: 'chat', parent: 'root', command: '/chat work', children: ['worker'] } as NodeData
+      const before = {
+        root: { id: 'root', children: ['chat'] } as NodeData,
+        chat: chatNode,
+        worker: { id: 'worker', parent: 'chat', command: '/chat nested', children: [] } as NodeData,
+      }
+      const changes = {
+        worker: { ...before.worker, children: ['worker-result'] } as NodeData,
+        'worker-result': { id: 'worker-result', parent: 'worker', title: 'Result' } as NodeData,
+      }
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: changes })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: { ...before, ...changes },
+        edges: {},
+        root: 'root',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: before, root: 'root', expandedIds: new Set(['chat']) })
+      await makeExecute(store, makePersister())(chatNode, 'chat')
 
       expect(scheduleTreeAnimation).not.toHaveBeenCalled()
     })
