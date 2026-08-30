@@ -229,6 +229,7 @@ export const NodeDetailPanel = ({
           <CommandField
             autoFocus={autoFocusCommand}
             className="min-h-[180px] text-sm font-mono w-full"
+            disabled={isExecuting}
             nodeId={node.id}
             onChange={handleCommandChange}
             onCtrlEnter={siblingActionsEnabled ? handleCtrlEnterInCommand : undefined}

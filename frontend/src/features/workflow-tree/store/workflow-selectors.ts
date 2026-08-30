@@ -84,3 +84,8 @@ export function useIsNodeDirty(nodeId: NodeId | undefined): boolean {
   const { store } = useWorkflowStore()
   return useSelector(store, s => (nodeId !== undefined ? s.dirtyNodeIds.has(nodeId) : false))
 }
+
+export function useIsAwaitingFanOutSpark(nodeId: NodeId | undefined): boolean {
+  const { store } = useWorkflowStore()
+  return useSelector(store, s => (nodeId !== undefined ? s.pendingFanOutTargetIds.has(nodeId) : false))
+}

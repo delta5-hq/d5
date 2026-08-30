@@ -17,6 +17,10 @@ export interface WorkflowStoreState {
   isSaving: boolean
   dirtyNodeIds: Set<NodeId>
   executingNodeIds: Set<NodeId>
+  // Fan-out targets whose spark is scheduled but has not yet reached them. While a
+  // target is here it renders as clipboard (no command pill, no thought tail); it
+  // switches to its full command presentation when the spark arrives (results reveal).
+  pendingFanOutTargetIds: Set<NodeId>
 }
 
 export interface WorkflowStoreActions {
@@ -73,4 +77,5 @@ export const INITIAL_WORKFLOW_STATE: Omit<WorkflowStoreState, 'workflowId'> = {
   isSaving: false,
   dirtyNodeIds: new Set<NodeId>(),
   executingNodeIds: new Set<NodeId>(),
+  pendingFanOutTargetIds: new Set<NodeId>(),
 }

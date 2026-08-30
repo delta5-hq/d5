@@ -14,7 +14,7 @@ Object.defineProperty(SVGElement.prototype, 'getBBox', {
 vi.mock('@entities/aliases', () => ({ useAliases: () => ({ aliases: [] }) }))
 vi.mock('@shared/lib/use-genie-state', () => ({ useGenieState: () => 'idle' }))
 vi.mock('@shared/composables/use-viewport-breakpoint', () => ({ useViewportBreakpoint: () => false }))
-vi.mock('../store/workflow-selectors', () => ({ useIsNodeDirty: () => false }))
+vi.mock('../store/workflow-selectors', () => ({ useIsNodeDirty: () => false, useIsAwaitingFanOutSpark: () => false }))
 vi.mock('@shared/ui/genie', () => ({
   Genie: () => <div data-testid="genie" />,
 }))

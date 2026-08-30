@@ -18,6 +18,7 @@ interface CommandFieldProps {
   placeholder?: string
   className?: string
   autoFocus?: boolean
+  disabled?: boolean
 }
 
 const buildStorageKey = (nodeId: string) => `workflow:node:${nodeId}:command`
@@ -40,6 +41,7 @@ export const CommandField = ({
   placeholder,
   className,
   autoFocus,
+  disabled,
 }: CommandFieldProps) => {
   const storageKey = buildStorageKey(nodeId)
   const { aliases } = useAliases()
@@ -240,6 +242,7 @@ export const CommandField = ({
             className,
           )}
           data-type="command-field"
+          disabled={disabled}
           onBlur={() => {
             commit()
             setAutocompleteOpen(false)

@@ -15,7 +15,7 @@ import type { TreeDropPosition } from '../core/tree-drag'
 import { getTreeIndentLayout } from '../core/tree-layout'
 import { areTreeNodePropsEqual } from '../core/tree-node-memo'
 import { useTreeAnimation } from '../context'
-import { useIsNodeDirty } from '../store/workflow-selectors'
+import { useIsNodeDirty, useIsAwaitingFanOutSpark } from '../store/workflow-selectors'
 import { getNodeGeniePresentation } from '../lib/node-genie-presenter'
 import { CommandChip, ScriptTitleIcon, truncateTitleForChip } from './command-node-chip'
 import '../styles/wire-tree.css'
@@ -144,6 +144,9 @@ export const TreeNodeDefault = ({
   const genieRef = useRef<GenieRef>(null)
   const genieState = useGenieState(id)
   const isDirty = useIsNodeDirty(id)
+  // A fan-out target renders as clipboard (no command pill, no thought tail) until
+  // its spark reaches it; it materializes its full command presentation on arrival.
+  const awaitingFanOutSpark = useIsAwaitingFanOutSpark(id)
   const wireRef = useRef<SVGPathElement>(null)
   const { shouldAnimate, getStartDelay, getRemainingDuration, animationVersion, clearAnimation, consumeNewNodeFlash } =
     useTreeAnimation()
@@ -301,7 +304,7 @@ export const TreeNodeDefault = ({
 
   const normalizedTitle = normalizeNodeTitle(node.title)
   const displayedTitle = truncateTitleForChip(normalizedTitle)
-  const geniePresentation = getNodeGeniePresentation(node, { aliases, depth })
+  const geniePresentation = getNodeGeniePresentation(awaitingFanOutSpark ? undefined : node, { aliases, depth })
   const showThoughtTail = depth > 0 && depth <= 4 && geniePresentation.variant === 'full'
 
   return (
@@ -432,7 +435,7 @@ export const TreeNodeDefault = ({
               showThoughtTail ? 'ml-0' : 'ml-2',
             )}
           >
-            <CommandChip aliases={aliases} command={node.command} />
+            <CommandChip aliases={aliases} command={awaitingFanOutSpark ? undefined : node.command} />
             <span
               className="workflow-tree-title-chip relative isolate flex h-7 min-w-0 flex-1 items-center gap-1.5 overflow-hidden rounded-full border border-muted-foreground/25 px-2.5 font-medium text-foreground shadow-none ring-1 ring-inset ring-background/80 transition-shadow duration-150 focus-within:border-ring focus-within:ring-ring"
               data-chip-kind="title"

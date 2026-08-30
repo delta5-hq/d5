@@ -257,6 +257,7 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
         root: merged.root,
         isDirty: true,
         expandedIds: visibleExpandedIds,
+        ...(resultRevealParentIds.length > 0 ? { pendingFanOutTargetIds: new Set(resultRevealParentIds) } : {}),
         ...(resolvedSelected !== undefined
           ? { selectedId: resolvedSelected }
           : selectionStale
@@ -279,9 +280,12 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
                 nextExpandedIds.add(id)
               }
             }
+            const nextPendingFanOut = new Set(prev.pendingFanOutTargetIds)
+            resultRevealParentIds.forEach(id => nextPendingFanOut.delete(id))
             return {
               nodes: nextNodes,
               expandedIds: nextExpandedIds,
+              pendingFanOutTargetIds: nextPendingFanOut,
               isDirty: true,
             }
           })
