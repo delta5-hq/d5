@@ -80,7 +80,7 @@ lint_dockerfile() {
       ensure_docker_network
       docker run --rm --network "$DOCKER_NETWORK" \
         -v "$(pwd)":/app -w /app \
-        hadolint/hadolint:latest-debian \
+        hadolint/hadolint:v2.12.0-debian \
         hadolint "$dockerfile_path"
       return $?
     fi
@@ -89,7 +89,7 @@ lint_dockerfile() {
     ensure_docker_network
     docker run --rm --network "$DOCKER_NETWORK" \
       -v "$(pwd)":/app -w /app \
-      hadolint/hadolint:latest-debian \
+      hadolint/hadolint:v2.12.0-debian \
       hadolint "$dockerfile_path"
     return $?
   fi
