@@ -83,9 +83,12 @@ function buildContinuationLines(
   return lines
 }
 
+// Cap the wire pulse so a long spark path still resolves its highlight promptly.
+const MAX_WIRE_PULSE_MS = 600
+
 function triggerAnimation(wireEl: SVGPathElement | null, sparkEl: HTMLDivElement | null, durationMs: number) {
   if (wireEl) {
-    wireEl.style.setProperty('--wire-tree-pulse-duration', `${Math.min(600, durationMs)}ms`)
+    wireEl.style.setProperty('--wire-tree-pulse-duration', `${Math.min(MAX_WIRE_PULSE_MS, durationMs)}ms`)
     wireEl.classList.remove('wire-tree-connector--pulse')
     void wireEl.getBBox()
     wireEl.classList.add('wire-tree-connector--pulse')
@@ -147,6 +150,7 @@ export const TreeNodeDefault = ({
   // A fan-out target renders as clipboard (no command pill, no thought tail) until
   // its spark reaches it; it materializes its full command presentation on arrival.
   const awaitingFanOutSpark = useIsAwaitingFanOutSpark(id)
+  const presentedNode = awaitingFanOutSpark ? undefined : node
   const wireRef = useRef<SVGPathElement>(null)
   const { shouldAnimate, getStartDelay, getRemainingDuration, animationVersion, clearAnimation, consumeNewNodeFlash } =
     useTreeAnimation()
@@ -304,7 +308,7 @@ export const TreeNodeDefault = ({
 
   const normalizedTitle = normalizeNodeTitle(node.title)
   const displayedTitle = truncateTitleForChip(normalizedTitle)
-  const geniePresentation = getNodeGeniePresentation(awaitingFanOutSpark ? undefined : node, { aliases, depth })
+  const geniePresentation = getNodeGeniePresentation(presentedNode, { aliases, depth })
   const showThoughtTail = depth > 0 && depth <= 4 && geniePresentation.variant === 'full'
 
   return (
@@ -435,7 +439,7 @@ export const TreeNodeDefault = ({
               showThoughtTail ? 'ml-0' : 'ml-2',
             )}
           >
-            <CommandChip aliases={aliases} command={awaitingFanOutSpark ? undefined : node.command} />
+            <CommandChip aliases={aliases} command={presentedNode?.command} />
             <span
               className="workflow-tree-title-chip relative isolate flex h-7 min-w-0 flex-1 items-center gap-1.5 overflow-hidden rounded-full border border-muted-foreground/25 px-2.5 font-medium text-foreground shadow-none ring-1 ring-inset ring-background/80 transition-shadow duration-150 focus-within:border-ring focus-within:ring-ring"
               data-chip-kind="title"

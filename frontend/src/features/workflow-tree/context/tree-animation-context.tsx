@@ -2,8 +2,6 @@ import { createContext, useContext, useCallback, useRef, useMemo, useSyncExterna
 import {
   shouldAnimateTree,
   getPendingTreeAnimationNodeIds,
-  getTreeAnimationBaseDelay,
-  getTreeAnimationElapsedMs,
   getTreeAnimationStartDelayMs,
   getTreeAnimationRemainingDurationMs,
   subscribeTreeAnimation,
@@ -16,10 +14,6 @@ interface AnimationContextValue {
   shouldAnimate: (nodeId: string) => boolean
   /** Pending direct fan-out targets, used to reveal their virtualized rows before the spark starts. */
   getPendingNodeIds: () => string[]
-  /** Retrieve the base sparkDelay of the trigger that scheduled this node */
-  getBaseDelay: (nodeId: string) => number
-  /** Retrieve wall-clock time elapsed since this node's animation was scheduled */
-  getElapsed: (nodeId: string) => number
   /** Delay remaining before this target's animation should begin */
   getStartDelay: (nodeId: string) => number
   /** Duration remaining before this target's fixed completion deadline */
@@ -76,8 +70,6 @@ export const TreeAnimationProvider = ({ children }: TreeAnimationProviderProps) 
     () => ({
       shouldAnimate: shouldAnimateTree,
       getPendingNodeIds: getPendingTreeAnimationNodeIds,
-      getBaseDelay: getTreeAnimationBaseDelay,
-      getElapsed: getTreeAnimationElapsedMs,
       getStartDelay: getTreeAnimationStartDelayMs,
       getRemainingDuration: getTreeAnimationRemainingDurationMs,
       animationVersion,

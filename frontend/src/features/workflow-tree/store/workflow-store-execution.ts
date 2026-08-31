@@ -208,29 +208,28 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
           ? []
           : populatedFanOutTargets(nodesChanged, nodes, mergedNodes, fanOutRootId, node.id)
       const resultRevealParentIds = fanOutTargets.map(target => target.id)
+      const hasFanOut = fanOutTargets.length > 0
       const fanOutAncestorIds = new Set(
         fanOutTargets.flatMap(target => ancestorPathTo(mergedNodes, target.id, fanOutRootId ?? node.id) ?? []),
       )
-      const visibleNodes =
-        resultRevealParentIds.length > 0
-          ? (() => {
-              const nextNodes = { ...mergedNodes }
-              fanOutAncestorIds.forEach(id => {
-                if (nextNodes[id]) nextNodes[id] = { ...nextNodes[id], collapsed: false }
-              })
-              resultRevealParentIds.forEach(id => {
-                if (nextNodes[id]) nextNodes[id] = { ...nextNodes[id], collapsed: true }
-              })
-              return nextNodes
-            })()
-          : mergedNodes
-      const visibleExpandedIds =
-        resultRevealParentIds.length > 0
-          ? new Set([...nextExpandedIds, ...fanOutAncestorIds].filter(id => !resultRevealParentIds.includes(id)))
-          : nextExpandedIds
+      const visibleNodes = hasFanOut
+        ? (() => {
+            const nextNodes = { ...mergedNodes }
+            fanOutAncestorIds.forEach(id => {
+              if (nextNodes[id]) nextNodes[id] = { ...nextNodes[id], collapsed: false }
+            })
+            resultRevealParentIds.forEach(id => {
+              if (nextNodes[id]) nextNodes[id] = { ...nextNodes[id], collapsed: true }
+            })
+            return nextNodes
+          })()
+        : mergedNodes
+      const visibleExpandedIds = hasFanOut
+        ? new Set([...nextExpandedIds, ...fanOutAncestorIds].filter(id => !resultRevealParentIds.includes(id)))
+        : nextExpandedIds
 
       let resultRevealDelayMs = 0
-      if (fanOutTargets.length > 0) {
+      if (hasFanOut) {
         const initiatorSparkDelay = findNodeSparkDelay(
           { nodes: visibleNodes, rootId: merged.root, expandedIds: visibleExpandedIds },
           node.id,
@@ -248,7 +247,7 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
         const relativeDelayByNodeId = Object.fromEntries(
           fanOutTargets.map((target, index) => [target.id, relativeTargetDelays[index]]),
         )
-        scheduleTreeAnimation(resultRevealParentIds, initiatorSparkDelay, relativeDelayByNodeId)
+        scheduleTreeAnimation(resultRevealParentIds, relativeDelayByNodeId)
       }
 
       store.setState({
@@ -257,7 +256,7 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
         root: merged.root,
         isDirty: true,
         expandedIds: visibleExpandedIds,
-        ...(resultRevealParentIds.length > 0 ? { pendingFanOutTargetIds: new Set(resultRevealParentIds) } : {}),
+        ...(hasFanOut ? { pendingFanOutTargetIds: new Set(resultRevealParentIds) } : {}),
         ...(resolvedSelected !== undefined
           ? { selectedId: resolvedSelected }
           : selectionStale
@@ -267,24 +266,24 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
         ...(cleanedIds !== current.selectedIds ? { selectedIds: cleanedIds } : {}),
       })
 
-      if (resultRevealParentIds.length > 0) {
+      if (hasFanOut) {
         window.setTimeout(() => {
           resultRevealParentIds.forEach(id => clearTreeAnimation(id))
           store.setState(prev => {
-            const nextNodes = { ...prev.nodes }
-            const nextExpandedIds = new Set(prev.expandedIds)
+            const revealedNodes = { ...prev.nodes }
+            const revealedExpandedIds = new Set(prev.expandedIds)
             for (const id of resultRevealParentIds) {
-              const existing = nextNodes[id]
+              const existing = revealedNodes[id]
               if (existing) {
-                nextNodes[id] = { ...existing, collapsed: false }
-                nextExpandedIds.add(id)
+                revealedNodes[id] = { ...existing, collapsed: false }
+                revealedExpandedIds.add(id)
               }
             }
             const nextPendingFanOut = new Set(prev.pendingFanOutTargetIds)
             resultRevealParentIds.forEach(id => nextPendingFanOut.delete(id))
             return {
-              nodes: nextNodes,
-              expandedIds: nextExpandedIds,
+              nodes: revealedNodes,
+              expandedIds: revealedExpandedIds,
               pendingFanOutTargetIds: nextPendingFanOut,
               isDirty: true,
             }

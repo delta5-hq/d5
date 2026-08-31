@@ -4,15 +4,12 @@
  * commits the reveal, and the tree context reads the same registry from its
  * effects, so the pending map is populated before newly mounted rows render.
  *
- * Each entry keeps the trigger node's base delay plus its target-specific start
- * and completion times. Rows can therefore mount after scheduling without
- * overrunning the result-reveal deadline.
+ * Each entry keeps its target-specific start and completion times. Rows can
+ * therefore mount after scheduling without overrunning the result-reveal deadline.
  */
 import { SPARK_DURATION_MS } from './constants'
 
 interface PendingSpark {
-  baseDelay: number
-  scheduledAt: number
   startsAt: number
   endsAt: number
 }
@@ -28,7 +25,6 @@ const emitChange = (): void => {
 
 export function scheduleTreeAnimation(
   nodeIds: string[],
-  baseDelay = 0,
   relativeDelayByNodeId: Readonly<Record<string, number>> = {},
 ): void {
   if (nodeIds.length === 0) return
@@ -37,8 +33,6 @@ export function scheduleTreeAnimation(
     const relativeDelay = Math.max(0, relativeDelayByNodeId[id] ?? 0)
     const startsAt = scheduledAt + relativeDelay
     pendingSpark.set(id, {
-      baseDelay,
-      scheduledAt,
       startsAt,
       endsAt: startsAt + SPARK_DURATION_MS,
     })
@@ -53,15 +47,6 @@ export function shouldAnimateTree(nodeId: string): boolean {
 /** Pending direct fan-out targets, in the order supplied by the execution response. */
 export function getPendingTreeAnimationNodeIds(): string[] {
   return [...pendingSpark.keys()]
-}
-
-export function getTreeAnimationBaseDelay(nodeId: string): number {
-  return pendingSpark.get(nodeId)?.baseDelay ?? 0
-}
-
-export function getTreeAnimationElapsedMs(nodeId: string): number {
-  const pending = pendingSpark.get(nodeId)
-  return pending ? Math.max(0, Date.now() - pending.scheduledAt) : 0
 }
 
 export function getTreeAnimationStartDelayMs(nodeId: string): number {

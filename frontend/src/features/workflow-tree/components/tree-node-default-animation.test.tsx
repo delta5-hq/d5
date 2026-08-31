@@ -73,7 +73,7 @@ describe('TreeNodeDefault fan-out animation', () => {
     const spark = container.querySelector<HTMLElement>('.wire-tree-spark')!
     expect(spark).not.toHaveClass('wire-tree-spark--active')
 
-    act(() => scheduleTreeAnimation(['leaf1'], 0, { leaf1: 0 }))
+    act(() => scheduleTreeAnimation(['leaf1'], { leaf1: 0 }))
     act(() => vi.advanceTimersByTime(0))
 
     expect(spark).toHaveClass('wire-tree-spark--active')
@@ -91,7 +91,7 @@ describe('TreeNodeDefault fan-out animation', () => {
   })
 
   it('bounds a late virtualized mount to the original completion deadline', () => {
-    scheduleTreeAnimation(['leaf1'], 0, { leaf1: 100 })
+    scheduleTreeAnimation(['leaf1'], { leaf1: 100 })
     vi.advanceTimersByTime(300)
 
     const { container } = renderRow()
@@ -103,7 +103,7 @@ describe('TreeNodeDefault fan-out animation', () => {
   })
 
   it('skips a virtualized row that mounts after its animation deadline', () => {
-    scheduleTreeAnimation(['leaf1'], 0, { leaf1: 100 })
+    scheduleTreeAnimation(['leaf1'], { leaf1: 100 })
     vi.advanceTimersByTime(900)
 
     const { container } = renderRow()

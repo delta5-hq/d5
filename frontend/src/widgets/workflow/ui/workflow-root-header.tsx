@@ -87,7 +87,6 @@ export const WorkflowRootHeader = ({
         <NodeTitleEditor
           autoFocus={autoEdit}
           className="min-w-0 flex-1 text-sm font-bold"
-          displayValue={title}
           editClassName="box-border h-7 min-h-7 max-h-20 !w-full !min-w-0 !max-w-full resize-none overflow-y-auto whitespace-pre-wrap rounded-full border-primary/40 bg-background px-2 py-1 text-sm font-bold leading-5 shadow-none"
           onChange={onRename}
           readOnlyClassName="block min-w-0 max-w-full truncate whitespace-nowrap border-0 bg-transparent px-1 py-0 leading-5 hover:border-transparent hover:bg-transparent"

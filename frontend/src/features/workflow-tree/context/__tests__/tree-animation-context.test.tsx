@@ -76,7 +76,7 @@ describe('TreeAnimationProvider — scheduleNewNodeFlash / consumeNewNodeFlash',
       const { result } = renderHook(() => useTreeAnimation(), { wrapper })
       result.current.scheduleNewNodeFlash('n1')
       act(() => {
-        scheduleTreeAnimation(['n1'], 0)
+        scheduleTreeAnimation(['n1'])
         result.current.clearAnimation('n1')
       })
       expect(result.current.consumeNewNodeFlash('n1')).toBe(true)
@@ -91,25 +91,9 @@ describe('TreeAnimationProvider — spark state delegation', () => {
 
   it('delegates shouldAnimate to the shared tree animation store', () => {
     const { result } = renderHook(() => useTreeAnimation(), { wrapper })
-    act(() => scheduleTreeAnimation(['a', 'b'], 10))
+    act(() => scheduleTreeAnimation(['a', 'b']))
     expect(result.current.shouldAnimate('a')).toBe(true)
     expect(result.current.shouldAnimate('b')).toBe(true)
-  })
-
-  it('delegates getBaseDelay to the shared tree animation store', () => {
-    const { result } = renderHook(() => useTreeAnimation(), { wrapper })
-    act(() => scheduleTreeAnimation(['n1'], 42))
-    expect(result.current.getBaseDelay('n1')).toBe(42)
-  })
-
-  it('returns 0 base delay for an unscheduled node', () => {
-    const { result } = renderHook(() => useTreeAnimation(), { wrapper })
-    expect(result.current.getBaseDelay('unknown')).toBe(0)
-  })
-
-  it('delegates elapsed time to the shared tree animation store', () => {
-    const { result } = renderHook(() => useTreeAnimation(), { wrapper })
-    expect(result.current.getElapsed('unknown')).toBe(0)
   })
 
   it('reacts when an existing row is scheduled after the provider mounted', () => {
@@ -124,7 +108,7 @@ describe('TreeAnimationProvider — spark state delegation', () => {
 
   it('delegates clearAnimation to the shared tree animation store', () => {
     const { result } = renderHook(() => useTreeAnimation(), { wrapper })
-    act(() => scheduleTreeAnimation(['n1'], 0))
+    act(() => scheduleTreeAnimation(['n1']))
     expect(result.current.shouldAnimate('n1')).toBe(true)
     act(() => result.current.clearAnimation('n1'))
     expect(result.current.shouldAnimate('n1')).toBe(false)

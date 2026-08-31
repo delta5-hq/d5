@@ -1633,10 +1633,8 @@ describe('bindExecuteAction', () => {
       expect(scheduleTreeAnimation).toHaveBeenCalledTimes(1)
       expect(scheduleTreeAnimation).toHaveBeenCalledWith(
         ['leaf1', 'leaf2'],
-        expect.any(Number),
         expect.objectContaining({ leaf1: expect.any(Number), leaf2: expect.any(Number) }),
       )
-      expect(vi.mocked(scheduleTreeAnimation).mock.calls[0]?.[1]).toBeGreaterThan(0)
     })
 
     it('reconstructs fan-out when a parent command triggers its /foreach post-processor', async () => {
@@ -1679,7 +1677,6 @@ describe('bindExecuteAction', () => {
 
       expect(scheduleTreeAnimation).toHaveBeenCalledWith(
         ['generated'],
-        expect.any(Number),
         expect.objectContaining({ generated: expect.any(Number) }),
       )
       expect(store.getState().nodes.generated?.collapsed).toBe(true)
@@ -1738,7 +1735,6 @@ describe('bindExecuteAction', () => {
       expect(store.getState().expandedIds.has('leaf')).toBe(false)
       expect(scheduleTreeAnimation).toHaveBeenCalledWith(
         ['leaf'],
-        expect.any(Number),
         expect.objectContaining({ leaf: expect.any(Number) }),
       )
     })
@@ -1858,7 +1854,6 @@ describe('bindExecuteAction', () => {
       expect(store.getState().expandedIds.has('nested')).toBe(false)
       expect(scheduleTreeAnimation).toHaveBeenCalledWith(
         ['nested'],
-        expect.any(Number),
         expect.objectContaining({ nested: expect.any(Number) }),
       )
 
