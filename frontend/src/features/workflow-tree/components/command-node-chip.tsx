@@ -21,6 +21,7 @@ import { getCommandRole, type CommandRole } from '@shared/constants/command-role
 import { getColorForRole } from '@shared/ui/genie/role-colors'
 import { BUILTIN_COMMANDS } from '@shared/lib/builtin-command-aliases'
 import { extractQueryTypeFromCommand, type DynamicAlias } from '@shared/lib/command-querytype-mapper'
+import { matchesAnyCommandWithOrder } from '@shared/lib/command-validation/command-matcher'
 import { cn } from '@shared/lib/utils'
 
 const TITLE_CHIP_LIMIT = 20
@@ -81,7 +82,9 @@ export interface CommandChipDescriptor {
 
 export function getCommandChip(command: string | undefined, aliases: DynamicAlias[]): CommandChipDescriptor {
   const value = command?.trim()
-  if (!value) {
+  // Non-command text (unparsable command / text duplicated from the title) is not a
+  // command pill: render the commandless clipboard chip instead.
+  if (!value || !matchesAnyCommandWithOrder(value, aliases)) {
     return {
       label: 'Not assigned',
       Icon: ClipboardList,

@@ -181,9 +181,20 @@ export const NodeDetailPanel = ({
           </div>
 
           <div
-            className="min-w-0 flex-1 rounded-lg rounded-tl-sm border border-muted-foreground/15 bg-muted/70 p-2"
+            className="relative min-w-0 flex-1 rounded-lg rounded-tl-sm border border-muted-foreground/15 bg-muted/70 p-2"
             data-testid="output-message"
           >
+            {/* speech-tail / chevron pointing at the Genie (mockup pointB3.svg): a bordered
+                left-pointing triangle on the bubble's left edge (outline behind, fill in front) */}
+            <span
+              aria-hidden="true"
+              className="absolute -left-[12px] top-3 h-0 w-0 border-y-[14px] border-y-transparent border-r-[12px] border-r-muted-foreground/25"
+            />
+            <span
+              aria-hidden="true"
+              className="absolute -left-[10px] top-3 h-0 w-0 border-y-[14px] border-y-transparent border-r-[12px] border-r-muted"
+              data-testid="output-message-tail"
+            />
             <NodePreviewSection
               className="mt-0 min-h-[44px] max-h-[180px] border-0 bg-transparent p-0"
               includeHead={false}
