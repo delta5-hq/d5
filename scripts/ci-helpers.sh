@@ -1,7 +1,14 @@
 #!/bin/bash
 
 DOCKER_NETWORK="${DOCKER_NETWORK:-d5-dev-network}"
-GOLANGCI_LINT_TIMEOUT="${GOLANGCI_LINT_TIMEOUT:-15m}"
+
+# Go lint toolchain pin. Both CI hosts run golangci-lint from
+# golangci/golangci-lint:${GOLANGCI_LINT_VERSION}-alpine and backend-v2/.golangci.yml
+# is written in that release series' schema, so a local binary from a different
+# series cannot read it. Keep this in step with .gitlab-ci.yml and
+# .github/workflows/ci.yml.
+GOLANGCI_LINT_VERSION="${GOLANGCI_LINT_VERSION:-v1.62}"
+GOLANGCI_LINT_IMAGE="golangci/golangci-lint:${GOLANGCI_LINT_VERSION}-alpine"
 
 log_info() { echo "→ $*"; }
 log_success() { echo "✓ $*"; }
@@ -11,6 +18,29 @@ log_error() { echo "✗ $*" >&2; }
 ensure_docker_network() {
   docker network inspect "$DOCKER_NETWORK" >/dev/null 2>&1 || \
     docker network create "$DOCKER_NETWORK" >/dev/null 2>&1
+}
+
+resolve_golangci_lint() {
+  local series="${GOLANGCI_LINT_VERSION#v}"
+  series="${series%%.*}"
+  local candidate
+  local cache_home="${XDG_CACHE_HOME:-$HOME/.cache}"
+  for candidate in "${GOLANGCI_LINT_BIN:-}" "$(command -v golangci-lint 2>/dev/null)" \
+    "$cache_home/golangci-lint/${GOLANGCI_LINT_VERSION}/golangci-lint" /tmp/lintbin/golangci-lint; do
+    [ -n "$candidate" ] && [ -x "$candidate" ] || continue
+    local found
+    found=$("$candidate" --version 2>/dev/null | sed -n 's/.*version v\{0,1\}\([0-9][0-9.]*\).*/\1/p' | head -1)
+    [ -n "$found" ] || continue
+    if [ "${found%%.*}" = "$series" ]; then
+      GOLANGCI_LINT_RESOLVED="$candidate"
+      GOLANGCI_LINT_RESOLVED_VERSION="$found"
+      return 0
+    fi
+    log_warning "Ignoring $candidate: version $found is not the pinned ${GOLANGCI_LINT_VERSION} series"
+  done
+  GOLANGCI_LINT_RESOLVED=""
+  GOLANGCI_LINT_RESOLVED_VERSION=""
+  return 1
 }
 
 lint_go() {
@@ -35,31 +65,30 @@ lint_go() {
   fi
   
   log_info "Running golangci-lint..."
-  if command -v golangci-lint >/dev/null 2>&1; then
-    golangci-lint run --timeout="$GOLANGCI_LINT_TIMEOUT" --fix
+  if resolve_golangci_lint; then
+    log_info "Using $GOLANGCI_LINT_RESOLVED (version $GOLANGCI_LINT_RESOLVED_VERSION)"
+    "$GOLANGCI_LINT_RESOLVED" run --timeout=5m --fix
     local exit_code=$?
-    
+
     if [ $exit_code -eq 0 ]; then
       log_success "Lint passed (local)"
       return 0
-    else
-      log_warning "Local lint exit $exit_code, verifying with Docker..."
-      ensure_docker_network
-      docker run --rm --network "$DOCKER_NETWORK" \
-        -v "$(pwd)":/app -w /app \
-        golangci/golangci-lint:v1.62-alpine \
-        golangci-lint run --timeout="$GOLANGCI_LINT_TIMEOUT" --fix
-      return $?
     fi
+    log_warning "Local lint exit $exit_code, verifying with Docker..."
   else
-    log_warning "golangci-lint not installed, using Docker..."
-    ensure_docker_network
-    docker run --rm --network "$DOCKER_NETWORK" \
-      -v "$(pwd)":/app -w /app \
-      golangci/golangci-lint:v1.62-alpine \
-      golangci-lint run --timeout="$GOLANGCI_LINT_TIMEOUT" --fix
-    return $?
+    log_warning "No golangci-lint in the pinned ${GOLANGCI_LINT_VERSION} series found locally, using Docker..."
   fi
+
+  ensure_docker_network
+  docker run --rm --network "$DOCKER_NETWORK" \
+    -v "$(pwd)":/app -w /app \
+    "$GOLANGCI_LINT_IMAGE" \
+    golangci-lint run --timeout=5m --fix
+  local docker_exit=$?
+  if [ $docker_exit -ne 0 ]; then
+    log_error "golangci-lint could not produce a verdict: no pinned-series binary locally and the Docker fallback exited $docker_exit"
+  fi
+  return $docker_exit
 }
 
 lint_dockerfile() {
@@ -194,7 +223,10 @@ build_go() {
   log_info "Building Go binary via Docker (version: ${version})..."
   ensure_docker_network
 
-  docker build --network "$DOCKER_NETWORK" --target builder \
+  # --network is honoured only by the legacy builder. Docker defaults to buildkit,
+  # which rejects a custom network mode outright, so select the legacy builder here
+  # rather than inheriting whatever the daemon happens to default to.
+  DOCKER_BUILDKIT=0 docker build --network "$DOCKER_NETWORK" --target builder \
     --build-arg "BUILD_VERSION=${version}" \
     -t "${binary_name}-builder" . > /tmp/go-build.log 2>&1 || {
     log_error "Build failed"
