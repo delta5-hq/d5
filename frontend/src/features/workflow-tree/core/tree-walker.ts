@@ -15,7 +15,7 @@ interface StackEntry {
   parentRowIndex: number
   /** Cumulative spark animation delay inherited from ancestors (ms) */
   parentSparkDelay: number
-  /** True if any ancestor is a prompt (execution-generated) node - propagates generated-ness down the subtree */
+  /** Carried down the walk so a generated subtree's descendants inherit the translucent state. */
   ancestorIsPrompt: boolean
 }
 
@@ -67,10 +67,9 @@ export function* createTreeWalker(treeData: FlatTreeData, refresh: boolean) {
     const isRootNode = node.id === rootId
     const isOpen = expandedIds.has(node.id) || (isRootNode && node.collapsed !== true)
     const hasChildren = Boolean(node.children?.length)
-    // A node is execution-generated (rendered translucent) when it is a prompt node OR when it
-    // descends from one. Fan-out registers a cloned `/steps` container in its parent's prompts but
-    // does not re-register the container's own cloned step children, so those children must inherit
-    // the generated state from the ancestor to stay translucent like the rest of the generated subtree.
+    // Fan-out registers a cloned `/steps` container in its parent's prompts but not the container's
+    // own cloned step children, so those children inherit the generated state from the ancestor
+    // rather than reading as operator-authored.
     const isPrompt = ancestorIsPrompt || isPromptNode(node.id, nodes)
     const thisRowIndex = currentRowIndex
     currentRowIndex++

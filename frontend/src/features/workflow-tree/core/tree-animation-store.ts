@@ -4,8 +4,8 @@
  * commits the reveal, and the tree context reads the same registry from its
  * effects, so the pending map is populated before newly mounted rows render.
  *
- * Each entry keeps its target-specific start and completion times. Rows can
- * therefore mount after scheduling without overrunning the result-reveal deadline.
+ * Because each entry pins its own start and completion time, rows can mount
+ * after scheduling without overrunning the result-reveal deadline.
  */
 import { SPARK_DURATION_MS } from './constants'
 
