@@ -694,7 +694,10 @@ describe('createTreeWalker — isPrompt', () => {
     expect(results.find(n => n.id === 'p1')!.isPrompt).toBe(true)
   })
 
-  it('prompt with children is still marked as prompt', () => {
+  it('descendants of a prompt node inherit the generated state', () => {
+    // A generated subtree is generated in its entirety. Fan-out registers a cloned container in its
+    // parent's prompts but does not re-register the container's own cloned children, so those children
+    // must inherit the generated (translucent) state from the ancestor rather than appearing operator-typed.
     const nodes: Record<string, NodeData> = {
       r: { id: 'r', children: ['p1'], prompts: ['p1'] },
       p1: { id: 'p1', parent: 'r', children: ['child'] },
@@ -704,6 +707,41 @@ describe('createTreeWalker — isPrompt', () => {
     const results = collectWalker(data)
 
     expect(results.find(n => n.id === 'p1')!.isPrompt).toBe(true)
-    expect(results.find(n => n.id === 'child')!.isPrompt).toBe(false)
+    expect(results.find(n => n.id === 'child')!.isPrompt).toBe(true)
+  })
+
+  it('fan-out /steps subtree is fully generated: cloned steps inherit from the container', () => {
+    // Mirrors a `/foreach /steps` fan-out: the executed node registers the cloned `/steps` container
+    // in its prompts; the container's cloned step children carry no prompts membership of their own; each
+    // step registers its own result. Every node under the generated container must render translucent.
+    const nodes: Record<string, NodeData> = {
+      root: { id: 'root', children: ['exec'] },
+      exec: { id: 'exec', parent: 'root', children: ['tmpl', 'steps'], prompts: ['steps'] },
+      tmpl: { id: 'tmpl', parent: 'exec', children: ['tStep'] },
+      tStep: { id: 'tStep', parent: 'tmpl', children: [] },
+      steps: { id: 'steps', parent: 'exec', children: ['s10', 's20'] },
+      s10: { id: 's10', parent: 'steps', children: ['r10'], prompts: ['r10'] },
+      r10: { id: 'r10', parent: 's10', children: [] },
+      s20: { id: 's20', parent: 'steps', children: ['r20'], prompts: ['r20'] },
+      r20: { id: 'r20', parent: 's20', children: [] },
+    }
+    const data: FlatTreeData = {
+      nodes,
+      rootId: 'root',
+      expandedIds: new Set(['root', 'exec', 'tmpl', 'steps', 's10', 's20']),
+    }
+    const results = collectWalker(data)
+    const isPromptOf = (id: string) => results.find(n => n.id === id)!.isPrompt
+
+    // Operator-authored: executed node and its untouched template steps stay opaque.
+    expect(isPromptOf('exec')).toBe(false)
+    expect(isPromptOf('tmpl')).toBe(false)
+    expect(isPromptOf('tStep')).toBe(false)
+    // Generated fan-out subtree: container, its cloned steps, and their results are all translucent.
+    expect(isPromptOf('steps')).toBe(true)
+    expect(isPromptOf('s10')).toBe(true)
+    expect(isPromptOf('r10')).toBe(true)
+    expect(isPromptOf('s20')).toBe(true)
+    expect(isPromptOf('r20')).toBe(true)
   })
 })
