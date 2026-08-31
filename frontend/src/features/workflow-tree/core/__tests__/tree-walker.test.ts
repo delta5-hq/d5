@@ -694,10 +694,10 @@ describe('createTreeWalker — isPrompt', () => {
     expect(results.find(n => n.id === 'p1')!.isPrompt).toBe(true)
   })
 
-  it('descendants of a prompt node inherit the generated state', () => {
-    // A generated subtree is generated in its entirety. Fan-out registers a cloned container in its
-    // parent's prompts but does not re-register the container's own cloned children, so those children
-    // must inherit the generated (translucent) state from the ancestor rather than appearing operator-typed.
+  it('a prompt-node child keeps isPrompt strict but inherits the generated (translucent) state', () => {
+    // The lazy-split preview relies on strict prompt membership (data-prompt-node), while fan-out needs
+    // the visual generated state to reach cloned children that carry no prompts membership. So a child
+    // of a prompt node stays isPrompt=false yet renders generated via isGenerated.
     const nodes: Record<string, NodeData> = {
       r: { id: 'r', children: ['p1'], prompts: ['p1'] },
       p1: { id: 'p1', parent: 'r', children: ['child'] },
@@ -705,15 +705,20 @@ describe('createTreeWalker — isPrompt', () => {
     }
     const data: FlatTreeData = { nodes, rootId: 'r', expandedIds: new Set(['p1']) }
     const results = collectWalker(data)
+    const p1 = results.find(n => n.id === 'p1')!
+    const child = results.find(n => n.id === 'child')!
 
-    expect(results.find(n => n.id === 'p1')!.isPrompt).toBe(true)
-    expect(results.find(n => n.id === 'child')!.isPrompt).toBe(true)
+    expect(p1.isPrompt).toBe(true)
+    expect(p1.isGenerated).toBe(true)
+    expect(child.isPrompt).toBe(false)
+    expect(child.isGenerated).toBe(true)
   })
 
-  it('fan-out /steps subtree is fully generated: cloned steps inherit from the container', () => {
-    // Mirrors a `/foreach /steps` fan-out: the executed node registers the cloned `/steps` container
-    // in its prompts; the container's cloned step children carry no prompts membership of their own; each
-    // step registers its own result. Every node under the generated container must render translucent.
+  it('fan-out /steps subtree renders fully generated while prompt membership stays strict', () => {
+    // Mirrors a `/foreach /steps` fan-out: the executed node registers the cloned `/steps` container in
+    // its prompts; the container's cloned step children carry no prompts membership; each step registers
+    // its own result. Everything under the generated container renders translucent (isGenerated), while
+    // data-prompt-node (isPrompt) still reflects only real prompts membership.
     const nodes: Record<string, NodeData> = {
       root: { id: 'root', children: ['exec'] },
       exec: { id: 'exec', parent: 'root', children: ['tmpl', 'steps'], prompts: ['steps'] },
@@ -731,17 +736,23 @@ describe('createTreeWalker — isPrompt', () => {
       expandedIds: new Set(['root', 'exec', 'tmpl', 'steps', 's10', 's20']),
     }
     const results = collectWalker(data)
-    const isPromptOf = (id: string) => results.find(n => n.id === id)!.isPrompt
+    const gen = (id: string) => results.find(n => n.id === id)!.isGenerated
+    const prompt = (id: string) => results.find(n => n.id === id)!.isPrompt
 
     // Operator-authored: executed node and its untouched template steps stay opaque.
-    expect(isPromptOf('exec')).toBe(false)
-    expect(isPromptOf('tmpl')).toBe(false)
-    expect(isPromptOf('tStep')).toBe(false)
-    // Generated fan-out subtree: container, its cloned steps, and their results are all translucent.
-    expect(isPromptOf('steps')).toBe(true)
-    expect(isPromptOf('s10')).toBe(true)
-    expect(isPromptOf('r10')).toBe(true)
-    expect(isPromptOf('s20')).toBe(true)
-    expect(isPromptOf('r20')).toBe(true)
+    expect(gen('exec')).toBe(false)
+    expect(gen('tmpl')).toBe(false)
+    expect(gen('tStep')).toBe(false)
+    // Generated fan-out subtree: container, its cloned steps, and their results all render translucent.
+    expect(gen('steps')).toBe(true)
+    expect(gen('s10')).toBe(true)
+    expect(gen('r10')).toBe(true)
+    expect(gen('s20')).toBe(true)
+    expect(gen('r20')).toBe(true)
+    // Strict prompt membership: only real prompts, not the inheriting step clones or the operator node.
+    expect(prompt('exec')).toBe(false)
+    expect(prompt('steps')).toBe(true)
+    expect(prompt('s10')).toBe(false)
+    expect(prompt('r10')).toBe(true)
   })
 })

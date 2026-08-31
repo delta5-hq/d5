@@ -27,7 +27,10 @@ export interface TreeNode {
   isOpen: boolean
   isOpenByDefault: boolean
   hasChildren: boolean
+  /** Structural: node is registered in its parent's prompts (drives data-prompt-node). */
   isPrompt: boolean
+  /** Visual: node is generated, or descends from a generated node (drives translucency). */
+  isGenerated: boolean
   /** Wire continuation: at each ancestor depth, does that level need a vertical continuation line? */
   ancestorContinuation: boolean[]
   /** Does this node have more siblings after it? (should extend vertical line below) */
@@ -65,6 +68,7 @@ export interface TreeWalkerYield {
   isOpenByDefault: boolean
   hasChildren: boolean
   isPrompt: boolean
+  isGenerated: boolean
   /** Wire continuation: at each ancestor depth, does that level need a vertical continuation line? */
   ancestorContinuation: boolean[]
   /** Does this node have more siblings after it? (should extend vertical line below) */

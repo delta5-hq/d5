@@ -130,6 +130,7 @@ export const TreeNodeDefault = ({
     node,
     depth,
     isPrompt,
+    isGenerated,
     ancestorContinuation = [],
     hasMoreSiblings = false,
     rowsFromParent = 1,
@@ -322,7 +323,7 @@ export const TreeNodeDefault = ({
             !isRoot && 'cursor-grab active:cursor-grabbing',
             'text-sm text-foreground/90',
             isSelected && 'border-accent/50 bg-accent/20 ring-1 ring-inset ring-accent/50',
-            isPrompt && 'opacity-60',
+            isGenerated && 'opacity-60',
           )}
           data-genie-state={genieState}
           data-node-depth={depth}
