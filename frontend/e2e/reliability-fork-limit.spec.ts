@@ -14,14 +14,24 @@ import { nodeTitle, selectRootAndOpenDetail, addChildCommand, executeRoot } from
  *
  * :limit=xs resolves to a 20-execution budget (forkLimitParser TSHIRT xs → 20).
  *
- * projectForkCost = n × perForkScope, and perForkScope is measured from the LIVE tree, so the
- * projected number differs by surface — this is real, verified product behaviour, not a bug:
+ * projectForkCost = n × perForkScope, and perForkScope is measured from the LIVE tree, but the
+ * projected number is the SAME on both surfaces. Parity is the contract, not a coincidence:
  *   • PRE-FLIGHT (Test 1, nothing executed): scope = readCommodityN(root '/chat :n=5') = 5,
  *     so cost = 5 × 5 = 25. Chip reads "…will be refused (25 calls)".
  *   • EXECUTE-TIME (Test 2): the refuse is projected inside postProcess, AFTER the root's own
- *     `:n=5` has already materialised 5 output nodes into the parent scope, so
- *     scope = 5 (root's own n) + 5 (its 5 output children ×1) = 10, and cost = 5 × 10 = 50.
- *     The error node reads "projected 50 executions exceeds limit 20".
+ *     `:n=5` has materialised 5 output nodes. Those nodes are the RESULTS of the 5 executions
+ *     readCommodityN already prices, so countImmediateScope skips node.prompts ids rather than
+ *     counting them again. scope stays 5 and cost stays 5 × 5 = 25.
+ *     The error node reads "projected 25 executions exceeds limit 20".
+ *
+ * This test previously asserted 50 here, from a scope of 5 + 5 that counted each materialised
+ * output as another unit of work. That double count was the over-projection removed by 0262db4
+ * ("Consolidate elect source-candidate admission into one shared predicate per stack"), whose
+ * whole purpose was to make the preview and the backend refusal price identically. The shared
+ * parity fixture "commodity parent cannot save merged output"
+ * (shared-contracts reliability-fork-cost-parity-fixtures.json) asserts the same rule directly:
+ * a '/chat :n=5' parent carrying a materialised output in prompts, under '/elect :n=3', costs
+ * 15 = 3 × 5, not 18. Asserting 50 here would re-encode the model both projector twins rejected.
  *
  * Refusal surfaces:
  *   PRE-FLIGHT  src/widgets/workflow/ui/node-detail-panel.tsx:245 data-testid="elect-cost-over-limit"
@@ -38,7 +48,10 @@ const ELECT_COMMAND = '/elect :n=5 :limit=xs'
 
 const LIMIT_XS = 20 // TSHIRT_TO_EXECUTIONS.xs
 const PREFLIGHT_COST = 25 // n(5) × scope(5) — root + elect only, no fork outputs yet
-const EXECUTE_TIME_COST = 50 // n(5) × scope(10) — scope now includes the root's 5 materialised :n=5 outputs
+// Execute-time prices identically: the root's materialised :n=5 outputs are already priced by
+// readCommodityN, so they are not counted a second time. Bound to PREFLIGHT_COST rather than
+// repeated as a literal, so a reintroduced surface divergence fails this test.
+const EXECUTE_TIME_COST = PREFLIGHT_COST
 
 // forkLimitRefusalMessage(cost, limit) — backend-generated, identical in EN + RU (locale-neutral).
 const REFUSAL_TEXT_RE = /projected (\d+) executions exceeds limit (\d+)/
