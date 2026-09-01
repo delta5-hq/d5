@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { PublicShare } from '@shared/base-types'
 import logger from '@shared/lib/logger'
+import { toast } from 'sonner'
 
 interface UseVisibilityUpdateOptions {
   updateVisibility: (state: Partial<PublicShare>) => Promise<void>
@@ -46,6 +47,7 @@ export const useVisibilityUpdate = ({ updateVisibility }: UseVisibilityUpdateOpt
           resolve()
         } catch (error) {
           logger.error('Visibility update failed', error)
+          toast.error((error as Error).message)
           setIsPersisting(false)
           reject(error)
         }

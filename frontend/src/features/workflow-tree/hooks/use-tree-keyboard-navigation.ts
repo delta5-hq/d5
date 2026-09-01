@@ -15,6 +15,7 @@ export interface UseTreeKeyboardNavigationOptions {
   onRequestEdit?: (nodeId: NodeId) => void
   onRequestDelete?: (nodeId: NodeId) => void
   onRequestDeleteMultiple?: (nodeIds: Set<NodeId>) => void
+  onRequestWrap?: (nodeIds: Set<NodeId>) => void
 }
 
 export function useTreeKeyboardNavigation({
@@ -29,6 +30,7 @@ export function useTreeKeyboardNavigation({
   onRequestEdit,
   onRequestDelete,
   onRequestDeleteMultiple,
+  onRequestWrap,
 }: UseTreeKeyboardNavigationOptions): void {
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
@@ -66,6 +68,25 @@ export function useTreeKeyboardNavigation({
             }
           }
         }
+        return
+      }
+
+      if (isCtrl && key.toLowerCase() === 'z') {
+        event.preventDefault()
+        actions.undo()
+        return
+      }
+
+      if (isCtrl && key.toLowerCase() === 'y') {
+        event.preventDefault()
+        actions.redo()
+        return
+      }
+
+      if (isCtrl && key.toLowerCase() === 'w' && selectedIds.size > 0) {
+        event.preventDefault()
+        const toWrap = selectedIds.size > 1 ? selectedIds : selectedId ? new Set([selectedId]) : undefined
+        if (toWrap) onRequestWrap?.(toWrap)
         return
       }
 
@@ -109,7 +130,9 @@ export function useTreeKeyboardNavigation({
         event.preventDefault()
         const newId = actions.addChild(selectedId, { title: '' })
         if (newId) {
+          actions.expandNode(selectedId)
           actions.select(newId)
+          onRequestEdit?.(newId)
         }
         return
       }
@@ -155,6 +178,7 @@ export function useTreeKeyboardNavigation({
       onRequestEdit,
       onRequestDelete,
       onRequestDeleteMultiple,
+      onRequestWrap,
     ],
   )
 

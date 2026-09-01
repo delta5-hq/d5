@@ -146,15 +146,16 @@ describe('deriveExpandedIdsFromNodes', () => {
     }) as NodeData
 
   describe('Root Handling', () => {
-    it('always expands root node regardless of collapsed field', () => {
+    it('keeps a persisted collapsed root collapsed', () => {
       const nodes: Record<string, NodeData> = {
-        root: node({ id: 'root', children: [], collapsed: true }),
+        root: node({ id: 'root', children: ['child'], collapsed: true }),
+        child: node({ id: 'child', parent: 'root' }),
       }
       const result = deriveExpandedIdsFromNodes(nodes, 'root')
-      expect(result.has('root')).toBe(true)
+      expect(result.has('root')).toBe(false)
     })
 
-    it('expands root even when root has no children property', () => {
+    it('defaults root to expanded when no collapsed field exists', () => {
       const nodes: Record<string, NodeData> = {
         root: node({ id: 'root' }),
       }
@@ -162,10 +163,10 @@ describe('deriveExpandedIdsFromNodes', () => {
       expect(result.has('root')).toBe(true)
     })
 
-    it('returns only root when tree is empty', () => {
+    it('does not synthesize a missing root when tree is empty', () => {
       const result = deriveExpandedIdsFromNodes({}, 'root')
-      expect(result.has('root')).toBe(true)
-      expect(result.size).toBe(1)
+      expect(result.has('root')).toBe(false)
+      expect(result.size).toBe(0)
     })
   })
 

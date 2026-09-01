@@ -1,6 +1,7 @@
 import type { NodeId } from '@shared/base-types'
 import type { NodeStore, EnrichedNodeData } from './node-store'
 import { clearStepsPrefix, matchesAnyCommand } from '@shared/lib/command-regexp'
+import { hasValidStoreTitleProjection } from '../title-projection'
 
 export interface TextLine {
   node: EnrichedNodeData
@@ -13,6 +14,8 @@ export interface IndentedTextParams {
   nonPromptNode?: boolean
   useCommand?: boolean
   ignorePostProccessCommand?: boolean
+  /** When false and the start node has descendants, omit the start node's own head line. */
+  includeHead?: boolean
 }
 
 type XYNode = EnrichedNodeData & { x?: number; y?: number }
@@ -77,6 +80,18 @@ function resolveTitle(node: EnrichedNodeData, useCommand: boolean): string | und
   return useCommand ? node.command || node.title : node.title
 }
 
+function ancestorProjectionDepthOffset(node: EnrichedNodeData, startNode: EnrichedNodeData, store: NodeStore): number {
+  let offset = 0
+  let parentId = node.parent
+  while (parentId && parentId !== startNode.id) {
+    const parent = store.getNode(parentId)
+    if (!parent) break
+    if (hasValidStoreTitleProjection(parent, store)) offset += 1
+    parentId = parent.parent
+  }
+  return offset
+}
+
 export function indentedText(startNode: EnrichedNodeData, store: NodeStore, params?: IndentedTextParams): TextLine[] {
   const {
     saveFirst = false,
@@ -84,6 +99,7 @@ export function indentedText(startNode: EnrichedNodeData, store: NodeStore, para
     nonPromptNode = false,
     useCommand = false,
     ignorePostProccessCommand = false,
+    includeHead = true,
   } = params ?? {}
 
   const lines: TextLine[] = []
@@ -95,18 +111,28 @@ export function indentedText(startNode: EnrichedNodeData, store: NodeStore, para
 
   const rawTitle = resolveTitle(startNode, useCommand)
   const headTitle = rawTitle ? clearStepsPrefix(rawTitle) : ''
+  const startTitleIsProjected = hasValidStoreTitleProjection(startNode, store)
+  const hasDescendants = (startNode.children?.length ?? 0) > 0
+  const omitHead = !includeHead && hasDescendants
   const head: TextLine = {
     node: startNode,
-    text: saveFirst || !matchesAnyCommand(headTitle) ? headTitle : '',
+    text: startTitleIsProjected || omitHead ? '' : saveFirst || !matchesAnyCommand(headTitle) ? headTitle : '',
   }
+  const startNodeHasHeadLine = head.text !== ''
 
   while (children.length > 0) {
     const node = children.pop()!
     const rawNodeTitle = resolveTitle(node, useCommand)
     const clearedTitle = rawNodeTitle ? clearStepsPrefix(rawNodeTitle) : ''
 
-    if (!matchesAnyCommand(clearedTitle) && node.id !== startNode.id) {
-      const indentation = (node.depth - startNode.depth + parentIndentation) * 2
+    if (!matchesAnyCommand(clearedTitle) && node.id !== startNode.id && !hasValidStoreTitleProjection(node, store)) {
+      const indentation =
+        (node.depth -
+          startNode.depth +
+          parentIndentation -
+          ancestorProjectionDepthOffset(node, startNode, store) -
+          (startNodeHasHeadLine ? 0 : 1)) *
+        2
       let text = `${' '.repeat(indentation)}${clearedTitle}`
 
       const parentId = node.parent

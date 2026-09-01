@@ -1,4 +1,4 @@
-.PHONY: help build build-docker start stop restart dev e2e logs logs-follow clean status test lint fmt
+.PHONY: help build build-docker redaction-runtime-probe start stop restart dev e2e logs logs-follow clean status test lint fmt
 
 # Configuration (allow override from environment)
 DOCKER_NETWORK := d5-dev-network
@@ -8,8 +8,15 @@ MONGO_URI ?= mongodb://localhost:27017/delta5
 JWT_SECRET ?= test-jwt-secret-change-in-production
 API_ROOT ?= /api/v2
 MOCK_EXTERNAL_SERVICES ?= false
+REDACTION_CHECKER_PATH ?=
+REDACTION_REGISTERED_VALUES_FILE ?=
+REDACTION_TIMEOUT_MS ?= 2000
 DOCKER_IMAGE := d5-backend-v2
 DOCKER_TAG := latest
+REDACTION_PACKAGE_SPEC ?= /tmp/redaction-package.tgz
+REDACTION_PACKAGE_SHA512 ?= b24d54070ebbeeaff4c6791c721ba34971b467164bfcdec8ae9ae5056efa320172fb4e95c5e045c6bc674e31357b68001aca0cad0dcb88f93fc12a5aab3a33f7
+REDACTION_PACKAGE_TARBALL_FILE ?=
+DOCKER_BUILD_SECRETS ?= --secret id=redaction_package,src=$(REDACTION_PACKAGE_TARBALL_FILE)
 LOG_DIR := logs
 
 help:
@@ -29,6 +36,7 @@ help:
 	@echo "  make fmt           - Format Go code (gofmt → Docker if unavailable)"
 	@echo "  make lint          - Run golangci-lint with auto-fix (→ Docker on failure/unavailable)"
 	@echo "  make test          - Run Go unit tests (→ Docker if unavailable)"
+	@echo "  make redaction-runtime-probe - Verify configured standalone checker contract"
 	@echo ""
 	@echo "Test:"
 	@echo "  make e2e           - Run E2E tests with mocked services"
@@ -42,12 +50,27 @@ help:
 	@echo "Note: All code quality commands auto-fallback to Docker when local tools fail"
 
 build:
-	@bash ../scripts/ci-helpers.sh build_go . $(BINARY_NAME)
+	@DOCKER_BUILD_NETWORK=default bash ../scripts/ci-helpers.sh build_go . $(BINARY_NAME)
 
 build-docker:
-	@echo "→ Building Docker image..."
-	@docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+	@if [ ! -r "$(REDACTION_PACKAGE_TARBALL_FILE)" ]; then \
+		echo "✗ REDACTION_PACKAGE_TARBALL_FILE must be readable"; \
+		exit 1; \
+	fi
+	@REDACTION_PACKAGE_SPEC='$(REDACTION_PACKAGE_SPEC)' \
+	 REDACTION_PACKAGE_SHA512='$(REDACTION_PACKAGE_SHA512)' \
+	 DOCKER_BUILD_SECRETS='$(DOCKER_BUILD_SECRETS)' \
+	 bash scripts/verify-docker-build-prerequisites.sh
+	@echo "→ Building Docker image with redaction checker..."
+	@DOCKER_BUILDKIT=1 docker build \
+		$(DOCKER_BUILD_SECRETS) \
+		--build-arg REDACTION_PACKAGE_SPEC='$(REDACTION_PACKAGE_SPEC)' \
+		--build-arg REDACTION_PACKAGE_SHA512='$(REDACTION_PACKAGE_SHA512)' \
+		-t $(DOCKER_IMAGE):$(DOCKER_TAG) .
 	@echo "✓ Docker image built: $(DOCKER_IMAGE):$(DOCKER_TAG)"
+
+redaction-runtime-probe:
+	@bash scripts/verify-redaction-runtime.sh
 
 start: build
 	@if lsof -i :$(PORT) -t >/dev/null 2>&1; then \
@@ -61,6 +84,9 @@ start: build
 	 PORT=$(PORT) \
 	 API_ROOT='$(API_ROOT)' \
 	 MOCK_EXTERNAL_SERVICES='$(MOCK_EXTERNAL_SERVICES)' \
+	 D5_REDACTION_CHECKER_PATH='$(REDACTION_CHECKER_PATH)' \
+	 D5_REDACTION_REGISTERED_VALUES_FILE='$(REDACTION_REGISTERED_VALUES_FILE)' \
+	 D5_REDACTION_TIMEOUT_MS='$(REDACTION_TIMEOUT_MS)' \
 	 nohup ./$(BINARY_NAME) > $(LOG_DIR)/backend.log 2>&1 & \
 	 echo $$! > $(LOG_DIR)/backend.pid
 	@sleep 1
@@ -85,6 +111,9 @@ dev: build
 	 PORT=$(PORT) \
 	 API_ROOT='$(API_ROOT)' \
 	 MOCK_EXTERNAL_SERVICES='$(MOCK_EXTERNAL_SERVICES)' \
+	 D5_REDACTION_CHECKER_PATH='$(REDACTION_CHECKER_PATH)' \
+	 D5_REDACTION_REGISTERED_VALUES_FILE='$(REDACTION_REGISTERED_VALUES_FILE)' \
+	 D5_REDACTION_TIMEOUT_MS='$(REDACTION_TIMEOUT_MS)' \
 	 nohup ./$(BINARY_NAME) > $(LOG_DIR)/backend-dev.log 2>&1 & \
 	 echo $$! > $(LOG_DIR)/backend-dev.pid
 	@sleep 1
@@ -189,6 +218,9 @@ e2e:
 	 PORT=$(PORT) \
 	 API_ROOT='/api/v2' \
 	 MOCK_EXTERNAL_SERVICES=true \
+	 D5_REDACTION_CHECKER_PATH='$(REDACTION_CHECKER_PATH)' \
+	 D5_REDACTION_REGISTERED_VALUES_FILE='$(REDACTION_REGISTERED_VALUES_FILE)' \
+	 D5_REDACTION_TIMEOUT_MS='$(REDACTION_TIMEOUT_MS)' \
 	 nohup ./$(BINARY_NAME) > $(LOG_DIR)/backend-e2e.log 2>&1 & \
 	 echo $$! > $(LOG_DIR)/backend-e2e.pid
 	@sleep 3

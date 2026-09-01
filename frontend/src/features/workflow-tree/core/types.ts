@@ -1,14 +1,23 @@
-import type { CSSProperties, MouseEvent } from 'react'
+import type { CSSProperties, MouseEvent, PointerEvent } from 'react'
 import type { NodeData, NodeId } from '@/shared/base-types/workflow'
+import type { TreeDropPosition } from './tree-drag'
 
 export interface TreeNodeCallbacks {
-  onToggle?: (id: string, sparkDelay?: number) => void
+  onToggle?: (id: string) => void
   onSelect?: (id: string, event?: MouseEvent) => void
   onAddChild?: (parentId: string) => void
+  onAddSibling?: (nodeId: string) => void
   onDelete?: (nodeId: string) => void
   onDuplicateNode?: (nodeId: string) => void
   onRename?: (nodeId: string, newTitle: string) => void
-  onRequestRename?: (nodeId: string) => void
+  onWrapNodes?: (nodeId: string) => void
+  onToggleChecked?: (nodeId: string) => void
+  onDragHoverNode?: (nodeId: string) => void
+  onDragLeaveNode?: (nodeId: string) => void
+  onPointerDragStartNode?: (nodeId: string, event: PointerEvent<HTMLElement> | MouseEvent<HTMLElement>) => void
+  onDropFiles?: (parentId: string, files: FileList) => void
+  activeDropTargetId?: string
+  activeDropPosition?: TreeDropPosition
 }
 
 export interface TreeNode {
@@ -18,7 +27,10 @@ export interface TreeNode {
   isOpen: boolean
   isOpenByDefault: boolean
   hasChildren: boolean
+  /** Structural: node is registered in its parent's prompts (drives data-prompt-node). */
   isPrompt: boolean
+  /** Visual: node is generated, or descends from a generated node (drives translucency). */
+  isGenerated: boolean
   /** Wire continuation: at each ancestor depth, does that level need a vertical continuation line? */
   ancestorContinuation: boolean[]
   /** Does this node have more siblings after it? (should extend vertical line below) */
@@ -56,6 +68,7 @@ export interface TreeWalkerYield {
   isOpenByDefault: boolean
   hasChildren: boolean
   isPrompt: boolean
+  isGenerated: boolean
   /** Wire continuation: at each ancestor depth, does that level need a vertical continuation line? */
   ancestorContinuation: boolean[]
   /** Does this node have more siblings after it? (should extend vertical line below) */

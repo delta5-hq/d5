@@ -49,4 +49,6 @@ export interface SegmentState {
 
 export interface SegmentComputeOptions {
   rowHeight: number
+  /** Node ID to omit from the segment list while leaving its descendants in place. */
+  excludeRootId?: string
 }

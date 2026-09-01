@@ -103,12 +103,24 @@ func Authorization(c *fiber.Ctx) error {
 }
 
 func Load(db *qmgo.Database) fiber.Handler {
+	return loadWorkflow(db, false)
+}
+
+func LoadForDelete(db *qmgo.Database) fiber.Handler {
+	return loadWorkflow(db, true)
+}
+
+func loadWorkflow(db *qmgo.Database, includeDeletionPending bool) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		workflowId := c.Params("workflowId")
 		collection := db.Collection("workflows")
 
 		var wf models.Workflow
-		err := collection.Find(c.Context(), map[string]string{"workflowId": workflowId}).One(&wf)
+		filter := qmgo.M{"workflowId": workflowId}
+		if !includeDeletionPending {
+			filter["deletionPending"] = qmgo.M{"$ne": true}
+		}
+		err := collection.Find(c.Context(), filter).One(&wf)
 		if err != nil {
 			return response.NotFound(c, "Workflow not found")
 		}

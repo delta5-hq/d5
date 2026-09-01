@@ -59,3 +59,6 @@ transcripts/
 .playwright-cli/
 .claude
 .github/docs/TODO.md
+
+# Runtime-mounted redaction values
+secrets/

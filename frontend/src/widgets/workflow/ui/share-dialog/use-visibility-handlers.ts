@@ -6,9 +6,15 @@ interface UseVisibilityHandlersParams {
   currentValue: VisibilityStateValue
   onValueChange: (value: VisibilityStateValue) => void
   disabled: boolean
+  canUseCollaborative: boolean
 }
 
-export const useVisibilityHandlers = ({ currentValue, onValueChange, disabled }: UseVisibilityHandlersParams) => {
+export const useVisibilityHandlers = ({
+  currentValue,
+  onValueChange,
+  disabled,
+  canUseCollaborative,
+}: UseVisibilityHandlersParams) => {
   const handlePrivateClick = useCallback(() => {
     if (disabled) return
     onValueChange('private')
@@ -32,18 +38,20 @@ export const useVisibilityHandlers = ({ currentValue, onValueChange, disabled }:
 
   const handleUnlistedCollaborativeToggle = useCallback(
     (checked: boolean) => {
+      if (!canUseCollaborative) return
       rememberCollaborativeState(true, checked)
       onValueChange(checked ? 'writeable-unlisted' : 'unlisted')
     },
-    [onValueChange],
+    [canUseCollaborative, onValueChange],
   )
 
   const handlePublicCollaborativeToggle = useCallback(
     (checked: boolean) => {
+      if (!canUseCollaborative) return
       rememberCollaborativeState(false, checked)
       onValueChange(checked ? 'writeable-public' : 'public')
     },
-    [onValueChange],
+    [canUseCollaborative, onValueChange],
   )
 
   return {

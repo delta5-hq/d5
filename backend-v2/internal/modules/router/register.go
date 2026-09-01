@@ -24,10 +24,12 @@ import (
 	"github.com/qiniu/qmgo"
 )
 
-func RegisterRoutes(app *fiber.App, db *qmgo.Database, services *container.ServiceContainer) {
+func RegisterRoutes(app *fiber.App, db *qmgo.Database, services *container.ServiceContainer) error {
 	apiRoot := app.Group(config.ApiRoot)
 
-	gateway.Register(apiRoot)
+	if err := gateway.Register(apiRoot); err != nil {
+		return err
+	}
 
 	unauthHandler := unauth.NewController()
 	unauth.RegisterRoutes(apiRoot, unauthHandler)
@@ -48,7 +50,9 @@ func RegisterRoutes(app *fiber.App, db *qmgo.Database, services *container.Servi
 
 	workflow.RegisterRoutes(api, workflowHandler, db)
 	macro.Register(api, db)
-	integration.Register(api, db, services)
+	if err := integration.Register(api, db, services); err != nil {
+		return err
+	}
 	user.RegisterRoutes(api, db)
 	sync.RegisterRoutes(api, db)
 	llmvector.RegisterRoutes(api, db)
@@ -56,4 +60,5 @@ func RegisterRoutes(app *fiber.App, db *qmgo.Database, services *container.Servi
 	statistics.Register(api, db)
 	urlthumbnail.RegisterRoutes(api, services.Thumbnail)
 	progress.RegisterRoutes(api)
+	return nil
 }

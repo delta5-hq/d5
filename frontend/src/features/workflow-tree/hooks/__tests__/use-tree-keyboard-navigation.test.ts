@@ -19,6 +19,7 @@ function makeActions(): WorkflowStoreActions {
     select: vi.fn(),
     toggleSelect: vi.fn(),
     rangeSelect: vi.fn(),
+    toggleChecked: vi.fn(),
     toggleExpanded: vi.fn(),
     expandNode: vi.fn(),
     collapseNode: vi.fn(),
@@ -35,6 +36,9 @@ function makeActions(): WorkflowStoreActions {
     importTextAsPrompts: vi.fn(),
     executeCommand: vi.fn(),
     abortExecution: vi.fn(),
+    wrapNodes: vi.fn(() => 'wrapped-node'),
+    undo: vi.fn(),
+    redo: vi.fn(),
   }
 }
 
@@ -231,6 +235,7 @@ describe('useTreeKeyboardNavigation', () => {
     it('Tab creates child node', () => {
       const actions = makeActions()
       const nodes = makeNodes()
+      const onRequestEdit = vi.fn()
 
       renderHook(() =>
         useTreeKeyboardNavigation({
@@ -241,6 +246,7 @@ describe('useTreeKeyboardNavigation', () => {
           executingNodeIds: new Set(),
           actions,
           containerRef,
+          onRequestEdit,
         }),
       )
 
@@ -248,7 +254,9 @@ describe('useTreeKeyboardNavigation', () => {
       containerRef.current?.dispatchEvent(event)
 
       expect(actions.addChild).toHaveBeenCalledWith('n1', { title: '' })
+      expect(actions.expandNode).toHaveBeenCalledWith('n1')
       expect(actions.select).toHaveBeenCalledWith('new-child')
+      expect(onRequestEdit).toHaveBeenCalledWith('new-child')
     })
 
     it('Ctrl+N creates sibling node', () => {
@@ -318,6 +326,57 @@ describe('useTreeKeyboardNavigation', () => {
       containerRef.current?.dispatchEvent(event)
 
       expect(actions.select).not.toHaveBeenCalled()
+    })
+
+    it('Tab without onRequestEdit still expands parent and selects the new child', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1']),
+          selectedId: 'n1',
+          selectedIds: new Set(['n1']),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+        }),
+      )
+
+      const event = new KeyboardEvent('keydown', { key: 'Tab' })
+      containerRef.current?.dispatchEvent(event)
+
+      expect(actions.addChild).toHaveBeenCalledWith('n1', { title: '' })
+      expect(actions.expandNode).toHaveBeenCalledWith('n1')
+      expect(actions.select).toHaveBeenCalledWith('new-child')
+    })
+
+    it('Tab on the root node creates a child under root', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+      const onRequestEdit = vi.fn()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root']),
+          selectedId: 'root',
+          selectedIds: new Set(['root']),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+          onRequestEdit,
+        }),
+      )
+
+      const event = new KeyboardEvent('keydown', { key: 'Tab' })
+      containerRef.current?.dispatchEvent(event)
+
+      expect(actions.addChild).toHaveBeenCalledWith('root', { title: '' })
+      expect(actions.expandNode).toHaveBeenCalledWith('root')
+      expect(actions.select).toHaveBeenCalledWith('new-child')
+      expect(onRequestEdit).toHaveBeenCalledWith('new-child')
     })
   })
 
@@ -973,6 +1032,233 @@ describe('useTreeKeyboardNavigation', () => {
       containerRef.current?.dispatchEvent(event)
 
       expect(onRequestEdit).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('history keys', () => {
+    it('Ctrl+Z calls undo', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1']),
+          selectedId: 'n1',
+          selectedIds: new Set(['n1']),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+        }),
+      )
+
+      containerRef.current?.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }))
+
+      expect(actions.undo).toHaveBeenCalledTimes(1)
+    })
+
+    it('Cmd+Z calls undo on Mac', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1']),
+          selectedId: undefined,
+          selectedIds: new Set(),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+        }),
+      )
+
+      containerRef.current?.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }))
+
+      expect(actions.undo).toHaveBeenCalledTimes(1)
+    })
+
+    it('Ctrl+Y calls redo', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1']),
+          selectedId: 'n1',
+          selectedIds: new Set(['n1']),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+        }),
+      )
+
+      containerRef.current?.dispatchEvent(new KeyboardEvent('keydown', { key: 'y', ctrlKey: true }))
+
+      expect(actions.redo).toHaveBeenCalledTimes(1)
+    })
+
+    it('Cmd+Y calls redo on Mac', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1']),
+          selectedId: undefined,
+          selectedIds: new Set(),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+        }),
+      )
+
+      containerRef.current?.dispatchEvent(new KeyboardEvent('keydown', { key: 'y', metaKey: true }))
+
+      expect(actions.redo).toHaveBeenCalledTimes(1)
+    })
+
+    it('Ctrl+Z does nothing when editable element is focused', async () => {
+      const { isEditableElementFocused } = await import('@shared/lib/dom')
+      vi.mocked(isEditableElementFocused).mockReturnValueOnce(true)
+
+      const actions = makeActions()
+      const nodes = makeNodes()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1']),
+          selectedId: 'n1',
+          selectedIds: new Set(['n1']),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+        }),
+      )
+
+      containerRef.current?.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }))
+
+      expect(actions.undo).not.toHaveBeenCalled()
+    })
+
+    it('Ctrl+Y does nothing when editable element is focused', async () => {
+      const { isEditableElementFocused } = await import('@shared/lib/dom')
+      vi.mocked(isEditableElementFocused).mockReturnValueOnce(true)
+
+      const actions = makeActions()
+      const nodes = makeNodes()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1']),
+          selectedId: 'n1',
+          selectedIds: new Set(['n1']),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+        }),
+      )
+
+      containerRef.current?.dispatchEvent(new KeyboardEvent('keydown', { key: 'y', ctrlKey: true }))
+
+      expect(actions.redo).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('wrap key', () => {
+    it('Ctrl+W calls onRequestWrap with the selected node as a single-element set', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+      const onRequestWrap = vi.fn()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1']),
+          selectedId: 'n1',
+          selectedIds: new Set(['n1']),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+          onRequestWrap,
+        }),
+      )
+
+      containerRef.current?.dispatchEvent(new KeyboardEvent('keydown', { key: 'w', ctrlKey: true }))
+
+      expect(onRequestWrap).toHaveBeenCalledTimes(1)
+      expect(onRequestWrap).toHaveBeenCalledWith(new Set(['n1']))
+    })
+
+    it('Ctrl+W calls onRequestWrap with the full multi-selection when more than one node is selected', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+      const onRequestWrap = vi.fn()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1', 'n2']),
+          selectedId: 'n1',
+          selectedIds: new Set(['n1', 'n2']),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+          onRequestWrap,
+        }),
+      )
+
+      containerRef.current?.dispatchEvent(new KeyboardEvent('keydown', { key: 'w', ctrlKey: true }))
+
+      expect(onRequestWrap).toHaveBeenCalledWith(new Set(['n1', 'n2']))
+    })
+
+    it('Ctrl+W does nothing when no node is selected', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+      const onRequestWrap = vi.fn()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1']),
+          selectedId: undefined,
+          selectedIds: new Set(),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+          onRequestWrap,
+        }),
+      )
+
+      containerRef.current?.dispatchEvent(new KeyboardEvent('keydown', { key: 'w', ctrlKey: true }))
+
+      expect(onRequestWrap).not.toHaveBeenCalled()
+    })
+
+    it('Ctrl+W does nothing when onRequestWrap is not provided', () => {
+      const actions = makeActions()
+      const nodes = makeNodes()
+
+      renderHook(() =>
+        useTreeKeyboardNavigation({
+          nodes,
+          visibleOrderRef: makeVisibleOrderRef(['root', 'n1']),
+          selectedId: 'n1',
+          selectedIds: new Set(['n1']),
+          executingNodeIds: new Set(),
+          actions,
+          containerRef,
+        }),
+      )
+
+      expect(() =>
+        containerRef.current?.dispatchEvent(new KeyboardEvent('keydown', { key: 'w', ctrlKey: true })),
+      ).not.toThrow()
     })
   })
 })

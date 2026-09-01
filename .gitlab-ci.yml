@@ -196,7 +196,7 @@ test-backend-v2:
   before_script:
     - cd backend-v2
   script:
-    - apk add --no-cache git
+    - apk add --no-cache git nodejs
     - go mod download
     - go test -v -coverprofile=coverage.out ./...
     - go tool cover -func=coverage.out
@@ -301,13 +301,21 @@ e2e-backend:
       - /root/.npm/**/*
   script:
     - apk add --no-cache bash curl git
+    - REDACTION_PACKAGE_DIR="$(mktemp -d)"
+    - REDACTION_PACKAGE_TARBALL="$REDACTION_PACKAGE_DIR/value-redaction-control-0.1.4.tgz"
+    - REDACTION_NPM_TOKEN="$CI_JOB_TOKEN" REDACTION_NPM_TOKEN_TYPE="JOB-TOKEN" bash backend-v2/scripts/fetch-redaction-package.sh "$REDACTION_PACKAGE_TARBALL"
+    - npm install --global "$REDACTION_PACKAGE_TARBALL"
     - cd backend-v2
+    - export D5_REDACTION_CHECKER_PATH="$(command -v value-redaction-check)"
+    - export D5_REDACTION_REGISTERED_VALUES_FILE="$CI_PROJECT_DIR/backend-v2/testdata/redaction-registered-values.json"
+    - export D5_REDACTION_TIMEOUT_MS="2000"
+    - bash scripts/verify-redaction-runtime.sh
     - chmod +x backend-v2 seed-users
     - cd e2e
     - npm ci
     - cd ..
     - DROP_DB=true bash e2e-db-init.sh
-    - MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" PORT="${BACKEND_PORT}" API_ROOT="${API_ROOT}" MOCK_EXTERNAL_SERVICES=true nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
+    - MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" PORT="${BACKEND_PORT}" API_ROOT="${API_ROOT}" MOCK_EXTERNAL_SERVICES=true D5_REDACTION_CHECKER_PATH="${D5_REDACTION_CHECKER_PATH}" D5_REDACTION_REGISTERED_VALUES_FILE="${D5_REDACTION_REGISTERED_VALUES_FILE}" D5_REDACTION_TIMEOUT_MS="${D5_REDACTION_TIMEOUT_MS}" nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
     - sleep 5
     - if ! kill -0 $(cat backend-e2e.pid); then echo "Backend failed to start"; cat backend-e2e.log; exit 1; fi
     - curl -f http://localhost:${BACKEND_PORT}${API_ROOT}/health || (cat backend-e2e.log; exit 1)
@@ -315,7 +323,7 @@ e2e-backend:
     - E2E_SERVER_URL=http://localhost:${BACKEND_PORT} E2E_API_BASE_PATH=${API_ROOT} E2E_MONGO_URI="${E2E_MONGO_URI}" npm test || (kill $(cat ../backend-e2e.pid); exit 1)
     - kill $(cat ../backend-e2e.pid)
   after_script:
-    - cd backend-v2 && bash e2e-db-drop.sh 2>/dev/null || true
+    - cd backend-v2 && D5_REDACTION_CHECKER_PATH="$(command -v value-redaction-check 2>/dev/null)" D5_REDACTION_REGISTERED_VALUES_FILE="$CI_PROJECT_DIR/backend-v2/testdata/redaction-registered-values.json" D5_REDACTION_TIMEOUT_MS="2000" bash e2e-db-drop.sh 2>/dev/null || true
   artifacts:
     reports:
       junit: ./backend-v2/e2e/junit.xml
@@ -351,9 +359,17 @@ e2e-frontend:
     - sleep 5
     - if ! kill -0 $(cat backend-e2e.pid); then echo "Node.js backend failed to start"; cat backend-e2e.log; exit 1; fi
     - cd ../backend-v2
+    - REDACTION_PACKAGE_DIR="$(mktemp -d)"
+    - REDACTION_PACKAGE_TARBALL="$REDACTION_PACKAGE_DIR/value-redaction-control-0.1.4.tgz"
+    - REDACTION_NPM_TOKEN="$CI_JOB_TOKEN" REDACTION_NPM_TOKEN_TYPE="JOB-TOKEN" bash scripts/fetch-redaction-package.sh "$REDACTION_PACKAGE_TARBALL"
+    - npm install --global "$REDACTION_PACKAGE_TARBALL"
+    - export D5_REDACTION_CHECKER_PATH="$(command -v value-redaction-check)"
+    - export D5_REDACTION_REGISTERED_VALUES_FILE="$CI_PROJECT_DIR/backend-v2/testdata/redaction-registered-values.json"
+    - export D5_REDACTION_TIMEOUT_MS="2000"
+    - bash scripts/verify-redaction-runtime.sh
     - chmod +x backend-v2 seed-users
     - DROP_DB=true bash e2e-db-init.sh
-    - MONGO_DATABASE="delta5_${CI_JOB_ID}" MONGO_URI="mongodb://mongo:27017/delta5_${CI_JOB_ID}" JWT_SECRET="test-jwt-secret-change-in-production" PORT="3002" API_ROOT="/api/v2" MOCK_EXTERNAL_SERVICES=true NODEJS_BACKEND_URL="http://localhost:3004" nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
+    - MONGO_DATABASE="delta5_${CI_JOB_ID}" MONGO_URI="mongodb://mongo:27017/delta5_${CI_JOB_ID}" JWT_SECRET="test-jwt-secret-change-in-production" PORT="3002" API_ROOT="/api/v2" MOCK_EXTERNAL_SERVICES=true NODEJS_BACKEND_URL="http://localhost:3004" D5_REDACTION_CHECKER_PATH="${D5_REDACTION_CHECKER_PATH}" D5_REDACTION_REGISTERED_VALUES_FILE="${D5_REDACTION_REGISTERED_VALUES_FILE}" D5_REDACTION_TIMEOUT_MS="${D5_REDACTION_TIMEOUT_MS}" nohup ./backend-v2 > backend-e2e.log 2>&1 & echo $! > backend-e2e.pid
     - sleep 5
     - if ! kill -0 $(cat backend-e2e.pid); then echo "Backend failed to start"; cat backend-e2e.log; exit 1; fi
     - curl -f http://localhost:${BACKEND_PORT}${API_ROOT}/health || (cat backend-e2e.log; exit 1)
@@ -370,7 +386,7 @@ e2e-frontend:
     - kill $(cat ../backend/backend-e2e.pid) || true
     - exit ${TEST_EXIT:-0}
   after_script:
-    - cd backend-v2 && bash e2e-db-drop.sh 2>/dev/null || true
+    - cd backend-v2 && D5_REDACTION_CHECKER_PATH="$(command -v value-redaction-check 2>/dev/null)" D5_REDACTION_REGISTERED_VALUES_FILE="$CI_PROJECT_DIR/backend-v2/testdata/redaction-registered-values.json" D5_REDACTION_TIMEOUT_MS="2000" bash e2e-db-drop.sh 2>/dev/null || true
   artifacts:
     reports:
       junit: ./frontend/junit.xml
@@ -444,20 +460,27 @@ package-chatpopup:
 package-backend-v2:
   extends: .when
   stage: package
-  image:
-    name: gcr.io/kaniko-project/executor:debug
-    entrypoint: [""]
+  image: "docker:27-cli"
+  services:
+    - name: "docker:27-dind"
+      alias: docker
+  variables:
+    DOCKER_BUILDKIT: "1"
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_HOST: "tcp://docker:2375"
+    REDACTION_PACKAGE_SPEC: "/tmp/redaction-package.tgz"
+    REDACTION_PACKAGE_SHA512: "b24d54070ebbeeaff4c6791c721ba34971b467164bfcdec8ae9ae5056efa320172fb4e95c5e045c6bc674e31357b68001aca0cad0dcb88f93fc12a5aab3a33f7"
   dependencies:
     - build-backend-v2
-  before_script:
-    - cd backend-v2
   script:
-    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}"
-      > /kaniko/.docker/config.json
+    - apk add --no-cache curl
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
     - source $CI_PROJECT_DIR/scripts/ci-helpers.sh
     - TAG=$(generate_docker_tag)
     - NAME=$(generate_docker_name "backend-v2")
-    - /kaniko/executor
-      --context "$CI_PROJECT_DIR/backend-v2"
-      --dockerfile Dockerfile
-      --destination "$CI_REGISTRY_IMAGE:$NAME-$TAG"
+    - REDACTION_PACKAGE_DIR="$(mktemp -d)"
+    - REDACTION_PACKAGE_TARBALL="$REDACTION_PACKAGE_DIR/value-redaction-control-0.1.4.tgz"
+    - REDACTION_NPM_TOKEN="$CI_JOB_TOKEN" REDACTION_NPM_TOKEN_TYPE="JOB-TOKEN" sh "$CI_PROJECT_DIR/backend-v2/scripts/fetch-redaction-package.sh" "$REDACTION_PACKAGE_TARBALL"
+    - REDACTION_SECRET="--secret id=redaction_package,src=$REDACTION_PACKAGE_TARBALL"
+    - docker build $REDACTION_SECRET --build-arg REDACTION_PACKAGE_SPEC="$REDACTION_PACKAGE_SPEC" --build-arg REDACTION_PACKAGE_SHA512="$REDACTION_PACKAGE_SHA512" -t "$CI_REGISTRY_IMAGE:$NAME-$TAG" "$CI_PROJECT_DIR/backend-v2"
+    - docker push "$CI_REGISTRY_IMAGE:$NAME-$TAG"

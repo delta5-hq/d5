@@ -17,6 +17,10 @@ export interface WorkflowStoreState {
   isSaving: boolean
   dirtyNodeIds: Set<NodeId>
   executingNodeIds: Set<NodeId>
+  // Fan-out targets whose spark is scheduled but has not yet reached them. While a
+  // target is here it renders as clipboard (no command pill, no thought tail); it
+  // switches to its full command presentation when the spark arrives (results reveal).
+  pendingFanOutTargetIds: Set<NodeId>
 }
 
 export interface WorkflowStoreActions {
@@ -29,6 +33,7 @@ export interface WorkflowStoreActions {
   select: (nodeId: NodeId | undefined) => void
   toggleSelect: (nodeId: NodeId) => void
   rangeSelect: (targetId: NodeId, visibleOrder: readonly string[]) => void
+  toggleChecked: (nodeId: NodeId) => void
 
   toggleExpanded: (nodeId: NodeId) => void
   expandNode: (nodeId: NodeId) => void
@@ -42,13 +47,20 @@ export interface WorkflowStoreActions {
   updateNode: (nodeId: NodeId, updates: Partial<Omit<NodeData, 'id' | 'parent'>>) => boolean
   removeNode: (nodeId: NodeId) => boolean
   removeNodes: (nodeIds: Set<NodeId>) => number
-  moveNode: (nodeId: NodeId, newParentId: NodeId) => boolean
+  moveNode: (nodeId: NodeId, newParentId: NodeId, insertionIndex?: number) => boolean
   duplicateNode: (nodeId: NodeId, targetParentId?: NodeId) => NodeId | null
   importTextAsPrompts: (parentId: NodeId, text: string) => number
+  attachFileChild: (parentId: NodeId, file: File) => Promise<NodeId | null>
 
   executeCommand: (node: NodeData, queryType: string) => Promise<boolean>
   abortExecution: (nodeId: NodeId) => void
+
+  wrapNodes: (nodeIds: Set<NodeId>) => NodeId | null
+  undo: () => void
+  redo: () => void
 }
+
+export type ReadWorkflowFn = (workflowId: string) => Promise<Pick<WorkflowStoreState, 'nodes' | 'edges' | 'root'>>
 
 export const INITIAL_WORKFLOW_STATE: Omit<WorkflowStoreState, 'workflowId'> = {
   nodes: {},
@@ -65,4 +77,5 @@ export const INITIAL_WORKFLOW_STATE: Omit<WorkflowStoreState, 'workflowId'> = {
   isSaving: false,
   dirtyNodeIds: new Set<NodeId>(),
   executingNodeIds: new Set<NodeId>(),
+  pendingFanOutTargetIds: new Set<NodeId>(),
 }

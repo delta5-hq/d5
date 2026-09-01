@@ -6,13 +6,25 @@ export type { GenieState }
 type Listener = () => void
 type Unsubscribe = () => void
 
+export interface GenieStateStoreOptions {
+  doneStateResetDelayMs?: number
+}
+
+const DEFAULT_DONE_STATE_RESET_DELAY_MS = 3000
+
 export class GenieStateStore {
+  private readonly doneStateResetDelayMs: number
   private stateMap = new Map<string, GenieState>()
   private errorMap = new Map<string, string>()
   private listenersByNodeId = new Map<string, Set<Listener>>()
   private globalListeners = new Set<Listener>()
   private streamClient: ProgressStreamClient | null = null
   private suppressedNodes = new Set<string>()
+  private doneResetTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+  constructor(options: GenieStateStoreOptions = {}) {
+    this.doneStateResetDelayMs = options.doneStateResetDelayMs ?? DEFAULT_DONE_STATE_RESET_DELAY_MS
+  }
 
   suppressNode(nodeId: string): void {
     this.suppressedNodes.add(nodeId)
@@ -33,14 +45,6 @@ export class GenieStateStore {
         this.setError(nodeId, error)
       } else {
         this.clearError(nodeId)
-      }
-
-      if (state === 'done-success' || state === 'done-failure') {
-        setTimeout(() => {
-          if (this.stateMap.get(nodeId) === state) {
-            this.setState(nodeId, 'idle')
-          }
-        }, 3000)
       }
     })
 
@@ -82,6 +86,7 @@ export class GenieStateStore {
     if (previousState === state) return
 
     this.stateMap.set(nodeId, state)
+    this.scheduleDoneReset(nodeId, state)
     this.notifyNodeListeners(nodeId)
     this.notifyGlobalListeners()
   }
@@ -93,6 +98,7 @@ export class GenieStateStore {
       const previousState = this.stateMap.get(nodeId) ?? 'idle'
       if (previousState !== state) {
         this.stateMap.set(nodeId, state)
+        this.scheduleDoneReset(nodeId, state)
         changedNodeIds.add(nodeId)
       }
     }
@@ -113,6 +119,7 @@ export class GenieStateStore {
   }
 
   deleteNode(nodeId: string): void {
+    this.clearDoneReset(nodeId)
     this.stateMap.delete(nodeId)
     this.errorMap.delete(nodeId)
     this.listenersByNodeId.delete(nodeId)
@@ -120,6 +127,9 @@ export class GenieStateStore {
   }
 
   clearAll(): void {
+    for (const nodeId of this.doneResetTimers.keys()) {
+      this.clearDoneReset(nodeId)
+    }
     this.stateMap.clear()
     this.errorMap.clear()
     this.listenersByNodeId.clear()
@@ -140,6 +150,27 @@ export class GenieStateStore {
     this.errorMap.delete(nodeId)
     this.notifyNodeListeners(nodeId)
     this.notifyGlobalListeners()
+  }
+
+  private scheduleDoneReset(nodeId: string, state: GenieState): void {
+    this.clearDoneReset(nodeId)
+    if (state !== 'done-success' && state !== 'done-failure') return
+
+    const timer = setTimeout(() => {
+      this.doneResetTimers.delete(nodeId)
+      if (this.stateMap.get(nodeId) === state) {
+        this.setState(nodeId, 'idle')
+      }
+    }, this.doneStateResetDelayMs)
+
+    this.doneResetTimers.set(nodeId, timer)
+  }
+
+  private clearDoneReset(nodeId: string): void {
+    const timer = this.doneResetTimers.get(nodeId)
+    if (!timer) return
+    clearTimeout(timer)
+    this.doneResetTimers.delete(nodeId)
   }
 
   reconcile(validNodeIds: Set<string>): void {

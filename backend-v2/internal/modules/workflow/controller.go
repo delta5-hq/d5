@@ -6,8 +6,11 @@ import (
 	"backend-v2/internal/common/response"
 	"backend-v2/internal/common/utils"
 	"backend-v2/internal/models"
+	workflowRepo "backend-v2/internal/repositories/workflow"
 
+	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -17,9 +20,10 @@ import (
 )
 
 type WorkflowController struct {
-	Service     *WorkflowService
-	db          *qmgo.Database
-	mongoClient *mongo.Client
+	Service            *WorkflowService
+	db                 *qmgo.Database
+	mongoClient        *mongo.Client
+	fileLifecycleLocks workflowKeyedMutex
 }
 
 func NewHandler(service *WorkflowService, db *qmgo.Database, mongoClient *mongo.Client) *WorkflowController {
@@ -178,12 +182,26 @@ func (h *WorkflowController) CreateWorkflow(c *fiber.Ctx) error {
 func (h *WorkflowController) DeleteWorkflow(c *fiber.Ctx) error {
 	workflowId := c.Params("workflowId")
 	access := c.Locals("access").(WorkflowAccess)
-
-	err := h.Service.DeleteWorkflow(c.Context(), workflowId, access)
-	if err != nil {
-		return c.Status(err.Status).JSON(response.ErrorResponse{
-			Message: err.Message,
-		})
+	release := h.fileLifecycleLocks.acquire(workflowId)
+	defer release()
+	deleteErr := runWorkflowDeletionLifecycle(
+		c.Context(),
+		workflowId,
+		access,
+		h.Service.BeginWorkflowDeletion,
+		h.Service.WaitForWorkflowFileUploads,
+		func(ctx context.Context, id string) error {
+			mongoDb := h.mongoClient.Database(h.db.GetDatabaseName())
+			fileRepo, err := workflowRepo.NewFileRepository(mongoDb)
+			if err != nil {
+				return fmt.Errorf("initialize workflow file cleanup: %w", err)
+			}
+			return deleteWorkflowFiles(ctx, fileRepo, id)
+		},
+		h.Service.FinalizeWorkflowDeletion,
+	)
+	if deleteErr != nil {
+		return c.Status(deleteErr.Status).JSON(response.ErrorResponse{Message: deleteErr.Message})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{

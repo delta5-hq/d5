@@ -415,6 +415,7 @@ export default {
       settings: 'Settings',
       command: 'Command',
       commandPlaceholder: 'Enter command...',
+      invalidCommand: 'Enter a valid slash command to execute.',
       execute: 'Execute',
       executing: 'Executing...',
       abort: 'Abort',
@@ -422,17 +423,27 @@ export default {
       addSibling: 'Add Sibling',
       close: 'Back',
       duplicate: 'Duplicate',
+      wrapInCard: 'Wrap in card',
       untitled: 'Untitled',
       rename: 'Rename',
       editHint: 'Double-click to edit',
+      expandCollapse: 'Expand or collapse',
       preview: 'Preview',
       previewError: 'Preview failed',
+      output: 'Output',
+      run: 'Run',
+      auto: 'auto',
+      commandFooterHint: '{count} chars · ⏎ run',
     },
 
     status: {
       saving: 'Saving...',
       unsaved: 'Unsaved changes',
       saved: 'Saved',
+      done: 'done',
+      busy: 'busy',
+      failed: 'failed',
+      idle: 'idle',
     },
 
     deleteDialog: {
@@ -460,6 +471,14 @@ export default {
       selfParent: 'Node cannot be its own parent',
       failed: 'Operation failed',
       bulkDeletePartial: '{removed} removed, {skipped} skipped (in use)',
+    },
+
+    attachment: {
+      uploadFailed: 'Failed to upload file',
+      localCreateFailed: 'Parent node not found — attachment could not be created',
+      linkPersistFailed: 'File uploaded but could not be linked — the uploaded file was removed',
+      deleteFailed: 'Failed to delete attachment bytes',
+      removeFlushFailed: 'Attachment removed but workflow save failed — please retry',
     },
   },
 }

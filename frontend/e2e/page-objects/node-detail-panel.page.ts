@@ -6,53 +6,60 @@ export class NodeDetailPanelPage extends PageComponent {
     return '[data-testid="node-detail-panel"]'
   }
 
-  get settingsTrigger(): Locator {
-    return this.page.getByTestId('settings-trigger')
-  }
-
   get executeButton(): Locator {
     return this.page.getByTestId('execute-node-button')
   }
 
-  get addChildButton(): Locator {
-    return this.page.getByTestId('add-child-node-button')
+  get abortButton(): Locator {
+    return this.page.getByTestId('abort-node-button')
   }
 
-  get duplicateButton(): Locator {
-    return this.page.getByTestId('duplicate-node-button')
+  get outputSection(): Locator {
+    return this.page.getByTestId('output-section')
   }
 
-  get deleteButton(): Locator {
-    return this.page.getByTestId('delete-node-button')
+  get outputGenie(): Locator {
+    return this.page.getByTestId('output-genie')
   }
 
-  get genie(): Locator {
-    return this.page.getByTestId('node-genie')
+  get outputStatusLine(): Locator {
+    return this.page.getByTestId('output-status-line')
+  }
+
+  get commandSection(): Locator {
+    return this.page.getByTestId('command-section')
+  }
+
+  get commandRoleChip(): Locator {
+    return this.page.getByTestId('command-role-chip')
+  }
+
+  get validationMessage(): Locator {
+    return this.page.getByTestId('command-validation-message')
+  }
+
+  get renameButton(): Locator {
+    return this.page.getByTestId('rename-node-button')
+  }
+
+  get titleRegion(): Locator {
+    return this.page.getByTestId('node-detail-title-region')
+  }
+
+  get titleActions(): Locator {
+    return this.page.getByTestId('node-detail-title-actions')
   }
 
   get commandInput(): Locator {
     return this.root.locator('textarea')
   }
 
-  get previewSection(): Locator {
-    return this.page.getByTestId('node-preview-section')
-  }
-
-  get previewText(): Locator {
+  get outputText(): Locator {
     return this.page.getByTestId('node-preview-text')
   }
 
-  get previewError(): Locator {
-    return this.page.getByTestId('node-preview-error')
-  }
-
-  async settingsState(): Promise<'open' | 'closed'> {
-    const state = await this.settingsTrigger.getAttribute('data-state')
-    return state as 'open' | 'closed'
-  }
-
-  async toggleSettings(): Promise<void> {
-    await this.settingsTrigger.click()
+  get backButton(): Locator {
+    return this.page.getByTestId('close-detail-panel-button')
   }
 
   async fillCommand(value: string): Promise<void> {
@@ -73,6 +80,16 @@ export class NodeDetailPanelPage extends PageComponent {
   }
 
   async addChild(): Promise<void> {
-    await this.addChildButton.click()
+    const selectedRoot = this.page.getByTestId('workflow-root-header').locator('[data-node-selected="true"]')
+    if (await selectedRoot.isVisible()) {
+      const rootHeader = this.page.getByTestId('workflow-root-header')
+      await rootHeader.hover()
+      await rootHeader.getByTestId('root-add-child').click()
+      return
+    }
+
+    const selectedRow = this.page.locator('[data-node-id][data-node-selected="true"]').first()
+    await selectedRow.hover()
+    await selectedRow.getByTestId('node-add-child').click()
   }
 }

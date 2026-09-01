@@ -7,6 +7,9 @@ import type { DebouncedPersister } from './workflow-store-persistence'
 import { retainExistingIds } from './workflow-store-set-utils'
 import { notifyExecutionStarted, notifyExecutionCompleted, notifyExecutionAborted } from './execution-genie-bridge'
 import { generateNodeId } from '@shared/lib/generate-id'
+import { clearTreeAnimation, scheduleTreeAnimation } from '../core/tree-animation-store'
+import { findNodeSparkDelay } from '../core/tree-walker'
+import { SPARK_DURATION_MS } from '../core/constants'
 
 function addExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): void {
   store.setState(prev => ({
@@ -32,6 +35,74 @@ function firstAnchoredNewNodeId(
     n => !(n.id in existingNodes) && n.parent !== undefined && childrenOfExecuted.has(n.parent),
   )
   return newNode?.id
+}
+
+function nodeCommand(node: NodeData | undefined): string {
+  return node?.command || node?.title || ''
+}
+
+function isForeachNode(node: NodeData | undefined): boolean {
+  return nodeCommand(node).trimStart().startsWith('/foreach')
+}
+
+function fanOutRootForExecution(
+  existingNodes: NodeDatas,
+  mergedNodes: NodeDatas,
+  executedNodeId: NodeId,
+  queryType: string,
+): NodeId | undefined {
+  const executedNode = existingNodes[executedNodeId] ?? mergedNodes[executedNodeId]
+  if (queryType === 'foreach' || isForeachNode(executedNode)) {
+    return executedNode?.parent ?? executedNodeId
+  }
+
+  const hasForeachPostProcessor = Object.values(mergedNodes).some(
+    candidate =>
+      isForeachNode(candidate) &&
+      candidate.id !== executedNodeId &&
+      ancestorPathTo(mergedNodes, candidate.id, executedNodeId) !== null,
+  )
+
+  return hasForeachPostProcessor ? executedNodeId : undefined
+}
+
+function populatedFanOutTargets(
+  nodesChanged: Record<string, NodeData>,
+  existingNodes: NodeDatas,
+  mergedNodes: NodeDatas,
+  fanOutRootId: NodeId,
+  executedNodeId: NodeId,
+): NodeData[] {
+  const resultParentIds = new Set(
+    Object.values(nodesChanged)
+      .filter(changed => !(changed.id in existingNodes) && changed.parent !== undefined)
+      .map(changed => changed.parent as NodeId),
+  )
+
+  return [...resultParentIds]
+    .map(id => nodesChanged[id] ?? mergedNodes[id])
+    .filter(
+      (candidate): candidate is NodeData =>
+        candidate !== undefined &&
+        candidate.id !== executedNodeId &&
+        Boolean(candidate.command?.trim()) &&
+        ancestorPathTo(mergedNodes, candidate.id, fanOutRootId) !== null,
+    )
+}
+
+function ancestorPathTo(nodes: NodeDatas, nodeId: NodeId, ancestorId: NodeId): NodeId[] | null {
+  const path: NodeId[] = []
+  const visited = new Set<NodeId>([nodeId])
+  let cursor = nodes[nodeId]?.parent
+
+  while (cursor !== undefined && !visited.has(cursor)) {
+    path.push(cursor)
+    if (cursor === ancestorId) return path
+    visited.add(cursor)
+    cursor = nodes[cursor]?.parent
+  }
+
+  return null
 }
 
 function removeExecutingNode(store: Store<WorkflowStoreState>, nodeId: NodeId): void {
@@ -88,10 +159,12 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
           if (!parent) return prev
           const emptyNode: NodeData = { id: emptyNodeId, title: '(no output)', parent: node.id }
           const updatedParent: NodeData = { ...parent, children: [...(parent.children ?? []), emptyNodeId] }
+          const selectedIds = new Set<NodeId>()
           return {
             nodes: { ...prev.nodes, [node.id]: updatedParent, [emptyNodeId]: emptyNode },
             expandedIds: new Set([...prev.expandedIds, node.id]),
             selectedId: emptyNodeId,
+            selectedIds,
             isDirty: true,
           }
         })
@@ -129,12 +202,66 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
           : merged.nodes
       const nextExpandedIds = shouldRevealChildren ? new Set([...current.expandedIds, node.id]) : current.expandedIds
 
+      const fanOutRootId = fanOutRootForExecution(nodes, mergedNodes, node.id, queryType)
+      const fanOutTargets =
+        fanOutRootId === undefined
+          ? []
+          : populatedFanOutTargets(nodesChanged, nodes, mergedNodes, fanOutRootId, node.id)
+      const resultRevealParentIds = fanOutTargets.map(target => target.id)
+      const hasFanOut = fanOutTargets.length > 0
+      // A target that already existed keeps its command pill and only reveals its result on the spark,
+      // so it must not stand in as clipboard; restrict the clipboard set to targets this execution
+      // freshly generated.
+      const awaitingSparkTargetIds = resultRevealParentIds.filter(id => !(id in nodes))
+      const hasAwaitingSpark = awaitingSparkTargetIds.length > 0
+      const fanOutAncestorIds = new Set(
+        fanOutTargets.flatMap(target => ancestorPathTo(mergedNodes, target.id, fanOutRootId ?? node.id) ?? []),
+      )
+      const visibleNodes = hasFanOut
+        ? (() => {
+            const nextNodes = { ...mergedNodes }
+            fanOutAncestorIds.forEach(id => {
+              if (nextNodes[id]) nextNodes[id] = { ...nextNodes[id], collapsed: false }
+            })
+            resultRevealParentIds.forEach(id => {
+              if (nextNodes[id]) nextNodes[id] = { ...nextNodes[id], collapsed: true }
+            })
+            return nextNodes
+          })()
+        : mergedNodes
+      const visibleExpandedIds = hasFanOut
+        ? new Set([...nextExpandedIds, ...fanOutAncestorIds].filter(id => !resultRevealParentIds.includes(id)))
+        : nextExpandedIds
+
+      let resultRevealDelayMs = 0
+      if (hasFanOut) {
+        const initiatorSparkDelay = findNodeSparkDelay(
+          { nodes: visibleNodes, rootId: merged.root, expandedIds: visibleExpandedIds },
+          node.id,
+        )
+        const relativeTargetDelays = fanOutTargets.map(target =>
+          Math.max(
+            0,
+            findNodeSparkDelay(
+              { nodes: visibleNodes, rootId: merged.root, expandedIds: visibleExpandedIds },
+              target.id,
+            ) - initiatorSparkDelay,
+          ),
+        )
+        resultRevealDelayMs = Math.max(...relativeTargetDelays) + SPARK_DURATION_MS
+        const relativeDelayByNodeId = Object.fromEntries(
+          fanOutTargets.map((target, index) => [target.id, relativeTargetDelays[index]]),
+        )
+        scheduleTreeAnimation(resultRevealParentIds, relativeDelayByNodeId)
+      }
+
       store.setState({
-        nodes: mergedNodes,
+        nodes: visibleNodes,
         edges: merged.edges ?? {},
         root: merged.root,
         isDirty: true,
-        expandedIds: nextExpandedIds,
+        expandedIds: visibleExpandedIds,
+        ...(hasAwaitingSpark ? { pendingFanOutTargetIds: new Set(awaitingSparkTargetIds) } : {}),
         ...(resolvedSelected !== undefined
           ? { selectedId: resolvedSelected }
           : selectionStale
@@ -143,7 +270,35 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
         ...(anchorStale ? { anchorId: undefined } : {}),
         ...(cleanedIds !== current.selectedIds ? { selectedIds: cleanedIds } : {}),
       })
+
+      if (hasFanOut) {
+        window.setTimeout(() => {
+          resultRevealParentIds.forEach(id => clearTreeAnimation(id))
+          store.setState(prev => {
+            const revealedNodes = { ...prev.nodes }
+            const revealedExpandedIds = new Set(prev.expandedIds)
+            for (const id of resultRevealParentIds) {
+              const existing = revealedNodes[id]
+              if (existing) {
+                revealedNodes[id] = { ...existing, collapsed: false }
+                revealedExpandedIds.add(id)
+              }
+            }
+            const nextPendingFanOut = new Set(prev.pendingFanOutTargetIds)
+            resultRevealParentIds.forEach(id => nextPendingFanOut.delete(id))
+            return {
+              nodes: revealedNodes,
+              expandedIds: revealedExpandedIds,
+              pendingFanOutTargetIds: nextPendingFanOut,
+              isDirty: true,
+            }
+          })
+          persister.schedule()
+        }, resultRevealDelayMs)
+      }
+
       await persister.flush()
+
       notifyExecutionCompleted(node.id, true)
       return true
     } catch (error) {
@@ -158,10 +313,12 @@ export function bindExecuteAction(store: Store<WorkflowStoreState>, persister: D
             if (!parent) return prev
             const errorNode: NodeData = { id: errorNodeId, title: `Error: ${message}`, parent: node.id }
             const updatedParent: NodeData = { ...parent, children: [...(parent.children ?? []), errorNodeId] }
+            const selectedIds = new Set<NodeId>()
             return {
               nodes: { ...prev.nodes, [node.id]: updatedParent, [errorNodeId]: errorNode },
               expandedIds: new Set([...prev.expandedIds, node.id]),
               selectedId: errorNodeId,
+              selectedIds,
               isDirty: true,
             }
           })

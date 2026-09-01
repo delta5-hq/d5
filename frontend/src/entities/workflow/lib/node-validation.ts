@@ -1,4 +1,5 @@
 import type { NodeData, NodeId } from '@shared/base-types'
+import { isTitleProjection } from './title-projection'
 
 export const isValidNodeData = (node: unknown): node is Partial<NodeData> => {
   if (node === null || typeof node !== 'object') return false
@@ -11,6 +12,7 @@ export const isValidNodeData = (node: unknown): node is Partial<NodeData> => {
     if (!Array.isArray(n.children)) return false
     if (!n.children.every(child => typeof child === 'string')) return false
   }
+  if (n.titleProjection !== undefined && !isTitleProjection(n.titleProjection)) return false
   return true
 }
 

@@ -1,34 +1,26 @@
-import React, { useRef, useCallback, useEffect, memo } from 'react'
-import { ChevronRight, Folder, FolderOpen, FileText, Plus, Copy, Trash2, Pencil } from 'lucide-react'
+import React, { useRef, useCallback, useEffect, memo, useState } from 'react'
+import { ChevronRight, Folder, FolderOpen, FileText, Plus, Copy, Trash2, PackagePlus } from 'lucide-react'
 import { cn } from '@shared/lib/utils'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { Genie, type GenieRef } from '@shared/ui/genie'
-import { EditableText } from '@shared/ui/editable-field'
-import { getCommandRole } from '@shared/constants/command-roles'
-import { getColorForRole } from '@shared/ui/genie/role-colors'
-import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
+import { EditableTextArea } from '@shared/ui/editable-field'
 import { useAliases } from '@entities/aliases'
-import {
-  ContextMenu,
-  ContextMenuTrigger,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-} from '@shared/ui/context-menu'
+import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } from '@shared/ui/context-menu'
 import { FormattedMessage, useIntl } from 'react-intl'
-import { normalizeNodeTitle } from '@entities/workflow/lib'
+import { isCommandlessTextNode, normalizeNodeTitle } from '@entities/workflow/lib'
+import { useViewportBreakpoint } from '@shared/composables/use-viewport-breakpoint'
 import type { TreeNodeProps } from '../core/types'
 import { INDENT_PER_LEVEL, ROW_HEIGHT, WIRE_PADDING, BASE_PADDING } from '../core/constants'
+import type { TreeDropPosition } from '../core/tree-drag'
+import { getTreeIndentLayout } from '../core/tree-layout'
 import { areTreeNodePropsEqual } from '../core/tree-node-memo'
 import { useTreeAnimation } from '../context'
-import { useIsNodeDirty } from '../store/workflow-selectors'
+import { useIsNodeDirty, useIsAwaitingFanOutSpark } from '../store/workflow-selectors'
+import { getNodeGeniePresentation } from '../lib/node-genie-presenter'
+import { CommandChip, ScriptTitleIcon, truncateTitleForChip } from './command-node-chip'
 import '../styles/wire-tree.css'
 
 export type { TreeNodeProps }
-
-function getShowHandRibsFromDepth(depth: number): boolean {
-  return depth <= 2
-}
 
 /* Build wire path starting from parent center (matches spark path) */
 function buildWirePath(
@@ -91,13 +83,18 @@ function buildContinuationLines(
   return lines
 }
 
-function triggerAnimation(wireEl: SVGPathElement | null, sparkEl: HTMLDivElement | null) {
+// Cap the wire pulse so a long spark path still resolves its highlight promptly.
+const MAX_WIRE_PULSE_MS = 600
+
+function triggerAnimation(wireEl: SVGPathElement | null, sparkEl: HTMLDivElement | null, durationMs: number) {
   if (wireEl) {
+    wireEl.style.setProperty('--wire-tree-pulse-duration', `${Math.min(MAX_WIRE_PULSE_MS, durationMs)}ms`)
     wireEl.classList.remove('wire-tree-connector--pulse')
     void wireEl.getBBox()
     wireEl.classList.add('wire-tree-connector--pulse')
   }
   if (sparkEl) {
+    sparkEl.style.setProperty('--wire-tree-spark-duration', `${durationMs}ms`)
     sparkEl.classList.remove('wire-tree-spark--active')
     void sparkEl.offsetWidth
     sparkEl.classList.add('wire-tree-spark--active')
@@ -117,21 +114,32 @@ export const TreeNodeDefault = ({
   wireExtendDown = 0,
   wireExtendUp = 0,
   onAddChild,
+  onAddSibling,
   onDelete,
   onDuplicateNode,
-  onRequestRename,
+  onWrapNodes,
+  onToggleChecked,
+  onDragHoverNode,
+  onDragLeaveNode,
+  onPointerDragStartNode,
+  onDropFiles,
+  activeDropTargetId,
+  activeDropPosition,
 }: TreeNodeProps) => {
   const {
     node,
     depth,
     isPrompt,
+    isGenerated,
     ancestorContinuation = [],
     hasMoreSiblings = false,
     rowsFromParent = 1,
     sparkDelay = 0,
   } = data
   const hasChildren = node.children && node.children.length > 0
-  const paddingLeft = BASE_PADDING + depth * INDENT_PER_LEVEL
+  const canExpand = hasChildren || isCommandlessTextNode(node)
+  const isCompactTreeLayout = useViewportBreakpoint(640)
+  const { rowIndent, wireIndent, childIndent } = getTreeIndentLayout(depth, isCompactTreeLayout)
   const isRoot = depth === 0
 
   const { aliases } = useAliases()
@@ -140,21 +148,33 @@ export const TreeNodeDefault = ({
   const genieRef = useRef<GenieRef>(null)
   const genieState = useGenieState(id)
   const isDirty = useIsNodeDirty(id)
+  // A fan-out target renders as clipboard (no command pill, no thought tail) until
+  // its spark reaches it; it materializes its full command presentation on arrival.
+  const awaitingFanOutSpark = useIsAwaitingFanOutSpark(id)
+  const presentedNode = awaitingFanOutSpark ? undefined : node
   const wireRef = useRef<SVGPathElement>(null)
-  const { shouldAnimate, getBaseDelay, clearAnimation, consumeNewNodeFlash } = useTreeAnimation()
+  const { shouldAnimate, getStartDelay, getRemainingDuration, animationVersion, clearAnimation, consumeNewNodeFlash } =
+    useTreeAnimation()
   const { formatMessage } = useIntl()
+  const [nativeDropPosition, setNativeDropPosition] = useState<TreeDropPosition | undefined>()
+  const dropPosition = activeDropTargetId === id ? activeDropPosition : nativeDropPosition
 
   useEffect(() => {
     if (depth > 0 && shouldAnimate(id)) {
-      const delay = Math.max(0, sparkDelay - getBaseDelay(id))
+      const delay = getStartDelay(id)
       const timer = setTimeout(() => {
-        triggerAnimation(wireRef.current, sparkRef.current)
+        const remainingDuration = getRemainingDuration(id)
+        if (remainingDuration <= 0) {
+          clearAnimation(id)
+          return
+        }
+        triggerAnimation(wireRef.current, sparkRef.current, remainingDuration)
         genieRef.current?.flash()
         clearAnimation(id)
       }, delay)
       return () => clearTimeout(timer)
     }
-  }, [id, depth, sparkDelay, shouldAnimate, getBaseDelay, clearAnimation])
+  }, [id, depth, sparkDelay, animationVersion, shouldAnimate, getStartDelay, getRemainingDuration, clearAnimation])
 
   useEffect(() => {
     if (consumeNewNodeFlash(id) && rowRef.current) {
@@ -167,10 +187,9 @@ export const TreeNodeDefault = ({
   const handleToggle = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      genieRef.current?.flash()
-      onToggle?.(id, sparkDelay)
+      onToggle?.(id)
     },
-    [id, sparkDelay, onToggle],
+    [id, onToggle],
   )
 
   const handleClick = useCallback(
@@ -189,6 +208,14 @@ export const TreeNodeDefault = ({
     [id, onAddChild],
   )
 
+  const handleAddSibling = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      onAddSibling?.(id)
+    },
+    [id, onAddSibling],
+  )
+
   const handleDelete = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
@@ -204,17 +231,75 @@ export const TreeNodeDefault = ({
     [id, onRename],
   )
 
-  const wireIndentX = BASE_PADDING + (depth - 1) * INDENT_PER_LEVEL
+  const handleToggleChecked = useCallback(
+    (e: React.SyntheticEvent) => {
+      e.stopPropagation()
+      onToggleChecked?.(id)
+    },
+    [id, onToggleChecked],
+  )
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      const transferTypes = Array.from(e.dataTransfer.types)
+      if (!onDropFiles || !transferTypes.includes('Files')) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'copy'
+      setNativeDropPosition('inside')
+      onDragHoverNode?.(id)
+    },
+    [id, onDragHoverNode, onDropFiles],
+  )
+
+  const handleDragLeave = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      const nextTarget = e.relatedTarget
+      if (nextTarget instanceof Node && e.currentTarget.contains(nextTarget)) return
+      setNativeDropPosition(undefined)
+      onDragLeaveNode?.(id)
+    },
+    [id, onDragLeaveNode],
+  )
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
+      const target = e.target
+      if (
+        isRoot ||
+        e.button !== 0 ||
+        (target instanceof HTMLElement &&
+          Boolean(target.closest('button,input,textarea,[role="menuitem"],[data-editable-field]')))
+      ) {
+        return
+      }
+      onPointerDragStartNode?.(id, e)
+    },
+    [id, isRoot, onPointerDragStartNode],
+  )
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      if (e.dataTransfer.files.length > 0 && onDropFiles) {
+        e.preventDefault()
+        e.stopPropagation()
+        setNativeDropPosition(undefined)
+        onDragLeaveNode?.(id)
+        onDropFiles(id, e.dataTransfer.files)
+      }
+    },
+    [id, onDragLeaveNode, onDropFiles],
+  )
+
+  const wireIndentX = wireIndent
   const isExpandedWithChildren = Boolean(isOpen && hasChildren)
 
   const wirePath =
     depth > 0
-      ? buildWirePath(wireIndentX, ROW_HEIGHT, INDENT_PER_LEVEL, rowsFromParent, hasMoreSiblings, wireExtendDown)
+      ? buildWirePath(wireIndentX, ROW_HEIGHT, rowIndent - wireIndentX, rowsFromParent, hasMoreSiblings, wireExtendDown)
       : ''
 
-  const childIndentX = BASE_PADDING + depth * INDENT_PER_LEVEL
   const childConnectorPath = isExpandedWithChildren
-    ? buildChildConnectorPath(childIndentX, ROW_HEIGHT, wireExtendDown)
+    ? buildChildConnectorPath(childIndent, ROW_HEIGHT, wireExtendDown)
     : ''
 
   const continuationLines =
@@ -222,38 +307,45 @@ export const TreeNodeDefault = ({
 
   const sparkPath = depth > 0 ? buildSparkPath(wireIndentX, ROW_HEIGHT, INDENT_PER_LEVEL, rowsFromParent) : ''
 
-  const hasCommand = Boolean(node.command?.trim())
-  const genieVariant = hasCommand ? 'full' : 'clipboard'
-  const genieColor = hasCommand
-    ? getColorForRole(getCommandRole(extractQueryTypeFromCommand(node.command, aliases)))
-    : '#9e9e9e'
-  const genieShowHandRibs = hasCommand && getShowHandRibsFromDepth(depth)
+  const normalizedTitle = normalizeNodeTitle(node.title)
+  const displayedTitle = truncateTitleForChip(normalizedTitle)
+  const geniePresentation = getNodeGeniePresentation(presentedNode, { aliases, depth })
+  const showThoughtTail = depth > 0 && depth <= 4 && geniePresentation.variant === 'full'
 
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
           className={cn(
-            'group relative flex items-center h-12 cursor-pointer select-none',
-            'hover:bg-accent/50 active:bg-accent/70 transition-colors duration-150',
+            'workflow-tree-node-row group relative flex h-12 cursor-pointer select-none items-center rounded-full border border-transparent',
+            'hover:border-accent/30 hover:bg-accent/20 active:bg-accent/30',
+            'transition-colors duration-150',
+            !isRoot && 'cursor-grab active:cursor-grabbing',
             'text-sm text-foreground/90',
-            isSelected && 'bg-accent',
-            isPrompt && 'opacity-60',
+            isSelected && 'border-accent/50 bg-accent/20 ring-1 ring-inset ring-accent/50',
+            isGenerated && 'opacity-60',
           )}
+          data-genie-state={genieState}
           data-node-depth={depth}
+          data-node-drop-position={dropPosition}
           data-node-id={id}
           data-node-selected={isSelected || undefined}
           data-prompt-node={isPrompt || undefined}
           onClick={handleClick}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          onMouseDown={handlePointerDown}
+          onPointerDown={handlePointerDown}
           ref={rowRef}
-          style={{ ...style, paddingLeft, overflow: 'visible' }}
+          style={{ ...style, paddingLeft: rowIndent, overflow: 'visible' }}
         >
           {depth > 0 ? (
             <svg
               className="absolute pointer-events-none"
               height={ROW_HEIGHT}
               style={{ left: 0, top: 0, overflow: 'visible' }}
-              width={paddingLeft}
+              width={rowIndent}
             >
               {continuationLines.map((line, i) => (
                 <path className="wire-tree-connector" d={line.path} key={`cont-${i}`} />
@@ -266,7 +358,7 @@ export const TreeNodeDefault = ({
               className="absolute pointer-events-none"
               height={ROW_HEIGHT}
               style={{ left: 0, top: 0, overflow: 'visible' }}
-              width={paddingLeft}
+              width={rowIndent}
             >
               <path className="wire-tree-connector" d={childConnectorPath} />
             </svg>
@@ -276,12 +368,33 @@ export const TreeNodeDefault = ({
             <div className="wire-tree-spark" ref={sparkRef} style={{ offsetPath: `path('${sparkPath}')` }} />
           ) : null}
 
+          {dropPosition ? (
+            <span
+              aria-hidden="true"
+              className="workflow-tree-drop-marker"
+              data-drop-position={dropPosition}
+              data-testid="tree-drop-marker"
+            />
+          ) : null}
+
+          {onToggleChecked ? (
+            <input
+              aria-label="Toggle node selection"
+              checked={!!node.checked}
+              className="relative z-10 h-4 w-4 flex-shrink-0 cursor-pointer rounded border border-input accent-primary transition-shadow checked:ring-2 checked:ring-primary/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              data-testid="node-checkbox"
+              onChange={handleToggleChecked}
+              onClick={e => e.stopPropagation()}
+              type="checkbox"
+            />
+          ) : null}
+
           <button
             className={cn(
-              'relative z-10 w-6 h-6 flex items-center justify-center rounded-sm',
-              'text-muted-foreground hover:text-foreground hover:bg-accent',
-              'transition-all duration-150',
-              !hasChildren && 'invisible',
+              'relative z-10 flex h-6 w-6 items-center justify-center rounded-full',
+              'text-muted-foreground hover:bg-accent/20 hover:text-foreground',
+              'transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              !canExpand && 'invisible',
             )}
             data-testid="node-toggle"
             onClick={handleToggle}
@@ -290,48 +403,71 @@ export const TreeNodeDefault = ({
             <ChevronRight className={cn('w-4 h-4 transition-transform duration-200 ease-out', isOpen && 'rotate-90')} />
           </button>
 
-          <span className="relative z-10 flex-shrink-0 ml-1.5 transition-transform duration-150 group-hover:scale-110">
+          <span className="workflow-tree-node-icon relative z-10 flex-shrink-0 ml-1.5 transition-transform duration-150 group-hover:scale-110">
             {depth > 0 && depth <= 4 ? (
               <Genie
-                color={genieColor}
+                color={geniePresentation.color}
                 nodeId={id}
                 ref={genieRef}
-                showHandRibs={genieShowHandRibs}
+                showHandRibs={geniePresentation.showHandRibs}
                 size={32}
                 state={genieState}
-                variant={genieVariant}
+                variant={geniePresentation.variant}
               />
             ) : hasChildren ? (
               isOpen ? (
-                <FolderOpen className="w-5 h-5 text-amber-500" />
+                <FolderOpen className="h-5 w-5 text-accent" />
               ) : (
-                <Folder className="w-5 h-5 text-amber-500/80" />
+                <Folder className="h-5 w-5 text-accent/80" />
               )
             ) : (
-              <FileText className="w-5 h-5 text-muted-foreground" />
+              <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
             )}
           </span>
 
-          <span className="relative z-10 flex-1 flex items-center gap-1 min-w-0 ml-2 pr-2">
-            <span className="flex-1 truncate">
+          {showThoughtTail ? (
+            <span aria-hidden="true" className="workflow-tree-thought-tail" data-testid="node-thought-tail">
+              <svg aria-hidden="true" className="h-3.5 w-4" fill="none" viewBox="0 0 16 14">
+                <circle cx="4" cy="10" r="1.8" stroke="currentColor" strokeWidth="1.2" />
+                <circle cx="13" cy="6.5" r="2.6" stroke="currentColor" strokeWidth="1.2" />
+              </svg>
+            </span>
+          ) : null}
+
+          <span
+            className={cn(
+              'workflow-tree-chip-strip relative z-10 flex min-w-0 flex-1 items-center gap-2 overflow-hidden pr-2',
+              showThoughtTail ? 'ml-0' : 'ml-2',
+            )}
+          >
+            <CommandChip aliases={aliases} command={presentedNode?.command} />
+            <span
+              className="workflow-tree-title-chip relative isolate flex h-7 min-w-0 flex-1 items-center gap-1.5 overflow-hidden rounded-full border border-muted-foreground/25 px-2.5 font-medium text-foreground shadow-none ring-1 ring-inset ring-background/80 transition-shadow duration-150 focus-within:border-ring focus-within:ring-ring"
+              data-chip-kind="title"
+              data-testid="node-chip-title"
+              title={normalizedTitle}
+            >
+              <ScriptTitleIcon />
               {onRename ? (
-                <EditableText
+                <EditableTextArea
                   autoFocus={autoEditNodeId === id}
-                  className="truncate text-sm"
+                  className="min-w-0 flex-1 text-sm font-medium"
+                  displayValue={displayedTitle}
+                  editClassName="box-border h-7 min-h-7 max-h-20 !w-full !min-w-0 !max-w-full resize-none overflow-y-auto whitespace-pre-wrap rounded-full border-primary/40 bg-background px-2.5 py-1 leading-5 shadow-none"
                   onChange={handleRename}
                   placeholder={formatMessage({ id: 'workflowTree.node.untitled' })}
-                  readOnlyClassName="block truncate"
+                  readOnlyClassName="block min-w-0 max-w-full truncate whitespace-nowrap border-0 bg-transparent px-0 py-0 leading-5 hover:border-transparent hover:bg-transparent"
                   title={formatMessage({ id: 'workflowTree.node.editHint' })}
-                  value={normalizeNodeTitle(node.title)}
+                  value={normalizedTitle}
                 />
               ) : (
-                normalizeNodeTitle(node.title) || node.id
+                displayedTitle || node.id
               )}
             </span>
             {isDirty ? (
               <span
                 aria-label={formatMessage({ id: 'workflowTree.status.unsaved' })}
-                className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-amber-500"
+                className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-accent"
                 data-testid="node-dirty-indicator"
               />
             ) : null}
@@ -340,10 +476,11 @@ export const TreeNodeDefault = ({
           {onAddChild ? (
             <button
               className={cn(
-                'relative z-10 w-6 h-6 flex items-center justify-center rounded-sm',
-                'text-muted-foreground hover:text-foreground hover:bg-accent',
-                'opacity-0 group-hover:opacity-100 transition-opacity duration-150',
+                'workflow-tree-row-action workflow-tree-row-action--add relative z-10 flex h-6 w-6 items-center justify-center rounded-full',
+                'text-muted-foreground hover:bg-accent/20 hover:text-foreground',
+                'pointer-events-none group-hover:pointer-events-auto focus-visible:pointer-events-auto opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               )}
+              data-testid="node-add-child"
               onClick={handleAddChild}
               title={formatMessage({ id: 'workflowTree.node.addChild' })}
               type="button"
@@ -355,9 +492,9 @@ export const TreeNodeDefault = ({
           {onDelete && !isRoot ? (
             <button
               className={cn(
-                'relative z-10 w-6 h-6 flex items-center justify-center rounded-sm mr-1',
-                'text-muted-foreground hover:text-destructive hover:bg-destructive/10',
-                'opacity-0 group-hover:opacity-100 transition-opacity duration-150',
+                'workflow-tree-row-action workflow-tree-row-action--delete relative z-10 mr-1 flex h-6 w-6 items-center justify-center rounded-full',
+                'text-muted-foreground hover:bg-destructive/10 hover:text-destructive',
+                'pointer-events-none group-hover:pointer-events-auto focus-visible:pointer-events-auto opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               )}
               data-testid="node-delete"
               onClick={handleDelete}
@@ -371,22 +508,17 @@ export const TreeNodeDefault = ({
       </ContextMenuTrigger>
 
       <ContextMenuContent>
-        <ContextMenuItem onClick={() => onRequestRename?.(id)}>
-          <Pencil className="mr-2 h-4 w-4" />
-          <FormattedMessage id="workflowTree.node.rename" />
-        </ContextMenuItem>
-        <ContextMenuItem onClick={() => onAddChild?.(id)}>
+        <ContextMenuItem disabled={isRoot} onClick={handleAddSibling}>
           <Plus className="mr-2 h-4 w-4" />
-          <FormattedMessage id="workflowTree.node.addChild" />
+          <FormattedMessage id="workflowTree.node.addSibling" />
         </ContextMenuItem>
         <ContextMenuItem disabled={isRoot} onClick={() => onDuplicateNode?.(id)}>
           <Copy className="mr-2 h-4 w-4" />
           <FormattedMessage id="workflowTree.node.duplicate" />
         </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem disabled={isRoot} onClick={() => onDelete?.(id)} variant="destructive">
-          <Trash2 className="mr-2 h-4 w-4" />
-          <FormattedMessage id="delete" />
+        <ContextMenuItem disabled={isRoot} onClick={() => onWrapNodes?.(id)}>
+          <PackagePlus className="mr-2 h-4 w-4" />
+          <FormattedMessage id="workflowTree.node.wrapInCard" />
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

@@ -14,9 +14,11 @@ interface CommandFieldProps {
   onEnter?: (committedValue: string) => void
   onCtrlEnter?: (committedValue: string) => void
   onShiftCtrlEnter?: (committedValue: string) => void
+  onDraftChange?: (value: string) => void
   placeholder?: string
   className?: string
   autoFocus?: boolean
+  disabled?: boolean
 }
 
 const buildStorageKey = (nodeId: string) => `workflow:node:${nodeId}:command`
@@ -35,9 +37,11 @@ export const CommandField = ({
   onEnter,
   onCtrlEnter,
   onShiftCtrlEnter,
+  onDraftChange,
   placeholder,
   className,
   autoFocus,
+  disabled,
 }: CommandFieldProps) => {
   const storageKey = buildStorageKey(nodeId)
   const { aliases } = useAliases()
@@ -49,11 +53,13 @@ export const CommandField = ({
   const onEnterRef = useRef(onEnter)
   const onCtrlEnterRef = useRef(onCtrlEnter)
   const onShiftCtrlEnterRef = useRef(onShiftCtrlEnter)
+  const onDraftChangeRef = useRef(onDraftChange)
   const commitRef = useRef<() => string>(() => textRef.current)
   onChangeRef.current = onChange
   onEnterRef.current = onEnter
   onCtrlEnterRef.current = onCtrlEnter
   onShiftCtrlEnterRef.current = onShiftCtrlEnter
+  onDraftChangeRef.current = onDraftChange
 
   const [text, setText] = useState<string>(() => {
     const stored = safeLocalStorage.getItem(storageKey)
@@ -68,6 +74,7 @@ export const CommandField = ({
     valueRef.current = value
     const stored = safeLocalStorage.getItem(storageKey)
     setText(stored !== null ? stored : value)
+    onDraftChangeRef.current?.(stored !== null ? stored : value)
   }, [storageKey, value])
 
   const commit = useCallback((): string => {
@@ -148,6 +155,7 @@ export const CommandField = ({
     (e: ChangeEvent<HTMLTextAreaElement>) => {
       const v = e.target.value
       setText(v)
+      onDraftChangeRef.current?.(v)
       if (v !== valueRef.current) {
         safeLocalStorage.setItem(storageKey, v)
       } else {
@@ -162,6 +170,7 @@ export const CommandField = ({
       const rest = text.replace(/^\/\S*/, '')
       const newText = `${suggestion.command} ${rest}`.trim() + ' '
       setText(newText)
+      onDraftChangeRef.current?.(newText)
       safeLocalStorage.setItem(storageKey, newText)
       setAutocompleteOpen(false)
       textareaRef.current?.focus()
@@ -213,6 +222,7 @@ export const CommandField = ({
         e.preventDefault()
         safeLocalStorage.removeItem(storageKey)
         setText(valueRef.current)
+        onDraftChangeRef.current?.(valueRef.current)
       }
     },
     [commit, storageKey, autocompleteOpen, filteredSuggestions, selectedIndex, selectSuggestion],
@@ -232,7 +242,11 @@ export const CommandField = ({
             className,
           )}
           data-type="command-field"
-          onBlur={() => commit()}
+          disabled={disabled}
+          onBlur={() => {
+            commit()
+            setAutocompleteOpen(false)
+          }}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}

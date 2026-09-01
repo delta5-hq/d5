@@ -1,31 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { NodeData, NodeId } from '@shared/base-types'
-import { Button } from '@shared/ui/button'
 import { Genie } from '@shared/ui/genie'
-import { getCommandRole } from '@shared/constants/command-roles'
-import { getColorForRole } from '@shared/ui/genie/role-colors'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
-import { canExecuteNode } from '@shared/lib/commands/command-validator'
+import { canExecuteNode, isSlashCommand } from '@shared/lib/commands/command-validator'
 import { useAliases } from '@entities/aliases'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@shared/ui/collapsible'
-import { Eye, FileText, Folder, Play, Loader2, Square, Copy, Trash2, Plus, ChevronRight, ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Pencil } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
+import { getNodeGeniePresentation } from '@features/workflow-tree/lib/node-genie-presenter'
 import { isTitleDerivedFromCommand } from '@shared/lib/reliability-suffix'
 import { NodeTitleEditor } from './node-title-editor'
-import { NodePreviewSection } from './node-preview-section'
-import { McpFusionReportPanel } from './mcp-fusion-report-panel'
-import { CommandField } from './command-field'
+import { NodeOutputSection } from './node-output-section'
+import { NodeCommandComposer } from './node-command-composer'
+import type { EditableTextAreaHandle } from '@shared/ui/editable-field'
 
 interface NodeDetailPanelProps {
   node: NodeData
-  isPrompt: boolean
   onUpdateNode: (nodeId: NodeId, updates: Partial<Omit<NodeData, 'id' | 'parent'>>) => void
-  onDelete: (nodeId: NodeId) => void
-  onDuplicateNode: (nodeId: NodeId) => void
-  onAddChild: (parentId: NodeId) => void
-  onAddSibling: (nodeId: NodeId) => NodeId | null
   onEnterInCommand: (nodeId: NodeId, committedCommand: string) => void
   onCtrlEnterInCommand: (nodeId: NodeId, committedCommand: string) => void
   onShiftCtrlEnterInCommand: (nodeId: NodeId, committedCommand: string) => void
@@ -40,12 +32,7 @@ interface NodeDetailPanelProps {
 
 export const NodeDetailPanel = ({
   node,
-  isPrompt,
   onUpdateNode,
-  onDelete,
-  onDuplicateNode,
-  onAddChild,
-  onAddSibling,
   onEnterInCommand,
   onCtrlEnterInCommand,
   onShiftCtrlEnterInCommand,
@@ -59,31 +46,17 @@ export const NodeDetailPanel = ({
 }: NodeDetailPanelProps) => {
   const { aliases } = useAliases()
   const genieState = useGenieState(node.id)
-  const hasChildren = Boolean(node.children?.length)
   const isRoot = !node.parent
-  const mutationDisabled = isExecuting
   const { formatMessage } = useIntl()
-  const showPreview = isPrompt || Boolean(node.command) || Boolean(node.title)
-  const canExecute = canExecuteNode(node.command, executeDisabled)
+  const [commandDraft, setCommandDraft] = useState(node.command ?? '')
+  const commandIsValid = isSlashCommand(commandDraft)
+  const canExecute = canExecuteNode(commandDraft, executeDisabled)
   const siblingActionsEnabled = !isRoot && canExecute
-
-  const [settingsOpen, setSettingsOpen] = useState(!isPrompt)
-  const [previewOpen, setPreviewOpen] = useState(isPrompt)
-  const previousExecutingRef = useRef(isExecuting)
+  const titleRef = useRef<EditableTextAreaHandle>(null)
 
   useEffect(() => {
-    setSettingsOpen(!isPrompt)
-    setPreviewOpen(isPrompt)
-  }, [isPrompt])
-
-  useEffect(() => {
-    const wasExecuting = previousExecutingRef.current
-    previousExecutingRef.current = isExecuting
-
-    if (wasExecuting && !isExecuting) {
-      setPreviewOpen(true)
-    }
-  }, [isExecuting])
+    setCommandDraft(node.command ?? '')
+  }, [node.id, node.command])
 
   const handleTitleChange = useCallback(
     (title: string) => {
@@ -94,6 +67,7 @@ export const NodeDetailPanel = ({
 
   const handleCommandChange = useCallback(
     (command: string) => {
+      setCommandDraft(command)
       const titleIsDerived = !node.title || isTitleDerivedFromCommand(node.title, node.command ?? '')
       onUpdateNode(node.id, titleIsDerived ? { command, title: command } : { command })
     },
@@ -101,29 +75,13 @@ export const NodeDetailPanel = ({
   )
 
   const handleExecute = useCallback(async () => {
-    const queryType = extractQueryTypeFromCommand(node.command, aliases)
-    await onExecute(node, queryType)
-  }, [node, onExecute, aliases])
+    const queryType = extractQueryTypeFromCommand(commandDraft, aliases)
+    await onExecute({ ...node, command: commandDraft }, queryType)
+  }, [node, commandDraft, onExecute, aliases])
 
   const handleAbort = useCallback(() => {
     onAbort(node.id)
   }, [node.id, onAbort])
-
-  const handleDelete = useCallback(() => {
-    onDelete(node.id)
-  }, [node.id, onDelete])
-
-  const handleDuplicate = useCallback(() => {
-    onDuplicateNode(node.id)
-  }, [node.id, onDuplicateNode])
-
-  const handleAddChild = useCallback(() => {
-    onAddChild(node.id)
-  }, [node.id, onAddChild])
-
-  const handleAddSibling = useCallback(() => {
-    onAddSibling(node.id)
-  }, [node.id, onAddSibling])
 
   const handleEnterInCommand = useCallback(
     (committedCommand: string) => onEnterInCommand(node.id, committedCommand),
@@ -140,174 +98,92 @@ export const NodeDetailPanel = ({
     [node.id, onShiftCtrlEnterInCommand],
   )
 
-  const hasCommand = Boolean(node.command?.trim())
-  const genieVariant = hasCommand ? 'full' : 'clipboard'
-  const genieColor = hasCommand
-    ? getColorForRole(getCommandRole(extractQueryTypeFromCommand(node.command, aliases)))
-    : '#9e9e9e'
-  const genieShowHandRibs = hasCommand
+  const autoTitle = isTitleDerivedFromCommand(node.title ?? '', node.command ?? '')
+  const commandToken = commandDraft.trim().split(/\s+/)[0] ?? ''
+  const commandIsSlash = commandToken.startsWith('/')
+  const geniePresentation = getNodeGeniePresentation({ command: commandDraft }, { aliases })
+  const genieColor = geniePresentation.color
 
   return (
-    <div className="text-sm 3xl:flex 3xl:gap-6 3xl:items-start" data-testid="node-detail-panel">
-      <div className="flex-1 space-y-4">
-        <button
-          aria-label={formatMessage({ id: 'workflowTree.node.close' })}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors 3xl:hidden"
-          data-testid="close-detail-panel-button"
-          onClick={onClose}
-          type="button"
-        >
-          <ArrowLeft className="h-3 w-3" />
-          <FormattedMessage id="workflowTree.node.close" />
-        </button>
+    <div className="flex h-full min-h-0 flex-col gap-3 p-4" data-testid="node-detail-panel">
+      <button
+        aria-label={formatMessage({ id: 'workflowTree.node.close' })}
+        className="flex w-fit items-center gap-1 rounded-full px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground 3xl:hidden"
+        data-testid="close-detail-panel-button"
+        onClick={onClose}
+        type="button"
+      >
+        <ArrowLeft className="h-3 w-3" />
+        <FormattedMessage id="workflowTree.node.close" />
+      </button>
 
-        <Collapsible onOpenChange={setSettingsOpen} open={settingsOpen}>
-          <CollapsibleTrigger
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors [&[data-state=open]>svg]:rotate-90"
-            data-testid="settings-trigger"
+      <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 border-b border-muted-foreground/10 pb-2">
+        <Genie
+          className="mt-0.5 shrink-0"
+          color={genieColor}
+          size={28}
+          state={genieState}
+          variant={geniePresentation.variant}
+        />
+        <div className="min-w-0 overflow-hidden" data-testid="node-detail-title-region">
+          <NodeTitleEditor
+            autoFocus={autoFocusTitle}
+            className="w-full min-w-0 text-base font-semibold leading-6"
+            editClassName="box-border max-h-24 !w-full !min-w-0 !max-w-full resize-none overflow-x-hidden overflow-y-auto rounded-lg border-primary/40 bg-background px-2 py-1 text-base font-semibold leading-6 shadow-none"
+            onChange={handleTitleChange}
+            readOnlyClassName="block max-w-full truncate whitespace-nowrap border-0 bg-transparent px-0 py-0 hover:border-transparent hover:bg-transparent"
+            ref={titleRef}
+            value={normalizeNodeTitle(node.title)}
+          />
+        </div>
+        <div className="flex shrink-0 items-center gap-2" data-testid="node-detail-title-actions">
+          {autoTitle ? (
+            <span className="shrink-0 rounded-full border border-muted-foreground/20 bg-muted px-2 py-0.5 font-mono text-xs font-bold uppercase text-muted-foreground">
+              <FormattedMessage id="workflowTree.node.auto" />
+            </span>
+          ) : null}
+          <button
+            aria-label={formatMessage({ id: 'workflowTree.node.rename' })}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-muted-foreground/15 text-muted-foreground hover:border-accent/30 hover:bg-accent/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            data-testid="rename-node-button"
+            onClick={() => titleRef.current?.startEditing()}
+            type="button"
           >
-            <ChevronRight className="h-3 w-3 transition-transform" />
-            <FormattedMessage id="workflowTree.node.settings" />
-          </CollapsibleTrigger>
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </header>
 
-          <CollapsibleContent>
-            <div className="flex items-start gap-4 pt-2">
-              <div className="flex-1 space-y-4">
-                <div className="flex items-center gap-2">
-                  {hasChildren ? (
-                    <Folder className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                  ) : (
-                    <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                  )}
-                  <NodeTitleEditor
-                    autoFocus={autoFocusTitle}
-                    className="flex-1 font-medium"
-                    onChange={handleTitleChange}
-                    value={normalizeNodeTitle(node.title)}
-                  />
-                </div>
+      <NodeOutputSection
+        commandIsSlash={commandIsSlash}
+        commandToken={commandToken}
+        genieColor={genieColor}
+        genieState={genieState}
+        genieVariant={geniePresentation.variant}
+        mcpFusionReport={node.mcpFusionReport}
+        nodeId={node.id}
+      />
 
-                <div className="grid grid-cols-[100px_1fr] gap-2 items-start">
-                  <span className="text-muted-foreground text-xs pt-2">
-                    <FormattedMessage id="workflowTree.node.command" />
-                  </span>
-                  <CommandField
-                    autoFocus={autoFocusCommand}
-                    className="min-h-[80px] text-xs font-mono w-full"
-                    nodeId={node.id}
-                    onChange={handleCommandChange}
-                    onCtrlEnter={siblingActionsEnabled ? handleCtrlEnterInCommand : undefined}
-                    onEnter={handleEnterInCommand}
-                    onShiftCtrlEnter={siblingActionsEnabled ? handleShiftCtrlEnterInCommand : undefined}
-                    placeholder={formatMessage({ id: 'workflowTree.node.commandPlaceholder' })}
-                    value={node.command ?? ''}
-                  />
-                </div>
-
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <Button data-testid="execute-node-button" disabled={!canExecute} onClick={handleExecute} size="sm">
-                    {isExecuting ? (
-                      <>
-                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                        <FormattedMessage id="workflowTree.node.executing" />
-                      </>
-                    ) : (
-                      <>
-                        <Play className="mr-1 h-3 w-3" />
-                        <FormattedMessage id="workflowTree.node.execute" />
-                      </>
-                    )}
-                  </Button>
-
-                  {isExecuting ? (
-                    <Button data-testid="abort-node-button" onClick={handleAbort} size="sm" variant="danger">
-                      <Square className="mr-1 h-3 w-3" />
-                      <FormattedMessage id="workflowTree.node.abort" />
-                    </Button>
-                  ) : null}
-
-                  <Button
-                    data-testid="add-child-node-button"
-                    disabled={mutationDisabled}
-                    onClick={handleAddChild}
-                    size="sm"
-                    variant="ghost"
-                  >
-                    <Plus className="mr-1 h-3 w-3" />
-                    <FormattedMessage id="workflowTree.node.addChild" />
-                  </Button>
-
-                  <Button
-                    data-testid="add-sibling-node-button"
-                    disabled={isRoot || mutationDisabled}
-                    onClick={handleAddSibling}
-                    size="sm"
-                    variant="ghost"
-                  >
-                    <Plus className="mr-1 h-3 w-3" />
-                    <FormattedMessage id="workflowTree.node.addSibling" />
-                  </Button>
-
-                  <Button
-                    data-testid="duplicate-node-button"
-                    disabled={isRoot || mutationDisabled}
-                    onClick={handleDuplicate}
-                    size="sm"
-                    variant="ghost"
-                  >
-                    <Copy className="mr-1 h-3 w-3" />
-                    <FormattedMessage id="workflowTree.node.duplicate" />
-                  </Button>
-
-                  <Button
-                    data-testid="delete-node-button"
-                    disabled={isRoot || mutationDisabled}
-                    onClick={handleDelete}
-                    size="sm"
-                    variant="danger"
-                  >
-                    <Trash2 className="mr-1 h-3 w-3" />
-                    <FormattedMessage id="delete" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex-shrink-0" data-testid="node-genie">
-                <Genie
-                  clipboardEdge="#424242"
-                  clipboardFill="#ffffff"
-                  color={genieColor}
-                  showHandRibs={genieShowHandRibs}
-                  size={80}
-                  state={genieState}
-                  variant={genieVariant}
-                />
-              </div>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
-
-      {showPreview ? (
-        <Collapsible className="mt-4 3xl:w-96 3xl:flex-shrink-0" onOpenChange={setPreviewOpen} open={previewOpen}>
-          <CollapsibleTrigger
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors [&[data-state=open]>svg]:rotate-90"
-            data-testid="preview-trigger"
-          >
-            <ChevronRight className="h-3 w-3 transition-transform" />
-            <Eye className="h-3 w-3" />
-            <FormattedMessage id="workflowTree.node.preview" />
-          </CollapsibleTrigger>
-          <CollapsibleContent data-testid="node-preview-section">
-            <NodePreviewSection nodeId={node.id} />
-            {node.mcpFusionReport ? (
-              <div className="mt-2">
-                <McpFusionReportPanel report={node.mcpFusionReport} />
-              </div>
-            ) : null}
-          </CollapsibleContent>
-        </Collapsible>
-      ) : null}
+      <NodeCommandComposer
+        autoFocusCommand={autoFocusCommand}
+        canExecute={canExecute}
+        command={node.command ?? ''}
+        commandDraft={commandDraft}
+        commandIsSlash={commandIsSlash}
+        commandIsValid={commandIsValid}
+        commandToken={commandToken}
+        genieColor={genieColor}
+        isExecuting={isExecuting}
+        nodeId={node.id}
+        onAbort={handleAbort}
+        onCommandChange={handleCommandChange}
+        onCtrlEnter={handleCtrlEnterInCommand}
+        onDraftChange={setCommandDraft}
+        onEnter={handleEnterInCommand}
+        onExecute={handleExecute}
+        onShiftCtrlEnter={handleShiftCtrlEnterInCommand}
+        siblingActionsEnabled={siblingActionsEnabled}
+      />
     </div>
   )
 }

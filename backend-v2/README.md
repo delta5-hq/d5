@@ -69,6 +69,8 @@ Debug:
 
 ## Environment Variables
 
+See `docs/redaction-runtime.md` for the required first-party log redaction runtime.
+
 - `PORT` - Server port (default: 3002)
 - `MONGO_URI` - MongoDB connection string
 - `JWT_SECRET` - JWT signing secret

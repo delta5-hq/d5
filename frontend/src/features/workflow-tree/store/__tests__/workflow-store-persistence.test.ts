@@ -136,4 +136,33 @@ describe('createDebouncedPersister', () => {
     expect(savingDuringCall).toBe(true)
     expect(store.getState().isSaving).toBe(false)
   })
+
+  it('serializes an intervening edit behind an in-flight save and persists the newest state last', async () => {
+    let releaseFirstSave!: () => void
+    const firstSave = new Promise<void>(resolve => {
+      releaseFirstSave = resolve
+    })
+    const initialNodes = { root: { id: 'root', title: 'Before', children: [] } } as WorkflowStoreState['nodes']
+    const updatedNodes = { root: { id: 'root', title: 'After', children: [] } } as WorkflowStoreState['nodes']
+    const store = makeStore({ isDirty: true, nodes: initialNodes, root: 'root' })
+    const saveFn = vi
+      .fn()
+      .mockImplementationOnce(() => firstSave)
+      .mockResolvedValue({})
+    const persister = createDebouncedPersister(store, saveFn)
+
+    const firstFlush = persister.flush()
+    await Promise.resolve()
+    store.setState({ nodes: updatedNodes, isDirty: true })
+    const concurrentFlush = persister.flush()
+    releaseFirstSave()
+
+    await Promise.all([firstFlush, concurrentFlush])
+
+    expect(saveFn).toHaveBeenCalledTimes(2)
+    expect(saveFn).toHaveBeenNthCalledWith(1, { nodes: initialNodes, edges: {}, root: 'root' })
+    expect(saveFn).toHaveBeenNthCalledWith(2, { nodes: updatedNodes, edges: {}, root: 'root' })
+    expect(store.getState().nodes.root.title).toBe('After')
+    expect(store.getState().isDirty).toBe(false)
+  })
 })

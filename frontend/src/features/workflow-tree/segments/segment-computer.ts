@@ -47,6 +47,11 @@ export function computeSegments(treeState: TreeState, options: SegmentComputeOpt
     const nodeId = treeState.order[i]
     if (processedNodes.has(nodeId)) continue
 
+    if (options.excludeRootId !== undefined && nodeId === options.excludeRootId) {
+      processedNodes.add(nodeId)
+      continue
+    }
+
     const record = treeState.records[nodeId]
     if (!record) continue
 

@@ -58,8 +58,8 @@ test.describe('Workflow tree node deletion', () => {
       await tree.selectNode(childIds[0])
       await detail.waitForComponent()
 
-      await tree.node(childIds[0]).dblclick()
-      await expect(tree.node(childIds[0]).locator('input')).toBeFocused()
+      await tree.treePanel.press('Enter')
+      await expect(tree.inlineTitleEditor(tree.node(childIds[0]))).toBeFocused()
 
       await page.keyboard.press('Delete')
 
@@ -176,7 +176,6 @@ test.describe('Workflow tree node deletion', () => {
       await detail.addChild()
       await tree.treePanel.press('Escape')
 
-      await tree.toggleNodeExpand(childA)
       await expect(tree.nodes).toHaveCount(3, { timeout: TIMEOUTS.BACKEND_SYNC })
 
       const grandchildId = await tree.nodeIdAt(2)

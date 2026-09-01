@@ -22,6 +22,7 @@ type Node struct {
 	File            string                 `json:"file" bson:"file"`
 	Title           string                 `json:"title" bson:"title"`
 	Collapsed       bool                   `json:"collapsed" bson:"collapsed"`
+	Checked         bool                   `json:"checked" bson:"checked"`
 	Color           string                 `json:"color" bson:"color"`
 	BorderColor     string                 `json:"borderColor" bson:"borderColor"`
 	Scale           int                    `json:"scale" bson:"scale"`
@@ -32,7 +33,24 @@ type Node struct {
 	Height          int                    `json:"height" bson:"height"`
 	Command         string                 `json:"command" bson:"command"`
 	Prompts         []string               `json:"prompts" bson:"prompts"`
+	TitleProjection *TitleProjection       `json:"titleProjection,omitempty" bson:"titleProjection,omitempty"`
 	McpFusionReport map[string]interface{} `json:"mcpFusionReport,omitempty" bson:"mcpFusionReport,omitempty"`
+}
+
+// ClearStaleTitleProjection drops provenance whose recorded source title no
+// longer matches the node title. The node title is the source of truth; a
+// stale projection would otherwise persist contradictory state on a raw API
+// write that bypasses the client-side sanitizer.
+func (n *Node) ClearStaleTitleProjection() {
+	if n.TitleProjection != nil && n.TitleProjection.SourceTitle != n.Title {
+		n.TitleProjection = nil
+	}
+}
+
+type TitleProjection struct {
+	SourceTitle string   `json:"sourceTitle" bson:"sourceTitle"`
+	ChildIDs    []string `json:"childIds" bson:"childIds"`
+	NodeIDs     []string `json:"nodeIds" bson:"nodeIds"`
 }
 
 type Edge struct {
@@ -60,6 +78,11 @@ type Share struct {
 	Access []RoleBinding `json:"access" bson:"access"`
 }
 
+type WorkflowFileUploadLease struct {
+	ID        string `json:"-" bson:"id"`
+	ExpiresAt int64  `json:"-" bson:"expiresAt"`
+}
+
 type Workflow struct {
 	UserID     string            `json:"userId" bson:"userId"`
 	WorkflowID string            `json:"workflowId" bson:"workflowId"`
@@ -71,6 +94,12 @@ type Workflow struct {
 	Files      map[string]string `json:"files" bson:"files"`
 	Share      Share             `json:"share" bson:"share"`
 	Category   *string           `json:"category" bson:"category"`
+	// DeletionPending keeps an interrupted aggregate deletion retryable while
+	// normal reads and listings treat the workflow as logically gone.
+	DeletionPending bool `json:"-" bson:"deletionPending,omitempty"`
+	// ActiveFileUploads is a distributed deletion barrier. It is never exposed
+	// to clients and is drained before aggregate byte cleanup can finalize.
+	ActiveFileUploads []WorkflowFileUploadLease `json:"-" bson:"activeFileUploads,omitempty"`
 }
 
 /* WorkflowUpdateDTO uses pointers to distinguish "not provided" (nil) from "set to empty" */
