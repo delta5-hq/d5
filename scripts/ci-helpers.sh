@@ -140,16 +140,12 @@ test_node() {
 build_go() {
   local module_path="${1:-.}"
   local binary_name="${2:-service}"
-  local build_network="${DOCKER_BUILD_NETWORK:-$DOCKER_NETWORK}"
   cd "$module_path" || exit 1
   
   log_info "Building Go binary via Docker..."
-
-  if [ -z "${DOCKER_BUILD_NETWORK:-}" ]; then
-    ensure_docker_network
-  fi
+  ensure_docker_network
   
-  docker build --network "$build_network" --target builder -t "${binary_name}-builder" . > /tmp/go-build.log 2>&1 || {
+  docker build --network "$DOCKER_NETWORK" --target builder -t "${binary_name}-builder" . > /tmp/go-build.log 2>&1 || {
     log_error "Build failed"
     tail -30 /tmp/go-build.log
     return 1

@@ -3,9 +3,9 @@ package auth
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"log"
 
 	"backend-v2/internal/common"
-	"backend-v2/internal/common/checkedlog"
 	"backend-v2/internal/common/response"
 	"backend-v2/internal/services/email"
 
@@ -55,7 +55,7 @@ func (c *Controller) Signup(ctx *fiber.Ctx) error {
 
 	/* Send signup notification email - non-critical, log failure only */
 	if err := c.emailService.SendSignupNotification(payload.Mail, payload.Username); err != nil {
-		checkedlog.Warnf("[WARN] Failed to send signup notification email to %s: %v", payload.Mail, err)
+		log.Printf("[WARN] Failed to send signup notification email to %s: %v", payload.Mail, err)
 	}
 
 	return ctx.JSON(fiber.Map{"success": true})
@@ -198,7 +198,7 @@ func (c *Controller) ForgotPassword(ctx *fiber.Ctx) error {
 
 	/* Send password reset email - non-critical, log failure only */
 	if err := c.emailService.SendResetEmail(usernameOrEmail, usernameOrEmail, token); err != nil {
-		checkedlog.Warnf("[WARN] Failed to send password reset email to %s: %v", usernameOrEmail, err)
+		log.Printf("[WARN] Failed to send password reset email to %s: %v", usernameOrEmail, err)
 	}
 
 	return ctx.JSON(fiber.Map{"success": true})

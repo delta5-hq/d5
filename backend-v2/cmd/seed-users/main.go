@@ -3,23 +3,17 @@ package main
 import (
 	"context"
 	"flag"
-	"io"
+	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
-
-	"backend-v2/internal/common/checkedlog"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
 )
-
-type seedOptions struct {
-	mongoURI string
-	dropDB   bool
-}
 
 type User struct {
 	ID             string    `bson:"_id"`
@@ -41,47 +35,40 @@ func hashPassword(password string) (string, error) {
 }
 
 func main() {
-	if err := checkedlog.ConfigureDefaultFromEnv(); err != nil {
-		checkedlog.EmitStartupFailureToStderr()
-		os.Exit(1)
-	}
-
-	seedCfg, err := parseSeedOptions(os.Args[1:])
-	if err != nil {
-		checkedlog.EmitStartupFailureToStderr()
-		os.Exit(2)
-	}
+	mongoURI := flag.String("uri", "mongodb://localhost:27017/delta5", "MongoDB URI")
+	dropDB := flag.Bool("drop", false, "Drop database before seeding")
+	flag.Parse()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(seedCfg.mongoURI))
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(*mongoURI))
 	if err != nil {
-		checkedlog.Fatalf("Failed to connect to MongoDB: %v", err)
+		log.Fatalf("Failed to connect to MongoDB: %v", err)
 	}
 	defer func() {
 		if err := client.Disconnect(ctx); err != nil {
-			checkedlog.Warnf("Warning: Failed to disconnect from MongoDB: %v", err)
+			log.Printf("Warning: Failed to disconnect from MongoDB: %v", err)
 		}
 	}()
 
 	if err := client.Ping(ctx, nil); err != nil {
-		checkedlog.Fatalf("Failed to ping MongoDB: %v", err)
+		log.Fatalf("Failed to ping MongoDB: %v", err)
 	}
 
 	// Extract database name from URI
-	dbName := extractDatabaseName(seedCfg.mongoURI)
+	dbName := extractDatabaseName(*mongoURI)
 	if dbName == "" {
-		checkedlog.Fatalf("Failed to extract database name from URI")
+		log.Fatalf("Failed to extract database name from URI: %s", *mongoURI)
 	}
 
 	db := client.Database(dbName)
 
 	/* Drop database if requested - ensures clean state */
-	if seedCfg.dropDB {
-		checkedlog.Infof("→ Dropping database '%s' for clean state", dbName)
+	if *dropDB {
+		fmt.Printf("→ Dropping database '%s' for clean state\n", dbName)
 		if err := db.Drop(ctx); err != nil {
-			checkedlog.Fatalf("Failed to drop database: %v", err)
+			log.Fatalf("Failed to drop database: %v", err)
 		}
 	}
 
@@ -135,7 +122,7 @@ func main() {
 	}
 
 	if _, err := waitlistCollection.DeleteMany(ctx, bson.M{}); err != nil {
-		checkedlog.Fatalf("Failed to clear waitlists: %v", err)
+		log.Fatalf("Failed to clear waitlists: %v", err)
 	}
 
 	/* Clean up test data collections for deterministic test state */
@@ -146,7 +133,7 @@ func main() {
 		coll := db.Collection(collName)
 		filter := bson.M{"userId": bson.M{"$in": baseUserIDs}}
 		if _, err := coll.DeleteMany(ctx, filter); err != nil {
-			checkedlog.Warnf("Warning: Failed to clean %s: %v", collName, err)
+			log.Printf("Warning: Failed to clean %s: %v", collName, err)
 		}
 	}
 
@@ -156,39 +143,28 @@ func main() {
 			{"mail": user.Mail},
 		}}
 		if _, err := usersCollection.DeleteMany(ctx, filter); err != nil {
-			checkedlog.Warnf("Warning: Failed to delete existing user %s: %v", user.UserID, err)
+			log.Printf("Warning: Failed to delete existing user %s: %v", user.UserID, err)
 		}
 
 		if _, err := usersCollection.InsertOne(ctx, user); err != nil {
-			checkedlog.Fatalf("Failed to insert user %s: %v", user.UserID, err)
+			log.Fatalf("Failed to insert user %s: %v", user.UserID, err)
 		}
 	}
 	if err := seedAdminIntegration(ctx, db, "admin"); err != nil {
-		checkedlog.Fatalf("Failed to seed admin integration: %v", err)
+		log.Fatalf("Failed to seed admin integration: %v", err)
 	}
 
 	portInfo := ""
-	if len(seedCfg.mongoURI) > 0 {
-		if contains(seedCfg.mongoURI, "27018") {
+	if len(*mongoURI) > 0 {
+		if contains(*mongoURI, "27018") {
 			portInfo = " (E2E)"
-		} else if contains(seedCfg.mongoURI, "27017") {
+		} else if contains(*mongoURI, "27017") {
 			portInfo = " (dev)"
 		}
 	}
 
-	checkedlog.Infof("E2E base users seeded: admin, subscriber, customer%s", portInfo)
+	fmt.Printf("E2E base users seeded: admin, subscriber, customer%s\n", portInfo)
 	os.Exit(0)
-}
-
-func parseSeedOptions(args []string) (seedOptions, error) {
-	flags := flag.NewFlagSet("seed-users", flag.ContinueOnError)
-	flags.SetOutput(io.Discard)
-	mongoURI := flags.String("uri", "mongodb://localhost:27017/delta5", "MongoDB URI")
-	dropDB := flags.Bool("drop", false, "Drop database before seeding")
-	if err := flags.Parse(args); err != nil {
-		return seedOptions{}, err
-	}
-	return seedOptions{mongoURI: *mongoURI, dropDB: *dropDB}, nil
 }
 
 func extractDatabaseName(uri string) string {

@@ -12,10 +12,7 @@ func TestNewRouteRegistry(t *testing.T) {
 		NodeJSAPIRoot:    "/api/v1",
 	}
 	proxy := NewProxy(config)
-	registry, err := NewRouteRegistry(proxy)
-	if err != nil {
-		t.Fatalf("NewRouteRegistry: %v", err)
-	}
+	registry := NewRouteRegistry(proxy)
 
 	if registry == nil {
 		t.Fatal("NewRouteRegistry() returned nil")
@@ -32,10 +29,7 @@ func TestRouteRegistry_RegisterNodeJSRoutes(t *testing.T) {
 		NodeJSAPIRoot:    "/api/v1",
 	}
 	proxy := NewProxy(config)
-	registry, err := NewRouteRegistry(proxy)
-	if err != nil {
-		t.Fatalf("NewRouteRegistry: %v", err)
-	}
+	registry := NewRouteRegistry(proxy)
 
 	app := fiber.New()
 	router := app.Group("/api/v2")
@@ -79,10 +73,7 @@ func TestRouteRegistry_ExecuteRoutes(t *testing.T) {
 		NodeJSAPIRoot:    "/api/v1",
 	}
 	proxy := NewProxy(config)
-	registry, err := NewRouteRegistry(proxy)
-	if err != nil {
-		t.Fatalf("NewRouteRegistry: %v", err)
-	}
+	registry := NewRouteRegistry(proxy)
 
 	app := fiber.New()
 	router := app.Group("/api/v2")
@@ -120,10 +111,7 @@ func TestRouteRegistry_ScrapingRoutes(t *testing.T) {
 		NodeJSAPIRoot:    "/api/v1",
 	}
 	proxy := NewProxy(config)
-	registry, err := NewRouteRegistry(proxy)
-	if err != nil {
-		t.Fatalf("NewRouteRegistry: %v", err)
-	}
+	registry := NewRouteRegistry(proxy)
 
 	app := fiber.New()
 	router := app.Group("/api/v2")
@@ -158,10 +146,7 @@ func TestRouteRegistry_ExternalAPIRoutes(t *testing.T) {
 		NodeJSAPIRoot:    "/api/v1",
 	}
 	proxy := NewProxy(config)
-	registry, err := NewRouteRegistry(proxy)
-	if err != nil {
-		t.Fatalf("NewRouteRegistry: %v", err)
-	}
+	registry := NewRouteRegistry(proxy)
 
 	app := fiber.New()
 	router := app.Group("/api/v2")
@@ -204,10 +189,7 @@ func TestRouteRegistry_IntegrationGrouping(t *testing.T) {
 		NodeJSAPIRoot:    "/api/v1",
 	}
 	proxy := NewProxy(config)
-	registry, err := NewRouteRegistry(proxy)
-	if err != nil {
-		t.Fatalf("NewRouteRegistry: %v", err)
-	}
+	registry := NewRouteRegistry(proxy)
 
 	app := fiber.New()
 	router := app.Group("/api/v2")
@@ -238,10 +220,7 @@ func TestRouteRegistry_AllMethodsExecuteRoute(t *testing.T) {
 		NodeJSAPIRoot:    "/api/v1",
 	}
 	proxy := NewProxy(config)
-	registry, err := NewRouteRegistry(proxy)
-	if err != nil {
-		t.Fatalf("NewRouteRegistry: %v", err)
-	}
+	registry := NewRouteRegistry(proxy)
 
 	app := fiber.New()
 	router := app.Group("/api/v2")
@@ -272,11 +251,11 @@ func TestRouteRegistry_AllMethodsExecuteRoute(t *testing.T) {
 }
 
 func TestRouteRegistry_EmptyProxy(t *testing.T) {
-	registry, err := NewRouteRegistry(nil)
-	if err == nil {
-		t.Fatal("NewRouteRegistry with nil proxy error = nil")
-	}
-	if registry != nil {
-		t.Fatalf("NewRouteRegistry with nil proxy registry = %#v, want nil", registry)
-	}
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("NewRouteRegistry with nil proxy should panic, but didn't")
+		}
+	}()
+
+	NewRouteRegistry(nil)
 }

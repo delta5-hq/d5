@@ -1,8 +1,6 @@
 package integration
 
 import (
-	"fmt"
-
 	"backend-v2/internal/middlewares"
 	"backend-v2/internal/services/container"
 
@@ -10,10 +8,10 @@ import (
 	"github.com/qiniu/qmgo"
 )
 
-func Register(router fiber.Router, db *qmgo.Database, services *container.ServiceContainer) error {
+func Register(router fiber.Router, db *qmgo.Database, services *container.ServiceContainer) {
 	service, err := NewService(db)
 	if err != nil {
-		return fmt.Errorf("initialize integration service: %w", err)
+		panic("failed to initialize integration service: " + err.Error())
 	}
 
 	/* Core integration CRUD controller */
@@ -69,6 +67,4 @@ func Register(router fiber.Router, db *qmgo.Database, services *container.Servic
 	protectedGroup.Get("/:service", baseCtrl.GetService)
 	protectedGroup.Put("/:service/update", baseCtrl.UpdateService)
 	protectedGroup.Delete("/:service/delete", baseCtrl.DeleteService)
-
-	return nil
 }

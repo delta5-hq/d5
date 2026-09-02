@@ -44,11 +44,6 @@ services:
       MOCK_EXTERNAL_SERVICES: "false"
       NODEJS_BACKEND_URL: "http://backend:3000"
       NODEJS_API_ROOT: "/api/v1"
-      D5_REDACTION_CHECKER_PATH: "/usr/local/bin/value-redaction-check"
-      D5_REDACTION_REGISTERED_VALUES_FILE: "/run/secrets/d5-redaction-registered-values.json"
-      D5_REDACTION_TIMEOUT_MS: "2000"
-    volumes:
-      - ./secrets/d5-redaction-registered-values.json:/run/secrets/d5-redaction-registered-values.json:ro
 
   frontend:
     image: "registry.dreaktor.com/solidbranch/d5/d5:frontend-latest"
