@@ -1,6 +1,7 @@
 import { matchesAnyCommandWithOrder } from './command-matcher'
 import { readElectTrailingText } from '@shared/lib/reliability/elect-params'
 import { readRefineN, readRefineTrailingText } from '@shared/lib/reliability/refine-params'
+import { parseInlineTerm } from '@shared/lib/reliability/inline-term-parser'
 import type { DynamicAlias } from '@shared/lib/command-querytype-mapper'
 
 export type ReliabilitySyntaxErrorReason =
@@ -59,15 +60,21 @@ export function validateCommandForExecution(
   }
 
   const normalized = command.trim().replace(/^#-?\d+\s+/, '')
-  if (matchesCommand(normalized, '/elect') && readElectTrailingText(normalized)) {
+  const electTrailing = readElectTrailingText(normalized)
+  if (matchesCommand(normalized, '/elect') && electTrailing && !parseInlineTerm(electTrailing, dynamicAliases)) {
     return { isValid: false, canExecute: false, reason: 'elect_criterion_must_be_validate' }
   }
   if (matchesCommand(normalized, '/validate') && /:retry=\d+(?=\s|$)/.test(normalized)) {
     return { isValid: false, canExecute: false, reason: 'validate_retry_must_be_refine' }
   }
+  // /refine :n=N accepts an inline generating term, mirroring /elect; trailing text that is not a
+  // recognized generating command (criterion prose, a non-generating command) is refused, matching
+  // the backend. A bare /refine :n=N stays valid as a child that refines its parent's output.
+  const refineTrailing = readRefineTrailingText(normalized)
   if (
     matchesCommand(normalized, '/refine') &&
-    (readRefineN(normalized) === null || readRefineTrailingText(normalized).length > 0)
+    (readRefineN(normalized) === null ||
+      (refineTrailing.length > 0 && !parseInlineTerm(refineTrailing, dynamicAliases)))
   ) {
     return { isValid: false, canExecute: false, reason: 'invalid_refine_syntax' }
   }

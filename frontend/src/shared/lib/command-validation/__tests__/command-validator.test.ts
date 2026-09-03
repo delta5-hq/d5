@@ -102,3 +102,58 @@ describe('command-validator', () => {
     )
   })
 })
+
+describe('inline modifier form — trailing recognized command is accepted', () => {
+  it.each(['/elect :n=3 /chatgpt propose directions', '/elect :n=2 /chat summarize', '/elect :n=3 /web latest news'])(
+    'accepts inline elect with recognized built-in term: %s',
+    command => {
+      expect(validateCommandForExecution(command, false)).toMatchObject({ isValid: true, canExecute: true })
+    },
+  )
+
+  it('accepts inline elect with a dynamic alias as the term', () => {
+    expect(validateCommandForExecution('/elect :n=3 /coder1 fix it', false, [{ alias: '/coder1' }])).toMatchObject({
+      isValid: true,
+      canExecute: true,
+    })
+  })
+
+  it.each(['/refine :n=3 /chatgpt propose directions', '/refine :n=2 /chat summarize', '/refine :n=3 /web query'])(
+    'accepts inline refine with recognized built-in term: %s',
+    command => {
+      expect(validateCommandForExecution(command, false)).toMatchObject({ isValid: true, canExecute: true })
+    },
+  )
+
+  it('accepts inline refine with a dynamic alias as the term', () => {
+    expect(validateCommandForExecution('/refine :n=3 /coder1 fix it', false, [{ alias: '/coder1' }])).toMatchObject({
+      isValid: true,
+      canExecute: true,
+    })
+  })
+
+  it.each(['/refine :n=3 /summarize the text', '/refine :n=2 /outline the topic'])(
+    'refuses inline refine whose term is a non-generating command: %s',
+    command => {
+      expect(validateCommandForExecution(command, false)).toMatchObject({
+        isValid: false,
+        canExecute: false,
+        reason: 'invalid_refine_syntax',
+      })
+    },
+  )
+
+  it('still rejects elect with trailing prose that is not a command', () => {
+    expect(validateCommandForExecution('/elect :n=3 must cite sources', false)).toMatchObject({
+      isValid: false,
+      reason: 'elect_criterion_must_be_validate',
+    })
+  })
+
+  it('still rejects refine with trailing prose that is not a command', () => {
+    expect(validateCommandForExecution('/refine :n=3 unexpected prose', false)).toMatchObject({
+      isValid: false,
+      reason: 'invalid_refine_syntax',
+    })
+  })
+})

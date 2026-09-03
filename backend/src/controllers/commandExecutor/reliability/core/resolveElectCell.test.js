@@ -297,6 +297,23 @@ describe('resolveElectCell — runForks invocation parameters', () => {
 
     expect(capturedArgs.admitSourceCandidate).toBe(true)
   })
+
+  it('passes admitSourceCandidate=false to runForks for the inline form regardless of caller flag', async () => {
+    const store = makeStore('/elect :n=3 /chatgpt propose')
+    store._aliases = {mcp: [], rpc: []}
+    let capturedArgs
+
+    mockRunForks.mockImplementation(async args => {
+      capturedArgs = args
+      return []
+    })
+
+    // The wrapped term has no generation outside its scope, so the inline form never admits a
+    // source candidate even when the caller passes true — every fork is a fresh generation.
+    await resolveElectCell(store.getNode('r1'), store, new Map(), null, undefined, true)
+
+    expect(capturedArgs.admitSourceCandidate).toBe(false)
+  })
 })
 
 describe('resolveElectCell — ForkJudge instantiation and selectWinner parameters', () => {
@@ -1204,6 +1221,45 @@ describe('resolveElectCell — validate sibling titles transferred from winner f
     const nonElectCallArgs = store.saveNodeToOutput.mock.calls.filter(([id]) => id !== 'r1')
     expect(nonElectCallArgs).toHaveLength(0)
   })
+
+  it('inline form: sibling /validate beside the elect is included in allValidates (originalParentId, not post-mount parent)', async () => {
+    const store = buildStore({
+      p1: {id: 'p1', children: ['r1', 'v1']},
+      r1: {
+        id: 'r1',
+        parent: 'p1',
+        title: 'My Cell',
+        command: '/elect :n=2 /chatgpt propose',
+        children: [],
+      },
+      v1: {
+        id: 'v1',
+        parent: 'p1',
+        command: '/validate criterion',
+        title: '/validate criterion',
+        children: [],
+      },
+    })
+    jest.spyOn(store, 'saveNodeToOutput').mockImplementation(() => {})
+    jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
+    store._aliases = {mcp: [], rpc: []}
+
+    const winnerFork = buildStore({
+      p1: {id: 'p1', children: ['r1', 'v1']},
+      r1: {id: 'r1', parent: 'p1', title: 'My Cell', children: []},
+      v1: {id: 'v1', parent: 'p1', command: '/validate criterion', title: '/validate criterion [✓]', children: []},
+    })
+    mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'ok', forkStore: winnerFork}])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'primary'}),
+    }))
+    MockOwnershipResolver.mockReturnValue(new Map([['r1', []]]))
+
+    await resolveElectCell(store.getNode('r1'), store, new Map())
+
+    expect(store._nodes.v1.title).toBe('/validate criterion [✓]')
+    expect(store.saveNodeToOutput).toHaveBeenCalledWith('v1')
+  })
 })
 
 describe('resolveElectCell — noSignal routing: strict mode emits warning, fallback mode suppresses warning', () => {
@@ -1815,5 +1871,177 @@ describe('resolveElectCell — verdict field propagation to reliabilityMetadata'
     })
     expect(meta1.winnerForkIndex).toBe(0)
     expect(meta2.winnerForkIndex).toBe(0)
+  })
+})
+
+describe('resolveElectCell — inline term form (trailing text is a recognized command)', () => {
+  it('accepts trailing recognized command text and does not write an error node', async () => {
+    const store = makeStore('/elect :n=3 /chatgpt propose directions')
+    store._aliases = {mcp: [], rpc: []}
+    const node = store.getNode('r1')
+
+    await resolveElectCell(node, store, new Map())
+
+    expect(store.importer.createErrorNode).not.toHaveBeenCalledWith(
+      expect.stringContaining('add a sibling /validate cell'),
+      expect.anything(),
+    )
+    expect(mockRunForks).toHaveBeenCalledTimes(1)
+  })
+
+  it('passes the term as a synthetic parent descriptor to runForks and never mounts it in the outer store', async () => {
+    const store = makeStore('/elect :n=3 /chatgpt propose directions')
+    store._aliases = {mcp: [], rpc: []}
+    let captured = null
+
+    mockRunForks.mockImplementation(async ({termParent, electNode}) => {
+      captured = {
+        command: termParent?.command ?? null,
+        id: termParent?.id ?? null,
+        electParent: electNode.parent,
+        outerHasSynth: 'r1:term' in store._nodes,
+      }
+      return []
+    })
+
+    await resolveElectCell(store.getNode('r1'), store, new Map())
+
+    expect(captured.command).toBe('/chatgpt propose directions')
+    expect(captured.id).toBe('r1:term')
+    expect(captured.electParent).toBe('p1')
+    expect(captured.outerHasSynth).toBe(false)
+    expect(store._nodes['r1:term']).toBeUndefined()
+    expect(store._nodes['r1'].parent).toBe('p1')
+  })
+
+  it('roots the term parent descriptor at the elect nodes original parent', async () => {
+    const store = makeStore('/elect :n=3 /chatgpt propose directions')
+    store._aliases = {mcp: [], rpc: []}
+    let termParentParent = null
+
+    mockRunForks.mockImplementation(async ({termParent}) => {
+      termParentParent = termParent?.parent ?? null
+      return []
+    })
+
+    await resolveElectCell(store.getNode('r1'), store, new Map())
+
+    expect(termParentParent).toBe('p1')
+    expect(store._nodes['r1:term']).toBeUndefined()
+  })
+
+  it('never mutates the shared ancestor children — the P0.1 data-loss guarantee', async () => {
+    const store = makeStore('/elect :n=3 /chatgpt propose directions')
+    store._aliases = {mcp: [], rpc: []}
+    let ancestorChildrenDuringFork = null
+
+    mockRunForks.mockImplementation(async () => {
+      ancestorChildrenDuringFork = [...(store._nodes['p1'].children ?? [])]
+      return []
+    })
+
+    await resolveElectCell(store.getNode('r1'), store, new Map())
+
+    expect(ancestorChildrenDuringFork).toEqual(['r1'])
+    expect(store._nodes['p1'].children).toEqual(['r1'])
+  })
+
+  it('uses electNode.id (not electNode.parent) as parentNodeId when copying winner output', async () => {
+    const winnerForkStore = buildStore({
+      r1: {id: 'r1', parent: 'p1', command: '/chatgpt propose directions', children: ['out0'], prompts: ['out0']},
+      out0: {id: 'out0', parent: 'r1', title: 'Proposal A', children: []},
+    })
+    const store = makeStore('/elect :n=3 /chatgpt propose directions')
+    store._aliases = {mcp: [], rpc: []}
+
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: makeSelectWinner({winnerForkIndex: 0, selectionLayer: 'primary'}),
+    }))
+    mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'ok', forkStore: winnerForkStore, leafOutputs: []}])
+
+    await resolveElectCell(store.getNode('r1'), store, new Map())
+
+    const electNode = store.getNode('r1')
+    expect(electNode?.title).toMatch(/\[✓/)
+  })
+
+  it('rejects non-command prose in trailing text even when :n= is present', async () => {
+    const store = makeStore('/elect :n=3 must cite sources')
+    store._aliases = {mcp: [], rpc: []}
+    const node = store.getNode('r1')
+
+    await resolveElectCell(node, store, new Map())
+
+    expect(store.importer.createErrorNode).toHaveBeenCalledWith(
+      expect.stringContaining('add a sibling /validate cell'),
+      'r1',
+    )
+    expect(mockRunForks).not.toHaveBeenCalled()
+  })
+
+  it('does not mount a synthetic term parent when there is no inline term', async () => {
+    const store = makeStore('/elect :n=3')
+    store._aliases = {mcp: [], rpc: []}
+    let capturedArgs
+
+    mockRunForks.mockImplementation(async args => {
+      capturedArgs = args
+      return []
+    })
+
+    await resolveElectCell(store.getNode('r1'), store, new Map())
+
+    expect(store._nodes['r1:term']).toBeUndefined()
+    expect(capturedArgs.electNode.parent).toBe('p1')
+    expect(capturedArgs).not.toHaveProperty('inlineTermCommand')
+  })
+})
+
+describe('resolveElectCell — equivalence: selectWinner receives the synthetic term-parent id for inline form', () => {
+  it('passes electNodeId + ":term" as parentNodeId to selectWinner for inline form', async () => {
+    const winnerForkStore = (() => {
+      const s = buildStore({
+        'r1:term': {id: 'r1:term', command: '/chatgpt propose directions', children: ['out0'], prompts: ['out0']},
+        out0: {id: 'out0', parent: 'r1:term', title: 'Proposal', children: []},
+      })
+      jest.spyOn(s, 'saveNodeToOutput').mockImplementation(() => {})
+      return s
+    })()
+
+    const store = makeStore('/elect :n=3 /chatgpt propose directions')
+    store._aliases = {mcp: [], rpc: []}
+
+    let capturedParentNodeId
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: jest.fn().mockImplementation(async ({parentNodeId}) => {
+        capturedParentNodeId = parentNodeId
+        return null
+      }),
+    }))
+    mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'ok', forkStore: winnerForkStore, leafOutputs: []}])
+
+    await resolveElectCell(store.getNode('r1'), store, new Map())
+
+    expect(capturedParentNodeId).toBe('r1:term')
+    expect(capturedParentNodeId).not.toBe('p1')
+    expect(capturedParentNodeId).not.toBe('r1')
+  })
+
+  it('passes electNode.parent as parentNodeId to selectWinner for postfix form (unchanged)', async () => {
+    const store = makeStore('/elect :n=3')
+    store._aliases = {mcp: [], rpc: []}
+
+    let capturedParentNodeId
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: jest.fn().mockImplementation(async ({parentNodeId}) => {
+        capturedParentNodeId = parentNodeId
+        return null
+      }),
+    }))
+    mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'ok', forkStore: okForkStore(), leafOutputs: []}])
+
+    await resolveElectCell(store.getNode('r1'), store, new Map())
+
+    expect(capturedParentNodeId).toBe('p1')
   })
 })

@@ -764,3 +764,115 @@ describe('in-progress /elect — descendant /validate executes inside fork', () 
     validateSpy.mockRestore()
   })
 })
+
+describe('/elect :n=N /term — inline form where elect carries its own generating term', () => {
+  it('executes through resolveElectCell rather than the modifier root-error path', async () => {
+    const store = buildStore({
+      elect: {
+        id: 'elect',
+        parent: null,
+        command: '/elect :n=2 /chatgpt propose directions',
+        children: [],
+      },
+    })
+    const createErrorSpy = jest.spyOn(store.importer, 'createErrorNode')
+
+    mockRunForks.mockResolvedValue([])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: jest.fn().mockResolvedValue(null),
+    }))
+
+    await runCommand({
+      queryType: 'elect',
+      cell: store.getNode('elect'),
+      store,
+      memoMap: new Map(),
+    })
+
+    expect(createErrorSpy).not.toHaveBeenCalledWith(expect.stringMatching(/requires a parent cell/), expect.anything())
+    expect(mockRunForks).toHaveBeenCalled()
+    expect(store._nodes['elect:term']).toBeUndefined()
+    expect(store._nodes['elect'].parent).toBeNull()
+  })
+
+  it('bare elect without inline term still writes modifier-root error', async () => {
+    const store = buildStore({
+      elect: {
+        id: 'elect',
+        parent: null,
+        command: '/elect :n=2',
+        children: [],
+      },
+    })
+    const createErrorSpy = jest.spyOn(store.importer, 'createErrorNode')
+
+    await runCommand({queryType: 'elect', cell: store.getNode('elect'), store})
+
+    expect(createErrorSpy).toHaveBeenCalledWith(expect.stringMatching(/elect requires a parent cell/), 'elect')
+    expect(mockRunForks).not.toHaveBeenCalled()
+  })
+
+  it('trailing criterion prose (not a command) still writes modifier-root error', async () => {
+    const store = buildStore({
+      elect: {
+        id: 'elect',
+        parent: null,
+        command: '/elect :n=2 must cite sources',
+        children: [],
+      },
+    })
+    const createErrorSpy = jest.spyOn(store.importer, 'createErrorNode')
+
+    await runCommand({queryType: 'elect', cell: store.getNode('elect'), store})
+
+    expect(createErrorSpy).toHaveBeenCalledWith(expect.stringMatching(/elect requires a parent cell/), 'elect')
+    expect(mockRunForks).not.toHaveBeenCalled()
+  })
+})
+
+describe('/refine :n=N /term — top-level inline refine routes into the refine engine', () => {
+  // A top-level /refine :n=N <term> now wraps its own generating term, mirroring root /elect.
+  // The bare and criterion-prose forms carry no term to wrap and stay refused as modifier roots.
+
+  it('routes a top-level inline term into refine, requiring a /validate child rather than refusing as a modifier root', async () => {
+    const store = buildStore({
+      refine: {
+        id: 'refine',
+        parent: null,
+        command: '/refine :n=2 /chatgpt propose directions',
+        children: [],
+      },
+    })
+    const createErrorSpy = jest.spyOn(store.importer, 'createErrorNode')
+
+    await runCommand({queryType: 'refine', cell: store.getNode('refine'), store})
+
+    expect(createErrorSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/requires at least one direct \/validate child/),
+      'refine',
+    )
+    expect(createErrorSpy).not.toHaveBeenCalledWith(expect.stringMatching(/requires a parent cell/), 'refine')
+  })
+
+  it('bare /refine without inline term still writes modifier-root error', async () => {
+    const store = buildStore({
+      refine: {id: 'refine', parent: null, command: '/refine :n=2', children: []},
+    })
+    const createErrorSpy = jest.spyOn(store.importer, 'createErrorNode')
+
+    await runCommand({queryType: 'refine', cell: store.getNode('refine'), store})
+
+    expect(createErrorSpy).toHaveBeenCalledWith(expect.stringMatching(/requires a parent cell/), 'refine')
+  })
+
+  it('trailing criterion prose still writes modifier-root error even for /refine', async () => {
+    const store = buildStore({
+      refine: {id: 'refine', parent: null, command: '/refine :n=2 must cite sources', children: []},
+    })
+    const createErrorSpy = jest.spyOn(store.importer, 'createErrorNode')
+
+    await runCommand({queryType: 'refine', cell: store.getNode('refine'), store})
+
+    expect(createErrorSpy).toHaveBeenCalledWith(expect.stringMatching(/requires a parent cell/), 'refine')
+  })
+})

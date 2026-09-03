@@ -9,7 +9,8 @@ import {isSideEffectingDispatch} from './sideEffectingDispatch'
 import {COMMODITY_SUPPRESSION_CAUSE} from './failureSemantics'
 import {MEMO_SENTINEL_PRE_EXECUTED_CHILD} from './memoSentinels'
 import {isPostProcessorOrControlQuery, hasElectDescendant} from './electChildPredicates'
-import {isSideEffectingParent, admitsSourceCandidate} from './sourceCandidateAdmission'
+import {isSideEffectingDispatchNode, admitsSourceCandidate} from './sourceCandidateAdmission'
+import {mountTermInFork} from './forkTermMount'
 
 /**
  * @typedef {import('../../commands/utils/Store').NodeData} NodeData
@@ -123,7 +124,30 @@ function notifyForkSettled(onForkSettled, result) {
   onForkSettled?.(result)
 }
 
-async function runFreshFork({forkStore, forkIndex, parentNode, queryType, mcpAlias, rpcAlias, signal, memoMap, n}) {
+async function settleParallelForks(forkStores, onForkSettled, runOneFork) {
+  const results = new Array(forkStores.length)
+  await Promise.allSettled(
+    forkStores.map(async (forkStore, forkIndex) => {
+      const result = await runOneFork(forkStore, forkIndex)
+      results[forkIndex] = result
+      notifyForkSettled(onForkSettled, result)
+    }),
+  )
+  return results
+}
+
+async function runFreshFork({
+  forkStore,
+  forkIndex,
+  parentNode,
+  queryType,
+  mcpAlias,
+  rpcAlias,
+  signal,
+  memoMap,
+  n,
+  suppressedForSideEffect = false,
+}) {
   try {
     await runCommand(
       {
@@ -137,20 +161,14 @@ async function runFreshFork({forkStore, forkIndex, parentNode, queryType, mcpAli
       },
       new NullProgress(),
     )
-    return buildOkResult({
-      forkStore,
-      forkIndex,
-      parentNodeId: parentNode.id,
-      suppressedForSideEffect: false,
-      requestedN: n,
-    })
+    return buildOkResult({forkStore, forkIndex, parentNodeId: parentNode.id, suppressedForSideEffect, requestedN: n})
   } catch (err) {
     return buildFailureResult({
       forkStore,
       forkIndex,
       parentNodeId: parentNode.id,
       error: err,
-      suppressedForSideEffect: false,
+      suppressedForSideEffect,
       requestedN: n,
     })
   }
@@ -202,6 +220,12 @@ async function buildSourceCandidateResult({
   }
 }
 
+// Inline elects wrap their term in a synthetic parent; mounting it into each disposable fork
+// keeps the outer store pristine. Postfix elects have a real parent and mount nothing.
+function resolveParentNode(electNode, store, termParent) {
+  return termParent ?? store.getNode(electNode.parent)
+}
+
 /**
  * Sets `electNode.id` in `memoMap` as `'in-progress'` BEFORE the forks run.
  * Each fork receives a fork-local memoMap copy so nested /elect cells are
@@ -219,6 +243,7 @@ async function buildSourceCandidateResult({
  *   signal?: AbortSignal|null,
  *   onForkSettled?: ((result: ForkResult) => void)|null,
  *   admitSourceCandidate?: boolean,
+ *   termParent?: NodeData|null,
  * }} params
  * @returns {Promise<ForkResult[]>} one result per executed fork; never throws.
  */
@@ -230,15 +255,16 @@ export const runForks = async ({
   signal = null,
   onForkSettled = null,
   admitSourceCandidate = false,
+  termParent = null,
 }) => {
-  const parentNode = store.getNode(electNode.parent)
+  const parentNode = resolveParentNode(electNode, store, termParent)
   if (!parentNode) {
     throw new Error(`[SubtreeForkRunner] electNode '${electNode.id}' has no parent in store`)
   }
 
   memoMap.set(electNode.id, 'in-progress')
 
-  const suppressedForSideEffect = n > 1 && isSideEffectingParent(electNode, store)
+  const suppressedForSideEffect = n > 1 && isSideEffectingDispatchNode(parentNode, store)
   const effectiveN = suppressedForSideEffect ? 1 : n
 
   if (!suppressedForSideEffect && effectiveN > 1) {
@@ -253,73 +279,77 @@ export const runForks = async ({
 
   const {queryType, mcpAlias, rpcAlias} = resolveCommand(getNodeCommand(parentNode), store._aliases)
   const forkStores = Array.from({length: effectiveN}, () => StoreFork.createFork(store))
+  if (termParent) {
+    forkStores.forEach(forkStore => mountTermInFork(forkStore, termParent, electNode.id, electNode.parent))
+  }
   const results = new Array(effectiveN)
 
   if (suppressedForSideEffect) {
-    const result = await buildSourceCandidateResult({
-      forkStore: forkStores[0],
-      forkIndex: 0,
-      parentNode,
-      queryType,
-      mcpAlias,
-      rpcAlias,
-      ids: foreachValidateTemplateExclusions(queryType, parentNode, store),
-      signal,
-      memoMap,
-      suppressedForSideEffect: true,
-      requestedN: n,
-    })
+    // Inline side-effecting term has no prior output and must run once fresh; a postfix
+    // side-effecting parent already executed, so its existing output is reused without re-dispatch.
+    const result = termParent
+      ? await runFreshFork({
+          forkStore: forkStores[0],
+          forkIndex: 0,
+          parentNode,
+          queryType,
+          mcpAlias,
+          rpcAlias,
+          signal,
+          memoMap: new Map(memoMap),
+          n,
+          suppressedForSideEffect: true,
+        })
+      : await buildSourceCandidateResult({
+          forkStore: forkStores[0],
+          forkIndex: 0,
+          parentNode,
+          queryType,
+          mcpAlias,
+          rpcAlias,
+          ids: foreachValidateTemplateExclusions(queryType, parentNode, store),
+          signal,
+          memoMap,
+          suppressedForSideEffect: true,
+          requestedN: n,
+        })
     results[0] = result
     notifyForkSettled(onForkSettled, result)
     return results
   }
 
-  const useSourceCandidate = admitsSourceCandidate({admitSourceCandidate, n, electNode, parentNode, store})
+  const useSourceCandidate = admitsSourceCandidate({admitSourceCandidate, n, parentNode, store})
   const sourceCandidateIds = useSourceCandidate ? foreachValidateTemplateExclusions(queryType, parentNode, store) : []
 
-  await Promise.allSettled(
-    forkStores.map(async (forkStore, forkIndex) => {
-      const forkMemoMap = new Map(memoMap)
-      const result =
-        useSourceCandidate && forkIndex === 0
-          ? await buildSourceCandidateResult({
-              forkStore,
-              forkIndex,
-              parentNode,
-              queryType,
-              mcpAlias,
-              rpcAlias,
-              ids: sourceCandidateIds,
-              signal,
-              memoMap: forkMemoMap,
-              suppressedForSideEffect: false,
-              requestedN: n,
-            })
-          : await runFreshFork({
-              forkStore,
-              forkIndex,
-              parentNode,
-              queryType,
-              mcpAlias,
-              rpcAlias,
-              signal,
-              memoMap: forkMemoMap,
-              n,
-            })
-      results[forkIndex] = result
-      notifyForkSettled(onForkSettled, result)
-    }),
-  )
-
-  return results
+  return settleParallelForks(forkStores, onForkSettled, (forkStore, forkIndex) => {
+    const forkMemoMap = new Map(memoMap)
+    return useSourceCandidate && forkIndex === 0
+      ? buildSourceCandidateResult({
+          forkStore,
+          forkIndex,
+          parentNode,
+          queryType,
+          mcpAlias,
+          rpcAlias,
+          ids: sourceCandidateIds,
+          signal,
+          memoMap: forkMemoMap,
+          suppressedForSideEffect: false,
+          requestedN: n,
+        })
+      : runFreshFork({forkStore, forkIndex, parentNode, queryType, mcpAlias, rpcAlias, signal, memoMap: forkMemoMap, n})
+  })
 }
+
 /**
  * Callers use this to emit accurate fork-started counts before runForks resolves.
  * @param {NodeData} electNode
  * @param {Store} store
  * @param {number} n - Requested fork count
+ * @param {NodeData|null} [termParent] - Synthetic term parent for inline elects
  * @returns {number}
  */
-export function computeEffectiveN(electNode, store, n) {
-  return n > 1 && isSideEffectingParent(electNode, store) ? 1 : n
+export function computeEffectiveN(electNode, store, n, termParent = null) {
+  const parentNode = resolveParentNode(electNode, store, termParent)
+  return n > 1 && isSideEffectingDispatchNode(parentNode, store) ? 1 : n
 }

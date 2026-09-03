@@ -373,3 +373,195 @@ describe('neighboring post-processors retain their established behavior', () => 
     expect(store.getNode('validate').title).toBe('/validate criterion [✓]')
   })
 })
+
+describe('/refine :n=N /term — inline form where refine carries its own generating term', () => {
+  const inlineRefinementTree = (
+    refineCommand = '/refine :n=3 /chatgpt proposal',
+    validateCommands = ['/validate criterion'],
+  ) => {
+    const validateIds = validateCommands.map((_, index) => `validate-${index}`)
+    return buildStore({
+      root: {id: 'root', command: '/chat do task', children: ['refine']},
+      refine: {id: 'refine', parent: 'root', command: refineCommand, title: refineCommand, children: validateIds},
+      ...Object.fromEntries(
+        validateCommands.map((validateCommand, index) => [
+          validateIds[index],
+          validateNode(validateIds[index], 'refine', validateCommand),
+        ]),
+      ),
+    })
+  }
+
+  it('executes the inline term once before evaluating validates on the first passing attempt', async () => {
+    const store = inlineRefinementTree()
+    const generator = chatSpy()
+    const validator = jest
+      .spyOn(ValidateCommand.prototype, 'run')
+      .mockResolvedValue({passed: true, criterion: 'criterion', reason: ''})
+
+    await runCommand({queryType: 'chat', cell: store.getNode('root'), store})
+
+    expect(generator).toHaveBeenCalledTimes(2)
+    expect(validator).toHaveBeenCalledTimes(1)
+    expect(store.getNode('refine').title).toBe('/refine :n=3 /chatgpt proposal [✓ 1×]')
+  })
+
+  it('re-executes the inline term on retry, not the parent cell', async () => {
+    const store = inlineRefinementTree()
+    const generator = chatSpy()
+    jest
+      .spyOn(ValidateCommand.prototype, 'run')
+      .mockResolvedValueOnce({passed: false, criterion: 'criterion', reason: 'missing'})
+      .mockResolvedValueOnce({passed: true, criterion: 'criterion', reason: ''})
+
+    await runCommand({queryType: 'chat', cell: store.getNode('root'), store})
+
+    expect(generator).toHaveBeenCalledTimes(3)
+    expect(store.getNode('refine').title).toBe('/refine :n=3 /chatgpt proposal [✓ 2×]')
+  })
+
+  it('exhausts N attempts on the inline term and propagates CriteriaFailedError', async () => {
+    const store = inlineRefinementTree('/refine :n=2 /chatgpt proposal')
+    chatSpy()
+    jest
+      .spyOn(ValidateCommand.prototype, 'run')
+      .mockResolvedValue({passed: false, criterion: 'criterion', reason: 'missing'})
+
+    await expect(runCommand({queryType: 'chat', cell: store.getNode('root'), store})).rejects.toMatchObject({
+      attempts: 2,
+    })
+    expect(store.getNode('refine').reliabilityMetadata).toMatchObject({
+      mode: 'refine',
+      attempts: 2,
+      total: 2,
+      requestedN: 2,
+    })
+  })
+
+  it('rejects trailing text that is not a recognized command token', async () => {
+    const store = inlineRefinementTree('/refine :n=3 must cite sources')
+    chatSpy()
+
+    await runCommand({queryType: 'chat', cell: store.getNode('root'), store})
+
+    expect(store.getNode('refine').title.endsWith('[✗ !]')).toBe(true)
+    const errorNode = Object.values(store._nodes).find(
+      node => node.parent === 'refine' && node.executionStatus === 'error',
+    )
+    expect(errorNode?.title).toContain('unexpected text')
+  })
+
+  it('withholds retry and records suppressedCause when inline term is a side-effecting alias', async () => {
+    const mcpAlias = {alias: '/external', transport: 'stdio', toolName: 'mutate'}
+    const store = inlineRefinementTree('/refine :n=3 /external mutate')
+    store._aliases = {mcp: [mcpAlias], rpc: []}
+    chatSpy()
+
+    // CommandFactory.createRunner has no mcp:* case — stub it so executeCommandWithProgress
+    // can complete the inline term execution without UnknownQueryTypeError
+    const {CommandFactory} = require('../../reliability')
+    const termRunner = jest.fn().mockResolvedValue(undefined)
+    const origCreateRunner = CommandFactory.createRunner.bind(CommandFactory)
+    jest.spyOn(CommandFactory, 'createRunner').mockImplementation((queryType, ...args) => {
+      if (queryType === 'mcp:external') return termRunner
+      return origCreateRunner(queryType, ...args)
+    })
+
+    jest
+      .spyOn(ValidateCommand.prototype, 'run')
+      .mockResolvedValue({passed: false, criterion: 'criterion', reason: 'missing'})
+
+    await expect(runCommand({queryType: 'chat', cell: store.getNode('root'), store})).rejects.toBeInstanceOf(
+      CriteriaFailedError,
+    )
+
+    expect(termRunner).toHaveBeenCalledTimes(1)
+
+    expect(store.getNode('refine').reliabilityMetadata).toMatchObject({
+      mode: 'refine',
+      attempts: 1,
+      requestedN: 3,
+      suppressed: true,
+      cause: 'side-effecting-alias',
+    })
+  })
+})
+
+describe('/refine :n=N /term — top-level (root) inline refine', () => {
+  const rootRefinementTree = (
+    refineCommand = '/refine :n=3 /chatgpt proposal',
+    validateCommands = ['/validate criterion'],
+  ) => {
+    const validateIds = validateCommands.map((_, index) => `validate-${index}`)
+    return buildStore({
+      refine: {id: 'refine', parent: null, command: refineCommand, title: refineCommand, children: validateIds},
+      ...Object.fromEntries(
+        validateCommands.map((validateCommand, index) => [
+          validateIds[index],
+          validateNode(validateIds[index], 'refine', validateCommand),
+        ]),
+      ),
+    })
+  }
+
+  it('generates the inline term once and commits a passing refinement without any parent cell', async () => {
+    const store = rootRefinementTree()
+    const generator = chatSpy()
+    const validator = jest
+      .spyOn(ValidateCommand.prototype, 'run')
+      .mockResolvedValue({passed: true, criterion: 'criterion', reason: ''})
+
+    await runCommand({queryType: 'refine', cell: store.getNode('refine'), store})
+
+    expect(generator).toHaveBeenCalledTimes(1)
+    expect(validator).toHaveBeenCalledTimes(1)
+    expect(store.getNode('refine').title).toBe('/refine :n=3 /chatgpt proposal [✓ 1×]')
+    expect(store.getNode('refine').reliabilityMetadata).toMatchObject({mode: 'refine', attempts: 1})
+  })
+
+  it('re-runs the inline term with failure feedback and reports the real attempt count', async () => {
+    const store = rootRefinementTree()
+    const generator = chatSpy()
+    jest
+      .spyOn(ValidateCommand.prototype, 'run')
+      .mockResolvedValueOnce({passed: false, criterion: 'criterion', reason: 'missing'})
+      .mockResolvedValueOnce({passed: true, criterion: 'criterion', reason: ''})
+
+    await runCommand({queryType: 'refine', cell: store.getNode('refine'), store})
+
+    expect(generator).toHaveBeenCalledTimes(2)
+    expect(store.getNode('refine').title).toBe('/refine :n=3 /chatgpt proposal [✓ 2×]')
+  })
+
+  it('exhausts N attempts at the root and propagates CriteriaFailedError', async () => {
+    const store = rootRefinementTree('/refine :n=2 /chatgpt proposal')
+    chatSpy()
+    jest
+      .spyOn(ValidateCommand.prototype, 'run')
+      .mockResolvedValue({passed: false, criterion: 'criterion', reason: 'missing'})
+
+    await expect(runCommand({queryType: 'refine', cell: store.getNode('refine'), store})).rejects.toMatchObject({
+      attempts: 2,
+    })
+    expect(store.getNode('refine').reliabilityMetadata).toMatchObject({mode: 'refine', attempts: 2, requestedN: 2})
+  })
+
+  it('threads the failed criterion and prior failure reason into the retry generation, preserving the original context', async () => {
+    const store = rootRefinementTree('/refine :n=3 /chatgpt proposal', ['/validate cite peer-reviewed sources'])
+    const generator = chatSpy()
+    jest
+      .spyOn(ValidateCommand.prototype, 'run')
+      .mockResolvedValueOnce({passed: false, criterion: 'cite peer-reviewed sources', reason: 'no citations present'})
+      .mockResolvedValueOnce({passed: true, criterion: 'cite peer-reviewed sources', reason: ''})
+
+    await runCommand({queryType: 'refine', cell: store.getNode('refine'), store, context: 'ORIGINAL_CONTEXT'})
+
+    expect(generator).toHaveBeenCalledTimes(2)
+    const [firstContext, retryContext] = generator.mock.calls.map(call => call[1])
+    expect(firstContext).toBe('ORIGINAL_CONTEXT')
+    expect(retryContext).toContain('cite peer-reviewed sources')
+    expect(retryContext).toContain('no citations present')
+    expect(retryContext).toContain('ORIGINAL_CONTEXT')
+    expect(retryContext).not.toBe(firstContext)
+  })
+})

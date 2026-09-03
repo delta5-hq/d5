@@ -1,10 +1,11 @@
 import type { NodeData, NodeDatas, NodeId } from '@shared/base-types'
 import { VALIDATE_QUERY } from '@shared/lib/commands/command-constants'
-import { isValidElectCell, readElectN } from './elect-params'
+import { isValidElectCell, readElectN, readElectTrailingText } from './elect-params'
 import { readCommodityN } from './commodity-params'
 import { exceedsForkLimit, readForkLimit } from './fork-limit-parser'
 import { extractQueryTypeFromCommand, type DynamicAlias } from '../command-querytype-mapper'
 import { admitsSourceCandidate } from './source-candidate-admission'
+import { parseInlineTerm, buildSyntheticTermParent } from './inline-term-parser'
 
 export interface ElectCostPreview {
   cost: number
@@ -135,12 +136,50 @@ export const projectElectCostPreview = (
   return { cost, limitExceeded: exceedsForkLimit(cost, limit) }
 }
 
+const buildInlineEnrichedInputs = (
+  selectedNode: NodeData,
+  nodes: NodeDatas,
+  inlineTerm: string,
+): { enrichedElect: NodeData; enrichedNodes: NodeDatas } => {
+  const syntheticParent = buildSyntheticTermParent(selectedNode.id, inlineTerm, selectedNode.parent)
+  const ancestorId = selectedNode.parent
+  const ancestor = ancestorId ? nodes[ancestorId] : undefined
+  const enrichedAncestor = ancestor
+    ? {
+        ...ancestor,
+        children: ancestor.children
+          ? ancestor.children.map(id => (id === selectedNode.id ? syntheticParent.id : id))
+          : [syntheticParent.id],
+      }
+    : undefined
+  return {
+    enrichedElect: { ...selectedNode, parent: syntheticParent.id },
+    enrichedNodes: {
+      ...nodes,
+      [syntheticParent.id]: syntheticParent,
+      ...(ancestorId && enrichedAncestor ? { [ancestorId]: enrichedAncestor } : {}),
+    },
+  }
+}
+
 export const projectSelectedNodeElectCostPreview = (
   selectedNode: NodeData | undefined | null,
   nodes: NodeDatas,
   aliases?: DynamicAlias[],
 ): ElectCostPreview | null => {
-  const parentNode = selectedNode?.parent ? nodes[selectedNode.parent] : undefined
+  if (!selectedNode) return null
+
+  const trailingText = readElectTrailingText(selectedNode.command ?? '')
+  const inlineTerm = parseInlineTerm(trailingText, aliases)
+
+  if (inlineTerm) {
+    const { enrichedElect, enrichedNodes } = buildInlineEnrichedInputs(selectedNode, nodes, inlineTerm)
+    const parentNode = enrichedElect.parent ? enrichedNodes[enrichedElect.parent] : undefined
+    const parentQueryType = extractQueryTypeFromCommand(parentNode?.command, aliases)
+    return projectElectCostPreview(enrichedElect, enrichedNodes, parentQueryType)
+  }
+
+  const parentNode = selectedNode.parent ? nodes[selectedNode.parent] : undefined
   const parentQueryType = extractQueryTypeFromCommand(parentNode?.command, aliases)
   return projectElectCostPreview(selectedNode, nodes, parentQueryType)
 }

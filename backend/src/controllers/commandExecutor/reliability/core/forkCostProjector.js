@@ -44,10 +44,7 @@ const countImmediateScope = (node, store, excludeId) => {
   return count
 }
 
-const directlyOwnedNestedElects = (electNode, store) => {
-  const parentNode = store.getNode(electNode.parent)
-  if (!parentNode) return []
-
+const directlyOwnedNestedElects = (parentNode, electNode, store) => {
   const allNested = collectAllNestedElects(parentNode, store, electNode.id)
 
   return allNested.filter(candidate => {
@@ -78,11 +75,14 @@ const countElectChildrenScope = (electNode, store) => {
   return cost
 }
 
-export const projectForkCost = (electNode, store, admitSourceCandidate = false) => {
+// termParent is the synthetic parent of an inline /elect :n=N <term>; when present the term,
+// not the enclosing ancestor, drives the per-fork scope. Postfix elects pass null and price
+// against their real parent in the store.
+export const projectForkCost = (electNode, store, admitSourceCandidate = false, termParent = null) => {
   const n = readElectN(getNodeCommand(electNode))
   if (!n) return 0
 
-  const parent = store.getNode(electNode.parent)
+  const parent = termParent ?? store.getNode(electNode.parent)
   if (!parent) return 0
 
   const immediateScope = countImmediateScope(parent, store, electNode.id)
@@ -91,14 +91,13 @@ export const projectForkCost = (electNode, store, admitSourceCandidate = false) 
   // not the primary cost driver once inner commands are present).
   const electChildScope = countElectChildrenScope(electNode, store)
   const perForkScope = electChildScope > 0 ? electChildScope : immediateScope
-  const ownedNested = directlyOwnedNestedElects(electNode, store)
+  const ownedNested = directlyOwnedNestedElects(parent, electNode, store)
   const nestedCost = ownedNested.reduce((sum, nr) => sum + projectForkCost(nr, store), 0)
   const sourceCandidateSaving =
     electChildScope === 0 &&
     admitsSourceCandidate({
       admitSourceCandidate,
       n,
-      electNode,
       parentNode: parent,
       store,
     })

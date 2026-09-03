@@ -3,6 +3,7 @@ import {runForks, computeEffectiveN} from './SubtreeForkRunner'
 import {ForkJudge} from './ForkJudge'
 import OwnershipResolver from './OwnershipResolver'
 import {readElectN, readRawElectN, readFallbackFlag, readJudgeReasoningFlag, readElectTrailingText} from './electParams'
+import {parseInlineTerm, buildSyntheticTermParent} from './inlineTermParser'
 import {projectForkCost} from './forkCostProjector'
 import {readForkLimit, exceedsForkLimit, forkLimitRefusalMessage} from './forkLimitParser'
 import {appendElectSuffix, appendInvalidSuffix, stripReliabilitySuffix} from './reliabilitySuffix'
@@ -36,6 +37,13 @@ function gateFilteredErrorMessage(effectiveN, forkResults) {
   const reasons = gateRejected.map(f => `fork ${f.forkIndex}: ${f.reason || FAILURE_CAUSE.STRUCTURAL_GATE}`).join('; ')
   const judgedCount = gateRejected.length
   return `/elect :n=${effectiveN} — all ${judgedCount} candidate(s) were structurally rejected: ${reasons}`
+}
+
+// The fork copied the elect node with its fork-local parent (the synthetic term); restore the
+// real ancestor so the outer tree stays consistent and the cell is never seen as orphaned.
+function reattachWinnerToAncestor(store, electId, ancestorId) {
+  const winner = store.getNode(electId)
+  if (winner) winner.parent = ancestorId
 }
 
 function flushValidateTitles(validates, sourceForkStore, outerStore) {
@@ -84,8 +92,9 @@ export async function resolveElectCell(
   const query = getNodeCommand(electNode)
   const n = readElectN(query)
   const trailingText = readElectTrailingText(query)
+  const inlineTerm = parseInlineTerm(trailingText, store._aliases)
 
-  if (trailingText) {
+  if (trailingText && !inlineTerm) {
     writeErrorNode(
       electNode,
       store,
@@ -99,7 +108,12 @@ export async function resolveElectCell(
     return
   }
 
-  const cost = projectForkCost(electNode, store, admitSourceCandidate)
+  const originalParentId = electNode.parent
+  const admitScopeSourceCandidate = inlineTerm ? false : admitSourceCandidate
+  const termParent = inlineTerm ? buildSyntheticTermParent(electNode.id, inlineTerm, originalParentId) : null
+  const contentSourceId = termParent ? termParent.id : originalParentId
+
+  const cost = projectForkCost(electNode, store, admitScopeSourceCandidate, termParent)
   const limit = readForkLimit(query)
   if (exceedsForkLimit(cost, limit)) {
     writeErrorNode(electNode, store, forkLimitRefusalMessage(cost, limit))
@@ -110,13 +124,13 @@ export async function resolveElectCell(
   const judgeReasoningRequested = readJudgeReasoningFlag(query)
   memoMap.set(electNode.id, 'in-progress')
 
-  const effectiveN = computeEffectiveN(electNode, store, n)
+  const effectiveN = computeEffectiveN(electNode, store, n, termParent)
   emitter.forksStarted(electNode.id, effectiveN)
 
   const ownerMap = OwnershipResolver(electNode, store)
   const ownedValidates = ownerMap.get(electNode.id) ?? []
 
-  const electParentNode = store.getNode(electNode.parent)
+  const electParentNode = store.getNode(originalParentId)
   const siblingValidates = (electParentNode?.children ?? [])
     .filter(id => id !== electNode.id)
     .map(id => store.getNode(id))
@@ -130,7 +144,8 @@ export async function resolveElectCell(
     memoMap,
     signal,
     onForkSettled: result => emitter.forkSettled(electNode.id, result),
-    admitSourceCandidate,
+    admitSourceCandidate: admitScopeSourceCandidate,
+    termParent,
   })
 
   const okCount = forkResults.filter(f => f.status === 'ok').length
@@ -142,10 +157,11 @@ export async function resolveElectCell(
     if (singleFork?.status === 'ok') {
       if (singleFork.forkStore) {
         StoreFork.applyCandidate(store, singleFork.forkStore, electNode.id)
+        reattachWinnerToAncestor(store, electNode.id, originalParentId)
         copyParentPromptOutputToElect({
           sourceStore: singleFork.forkStore,
           targetStore: store,
-          parentNodeId: electNode.parent,
+          parentNodeId: contentSourceId,
           electNodeId: electNode.id,
         })
         flushValidateTitles(allValidates, singleFork.forkStore, store)
@@ -200,7 +216,7 @@ export async function resolveElectCell(
   const verdict = await judge.selectWinner({
     forks: forkResults,
     validateNodes: allValidates,
-    parentNodeId: electNode.parent,
+    parentNodeId: contentSourceId,
     fallback,
     signal,
     judgeReasoningRequested,
@@ -254,10 +270,11 @@ export async function resolveElectCell(
     return
   }
   StoreFork.applyCandidate(store, winnerFork.forkStore, electNode.id)
+  reattachWinnerToAncestor(store, electNode.id, originalParentId)
   copyParentPromptOutputToElect({
     sourceStore: winnerFork.forkStore,
     targetStore: store,
-    parentNodeId: electNode.parent,
+    parentNodeId: contentSourceId,
     electNodeId: electNode.id,
   })
 

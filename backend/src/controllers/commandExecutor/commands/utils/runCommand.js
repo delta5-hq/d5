@@ -10,16 +10,18 @@ import {MEMORIZE_QUERY, MEMORIZE_QUERY_TYPE} from '../../constants/memorize'
 import {OUTLINE_QUERY, OUTLINE_QUERY_TYPE, readSummarizeParam} from '../../constants/outline'
 import {PERPLEXITY_QUERY_TYPE} from '../../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../../constants/qwen'
-import {ELECT_QUERY} from '../../constants/elect'
-import {REFINE_QUERY} from '../../constants/refine'
+import {ELECT_QUERY, ELECT_QUERY_TYPE} from '../../constants/elect'
+import {REFINE_QUERY, REFINE_QUERY_TYPE} from '../../constants/refine'
 import {STEPS_QUERY_TYPE} from '../../constants/steps'
 import {SUMMARIZE_QUERY, SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
 import {VALIDATE_QUERY} from '../../constants/validate'
-import {ValidateCommand} from '../../reliability/core/ValidateCommand'
-import {hasValidateRetry, hasValidCriterion} from '../../reliability/core/validateParams'
-import {readRawRefineN, readRefineN, readRefineTrailingText} from '../../reliability/core/refineParams'
+import {readRefineTrailingText} from '../../reliability/core/refineParams'
 import {CriteriaFailedError} from '../../reliability/core/CriteriaFailedError'
 import {resolveElectCell} from '../../reliability/core/resolveElectCell'
+import {resolveRefineCell, REFINE_OUTCOME} from '../../reliability/core/resolveRefineCell'
+import {evaluateValidateGroup, firstFailedValidate} from '../../reliability/core/validateGroup'
+import {parseInlineTerm} from '../../reliability/core/inlineTermParser'
+import {readElectTrailingText} from '../../reliability/core/electParams'
 import {createForkProgressEmitter} from '../../reliability/core/ForkProgressEmitter'
 import ElectTopology from '../../reliability/core/ElectTopology'
 import {SWITCH_QUERY_TYPE} from '../../constants/switch'
@@ -33,19 +35,12 @@ import ProgressReporter from '../../ProgressReporter'
 import {
   CommandFactory,
   buildInvalidReliabilityMetadata,
-  buildRefineReliabilityMetadata,
-  buildValidateReliabilityMetadata,
   buildSuppressedReliabilityMetadata,
   COMMODITY_SUPPRESSION_CAUSE,
   FAILURE_CAUSE,
   REMEDIATION_HINT,
 } from '../../reliability'
-import {
-  stripReliabilitySuffix,
-  appendRefineSuffix,
-  appendValidateSuffix,
-  appendInvalidSuffix,
-} from '../../reliability/core/reliabilitySuffix'
+import {stripReliabilitySuffix, appendInvalidSuffix} from '../../reliability/core/reliabilitySuffix'
 import {getNodeCommand, isElect, isRefine, isValidate, isOutlineSummarize} from './isCommand'
 import {mergeCommodityForkOutputs} from '../../reliability/core/commodityForkMerge'
 import {resolveCommand} from './queryTypeResolver'
@@ -65,10 +60,6 @@ import {RPCCommand} from '../RPCCommand'
 import {createUnknownCommandNode} from './unknownCommandNode'
 import StoreFork from '../../reliability/core/StoreFork'
 import {readCommodityN, stripCommodityN, stripCommodityToken} from '../../reliability/core/commodityParams'
-import {
-  captureStoreExecutionSnapshot,
-  restoreStoreExecutionSnapshot,
-} from '../../reliability/core/StoreExecutionSnapshot'
 import {throwIfAborted, signalOptions, isAbortError} from './executionSignal'
 
 // eslint-disable-next-line no-unused-vars
@@ -118,73 +109,52 @@ function buildExecutionOptions(signal) {
   return signalOptions(signal) ?? {}
 }
 
-function buildRefineAttemptContext(originalContext, criterion, reason) {
-  const injected = reason
-    ? `[Refinement attempt] Ensure your response satisfies: "${criterion}". Previous attempt failed because: ${reason}. `
-    : `[Refinement attempt] Ensure your response satisfies: "${criterion}". `
-  return injected + (originalContext || '')
+/** @private */
+function buildRefineTermExecutor(store, progress, signal) {
+  return (queryType, context, prompt, cell) =>
+    executeCommandWithProgress(queryType, context, prompt, cell, store, progress, buildExecutionOptions(signal))
 }
 
-function countPassingValidates(results) {
-  return results.filter(result => result?.passed).length
-}
-
-function firstFailedValidate(results) {
-  return results.find(result => !result?.passed)
-}
-
-function buildRefineAttempt(attempts, results, store, rootId) {
-  return {
-    attempts,
-    results,
-    passedCount: countPassingValidates(results),
-    snapshot: captureStoreExecutionSnapshot(store, rootId),
+/** @private */
+function buildRefinePostProcessor(postProcessNode, store, signal) {
+  return async (rootId, excludedIds) => {
+    await postProcessNode(store.getNode(rootId), excludedIds)
+    throwIfAborted(signal)
   }
 }
 
-function isBetterRefineAttempt(candidate, best) {
-  if (!best) return true
-  return candidate.passedCount > best.passedCount
-}
-
-function writeInvalidModifier(node, store, message, failureCause = FAILURE_CAUSE.INVALID_CRITERIA) {
-  const current = store.getNode(node.id) ?? node
-  current.title = appendInvalidSuffix(current.title || '')
-  current.reliabilityMetadata = buildInvalidReliabilityMetadata({
-    failureCause,
-    remediationHint: REMEDIATION_HINT.ADJUST_CRITERIA,
+/**
+ * Resolves a top-level inline `/refine :n=N <term>` and, once the best attempt is
+ * committed, runs the cell's post-processing children (`/summarize`, `/memorize`,
+ * `/outline`, `/foreach`, nested `/elect`) against the refined output — the same
+ * subtree handling a top-level `/elect` gives its scope. The refine engine's own
+ * per-attempt post-processing stays a no-op because post-processing runs once, on
+ * the resolved output, mirroring the bottom-of-dispatch pass. `/validate` children
+ * are excluded: {@link resolveRefineCell} already evaluated and applied them.
+ *
+ * @private
+ */
+async function resolveRootRefineCell({cell, store, context, queryType, prompt, progress, signal, memoMap}) {
+  const outcome = await resolveRefineCell(cell, store, {
+    context,
+    signal,
+    executeTerm: buildRefineTermExecutor(store, progress, signal),
+    postProcessTerm: buildRefinePostProcessor(async () => {}, store, signal),
   })
-  store.importer.createErrorNode(message, current.id)
-  store.saveNodeToOutput(current.id)
-}
+  if (outcome !== REFINE_OUTCOME.RESOLVED) return
 
-async function evaluateValidateGroup(validates, store, signal) {
-  const invalid = validates.filter(
-    node => !hasValidCriterion(getNodeCommand(node)) || hasValidateRetry(getNodeCommand(node)),
-  )
-  if (invalid.length > 0) {
-    invalid.forEach(node => {
-      const command = getNodeCommand(node)
-      const message = hasValidateRetry(command)
-        ? 'Error: /validate :retry is unsupported — wrap the generating command with /refine :n=N'
-        : 'Error: /validate requires criterion text'
-      writeInvalidModifier(node, store, message)
-    })
-    throw new CriteriaFailedError('', 1)
-  }
-
-  const validateCommand = new ValidateCommand(store._userId, store._workflowId, store)
-  const results = await Promise.all(validates.map(node => validateCommand.run(node, {signal})))
-  validates.forEach((node, index) => {
-    const current = store.getNode(node.id) ?? node
-    const passed = results[index]?.passed ?? false
-    current.title = appendValidateSuffix(current.title || '', {
-      passed,
-    })
-    current.reliabilityMetadata = buildValidateReliabilityMetadata({passed})
-    store.saveNodeToOutput(current.id)
+  await postProcessExistingOutput({
+    node: store.getNode(cell.id),
+    ids: validateChildIds(cell, store),
+    store,
+    progress,
+    signal,
+    memoMap: memoMap ?? new Map(),
+    cell,
+    queryType,
+    context,
+    prompt,
   })
-  return results
 }
 
 /**
@@ -257,9 +227,13 @@ async function runCommodityForks({
  * }} params
  * @param {ProgressReporter} progress
  */
+function validateChildIds(cell, store) {
+  return (store.getNode(cell.id)?.children ?? []).filter(id => isValidate(store.getNode(id)))
+}
+
 export function foreachValidateTemplateExclusions(queryType, cell, store) {
   if (queryType !== FOREACH_QUERY_TYPE) return []
-  return (store.getNode(cell.id)?.children ?? []).filter(id => isValidate(store.getNode(id)))
+  return validateChildIds(cell, store)
 }
 
 function writeModifierRootError(cell, store, queryType) {
@@ -416,96 +390,25 @@ export async function postProcessExistingOutput({
             await postProcessNode(childNode, processedIds)
           }
         } else if (isRefine(childNode)) {
-          const query = getNodeCommand(childNode)
-          const maxAttempts = readRefineN(query)
-          const trailingText = readRefineTrailingText(query)
-          const refineValidates = (childNode.children ?? []).map(id => store.getNode(id)).filter(isValidate)
-
-          refineValidates.forEach(validateNode => processedIds.push(validateNode.id))
-
-          if (!maxAttempts || trailingText) {
-            const rawN = readRawRefineN(query)
-            writeInvalidModifier(
-              childNode,
-              store,
-              trailingText
-                ? `Error: /refine accepts only :n=N; unexpected text: "${trailingText}"`
-                : rawN === 0
-                ? 'Error: /refine :n=0 is a no-op — minimum is :n=1'
-                : 'Error: /refine requires :n=N (e.g. /refine :n=3)',
-            )
-            postProcessProgress.dispose()
-            continue
-          }
-
-          if (refineValidates.length === 0) {
-            writeInvalidModifier(childNode, store, 'Error: /refine requires at least one direct /validate child')
-            postProcessProgress.dispose()
-            continue
-          }
+          ;(childNode.children ?? [])
+            .map(id => store.getNode(id))
+            .filter(isValidate)
+            .forEach(validateNode => processedIds.push(validateNode.id))
 
           postProcessTracker = await postProcessProgress.add('RefineCommand.run')
-          let attempts = 1
-          let results = await evaluateValidateGroup(refineValidates, store, signal)
-          let bestAttempt = buildRefineAttempt(attempts, results, store, cell.id)
-          const attemptSnapshots = [bestAttempt.snapshot]
-          let firstFail = firstFailedValidate(results)
-          const retryWithheld = Boolean(firstFail && sideEffectingDispatch && maxAttempts > 1)
-
-          while (firstFail && attempts < maxAttempts && !sideEffectingDispatch) {
-            const retryContext = buildRefineAttemptContext(context, firstFail.criterion, firstFail.reason)
-            await executeCommandWithProgress(
-              queryType,
-              retryContext,
-              prompt,
-              cell,
-              store,
-              progress,
-              buildExecutionOptions(signal),
-            )
-            await postProcessNode(store.getNode(cell.id), [childNode.id, ...refineValidates.map(v => v.id)])
-            throwIfAborted(signal)
-            attempts++
-            results = await evaluateValidateGroup(refineValidates, store, signal)
-            const currentAttempt = buildRefineAttempt(attempts, results, store, cell.id)
-            attemptSnapshots.push(currentAttempt.snapshot)
-            if (isBetterRefineAttempt(currentAttempt, bestAttempt)) bestAttempt = currentAttempt
-            firstFail = firstFailedValidate(results)
-            if (!firstFail) bestAttempt = currentAttempt
-          }
-
-          restoreStoreExecutionSnapshot(store, bestAttempt.snapshot, {attemptSnapshots})
-          results = bestAttempt.results
-          const passed = !firstFailedValidate(results)
-          refineValidates.forEach((validateNode, index) => {
-            const current = store.getNode(validateNode.id) ?? validateNode
-            const validatePassed = results[index]?.passed ?? false
-            current.title = appendValidateSuffix(current.title || '', {
-              passed: validatePassed,
-            })
-            current.reliabilityMetadata = buildValidateReliabilityMetadata({passed: validatePassed})
-            store.saveNodeToOutput(current.id)
+          const outcome = await resolveRefineCell(childNode, store, {
+            context,
+            parentCell: cell,
+            parentQueryType: queryType,
+            parentPrompt: prompt,
+            parentSideEffecting: sideEffectingDispatch,
+            signal,
+            executeTerm: buildRefineTermExecutor(store, progress, signal),
+            postProcessTerm: buildRefinePostProcessor(postProcessNode, store, signal),
           })
-          const currentRefine = store.getNode(childNode.id) ?? childNode
-          currentRefine.title = appendRefineSuffix(currentRefine.title || '', {
-            passed,
-            attempts,
-          })
-          currentRefine.reliabilityMetadata = buildRefineReliabilityMetadata({
-            passed,
-            attempts,
-            requestedN: maxAttempts,
-            ...(retryWithheld
-              ? {
-                  suppressedCause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS,
-                }
-              : {}),
-          })
-          store.saveNodeToOutput(currentRefine.id)
-
-          if (!passed) {
-            const failed = firstFailedValidate(results)
-            throw new CriteriaFailedError(failed?.criterion ?? '', attempts)
+          if (outcome === REFINE_OUTCOME.INVALID) {
+            postProcessProgress.dispose()
+            continue
           }
         } else if (isValidate(childNode)) {
           const remainingValidates = sortedNodes.filter(n => isValidate(n) && !processedIds.includes(n.id))
@@ -553,6 +456,21 @@ export const runCommand = async (
   progress,
 ) => {
   if (modifierQueryTypes.includes(queryType)) {
+    if (queryType === ELECT_QUERY_TYPE) {
+      const inlineTerm = parseInlineTerm(readElectTrailingText(getNodeCommand(cell)), store._aliases)
+      if (inlineTerm) {
+        await resolveElectCell(cell, store, memoMap ?? new Map(), signal, createForkProgressEmitter(progress))
+        return
+      }
+    }
+    if (queryType === REFINE_QUERY_TYPE) {
+      const inlineTerm = parseInlineTerm(readRefineTrailingText(getNodeCommand(cell)), store._aliases)
+      if (inlineTerm) {
+        await resolveRootRefineCell({cell, store, context, queryType, prompt, progress, signal, memoMap})
+        return
+      }
+    }
+    // A bare modifier at root (no inline term to wrap) has no scope to evaluate and is refused.
     writeModifierRootError(cell, store, queryType)
     return
   }

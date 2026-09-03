@@ -1,4 +1,5 @@
 import {runForks, computeEffectiveN} from './SubtreeForkRunner'
+import {buildSyntheticTermParent} from './inlineTermParser'
 import {ForkJudge} from './ForkJudge'
 import {CriteriaFailedError} from './CriteriaFailedError'
 import Store from '../../commands/utils/Store'
@@ -252,6 +253,40 @@ describe('runForks', () => {
       expect(mockRunCommand).not.toHaveBeenCalled()
       expect(mockPostProcessExistingOutput).toHaveBeenCalledWith(expect.objectContaining({queryType: 'mcp-fusion'}))
       expect(results[0]).toMatchObject({suppressed: true, requestedN: 3})
+    })
+
+    it('postfix side-effecting parent never re-dispatches, even with no prior output', async () => {
+      // P0.3: suppression must never fire the side-effecting command a second time. The postfix
+      // form reuses the parent's existing output via postProcessExistingOutput; only the inline
+      // form (a synthetic term parent, carried explicitly) may run a fresh generation.
+      const store = buildStore({
+        root: {id: 'root', children: ['parent']},
+        parent: {
+          id: 'parent',
+          parent: 'root',
+          command: '/tool mutate',
+          children: ['elect'],
+        },
+        elect: {
+          id: 'elect',
+          parent: 'parent',
+          command: '/elect :n=3',
+          children: [],
+        },
+      })
+      store._aliases = {mcp: [{alias: '/tool'}], rpc: []}
+
+      const results = await runForks({
+        electNode: store.getNode('elect'),
+        store,
+        n: 3,
+        memoMap: new Map(),
+      })
+
+      expect(mockRunCommand).not.toHaveBeenCalled()
+      expect(mockPostProcessExistingOutput).toHaveBeenCalled()
+      expect(results).toHaveLength(1)
+      expect(results[0]).toMatchObject({status: 'ok', suppressed: true, cause: 'side-effecting-alias', requestedN: 3})
     })
 
     it('does not mark side-effect suppression when an external parent already executes once', async () => {
@@ -1748,6 +1783,32 @@ describe('computeEffectiveN', () => {
     const store = buildStoreWithParent('/mcp some-op')
     expect(computeEffectiveN(store.getNode('elect'), store, 3)).toBe(1)
   })
+
+  describe('computeEffectiveN — inline form: suppression comes from the synthetic term parent', () => {
+    const withSyntheticParent = (termCommand, aliases = {mcp: [], rpc: []}) => {
+      const store = buildStore({
+        'elect:term': {id: 'elect:term', command: termCommand, parent: null, children: ['elect'], prompts: []},
+        elect: {id: 'elect', parent: 'elect:term', command: `/elect :n=3 ${termCommand}`, children: []},
+      })
+      store._aliases = aliases
+      return store
+    }
+
+    it('returns n for a non-side-effecting inline term (chat) via synthetic parent', () => {
+      const store = withSyntheticParent('/chat propose')
+      expect(computeEffectiveN(store.getNode('elect'), store, 3)).toBe(3)
+    })
+
+    it('returns 1 for a side-effecting MCP-alias inline term when n > 1 — synthetic parent carries the side-effecting command', () => {
+      const store = withSyntheticParent('/tool mutate', {mcp: [{alias: '/tool'}], rpc: []})
+      expect(computeEffectiveN(store.getNode('elect'), store, 3)).toBe(1)
+    })
+
+    it('returns n when n = 2 and inline term is non-side-effecting', () => {
+      const store = withSyntheticParent('/chat propose')
+      expect(computeEffectiveN(store.getNode('elect'), store, 2)).toBe(2)
+    })
+  })
 })
 
 describe('runForks — suppressed metadata propagates to failure shapes', () => {
@@ -1759,7 +1820,9 @@ describe('runForks — suppressed metadata propagates to failure shapes', () => 
         parent: 'root',
         command: '/tool run',
         children: ['elect'],
+        prompts: ['prompt1'],
       },
+      prompt1: {id: 'prompt1', parent: 'parent'},
       elect: {
         id: 'elect',
         parent: 'parent',
@@ -2301,5 +2364,404 @@ describe('runForks — pre-exec shared-child result and per-fork dispatch', () =
 
     const childCalls = mockRunCommand.mock.calls.filter(([params]) => params.cell?.id === 'child')
     expect(childCalls).toHaveLength(3)
+  })
+})
+
+describe('runForks — inline form: synthetic term parent pre-mounted by resolveElectCell', () => {
+  // resolveElectCell mounts the synthetic parent and re-parents the elect node before calling runForks.
+  // These tests replicate that pre-mount so runForks sees the same store state it receives in production.
+  const withSyntheticParent = (termCommand = '/chatgpt proposal', aliases = {mcp: [], rpc: []}) => {
+    const store = buildStore({
+      'elect:term': {id: 'elect:term', command: termCommand, parent: null, children: ['elect'], prompts: []},
+      elect: {id: 'elect', parent: 'elect:term', command: `/elect :n=3 ${termCommand}`, children: []},
+    })
+    store._aliases = aliases
+    return store
+  }
+
+  it('resolves successfully when parent is the pre-mounted synthetic term parent', async () => {
+    const store = withSyntheticParent()
+    await expect(runForks({electNode: store.getNode('elect'), store, n: 2, memoMap: new Map()})).resolves.not.toThrow()
+  })
+
+  it('dispatches exactly N runCommand calls for n=3', async () => {
+    const store = withSyntheticParent()
+    await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
+    expect(mockRunCommand).toHaveBeenCalledTimes(3)
+  })
+
+  it('each fork receives the inline term queryType, not the elect queryType', async () => {
+    const store = withSyntheticParent()
+    await runForks({electNode: store.getNode('elect'), store, n: 2, memoMap: new Map()})
+    for (const [params] of mockRunCommand.mock.calls) {
+      expect(params.queryType).toBe('chat')
+    }
+  })
+
+  it('each fork cell is the synthetic term-parent (id = electId + ":term", command = inline term)', async () => {
+    const store = withSyntheticParent()
+    const cellsSeen = []
+    mockRunCommand.mockImplementation(async ({cell}) => {
+      cellsSeen.push({id: cell.id, command: cell.command})
+    })
+
+    await runForks({electNode: store.getNode('elect'), store, n: 2, memoMap: new Map()})
+
+    expect(cellsSeen).toHaveLength(2)
+    for (const cell of cellsSeen) {
+      expect(cell.id).toBe('elect:term')
+      expect(cell.command).toBe('/chatgpt proposal')
+    }
+  })
+
+  it('elect node command in the outer store is not mutated by fork execution', async () => {
+    const store = withSyntheticParent()
+    await runForks({electNode: store.getNode('elect'), store, n: 2, memoMap: new Map()})
+    expect(store.getNode('elect').command).toBe('/elect :n=3 /chatgpt proposal')
+  })
+
+  it('collapses a side-effecting inline term to one fresh execution with suppression evidence', async () => {
+    // Inline side-effecting term has no prior output, so it runs exactly once (fresh) rather than
+    // reusing a non-existent parent output. The outer store carries only the elect under a real root.
+    const store = buildStore({
+      root: {id: 'root', children: ['elect']},
+      elect: {id: 'elect', parent: 'root', command: '/elect :n=3 /coder1 fix it', children: []},
+    })
+    store._aliases = {mcp: [{alias: '/coder1'}], rpc: []}
+    const termParent = buildSyntheticTermParent('elect', '/coder1 fix it', 'root')
+
+    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map(), termParent})
+
+    expect(mockRunCommand).toHaveBeenCalledTimes(1)
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatchObject({
+      status: 'ok',
+      suppressed: true,
+      cause: 'side-effecting-alias',
+      requestedN: 3,
+    })
+  })
+
+  it('returns N results, one per fork, each with status ok on success', async () => {
+    const store = withSyntheticParent()
+    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
+
+    expect(results).toHaveLength(3)
+    for (const r of results) {
+      expect(r.status).toBe('ok')
+      expect(typeof r.forkIndex).toBe('number')
+    }
+  })
+
+  it('marks electNode.id as in-progress in memoMap before any fork executes', async () => {
+    const store = withSyntheticParent()
+    const memoMap = new Map()
+    const states = []
+
+    mockRunCommand.mockImplementation(async () => {
+      states.push(memoMap.get('elect'))
+    })
+
+    await runForks({electNode: store.getNode('elect'), store, n: 2, memoMap})
+
+    expect(states).toEqual(['in-progress', 'in-progress'])
+  })
+
+  it('synthetic term-parent has parent: null and survives removeOrphanedNodes in each fork', async () => {
+    const store = withSyntheticParent()
+    const observations = []
+    mockRunCommand.mockImplementation(async ({store: forkStore}) => {
+      const termParent = forkStore._nodes['elect:term']
+      observations.push({
+        termParentHasNullParent: termParent?.parent === null,
+        termParentSurvivesCleanup: (forkStore.removeOrphanedNodes(), 'elect:term' in forkStore._nodes),
+      })
+    })
+
+    await runForks({electNode: store.getNode('elect'), store, n: 2, memoMap: new Map()})
+
+    expect(observations).toHaveLength(2)
+    for (const o of observations) {
+      expect(o.termParentHasNullParent).toBe(true)
+      expect(o.termParentSurvivesCleanup).toBe(true)
+    }
+  })
+
+  it('each fork store contains the synthetic term parent', async () => {
+    const store = withSyntheticParent()
+    const forkNodeKeys = []
+    mockRunCommand.mockImplementation(async ({store: forkStore}) => {
+      forkNodeKeys.push(Object.keys(forkStore._nodes))
+    })
+
+    await runForks({electNode: store.getNode('elect'), store, n: 2, memoMap: new Map()})
+
+    expect(forkNodeKeys).toHaveLength(2)
+    for (const keys of forkNodeKeys) {
+      expect(keys).toContain('elect:term')
+    }
+  })
+
+  it('elect parent\u2194children invariant holds in each fork so elect survives orphan cleanup', async () => {
+    const store = withSyntheticParent()
+    const observations = []
+    mockRunCommand.mockImplementation(async ({store: forkStore}) => {
+      const electInFork = forkStore._nodes.elect
+      const termInFork = forkStore._nodes['elect:term']
+      const parentBeforeCleanup = electInFork?.parent
+      const termChildrenBeforeCleanup = termInFork?.children?.includes('elect')
+      forkStore.removeOrphanedNodes()
+      observations.push({
+        electParent: parentBeforeCleanup,
+        termListsElect: termChildrenBeforeCleanup,
+        electSurvivesCleanup: 'elect' in forkStore._nodes,
+      })
+    })
+
+    await runForks({electNode: store.getNode('elect'), store, n: 2, memoMap: new Map()})
+
+    expect(observations).toHaveLength(2)
+    for (const obs of observations) {
+      expect(obs.electParent).toBe('elect:term')
+      expect(obs.termListsElect).toBe(true)
+      expect(obs.electSurvivesCleanup).toBe(true)
+    }
+  })
+
+  describe('fork-local memoMap isolation — inline term path', () => {
+    it('each fork receives a distinct memoMap instance (not the shared outer map)', async () => {
+      const store = withSyntheticParent()
+      const memoMap = new Map()
+      const receivedMemoMaps = []
+
+      mockRunCommand.mockImplementation(async ({memoMap: m}) => {
+        receivedMemoMaps.push(m)
+      })
+
+      await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap})
+
+      expect(receivedMemoMaps).toHaveLength(3)
+      receivedMemoMaps.forEach(m => expect(m).not.toBe(memoMap))
+      expect(receivedMemoMaps[0]).not.toBe(receivedMemoMaps[1])
+      expect(receivedMemoMaps[0]).not.toBe(receivedMemoMaps[2])
+    })
+
+    it('mutations to one fork memoMap do not propagate to another fork or to the outer memoMap', async () => {
+      const store = withSyntheticParent()
+      const memoMap = new Map()
+      let callCount = 0
+
+      mockRunCommand.mockImplementation(async ({memoMap: m}) => {
+        callCount++
+        m.set(`fork-${callCount}-key`, 'fork-local-value')
+      })
+
+      await runForks({electNode: store.getNode('elect'), store, n: 2, memoMap})
+
+      expect(memoMap.has('fork-1-key')).toBe(false)
+      expect(memoMap.has('fork-2-key')).toBe(false)
+    })
+  })
+})
+
+describe('onForkSettled callback — inline term path', () => {
+  const withSyntheticParent = () => {
+    const store = buildStore({
+      'elect:term': {id: 'elect:term', command: '/chatgpt proposal', parent: null, children: ['elect'], prompts: []},
+      elect: {id: 'elect', parent: 'elect:term', command: '/elect :n=3 /chatgpt proposal', children: []},
+    })
+    store._aliases = {mcp: [], rpc: []}
+    return store
+  }
+
+  it('calls onForkSettled N times for each fork in the inline term path', async () => {
+    const store = withSyntheticParent()
+    const settled = []
+
+    await runForks({
+      electNode: store.getNode('elect'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+      onForkSettled: result => settled.push(result),
+    })
+
+    expect(settled).toHaveLength(3)
+  })
+
+  it('receives the correct forkIndex for each call in the inline term path', async () => {
+    const store = withSyntheticParent()
+    const indices = []
+
+    await runForks({
+      electNode: store.getNode('elect'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+      onForkSettled: result => indices.push(result.forkIndex),
+    })
+
+    expect(indices.sort()).toEqual([0, 1, 2])
+  })
+
+  it('receives status ok for successful inline forks', async () => {
+    const store = withSyntheticParent()
+    const statuses = []
+
+    await runForks({
+      electNode: store.getNode('elect'),
+      store,
+      n: 2,
+      memoMap: new Map(),
+      onForkSettled: result => statuses.push(result.status),
+    })
+
+    expect(statuses).toEqual(['ok', 'ok'])
+  })
+})
+
+describe('runForks — equivalence: inline form and postfix form run the same command N times', () => {
+  it('same call count, same queryType, same fork count for n=3', async () => {
+    const postfixStore = buildStore({
+      parent: {id: 'parent', command: '/chatgpt proposal', children: ['elect']},
+      elect: {id: 'elect', parent: 'parent', command: '/elect :n=3', children: []},
+    })
+    postfixStore._aliases = {mcp: [], rpc: []}
+
+    await runForks({electNode: postfixStore.getNode('elect'), store: postfixStore, n: 3, memoMap: new Map()})
+
+    const postfixCallCount = mockRunCommand.mock.calls.length
+    const postfixQueryTypes = mockRunCommand.mock.calls.map(([p]) => p.queryType)
+    mockRunCommand.mockClear()
+
+    const inlineStore = buildStore({
+      'elect:term': {id: 'elect:term', command: '/chatgpt proposal', parent: null, children: ['elect'], prompts: []},
+      elect: {id: 'elect', parent: 'elect:term', command: '/elect :n=3 /chatgpt proposal', children: []},
+    })
+    inlineStore._aliases = {mcp: [], rpc: []}
+
+    const inlineResults = await runForks({
+      electNode: inlineStore.getNode('elect'),
+      store: inlineStore,
+      n: 3,
+      memoMap: new Map(),
+    })
+
+    const inlineCallCount = mockRunCommand.mock.calls.length
+    const inlineQueryTypes = mockRunCommand.mock.calls.map(([p]) => p.queryType)
+
+    expect(inlineCallCount).toBe(postfixCallCount)
+    expect(inlineQueryTypes).toEqual(postfixQueryTypes)
+    expect(inlineResults).toHaveLength(3)
+    expect(inlineResults.every(r => r.status === 'ok')).toBe(true)
+  })
+
+  it('outer store elect command is unchanged after inline forks complete', async () => {
+    const store = buildStore({
+      'elect:term': {id: 'elect:term', command: '/chatgpt proposal', parent: null, children: ['elect'], prompts: []},
+      elect: {id: 'elect', parent: 'elect:term', command: '/elect :n=2 /chatgpt proposal', children: []},
+    })
+    store._aliases = {mcp: [], rpc: []}
+
+    await runForks({electNode: store.getNode('elect'), store, n: 2, memoMap: new Map()})
+
+    expect(store.getNode('elect').command).toBe('/elect :n=2 /chatgpt proposal')
+  })
+
+  it('forkResults carry the synthetic parent id as their content-source, not electNode.id or electNode.parent', async () => {
+    const store = buildStore({
+      'elect:term': {id: 'elect:term', command: '/chatgpt proposal', parent: null, children: ['elect'], prompts: []},
+      elect: {id: 'elect', parent: 'elect:term', command: '/elect :n=2 /chatgpt proposal', children: []},
+    })
+    store._aliases = {mcp: [], rpc: []}
+
+    const results = await runForks({electNode: store.getNode('elect'), store, n: 2, memoMap: new Map()})
+
+    for (const r of results) {
+      expect(r.forkStore._nodes['elect:term']).toBeDefined()
+      expect(r.forkStore._nodes['elect:term'].command).toBe('/chatgpt proposal')
+    }
+  })
+})
+
+describe('runForks — nested: inline and postfix forms under a content ancestor inherit the same context', () => {
+  const buildNestedPostfixStore = () =>
+    buildStore({
+      ancestor: {
+        id: 'ancestor',
+        parent: null,
+        command: '/chat context',
+        title: 'context',
+        children: ['term'],
+        prompts: [],
+      },
+      term: {
+        id: 'term',
+        parent: 'ancestor',
+        command: '/chatgpt proposal',
+        title: '/chatgpt proposal',
+        children: ['elect'],
+        prompts: [],
+      },
+      elect: {id: 'elect', parent: 'term', command: '/elect :n=2', children: []},
+    })
+
+  const buildNestedInlineStore = () =>
+    buildStore({
+      ancestor: {
+        id: 'ancestor',
+        parent: null,
+        command: '/chat context',
+        title: 'context',
+        children: ['elect:term'],
+        prompts: [],
+      },
+      'elect:term': {
+        id: 'elect:term',
+        parent: 'ancestor',
+        command: '/chatgpt proposal',
+        title: '/chatgpt proposal',
+        children: ['elect'],
+        prompts: [],
+      },
+      elect: {id: 'elect', parent: 'elect:term', command: '/elect :n=2 /chatgpt proposal', children: []},
+    })
+
+  it('inline form dispatches N runCommand calls with the same term command as postfix', async () => {
+    const postfixStore = buildNestedPostfixStore()
+    await runForks({electNode: postfixStore.getNode('elect'), store: postfixStore, n: 2, memoMap: new Map()})
+    const postfixCount = mockRunCommand.mock.calls.length
+    const postfixCommands = mockRunCommand.mock.calls.map(([p]) => p.cell?.command ?? p.queryType)
+    mockRunCommand.mockClear()
+
+    const inlineStore = buildNestedInlineStore()
+    await runForks({electNode: inlineStore.getNode('elect'), store: inlineStore, n: 2, memoMap: new Map()})
+    const inlineCount = mockRunCommand.mock.calls.length
+    const inlineCommands = mockRunCommand.mock.calls.map(([p]) => p.cell?.command ?? p.queryType)
+
+    expect(inlineCount).toBe(postfixCount)
+    expect(inlineCommands).toEqual(postfixCommands)
+  })
+
+  it('inline term-parent is rooted at the ancestor and survives removeOrphanedNodes in each fork', async () => {
+    const store = buildNestedInlineStore()
+    const observations = []
+
+    mockRunCommand.mockImplementation(async ({store: forkStore}) => {
+      const termNode = forkStore._nodes['elect:term']
+      forkStore.removeOrphanedNodes()
+      observations.push({
+        termParentIsAncestor: termNode?.parent === 'ancestor',
+        termSurvivesCleanup: 'elect:term' in forkStore._nodes,
+      })
+    })
+
+    await runForks({electNode: store.getNode('elect'), store, n: 2, memoMap: new Map()})
+
+    expect(observations).toHaveLength(2)
+    for (const o of observations) {
+      expect(o.termParentIsAncestor).toBe(true)
+      expect(o.termSurvivesCleanup).toBe(true)
+    }
   })
 })
