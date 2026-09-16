@@ -99,6 +99,11 @@ describe('/validate is a pure one-shot predicate', () => {
     expect(generator).toHaveBeenCalledTimes(1)
     expect(validator).toHaveBeenCalledTimes(1)
     expect(store.getNode('validate').title).toBe('/validate criterion [✗]')
+    expect(store.getNode('validate').reliabilityMetadata).toMatchObject({
+      mode: 'validate',
+      failureCause: 'criteria-failed',
+      discardedForks: [{forkIndex: 0, status: 'criteria-failed', failedAt: 'criterion', reason: 'missing'}],
+    })
   })
 
   it('rejects legacy :retry ownership visibly without invoking the validator', async () => {
@@ -181,7 +186,7 @@ describe('/refine owns bounded parent re-execution', () => {
     expect(store.getNode('validate-0').title.endsWith('[✓]')).toBe(true)
   })
 
-  it('does not claim a withheld retry when a side-effecting parent passes on its first attempt', async () => {
+  it('refuses to re-execute a /refine over an external-dispatch parent (parent runs its single time)', async () => {
     const store = refinementTree('/refine :n=3')
     store.getNode('root').command = '/external mutate'
     const alias = {alias: '/external', transport: 'stdio', toolName: 'mutate'}
@@ -192,12 +197,9 @@ describe('/refine owns bounded parent re-execution', () => {
 
     expect(generator).toHaveBeenCalledTimes(1)
     expect(store.getNode('refine').reliabilityMetadata).toMatchObject({
-      mode: 'refine',
-      attempts: 1,
+      failureCause: 'external-dispatch-refused',
       requestedN: 3,
     })
-    expect(store.getNode('refine').reliabilityMetadata.suppressed).toBeUndefined()
-    expect(store.getNode('refine').reliabilityMetadata.cause).toBeUndefined()
   })
 
   it('re-executes until a later predicate pass and forwards the abort signal on every draw', async () => {
@@ -275,7 +277,7 @@ describe('/refine owns bounded parent re-execution', () => {
     expect(outputIds).not.toContain('nested-2')
   })
 
-  it('contains side-effecting parents to one execution and persists why', async () => {
+  it('refuses fan-out over an external-dispatch parent and persists why (no re-execution)', async () => {
     const store = refinementTree('/refine :n=3')
     store.getNode('root').command = '/external mutate'
     const alias = {alias: '/external', transport: 'stdio', toolName: 'mutate'}
@@ -284,22 +286,12 @@ describe('/refine owns bounded parent re-execution', () => {
       .spyOn(ValidateCommand.prototype, 'run')
       .mockResolvedValue({passed: false, criterion: 'criterion', reason: 'missing'})
 
-    await expect(
-      runCommand({
-        queryType: 'mcp:external',
-        cell: store.getNode('root'),
-        store,
-        mcpAlias: alias,
-      }),
-    ).rejects.toBeInstanceOf(CriteriaFailedError)
+    await runCommand({queryType: 'mcp:external', cell: store.getNode('root'), store, mcpAlias: alias})
 
     expect(generator).toHaveBeenCalledTimes(1)
     expect(store.getNode('refine').reliabilityMetadata).toMatchObject({
-      mode: 'refine',
-      attempts: 1,
+      failureCause: 'external-dispatch-refused',
       requestedN: 3,
-      suppressed: true,
-      cause: 'side-effecting-alias',
     })
   })
 
@@ -451,7 +443,7 @@ describe('/refine :n=N /term — inline form where refine carries its own genera
     expect(errorNode?.title).toContain('unexpected text')
   })
 
-  it('withholds retry and records suppressedCause when inline term is a side-effecting alias', async () => {
+  it('refuses an inline external-dispatch term before it ever executes', async () => {
     const mcpAlias = {alias: '/external', transport: 'stdio', toolName: 'mutate'}
     const store = inlineRefinementTree('/refine :n=3 /external mutate')
     store._aliases = {mcp: [mcpAlias], rpc: []}
@@ -471,18 +463,13 @@ describe('/refine :n=N /term — inline form where refine carries its own genera
       .spyOn(ValidateCommand.prototype, 'run')
       .mockResolvedValue({passed: false, criterion: 'criterion', reason: 'missing'})
 
-    await expect(runCommand({queryType: 'chat', cell: store.getNode('root'), store})).rejects.toBeInstanceOf(
-      CriteriaFailedError,
-    )
+    await runCommand({queryType: 'chat', cell: store.getNode('root'), store})
 
-    expect(termRunner).toHaveBeenCalledTimes(1)
+    expect(termRunner).not.toHaveBeenCalled()
 
     expect(store.getNode('refine').reliabilityMetadata).toMatchObject({
-      mode: 'refine',
-      attempts: 1,
+      failureCause: 'external-dispatch-refused',
       requestedN: 3,
-      suppressed: true,
-      cause: 'side-effecting-alias',
     })
   })
 })

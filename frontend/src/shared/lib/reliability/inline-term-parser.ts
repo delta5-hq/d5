@@ -4,14 +4,14 @@ import type { NodeId, NodeData } from '@shared/base-types'
 
 // Mirror of backend reliability/core/nonGeneratingTermTypes.js. Control-flow and post-processor
 // query types consume existing output rather than generating a fresh candidate, so they cannot serve
-// as an /elect or /refine term. Pinned to the backend set by the mechanical parity tests on both stacks.
+// as an /elect or /refine term. /steps is admitted: run per fork it produces a fresh whole-subtree
+// candidate. Pinned to the backend set by the mechanical parity tests on both stacks.
 export const NON_GENERATING_TERM_QUERY_TYPES = new Set<string>([
   'elect',
   'foreach',
   'memorize',
   'outline',
   'refine',
-  'steps',
   'summarize',
   'switch',
   'validate',

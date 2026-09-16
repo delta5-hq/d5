@@ -10,6 +10,7 @@ import {
 } from '@shared/ui/glass-sheet'
 import { FormattedMessage } from 'react-intl'
 import { cn } from '@shared/lib/utils'
+import { ForkFailureReason } from '@widgets/workflow/lib/fork-failure-reason'
 
 interface ForkRowProps {
   forkIndex: number
@@ -28,17 +29,6 @@ const STATUS_CLASS: Record<string, string> = {
   'runtime-failed': 'text-destructive',
   pending: 'text-muted-foreground',
   selected: 'text-success',
-}
-
-const FAILURE_REASON_I18N_KEY: Record<string, string> = {
-  'empty-output': 'workflowTree.discardedForks.failureReasonEmptyOutput',
-  'refusal-output': 'workflowTree.discardedForks.failureReasonRefusalOutput',
-  'mcp-tool-error': 'workflowTree.discardedForks.failureReasonMcpTool',
-  'http-status-error': 'workflowTree.discardedForks.failureReasonHttpStatus',
-  'ssh-exit-error': 'workflowTree.discardedForks.failureReasonSshExit',
-  'runtime-error': 'workflowTree.discardedForks.failureReasonRuntime',
-  'execution-error': 'workflowTree.discardedForks.failureReasonExecution',
-  'structural-gate': 'workflowTree.discardedForks.failureReasonStructuralGate',
 }
 
 const ForkRow = ({ forkIndex, status, failedAt, reason, attempts, isPending, isWinner, leafOutputs }: ForkRowProps) => {
@@ -73,7 +63,7 @@ const ForkRow = ({ forkIndex, status, failedAt, reason, attempts, isPending, isW
       ) : null}
       {reason ? (
         <p className="text-xs text-destructive pl-2 truncate" title={reason}>
-          {FAILURE_REASON_I18N_KEY[reason] ? <FormattedMessage id={FAILURE_REASON_I18N_KEY[reason]} /> : reason}
+          <ForkFailureReason reason={reason} />
         </p>
       ) : null}
       {leafOutputs?.map(lo => (

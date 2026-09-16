@@ -58,7 +58,6 @@ describe('parseInlineTerm (frontend)', () => {
       '/summarize the above',
       '/memorize this fact',
       '/switch condition',
-      '/steps plan the work',
     ])('returns null for modifier/control command: "%s"', text => {
       expect(parseInlineTerm(text)).toBeNull()
     })
@@ -87,6 +86,10 @@ describe('parseInlineTerm (frontend)', () => {
       expect(parseInlineTerm('/case branch condition')).toBeNull()
     })
 
+    it('admits /steps — a sequencing term run per fork by StepsCommand', () => {
+      expect(parseInlineTerm('/steps')).toBe('/steps')
+    })
+
     it('admits #N-prefixed term — matchesAnyCommandWithOrder allows the order prefix', () => {
       expect(parseInlineTerm('#1 /chat propose directions')).toBe('#1 /chat propose directions')
     })
@@ -109,7 +112,7 @@ describe('P0.4 — /outline refused and #N prefix classified like its bare form'
 
   it('the pinned non-generating set matches the backend contents', () => {
     expect([...NON_GENERATING_TERM_QUERY_TYPES].sort()).toEqual(
-      ['elect', 'foreach', 'memorize', 'outline', 'refine', 'steps', 'summarize', 'switch', 'validate'].sort(),
+      ['elect', 'foreach', 'memorize', 'outline', 'refine', 'summarize', 'switch', 'validate'].sort(),
     )
   })
 

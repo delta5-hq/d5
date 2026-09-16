@@ -109,4 +109,47 @@ describe('/refine :n=N /term — top-level inline refine post-processing seam', 
 
     expect(validateGroup.evaluateValidateGroup).toHaveBeenCalledTimes(1)
   })
+
+  it.each([
+    ['/refine :n=2 /mcp:jira create issue', 'MCP'],
+    ['/refine :n=2 /rpc:worker run', 'RPC'],
+  ])(
+    'refuses an inline %s term on its shape alone when no alias is configured, before running the subtree',
+    async command => {
+      const runSpy = summarizeSpy()
+      const store = buildStore({
+        refine: {id: 'refine', parent: null, command, children: ['val', 'sum']},
+        ...validateNode('val'),
+        ...summarizeNode('sum'),
+      })
+      store._aliases = {mcp: [], rpc: []}
+      const errorSpy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
+
+      await runCommand({queryType: 'refine', cell: store.getNode('refine'), store})
+
+      expect(runSpy).not.toHaveBeenCalled()
+      const [msg] = errorSpy.mock.calls[0]
+      expect(msg).toContain('external dispatch')
+      expect(msg).not.toContain('side effect')
+      expect(store.getNode('refine').reliabilityMetadata.failureCause).toBe('external-dispatch-refused')
+    },
+  )
+
+  // Ordering boundary: the external-dispatch refusal is barred by the dispatch shape itself, so it
+  // wins over the validate-required check even when the cell carries no /validate child — the user
+  // sees why the fan-out is refused, not the unrelated "needs a /validate" message.
+  it('refuses an external-dispatch shape before the validate-required check when no /validate child exists', async () => {
+    const store = buildStore({
+      refine: {id: 'refine', parent: null, command: '/refine :n=2 /mcp:jira create issue', children: []},
+    })
+    store._aliases = {mcp: [], rpc: []}
+    const errorSpy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
+
+    await runCommand({queryType: 'refine', cell: store.getNode('refine'), store})
+
+    const [msg] = errorSpy.mock.calls[0]
+    expect(msg).toContain('external dispatch')
+    expect(msg).not.toContain('/validate child')
+    expect(store.getNode('refine').reliabilityMetadata.failureCause).toBe('external-dispatch-refused')
+  })
 })

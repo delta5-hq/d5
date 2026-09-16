@@ -34,8 +34,6 @@ import {MEMORIZE_QUERY_TYPE} from '../../constants/memorize'
 import {MCP_FUSION_QUERY_TYPE} from '../../constants/mcpFusion'
 import {MCPFusionCommand} from '../MCPFusionCommand'
 import * as MCPClientManager from '../mcp/MCPClientManager'
-import {runForks} from '../../reliability/core/SubtreeForkRunner'
-import {MEMO_SENTINEL_PRE_EXECUTED_CHILD} from '../../reliability/core/memoSentinels'
 /* eslint-disable no-unused-vars */
 import {SSHExecutor} from '../rpc/SSHExecutor'
 import {HTTPExecutor} from '../rpc/HTTPExecutor'
@@ -2512,7 +2510,7 @@ describe('commodity :n=N × MCP alias', () => {
   })
 
   it.each([2, 3, 5])(
-    'suppresses the fan-out for /qa-mcp :n=%i — invokes the MCP tool exactly once, one output node, honest suppression metadata',
+    'refuses the fan-out for /qa-mcp :n=%i — never invokes the MCP tool, records the refusal and requested N',
     async n => {
       const node = {id: 'node', parent: 'root', command: `/qa-mcp :n=${n} task-prompt`, children: []}
       const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
@@ -2522,16 +2520,34 @@ describe('commodity :n=N × MCP alias', () => {
 
       await runCommand({cell: node, store, mcpAlias: mcpSeamAlias})
 
-      expect(MCPClientManager.callTool).toHaveBeenCalledTimes(1)
-      expect(store.getOutput().nodes.filter(m => m.parent === node.id)).toHaveLength(1)
+      expect(MCPClientManager.callTool).not.toHaveBeenCalled()
       expect(store.getNode(node.id).reliabilityMetadata).toEqual(
         expect.objectContaining({
-          suppressed: true,
-          cause: 'side-effecting-alias',
+          failureCause: 'external-dispatch-refused',
           requestedN: n,
-          mode: 'suppressed',
-          total: 1,
-          eligible: 1,
+          eligible: 0,
+        }),
+      )
+    },
+  )
+
+  it.each([2, 3, 5])(
+    'refuses the fan-out for an UNCONFIGURED /mcp: shape :n=%i by shape alone — never invokes the MCP tool',
+    async n => {
+      const node = {id: 'node', parent: 'root', command: `/mcp:unconfigured :n=${n} task-prompt`, children: []}
+      const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
+      const store = new Store({userId, workflowId, nodes: {node, root}})
+
+      MCPClientManager.callTool.mockResolvedValue({content: 'result', isError: false})
+
+      await runCommand({cell: node, store})
+
+      expect(MCPClientManager.callTool).not.toHaveBeenCalled()
+      expect(store.getNode(node.id).reliabilityMetadata).toEqual(
+        expect.objectContaining({
+          failureCause: 'external-dispatch-refused',
+          requestedN: n,
+          eligible: 0,
         }),
       )
     },
@@ -2555,7 +2571,7 @@ describe('commodity :n=N × MCP alias', () => {
   it('@@ and ## references are resolved within MCP payload after :n=N is stripped', async () => {
     const {commandNode, nodes} = createReferenceWorkflow({
       nodeId: 'mcpNode',
-      command: '/qa-mcp :n=2 @@topic and ##_source',
+      command: '/qa-mcp :n=1 @@topic and ##_source',
       refDefinition: '@topic seam-topic',
       hashDefinition: '#_source seam-source',
     })
@@ -2590,7 +2606,7 @@ describe('commodity :n=N × RPC alias', () => {
   })
 
   it.each([2, 3, 5])(
-    'suppresses the fan-out for /qa-rpc :n=%i — runs the SSH command exactly once, one output node, honest suppression metadata',
+    'refuses the fan-out for /qa-rpc :n=%i — never runs the SSH command, records the refusal and requested N',
     async n => {
       const node = {id: 'node', parent: 'root', command: `/qa-rpc :n=${n} task-prompt`, children: []}
       const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
@@ -2600,16 +2616,12 @@ describe('commodity :n=N × RPC alias', () => {
 
       await runCommand({cell: node, store, rpcAlias: rpcSeamAlias})
 
-      expect(mockSSHExecute).toHaveBeenCalledTimes(1)
-      expect(store.getOutput().nodes.filter(m => m.parent === node.id)).toHaveLength(1)
+      expect(mockSSHExecute).not.toHaveBeenCalled()
       expect(store.getNode(node.id).reliabilityMetadata).toEqual(
         expect.objectContaining({
-          suppressed: true,
-          cause: 'side-effecting-alias',
+          failureCause: 'external-dispatch-refused',
           requestedN: n,
-          mode: 'suppressed',
-          total: 1,
-          eligible: 1,
+          eligible: 0,
         }),
       )
     },
@@ -2636,7 +2648,7 @@ describe('commodity :n=N × RPC alias', () => {
   it('@@ and ## references are resolved within RPC command string after :n=N is stripped', async () => {
     const {commandNode, nodes} = createReferenceWorkflow({
       nodeId: 'rpcNode',
-      command: '/qa-rpc :n=2 @@topic and ##_source',
+      command: '/qa-rpc :n=1 @@topic and ##_source',
       refDefinition: '@topic seam-topic',
       hashDefinition: '#_source seam-source',
     })
@@ -2659,7 +2671,7 @@ describe('commodity :n=N × /mcp fusion (MCP_FUSION_QUERY_TYPE, no alias param)'
     jest.clearAllMocks()
   })
 
-  it('suppresses the fan-out for /mcp :n=3 — invokes the fusion command exactly once, one output node, honest suppression metadata', async () => {
+  it('refuses the fan-out for /mcp :n=3 — never invokes the fusion command, records the refusal and requested N', async () => {
     const node = {id: 'node', parent: 'root', command: '/mcp :n=3 task-prompt', children: []}
     const root = {id: 'root', parent: null, title: 'Workflow', children: [node.id]}
     const store = new Store({userId, workflowId, nodes: {node, root}})
@@ -2670,16 +2682,12 @@ describe('commodity :n=N × /mcp fusion (MCP_FUSION_QUERY_TYPE, no alias param)'
 
     await runCommand({cell: node, queryType: MCP_FUSION_QUERY_TYPE, store})
 
-    expect(runSpy).toHaveBeenCalledTimes(1)
-    expect(store.getOutput().nodes.filter(m => m.parent === node.id)).toHaveLength(1)
+    expect(runSpy).not.toHaveBeenCalled()
     expect(store.getNode(node.id).reliabilityMetadata).toEqual(
       expect.objectContaining({
-        suppressed: true,
-        cause: 'side-effecting-alias',
+        failureCause: 'external-dispatch-refused',
         requestedN: 3,
-        mode: 'suppressed',
-        total: 1,
-        eligible: 1,
+        eligible: 0,
       }),
     )
   })
@@ -2707,94 +2715,5 @@ describe('commodity :n=N guard narrowness — native /chat fan-out is unaffected
     expect(store.getOutput().nodes.filter(m => m.parent === node.id)).toHaveLength(3)
     expect(store.getNode(node.id).reliabilityMetadata.mode).toBe('commodity')
     expect(store.getNode(node.id).reliabilityMetadata.suppressed).toBeUndefined()
-  })
-})
-
-describe('/elect child-dispatch loop — pre-execute side-effecting child exactly once across N forks', () => {
-  const childMcpAlias = {
-    alias: '/child-mcp',
-    serverUrl: 'http://localhost:3100/mcp',
-    transport: 'streamable-http',
-    toolName: 'run',
-  }
-
-  const childRpcAlias = {
-    alias: '/child-rpc',
-    protocol: 'ssh',
-    host: 'vm.example.com',
-    port: 22,
-    username: 'user',
-    privateKey: 'key',
-    commandTemplate: '{{prompt}}',
-    outputFormat: 'text',
-  }
-
-  const makeElectStore = ({mcpAliases = [], rpcAliases = [], childCommand = ''} = {}) =>
-    new Store({
-      userId: 'user1',
-      workflowId: 'wf1',
-      aliases: {mcp: mcpAliases, rpc: rpcAliases},
-      nodes: {
-        root: {id: 'root', children: ['parent']},
-        parent: {id: 'parent', parent: 'root', command: '/chat outer', children: ['elect'], prompts: []},
-        elect: {id: 'elect', parent: 'parent', command: '/elect :n=3', children: ['child'], prompts: []},
-        child: {id: 'child', parent: 'elect', command: childCommand, children: [], prompts: []},
-      },
-    })
-
-  beforeEach(() => {
-    jest.clearAllMocks()
-  })
-
-  it('MCP-alias child executes exactly once across N=3 forks', async () => {
-    const store = makeElectStore({mcpAliases: [childMcpAlias], childCommand: '/child-mcp do external op'})
-    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
-    MCPClientManager.callTool.mockResolvedValue({content: 'result', isError: false})
-
-    await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
-
-    expect(MCPClientManager.callTool).toHaveBeenCalledTimes(1)
-    chatSpy.mockRestore()
-  })
-
-  it('RPC-alias child executes exactly once across N=3 forks', async () => {
-    mockSSHExecute.mockResolvedValue({stdout: 'out', stderr: '', exitCode: 0})
-    const store = makeElectStore({rpcAliases: [childRpcAlias], childCommand: '/child-rpc run task'})
-    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
-
-    await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
-
-    expect(mockSSHExecute).toHaveBeenCalledTimes(1)
-    chatSpy.mockRestore()
-  })
-
-  it('each fork sees the MCP child result — result is inherited via fork store deep clone', async () => {
-    const store = makeElectStore({mcpAliases: [childMcpAlias], childCommand: '/child-mcp query'})
-    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
-    MCPClientManager.callTool.mockResolvedValue({content: 'shared result', isError: false})
-
-    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
-
-    expect(results).toHaveLength(3)
-    expect(MCPClientManager.callTool).toHaveBeenCalledTimes(1)
-    // Each fork store inherits the pre-executed child state (deep clone of shared store)
-    const sharedChildState = store.getNode('child')
-    for (const result of results) {
-      expect(result.forkStore.getNode('child')).toEqual(sharedChildState)
-    }
-    chatSpy.mockRestore()
-  })
-
-  it('non-side-effecting child is not pre-executed — no sentinel in memoMap, no MCP callTool', async () => {
-    const store = makeElectStore({childCommand: '/chat inner task'})
-    const memoMap = new Map()
-    const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
-
-    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap})
-
-    expect(results).toHaveLength(3)
-    expect(memoMap.get('child')).not.toBe(MEMO_SENTINEL_PRE_EXECUTED_CHILD)
-    expect(MCPClientManager.callTool).not.toHaveBeenCalled()
-    chatSpy.mockRestore()
   })
 })

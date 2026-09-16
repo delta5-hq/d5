@@ -1,5 +1,7 @@
-import {STEPS_PREFIX_REGEX, STEPS_QUERY} from '../../constants/steps'
+import {STEPS_PREFIX_REGEX, STEPS_QUERY, clearStepsPrefix} from '../../constants/steps'
 import {SWITCH_QUERY} from '../../constants/switch'
+import {VALIDATE_QUERY} from '../../constants/validate'
+import {matchesCommand} from '../../constants/matchesCommand'
 import {commandRegExp} from '../../constants/commandRegExp'
 import {isAnyCommand, isAnyCommandWithOrder} from './commandRecognition'
 
@@ -88,6 +90,17 @@ export class StepsNodeTraverser {
   }
 
   /**
+   * Checks if a command string is an assertion cell (/validate) that gates a scope's
+   * value rather than contributing an executable step
+   *
+   * @param {string} command - The command string to check
+   * @returns {boolean} True if the command is a /validate assertion, false otherwise
+   */
+  isAssertionCell(command) {
+    return matchesCommand(clearStepsPrefix(command), VALIDATE_QUERY)
+  }
+
+  /**
    * Checks if a node is a prompt node attached to a parent
    *
    * @param {Object} parent - The potential parent node
@@ -129,6 +142,11 @@ export class StepsNodeTraverser {
 
     // Skip foreach commands
     if (this.isForeachCommand(command)) {
+      return
+    }
+
+    // Assertion cells (/validate) gate a scope's value; they are never sequenced steps
+    if (this.isAssertionCell(command)) {
       return
     }
 

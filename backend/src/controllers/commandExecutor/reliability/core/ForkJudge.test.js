@@ -1207,6 +1207,56 @@ describe('ForkJudge.selectWinner — structural gate on candidate content', () =
       expect(getLLM).not.toHaveBeenCalled()
     })
 
+    // P0.4: a /steps fork exposes each step as a leaf output. When every step errored, the fork
+    // carries substantive text yet must be rejected on the leaf-output failure signal alone, before
+    // any judge call. When all forks are such, no winner survives.
+    it('a /steps fork whose step leaf outputs all errored is structurally rejected, leaving no winner', async () => {
+      mockContentSequence(SUBSTANTIVE_A, SUBSTANTIVE_B)
+      const allStepsErrored = forkIndex =>
+        makeFork(forkIndex, 'ok', {
+          leafOutputs: [
+            {nodeId: `${forkIndex}-step1`, content: 'Error: step 1 failed', executionStatus: 'error'},
+            {nodeId: `${forkIndex}-step2`, content: 'Error: step 2 failed', executionStatus: 'error'},
+          ],
+        })
+      const result = await makeJudge().selectWinner({
+        forks: [allStepsErrored(0), allStepsErrored(1)],
+        validateNodes: [],
+        parentNodeId: 'parent',
+        fallback: false,
+      })
+
+      expect(result.winnerForkIndex).toBeNull()
+      expect(result.allGateFiltered).toBe(true)
+      expect(result.failureCause).toBe(FAILURE_CAUSE.STRUCTURAL_GATE)
+      expect(getLLM).not.toHaveBeenCalled()
+    })
+
+    // Generalises the gate's any-leaf rule: a /steps fork is rejected when ANY step errored, not only
+    // when all do. A fork with one erroring step among succeeding ones must lose to a clean fork.
+    it('a /steps fork with a single errored step among succeeding steps is still structurally rejected', async () => {
+      mockContentSequence(SUBSTANTIVE_A, SUBSTANTIVE_B)
+      const mixedFork = makeFork(0, 'ok', {
+        leafOutputs: [
+          {nodeId: '0-step1', content: SUBSTANTIVE_A, executionStatus: 'success'},
+          {nodeId: '0-step2', content: 'Error: step 2 failed', executionStatus: 'error'},
+        ],
+      })
+      const cleanFork = makeFork(1, 'ok', {
+        leafOutputs: [{nodeId: '1-step1', content: SUBSTANTIVE_B, executionStatus: 'success'}],
+      })
+      const result = await makeJudge().selectWinner({
+        forks: [mixedFork, cleanFork],
+        validateNodes: [],
+        parentNodeId: 'parent',
+        fallback: false,
+      })
+
+      expect(result.winnerForkIndex).toBe(1)
+      expect(result.allGateFiltered).toBe(false)
+      expect(getLLM).not.toHaveBeenCalled()
+    })
+
     it('noSignal:false on gate-filtered path distinguishes structural invalidity from juror-signal-loss', async () => {
       mockContentSequence('', '')
       const gateFilteredResult = await makeJudge().selectWinner({

@@ -1,4 +1,4 @@
-import {mountTermInFork} from './forkTermMount'
+import {mountTermInFork, mountSequencingTermInFork} from './forkTermMount'
 import {buildSyntheticTermParent} from './inlineTermParser'
 import Store from '../../commands/utils/Store'
 
@@ -69,5 +69,69 @@ describe('mountTermInFork — the mounted subtree survives the fork orphan colle
     store.removeOrphanedNodes()
     expect(store._nodes['e:term']).toBeDefined()
     expect(store._nodes.e).toBeDefined()
+  })
+})
+
+const stepsTerm = parentId => buildSyntheticTermParent('e', '/steps', parentId)
+
+const electWithSteps = (ancestorId, {withPrompt = false} = {}) => {
+  const children = withPrompt ? ['s10', 's20', 'out'] : ['s10', 's20']
+  const nodes = {
+    e: {id: 'e', parent: ancestorId, command: '/elect :n=2 /steps', children, prompts: withPrompt ? ['out'] : []},
+    s10: {id: 's10', parent: 'e', command: '#10 /chat a', children: [], prompts: []},
+    s20: {id: 's20', parent: 'e', command: '#20 /chat b', children: [], prompts: []},
+  }
+  if (withPrompt) nodes.out = {id: 'out', parent: 'e', title: 'prior output', children: [], prompts: []}
+  if (ancestorId != null)
+    nodes[ancestorId] = {id: ancestorId, parent: null, command: '/chat root', children: ['e'], prompts: []}
+  return buildForkStore(nodes)
+}
+
+describe('mountSequencingTermInFork — the synth adopts the step subtree, not the elect', () => {
+  it('adopts the elects non-prompt children as the synth children so StepsCommand sequences them', () => {
+    const store = electWithSteps('root')
+    mountSequencingTermInFork(store, stepsTerm('root'), 'e', 'root')
+    expect(store._nodes['e:term'].children).toEqual(['s10', 's20'])
+  })
+
+  it('excludes prompt-output ids from the adopted step children', () => {
+    const store = electWithSteps('root', {withPrompt: true})
+    mountSequencingTermInFork(store, stepsTerm('root'), 'e', 'root')
+    expect(store._nodes['e:term'].children).toEqual(['s10', 's20'])
+    expect(store._nodes['e:term'].prompts).toEqual([])
+  })
+
+  it('appends the synth to the ancestor without displacing the elect, so both stay reachable', () => {
+    const store = electWithSteps('root')
+    mountSequencingTermInFork(store, stepsTerm('root'), 'e', 'root')
+    expect(store._nodes.root.children).toEqual(['e', 'e:term'])
+    expect(store._nodes.e.parent).toBe('root')
+  })
+
+  it('does not append the synth twice when called against an ancestor that already lists it', () => {
+    const store = electWithSteps('root')
+    mountSequencingTermInFork(store, stepsTerm('root'), 'e', 'root')
+    mountSequencingTermInFork(store, stepsTerm('root'), 'e', 'root')
+    expect(store._nodes.root.children.filter(id => id === 'e:term')).toHaveLength(1)
+  })
+})
+
+describe('mountSequencingTermInFork — boundary: no ancestor (top-level elect)', () => {
+  it('inserts the synth without crashing when ancestorId is null', () => {
+    const store = electWithSteps(null)
+    expect(() => mountSequencingTermInFork(store, stepsTerm(null), 'e', null)).not.toThrow()
+    expect(store._nodes['e:term'].children).toEqual(['s10', 's20'])
+  })
+})
+
+describe('mountSequencingTermInFork — the mounted content source survives orphan collection', () => {
+  it('synth, elect and steps all survive removeOrphanedNodes when an ancestor is present', () => {
+    const store = electWithSteps('root')
+    mountSequencingTermInFork(store, stepsTerm('root'), 'e', 'root')
+    store.removeOrphanedNodes()
+    expect(store._nodes['e:term']).toBeDefined()
+    expect(store._nodes.e).toBeDefined()
+    expect(store._nodes.s10).toBeDefined()
+    expect(store._nodes.s20).toBeDefined()
   })
 })

@@ -1,18 +1,22 @@
 import { matchesAnyCommandWithOrder } from './command-matcher'
+import { clearStepsPrefix } from '@shared/lib/command-regexp'
 import { readElectTrailingText } from '@shared/lib/reliability/elect-params'
 import { readRefineN, readRefineTrailingText } from '@shared/lib/reliability/refine-params'
 import { parseInlineTerm } from '@shared/lib/reliability/inline-term-parser'
+import { isExternalDispatchShape } from '@shared/lib/reliability/external-dispatch'
 import type { DynamicAlias } from '@shared/lib/command-querytype-mapper'
 
 export type ReliabilitySyntaxErrorReason =
   | 'elect_criterion_must_be_validate'
   | 'validate_retry_must_be_refine'
   | 'invalid_refine_syntax'
+  | 'external_dispatch_refused'
 
 const RELIABILITY_SYNTAX_ERROR_REASONS = new Set<ReliabilitySyntaxErrorReason>([
   'elect_criterion_must_be_validate',
   'validate_retry_must_be_refine',
   'invalid_refine_syntax',
+  'external_dispatch_refused',
 ])
 
 const matchesCommand = (command: string, keyword: string): boolean =>
@@ -59,8 +63,11 @@ export function validateCommandForExecution(
     }
   }
 
-  const normalized = command.trim().replace(/^#-?\d+\s+/, '')
+  const normalized = clearStepsPrefix(command)
   const electTrailing = readElectTrailingText(normalized)
+  if (matchesCommand(normalized, '/elect') && isExternalDispatchShape(electTrailing)) {
+    return { isValid: false, canExecute: false, reason: 'external_dispatch_refused' }
+  }
   if (matchesCommand(normalized, '/elect') && electTrailing && !parseInlineTerm(electTrailing, dynamicAliases)) {
     return { isValid: false, canExecute: false, reason: 'elect_criterion_must_be_validate' }
   }
@@ -71,10 +78,16 @@ export function validateCommandForExecution(
   // recognized generating command (criterion prose, a non-generating command) is refused, matching
   // the backend. A bare /refine :n=N stays valid as a child that refines its parent's output.
   const refineTrailing = readRefineTrailingText(normalized)
+  const refineFansOut = (readRefineN(normalized) ?? 0) > 1
+  if (matchesCommand(normalized, '/refine') && refineFansOut && isExternalDispatchShape(refineTrailing)) {
+    return { isValid: false, canExecute: false, reason: 'external_dispatch_refused' }
+  }
   if (
     matchesCommand(normalized, '/refine') &&
     (readRefineN(normalized) === null ||
-      (refineTrailing.length > 0 && !parseInlineTerm(refineTrailing, dynamicAliases)))
+      (refineTrailing.length > 0 &&
+        !parseInlineTerm(refineTrailing, dynamicAliases) &&
+        !isExternalDispatchShape(refineTrailing)))
   ) {
     return { isValid: false, canExecute: false, reason: 'invalid_refine_syntax' }
   }

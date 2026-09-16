@@ -92,17 +92,13 @@ describe('DiscardedForksDrawer', () => {
       expect(screen.getByText(expected)).toBeDefined()
     })
 
+    // Exhaustive cause-token → message coverage is owned by
+    // widgets/workflow/lib/__tests__/fork-failure-reason.test.tsx. This asserts only that the
+    // drawer routes a fork's reason through ForkFailureReason: a mapped token and a raw fallback.
     it.each([
-      ['empty-output', 'Empty output'],
-      ['refusal-output', 'Refusal output'],
-      ['mcp-tool-error', 'MCP tool reported an error'],
-      ['http-status-error', 'HTTP transport returned a non-success status'],
-      ['ssh-exit-error', 'SSH command returned a nonzero exit code'],
-      ['runtime-error', 'Command execution failed at runtime'],
-      ['execution-error', 'Command produced an execution error'],
-      ['structural-gate', 'Structurally rejected by the gate'],
+      ['no-judge-signal', 'The verifier could not be reached'],
       ['provider-specific-error', 'provider-specific-error'],
-    ])('renders structural rejection reason %s with the drawer display contract', (reason, expected) => {
+    ])('routes fork reason %s through the display contract', (reason, expected) => {
       render(
         <DiscardedForksDrawer
           discardedForks={[discardedFork({ forkIndex: 0, status: 'runtime-failed', reason })]}

@@ -12,23 +12,27 @@ import {PERPLEXITY_QUERY_TYPE} from '../../constants/perplexity'
 import {QWEN_QUERY_TYPE} from '../../constants/qwen'
 import {ELECT_QUERY, ELECT_QUERY_TYPE} from '../../constants/elect'
 import {REFINE_QUERY, REFINE_QUERY_TYPE} from '../../constants/refine'
-import {STEPS_QUERY_TYPE} from '../../constants/steps'
+import {STEPS_QUERY_TYPE, clearStepsPrefix} from '../../constants/steps'
 import {SUMMARIZE_QUERY, SUMMARIZE_QUERY_TYPE} from '../../constants/summarize'
 import {VALIDATE_QUERY} from '../../constants/validate'
 import {readRefineTrailingText} from '../../reliability/core/refineParams'
 import {CriteriaFailedError} from '../../reliability/core/CriteriaFailedError'
 import {resolveElectCell} from '../../reliability/core/resolveElectCell'
 import {resolveRefineCell, REFINE_OUTCOME} from '../../reliability/core/resolveRefineCell'
-import {evaluateValidateGroup, firstFailedValidate} from '../../reliability/core/validateGroup'
+import {gateOnValidateGroup} from '../../reliability/core/validateGroup'
 import {parseInlineTerm} from '../../reliability/core/inlineTermParser'
 import {readElectTrailingText} from '../../reliability/core/electParams'
 import {createForkProgressEmitter} from '../../reliability/core/ForkProgressEmitter'
 import ElectTopology from '../../reliability/core/ElectTopology'
 import {SWITCH_QUERY_TYPE} from '../../constants/switch'
 import {MCP_FUSION_QUERY_TYPE} from '../../constants/mcpFusion'
-import {isSideEffectingDispatch} from '../../reliability/core/sideEffectingDispatch'
+import {isExternalDispatch, isExternalDispatchShape} from '../../reliability/core/externalDispatch'
+import {
+  dispatchIsExternal,
+  externalDispatchRefusalMessage,
+  buildExternalDispatchRefusalMetadata,
+} from '../../reliability/core/externalDispatchRefusal'
 import {isPostProcessorOrControlQuery, hasElectDescendant} from '../../reliability/core/electChildPredicates'
-import {MEMO_SENTINEL_PRE_EXECUTED_CHILD} from '../../reliability/core/memoSentinels'
 import {YANDEX_QUERY_TYPE} from '../../constants/yandex'
 import {CONTROL_FLOW_COMMANDS, modifierQueryTypes} from '../../constants'
 import ProgressReporter from '../../ProgressReporter'
@@ -269,7 +273,7 @@ export async function postProcessExistingOutput({
   progress,
   signal,
   memoMap = new Map(),
-  sideEffectingDispatch = false,
+  parentIsExternalDispatch = false,
   cell,
   queryType,
   context,
@@ -368,10 +372,6 @@ export async function postProcessExistingOutput({
                 rpcAlias: rcRpcAlias,
               } = resolveCommand(rcQuery, store._aliases)
               if (rcQueryType) {
-                if (memoMap?.get(electChildId) === MEMO_SENTINEL_PRE_EXECUTED_CHILD) {
-                  processedIds.push(electChildId)
-                  continue
-                }
                 processedIds.push(electChildId)
                 await runCommand(
                   {
@@ -401,7 +401,7 @@ export async function postProcessExistingOutput({
             parentCell: cell,
             parentQueryType: queryType,
             parentPrompt: prompt,
-            parentSideEffecting: sideEffectingDispatch,
+            parentIsExternalDispatch,
             signal,
             executeTerm: buildRefineTermExecutor(store, progress, signal),
             postProcessTerm: buildRefinePostProcessor(postProcessNode, store, signal),
@@ -415,9 +415,7 @@ export async function postProcessExistingOutput({
           remainingValidates.forEach(v => processedIds.push(v.id))
           const allValidates = [childNode, ...remainingValidates]
           postProcessTracker = await postProcessProgress.add('ValidateCommand.run')
-          const results = await evaluateValidateGroup(allValidates, store, signal)
-          const failed = firstFailedValidate(results)
-          if (failed) throw new CriteriaFailedError(failed.criterion, 1)
+          await gateOnValidateGroup(allValidates, store, signal)
         }
 
         if (postProcessTracker) postProcessProgress.remove(postProcessTracker)
@@ -457,16 +455,27 @@ export const runCommand = async (
 ) => {
   if (modifierQueryTypes.includes(queryType)) {
     if (queryType === ELECT_QUERY_TYPE) {
-      const inlineTerm = parseInlineTerm(readElectTrailingText(getNodeCommand(cell)), store._aliases)
-      if (inlineTerm) {
+      const trailing = readElectTrailingText(clearStepsPrefix(getNodeCommand(cell)))
+      // An external-dispatch-shaped term routes into the resolver too, so its :n=N fan-out is refused
+      // by shape rather than misreported as a standalone bare modifier when its alias is unconfigured.
+      if (parseInlineTerm(trailing, store._aliases) || isExternalDispatchShape(trailing)) {
         await resolveElectCell(cell, store, memoMap ?? new Map(), signal, createForkProgressEmitter(progress))
         return
       }
     }
     if (queryType === REFINE_QUERY_TYPE) {
-      const inlineTerm = parseInlineTerm(readRefineTrailingText(getNodeCommand(cell)), store._aliases)
-      if (inlineTerm) {
-        await resolveRootRefineCell({cell, store, context, queryType, prompt, progress, signal, memoMap})
+      const trailing = readRefineTrailingText(clearStepsPrefix(getNodeCommand(cell)))
+      if (parseInlineTerm(trailing, store._aliases) || isExternalDispatchShape(trailing)) {
+        await resolveRootRefineCell({
+          cell,
+          store,
+          context,
+          queryType,
+          prompt,
+          progress,
+          signal,
+          memoMap,
+        })
         return
       }
     }
@@ -480,16 +489,22 @@ export const runCommand = async (
     cellNode.title = stripReliabilitySuffix(cellNode.title || '')
   }
 
-  const sideEffectingDispatch = isSideEffectingDispatch({
-    queryType,
-    mcpAlias,
-    rpcAlias,
-  })
+  const externalDispatch = dispatchIsExternal(cell, store) || isExternalDispatch({queryType, mcpAlias, rpcAlias})
   const requestedCommodityN = readCommodityN(getNodeCommand(cell))
+
+  if (externalDispatch && requestedCommodityN > 1) {
+    const refusedNode = store.getNode(cell.id)
+    if (refusedNode) {
+      refusedNode.title = appendInvalidSuffix(refusedNode.title || '')
+      refusedNode.reliabilityMetadata = buildExternalDispatchRefusalMetadata(requestedCommodityN, 'commodity')
+      store.importer.createErrorNode(externalDispatchRefusalMessage(':n', requestedCommodityN), cell.id)
+      store.saveNodeToOutput(cell.id)
+    }
+    return
+  }
+
   const suppressedForNestedReliability = !preventCommodityForks && store.withinForkExecution && requestedCommodityN > 1
-  const suppressedForSideEffect = sideEffectingDispatch && requestedCommodityN > 1
-  const commodityN =
-    preventCommodityForks || suppressedForNestedReliability || suppressedForSideEffect ? 1 : requestedCommodityN
+  const commodityN = preventCommodityForks || suppressedForNestedReliability ? 1 : requestedCommodityN
 
   if (commodityN > 1) {
     await runCommodityForks({
@@ -537,13 +552,11 @@ export const runCommand = async (
     createUnknownCommandNode(store, cell)
   }
 
-  if (suppressedForSideEffect || suppressedForNestedReliability) {
+  if (suppressedForNestedReliability) {
     const executedNode = store.getNode(cell.id)
     if (executedNode) {
       executedNode.reliabilityMetadata = buildSuppressedReliabilityMetadata({
-        cause: suppressedForSideEffect
-          ? COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS
-          : COMMODITY_SUPPRESSION_CAUSE.NESTED_RELIABILITY_FORK,
+        cause: COMMODITY_SUPPRESSION_CAUSE.NESTED_RELIABILITY_FORK,
         requestedN: requestedCommodityN,
       })
       store.saveNodeToOutput(cell.id)
@@ -564,7 +577,7 @@ export const runCommand = async (
       progress,
       signal,
       memoMap: memoMap ?? new Map(),
-      sideEffectingDispatch,
+      parentIsExternalDispatch: externalDispatch,
       cell,
       queryType,
       context,

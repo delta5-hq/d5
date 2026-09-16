@@ -6,8 +6,6 @@
  */
 import {runCommand} from './runCommand'
 import Store from './Store'
-import {MCP_FUSION_QUERY_TYPE} from '../../constants/mcpFusion'
-import {MEMO_SENTINEL_PRE_EXECUTED_CHILD} from '../../reliability/core/memoSentinels'
 
 jest.mock('debug', () => {
   const fn = jest.fn(() => fn)
@@ -28,7 +26,6 @@ jest.mock('../../ProgressReporter', () => ({
 // Mock SubtreeForkRunner so forks return controlled results without real LLM calls
 jest.mock('../../reliability/core/SubtreeForkRunner', () => ({
   runForks: jest.fn(),
-  computeEffectiveN: jest.fn((_r, _s, n) => n),
 }))
 
 // Mock ForkJudge so winner selection is deterministic
@@ -77,36 +74,6 @@ beforeEach(() => {
     selectWinner: jest.fn().mockResolvedValue(null),
   }))
   mockRunForks.mockResolvedValue([])
-})
-
-describe('/elect fusion-child exactly-once sentinel', () => {
-  it('does not execute a fusion child again after SubtreeForkRunner pre-executed it', async () => {
-    const store = buildStore({
-      parent: {id: 'parent', command: '/chat do task', children: ['elect']},
-      elect: {id: 'elect', parent: 'parent', command: '/elect :n=2', children: ['fusion']},
-      fusion: {id: 'fusion', parent: 'elect', command: '/mcp use configured tools', children: []},
-    })
-    const fusionRun = jest.spyOn(require('../MCPFusionCommand').MCPFusionCommand.prototype, 'run').mockResolvedValue({})
-
-    await runCommand({
-      queryType: MCP_FUSION_QUERY_TYPE,
-      cell: store.getNode('fusion'),
-      store,
-      preventPostProcess: true,
-    })
-
-    const memoMap = new Map([
-      ['elect', 'in-progress'],
-      ['fusion', MEMO_SENTINEL_PRE_EXECUTED_CHILD],
-    ])
-    const parentRun = chatSpy()
-    await runCommand({queryType: 'chat', cell: store.getNode('parent'), store, memoMap})
-
-    expect(parentRun).toHaveBeenCalledTimes(1)
-    expect(fusionRun).toHaveBeenCalledTimes(1)
-    fusionRun.mockRestore()
-    parentRun.mockRestore()
-  })
 })
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -827,6 +794,28 @@ describe('/elect :n=N /term — inline form where elect carries its own generati
 
     expect(createErrorSpy).toHaveBeenCalledWith(expect.stringMatching(/elect requires a parent cell/), 'elect')
     expect(mockRunForks).not.toHaveBeenCalled()
+  })
+
+  // Root routing must send an external-dispatch-shaped term into resolveElectCell so it is refused as
+  // an external dispatch, not diverted to the modifier-root path where the /mcp: shape reads as an
+  // unrecognised bare modifier. Generalised over both external transports and asserted with no alias
+  // configured, so the refusal turns on the command shape alone.
+  it.each([
+    ['/elect :n=3 /mcp:jira create issue', 'MCP'],
+    ['/elect :n=2 /rpc:worker run', 'RPC'],
+  ])('routes an inline %s external-dispatch term into the refusal path, not the modifier-root error', async command => {
+    const store = buildStore({elect: {id: 'elect', parent: null, command, children: []}})
+    store._aliases = {mcp: [], rpc: []}
+    const createErrorSpy = jest.spyOn(store.importer, 'createErrorNode')
+
+    await runCommand({queryType: 'elect', cell: store.getNode('elect'), store, memoMap: new Map()})
+
+    expect(createErrorSpy).not.toHaveBeenCalledWith(expect.stringMatching(/requires a parent cell/), expect.anything())
+    const [msg] = createErrorSpy.mock.calls[0]
+    expect(msg).toContain('external dispatch')
+    expect(msg).not.toContain('side effect')
+    expect(mockRunForks).not.toHaveBeenCalled()
+    expect(store.getNode('elect').reliabilityMetadata.failureCause).toBe('external-dispatch-refused')
   })
 })
 

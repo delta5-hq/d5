@@ -49,6 +49,96 @@ describe('CriterionVerdictDrawer — mounting', () => {
   })
 })
 
+// ── failure reasons (P0.9) ───────────────────────────────────────────────────
+
+describe('CriterionVerdictDrawer — per-fork failure reasons', () => {
+  it('surfaces each discarded fork reason and criterion when no winner was selected', () => {
+    renderDrawer(
+      makeMetadata({
+        mode: 'strict',
+        winnerForkIndex: null,
+        eligible: 0,
+        total: 2,
+        discardedForks: [
+          {
+            forkIndex: 0,
+            status: 'criteria-failed',
+            failedAt: 'the reply is a single word',
+            reason: 'the reply has two words',
+          },
+          { forkIndex: 1, status: 'runtime-failed', reason: 'no-judge-signal' },
+        ],
+      }),
+    )
+    const content = screen.getByTestId('verdict-failure-reasons').textContent ?? ''
+    expect(content).toContain('the reply has two words')
+    expect(content).toContain('the reply is a single word')
+    expect(content).toContain('The verifier could not be reached')
+  })
+
+  it('surfaces the criterion and reason for a failed /validate assertion', () => {
+    renderDrawer(
+      makeMetadata({
+        mode: 'validate',
+        winnerForkIndex: null,
+        eligible: 0,
+        total: 1,
+        failureCause: 'criteria-failed',
+        discardedForks: [
+          { forkIndex: 0, status: 'criteria-failed', failedAt: 'must cite a source', reason: 'no source present' },
+        ],
+      }),
+    )
+    const content = screen.getByTestId('verdict-failure-reasons').textContent ?? ''
+    expect(content).toContain('must cite a source')
+    expect(content).toContain('no source present')
+  })
+
+  it('does not render the failure block when a winner was selected', () => {
+    renderDrawer(
+      makeMetadata({
+        winnerForkIndex: 0,
+        discardedForks: [{ forkIndex: 1, status: 'criteria-failed', reason: 'lower ranked' }],
+      }),
+    )
+    expect(screen.queryByTestId('verdict-failure-reasons')).not.toBeInTheDocument()
+  })
+
+  it('excludes discarded forks that carry neither a reason nor a criterion', () => {
+    renderDrawer(
+      makeMetadata({
+        winnerForkIndex: null,
+        eligible: 0,
+        total: 1,
+        discardedForks: [{ forkIndex: 0, status: 'runtime-failed' }],
+      }),
+    )
+    expect(screen.queryByTestId('verdict-failure-reasons')).not.toBeInTheDocument()
+  })
+
+  it('renders a fork carrying only a criterion, and one carrying only a reason', () => {
+    renderDrawer(
+      makeMetadata({
+        winnerForkIndex: null,
+        eligible: 0,
+        total: 2,
+        discardedForks: [
+          { forkIndex: 0, status: 'criteria-failed', failedAt: 'must be under 50 words' },
+          { forkIndex: 1, status: 'runtime-failed', reason: 'provider timeout' },
+        ],
+      }),
+    )
+    const content = screen.getByTestId('verdict-failure-reasons').textContent ?? ''
+    expect(content).toContain('must be under 50 words')
+    expect(content).toContain('provider timeout')
+  })
+
+  it('does not render the failure block when no winner but discardedForks is absent', () => {
+    renderDrawer(makeMetadata({ winnerForkIndex: null, eligible: 0, total: 2 }))
+    expect(screen.queryByTestId('verdict-failure-reasons')).not.toBeInTheDocument()
+  })
+})
+
 // ── mode label ───────────────────────────────────────────────────────────────
 
 describe('CriterionVerdictDrawer — mode label', () => {
@@ -187,6 +277,7 @@ describe('CriterionVerdictDrawer — invalid failure causes', () => {
   it.each([
     ['missing-parent', /This command requires a parent cell/i],
     ['invalid-criteria', /Validate criterion is empty/i],
+    ['external-dispatch-refused', /Cannot fan out :n over an external dispatch/i],
   ] as Array<[ReliabilityMetadata['failureCause'], RegExp]>)(
     'renders "%s" failure cause explanation',
     (failureCause, expectedText) => {
@@ -200,6 +291,24 @@ describe('CriterionVerdictDrawer — invalid failure causes', () => {
     const content = drawerContent()
     expect(content).not.toMatch(/This command requires/i)
     expect(content).not.toMatch(/Validate criterion/i)
+  })
+
+  // The external-dispatch refusal is written under three different modes (elect -> 'invalid',
+  // refine -> 'refine', commodity -> 'commodity'); the cause must render on all three, gated on the
+  // cause itself rather than the mode.
+  it.each(['invalid', 'refine', 'commodity'] as Array<ReliabilityMetadata['mode']>)(
+    'renders the external-dispatch refusal cause under mode "%s"',
+    mode => {
+      renderDrawer(makeMetadata({ mode, failureCause: 'external-dispatch-refused', eligible: 0, total: 3 }))
+      expect(screen.getByText(/Cannot fan out :n over an external dispatch/i)).toBeInTheDocument()
+    },
+  )
+
+  it('does not mislabel a commodity external-dispatch refusal as "all forks failed"', () => {
+    renderDrawer(makeMetadata({ mode: 'commodity', failureCause: 'external-dispatch-refused', eligible: 0, total: 3 }))
+    const content = drawerContent()
+    expect(content).toMatch(/Cannot fan out :n over an external dispatch/i)
+    expect(content).not.toMatch(/parallel forks failed/i)
   })
 })
 

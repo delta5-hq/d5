@@ -17,6 +17,8 @@ export const FAILURE_CAUSE = Object.freeze({
   NO_JUDGE_SIGNAL: 'no-judge-signal',
   MISSING_PARENT: 'missing-parent',
   INVALID_CRITERIA: 'invalid-criteria',
+  EXTERNAL_DISPATCH_REFUSED: 'external-dispatch-refused',
+  VERDICT_UNPARSED: 'verdict-unparsed',
 })
 
 export const REMEDIATION_HINT = Object.freeze({
@@ -27,7 +29,6 @@ export const REMEDIATION_HINT = Object.freeze({
 })
 
 export const COMMODITY_SUPPRESSION_CAUSE = Object.freeze({
-  SIDE_EFFECTING_ALIAS: 'side-effecting-alias',
   NESTED_RELIABILITY_FORK: 'nested-reliability-fork',
 })
 

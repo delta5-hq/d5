@@ -6,8 +6,8 @@ import {extractDynamicAlias} from './commandRecognition'
  * @property {string} alias - The command alias (e.g., "/coder1")
  */
 
-const MCP_PREFIX = 'mcp:'
-const RPC_PREFIX = 'rpc:'
+export const MCP_PREFIX = 'mcp:'
+export const RPC_PREFIX = 'rpc:'
 
 export const isMCPQueryType = queryType => queryType?.startsWith(MCP_PREFIX) ?? false
 export const isRPCQueryType = queryType => queryType?.startsWith(RPC_PREFIX) ?? false

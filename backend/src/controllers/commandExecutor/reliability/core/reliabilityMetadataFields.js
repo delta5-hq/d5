@@ -1,5 +1,5 @@
 import {isDegradedInput} from './judgeContentBudget'
-import {FAILURE_CAUSE, JUDGE_WARNING_CONDITION, REMEDIATION_HINT} from './failureSemantics'
+import {FAILURE_CAUSE, JUDGE_WARNING_CONDITION} from './failureSemantics'
 export {COMMODITY_SUPPRESSION_CAUSE} from './failureSemantics'
 
 export function buildJudgeInputMetadata({candidateCount, perForkBudget, resolvedModels}) {
@@ -34,7 +34,6 @@ export function buildDiscardedFork(f) {
 }
 
 export function buildReliabilityMetadata(verdict, forkResults, okCount, n) {
-  const suppressedFork = forkResults.find(f => f.suppressed)
   return {
     winnerForkIndex: verdict.winnerForkIndex,
     perCriterionVerdict: verdict.perCriterionVerdict ?? [],
@@ -44,13 +43,6 @@ export function buildReliabilityMetadata(verdict, forkResults, okCount, n) {
     tiebreakUsed: verdict.tiebreakUsed ?? false,
     eligible: okCount,
     total: n,
-    ...(suppressedFork
-      ? {
-          suppressed: true,
-          cause: suppressedFork.cause,
-          requestedN: suppressedFork.requestedN,
-        }
-      : {}),
     judgeInput: verdict.judgeInput,
     judgeQualityWarnings: verdict.judgeQualityWarnings ?? [],
     ...(verdict.selectionLayer === 'fallback' ? {fallbackUsed: true} : {}),
@@ -93,7 +85,7 @@ export function buildCommodityReliabilityMetadata({successCount, total, forkOutc
   }
 }
 
-export function buildRefineReliabilityMetadata({passed, attempts, requestedN, suppressedCause}) {
+export function buildRefineReliabilityMetadata({passed, attempts, requestedN}) {
   return {
     winnerForkIndex: null,
     perCriterionVerdict: [],
@@ -105,13 +97,12 @@ export function buildRefineReliabilityMetadata({passed, attempts, requestedN, su
     total: attempts,
     attempts,
     requestedN,
-    ...(suppressedCause ? {suppressed: true, cause: suppressedCause} : {}),
     ...(!passed ? {failureCause: FAILURE_CAUSE.CRITERIA_FAILED} : {}),
     discardedForks: [],
   }
 }
 
-export function buildValidateReliabilityMetadata({passed}) {
+export function buildValidateReliabilityMetadata({passed, criterion, reason, failureCause}) {
   return {
     winnerForkIndex: null,
     perCriterionVerdict: [],
@@ -121,12 +112,15 @@ export function buildValidateReliabilityMetadata({passed}) {
     tiebreakUsed: false,
     eligible: passed ? 1 : 0,
     total: 1,
-    ...(!passed ? {failureCause: FAILURE_CAUSE.CRITERIA_FAILED} : {}),
-    discardedForks: [],
+    ...(!passed ? {failureCause: failureCause ?? FAILURE_CAUSE.CRITERIA_FAILED} : {}),
+    discardedForks: passed
+      ? []
+      : [buildDiscardedFork({forkIndex: 0, status: 'criteria-failed', failedAt: criterion, reason})],
   }
 }
 
-// Collapsed to one execution due to a side-effecting parent — never a silent collapse, never an error node.
+// Collapsed to one execution because this cell runs inside an enclosing reliability fork
+// (nested-reliability collapse) — never a silent collapse, never an error node.
 export function buildSuppressedReliabilityMetadata({
   cause,
   requestedN,
@@ -149,25 +143,6 @@ export function buildSuppressedReliabilityMetadata({
     requestedN,
     ...(failureCause !== undefined ? {failureCause} : {}),
     ...(remediationHint !== undefined ? {remediationHint} : {}),
-    discardedForks: [],
-  }
-}
-
-export function buildValidateRetryWithheldReliabilityMetadata({cause, requestedRetry, passedCount, total}) {
-  return {
-    winnerForkIndex: null,
-    perCriterionVerdict: [],
-    mode: 'invalid',
-    selectionLayer: 'primary',
-    noSignal: false,
-    tiebreakUsed: false,
-    eligible: passedCount,
-    total,
-    retryWithheld: true,
-    cause,
-    requestedRetry,
-    failureCause: FAILURE_CAUSE.CRITERIA_FAILED,
-    remediationHint: REMEDIATION_HINT.NONE,
     discardedForks: [],
   }
 }

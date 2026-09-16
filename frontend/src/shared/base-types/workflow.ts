@@ -121,18 +121,10 @@ export type ReliabilityMetadata = {
   mode: 'strict' | 'fallback' | 'commodity' | 'validate' | 'refine' | 'invalid' | 'suppressed'
   selectionLayer: 'primary' | 'fallback' | 'none'
   noSignal: boolean
-  /** best-of-N was collapsed to a single execution (e.g. side-effecting MCP/RPC alias) */
-  suppressed?: boolean
-  /** why the run was collapsed to one, e.g. 'side-effecting-alias' */
-  cause?: string
   /** the N originally requested via commodity :n=N before suppression */
   requestedN?: number
   /** number of parent-command executions actually performed by /refine */
   attempts?: number
-  /** /validate retry was withheld because the parent is a side-effecting command */
-  retryWithheld?: boolean
-  /** the :retry=R value the user requested that was withheld */
-  requestedRetry?: number
   tiebreakUsed?: boolean
   fallbackUsed?: boolean
   generatorOnlyJudge?: boolean
@@ -147,6 +139,7 @@ export type ReliabilityMetadata = {
     | 'no-judge-signal'
     | 'missing-parent'
     | 'invalid-criteria'
+    | 'external-dispatch-refused'
   remediationHint?: 'revise-prompt' | 'check-provider' | 'adjust-criteria' | 'none'
   allGateFiltered?: boolean
   judgeInput?: JudgeInputMetadata

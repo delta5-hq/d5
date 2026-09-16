@@ -7,7 +7,6 @@ import {
   buildJudgeQualityWarning,
   buildPerCriterionVerdictEntry,
   buildForkRankingEntry,
-  buildValidateRetryWithheldReliabilityMetadata,
   buildCommodityReliabilityMetadata,
   buildRefineReliabilityMetadata,
   buildValidateReliabilityMetadata,
@@ -22,10 +21,10 @@ const FIXTURE_PATH = path.resolve(
 
 const fixture = JSON.parse(fs.readFileSync(FIXTURE_PATH, 'utf8'))
 
-// retryWithheld and requestedRetry are set only by buildValidateRetryWithheldReliabilityMetadata
-// (on validate nodes), not by buildReliabilityMetadata (on elect nodes). Exclude them when
-// testing buildReliabilityMetadata's key-path set.
-const SPECIALIZED_MODE_ONLY_FIELDS = ['attempts', 'retryWithheld', 'requestedRetry']
+// suppressed/cause/requestedN are emitted only by buildSuppressedReliabilityMetadata (the
+// nested-reliability collapse), and attempts only by the refine builder — not by
+// buildReliabilityMetadata (on elect nodes). Exclude them when testing its key-path set.
+const SPECIALIZED_MODE_ONLY_FIELDS = ['attempts', 'suppressed', 'cause', 'requestedN']
 const buildReliabilityMetadataFixture = Object.fromEntries(
   Object.entries(fixture).filter(([k]) => !SPECIALIZED_MODE_ONLY_FIELDS.includes(k)),
 )
@@ -97,7 +96,7 @@ const maximalVerdict = {
   remediationHint: 'revise-prompt',
   allGateFiltered: true,
   suppressed: true,
-  cause: 'side-effecting-alias',
+  cause: 'nested-reliability-fork',
   requestedN: 3,
   generatorOnlyJudge: true,
   judgeReasoningRequested: true,
@@ -119,7 +118,7 @@ describe('reliabilityMetadata field-set contract', () => {
           forkIndex: 0,
           status: 'ok',
           suppressed: true,
-          cause: 'side-effecting-alias',
+          cause: 'nested-reliability-fork',
           requestedN: 3,
         },
         maximalLoserFork,
@@ -169,8 +168,6 @@ describe('reliabilityMetadata field-set contract', () => {
         'perCriterionVerdict',
         'remediationHint',
         'requestedN',
-        'requestedRetry',
-        'retryWithheld',
         'selectionLayer',
         'suppressed',
         'tiebreakUsed',
@@ -250,27 +247,6 @@ describe('nested builder construction chokepoints', () => {
   })
 })
 
-describe('validate retry-withheld metadata builder', () => {
-  it('emits the persisted retry-withheld signal shape', () => {
-    expect(
-      buildValidateRetryWithheldReliabilityMetadata({
-        cause: 'side-effecting-alias',
-        requestedRetry: 2,
-        passedCount: 0,
-        total: 1,
-      }),
-    ).toEqual(
-      expect.objectContaining({
-        mode: 'invalid',
-        retryWithheld: true,
-        cause: 'side-effecting-alias',
-        requestedRetry: 2,
-        failureCause: 'criteria-failed',
-      }),
-    )
-  })
-})
-
 describe('builder mode values are constrained to the declared cross-stack mode union', () => {
   const FRONTEND_WORKFLOW_TS = path.resolve(__dirname, '../../../../../../frontend/src/shared/base-types/workflow.ts')
 
@@ -293,8 +269,7 @@ describe('builder mode values are constrained to the declared cross-stack mode u
       buildCommodityReliabilityMetadata({successCount: 1, total: 2, forkOutcomes: []}).mode,
       buildValidateReliabilityMetadata({passed: true}).mode,
       buildRefineReliabilityMetadata({passed: true, attempts: 1, requestedN: 3}).mode,
-      buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias', requestedN: 3}).mode,
-      buildValidateRetryWithheldReliabilityMetadata({cause: 'x', requestedRetry: 1, passedCount: 0, total: 1}).mode,
+      buildSuppressedReliabilityMetadata({cause: 'nested-reliability-fork', requestedN: 3}).mode,
       buildInvalidReliabilityMetadata({failureCause: 'missing-parent'}).mode,
     ]
   }

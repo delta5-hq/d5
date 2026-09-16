@@ -7,6 +7,7 @@ import {
   GlassSheetDescription,
 } from '@shared/ui/glass-sheet'
 import { FormattedMessage } from 'react-intl'
+import { ForkFailureReason } from '@widgets/workflow/lib/fork-failure-reason'
 
 const SEVERITY_I18N_KEY: Record<JudgeQualityWarning['severity'], string> = {
   high: 'workflowTree.verdictDrawer.judgeQualitySeverityHigh',
@@ -35,9 +36,10 @@ const MODE_I18N_KEY: Record<ReliabilityMetadata['mode'], string> = {
   suppressed: 'workflowTree.verdictDrawer.modeSuppressed',
 }
 
-const INVALID_FAILURE_CAUSE_I18N_KEY: Record<string, string> = {
+const FAILURE_CAUSE_I18N_KEY: Record<string, string> = {
   'missing-parent': 'workflowTree.verdictDrawer.failureCauseMissingParent',
   'invalid-criteria': 'workflowTree.verdictDrawer.failureCauseInvalidCriteria',
+  'external-dispatch-refused': 'workflowTree.verdictDrawer.failureCauseExternalDispatchRefused',
 }
 
 const winnerRankForCriterion = (
@@ -67,8 +69,12 @@ export const CriterionVerdictDrawer = ({ open, onOpenChange, metadata }: Criteri
     failureCause,
     attempts,
     requestedN,
+    discardedForks,
   } = metadata
   const isElectMode = mode === 'strict' || mode === 'fallback'
+  const failureCauseMessageId = failureCause ? FAILURE_CAUSE_I18N_KEY[failureCause] : undefined
+  const failedForkReasons =
+    winnerForkIndex === null ? (discardedForks ?? []).filter(fork => fork.reason || fork.failedAt) : []
 
   return (
     <GlassSheet onOpenChange={onOpenChange} open={open}>
@@ -135,14 +141,14 @@ export const CriterionVerdictDrawer = ({ open, onOpenChange, metadata }: Criteri
                 />
               </div>
             ) : null}
-            {mode === 'commodity' && eligible === 0 && total > 0 ? (
+            {mode === 'commodity' && eligible === 0 && total > 0 && !failureCauseMessageId ? (
               <div className="rounded-sm border border-destructive/40 bg-destructive/5 px-3 py-1.5 font-medium text-destructive">
                 <FormattedMessage id="workflowTree.verdictDrawer.commodityAllFailedWarning" values={{ total }} />
               </div>
             ) : null}
-            {mode === 'invalid' && failureCause && INVALID_FAILURE_CAUSE_I18N_KEY[failureCause] ? (
+            {failureCauseMessageId ? (
               <div className="rounded-sm border border-destructive/40 bg-destructive/5 px-3 py-1.5 font-medium text-destructive">
-                <FormattedMessage id={INVALID_FAILURE_CAUSE_I18N_KEY[failureCause]} />
+                <FormattedMessage id={failureCauseMessageId} />
               </div>
             ) : null}
             {fallbackUsed ? (
@@ -199,6 +205,40 @@ export const CriterionVerdictDrawer = ({ open, onOpenChange, metadata }: Criteri
                     <span>
                       <FormattedMessage id={CONDITION_I18N_KEY[condition]} />
                     </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {failedForkReasons.length > 0 ? (
+            <div
+              className="rounded-md border border-destructive/40 bg-destructive/5 p-3 space-y-2"
+              data-testid="verdict-failure-reasons"
+            >
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <FormattedMessage id="workflowTree.verdictDrawer.failureReasonsLabel" />
+              </span>
+              <ul className="mt-1 space-y-1.5">
+                {failedForkReasons.map(fork => (
+                  <li
+                    className="space-y-0.5 text-xs"
+                    data-testid={`verdict-failed-fork-${fork.forkIndex}`}
+                    key={fork.forkIndex}
+                  >
+                    {fork.failedAt ? (
+                      <p className="text-muted-foreground" title={fork.failedAt}>
+                        <FormattedMessage
+                          id="workflowTree.discardedForks.failedAt"
+                          values={{ criterion: fork.failedAt }}
+                        />
+                      </p>
+                    ) : null}
+                    {fork.reason ? (
+                      <p className="text-destructive" title={fork.reason}>
+                        <ForkFailureReason reason={fork.reason} />
+                      </p>
+                    ) : null}
                   </li>
                 ))}
               </ul>

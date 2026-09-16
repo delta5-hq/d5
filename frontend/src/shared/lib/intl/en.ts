@@ -419,6 +419,8 @@ export default {
       electCriterionMustBeValidate: 'Move the criterion to a sibling /validate cell; /elect accepts parameters only.',
       validateRetryMustBeRefine: 'Wrap the generating command with /refine :n=N; /validate evaluates once.',
       invalidRefineSyntax: 'Use /refine :n=N without trailing text.',
+      externalDispatchRefused:
+        'Cannot fan out :n over an external dispatch (/mcp, /rpc); the engine cannot prove an external dispatch is safe to repeat.',
       execute: 'Execute',
       executing: 'Executing...',
       abort: 'Abort',
@@ -441,12 +443,8 @@ export default {
       electCostOverLimit: '⛔ Exceeds :limit= — will be refused ({cost} calls)',
       commodityCeilingHint:
         '⚠ Structural-only: catches empty, refusal, and thrown-error outputs. Soft errors (well-formed HTTP 200 error text) are undetectable at this tier — use /elect + /validate for semantic checking.',
-      suppressedRunHint:
-        '⚠ Single run — best-of-N suppressed for a side-effecting command (requested :n={n}). Running it {n} times would fire {n} real external operations.',
       nestedReliabilitySuppressedHint:
         '⚠ Single draw inside the outer reliability fork (requested :n={n}); nested fan-out was collapsed to prevent multiplied generations.',
-      retryWithheldHint:
-        '⚠ Retry withheld — this parent is side-effecting; requested :retry={n} but replaying it would duplicate the external operation.',
       verdictButton: 'View verdict',
     },
 
@@ -494,6 +492,7 @@ export default {
         'Partial success — {eligible} of {total} forks produced output; {failed} failed at runtime',
       fallbackUsedLabel: 'Fallback winner committed — no fork passed primary criteria; least-bad fork promoted',
       noWinnerLabel: 'No winner selected',
+      failureReasonsLabel: 'Why forks failed',
       generatorOnlyJudgeLabel: 'Generator and judge share the same provider — cross-family independence not possible',
       judgeReasoningRequestedLabel: 'Extended judge reasoning requested (:judge_reasoning)',
       modeInvalid: 'invalid',
@@ -502,6 +501,8 @@ export default {
         'This command requires a parent cell — move it below an existing workflow cell before running',
       failureCauseInvalidCriteria:
         'Validate criterion is empty — add criterion text to the /validate command before running',
+      failureCauseExternalDispatchRefused:
+        'Cannot fan out :n over an external dispatch (/mcp, /rpc) — the engine cannot prove it is safe to repeat',
       commodityAllFailedWarning:
         'All {total} parallel forks failed at runtime — check provider availability and try again',
     },
@@ -523,6 +524,8 @@ export default {
       failureReasonRuntime: 'Command execution failed at runtime',
       failureReasonExecution: 'Command produced an execution error',
       failureReasonStructuralGate: 'Structurally rejected by the gate',
+      failureReasonNoJudgeSignal: 'The verifier could not be reached',
+      failureReasonVerdictUnparsed: 'The verifier returned an unrecognised verdict',
       failedAt: 'criterion: {criterion}',
       attempts: '{count} attempts',
       selectionLabel: '{eligible} of {total} forks eligible; selection: {layer}',

@@ -1,11 +1,16 @@
 import {readRawRefineN, readRefineN, readRefineTrailingText} from './refineParams'
 import {parseInlineTerm} from './inlineTermParser'
 import {CriteriaFailedError} from './CriteriaFailedError'
-import {isSideEffectingDispatch} from './sideEffectingDispatch'
 import {captureStoreExecutionSnapshot, restoreStoreExecutionSnapshot} from './StoreExecutionSnapshot'
-import {appendRefineSuffix} from './reliabilitySuffix'
+import {appendRefineSuffix, appendInvalidSuffix} from './reliabilitySuffix'
 import {buildRefineReliabilityMetadata} from './reliabilityMetadataFields'
-import {COMMODITY_SUPPRESSION_CAUSE} from './failureSemantics'
+import {
+  externalDispatchRefusalMessage,
+  buildExternalDispatchRefusalMetadata,
+  commandIsExternalDispatch,
+} from './externalDispatchRefusal'
+import {isExternalDispatchShape} from './externalDispatch'
+import {firstInadmissibleInlineTermChild, inlineTermChildRefusalMessage} from './inlineTermChildAdmission'
 import {
   evaluateValidateGroup,
   applyValidateResults,
@@ -14,6 +19,7 @@ import {
   writeInvalidModifier,
 } from './validateGroup'
 import {getNodeCommand, isValidate} from '../../commands/utils/isCommand'
+import {clearStepsPrefix, STEPS_QUERY_TYPE} from '../../constants/steps'
 import {resolveCommand} from '../../commands/utils/queryTypeResolver'
 import {clearCommandsWithParams} from '../../constants'
 
@@ -75,7 +81,7 @@ function invalidSyntaxMessage(query, trailingText) {
  *   parentCell?: NodeData|null,
  *   parentQueryType?: string,
  *   parentPrompt?: string,
- *   parentSideEffecting?: boolean,
+ *   parentIsExternalDispatch?: boolean,
  *   signal: AbortSignal|null,
  *   executeTerm: (queryType: string, context: string, prompt: string, cell: NodeData) => Promise<void>,
  *   postProcessTerm: (rootId: string, excludedIds: string[]) => Promise<void>,
@@ -92,21 +98,52 @@ export async function resolveRefineCell(
     parentCell = null,
     parentQueryType,
     parentPrompt,
-    parentSideEffecting = false,
+    parentIsExternalDispatch = false,
     signal,
     executeTerm,
     postProcessTerm,
   },
 ) {
-  const query = getNodeCommand(refineCell)
+  const query = clearStepsPrefix(getNodeCommand(refineCell))
   const maxAttempts = readRefineN(query)
   const trailingText = readRefineTrailingText(query)
   const inlineTerm = parseInlineTerm(trailingText, store._aliases)
+  const trailingIsExternalDispatch = isExternalDispatchShape(trailingText)
   const validates = readValidateChildren(refineCell, store)
 
-  if (!maxAttempts || (trailingText && !inlineTerm)) {
+  // An `/mcp:`/`/rpc:`-shaped term is an external dispatch, refused below by its shape alone even
+  // when the alias is unconfigured; it is never the invalid trailing text this guard rejects.
+  if (!maxAttempts || (trailingText && !inlineTerm && !trailingIsExternalDispatch)) {
     writeInvalidModifier(refineCell, store, invalidSyntaxMessage(query, trailingText))
     return REFINE_OUTCOME.INVALID
+  }
+
+  const generationCell = inlineTerm ? refineCell : parentCell
+  const generationRootId = generationCell?.id
+  const {queryType: termQueryType} = inlineTerm
+    ? resolveCommand(inlineTerm, store._aliases)
+    : {queryType: parentQueryType}
+  const termPrompt = inlineTerm ? clearCommandsWithParams(inlineTerm) : parentPrompt
+  const termCommand = inlineTerm ?? trailingText
+  const termIsExternal = termCommand ? commandIsExternalDispatch(termCommand, store) : parentIsExternalDispatch
+
+  // Refusal precedes the validate-required check: fan-out over an external dispatch is barred by the
+  // dispatch shape itself, whether or not the cell also carries a /validate child.
+  if (maxAttempts > 1 && termIsExternal) {
+    const current = store.getNode(refineCell.id) ?? refineCell
+    current.title = appendInvalidSuffix(current.title || '')
+    current.reliabilityMetadata = buildExternalDispatchRefusalMetadata(maxAttempts, 'refine')
+    store.importer.createErrorNode(externalDispatchRefusalMessage('/refine', maxAttempts), current.id)
+    store.saveNodeToOutput(current.id)
+    return REFINE_OUTCOME.INVALID
+  }
+
+  if (inlineTerm && termQueryType !== STEPS_QUERY_TYPE) {
+    const inadmissible = firstInadmissibleInlineTermChild(refineCell, store)
+    if (inadmissible) {
+      writeInvalidModifier(refineCell, store, inlineTermChildRefusalMessage('/refine', getNodeCommand(inadmissible)))
+      return REFINE_OUTCOME.INVALID
+    }
   }
 
   if (validates.length === 0) {
@@ -114,19 +151,6 @@ export async function resolveRefineCell(
     return REFINE_OUTCOME.INVALID
   }
 
-  const generationCell = inlineTerm ? refineCell : parentCell
-  const generationRootId = generationCell.id
-  const {
-    queryType: termQueryType,
-    mcpAlias,
-    rpcAlias,
-  } = inlineTerm
-    ? resolveCommand(inlineTerm, store._aliases)
-    : {queryType: parentQueryType, mcpAlias: null, rpcAlias: null}
-  const termPrompt = inlineTerm ? clearCommandsWithParams(inlineTerm) : parentPrompt
-  const termSideEffecting = inlineTerm
-    ? isSideEffectingDispatch({queryType: termQueryType, mcpAlias, rpcAlias})
-    : parentSideEffecting
   const validateScope = [refineCell.id, ...validates.map(v => v.id)]
 
   if (inlineTerm) {
@@ -139,9 +163,8 @@ export async function resolveRefineCell(
   let bestAttempt = captureRefineAttempt(attempts, results, store, generationRootId)
   const attemptSnapshots = [bestAttempt.snapshot]
   let firstFail = firstFailedValidate(results)
-  const retryWithheld = Boolean(firstFail && termSideEffecting && maxAttempts > 1)
 
-  while (firstFail && attempts < maxAttempts && !termSideEffecting) {
+  while (firstFail && attempts < maxAttempts) {
     const retryContext = buildRefineAttemptContext(context, firstFail.criterion, firstFail.reason)
     await executeTerm(termQueryType, retryContext, termPrompt, generationCell)
     await postProcessTerm(generationRootId, validateScope)
@@ -154,24 +177,28 @@ export async function resolveRefineCell(
     if (!firstFail) bestAttempt = currentAttempt
   }
 
-  restoreStoreExecutionSnapshot(store, bestAttempt.snapshot, {attemptSnapshots})
+  restoreStoreExecutionSnapshot(store, bestAttempt.snapshot, {
+    attemptSnapshots,
+  })
   results = bestAttempt.results
   const passed = !firstFailedValidate(results)
   applyValidateResults(validates, results, store)
 
   const currentRefine = store.getNode(refineCell.id) ?? refineCell
-  currentRefine.title = appendRefineSuffix(currentRefine.title || '', {passed, attempts})
+  currentRefine.title = appendRefineSuffix(currentRefine.title || '', {
+    passed,
+    attempts,
+  })
   currentRefine.reliabilityMetadata = buildRefineReliabilityMetadata({
     passed,
     attempts,
     requestedN: maxAttempts,
-    ...(retryWithheld ? {suppressedCause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS} : {}),
   })
   store.saveNodeToOutput(currentRefine.id)
 
   if (!passed) {
     const failed = firstFailedValidate(results)
-    throw new CriteriaFailedError(failed?.criterion ?? '', attempts)
+    throw new CriteriaFailedError(failed?.criterion ?? '', attempts, failed?.reason)
   }
 
   return REFINE_OUTCOME.RESOLVED

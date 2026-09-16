@@ -21,6 +21,15 @@ describe('parseInlineTerm', () => {
     })
   })
 
+  describe('/steps is an admitted sequencing term (StepsCommand owns the ordering)', () => {
+    it('accepts a bare /steps term', () => {
+      expect(parseInlineTerm('/steps')).toBe('/steps')
+    })
+    it('accepts a #N-prefixed /steps term', () => {
+      expect(parseInlineTerm('#1 /steps')).toBe('#1 /steps')
+    })
+  })
+
   describe('recognized MCP alias → return trailingText', () => {
     it('accepts a registered MCP alias as the inline command token', () => {
       expect(parseInlineTerm('/tool run', {mcp: [{alias: '/tool'}], rpc: []})).toBe('/tool run')
@@ -54,7 +63,6 @@ describe('parseInlineTerm', () => {
       '/summarize the above',
       '/memorize this fact',
       '/switch condition',
-      '/steps plan the work',
       '/outline the topic',
     ])('returns null for non-generating command: "%s"', text => {
       expect(parseInlineTerm(text)).toBeNull()
@@ -112,7 +120,7 @@ describe('parseInlineTerm', () => {
 describe('NON_GENERATING_TERM_QUERY_TYPES — pinned contents (frontend mirror must match)', () => {
   it('contains exactly the control-flow and post-processor query types', () => {
     expect([...NON_GENERATING_TERM_QUERY_TYPES].sort()).toEqual(
-      ['elect', 'foreach', 'memorize', 'outline', 'refine', 'steps', 'summarize', 'switch', 'validate'].sort(),
+      ['elect', 'foreach', 'memorize', 'outline', 'refine', 'summarize', 'switch', 'validate'].sort(),
     )
   })
 })

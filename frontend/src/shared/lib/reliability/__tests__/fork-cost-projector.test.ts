@@ -458,7 +458,7 @@ describe('projectForkCost — admitSourceCandidate saves exactly one parent gene
       parent: { id: 'parent', command: '/chat', children: ['r'] },
       r: { id: 'r', parent: 'parent', command: '/elect :n=3', children: [] },
     })
-    expect(canProjectSourceCandidate(n.r, n, 'chat')).toBe(false)
+    expect(canProjectSourceCandidate(n.r, n)).toBe(false)
     expect(projectForkCost(n.r, n, true)).toBe(3)
   })
 
@@ -496,8 +496,8 @@ describe('projectForkCost — admitSourceCandidate saves exactly one parent gene
       out: { id: 'out', parent: 'parent', title: 'existing output', children: [] },
       r: { id: 'r', parent: 'parent', command: '/elect :n=3', children: [] },
     })
-    expect(canProjectSourceCandidate(n.r, n, 'chat')).toBe(true)
-    expect(projectForkCost(n.r, n, canProjectSourceCandidate(n.r, n, 'chat'))).toBe(2)
+    expect(canProjectSourceCandidate(n.r, n)).toBe(true)
+    expect(projectForkCost(n.r, n, canProjectSourceCandidate(n.r, n))).toBe(2)
   })
 
   it('blocks frontend source-candidate projection for elect-child scope', () => {
@@ -507,18 +507,7 @@ describe('projectForkCost — admitSourceCandidate saves exactly one parent gene
       r: { id: 'r', parent: 'parent', command: '/elect :n=3', children: ['innerChat'] },
       innerChat: { id: 'innerChat', parent: 'r', command: '/chat :n=5', children: [] },
     })
-    expect(canProjectSourceCandidate(n.r, n, 'chat')).toBe(false)
-  })
-
-  it('blocks frontend source-candidate projection for side-effecting parent query types', () => {
-    const n = nodes({
-      parent: { id: 'parent', command: '/mcp create issue', children: ['out', 'r'], prompts: ['out'] },
-      out: { id: 'out', parent: 'parent', title: 'existing output', children: [] },
-      r: { id: 'r', parent: 'parent', command: '/elect :n=3', children: [] },
-    })
-    expect(canProjectSourceCandidate(n.r, n, 'mcp-fusion')).toBe(false)
-    expect(canProjectSourceCandidate(n.r, n, 'mcp:jira')).toBe(false)
-    expect(canProjectSourceCandidate(n.r, n, 'rpc:ssh')).toBe(false)
+    expect(canProjectSourceCandidate(n.r, n)).toBe(false)
   })
 
   it('saving is exactly one regardless of n', () => {
@@ -555,8 +544,8 @@ describe('projectElectCostPreview — UI-facing projection contract', () => {
       parent: { id: 'parent', command: '/chat', children: ['plain'] },
       plain: { id: 'plain', parent: 'parent', command: '/chat', children: [] },
     })
-    expect(projectElectCostPreview(undefined, n, 'chat')).toBeNull()
-    expect(projectElectCostPreview(n.plain, n, 'chat')).toBeNull()
+    expect(projectElectCostPreview(undefined, n)).toBeNull()
+    expect(projectElectCostPreview(n.plain, n)).toBeNull()
   })
 
   it('preserves the over-limit boundary after source-candidate eligibility is applied', () => {
@@ -566,7 +555,7 @@ describe('projectElectCostPreview — UI-facing projection contract', () => {
       sibling: { id: 'sibling', parent: 'parent', command: '/chat :n=10', children: [] },
       r: { id: 'r', parent: 'parent', command: '/elect :n=3 :limit=xs', children: [] },
     })
-    expect(projectElectCostPreview(n.r, n, 'chat')).toEqual({ cost: 32, limitExceeded: true })
+    expect(projectElectCostPreview(n.r, n)).toEqual({ cost: 32, limitExceeded: true })
   })
 
   it.each(parityFixtures)('$name matches the shared UI/backend projection contract', fixture => {
@@ -579,7 +568,7 @@ describe('projectElectCostPreview — UI-facing projection contract', () => {
             limitExceeded: fixture.expectedLimitExceeded,
           }
 
-    expect(projectElectCostPreview(n[fixture.electNodeId], n, fixture.parentQueryType)).toEqual(expectedPreview)
+    expect(projectElectCostPreview(n[fixture.electNodeId], n)).toEqual(expectedPreview)
   })
 })
 
@@ -591,7 +580,7 @@ describe('projectSelectedNodeElectCostPreview — selected-node UI handoff', () 
       r: { id: 'r', parent: 'parent', command: '/elect :n=3 :limit=xs', children: [] },
     })
 
-    expect(projectSelectedNodeElectCostPreview(n.r, n)).toEqual({ cost: 3, limitExceeded: false })
+    expect(projectSelectedNodeElectCostPreview(n.r, n)).toEqual({ cost: 2, limitExceeded: false })
   })
 
   it('derives dynamic alias parent query type before projecting source-candidate eligibility', () => {
@@ -602,7 +591,7 @@ describe('projectSelectedNodeElectCostPreview — selected-node UI handoff', () 
     })
 
     expect(projectSelectedNodeElectCostPreview(n.r, n, [{ alias: '/jira', queryType: 'mcp:jira' }])).toEqual({
-      cost: 3,
+      cost: 2,
       limitExceeded: false,
     })
   })

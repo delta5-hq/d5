@@ -23,9 +23,15 @@ export function firstFailedValidate(results) {
 export function applyValidateResults(validates, results, store) {
   validates.forEach((node, index) => {
     const current = store.getNode(node.id) ?? node
-    const passed = results[index]?.passed ?? false
+    const result = results[index]
+    const passed = result?.passed ?? false
     current.title = appendValidateSuffix(current.title || '', {passed})
-    current.reliabilityMetadata = buildValidateReliabilityMetadata({passed})
+    current.reliabilityMetadata = buildValidateReliabilityMetadata({
+      passed,
+      criterion: result?.criterion,
+      reason: result?.reason,
+      failureCause: result?.failureCause,
+    })
     store.saveNodeToOutput(current.id)
   })
 }
@@ -50,6 +56,22 @@ export function writeInvalidModifier(node, store, message, failureCause = FAILUR
  * @param {AbortSignal|null} signal
  * @returns {Promise<ValidateResult[]>}
  */
+/**
+ * Evaluates a validate group and throws {@link CriteriaFailedError} on the first failing criterion,
+ * carrying its reason. The single gate used wherever candidates must be rejected by their assertions:
+ * a scope's post-processing and a /steps fork alike. No-op for an empty group.
+ *
+ * @param {NodeData[]} validates
+ * @param {Store} store
+ * @param {AbortSignal|null} signal
+ */
+export async function gateOnValidateGroup(validates, store, signal) {
+  if (validates.length === 0) return
+  const results = await evaluateValidateGroup(validates, store, signal)
+  const failed = firstFailedValidate(results)
+  if (failed) throw new CriteriaFailedError(failed.criterion, 1, failed.reason)
+}
+
 export async function evaluateValidateGroup(validates, store, signal) {
   const invalid = validates.filter(
     node => !hasValidCriterion(getNodeCommand(node)) || hasValidateRetry(getNodeCommand(node)),
@@ -62,7 +84,7 @@ export async function evaluateValidateGroup(validates, store, signal) {
         : 'Error: /validate requires criterion text'
       writeInvalidModifier(node, store, message)
     })
-    throw new CriteriaFailedError('', 1)
+    throw new CriteriaFailedError('', 1, FAILURE_CAUSE.INVALID_CRITERIA)
   }
 
   const validateCommand = new ValidateCommand(store._userId, store._workflowId, store)

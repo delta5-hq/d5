@@ -12,13 +12,12 @@ jest.mock('debug', () => {
 
 jest.mock('./SubtreeForkRunner', () => ({
   runForks: jest.fn(),
-  computeEffectiveN: jest.fn((electNode, store, n) => n),
 }))
 jest.mock('./ForkJudge', () => ({ForkJudge: jest.fn()}))
 jest.mock('./OwnershipResolver', () => jest.fn())
 jest.mock('./StoreFork', () => ({applyCandidate: jest.fn()}))
 
-const {runForks: mockRunForks, computeEffectiveN: mockComputeEffectiveN} = require('./SubtreeForkRunner')
+const {runForks: mockRunForks} = require('./SubtreeForkRunner')
 const MockForkJudge = ForkJudge
 const MockOwnershipResolver = OwnershipResolver
 
@@ -52,6 +51,110 @@ beforeEach(() => {
   MockForkJudge.mockImplementation(() => ({
     selectWinner: makeSelectWinner(null),
   }))
+})
+
+describe('resolveElectCell — P0.3 external-dispatch fan-out is refused, not collapsed', () => {
+  const makeExternalParentStore = () => {
+    const store = buildStore({
+      p1: {id: 'p1', command: '/mcp:jira create issue', children: ['r1']},
+      r1: {id: 'r1', parent: 'p1', title: 'My Cell', command: '/elect :n=3', children: []},
+    })
+    store._aliases = {mcp: [{alias: '/mcp:jira'}], rpc: []}
+    jest.spyOn(store, 'saveNodeToOutput').mockImplementation(() => {})
+    jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
+    return store
+  }
+
+  it('refuses a postfix /elect over an external-dispatch parent: error node, no forks, requested N recorded', async () => {
+    const store = makeExternalParentStore()
+    await resolveElectCell(store.getNode('r1'), store, new Map())
+
+    expect(mockRunForks).not.toHaveBeenCalled()
+    const [msg, nodeId] = store.importer.createErrorNode.mock.calls[0]
+    expect(nodeId).toBe('r1')
+    expect(msg).toContain('external dispatch')
+    expect(msg).not.toContain('side effect')
+    const meta = store.getNode('r1').reliabilityMetadata
+    expect(meta.failureCause).toBe('external-dispatch-refused')
+    expect(meta.requestedN).toBe(3)
+  })
+
+  it.each([
+    ['/elect :n=3 /mcp:jira create issue', 'MCP'],
+    ['/elect :n=2 /rpc:worker run', 'RPC'],
+  ])(
+    'refuses an inline %s term on its shape alone when no alias is configured, not as criterion text',
+    async command => {
+      const store = buildStore({
+        p1: {id: 'p1', children: ['r1']},
+        r1: {id: 'r1', parent: 'p1', title: 'My Cell', command, children: []},
+      })
+      store._aliases = {mcp: [], rpc: []}
+      jest.spyOn(store, 'saveNodeToOutput').mockImplementation(() => {})
+      jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
+
+      await resolveElectCell(store.getNode('r1'), store, new Map())
+
+      expect(mockRunForks).not.toHaveBeenCalled()
+      const [msg, nodeId] = store.importer.createErrorNode.mock.calls[0]
+      expect(nodeId).toBe('r1')
+      expect(msg).toContain('external dispatch')
+      expect(msg).not.toContain('side effect')
+      expect(msg).not.toContain('add a sibling /validate cell')
+      expect(store.getNode('r1').reliabilityMetadata.failureCause).toBe('external-dispatch-refused')
+    },
+  )
+})
+
+describe('resolveElectCell — P0.7 single-command term admits only /validate and output post-processors', () => {
+  const makeTermStore = childNodes => {
+    const store = buildStore({
+      p1: {id: 'p1', children: ['r1']},
+      r1: {
+        id: 'r1',
+        parent: 'p1',
+        title: 'My Cell',
+        command: '/elect :n=2 /chat draft the section',
+        children: childNodes.map(c => c.id),
+      },
+      ...Object.fromEntries(childNodes.map(c => [c.id, c])),
+    })
+    jest.spyOn(store, 'saveNodeToOutput').mockImplementation(() => {})
+    jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
+    return store
+  }
+
+  it.each([
+    ['#N order-prefix step', {id: 'c1', parent: 'r1', command: '#10 /chat do a sub-step', children: []}],
+    ['nested /elect', {id: 'c1', parent: 'r1', command: '/elect :n=2 /chat variant', children: []}],
+    ['/foreach fan-out', {id: 'c1', parent: 'r1', command: '/foreach /chat @@', children: []}],
+    ['/steps sequence', {id: 'c1', parent: 'r1', command: '/steps', children: []}],
+  ])('refuses a %s child before forking, naming the child and /elect :n=N /steps', async (_label, child) => {
+    const store = makeTermStore([child])
+
+    await resolveElectCell(store.getNode('r1'), store, new Map())
+
+    expect(mockRunForks).not.toHaveBeenCalled()
+    const [msg, nodeId] = store.importer.createErrorNode.mock.calls[0]
+    expect(nodeId).toBe('r1')
+    expect(msg).toContain(child.command)
+    expect(msg).toContain('/elect :n=N /steps')
+  })
+
+  it.each([
+    ['/validate assertion', {id: 'c1', parent: 'r1', command: '/validate at least 400 words', children: []}],
+    ['/summarize post-processor', {id: 'c1', parent: 'r1', command: '/summarize', children: []}],
+  ])('admits a %s child and proceeds to fork', async (_label, child) => {
+    const store = makeTermStore([child])
+
+    await resolveElectCell(store.getNode('r1'), store, new Map())
+
+    expect(mockRunForks).toHaveBeenCalledTimes(1)
+    const admissionRefusals = store.importer.createErrorNode.mock.calls.filter(([msg]) =>
+      msg.includes('/elect :n=N /steps'),
+    )
+    expect(admissionRefusals).toHaveLength(0)
+  })
 })
 
 describe('resolveElectCell — input guard: :n= absent or invalid', () => {
@@ -551,6 +654,8 @@ describe('resolveElectCell — all forks gate-filtered (allGateFiltered)', () =>
         failureCause: 'structural-gate',
         remediationHint: 'revise-prompt',
         allGateFiltered: true,
+        eligible: 0,
+        total: 3,
       }),
     )
   })
@@ -602,14 +707,14 @@ describe('resolveElectCell — all forks gate-filtered (allGateFiltered)', () =>
   })
 
   it.each([2, 3, 5])(
-    'reliabilityMetadata.eligible counts ok-status forks regardless of gate filtering (n=%i)',
+    'reliabilityMetadata.eligible is 0 when every ok-status fork is gate-filtered (n=%i) — no winner must not read as a full pass',
     async n => {
       mockRunForks.mockResolvedValue(okForks(n))
       const store = makeStore(`/elect :n=${n}`)
 
       await resolveElectCell(store.getNode('r1'), store, new Map())
 
-      expect(store._nodes.r1.reliabilityMetadata.eligible).toBe(n)
+      expect(store._nodes.r1.reliabilityMetadata.eligible).toBe(0)
       expect(store._nodes.r1.reliabilityMetadata.total).toBe(n)
     },
   )
@@ -753,83 +858,6 @@ describe('resolveElectCell — winner selected', () => {
     })
   })
 
-  it('propagates side-effect suppression evidence from fork result into elect metadata', async () => {
-    const winner = okForkStore()
-    mockRunForks.mockResolvedValue([
-      {
-        forkIndex: 0,
-        status: 'ok',
-        forkStore: winner,
-        leafOutputs: [],
-        suppressed: true,
-        cause: 'side-effecting-alias',
-        requestedN: 3,
-      },
-    ])
-    MockForkJudge.mockImplementation(() => ({
-      selectWinner: makeSelectWinner({
-        winnerForkIndex: 0,
-        selectionLayer: 'primary',
-        mode: 'strict',
-      }),
-    }))
-
-    const store = makeStore('/elect :n=3')
-    await resolveElectCell(store.getNode('r1'), store, new Map())
-
-    expect(store.getNode('r1').reliabilityMetadata).toMatchObject({
-      suppressed: true,
-      cause: 'side-effecting-alias',
-      requestedN: 3,
-      total: 1,
-      eligible: 1,
-    })
-  })
-
-  it('suppressed /elect title suffix is [✓ 1/1] — never [✓ 1/N] which implies N−1 forks failed', async () => {
-    const winner = okForkStore()
-    mockRunForks.mockResolvedValue([
-      {
-        forkIndex: 0,
-        status: 'ok',
-        forkStore: winner,
-        leafOutputs: [],
-        suppressed: true,
-        cause: 'side-effecting-alias',
-        requestedN: 3,
-      },
-    ])
-    const store = makeStore('/elect :n=3')
-    store._nodes.r1.title = 'My Task'
-    await resolveElectCell(store.getNode('r1'), store, new Map())
-    expect(store.getNode('r1').title).toMatch(/\[✓ 1\/1\]/)
-    expect(store.getNode('r1').title).not.toMatch(/\[✓ 1\/3\]/)
-  })
-
-  it('suppressed /elect calls emitter.electComplete with winnerForkIndex=0 and total=1', async () => {
-    const makeEmitter = () => ({
-      forksStarted: jest.fn(),
-      forkSettled: jest.fn(),
-      electComplete: jest.fn(),
-    })
-    const winner = okForkStore()
-    mockRunForks.mockResolvedValue([
-      {
-        forkIndex: 0,
-        status: 'ok',
-        forkStore: winner,
-        leafOutputs: [],
-        suppressed: true,
-        cause: 'side-effecting-alias',
-        requestedN: 3,
-      },
-    ])
-    const store = makeStore('/elect :n=3')
-    const emitter = makeEmitter()
-    await resolveElectCell(store.getNode('r1'), store, new Map(), null, emitter)
-    expect(emitter.electComplete).toHaveBeenCalledWith('r1', 0, 1)
-  })
-
   it('suppressed /elect sets memoMap to forkStore so downstream cells resolve against fork output', async () => {
     const winner = okForkStore()
     mockRunForks.mockResolvedValue([
@@ -839,7 +867,7 @@ describe('resolveElectCell — winner selected', () => {
         forkStore: winner,
         leafOutputs: [],
         suppressed: true,
-        cause: 'side-effecting-alias',
+        cause: 'nested-reliability-fork',
         requestedN: 3,
       },
     ])
@@ -847,125 +875,6 @@ describe('resolveElectCell — winner selected', () => {
     const memoMap = new Map()
     await resolveElectCell(store.getNode('r1'), store, memoMap)
     expect(memoMap.get('r1')).toBe(winner)
-  })
-
-  it.each([['side-effecting-alias', 'side-effecting-alias', 3]])(
-    'suppression cause %s is forwarded to elect node metadata',
-    async (_, cause, requestedN) => {
-      const winner = okForkStore()
-      mockRunForks.mockResolvedValue([
-        {
-          forkIndex: 0,
-          status: 'ok',
-          forkStore: winner,
-          leafOutputs: [],
-          suppressed: true,
-          cause,
-          requestedN,
-        },
-      ])
-      const store = makeStore('/elect :n=3')
-      await resolveElectCell(store.getNode('r1'), store, new Map())
-      expect(store.getNode('r1').reliabilityMetadata.cause).toBe(cause)
-      expect(store.getNode('r1').reliabilityMetadata.suppressed).toBe(true)
-    },
-  )
-
-  it('suppressed /elect with forkStore:null — title, metadata, emitter, and memoMap still set; store operations skipped gracefully', async () => {
-    // forkStore can be null when the fork never materialised (e.g. SubtreeForkRunner
-    // collapsed to effectiveN=1 and the fork store was not allocated).
-    mockRunForks.mockResolvedValue([
-      {
-        forkIndex: 0,
-        status: 'ok',
-        forkStore: null,
-        leafOutputs: [],
-        suppressed: true,
-        cause: 'side-effecting-alias',
-        requestedN: 2,
-      },
-    ])
-    const store = makeStore('/elect :n=2')
-    store._nodes.r1.title = 'Bare Task'
-    const emitter = {
-      forksStarted: jest.fn(),
-      forkSettled: jest.fn(),
-      electComplete: jest.fn(),
-    }
-    const memoMap = new Map()
-
-    await resolveElectCell(store.getNode('r1'), store, memoMap, null, emitter)
-
-    expect(store.getNode('r1').title).toMatch(/\[✓ 1\/1\]/)
-    expect(store.getNode('r1').reliabilityMetadata).toMatchObject({
-      mode: 'suppressed',
-      suppressed: true,
-      total: 1,
-      eligible: 1,
-    })
-    expect(emitter.electComplete).toHaveBeenCalledWith('r1', 0, 1)
-    expect(memoMap.get('r1')).toBeNull()
-  })
-
-  it('suppressed /elect whose single run fails reports collapsed count and no-winner status', async () => {
-    const makeEmitter = () => ({
-      forksStarted: jest.fn(),
-      forkSettled: jest.fn(),
-      electComplete: jest.fn(),
-    })
-    mockRunForks.mockResolvedValue([
-      {
-        forkIndex: 0,
-        status: 'criteria-failed',
-        forkStore: null,
-        leafOutputs: [],
-        suppressed: true,
-        cause: 'side-effecting-alias',
-        requestedN: 3,
-      },
-    ])
-    const store = makeStore('/elect :n=3')
-    const emitter = makeEmitter()
-    await resolveElectCell(store.getNode('r1'), store, new Map(), null, emitter)
-
-    expect(store._nodes.r1.title).toMatch(/\[✗ 0\/1\]/)
-    expect(store._nodes.r1.title).not.toMatch(/3/)
-    expect(emitter.electComplete).toHaveBeenCalledWith('r1', null, 1)
-    expect(store._nodes.r1.reliabilityMetadata).toMatchObject({
-      mode: 'suppressed',
-      suppressed: true,
-      cause: 'side-effecting-alias',
-      eligible: 0,
-      total: 1,
-    })
-    expect(store._nodes.r1.reliabilityMetadata.failureCause).toBeDefined()
-    expect(store._nodes.r1.reliabilityMetadata.remediationHint).toBeDefined()
-  })
-
-  it('forksStarted uses effectiveN from computeEffectiveN, not the raw n', async () => {
-    const makeEmitter = () => ({
-      forksStarted: jest.fn(),
-      forkSettled: jest.fn(),
-      electComplete: jest.fn(),
-    })
-    mockComputeEffectiveN.mockReturnValueOnce(1)
-    mockRunForks.mockResolvedValue([
-      {
-        forkIndex: 0,
-        status: 'ok',
-        forkStore: okForkStore(),
-        leafOutputs: [],
-        suppressed: true,
-        cause: 'side-effecting-alias',
-        requestedN: 3,
-      },
-    ])
-    const store = makeStore('/elect :n=3')
-    const emitter = makeEmitter()
-    await resolveElectCell(store.getNode('r1'), store, new Map(), null, emitter)
-
-    expect(emitter.forksStarted).toHaveBeenCalledWith('r1', 1)
-    expect(emitter.forksStarted).not.toHaveBeenCalledWith('r1', 3)
   })
 
   it('genuine 1-of-3 partial success renders [✓ 1/3] — suppressed-path changes do not affect normal winner path', async () => {

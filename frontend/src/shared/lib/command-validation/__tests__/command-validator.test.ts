@@ -100,6 +100,27 @@ describe('command-validator', () => {
     it.each(['/refine :n=1', '/refine :n=3'])('accepts bounded refine grammar: %s', command =>
       expect(validateCommandForExecution(command, false)).toMatchObject({ isValid: true, canExecute: true }),
     )
+
+    // Refusal is decided by command class, not by N alone: /elect has no single-dispatch form, so an
+    // external dispatch is refused at every N including n=1; /refine refuses only where it fans out.
+    it.each([
+      '/elect :n=1 /mcp:jira create issue',
+      '/elect :n=2 /rpc:worker run',
+      '/elect :n=3 /mcp:jira create issue',
+      '/refine :n=2 /mcp:jira create issue',
+      '/refine :n=2 /rpc:worker run',
+    ])('refuses an external-dispatch term the engine cannot prove safe to repeat: %s', command =>
+      expect(validateCommandForExecution(command, false)).toEqual({
+        isValid: false,
+        canExecute: false,
+        reason: 'external_dispatch_refused',
+      }),
+    )
+
+    it.each(['/refine :n=1 /mcp:jira create issue', '/refine :n=1 /rpc:worker run'])(
+      'accepts /refine :n=1 over any external-dispatch shape — a single non-repeated attempt, matching the backend n>1 gate: %s',
+      command => expect(validateCommandForExecution(command, false)).toMatchObject({ isValid: true, canExecute: true }),
+    )
   })
 })
 

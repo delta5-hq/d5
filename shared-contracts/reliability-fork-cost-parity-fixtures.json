@@ -2,15 +2,19 @@
   {
     "name": "flat existing-output cell",
     "electNodeId": "r",
-    "parentQueryType": "chat",
     "expectedCost": 2,
     "expectedLimitExceeded": false,
     "nodes": {
       "parent": {
         "id": "parent",
         "command": "/chat",
-        "children": ["out", "r"],
-        "prompts": ["out"]
+        "children": [
+          "out",
+          "r"
+        ],
+        "prompts": [
+          "out"
+        ]
       },
       "out": {
         "id": "out",
@@ -29,15 +33,19 @@
   {
     "name": "elect-child-scope cell",
     "electNodeId": "r",
-    "parentQueryType": "chat",
     "expectedCost": 15,
     "expectedLimitExceeded": false,
     "nodes": {
       "parent": {
         "id": "parent",
         "command": "/chat",
-        "children": ["out", "r"],
-        "prompts": ["out"]
+        "children": [
+          "out",
+          "r"
+        ],
+        "prompts": [
+          "out"
+        ]
       },
       "out": {
         "id": "out",
@@ -49,7 +57,9 @@
         "id": "r",
         "parent": "parent",
         "command": "/elect :n=3 :limit=xs",
-        "children": ["innerChat"]
+        "children": [
+          "innerChat"
+        ]
       },
       "innerChat": {
         "id": "innerChat",
@@ -62,14 +72,15 @@
   {
     "name": "no existing output keeps full requested cost",
     "electNodeId": "r",
-    "parentQueryType": "chat",
     "expectedCost": 3,
     "expectedLimitExceeded": false,
     "nodes": {
       "parent": {
         "id": "parent",
         "command": "/chat",
-        "children": ["r"]
+        "children": [
+          "r"
+        ]
       },
       "r": {
         "id": "r",
@@ -82,7 +93,6 @@
   {
     "name": "invalid elect n has zero cost",
     "electNodeId": "r",
-    "parentQueryType": "chat",
     "expectedCost": 0,
     "expectedLimitExceeded": false,
     "expectedPreview": null,
@@ -90,8 +100,13 @@
       "parent": {
         "id": "parent",
         "command": "/chat",
-        "children": ["out", "r"],
-        "prompts": ["out"]
+        "children": [
+          "out",
+          "r"
+        ],
+        "prompts": [
+          "out"
+        ]
       },
       "out": {
         "id": "out",
@@ -110,15 +125,19 @@
   {
     "name": "commodity parent cannot save merged output",
     "electNodeId": "r",
-    "parentQueryType": "chat",
     "expectedCost": 15,
     "expectedLimitExceeded": false,
     "nodes": {
       "parent": {
         "id": "parent",
         "command": "/chat :n=5",
-        "children": ["out", "r"],
-        "prompts": ["out"]
+        "children": [
+          "out",
+          "r"
+        ],
+        "prompts": [
+          "out"
+        ]
       },
       "out": {
         "id": "out",
@@ -135,44 +154,21 @@
     }
   },
   {
-    "name": "side-effecting parent cannot save source candidate",
-    "electNodeId": "r",
-    "parentQueryType": "mcp-fusion",
-    "expectedCost": 3,
-    "expectedLimitExceeded": false,
-    "nodes": {
-      "parent": {
-        "id": "parent",
-        "command": "/mcp create issue",
-        "children": ["out", "r"],
-        "prompts": ["out"]
-      },
-      "out": {
-        "id": "out",
-        "parent": "parent",
-        "title": "existing output",
-        "children": []
-      },
-      "r": {
-        "id": "r",
-        "parent": "parent",
-        "command": "/elect :n=3 :limit=xs",
-        "children": []
-      }
-    }
-  },
-  {
     "name": "cost within limit is not refused",
     "electNodeId": "r",
-    "parentQueryType": "chat",
     "expectedCost": 2,
     "expectedLimitExceeded": false,
     "nodes": {
       "parent": {
         "id": "parent",
         "command": "/chat",
-        "children": ["out", "r"],
-        "prompts": ["out"]
+        "children": [
+          "out",
+          "r"
+        ],
+        "prompts": [
+          "out"
+        ]
       },
       "out": {
         "id": "out",
@@ -191,19 +187,187 @@
   {
     "name": "cost exceeding limit is refused",
     "electNodeId": "r",
-    "parentQueryType": "chat",
     "expectedCost": 3,
     "expectedLimitExceeded": true,
     "nodes": {
       "parent": {
         "id": "parent",
         "command": "/chat",
-        "children": ["r"]
+        "children": [
+          "r"
+        ]
       },
       "r": {
         "id": "r",
         "parent": "parent",
         "command": "/elect :n=3 :limit=2",
+        "children": []
+      }
+    }
+  },
+  {
+    "name": "elect /steps term prices N whole-subtree executions",
+    "electNodeId": "elect",
+    "expectedCost": 4,
+    "expectedLimitExceeded": false,
+    "nodes": {
+      "parent": {
+        "id": "parent",
+        "command": "/chat",
+        "children": [
+          "out",
+          "elect"
+        ],
+        "prompts": [
+          "out"
+        ]
+      },
+      "out": {
+        "id": "out",
+        "parent": "parent",
+        "title": "existing output",
+        "children": []
+      },
+      "elect": {
+        "id": "elect",
+        "parent": "parent",
+        "command": "/elect :n=2 /steps",
+        "children": [
+          "v",
+          "s10",
+          "s20"
+        ]
+      },
+      "v": {
+        "id": "v",
+        "parent": "elect",
+        "command": "/validate at least 3 words",
+        "children": []
+      },
+      "s10": {
+        "id": "s10",
+        "parent": "elect",
+        "command": "#10 /chatgpt draft",
+        "children": []
+      },
+      "s20": {
+        "id": "s20",
+        "parent": "elect",
+        "command": "#20 /chatgpt sharpen",
+        "children": []
+      }
+    }
+  },
+  {
+    "name": "elect /steps term refused by :limit before execution",
+    "electNodeId": "elect",
+    "expectedCost": 4,
+    "expectedLimitExceeded": true,
+    "nodes": {
+      "parent": {
+        "id": "parent",
+        "command": "/chat",
+        "children": [
+          "out",
+          "elect"
+        ],
+        "prompts": [
+          "out"
+        ]
+      },
+      "out": {
+        "id": "out",
+        "parent": "parent",
+        "title": "existing output",
+        "children": []
+      },
+      "elect": {
+        "id": "elect",
+        "parent": "parent",
+        "command": "/elect :n=2 :limit=3 /steps",
+        "children": [
+          "v",
+          "s10",
+          "s20"
+        ]
+      },
+      "v": {
+        "id": "v",
+        "parent": "elect",
+        "command": "/validate at least 3 words",
+        "children": []
+      },
+      "s10": {
+        "id": "s10",
+        "parent": "elect",
+        "command": "#10 /chatgpt draft",
+        "children": []
+      },
+      "s20": {
+        "id": "s20",
+        "parent": "elect",
+        "command": "#20 /chatgpt sharpen",
+        "children": []
+      }
+    }
+  },
+  {
+    "name": "elect /steps term compounds a nested elect step",
+    "electNodeId": "elect",
+    "expectedCost": 8,
+    "expectedLimitExceeded": false,
+    "nodes": {
+      "parent": {
+        "id": "parent",
+        "command": "/chat",
+        "children": [
+          "out",
+          "elect"
+        ],
+        "prompts": [
+          "out"
+        ]
+      },
+      "out": {
+        "id": "out",
+        "parent": "parent",
+        "title": "existing output",
+        "children": []
+      },
+      "elect": {
+        "id": "elect",
+        "parent": "parent",
+        "command": "/elect :n=2 /steps",
+        "children": [
+          "v",
+          "s10",
+          "s20"
+        ]
+      },
+      "v": {
+        "id": "v",
+        "parent": "elect",
+        "command": "/validate at least 400 words",
+        "children": []
+      },
+      "s10": {
+        "id": "s10",
+        "parent": "elect",
+        "command": "#10 /chatgpt draft the section",
+        "children": []
+      },
+      "s20": {
+        "id": "s20",
+        "parent": "elect",
+        "command": "#20 /elect :n=3 /chatgpt sharpen",
+        "children": [
+          "v2"
+        ]
+      },
+      "v2": {
+        "id": "v2",
+        "parent": "s20",
+        "command": "/validate opening states the claim",
         "children": []
       }
     }

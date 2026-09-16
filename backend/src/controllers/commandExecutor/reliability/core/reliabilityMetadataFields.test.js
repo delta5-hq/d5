@@ -12,7 +12,6 @@ import {
   buildPerCriterionVerdictEntry,
   COMMODITY_PARTIAL_SUCCESS_WARNING,
   buildSuppressedReliabilityMetadata,
-  buildValidateRetryWithheldReliabilityMetadata,
   buildValidateReliabilityMetadata,
   buildRefineReliabilityMetadata,
 } from './reliabilityMetadataFields'
@@ -138,31 +137,6 @@ describe('buildReliabilityMetadata', () => {
     it('failure semantics fields pass through when set', () => {
       const meta = buildReliabilityMetadata({...minimalVerdict, ...failureFields}, [], 0, 1)
       expect(meta).toEqual(expect.objectContaining(failureFields))
-    })
-
-    it('suppression evidence is copied from executed fork results, not from the judge verdict', () => {
-      const meta = buildReliabilityMetadata(
-        minimalVerdict,
-        [
-          {
-            forkIndex: 0,
-            status: 'ok',
-            suppressed: true,
-            cause: 'side-effecting-alias',
-            requestedN: 5,
-          },
-        ],
-        1,
-        5,
-      )
-
-      expect(meta).toEqual(
-        expect.objectContaining({
-          suppressed: true,
-          cause: 'side-effecting-alias',
-          requestedN: 5,
-        }),
-      )
     })
 
     it('suppression evidence is absent when no executed fork was suppressed', () => {
@@ -1199,150 +1173,7 @@ describe('buildInvalidReliabilityMetadata', () => {
   })
 })
 
-describe('buildValidateRetryWithheldReliabilityMetadata', () => {
-  it('records a withheld-retry verdict for side-effecting parents', () => {
-    const meta = buildValidateRetryWithheldReliabilityMetadata({
-      cause: 'side-effecting-alias',
-      requestedRetry: 2,
-      passedCount: 0,
-      total: 1,
-    })
-
-    expect(meta).toEqual(
-      expect.objectContaining({
-        winnerForkIndex: null,
-        mode: 'invalid',
-        selectionLayer: 'primary',
-        retryWithheld: true,
-        cause: 'side-effecting-alias',
-        requestedRetry: 2,
-        eligible: 0,
-        total: 1,
-        failureCause: 'criteria-failed',
-      }),
-    )
-  })
-
-  it('mode is "invalid" — retry-withheld is carried via retryWithheld flag, not a separate mode', () => {
-    expect(
-      buildValidateRetryWithheldReliabilityMetadata({
-        cause: 'side-effecting-alias',
-        requestedRetry: 1,
-        passedCount: 0,
-        total: 1,
-      }).mode,
-    ).toBe('invalid')
-  })
-
-  it('retryWithheld is always true — the distinguishing flag for downstream consumers', () => {
-    expect(
-      buildValidateRetryWithheldReliabilityMetadata({
-        cause: 'any',
-        requestedRetry: 0,
-        passedCount: 0,
-        total: 1,
-      }).retryWithheld,
-    ).toBe(true)
-  })
-
-  it('eligible equals passedCount when some validates passed before retry was withheld', () => {
-    const meta = buildValidateRetryWithheldReliabilityMetadata({
-      cause: 'any',
-      requestedRetry: 2,
-      passedCount: 2,
-      total: 3,
-    })
-    expect(meta.eligible).toBe(2)
-  })
-
-  it('total passes through unchanged', () => {
-    expect(
-      buildValidateRetryWithheldReliabilityMetadata({
-        cause: 'any',
-        requestedRetry: 1,
-        passedCount: 0,
-        total: 5,
-      }).total,
-    ).toBe(5)
-  })
-
-  it('cause passes through unchanged', () => {
-    expect(
-      buildValidateRetryWithheldReliabilityMetadata({
-        cause: 'rpc-alias',
-        requestedRetry: 1,
-        passedCount: 0,
-        total: 1,
-      }).cause,
-    ).toBe('rpc-alias')
-  })
-
-  it('requestedRetry passes through unchanged', () => {
-    expect(
-      buildValidateRetryWithheldReliabilityMetadata({
-        cause: 'any',
-        requestedRetry: 5,
-        passedCount: 0,
-        total: 1,
-      }).requestedRetry,
-    ).toBe(5)
-  })
-
-  it('discardedForks is always empty — no fork candidates exist for a validate withheld verdict', () => {
-    expect(
-      buildValidateRetryWithheldReliabilityMetadata({
-        cause: 'any',
-        requestedRetry: 2,
-        passedCount: 0,
-        total: 1,
-      }).discardedForks,
-    ).toEqual([])
-  })
-
-  it('noSignal is false and tiebreakUsed is false — no judge selection occurred', () => {
-    const meta = buildValidateRetryWithheldReliabilityMetadata({
-      cause: 'any',
-      requestedRetry: 1,
-      passedCount: 0,
-      total: 1,
-    })
-    expect(meta.noSignal).toBe(false)
-    expect(meta.tiebreakUsed).toBe(false)
-  })
-
-  it('key set matches the withheld-retry contract shape', () => {
-    const meta = buildValidateRetryWithheldReliabilityMetadata({
-      cause: 'side-effecting-alias',
-      requestedRetry: 2,
-      passedCount: 0,
-      total: 1,
-    })
-    expect(Object.keys(meta).sort()).toEqual(
-      [
-        'cause',
-        'discardedForks',
-        'eligible',
-        'failureCause',
-        'mode',
-        'noSignal',
-        'perCriterionVerdict',
-        'remediationHint',
-        'requestedRetry',
-        'retryWithheld',
-        'selectionLayer',
-        'tiebreakUsed',
-        'total',
-        'winnerForkIndex',
-      ].sort(),
-    )
-  })
-})
-
 describe('COMMODITY_SUPPRESSION_CAUSE', () => {
-  it('SIDE_EFFECTING_ALIAS is the canonical value for commodity-level suppression', () => {
-    expect(COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS).toBe('side-effecting-alias')
-  })
-
   it('is frozen — no new suppression causes can be registered at runtime', () => {
     expect(() => {
       COMMODITY_SUPPRESSION_CAUSE.NEW = 'new'
@@ -1350,17 +1181,15 @@ describe('COMMODITY_SUPPRESSION_CAUSE', () => {
   })
 
   it('contains exactly the canonical collapse cause strings', () => {
-    expect(new Set(Object.values(COMMODITY_SUPPRESSION_CAUSE))).toEqual(
-      new Set(['side-effecting-alias', 'nested-reliability-fork']),
-    )
+    expect(new Set(Object.values(COMMODITY_SUPPRESSION_CAUSE))).toEqual(new Set(['nested-reliability-fork']))
   })
 })
 
 describe('pure validate and refine metadata builders', () => {
   it.each([
-    [true, 1, undefined],
-    [false, 0, 'criteria-failed'],
-  ])('validate passed=%s records a one-shot verdict', (passed, eligible, failureCause) => {
+    [true, 1, undefined, []],
+    [false, 0, 'criteria-failed', [{forkIndex: 0, status: 'criteria-failed'}]],
+  ])('validate passed=%s records a one-shot verdict', (passed, eligible, failureCause, discardedForks) => {
     expect(buildValidateReliabilityMetadata({passed})).toEqual({
       winnerForkIndex: null,
       perCriterionVerdict: [],
@@ -1371,8 +1200,34 @@ describe('pure validate and refine metadata builders', () => {
       eligible,
       total: 1,
       ...(failureCause ? {failureCause} : {}),
-      discardedForks: [],
+      discardedForks,
     })
+  })
+
+  it('validate failure carries the criterion and juror reason as a single discarded entry', () => {
+    const {discardedForks} = buildValidateReliabilityMetadata({
+      passed: false,
+      criterion: 'the reply is non-empty',
+      reason: 'the content is empty',
+    })
+    expect(discardedForks).toEqual([
+      {forkIndex: 0, status: 'criteria-failed', failedAt: 'the reply is non-empty', reason: 'the content is empty'},
+    ])
+  })
+
+  it.each(['no-judge-signal', 'verdict-unparsed'])(
+    'threads the aggregate failureCause %s instead of stamping criteria-failed',
+    failureCause => {
+      expect(buildValidateReliabilityMetadata({passed: false, criterion: 'x', reason: 'y', failureCause})).toEqual(
+        expect.objectContaining({failureCause}),
+      )
+    },
+  )
+
+  it('defaults to criteria-failed when no aggregate cause is supplied', () => {
+    expect(buildValidateReliabilityMetadata({passed: false, criterion: 'x'})).toEqual(
+      expect.objectContaining({failureCause: 'criteria-failed'}),
+    )
   })
 
   it('refine records the actual and requested attempt counts', () => {
@@ -1392,44 +1247,44 @@ describe('pure validate and refine metadata builders', () => {
 describe('buildSuppressedReliabilityMetadata', () => {
   describe('structural fields are always present with fixed values', () => {
     it('mode is always suppressed', () => {
-      expect(buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias'}).mode).toBe('suppressed')
+      expect(buildSuppressedReliabilityMetadata({cause: 'nested-reliability-fork'}).mode).toBe('suppressed')
     })
 
     it('suppressed flag is always true', () => {
-      expect(buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias'}).suppressed).toBe(true)
+      expect(buildSuppressedReliabilityMetadata({cause: 'nested-reliability-fork'}).suppressed).toBe(true)
     })
 
     it('eligible defaults to 1 when omitted — the success path had exactly one execution', () => {
       expect(
         buildSuppressedReliabilityMetadata({
-          cause: 'side-effecting-alias',
+          cause: 'nested-reliability-fork',
           requestedN: 5,
         }).eligible,
       ).toBe(1)
     })
 
     it('selectionLayer is always primary', () => {
-      expect(buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias'}).selectionLayer).toBe('primary')
+      expect(buildSuppressedReliabilityMetadata({cause: 'nested-reliability-fork'}).selectionLayer).toBe('primary')
     })
 
     it('winnerForkIndex is null', () => {
-      expect(buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias'}).winnerForkIndex).toBeNull()
+      expect(buildSuppressedReliabilityMetadata({cause: 'nested-reliability-fork'}).winnerForkIndex).toBeNull()
     })
 
     it('discardedForks is always an empty array', () => {
-      expect(buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias'}).discardedForks).toEqual([])
+      expect(buildSuppressedReliabilityMetadata({cause: 'nested-reliability-fork'}).discardedForks).toEqual([])
     })
 
     it('noSignal and tiebreakUsed are both false', () => {
       const meta = buildSuppressedReliabilityMetadata({
-        cause: 'side-effecting-alias',
+        cause: 'nested-reliability-fork',
       })
       expect(meta.noSignal).toBe(false)
       expect(meta.tiebreakUsed).toBe(false)
     })
 
     it('perCriterionVerdict is always an empty array', () => {
-      expect(buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias'}).perCriterionVerdict).toEqual([])
+      expect(buildSuppressedReliabilityMetadata({cause: 'nested-reliability-fork'}).perCriterionVerdict).toEqual([])
     })
   })
 
@@ -1437,7 +1292,7 @@ describe('buildSuppressedReliabilityMetadata', () => {
     it('total defaults to 1 regardless of requestedN', () => {
       expect(
         buildSuppressedReliabilityMetadata({
-          cause: 'side-effecting-alias',
+          cause: 'nested-reliability-fork',
           requestedN: 3,
         }).total,
       ).toBe(1)
@@ -1445,7 +1300,7 @@ describe('buildSuppressedReliabilityMetadata', () => {
 
     it('eligible defaults to 1 and total defaults to 1 — default success path is 1/1', () => {
       const meta = buildSuppressedReliabilityMetadata({
-        cause: 'side-effecting-alias',
+        cause: 'nested-reliability-fork',
         requestedN: 5,
       })
       expect(meta.eligible).toBe(1)
@@ -1454,7 +1309,7 @@ describe('buildSuppressedReliabilityMetadata', () => {
   })
 
   describe('cause and requestedN are forwarded without transformation', () => {
-    it.each([['commodity alias suppression', 'side-effecting-alias', 3]])(
+    it.each([['commodity alias suppression', 'nested-reliability-fork', 3]])(
       '%s: cause and requestedN pass through',
       (_, cause, requestedN) => {
         const meta = buildSuppressedReliabilityMetadata({cause, requestedN})
@@ -1466,13 +1321,13 @@ describe('buildSuppressedReliabilityMetadata', () => {
 
   describe('eligible and total are parameterizable — failed-suppressed path passes explicit values', () => {
     it('explicit eligible:0 passes through — failed-suppressed run had zero eligible outcomes', () => {
-      const meta = buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias', requestedN: 3, eligible: 0})
+      const meta = buildSuppressedReliabilityMetadata({cause: 'nested-reliability-fork', requestedN: 3, eligible: 0})
       expect(meta.eligible).toBe(0)
     })
 
     it('explicit total:1 passes through — one execution was attempted even when failed', () => {
       const meta = buildSuppressedReliabilityMetadata({
-        cause: 'side-effecting-alias',
+        cause: 'nested-reliability-fork',
         requestedN: 3,
         eligible: 0,
         total: 1,
@@ -1482,7 +1337,7 @@ describe('buildSuppressedReliabilityMetadata', () => {
 
     it('eligible:0 and total:1 together express the failed-suppressed 0/1 report', () => {
       const meta = buildSuppressedReliabilityMetadata({
-        cause: 'side-effecting-alias',
+        cause: 'nested-reliability-fork',
         requestedN: 3,
         eligible: 0,
         total: 1,
@@ -1494,28 +1349,31 @@ describe('buildSuppressedReliabilityMetadata', () => {
 
   describe('failureCause and remediationHint — present only when explicitly provided', () => {
     it('failureCause is absent when not provided', () => {
-      const meta = buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias'})
+      const meta = buildSuppressedReliabilityMetadata({cause: 'nested-reliability-fork'})
       expect('failureCause' in meta).toBe(false)
     })
 
     it('remediationHint is absent when not provided', () => {
-      const meta = buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias'})
+      const meta = buildSuppressedReliabilityMetadata({cause: 'nested-reliability-fork'})
       expect('remediationHint' in meta).toBe(false)
     })
 
     it('failureCause is present when provided — failure classification is forwarded', () => {
-      const meta = buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias', failureCause: 'criteria-failed'})
+      const meta = buildSuppressedReliabilityMetadata({
+        cause: 'nested-reliability-fork',
+        failureCause: 'criteria-failed',
+      })
       expect(meta.failureCause).toBe('criteria-failed')
     })
 
     it('remediationHint is present when provided — remediation is forwarded', () => {
-      const meta = buildSuppressedReliabilityMetadata({cause: 'side-effecting-alias', remediationHint: 'none'})
+      const meta = buildSuppressedReliabilityMetadata({cause: 'nested-reliability-fork', remediationHint: 'none'})
       expect(meta.remediationHint).toBe('none')
     })
 
     it('failed-suppressed shape: eligible:0, failureCause, remediationHint all present together', () => {
       const meta = buildSuppressedReliabilityMetadata({
-        cause: 'side-effecting-alias',
+        cause: 'nested-reliability-fork',
         requestedN: 3,
         eligible: 0,
         total: 1,

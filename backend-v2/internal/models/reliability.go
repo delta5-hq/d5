@@ -48,13 +48,15 @@ const (
 type ReliabilityFailureCause string
 
 const (
-	ReliabilityFailureStructuralGate  ReliabilityFailureCause = "structural-gate"
-	ReliabilityFailureCriteriaFailed  ReliabilityFailureCause = "criteria-failed"
-	ReliabilityFailureRuntimeFailed   ReliabilityFailureCause = "runtime-failed"
-	ReliabilityFailureNoEligibleForks ReliabilityFailureCause = "no-eligible-forks"
-	ReliabilityFailureNoJudgeSignal   ReliabilityFailureCause = "no-judge-signal"
-	ReliabilityFailureMissingParent   ReliabilityFailureCause = "missing-parent"
-	ReliabilityFailureInvalidCriteria ReliabilityFailureCause = "invalid-criteria"
+	ReliabilityFailureStructuralGate   ReliabilityFailureCause = "structural-gate"
+	ReliabilityFailureCriteriaFailed   ReliabilityFailureCause = "criteria-failed"
+	ReliabilityFailureRuntimeFailed    ReliabilityFailureCause = "runtime-failed"
+	ReliabilityFailureNoEligibleForks  ReliabilityFailureCause = "no-eligible-forks"
+	ReliabilityFailureNoJudgeSignal    ReliabilityFailureCause = "no-judge-signal"
+	ReliabilityFailureMissingParent    ReliabilityFailureCause = "missing-parent"
+	ReliabilityFailureInvalidCriteria  ReliabilityFailureCause = "invalid-criteria"
+	ReliabilityFailureExternalDispatch ReliabilityFailureCause = "external-dispatch-refused"
+	ReliabilityFailureVerdictUnparsed  ReliabilityFailureCause = "verdict-unparsed"
 )
 
 type ReliabilityRemediationHint string
@@ -134,8 +136,6 @@ type ReliabilityMetadata struct {
 	Cause                   string                     `json:"cause,omitempty" bson:"cause,omitempty"`
 	RequestedN              int                        `json:"requestedN,omitempty" bson:"requestedN,omitempty"`
 	Attempts                int                        `json:"attempts,omitempty" bson:"attempts,omitempty"`
-	RetryWithheld           bool                       `json:"retryWithheld,omitempty" bson:"retryWithheld,omitempty"`
-	RequestedRetry          int                        `json:"requestedRetry,omitempty" bson:"requestedRetry,omitempty"`
 	JudgeInput              *JudgeInputMetadata        `json:"judgeInput,omitempty" bson:"judgeInput,omitempty"`
 	JudgeQualityWarnings    []JudgeQualityWarning      `json:"judgeQualityWarnings,omitempty" bson:"judgeQualityWarnings,omitempty"`
 	FailureCause            ReliabilityFailureCause    `json:"failureCause,omitempty" bson:"failureCause,omitempty"`

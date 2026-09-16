@@ -641,7 +641,7 @@ describe('NodeDetailPanel — commodity ceiling hint visibility', () => {
   })
 })
 
-describe('NodeDetailPanel — suppressed best-of-N run hint', () => {
+describe('NodeDetailPanel — nested-reliability suppressed run hint', () => {
   const suppressedMetadata = {
     winnerForkIndex: null as number | null,
     perCriterionVerdict: [],
@@ -650,144 +650,28 @@ describe('NodeDetailPanel — suppressed best-of-N run hint', () => {
     noSignal: false,
     eligible: 1,
     total: 1,
-    suppressed: true,
-    cause: 'side-effecting-alias',
     requestedN: 3,
     discardedForks: [],
   }
 
-  it('shows the suppression hint when reliabilityMetadata.mode is suppressed', () => {
-    renderPanel(makeNode({ command: '/publish :n=3 post' }), false, { reliabilityMetadata: suppressedMetadata })
-    expect(screen.getByTestId('suppressed-run-hint')).toBeInTheDocument()
-  })
-
-  it('renders the requested N inside the suppression hint', () => {
-    renderPanel(makeNode({ command: '/publish :n=3 post' }), false, { reliabilityMetadata: suppressedMetadata })
-    expect(screen.getByTestId('suppressed-run-hint')).toHaveTextContent('best-of-N suppressed')
-    expect(screen.getByTestId('suppressed-run-hint')).toHaveTextContent(':n=3')
-  })
-
-  it('shows the suppression hint when only the suppressed flag is set (mode unchanged)', () => {
-    renderPanel(makeNode({ command: '/publish :n=2 post' }), false, {
-      reliabilityMetadata: { ...suppressedMetadata, mode: 'strict' as const },
-    })
-    expect(screen.getByTestId('suppressed-run-hint')).toBeInTheDocument()
-  })
-
-  it('does not show the suppression hint for a normal commodity node', () => {
-    renderPanel(makeNode({ command: '/chat :n=2 query' }), false, {
-      reliabilityMetadata: {
-        ...suppressedMetadata,
-        mode: 'commodity' as const,
-        suppressed: false,
-        eligible: 2,
-        total: 2,
-      },
-    })
-    expect(screen.queryByTestId('suppressed-run-hint')).not.toBeInTheDocument()
-  })
-
-  it('does not show the suppression hint when reliabilityMetadata is absent', () => {
-    renderPanel(makeNode({ command: '/chat query' }), false)
-    expect(screen.queryByTestId('suppressed-run-hint')).not.toBeInTheDocument()
-  })
-})
-
-describe('NodeDetailPanel — suppressed hint: cause routing inside suppressed-run-hint', () => {
-  const baseSuppressed = {
-    winnerForkIndex: null as number | null,
-    perCriterionVerdict: [],
-    mode: 'suppressed' as const,
-    selectionLayer: 'none' as const,
-    noSignal: false,
-    eligible: 1,
-    total: 1,
-    suppressed: true,
-    requestedN: 3,
-    discardedForks: [],
-  }
-
-  it('side-effecting-alias cause renders the N-count suppressed hint', () => {
-    renderPanel(makeNode({ command: '/publish :n=3 post' }), false, {
-      reliabilityMetadata: { ...baseSuppressed, cause: 'side-effecting-alias' },
-    })
+  it('shows the nested-reliability hint when reliabilityMetadata.mode is suppressed', () => {
+    renderPanel(makeNode({ command: '/chat :n=3 task' }), false, { reliabilityMetadata: suppressedMetadata })
     const hint = screen.getByTestId('suppressed-run-hint')
     expect(hint).toBeInTheDocument()
-    expect(hint).toHaveTextContent('best-of-N suppressed')
-    expect(hint).toHaveTextContent(':n=3')
-  })
-
-  it('nested-reliability-fork cause explains that multiplied generations were collapsed', () => {
-    renderPanel(makeNode({ command: '/chat :n=3 task' }), false, {
-      reliabilityMetadata: { ...baseSuppressed, cause: 'nested-reliability-fork' },
-    })
-    const hint = screen.getByTestId('suppressed-run-hint')
     expect(hint).toHaveTextContent('outer reliability fork')
-    expect(hint).toHaveTextContent(':n=3')
     expect(hint).toHaveTextContent('multiplied generations')
-  })
-
-  it('unrecognized or legacy cause falls through to suppressedRunHint — component is cause-agnostic', () => {
-    // 'side-effecting-elect-child' was removed in R3-1; component must not branch on cause values
-    renderPanel(makeNode({ command: '/chat :n=3 task' }), false, {
-      reliabilityMetadata: { ...baseSuppressed, cause: 'side-effecting-elect-child' },
-    })
-    const hint = screen.getByTestId('suppressed-run-hint')
-    expect(hint).toBeInTheDocument()
-    expect(hint).toHaveTextContent('best-of-N suppressed')
     expect(hint).toHaveTextContent(':n=3')
   })
 
-  it('any suppressed cause uses the suppressed-run-hint container — no dead branch for legacy causes', () => {
-    renderPanel(makeNode({ command: '/chat task' }), false, {
-      reliabilityMetadata: { ...baseSuppressed, cause: 'side-effecting-elect-child' },
+  it('does not show the hint for a normal commodity node', () => {
+    renderPanel(makeNode({ command: '/chat :n=2 query' }), false, {
+      reliabilityMetadata: { ...suppressedMetadata, mode: 'commodity' as const, eligible: 2, total: 2 },
     })
-    expect(screen.getByTestId('suppressed-run-hint')).toBeInTheDocument()
-  })
-})
-
-describe('NodeDetailPanel — retry-withheld hint', () => {
-  // mode:'invalid' with retryWithheld:true is distinct from genuine exhaustion — the hint
-  // prevents [✗ N×] from reading identically to an exhausted failure when retry was never replayed.
-  const withheldMetadata = {
-    winnerForkIndex: null as number | null,
-    perCriterionVerdict: [],
-    mode: 'invalid' as const,
-    selectionLayer: 'primary' as const,
-    noSignal: false,
-    eligible: 1,
-    total: 1,
-    retryWithheld: true,
-    requestedRetry: 2,
-    discardedForks: [],
-  }
-
-  it('shows retry-withheld-hint when reliabilityMetadata.retryWithheld is true', () => {
-    renderPanel(makeNode({ command: '/qa-mcp run' }), false, { reliabilityMetadata: withheldMetadata })
-    expect(screen.getByTestId('retry-withheld-hint')).toBeInTheDocument()
+    expect(screen.queryByTestId('suppressed-run-hint')).not.toBeInTheDocument()
   })
 
-  it('renders the requestedRetry count inside the hint', () => {
-    renderPanel(makeNode({ command: '/qa-mcp run' }), false, { reliabilityMetadata: withheldMetadata })
-    expect(screen.getByTestId('retry-withheld-hint')).toHaveTextContent('Retry withheld')
-    expect(screen.getByTestId('retry-withheld-hint')).toHaveTextContent(':retry=2')
-  })
-
-  it('does not show retry-withheld-hint when retryWithheld is absent', () => {
-    renderPanel(makeNode({ command: '/chat query' }), false, {
-      reliabilityMetadata: { ...withheldMetadata, retryWithheld: undefined },
-    })
-    expect(screen.queryByTestId('retry-withheld-hint')).not.toBeInTheDocument()
-  })
-
-  it('does not show retry-withheld-hint when reliabilityMetadata is absent', () => {
+  it('does not show the hint when reliabilityMetadata is absent', () => {
     renderPanel(makeNode({ command: '/chat query' }), false)
-    expect(screen.queryByTestId('retry-withheld-hint')).not.toBeInTheDocument()
-  })
-
-  it('retry-withheld-hint and suppressed-run-hint are independent — withheld node does not show suppression hint', () => {
-    renderPanel(makeNode({ command: '/qa-mcp run' }), false, { reliabilityMetadata: withheldMetadata })
-    expect(screen.getByTestId('retry-withheld-hint')).toBeInTheDocument()
     expect(screen.queryByTestId('suppressed-run-hint')).not.toBeInTheDocument()
   })
 })

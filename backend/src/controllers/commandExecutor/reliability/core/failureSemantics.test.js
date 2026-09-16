@@ -134,7 +134,7 @@ describe('FAILURE_CAUSE constants', () => {
     expect(values.length).toBe(new Set(values).size)
   })
 
-  it('contains exactly the 7 canonical cause strings', () => {
+  it('contains exactly the 9 canonical cause strings', () => {
     expect(new Set(Object.values(FAILURE_CAUSE))).toEqual(
       new Set([
         'structural-gate',
@@ -144,6 +144,8 @@ describe('FAILURE_CAUSE constants', () => {
         'no-judge-signal',
         'missing-parent',
         'invalid-criteria',
+        'external-dispatch-refused',
+        'verdict-unparsed',
       ]),
     )
   })

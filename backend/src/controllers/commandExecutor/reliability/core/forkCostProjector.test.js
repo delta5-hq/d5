@@ -904,15 +904,6 @@ describe('projectForkCost — admitSourceCandidate saves exactly one parent gene
     expect(projectForkCost(store.getNode('r'), store)).toBe(projectForkCost(store.getNode('r'), store, false))
   })
 
-  it('side-effecting parent: projector takes no saving when runner collapses to one fork', () => {
-    const store = buildStore({
-      parent: {id: 'parent', command: '/mcp create issue', children: ['out', 'r'], prompts: ['out']},
-      out: {id: 'out', parent: 'parent', title: 'existing output', children: []},
-      r: {id: 'r', parent: 'parent', command: '/elect :n=3', children: []},
-    })
-    expect(projectForkCost(store.getNode('r'), store, true)).toBe(3)
-  })
-
   describe('frontend parity fixtures', () => {
     it.each(parityFixtures)('$name projects to the shared UI/backend cost', fixture => {
       const store = buildStore(fixture.nodes)
@@ -930,5 +921,70 @@ describe('projectForkCost — admitSourceCandidate saves exactly one parent gene
         limitExceeded: fixture.expectedLimitExceeded,
       })
     })
+  })
+})
+
+describe('projectForkCost — a /steps term prices its sequenced subtree, once per fork', () => {
+  const electSteps = (n, steps, extraChildren = {}) => {
+    const stepIds = steps.map(s => s.id)
+    return buildStore({
+      elect: {
+        id: 'elect',
+        parent: null,
+        command: `/elect :n=${n} /steps`,
+        children: [...Object.keys(extraChildren), ...stepIds],
+      },
+      ...extraChildren,
+      ...Object.fromEntries(
+        steps.map(s => [s.id, {id: s.id, parent: 'elect', command: s.command, children: s.children ?? []}]),
+      ),
+    })
+  }
+
+  it.each([
+    [2, 4],
+    [3, 6],
+    [5, 10],
+  ])('multiplies the per-fork step cost by N (:n=%i over two plain steps → %i)', (n, expected) => {
+    const store = electSteps(n, [
+      {id: 's10', command: '#10 /chat draft'},
+      {id: 's20', command: '#20 /chat sharpen'},
+    ])
+    expect(projectForkCost(store.getNode('elect'), store)).toBe(expected)
+  })
+
+  it('excludes a /validate assertion child from the priced step scope', () => {
+    const store = electSteps(2, [{id: 's10', command: '#10 /chat draft'}], {
+      v: {id: 'v', parent: 'elect', command: '/validate at least 3 words', children: []},
+    })
+    expect(projectForkCost(store.getNode('elect'), store)).toBe(2)
+  })
+
+  it('compounds a nested /elect step: cost adds along the sequence and multiplies across nested scopes', () => {
+    // owner shape: /elect :n=2 /steps { #10 /chat, #20 /elect :n=3 /chat } → 2 × (1 + 3) = 8
+    const store = buildStore({
+      elect: {id: 'elect', parent: null, command: '/elect :n=2 /steps', children: ['v', 's10', 's20']},
+      v: {id: 'v', parent: 'elect', command: '/validate at least 400 words', children: []},
+      s10: {id: 's10', parent: 'elect', command: '#10 /chat draft the section', children: []},
+      s20: {id: 's20', parent: 'elect', command: '#20 /elect :n=3 /chat sharpen', children: ['v2']},
+      v2: {id: 'v2', parent: 's20', command: '/validate opening states the claim', children: []},
+    })
+    expect(projectForkCost(store.getNode('elect'), store)).toBe(8)
+  })
+
+  it('prices identically whether the synthetic /steps term parent is supplied or self-derived', () => {
+    const store = electSteps(2, [
+      {id: 's10', command: '#10 /chat draft'},
+      {id: 's20', command: '#20 /chat sharpen'},
+    ])
+    const selfDerived = projectForkCost(store.getNode('elect'), store)
+    const withTermParent = projectForkCost(store.getNode('elect'), store, false, {
+      id: 'elect:term',
+      command: '/steps',
+      parent: null,
+      children: ['elect'],
+      prompts: [],
+    })
+    expect(withTermParent).toBe(selfDerived)
   })
 })

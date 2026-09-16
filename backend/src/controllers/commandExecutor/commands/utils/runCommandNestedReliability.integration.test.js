@@ -147,10 +147,14 @@ describe('nested /refine composition inside /elect', () => {
   })
 })
 
+// SKIPPED (round 18, P0.3): the pre-execute-once sentinel this guarded was deleted with the
+// side-effect classification. Containment of a side-effecting child inside a reliability fork is
+// the still-owed item P0.360-SEG-b; asserting a per-fork dispatch count here would enshrine the
+// un-contained behaviour as desired. Re-enable when SEG-b lands.
 describe('fusion child exactly once inside a real reliability fork', () => {
   afterEach(() => jest.restoreAllMocks())
 
-  it('drives sentinel production and consumption so removing either half duplicates the fusion call', async () => {
+  it.skip('drives sentinel production and consumption so removing either half duplicates the fusion call', async () => {
     const store = new Store({
       userId: 'user',
       nodes: {

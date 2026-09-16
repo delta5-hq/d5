@@ -5,12 +5,11 @@ import NullProgress from './NullProgress'
 import StoreFork from './StoreFork'
 import {CriteriaFailedError} from './CriteriaFailedError'
 import {extractForkLeafOutputs} from './ForkLeafExtractor'
-import {isSideEffectingDispatch} from './sideEffectingDispatch'
-import {COMMODITY_SUPPRESSION_CAUSE} from './failureSemantics'
-import {MEMO_SENTINEL_PRE_EXECUTED_CHILD} from './memoSentinels'
-import {isPostProcessorOrControlQuery, hasElectDescendant} from './electChildPredicates'
-import {isSideEffectingDispatchNode, admitsSourceCandidate} from './sourceCandidateAdmission'
-import {mountTermInFork} from './forkTermMount'
+import {admitsSourceCandidate} from './sourceCandidateAdmission'
+import {mountTermInFork, mountSequencingTermInFork} from './forkTermMount'
+import {gateOnValidateGroup} from './validateGroup'
+import {isValidateCell} from './validateParams'
+import {STEPS_QUERY_TYPE} from '../../constants/steps'
 
 /**
  * @typedef {import('../../commands/utils/Store').NodeData} NodeData
@@ -23,101 +22,48 @@ import {mountTermInFork} from './forkTermMount'
  * @property {Store|null} forkStore  - Fork store when execution reached a fork-local store; null before one exists
  * @property {number} forkIndex     - Zero-based index (stable across all N results)
  * @property {'ok'|'runtime-failed'|'criteria-failed'} status
- * @property {string} [reason]      - runtime failure or structural rejection reason
+ * @property {string} [reason]      - runtime failure or criteria-failed rejection reason
  * @property {string} [failedAt]    - criteria-failed only: criterion that exhausted retries
  * @property {number} [attempts]    - criteria-failed only: retry count attempted
  * @property {LeafOutput[]} leafOutputs - Content preview from the fork's prompt nodes; [] when none available
- * @property {boolean} [suppressed]
- * @property {string} [cause]
- * @property {number} [requestedN]
  */
 
-async function preExecuteSideEffectingElectChildren(electNode, store, memoMap, signal) {
-  for (const childId of electNode.children ?? []) {
-    if (memoMap.has(childId)) continue
-    const child = store.getNode(childId)
-    if (!child) continue
-    const query = getNodeCommand(child)
-    if (isPostProcessorOrControlQuery(query)) continue
-    if (hasElectDescendant(child, store)) continue
-    const {queryType, mcpAlias, rpcAlias} = resolveCommand(query, store._aliases)
-    if (!queryType || !isSideEffectingDispatch({queryType, mcpAlias, rpcAlias})) continue
-    await runCommand({queryType, cell: child, store, mcpAlias, rpcAlias, signal, memoMap}, new NullProgress())
-    memoMap.set(childId, MEMO_SENTINEL_PRE_EXECUTED_CHILD)
-  }
-}
-
-function suppressionFields(suppressedForSideEffect, requestedN) {
-  return suppressedForSideEffect
-    ? {
-        suppressed: true,
-        cause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS,
-        requestedN,
-      }
-    : {}
-}
-
-function buildOkResult({forkStore, forkIndex, parentNodeId, suppressedForSideEffect, requestedN}) {
+function buildOkResult({forkStore, forkIndex, parentNodeId}) {
   return {
     forkStore,
     forkIndex,
     status: 'ok',
     leafOutputs: extractForkLeafOutputs(forkStore, parentNodeId),
-    ...suppressionFields(suppressedForSideEffect, requestedN),
   }
 }
 
-function buildCriteriaFailedResult({forkStore, forkIndex, parentNodeId, error, suppressedForSideEffect, requestedN}) {
+function buildCriteriaFailedResult({forkStore, forkIndex, parentNodeId, error}) {
   return {
     forkStore,
     forkIndex,
     status: 'criteria-failed',
     failedAt: error.criterion,
     attempts: error.attempts,
+    reason: error.reason,
     leafOutputs: extractForkLeafOutputs(forkStore, parentNodeId),
-    ...suppressionFields(suppressedForSideEffect, requestedN),
   }
 }
 
-function buildRuntimeFailedResult({forkIndex, error, suppressedForSideEffect, requestedN}) {
+function buildRuntimeFailedResult({forkIndex, error}) {
   return {
     forkStore: null,
     forkIndex,
     status: 'runtime-failed',
     reason: error?.message || String(error),
     leafOutputs: [],
-    ...suppressionFields(suppressedForSideEffect, requestedN),
   }
 }
 
-function buildFailureResult({
-  forkStore = null,
-  forkIndex,
-  parentNodeId = null,
-  error,
-  suppressedForSideEffect,
-  requestedN,
-}) {
+function buildFailureResult({forkStore = null, forkIndex, parentNodeId = null, error}) {
   if (error instanceof CriteriaFailedError) {
-    return buildCriteriaFailedResult({
-      forkStore,
-      forkIndex,
-      parentNodeId,
-      error,
-      suppressedForSideEffect,
-      requestedN,
-    })
+    return buildCriteriaFailedResult({forkStore, forkIndex, parentNodeId, error})
   }
-  return buildRuntimeFailedResult({
-    forkIndex,
-    error,
-    suppressedForSideEffect,
-    requestedN,
-  })
-}
-
-function buildPreExecFailureResults(effectiveN, error) {
-  return Array.from({length: effectiveN}, (_, forkIndex) => buildFailureResult({forkIndex, error}))
+  return buildRuntimeFailedResult({forkIndex, error})
 }
 
 function notifyForkSettled(onForkSettled, result) {
@@ -136,6 +82,15 @@ async function settleParallelForks(forkStores, onForkSettled, runOneFork) {
   return results
 }
 
+// A /steps term runs its subtree with post-processing off, so the elect's assertion children are not
+// gated by the ordinary post-process path. Applying the shared validate gate here rejects a fork whose
+// sequenced output fails a criterion, exactly as a single-command term's post-processing would.
+async function gateSequencingCandidate(forkStore, validateIds, signal) {
+  if (validateIds.length === 0) return
+  const validates = validateIds.map(id => forkStore.getNode(id)).filter(Boolean)
+  await gateOnValidateGroup(validates, forkStore, signal)
+}
+
 async function runFreshFork({
   forkStore,
   forkIndex,
@@ -145,8 +100,7 @@ async function runFreshFork({
   rpcAlias,
   signal,
   memoMap,
-  n,
-  suppressedForSideEffect = false,
+  gateValidateIds,
 }) {
   try {
     await runCommand(
@@ -161,16 +115,10 @@ async function runFreshFork({
       },
       new NullProgress(),
     )
-    return buildOkResult({forkStore, forkIndex, parentNodeId: parentNode.id, suppressedForSideEffect, requestedN: n})
+    await gateSequencingCandidate(forkStore, gateValidateIds, signal)
+    return buildOkResult({forkStore, forkIndex, parentNodeId: parentNode.id})
   } catch (err) {
-    return buildFailureResult({
-      forkStore,
-      forkIndex,
-      parentNodeId: parentNode.id,
-      error: err,
-      suppressedForSideEffect,
-      requestedN: n,
-    })
+    return buildFailureResult({forkStore, forkIndex, parentNodeId: parentNode.id, error: err})
   }
 }
 
@@ -184,8 +132,7 @@ async function buildSourceCandidateResult({
   ids,
   signal,
   memoMap,
-  suppressedForSideEffect,
-  requestedN,
+  gateValidateIds,
 }) {
   try {
     await postProcessExistingOutput({
@@ -195,28 +142,15 @@ async function buildSourceCandidateResult({
       progress: new NullProgress(),
       signal,
       memoMap: new Map(memoMap),
-      sideEffectingDispatch: suppressedForSideEffect,
       cell: forkStore.getNode(parentNode.id) || parentNode,
       queryType,
       mcpAlias,
       rpcAlias,
     })
-    return buildOkResult({
-      forkStore,
-      forkIndex,
-      parentNodeId: parentNode.id,
-      suppressedForSideEffect,
-      requestedN,
-    })
+    await gateSequencingCandidate(forkStore, gateValidateIds, signal)
+    return buildOkResult({forkStore, forkIndex, parentNodeId: parentNode.id})
   } catch (err) {
-    return buildFailureResult({
-      forkStore,
-      forkIndex,
-      parentNodeId: parentNode.id,
-      error: err,
-      suppressedForSideEffect,
-      requestedN,
-    })
+    return buildFailureResult({forkStore, forkIndex, parentNodeId: parentNode.id, error: err})
   }
 }
 
@@ -264,62 +198,26 @@ export const runForks = async ({
 
   memoMap.set(electNode.id, 'in-progress')
 
-  const suppressedForSideEffect = n > 1 && isSideEffectingDispatchNode(parentNode, store)
-  const effectiveN = suppressedForSideEffect ? 1 : n
-
-  if (!suppressedForSideEffect && effectiveN > 1) {
-    try {
-      await preExecuteSideEffectingElectChildren(electNode, store, memoMap, signal)
-    } catch (preExecErr) {
-      const results = buildPreExecFailureResults(effectiveN, preExecErr)
-      results.forEach(r => notifyForkSettled(onForkSettled, r))
-      return results
-    }
-  }
-
   const {queryType, mcpAlias, rpcAlias} = resolveCommand(getNodeCommand(parentNode), store._aliases)
-  const forkStores = Array.from({length: effectiveN}, () => StoreFork.createFork(store))
+  const forkStores = Array.from({length: n}, () => StoreFork.createFork(store))
   if (termParent) {
-    forkStores.forEach(forkStore => mountTermInFork(forkStore, termParent, electNode.id, electNode.parent))
-  }
-  const results = new Array(effectiveN)
-
-  if (suppressedForSideEffect) {
-    // Inline side-effecting term has no prior output and must run once fresh; a postfix
-    // side-effecting parent already executed, so its existing output is reused without re-dispatch.
-    const result = termParent
-      ? await runFreshFork({
-          forkStore: forkStores[0],
-          forkIndex: 0,
-          parentNode,
-          queryType,
-          mcpAlias,
-          rpcAlias,
-          signal,
-          memoMap: new Map(memoMap),
-          n,
-          suppressedForSideEffect: true,
-        })
-      : await buildSourceCandidateResult({
-          forkStore: forkStores[0],
-          forkIndex: 0,
-          parentNode,
-          queryType,
-          mcpAlias,
-          rpcAlias,
-          ids: foreachValidateTemplateExclusions(queryType, parentNode, store),
-          signal,
-          memoMap,
-          suppressedForSideEffect: true,
-          requestedN: n,
-        })
-    results[0] = result
-    notifyForkSettled(onForkSettled, result)
-    return results
+    const mount =
+      queryType === STEPS_QUERY_TYPE
+        ? forkStore => mountSequencingTermInFork(forkStore, termParent, electNode.id, electNode.parent)
+        : forkStore => mountTermInFork(forkStore, termParent, electNode.id, electNode.parent)
+    forkStores.forEach(mount)
   }
 
   const useSourceCandidate = admitsSourceCandidate({admitSourceCandidate, n, parentNode, store})
   const sourceCandidateIds = useSourceCandidate ? foreachValidateTemplateExclusions(queryType, parentNode, store) : []
+
+  const gateValidateIds =
+    queryType === STEPS_QUERY_TYPE
+      ? (electNode.children ?? []).filter(id => {
+          const child = store.getNode(id)
+          return child && isValidateCell(getNodeCommand(child))
+        })
+      : []
 
   return settleParallelForks(forkStores, onForkSettled, (forkStore, forkIndex) => {
     const forkMemoMap = new Map(memoMap)
@@ -334,22 +232,18 @@ export const runForks = async ({
           ids: sourceCandidateIds,
           signal,
           memoMap: forkMemoMap,
-          suppressedForSideEffect: false,
-          requestedN: n,
+          gateValidateIds,
         })
-      : runFreshFork({forkStore, forkIndex, parentNode, queryType, mcpAlias, rpcAlias, signal, memoMap: forkMemoMap, n})
+      : runFreshFork({
+          forkStore,
+          forkIndex,
+          parentNode,
+          queryType,
+          mcpAlias,
+          rpcAlias,
+          signal,
+          memoMap: forkMemoMap,
+          gateValidateIds,
+        })
   })
-}
-
-/**
- * Callers use this to emit accurate fork-started counts before runForks resolves.
- * @param {NodeData} electNode
- * @param {Store} store
- * @param {number} n - Requested fork count
- * @param {NodeData|null} [termParent] - Synthetic term parent for inline elects
- * @returns {number}
- */
-export function computeEffectiveN(electNode, store, n, termParent = null) {
-  const parentNode = resolveParentNode(electNode, store, termParent)
-  return n > 1 && isSideEffectingDispatchNode(parentNode, store) ? 1 : n
 }

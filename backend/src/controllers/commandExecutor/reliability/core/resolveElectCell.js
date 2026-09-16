@@ -1,5 +1,5 @@
 import StoreFork from './StoreFork'
-import {runForks, computeEffectiveN} from './SubtreeForkRunner'
+import {runForks} from './SubtreeForkRunner'
 import {ForkJudge} from './ForkJudge'
 import OwnershipResolver from './OwnershipResolver'
 import {readElectN, readRawElectN, readFallbackFlag, readJudgeReasoningFlag, readElectTrailingText} from './electParams'
@@ -8,11 +8,20 @@ import {projectForkCost} from './forkCostProjector'
 import {readForkLimit, exceedsForkLimit, forkLimitRefusalMessage} from './forkLimitParser'
 import {appendElectSuffix, appendInvalidSuffix, stripReliabilitySuffix} from './reliabilitySuffix'
 import {getNodeCommand} from '../../commands/utils/isCommand'
+import {clearStepsPrefix, STEPS_QUERY_TYPE} from '../../constants/steps'
+import {resolveCommand} from '../../commands/utils/queryTypeResolver'
 import {isValidateCell} from './validateParams'
 import {NullForkProgressEmitter} from './ForkProgressEmitter'
-import {buildReliabilityMetadata, buildSuppressedReliabilityMetadata} from './reliabilityMetadataFields'
-import {classifyNoWinner, FAILURE_CAUSE} from './failureSemantics'
+import {buildReliabilityMetadata} from './reliabilityMetadataFields'
+import {FAILURE_CAUSE} from './failureSemantics'
 import {copyParentPromptOutputToElect} from './electWinnerOutput'
+import {firstInadmissibleInlineTermChild, inlineTermChildRefusalMessage} from './inlineTermChildAdmission'
+import {
+  commandIsExternalDispatch,
+  dispatchIsExternal,
+  externalDispatchRefusalMessage,
+  buildExternalDispatchRefusalMetadata,
+} from './externalDispatchRefusal'
 
 /**
  * @typedef {import('../../commands/utils/Store').NodeData} NodeData
@@ -32,11 +41,11 @@ function missingNErrorMessage(rawN) {
   return 'Error: /elect requires :n=N (e.g. /elect :n=3)'
 }
 
-function gateFilteredErrorMessage(effectiveN, forkResults) {
+function gateFilteredErrorMessage(n, forkResults) {
   const gateRejected = forkResults.filter(f => f.status === 'ok')
   const reasons = gateRejected.map(f => `fork ${f.forkIndex}: ${f.reason || FAILURE_CAUSE.STRUCTURAL_GATE}`).join('; ')
   const judgedCount = gateRejected.length
-  return `/elect :n=${effectiveN} — all ${judgedCount} candidate(s) were structurally rejected: ${reasons}`
+  return `/elect :n=${n} — all ${judgedCount} candidate(s) were structurally rejected: ${reasons}`
 }
 
 // The fork copied the elect node with its fork-local parent (the synthetic term); restore the
@@ -66,7 +75,7 @@ function flushNestedReliabilityDiagnostics(rootNode, sourceForkStore, outerStore
     if (!sourceNode) continue
     stack.push(...(sourceNode.children ?? []).filter(id => !(sourceNode.prompts ?? []).includes(id)))
     const mode = sourceNode.reliabilityMetadata?.mode
-    if (!['validate', 'refine', 'invalid', 'suppressed'].includes(mode)) continue
+    if (!['validate', 'refine', 'invalid'].includes(mode)) continue
     const targetNode = outerStore.getNode(nodeId)
     if (!targetNode) continue
     targetNode.title = sourceNode.title
@@ -89,12 +98,17 @@ export async function resolveElectCell(
   emitter = new NullForkProgressEmitter(),
   admitSourceCandidate = false,
 ) {
-  const query = getNodeCommand(electNode)
+  // Strip any #N order prefix so an elect used as a /steps step reads its params from the
+  // bare modifier; the node title keeps the prefix for ordering and display.
+  const query = clearStepsPrefix(getNodeCommand(electNode))
   const n = readElectN(query)
   const trailingText = readElectTrailingText(query)
   const inlineTerm = parseInlineTerm(trailingText, store._aliases)
+  const trailingIsExternalDispatch = commandIsExternalDispatch(trailingText, store)
 
-  if (trailingText && !inlineTerm) {
+  // An `/mcp:`/`/rpc:`-shaped term is an external dispatch, refused below by its shape alone even
+  // when the alias is unconfigured; it is never the criterion text this branch rejects.
+  if (trailingText && !inlineTerm && !trailingIsExternalDispatch) {
     writeErrorNode(
       electNode,
       store,
@@ -113,6 +127,26 @@ export async function resolveElectCell(
   const termParent = inlineTerm ? buildSyntheticTermParent(electNode.id, inlineTerm, originalParentId) : null
   const contentSourceId = termParent ? termParent.id : originalParentId
 
+  const dispatchNode = termParent ?? store.getNode(originalParentId)
+  if (trailingIsExternalDispatch || dispatchIsExternal(dispatchNode, store)) {
+    electNode.title = appendInvalidSuffix(electNode.title || '')
+    electNode.reliabilityMetadata = buildExternalDispatchRefusalMetadata(n)
+    store.importer.createErrorNode(externalDispatchRefusalMessage('/elect', n), electNode.id)
+    store.saveNodeToOutput(electNode.id)
+    memoMap.set(electNode.id, null)
+    return
+  }
+
+  const termIsSequencing =
+    inlineTerm && resolveCommand(clearStepsPrefix(inlineTerm), store._aliases).queryType === STEPS_QUERY_TYPE
+  if (inlineTerm && !termIsSequencing) {
+    const inadmissible = firstInadmissibleInlineTermChild(electNode, store)
+    if (inadmissible) {
+      writeErrorNode(electNode, store, inlineTermChildRefusalMessage('/elect', getNodeCommand(inadmissible)))
+      return
+    }
+  }
+
   const cost = projectForkCost(electNode, store, admitScopeSourceCandidate, termParent)
   const limit = readForkLimit(query)
   if (exceedsForkLimit(cost, limit)) {
@@ -124,8 +158,7 @@ export async function resolveElectCell(
   const judgeReasoningRequested = readJudgeReasoningFlag(query)
   memoMap.set(electNode.id, 'in-progress')
 
-  const effectiveN = computeEffectiveN(electNode, store, n, termParent)
-  emitter.forksStarted(electNode.id, effectiveN)
+  emitter.forksStarted(electNode.id, n)
 
   const ownerMap = OwnershipResolver(electNode, store)
   const ownedValidates = ownerMap.get(electNode.id) ?? []
@@ -151,67 +184,6 @@ export async function resolveElectCell(
   const okCount = forkResults.filter(f => f.status === 'ok').length
   const baseTitle = stripReliabilitySuffix(electNode.title || '')
 
-  const suppressedFork = forkResults.find(f => f.suppressed)
-  if (suppressedFork) {
-    const singleFork = forkResults[0]
-    if (singleFork?.status === 'ok') {
-      if (singleFork.forkStore) {
-        StoreFork.applyCandidate(store, singleFork.forkStore, electNode.id)
-        reattachWinnerToAncestor(store, electNode.id, originalParentId)
-        copyParentPromptOutputToElect({
-          sourceStore: singleFork.forkStore,
-          targetStore: store,
-          parentNodeId: contentSourceId,
-          electNodeId: electNode.id,
-        })
-        flushValidateTitles(allValidates, singleFork.forkStore, store)
-      }
-      const winnerNode = store.getNode(electNode.id)
-      if (winnerNode) {
-        winnerNode.title = appendElectSuffix(baseTitle, {
-          eligible: 1,
-          total: 1,
-          winnerForkIndex: 0,
-        })
-        winnerNode.reliabilityMetadata = buildSuppressedReliabilityMetadata({
-          cause: suppressedFork.cause,
-          requestedN: suppressedFork.requestedN,
-        })
-        store.saveNodeToOutput(electNode.id)
-      }
-      emitter.electComplete(electNode.id, 0, 1)
-      memoMap.set(electNode.id, singleFork.forkStore ?? null)
-    } else {
-      const winnerNode = store.getNode(electNode.id)
-      if (winnerNode) {
-        winnerNode.title = appendElectSuffix(baseTitle, {
-          eligible: 0,
-          total: 1,
-          winnerForkIndex: null,
-        })
-        const {failureCause, remediationHint} = classifyNoWinner({
-          forkResults: [singleFork],
-        })
-        winnerNode.reliabilityMetadata = buildSuppressedReliabilityMetadata({
-          cause: suppressedFork.cause,
-          requestedN: suppressedFork.requestedN,
-          eligible: 0,
-          total: 1,
-          failureCause,
-          remediationHint,
-        })
-        store.saveNodeToOutput(electNode.id)
-      }
-      store.importer.createErrorNode(
-        `/elect :n=${suppressedFork.requestedN ?? n} — the single suppressed run failed`,
-        electNode.id,
-      )
-      emitter.electComplete(electNode.id, null, 1)
-      memoMap.set(electNode.id, null)
-    }
-    return
-  }
-
   const judge = new ForkJudge(store._userId, store._workflowId, store)
   const verdict = await judge.selectWinner({
     forks: forkResults,
@@ -223,7 +195,7 @@ export async function resolveElectCell(
   })
 
   if (!verdict || verdict.winnerForkIndex === null) {
-    const suffixEligible = verdict?.allGateFiltered ? 0 : okCount
+    const eligibleCount = verdict?.allGateFiltered ? 0 : okCount
     const diagnosticFork = forkResults.find(f => f.status === 'criteria-failed' && f.forkStore)
     if (diagnosticFork) {
       // Preserve modifier diagnostics only. Strict /elect still selects no failed
@@ -233,23 +205,23 @@ export async function resolveElectCell(
     }
     const currentElect = store.getNode(electNode.id) ?? electNode
     currentElect.title = appendElectSuffix(baseTitle, {
-      eligible: suffixEligible,
-      total: effectiveN,
+      eligible: eligibleCount,
+      total: n,
       fallback,
       winnerForkIndex: null,
       noSignal: verdict?.noSignal ?? false,
     })
     if (verdict) {
-      currentElect.reliabilityMetadata = buildReliabilityMetadata(verdict, forkResults, okCount, n)
+      currentElect.reliabilityMetadata = buildReliabilityMetadata(verdict, forkResults, eligibleCount, n)
     }
     store.importer.createErrorNode(
       verdict?.allGateFiltered
-        ? gateFilteredErrorMessage(effectiveN, forkResults)
-        : `/elect :n=${effectiveN} — all ${effectiveN} fork(s) failed; use :fallback to accept best degraded result`,
+        ? gateFilteredErrorMessage(n, forkResults)
+        : `/elect :n=${n} — all ${n} fork(s) failed; use :fallback to accept best degraded result`,
       currentElect.id,
     )
     store.saveNodeToOutput(currentElect.id)
-    emitter.electComplete(electNode.id, null, effectiveN)
+    emitter.electComplete(electNode.id, null, n)
     memoMap.set(electNode.id, null)
     return
   }
@@ -258,14 +230,14 @@ export async function resolveElectCell(
   if (!winnerFork?.forkStore) {
     electNode.title = appendElectSuffix(baseTitle, {
       eligible: okCount,
-      total: effectiveN,
+      total: n,
       fallback,
       winnerForkIndex: null,
       noSignal: false,
     })
-    store.importer.createErrorNode(`/elect :n=${effectiveN} — winner fork has no store (internal error)`, electNode.id)
+    store.importer.createErrorNode(`/elect :n=${n} — winner fork has no store (internal error)`, electNode.id)
     store.saveNodeToOutput(electNode.id)
-    emitter.electComplete(electNode.id, null, effectiveN)
+    emitter.electComplete(electNode.id, null, n)
     memoMap.set(electNode.id, null)
     return
   }
@@ -285,7 +257,7 @@ export async function resolveElectCell(
   if (winnerNode) {
     winnerNode.title = appendElectSuffix(baseTitle, {
       eligible: okCount,
-      total: effectiveN,
+      total: n,
       fallback: verdict.selectionLayer === 'fallback',
       winnerForkIndex: verdict.winnerForkIndex,
       noSignal: !fallback && (verdict.noSignal ?? false),
@@ -295,7 +267,7 @@ export async function resolveElectCell(
     store.saveNodeToOutput(electNode.id)
   }
 
-  emitter.electComplete(electNode.id, verdict.winnerForkIndex, effectiveN, {
+  emitter.electComplete(electNode.id, verdict.winnerForkIndex, n, {
     fallbackUsed: verdict.selectionLayer === 'fallback',
     generatorOnlyJudge: verdict.generatorOnlyJudge ?? false,
     judgeReasoningRequested: verdict.judgeReasoningRequested ?? false,

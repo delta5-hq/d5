@@ -29,8 +29,13 @@ export function matchesAnyCommandWithOrder(text: string | undefined): boolean {
   return pattern.test(text)
 }
 
+// A step order marker is only a single leading `#N ` token; a `#N` later in the text is prompt
+// content (an issue number, a ranked count) and must survive. Anchored and non-global, mirroring
+// the backend's STEPS_ORDER_PREFIX_REGEX (`/^#-?\d+\s+/`) so both stacks strip identically.
+export const STEP_ORDER_PREFIX_PATTERN = '^#-?\\d+\\s+'
+
 export function clearStepsPrefix(text: string): string {
-  return text.replace(new RegExp(STEP_PREFIX_PATTERN, 'g'), '').trim()
+  return text.trim().replace(new RegExp(STEP_ORDER_PREFIX_PATTERN), '')
 }
 
 export function hasStepsPrefix(text: string): boolean {

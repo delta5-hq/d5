@@ -1,4 +1,4 @@
-import {ValidateCommand} from './ValidateCommand'
+import {ValidateCommand, parseJurorResponse} from './ValidateCommand'
 import Store from '../../commands/utils/Store'
 
 jest.mock('debug', () => {
@@ -323,7 +323,7 @@ describe('ValidateCommand.run', () => {
       expect(result.reason).toBe('NO')
     })
 
-    it('"no:" with colon but empty reason → reason is empty string', async () => {
+    it('"no:" with an empty tail falls back to the raw reply so a reason is always shown', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
         v: {
@@ -338,7 +338,7 @@ describe('ValidateCommand.run', () => {
       const cmd = new ValidateCommand('user1', null, store)
       const result = await cmd.run(store.getNode('v'))
       expect(result.passed).toBe(false)
-      expect(result.reason).toBe('')
+      expect(result.reason).toBe('no:')
     })
 
     it('multi-line NO response: only first line treated as reason', async () => {
@@ -399,8 +399,8 @@ describe('ValidateCommand.run', () => {
     })
   })
 
-  describe('juror error → quorum excludes crashed jurors (fail-safe)', () => {
-    it('single juror crashes → passed:false with all-jurors-failed reason', async () => {
+  describe('juror error → any crashed juror surfaces NO_JUDGE_SIGNAL carrying its error text', () => {
+    it('single juror crashes → passed:false with no-judge-signal cause', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
         v: {
@@ -419,10 +419,11 @@ describe('ValidateCommand.run', () => {
       const cmd = new ValidateCommand('user1', null, store)
       const result = await cmd.run(store.getNode('v'))
       expect(result.passed).toBe(false)
-      expect(result.reason).toBe('all jurors failed')
+      expect(result.reason).toBe('network timeout')
+      expect(result.failureCause).toBe('no-judge-signal')
     })
 
-    it(':n=3, one juror crashes → surviving two form quorum; YES+YES → passed', async () => {
+    it(':n=3, one juror crashes → the crash is surfaced, not outvoted; YES+YES → still fails', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
         v: {
@@ -444,11 +445,13 @@ describe('ValidateCommand.run', () => {
       setupExtractor('good content')
       const cmd = new ValidateCommand('user1', null, store)
       const result = await cmd.run(store.getNode('v'))
-      expect(result.passed).toBe(true)
+      expect(result.passed).toBe(false)
+      expect(result.reason).toBe('timeout')
+      expect(result.failureCause).toBe('no-judge-signal')
       expect(partialErrorLlm.invoke).toHaveBeenCalledTimes(3)
     })
 
-    it(':n=3, one juror crashes → surviving two form quorum; YES+NO → failed', async () => {
+    it(':n=3, one juror crashes → the crash is surfaced ahead of the surviving NO; YES+crash+NO', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
         v: {
@@ -472,10 +475,11 @@ describe('ValidateCommand.run', () => {
       const cmd = new ValidateCommand('user1', null, store)
       const result = await cmd.run(store.getNode('v'))
       expect(result.passed).toBe(false)
-      expect(result.reason).toBe('missing detail')
+      expect(result.reason).toBe('timeout')
+      expect(result.failureCause).toBe('no-judge-signal')
     })
 
-    it(':n=3, all jurors crash → passed:false with all-jurors-failed reason', async () => {
+    it(':n=3, all jurors crash → passed:false with no-judge-signal cause', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
         v: {
@@ -494,10 +498,11 @@ describe('ValidateCommand.run', () => {
       const cmd = new ValidateCommand('user1', null, store)
       const result = await cmd.run(store.getNode('v'))
       expect(result.passed).toBe(false)
-      expect(result.reason).toBe('all jurors failed')
+      expect(result.reason).toBe('provider down')
+      expect(result.failureCause).toBe('no-judge-signal')
     })
 
-    it(':n=3, two jurors crash → single survivor decides; NO → failed', async () => {
+    it(':n=3, two jurors crash → the crash is surfaced regardless of the survivor', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
         v: {
@@ -521,7 +526,8 @@ describe('ValidateCommand.run', () => {
       const cmd = new ValidateCommand('user1', null, store)
       const result = await cmd.run(store.getNode('v'))
       expect(result.passed).toBe(false)
-      expect(result.reason).toBe('lone survivor says no')
+      expect(result.reason).toBe('timeout')
+      expect(result.failureCause).toBe('no-judge-signal')
     })
 
     it('all jurors crash → result.criterion is still populated', async () => {
@@ -560,6 +566,31 @@ describe('ValidateCommand.run', () => {
       const cmd = new ValidateCommand('user1', null, store)
       await cmd.run(store.getNode('v'))
       expect(invokeMock).toHaveBeenCalledTimes(4)
+    })
+  })
+
+  describe('unrecognised juror verdict surfaces VERDICT_UNPARSED, never dropped from quorum', () => {
+    it('single unparsed reply → passed:false with verdict-unparsed cause', async () => {
+      setupExtractor('some content')
+      setupLLM(['The moon is bright tonight.'])
+      const result = await runValidation({
+        parent: {id: 'parent', command: '/chat', children: ['v']},
+        v: {id: 'v', parent: 'parent', command: '/validate criterion', children: []},
+      })
+      expect(result.passed).toBe(false)
+      expect(result.failureCause).toBe('verdict-unparsed')
+      expect(result.reason).toBe('verdict-unparsed')
+    })
+
+    it(':n=2 — one unparsed juror plus one YES still fails (unparsed counted, not abstained)', async () => {
+      setupExtractor('some content')
+      setupLLM(['completely unrecognised', 'YES'])
+      const result = await runValidation({
+        parent: {id: 'parent', command: '/chat', children: ['v']},
+        v: {id: 'v', parent: 'parent', command: '/validate :n=2 criterion', children: []},
+      })
+      expect(result.passed).toBe(false)
+      expect(result.failureCause).toBe('verdict-unparsed')
     })
   })
 
@@ -607,18 +638,22 @@ describe('elect-local validation content', () => {
       },
     })
     setupLLM(['YES'])
-    let capturedNode
+    // A bare (postfix) /elect has no generated output of its own — its only child is the /validate
+    // assertion, which the extractor skips — so its subtree is empty and resolution walks to the
+    // parent whose output the elect refines. The sequencing (/steps) case, where the elect's step
+    // children DO carry output, is covered by the runCommand /steps suite.
+    const capturedNodes = []
     NodeTextExtractor.mockImplementation(() => ({
       extractFullContent: jest.fn().mockImplementation(node => {
-        capturedNode = node
-        return Promise.resolve('content with 42 numbers')
+        capturedNodes.push(node)
+        return Promise.resolve(node.id === 'grandparent' ? 'content with 42 numbers' : '')
       }),
     }))
 
     const cmd = new ValidateCommand('user1', null, store)
     const result = await cmd.run(store.getNode('v'))
 
-    expect(capturedNode).toBe(store.getNode('grandparent'))
+    expect(capturedNodes).toContain(store.getNode('grandparent'))
     expect(result.passed).toBe(true)
   })
 
@@ -957,5 +992,89 @@ describe('nested /elect: /validate checks nearest-enclosing elect winner, not ou
     // The outer winner's title does — proving the test would give a false PASS
     // if the outer elect's content were used. This discriminates the two paths.
     expect(result.passed).toBe(false)
+  })
+})
+
+describe('parseJurorResponse — juror verdict is a gate predicate (only a recognised affirmation passes)', () => {
+  it.each([
+    ['**YES**'],
+    ['Answer: YES'],
+    ['yes.'],
+    ['YES: the reply is non-empty'],
+    ['  YES'],
+    ['> YES, it satisfies the criterion'],
+    ['PASS'],
+    ['true'],
+    ['correct.'],
+    ['affirmative'],
+  ])('affirmation passes: %s', reply => {
+    expect(parseJurorResponse(reply).passed).toBe(true)
+  })
+
+  it.each([
+    ['The content does not satisfy the criterion.'],
+    ['Nope.'],
+    ['Negative: the content is empty.'],
+    ['FAIL: empty output'],
+    ['NO: missing revenue figures'],
+    ['I am not sure'],
+    ['maybe'],
+    ['false: broken output'],
+    ['incorrect: nope'],
+    ['failed: bad response'],
+    ['Correct format, but the content is empty, so NO.'],
+    ['Passed the format check but failed the emptiness check.'],
+    ['True negative: the content is empty.'],
+    ['Criterion not satisfied: yes the reply is empty'],
+    ['Verdict: PASSED'],
+    ['TRUE: satisfies the criterion'],
+    [''],
+  ])('non-affirmation fails (never abstains): %s', reply => {
+    const result = parseJurorResponse(reply)
+    expect(result.passed).toBe(false)
+    expect(result.passed).not.toBeNull()
+  })
+
+  it.each([
+    ['NO: correct format but missing data'],
+    ['No: passed structure but empty body'],
+    ['FAIL: passed the schema check but the body is empty'],
+  ])('a negative verdict whose reason opens with an affirmative word still fails: %s', reply => {
+    const result = parseJurorResponse(reply)
+    expect(result.passed).toBe(false)
+  })
+
+  it('surfaces the negative reason even when that reason opens with an affirmative word', () => {
+    expect(parseJurorResponse('NO: correct format but missing data').reason).toBe('correct format but missing data')
+  })
+
+  it('a labelled or noisy affirmation is recognised but the verdict token is never consumed as a label', () => {
+    expect(parseJurorResponse('YES: reason follows').passed).toBe(true)
+    expect(parseJurorResponse('Answer: NO because empty').passed).toBe(false)
+  })
+
+  it('surfaces a genuine NO reason, and the raw reply for an unrecognised verdict', () => {
+    expect(parseJurorResponse('NO: missing revenue figures').reason).toBe('missing revenue figures')
+    expect(parseJurorResponse('Negative: the content is empty.').reason).toBe('the content is empty.')
+    expect(parseJurorResponse('gibberish verdict').reason).toBe('gibberish verdict')
+    expect(parseJurorResponse('NO').reason).toBe('NO')
+  })
+
+  it('accepts a message object shape and never returns the null crash sentinel', () => {
+    expect(parseJurorResponse({content: '**YES**'}).passed).toBe(true)
+    expect(parseJurorResponse({content: 'whatever'}).passed).toBe(false)
+    expect(parseJurorResponse('anything').passed).not.toBeNull()
+  })
+
+  it.each([
+    ['null', null],
+    ['undefined', undefined],
+    ['empty object', {}],
+    ['object with null content', {content: null}],
+    ['non-string primitive', 42],
+  ])('an input carrying no readable verdict (%s) fails without abstaining', (_label, raw) => {
+    const result = parseJurorResponse(raw)
+    expect(result.passed).toBe(false)
+    expect(result.passed).not.toBeNull()
   })
 })

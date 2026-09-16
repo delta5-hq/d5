@@ -188,12 +188,24 @@ describe('extractForkLeafOutputs', () => {
     })
   })
 
-  describe('parent cells without prompts (complex subtrees)', () => {
-    it('returns [] for a parent that has children but no prompts — complex subtree case', () => {
+  describe('parent cells without prompts (a /steps term subtree)', () => {
+    it('sources leaf outputs from the step subtree when the parent has no direct prompts', () => {
       const store = makeStore({
-        parent: {id: 'parent', children: ['step1', 'elect']},
+        parent: {id: 'parent', children: ['step1', 'step2']},
         step1: {id: 'step1', prompts: ['out1']},
-        out1: {id: 'out1', title: 'step output'},
+        out1: {id: 'out1', title: 'step one output'},
+        step2: {id: 'step2', prompts: ['out2']},
+        out2: {id: 'out2', title: 'step two output'},
+      })
+      const contents = extractForkLeafOutputs(store, 'parent').map(leaf => leaf.content)
+      expect(contents).toHaveLength(2)
+      expect(contents).toEqual(['step two output', 'step one output'])
+    })
+
+    it('returns [] for a parent with neither prompts nor prompt-bearing descendants', () => {
+      const store = makeStore({
+        parent: {id: 'parent', children: ['step1']},
+        step1: {id: 'step1'},
       })
       expect(extractForkLeafOutputs(store, 'parent')).toEqual([])
     })

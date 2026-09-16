@@ -10,7 +10,6 @@ jest.mock('debug', () => {
 
 jest.mock('./SubtreeForkRunner', () => ({
   runForks: jest.fn(),
-  computeEffectiveN: jest.fn((_electNode, _store, n) => n),
 }))
 
 jest.mock('./StoreFork', () => ({applyCandidate: jest.fn()}))

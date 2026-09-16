@@ -54,6 +54,7 @@ const RELIABILITY_SYNTAX_ERROR_I18N_KEY: Record<ReliabilitySyntaxErrorReason, st
   elect_criterion_must_be_validate: 'workflowTree.node.electCriterionMustBeValidate',
   validate_retry_must_be_refine: 'workflowTree.node.validateRetryMustBeRefine',
   invalid_refine_syntax: 'workflowTree.node.invalidRefineSyntax',
+  external_dispatch_refused: 'workflowTree.node.externalDispatchRefused',
 }
 
 export const NodeDetailPanel = ({
@@ -203,23 +204,11 @@ export const NodeDetailPanel = ({
           ))}
         </div>
       ) : null}
-      {reliabilityMetadata?.mode === 'suppressed' || reliabilityMetadata?.suppressed ? (
+      {reliabilityMetadata?.mode === 'suppressed' ? (
         <span className="mt-1 block text-xs text-accent" data-testid="suppressed-run-hint">
           <FormattedMessage
-            id={
-              reliabilityMetadata.cause === 'nested-reliability-fork'
-                ? 'workflowTree.node.nestedReliabilitySuppressedHint'
-                : 'workflowTree.node.suppressedRunHint'
-            }
+            id="workflowTree.node.nestedReliabilitySuppressedHint"
             values={{ n: reliabilityMetadata.requestedN ?? '' }}
-          />
-        </span>
-      ) : null}
-      {reliabilityMetadata?.retryWithheld ? (
-        <span className="mt-1 block text-xs text-accent" data-testid="retry-withheld-hint">
-          <FormattedMessage
-            id="workflowTree.node.retryWithheldHint"
-            values={{ n: reliabilityMetadata.requestedRetry ?? '' }}
           />
         </span>
       ) : null}

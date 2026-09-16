@@ -678,4 +678,34 @@ describe('StepsNodeTraverser', () => {
       expect(traverser.nodesWithoutOrder).toHaveLength(3)
     })
   })
+  describe('assertion cells (/validate) are gates, not steps', () => {
+    it('excludes an unordered /validate child from both step collections', () => {
+      const nodes = {
+        v: {id: 'v', command: '/validate at least 400 words', children: []},
+        s10: {id: 's10', command: '#10 /chat draft', children: []},
+        s20: {id: 's20', command: '#20 /chat sharpen', children: []},
+        root: {id: 'root', command: '/steps', children: ['v', 's10', 's20']},
+      }
+
+      const traverser = new StepsNodeTraverser(nodes, [])
+      traverser.traverse(nodes.root)
+
+      expect(traverser.nodesWithoutOrder.some(n => n.node.id === 'v')).toBe(false)
+      expect(Object.keys(traverser.nodesByOrder).sort()).toEqual(['10', '20'])
+    })
+
+    it('excludes an ordered #N /validate child as well', () => {
+      const nodes = {
+        v: {id: 'v', command: '#5 /validate must cite sources', children: []},
+        s10: {id: 's10', command: '#10 /chat draft', children: []},
+        root: {id: 'root', command: '/steps', children: ['v', 's10']},
+      }
+
+      const traverser = new StepsNodeTraverser(nodes, [])
+      traverser.traverse(nodes.root)
+
+      expect(traverser.nodesByOrder['5']).toBeUndefined()
+      expect(traverser.nodesByOrder['10']).toHaveLength(1)
+    })
+  })
 })
