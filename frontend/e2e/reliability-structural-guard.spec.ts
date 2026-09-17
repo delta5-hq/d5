@@ -40,7 +40,10 @@ test.describe('structural guard — fork-control command used standalone', () =>
     // The guard renders as an error node child of the refused elect cell; its expand toggle
     // only becomes visible once that child exists. Reveal it if the root starts collapsed
     // (mirrors the :limit= execute-time refusal surface in reliability-fork-limit.spec.ts).
-    const rootToggle = tree.node(rootId).getByTestId('node-toggle')
+    //
+    // The root is rendered by the workflow root header in the merged layout, not as a plain
+    // tree row, so its expand control is `root-toggle` rather than the row-level `node-toggle`.
+    const rootToggle = tree.node(rootId).getByTestId('root-toggle')
     await expect(rootToggle).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
 
     const guard = page.locator('[data-node-id]', { hasText: GUARD_TEXT_RE })

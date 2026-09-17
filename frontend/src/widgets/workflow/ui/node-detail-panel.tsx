@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { NodeData, NodeId, ReliabilityMetadata, JudgeQualityWarning } from '@shared/base-types'
-import { Button } from '@shared/ui/button'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@shared/ui/collapsible'
 import { Genie } from '@shared/ui/genie'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
@@ -12,7 +10,7 @@ import {
   type ReliabilitySyntaxErrorReason,
 } from '@shared/lib/command-validation'
 import { useAliases } from '@entities/aliases'
-import { ArrowLeft, ChevronRight, Copy, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Pencil } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
 import { getNodeGeniePresentation } from '@features/workflow-tree/lib/node-genie-presenter'
@@ -32,12 +30,7 @@ import type { EditableTextAreaHandle } from '@shared/ui/editable-field'
 
 interface NodeDetailPanelProps {
   node: NodeData
-  isPrompt?: boolean
   onUpdateNode: (nodeId: NodeId, updates: Partial<Omit<NodeData, 'id' | 'parent'>>) => void
-  onDelete?: (nodeId: NodeId) => void
-  onDuplicateNode?: (nodeId: NodeId) => void
-  onAddChild?: (parentId: NodeId) => void
-  onAddSibling?: (nodeId: NodeId) => NodeId | null
   onEnterInCommand: (nodeId: NodeId, committedCommand: string) => void
   onCtrlEnterInCommand: (nodeId: NodeId, committedCommand: string) => void
   onShiftCtrlEnterInCommand: (nodeId: NodeId, committedCommand: string) => void
@@ -65,12 +58,7 @@ const RELIABILITY_SYNTAX_ERROR_I18N_KEY: Record<ReliabilitySyntaxErrorReason, st
 
 export const NodeDetailPanel = ({
   node,
-  isPrompt,
   onUpdateNode,
-  onDelete,
-  onDuplicateNode,
-  onAddChild,
-  onAddSibling,
   onEnterInCommand,
   onCtrlEnterInCommand,
   onShiftCtrlEnterInCommand,
@@ -92,7 +80,6 @@ export const NodeDetailPanel = ({
   const { aliases } = useAliases()
   const genieState = useGenieState(node.id)
   const isRoot = !node.parent
-  const mutationDisabled = isExecuting
   const { formatMessage } = useIntl()
 
   /* Draft-driven validation (workflow editor line) combined with the reliability grammar gate. */
@@ -110,13 +97,8 @@ export const NodeDetailPanel = ({
   const commodityN = readCommodityN(commandDraft)
   const { baseTitle: nodeTitleBase, suffix: nodeTitleSuffix } = extractReliabilitySuffix(normalizeNodeTitle(node.title))
 
-  const [settingsOpen, setSettingsOpen] = useState(!isPrompt)
   const [verdictOpen, setVerdictOpen] = useState(false)
   const [forksOpen, setForksOpen] = useState(false)
-
-  useEffect(() => {
-    setSettingsOpen(!isPrompt)
-  }, [isPrompt])
 
   useEffect(() => {
     setCommandDraft(node.command ?? '')
@@ -154,22 +136,6 @@ export const NodeDetailPanel = ({
   const handleAbort = useCallback(() => {
     onAbort(node.id)
   }, [node.id, onAbort])
-
-  const handleDelete = useCallback(() => {
-    onDelete?.(node.id)
-  }, [node.id, onDelete])
-
-  const handleDuplicate = useCallback(() => {
-    onDuplicateNode?.(node.id)
-  }, [node.id, onDuplicateNode])
-
-  const handleAddChild = useCallback(() => {
-    onAddChild?.(node.id)
-  }, [node.id, onAddChild])
-
-  const handleAddSibling = useCallback(() => {
-    onAddSibling?.(node.id)
-  }, [node.id, onAddSibling])
 
   const handleEnterInCommand = useCallback(
     (committedCommand: string) => {
@@ -330,101 +296,39 @@ export const NodeDetailPanel = ({
         </div>
       </header>
 
-      <Collapsible className="flex min-h-0 flex-1 flex-col" onOpenChange={setSettingsOpen} open={settingsOpen}>
-        <CollapsibleTrigger
-          className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground [&[data-state=open]>svg]:rotate-90"
-          data-testid="settings-trigger"
-        >
-          <ChevronRight className="h-3 w-3 transition-transform" />
-          <FormattedMessage id="workflowTree.node.settings" />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="flex min-h-0 flex-1 flex-col gap-3 pt-2">
-          <NodeOutputSection
-            commandIsSlash={commandIsSlash}
-            commandToken={effectiveToken}
-            genieColor={genieColor}
-            genieState={genieState}
-            genieVariant={geniePresentation.variant}
-            mcpFusionReport={node.mcpFusionReport}
-            nodeId={node.id}
-          />
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <NodeOutputSection
+          commandIsSlash={commandIsSlash}
+          commandToken={effectiveToken}
+          genieColor={genieColor}
+          genieState={genieState}
+          genieVariant={geniePresentation.variant}
+          mcpFusionReport={node.mcpFusionReport}
+          nodeId={node.id}
+        />
 
-          <NodeCommandComposer
-            autoFocusCommand={autoFocusCommand}
-            canExecute={canExecute}
-            command={node.command ?? ''}
-            commandDraft={commandDraft}
-            commandIsSlash={commandIsSlash}
-            commandIsValid={commandIsValid}
-            commandToken={effectiveToken}
-            genieColor={genieColor}
-            hints={commandHints}
-            isExecuting={isExecuting}
-            nodeId={node.id}
-            onAbort={handleAbort}
-            onCommandChange={handleCommandChange}
-            onCtrlEnter={handleCtrlEnterInCommand}
-            onDraftChange={setCommandDraft}
-            onEnter={handleEnterInCommand}
-            onExecute={handleExecute}
-            onShiftCtrlEnter={handleShiftCtrlEnterInCommand}
-            siblingActionsEnabled={siblingActionsEnabled}
-          />
-
-          {onAddChild || onDelete || onDuplicateNode ? (
-            <div className="flex flex-wrap gap-2 pt-1" data-testid="node-action-row">
-              {onAddChild ? (
-                <Button
-                  data-testid="add-child-node-button"
-                  disabled={mutationDisabled}
-                  onClick={handleAddChild}
-                  size="sm"
-                  variant="ghost"
-                >
-                  <Plus className="mr-1 h-3 w-3" />
-                  <FormattedMessage id="workflowTree.node.addChild" />
-                </Button>
-              ) : null}
-              {onAddSibling ? (
-                <Button
-                  data-testid="add-sibling-node-button"
-                  disabled={isRoot || mutationDisabled}
-                  onClick={handleAddSibling}
-                  size="sm"
-                  variant="ghost"
-                >
-                  <Plus className="mr-1 h-3 w-3" />
-                  <FormattedMessage id="workflowTree.node.addSibling" />
-                </Button>
-              ) : null}
-              {onDuplicateNode ? (
-                <Button
-                  data-testid="duplicate-node-button"
-                  disabled={isRoot || mutationDisabled}
-                  onClick={handleDuplicate}
-                  size="sm"
-                  variant="ghost"
-                >
-                  <Copy className="mr-1 h-3 w-3" />
-                  <FormattedMessage id="workflowTree.node.duplicate" />
-                </Button>
-              ) : null}
-              {onDelete ? (
-                <Button
-                  data-testid="delete-node-button"
-                  disabled={isRoot || mutationDisabled}
-                  onClick={handleDelete}
-                  size="sm"
-                  variant="danger"
-                >
-                  <Trash2 className="mr-1 h-3 w-3" />
-                  <FormattedMessage id="delete" />
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
-        </CollapsibleContent>
-      </Collapsible>
+        <NodeCommandComposer
+          autoFocusCommand={autoFocusCommand}
+          canExecute={canExecute}
+          command={node.command ?? ''}
+          commandDraft={commandDraft}
+          commandIsSlash={commandIsSlash}
+          commandIsValid={commandIsValid}
+          commandToken={effectiveToken}
+          genieColor={genieColor}
+          hints={commandHints}
+          isExecuting={isExecuting}
+          nodeId={node.id}
+          onAbort={handleAbort}
+          onCommandChange={handleCommandChange}
+          onCtrlEnter={handleCtrlEnterInCommand}
+          onDraftChange={setCommandDraft}
+          onEnter={handleEnterInCommand}
+          onExecute={handleExecute}
+          onShiftCtrlEnter={handleShiftCtrlEnterInCommand}
+          siblingActionsEnabled={siblingActionsEnabled}
+        />
+      </div>
 
       {reliabilityMetadata ? (
         <CriterionVerdictDrawer metadata={reliabilityMetadata} onOpenChange={setVerdictOpen} open={verdictOpen} />

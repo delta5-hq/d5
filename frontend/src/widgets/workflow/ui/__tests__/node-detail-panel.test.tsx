@@ -154,17 +154,16 @@ describe('NodeDetailPanel — reliability command grammar', () => {
   })
 })
 
-describe('NodeDetailPanel — collapsible sections initial state', () => {
-  describe('Settings section', () => {
-    it('is expanded for a non-prompt node', () => {
-      renderPanel(makeNode({ command: '/chat test' }), false)
-      expect(screen.getByTestId('settings-trigger')).toHaveAttribute('data-state', 'open')
-    })
-
-    it('is collapsed for a prompt node', () => {
-      renderPanel(makeNode(), true)
-      expect(screen.getByTestId('settings-trigger')).toHaveAttribute('data-state', 'closed')
-    })
+describe('NodeDetailPanel — target layout contract', () => {
+  // The merge target removed the settings and preview chrome and the in-panel node
+  // action buttons; the panel renders its output and command sections directly.
+  it('renders the output and command sections directly, with no settings or preview chrome', () => {
+    renderPanel(makeNode({ command: '/chat test' }), false)
+    expect(screen.getByTestId('output-section')).toBeInTheDocument()
+    expect(screen.getByTestId('command-section')).toBeInTheDocument()
+    expect(screen.queryByTestId('settings-trigger')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('preview-trigger')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('add-child-node-button')).not.toBeInTheDocument()
   })
 })
 

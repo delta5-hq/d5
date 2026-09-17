@@ -17,7 +17,6 @@ import {
   useWorkflowExecutingNodeIds,
   type TreeDropPosition,
   getTreeMoveRequest,
-  useIsPromptNode,
   useNodeForkPreview,
   useWorkflowId,
 } from '@features/workflow-tree'
@@ -76,7 +75,6 @@ const WorkflowContent = () => {
   const selectedIds = useWorkflowSelectedIds()
   const selectedNode = useWorkflowNode(selectedId)
   const isSelectedNodeExecuting = useIsNodeExecuting(selectedId)
-  const isSelectedNodePrompt = useIsPromptNode(selectedId)
   const selectedNodeForkPreview = useNodeForkPreview(selectedId)
   const executingNodeIds = useWorkflowExecutingNodeIds()
   const [autoEditNodeId, setAutoEditNodeId] = useState<string | undefined>()
@@ -522,23 +520,18 @@ const WorkflowContent = () => {
           {selectedNode ? (
             <NodeDetailPanel
               autoFocusCommand={autoFocusCommandNodeId === selectedId}
-              autoFocusTitle={autoEditNodeId === selectedId}
+              autoFocusTitle={false}
               electCost={selectedNodeElectProjection?.cost ?? null}
               electCostExceedsLimit={selectedNodeElectProjection?.limitExceeded ?? false}
               executeDisabled={isSelectedNodeExecuting || !hasValidCommand}
               forkPreview={selectedNodeForkPreview}
               isExecuting={isSelectedNodeExecuting}
-              isPrompt={isSelectedNodePrompt}
               key={selectedNode.id}
               node={selectedNode}
               onAbort={handleAbort}
-              onAddChild={handleAddChild}
-              onAddSibling={handleAddSibling}
               onClose={handleCloseDetailPanel}
               onCtrlEnterInCommand={handleCtrlEnterInCommand}
-              onDelete={handleDelete}
               onDrawerOpened={handleDrawerOpened}
-              onDuplicateNode={handleDuplicateNode}
               onEnterInCommand={handleEnterInCommand}
               onExecute={handleExecute}
               onShiftCtrlEnterInCommand={handleShiftCtrlEnterInCommand}
