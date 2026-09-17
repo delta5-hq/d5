@@ -18,7 +18,7 @@ import { areTreeNodePropsEqual } from '../core/tree-node-memo'
 import { useTreeAnimation } from '../context'
 import { useIsNodeDirty, useIsAwaitingFanOutSpark } from '../store/workflow-selectors'
 import { getNodeGeniePresentation } from '../lib/node-genie-presenter'
-import { CommandChip, ScriptTitleIcon } from './command-node-chip'
+import { CommandChip, ScriptTitleIcon, truncateTitleForChip } from './command-node-chip'
 import '../styles/wire-tree.css'
 
 export type { TreeNodeProps }
@@ -320,9 +320,11 @@ export const TreeNodeDefault = ({
   const sparkPath = depth > 0 ? buildSparkPath(wireIndentX, ROW_HEIGHT, INDENT_PER_LEVEL, rowsFromParent) : ''
 
   const normalizedTitle = normalizeNodeTitle(node.title)
-  /* The chip truncates with CSS (see readOnlyClassName) so the DOM keeps the full title
-     text; slicing here would hide the refusal and guard messages from text assertions. */
-  const displayedTitle = baseTitle || node.id
+  /* The chip shows a truncated title (the target contract asserts the cut and the stored
+     title's integrity). The full title stays addressable through the row's data-node-title
+     so node lookups do not depend on the chip's visible text. */
+  const displayedTitle = truncateTitleForChip(baseTitle)
+  const fullTitle = normalizedTitle || node.id
   const geniePresentation = getNodeGeniePresentation(presentedNode, { aliases, depth })
   const showThoughtTail = depth > 0 && depth <= 4 && geniePresentation.variant === 'full'
 
@@ -343,6 +345,7 @@ export const TreeNodeDefault = ({
           data-node-depth={depth}
           data-node-drop-position={dropPosition}
           data-node-id={id}
+          data-node-title={fullTitle}
           data-node-selected={isSelected || undefined}
           data-prompt-node={isPrompt || undefined}
           onClick={handleClick}

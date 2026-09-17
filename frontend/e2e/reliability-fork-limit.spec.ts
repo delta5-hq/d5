@@ -102,7 +102,7 @@ test.describe(':limit= fork-cost ceiling contracts', () => {
 
     // Nothing executed: only root + elect exist and no refusal error node has been written.
     await expect(tree.nodes).toHaveCount(2)
-    await expect(page.locator('[data-node-id]', { hasText: /exceeds limit/ })).toHaveCount(0)
+    await expect(page.locator('[data-node-id][data-node-title*="exceeds limit"]')).toHaveCount(0)
   })
 
   test('execute-time hard refuse — refusal error node carries cost+limit and ZERO fork nodes are created', async ({
@@ -117,7 +117,7 @@ test.describe(':limit= fork-cost ceiling contracts', () => {
     const electToggle = tree.node(electId).getByTestId('node-toggle')
     await expect(electToggle).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
 
-    const refusal = page.locator('[data-node-id]', { hasText: /exceeds limit/ })
+    const refusal = page.locator('[data-node-id][data-node-title*="exceeds limit"]')
     if ((await refusal.count()) === 0) {
       await electToggle.click()
     }
@@ -125,7 +125,8 @@ test.describe(':limit= fork-cost ceiling contracts', () => {
     await expect(refusal).toBeVisible()
 
     // The error node carries the execute-time projected cost (50) and the :limit=xs budget (20).
-    const refusalText = (await refusal.first().textContent())?.trim() ?? ''
+    // The chip truncates the displayed title by design, so read the node's full title.
+    const refusalText = (await refusal.first().getAttribute('data-node-title'))?.trim() ?? ''
     expect(refusalText).toMatch(REFUSAL_TEXT_RE)
     const refusalMatch = refusalText.match(REFUSAL_TEXT_RE)
     expect(refusalMatch?.[1]).toBe(String(EXECUTE_TIME_COST))

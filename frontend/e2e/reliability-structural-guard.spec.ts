@@ -18,7 +18,6 @@ import { nodeTitle, selectRootAndOpenDetail, executeRoot } from './reliability/n
  *   RENDERS in the workflow editor, mirroring the reliability-fork-limit execute-time surface.
  */
 
-const GUARD_TEXT_RE = /requires a parent cell/
 const REFUSED_SUFFIX_RE = /\[✗ !\]/
 const FORK_WINNER_SUFFIX_RE = /\[✓ \d+\/\d+\]/
 
@@ -46,7 +45,7 @@ test.describe('structural guard — fork-control command used standalone', () =>
     const rootToggle = tree.node(rootId).getByTestId('root-toggle')
     await expect(rootToggle).toBeVisible({ timeout: TIMEOUTS.BACKEND_SYNC })
 
-    const guard = page.locator('[data-node-id]', { hasText: GUARD_TEXT_RE })
+    const guard = page.locator('[data-node-id][data-node-title*="requires a parent cell"]')
     if ((await guard.count()) === 0) {
       await rootToggle.click()
     }
