@@ -21,10 +21,18 @@ export const SegmentRow = ({
   selectedIds,
   onSelect,
   onAddChild,
+  onAddSibling,
   onDelete,
   onDuplicateNode,
   onRename,
-  onRequestRename,
+  onWrapNodes,
+  onToggleChecked,
+  onDragHoverNode,
+  onDragLeaveNode,
+  onPointerDragStartNode,
+  onDropFiles,
+  activeDropTargetId,
+  activeDropPosition,
   onSuffixClick,
   autoEditNodeId,
 }: SegmentRowProps) => {
@@ -38,16 +46,24 @@ export const SegmentRow = ({
     return (
       <MemoizedTreeNodeDefault
         {...record}
+        activeDropPosition={activeDropPosition}
+        activeDropTargetId={activeDropTargetId}
         autoEditNodeId={autoEditNodeId}
         isSelected={selectedIds?.has(record.id) ?? false}
         onAddChild={onAddChild}
+        onAddSibling={onAddSibling}
         onDelete={onDelete}
+        onDragHoverNode={onDragHoverNode}
+        onDragLeaveNode={onDragLeaveNode}
+        onDropFiles={onDropFiles}
         onDuplicateNode={onDuplicateNode}
+        onPointerDragStartNode={onPointerDragStartNode}
         onRename={onRename}
-        onRequestRename={onRequestRename}
         onSelect={onSelect}
         onSuffixClick={onSuffixClick}
         onToggle={onToggle}
+        onToggleChecked={onToggleChecked}
+        onWrapNodes={onWrapNodes}
         style={EMPTY_STYLE}
       />
     )
@@ -56,15 +72,23 @@ export const SegmentRow = ({
   if (segment.type === 'container') {
     return (
       <ContainerRenderer
+        activeDropPosition={activeDropPosition}
+        activeDropTargetId={activeDropTargetId}
         autoEditNodeId={autoEditNodeId}
         container={segment}
         onAddChild={onAddChild}
+        onAddSibling={onAddSibling}
         onDelete={onDelete}
+        onDragHoverNode={onDragHoverNode}
+        onDragLeaveNode={onDragLeaveNode}
+        onDropFiles={onDropFiles}
         onDuplicateNode={onDuplicateNode}
+        onPointerDragStartNode={onPointerDragStartNode}
         onRename={onRename}
-        onRequestRename={onRequestRename}
         onSelect={onSelect}
         onToggle={onToggle}
+        onToggleChecked={onToggleChecked}
+        onWrapNodes={onWrapNodes}
         rowHeight={rowHeight}
         selectedIds={selectedIds}
       />

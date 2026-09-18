@@ -29,11 +29,29 @@ export class WorkflowTreePage {
   }
 
   nodeByTitle(title: string): Locator {
-    return this.page.locator('[data-node-id]', { hasText: title })
+    return this.nodes.filter({
+      has: this.page.getByTestId('node-chip-title').and(this.page.getByTitle(title)),
+    })
+  }
+
+  async nodeTitle(nodeId: string): Promise<string> {
+    const title = await this.node(nodeId).getByTestId('node-chip-title').getAttribute('title')
+    if (title === null) throw new Error(`No canonical title found for node "${nodeId}"`)
+    return title
   }
 
   nodesAtDepth(depth: number): Locator {
     return this.page.locator(`[data-node-depth="${depth}"]`)
+  }
+
+  inlineTitleEditor(node: Locator): Locator {
+    return node.locator('textarea')
+  }
+
+  nodeAtDepthByTitle(depth: number, title: string): Locator {
+    return this.nodesAtDepth(depth).filter({
+      has: this.page.getByTestId('node-chip-title').getByText(title, { exact: true }),
+    })
   }
 
   async selectNode(nodeId: string): Promise<void> {
@@ -73,12 +91,19 @@ export class WorkflowTreePage {
   }
 
   async toggleNodeExpand(nodeId: string): Promise<void> {
-    await this.node(nodeId).getByTestId('node-toggle').click()
+    const node = this.node(nodeId)
+    await node.waitFor({ state: 'visible' })
+    const rootToggle = node.getByTestId('root-toggle')
+    if ((await rootToggle.count()) > 0) {
+      await rootToggle.click()
+      return
+    }
+    await node.getByTestId('node-toggle').click()
   }
 
   private async blurInlineEdit(): Promise<void> {
     await this.treePanel.press('Escape')
-    await this.treePanel.locator('input').waitFor({ state: 'detached', timeout: 2000 })
+    await this.treePanel.locator('textarea').waitFor({ state: 'detached', timeout: 2000 })
   }
 
   async createRootAndChildren(

@@ -10,6 +10,7 @@ import {
   addPromptChild,
   removePromptChildren,
   orphanMatchingPromptChildren,
+  wrapNodesInParent,
   NodeMutationError,
 } from './node-mutations'
 
@@ -105,6 +106,154 @@ describe('updateNode', () => {
     expect(result['a'].parent).toBe('root')
   })
 
+  describe('titleProjection lifecycle', () => {
+    it('removes stale projection when source title changes', () => {
+      const nodes = {
+        root: {
+          id: 'root',
+          title: 'Source',
+          children: ['child'],
+          titleProjection: { sourceTitle: 'Source', childIds: ['child'], nodeIds: ['child'] },
+        },
+        child: { id: 'child', title: 'Source', parent: 'root', children: [] },
+      }
+
+      const result = updateNode(nodes, 'root', { title: 'Edited' })
+
+      expect(result.root.titleProjection).toBeUndefined()
+    })
+
+    it('removes stale projection when projected child is removed', () => {
+      const nodes = {
+        root: { id: 'root', title: 'Workflow', children: ['parent'] },
+        parent: {
+          id: 'parent',
+          title: 'Source',
+          parent: 'root',
+          children: ['child'],
+          prompts: ['child'],
+          titleProjection: { sourceTitle: 'Source', childIds: ['child'], nodeIds: ['child'] },
+        },
+        child: { id: 'child', title: 'Source', parent: 'parent', children: [] },
+      }
+
+      const result = removeNode(nodes, {}, 'child')
+
+      expect(result.nodes.parent.titleProjection).toBeUndefined()
+    })
+
+    it('removes stale projection when projected child is reparented', () => {
+      const nodes = {
+        root: { id: 'root', title: 'Workflow', children: ['parent', 'target'] },
+        parent: {
+          id: 'parent',
+          title: 'Source',
+          parent: 'root',
+          children: ['child'],
+          titleProjection: { sourceTitle: 'Source', childIds: ['child'], nodeIds: ['child'] },
+        },
+        child: { id: 'child', title: 'Source', parent: 'parent', children: [] },
+        target: { id: 'target', title: 'Target', parent: 'root', children: [] },
+      }
+
+      const result = moveNode(nodes, 'child', 'target')
+
+      expect(result.parent.titleProjection).toBeUndefined()
+    })
+
+    it('removes stale projection when a nested projected line is edited', () => {
+      const sourceTitle = 'Heading\n  Detail'
+      const nodes = {
+        parent: {
+          id: 'parent',
+          title: sourceTitle,
+          children: ['heading'],
+          titleProjection: {
+            sourceTitle,
+            childIds: ['heading'],
+            nodeIds: ['heading', 'detail'],
+          },
+        },
+        heading: { id: 'heading', title: 'Heading', parent: 'parent', children: ['detail'] },
+        detail: { id: 'detail', title: 'Detail', parent: 'heading', children: [] },
+      }
+
+      const result = updateNode(nodes, 'detail', { title: 'Edited detail' })
+
+      expect(result.parent.titleProjection).toBeUndefined()
+    })
+
+    it('removes stale projection when a nested projected line is deleted', () => {
+      const sourceTitle = 'Heading\n  Detail'
+      const nodes = {
+        root: { id: 'root', title: 'Workflow', children: ['parent'] },
+        parent: {
+          id: 'parent',
+          title: sourceTitle,
+          parent: 'root',
+          children: ['heading'],
+          titleProjection: {
+            sourceTitle,
+            childIds: ['heading'],
+            nodeIds: ['heading', 'detail'],
+          },
+        },
+        heading: { id: 'heading', title: 'Heading', parent: 'parent', children: ['detail'] },
+        detail: { id: 'detail', title: 'Detail', parent: 'heading', children: [] },
+      }
+
+      const result = removeNode(nodes, {}, 'detail')
+
+      expect(result.nodes.parent.titleProjection).toBeUndefined()
+    })
+
+    it('removes stale projection when nested projected siblings are reordered', () => {
+      const sourceTitle = 'Heading\n  First\n  Second'
+      const nodes = {
+        parent: {
+          id: 'parent',
+          title: sourceTitle,
+          children: ['heading'],
+          titleProjection: {
+            sourceTitle,
+            childIds: ['heading'],
+            nodeIds: ['heading', 'first', 'second'],
+          },
+        },
+        heading: { id: 'heading', title: 'Heading', parent: 'parent', children: ['first', 'second'] },
+        first: { id: 'first', title: 'First', parent: 'heading', children: [] },
+        second: { id: 'second', title: 'Second', parent: 'heading', children: [] },
+      }
+
+      const result = moveNode(nodes, 'second', 'heading', 0)
+
+      expect(result.parent.titleProjection).toBeUndefined()
+    })
+
+    it('remaps projection child ids when duplicating a projected subtree', () => {
+      const nodes = {
+        root: { id: 'root', title: 'Workflow', children: ['parent'] },
+        parent: {
+          id: 'parent',
+          title: 'Source',
+          parent: 'root',
+          children: ['child'],
+          titleProjection: { sourceTitle: 'Source', childIds: ['child'], nodeIds: ['child'] },
+        },
+        child: { id: 'child', title: 'Source', parent: 'parent', children: [] },
+      }
+
+      const result = duplicateNode(nodes, {}, 'parent')
+      const duplicate = result.nodes[result.newRootId]
+
+      expect(duplicate.titleProjection).toEqual({
+        sourceTitle: 'Source',
+        childIds: duplicate.children,
+        nodeIds: duplicate.children,
+      })
+    })
+  })
+
   it('updates command', () => {
     const nodes = createSimpleTree()
     const result = updateNode(nodes, 'a', { command: '/instruct test' })
@@ -189,6 +338,51 @@ describe('moveNode', () => {
     expect(result).toEqual(nodes)
   })
 
+  it('reorders node within the same parent at requested index', () => {
+    const nodes = createSimpleTree()
+    const result = moveNode(nodes, 'b', 'root', 0)
+
+    expect(result['root'].children).toEqual(['b', 'a'])
+    expect(result['b'].parent).toBe('root')
+  })
+
+  it.each([
+    { nodeId: 'a', insertionIndex: 1, expectedChildren: ['b', 'a'] },
+    { nodeId: 'b', insertionIndex: 0, expectedChildren: ['b', 'a'] },
+    { nodeId: 'a', insertionIndex: 0, expectedChildren: ['a', 'b'] },
+    { nodeId: 'b', insertionIndex: 1, expectedChildren: ['a', 'b'] },
+  ])('handles same-parent reorder boundaries %#', ({ nodeId, insertionIndex, expectedChildren }) => {
+    const nodes = createSimpleTree()
+    const result = moveNode(nodes, nodeId, 'root', insertionIndex)
+
+    expect(result['root'].children).toEqual(expectedChildren)
+    expect(result[nodeId].parent).toBe('root')
+  })
+
+  it('inserts moved node into target parent at requested index', () => {
+    const nodes = createSimpleTree()
+    const result = moveNode(nodes, 'a1', 'root', 1)
+
+    expect(result['a'].children).toEqual([])
+    expect(result['root'].children).toEqual(['a', 'a1', 'b'])
+    expect(result['a1'].parent).toBe('root')
+  })
+
+  it('clamps insertion index to target sibling bounds', () => {
+    const nodes = createSimpleTree()
+
+    expect(moveNode(nodes, 'a1', 'root', -5)['root'].children).toEqual(['a1', 'a', 'b'])
+    expect(moveNode(nodes, 'a1', 'root', 99)['root'].children).toEqual(['a', 'b', 'a1'])
+  })
+
+  it('does not duplicate source id when reordering or reparenting', () => {
+    const sameParent = moveNode(createSimpleTree(), 'a', 'root', 1)
+    const crossParent = moveNode(createSimpleTree(), 'a1', 'root', 1)
+
+    expect(sameParent['root'].children.filter(id => id === 'a')).toHaveLength(1)
+    expect(crossParent['root'].children.filter(id => id === 'a1')).toHaveLength(1)
+  })
+
   it('throws CIRCULAR_REFERENCE for self parent', () => {
     const err = getError(() => moveNode(createSimpleTree(), 'a', 'a'))
     expect(err).toBeInstanceOf(NodeMutationError)
@@ -232,6 +426,17 @@ describe('duplicateNode', () => {
     expect(result.nodes['root'].children).toContain(result.newRootId)
   })
 
+  it('duplicates a persisted leaf whose absent prompts list is encoded as null', () => {
+    const nodes = createSimpleTree()
+    nodes.b = { ...nodes.b, prompts: null } as unknown as NodeData
+
+    const result = duplicateNode(nodes, {}, 'b')
+
+    expect(result.nodes[result.newRootId].title).toBe('B')
+    expect(result.nodes[result.newRootId].prompts).toBeUndefined()
+    expect(result.nodes.root.children).toContain(result.newRootId)
+  })
+
   it('duplicates subtree with descendants', () => {
     const nodes = createSimpleTree()
     const result = duplicateNode(nodes, {}, 'a')
@@ -243,6 +448,46 @@ describe('duplicateNode', () => {
     const newA1Id = newA.children![0]
     expect(result.nodes[newA1Id].title).toBe('A1')
     expect(result.nodes[newA1Id].parent).toBe(result.newRootId)
+  })
+
+  it('duplicates projected prompt ownership so removing the copy cannot delete the source subtree', () => {
+    const sourceTitle = 'Heading\n  Detail'
+    const nodes: Record<string, NodeData> = {
+      root: { id: 'root', title: 'Workflow', children: ['source'] },
+      source: {
+        id: 'source',
+        title: sourceTitle,
+        parent: 'root',
+        children: ['heading'],
+        prompts: ['heading'],
+        titleProjection: {
+          sourceTitle,
+          childIds: ['heading'],
+          nodeIds: ['heading', 'detail'],
+        },
+      },
+      heading: { id: 'heading', title: 'Heading', parent: 'source', children: ['detail'] },
+      detail: { id: 'detail', title: 'Detail', parent: 'heading', children: [] },
+    }
+
+    const duplicated = duplicateNode(nodes, {}, 'source')
+    const copy = duplicated.nodes[duplicated.newRootId]
+    const copyHeadingId = duplicated.idMapping.heading
+    const copyDetailId = duplicated.idMapping.detail
+
+    expect(copy.prompts).toEqual([copyHeadingId])
+    expect(copy.titleProjection).toEqual({
+      sourceTitle,
+      childIds: [copyHeadingId],
+      nodeIds: [copyHeadingId, copyDetailId],
+    })
+
+    const afterRemovingCopyPrompts = removePromptChildren(duplicated.nodes, duplicated.newRootId)
+
+    expect(afterRemovingCopyPrompts[copyHeadingId]).toBeUndefined()
+    expect(afterRemovingCopyPrompts[copyDetailId]).toBeUndefined()
+    expect(afterRemovingCopyPrompts.heading).toBe(nodes.heading)
+    expect(afterRemovingCopyPrompts.detail).toBe(nodes.detail)
   })
 
   it('duplicates to different parent', () => {
@@ -766,6 +1011,122 @@ describe('orphanMatchingPromptChildren', () => {
       const err = getError(() => orphanMatchingPromptChildren({}, 'missing', new Set(['x'])))
       expect(err).toBeInstanceOf(NodeMutationError)
       expect(err.code).toBe('PARENT_NOT_FOUND')
+    })
+  })
+})
+
+describe('wrapNodesInParent', () => {
+  const makeTree = (): Record<string, NodeData> => ({
+    root: { id: 'root', title: 'Root', parent: undefined, children: ['a', 'b', 'c'] },
+    a: { id: 'a', title: 'A', parent: 'root', children: [] },
+    b: { id: 'b', title: 'B', parent: 'root', children: [] },
+    c: { id: 'c', title: 'C', parent: 'root', children: [] },
+  })
+
+  const emptyEdges: Record<string, EdgeData> = {}
+
+  describe('new parent shape', () => {
+    it('new parent has empty title and is parented to original parent', () => {
+      const { nodes, newParentId } = wrapNodesInParent(makeTree(), emptyEdges, ['a'])
+      expect(nodes[newParentId].title).toBe('')
+      expect(nodes[newParentId].parent).toBe('root')
+    })
+
+    it('new parent children list contains exactly the wrapped nodes', () => {
+      const { nodes, newParentId } = wrapNodesInParent(makeTree(), emptyEdges, ['a', 'b'])
+      expect(nodes[newParentId].children).toEqual(['a', 'b'])
+    })
+
+    it('wrapped nodes are reparented to new parent', () => {
+      const { nodes, newParentId } = wrapNodesInParent(makeTree(), emptyEdges, ['a', 'b'])
+      expect(nodes['a'].parent).toBe(newParentId)
+      expect(nodes['b'].parent).toBe(newParentId)
+    })
+  })
+
+  describe('insertion position', () => {
+    it('new parent is inserted at position of first wrapped node (first two)', () => {
+      const { nodes, newParentId } = wrapNodesInParent(makeTree(), emptyEdges, ['a', 'b'])
+      expect(nodes['root'].children.indexOf(newParentId)).toBe(0)
+    })
+
+    it('new parent is inserted at position of first wrapped node (middle two)', () => {
+      const { nodes, newParentId } = wrapNodesInParent(makeTree(), emptyEdges, ['b', 'c'])
+      expect(nodes['root'].children.indexOf(newParentId)).toBe(1)
+    })
+
+    it('non-wrapped siblings remain in original parent', () => {
+      const { nodes, newParentId } = wrapNodesInParent(makeTree(), emptyEdges, ['a', 'b'])
+      expect(nodes['root'].children).toEqual([newParentId, 'c'])
+    })
+  })
+
+  describe('ordering', () => {
+    it('wrapped nodes appear in parent-children order regardless of input order', () => {
+      const { nodes, newParentId } = wrapNodesInParent(makeTree(), emptyEdges, ['c', 'a'])
+      expect(nodes[newParentId].children).toEqual(['a', 'c'])
+    })
+
+    it('single-node wrap places exactly that node under new parent', () => {
+      const { nodes, newParentId } = wrapNodesInParent(makeTree(), emptyEdges, ['b'])
+      expect(nodes[newParentId].children).toEqual(['b'])
+      expect(nodes['b'].parent).toBe(newParentId)
+    })
+
+    it('wrapping all children leaves original parent with only new parent', () => {
+      const { nodes, newParentId } = wrapNodesInParent(makeTree(), emptyEdges, ['a', 'b', 'c'])
+      expect(nodes['root'].children).toEqual([newParentId])
+    })
+  })
+
+  describe('edges passthrough', () => {
+    it('returns the same edges reference when no edges are removed', () => {
+      const { edges } = wrapNodesInParent(makeTree(), emptyEdges, ['a'])
+      expect(edges).toBe(emptyEdges)
+    })
+  })
+
+  describe('error handling', () => {
+    it('throws NODE_NOT_FOUND for empty nodeIds array', () => {
+      const err = getError(() => wrapNodesInParent(makeTree(), emptyEdges, []))
+      expect(err).toBeInstanceOf(NodeMutationError)
+      expect(err.code).toBe('NODE_NOT_FOUND')
+    })
+
+    it('throws NODE_NOT_FOUND when a nodeId does not exist in nodes', () => {
+      const err = getError(() => wrapNodesInParent(makeTree(), emptyEdges, ['missing']))
+      expect(err).toBeInstanceOf(NodeMutationError)
+      expect(err.code).toBe('NODE_NOT_FOUND')
+    })
+
+    it('throws CANNOT_MOVE_ROOT when first node has no parent', () => {
+      const nodes = { root: { id: 'root', title: 'Root', children: [] } }
+      const err = getError(() => wrapNodesInParent(nodes, emptyEdges, ['root']))
+      expect(err).toBeInstanceOf(NodeMutationError)
+      expect(err.code).toBe('CANNOT_MOVE_ROOT')
+    })
+
+    it('throws PARENT_NOT_FOUND when nodeIds span different parents', () => {
+      const tree = makeTree()
+      tree['a'] = { ...tree['a'], parent: 'other' }
+      const err = getError(() => wrapNodesInParent(tree, emptyEdges, ['a', 'b']))
+      expect(err).toBeInstanceOf(NodeMutationError)
+      expect(err.code).toBe('PARENT_NOT_FOUND')
+    })
+  })
+
+  describe('immutability', () => {
+    it('does not mutate original parent children array', () => {
+      const original = makeTree()
+      const before = [...original['root'].children!]
+      wrapNodesInParent(original, emptyEdges, ['a', 'b'])
+      expect(original['root'].children).toEqual(before)
+    })
+
+    it('does not mutate wrapped node parent field on original', () => {
+      const original = makeTree()
+      wrapNodesInParent(original, emptyEdges, ['a', 'b'])
+      expect(original['a'].parent).toBe('root')
     })
   })
 })

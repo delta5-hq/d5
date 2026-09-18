@@ -1,44 +1,43 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { NodeData, NodeId, ReliabilityMetadata, JudgeQualityWarning } from '@shared/base-types'
 import { Button } from '@shared/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@shared/ui/collapsible'
 import { Genie } from '@shared/ui/genie'
-import { getCommandRole } from '@shared/constants/command-roles'
-import { getColorForRole } from '@shared/ui/genie/role-colors'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
-import { canExecuteNode } from '@shared/lib/commands/command-validator'
+import { canExecuteNode, isSlashCommand } from '@shared/lib/commands/command-validator'
 import {
   isReliabilitySyntaxErrorReason,
   validateCommandForExecution,
   type ReliabilitySyntaxErrorReason,
 } from '@shared/lib/command-validation'
 import { useAliases } from '@entities/aliases'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@shared/ui/collapsible'
-import { Eye, FileText, Folder, Play, Loader2, Square, Copy, Trash2, Plus, ChevronRight, ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Copy, Pencil, Plus, Trash2 } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
+import { getNodeGeniePresentation } from '@features/workflow-tree/lib/node-genie-presenter'
 import {
   attachReliabilitySuffix,
   extractReliabilitySuffix,
   isTitleDerivedFromCommand,
 } from '@shared/lib/reliability-suffix'
+import { readCommodityN } from '@shared/lib/reliability/commodity-params'
 import { NodeTitleEditor } from './node-title-editor'
-import { NodePreviewSection } from './node-preview-section'
-import { McpFusionReportPanel } from './mcp-fusion-report-panel'
-import { CommandField } from './command-field'
+import { NodeOutputSection } from './node-output-section'
+import { NodeCommandComposer } from './node-command-composer'
 import { CriterionVerdictDrawer } from './criterion-verdict-drawer'
 import { DiscardedForksDrawer } from './discarded-forks-drawer'
 import type { ForkPreviewState } from '@features/workflow-tree/store/fork-preview-state'
-import { readCommodityN } from '@shared/lib/reliability/commodity-params'
+import type { EditableTextAreaHandle } from '@shared/ui/editable-field'
 
 interface NodeDetailPanelProps {
   node: NodeData
-  isPrompt: boolean
+  isPrompt?: boolean
   onUpdateNode: (nodeId: NodeId, updates: Partial<Omit<NodeData, 'id' | 'parent'>>) => void
-  onDelete: (nodeId: NodeId) => void
-  onDuplicateNode: (nodeId: NodeId) => void
-  onAddChild: (parentId: NodeId) => void
-  onAddSibling: (nodeId: NodeId) => NodeId | null
+  onDelete?: (nodeId: NodeId) => void
+  onDuplicateNode?: (nodeId: NodeId) => void
+  onAddChild?: (parentId: NodeId) => void
+  onAddSibling?: (nodeId: NodeId) => NodeId | null
   onEnterInCommand: (nodeId: NodeId, committedCommand: string) => void
   onCtrlEnterInCommand: (nodeId: NodeId, committedCommand: string) => void
   onShiftCtrlEnterInCommand: (nodeId: NodeId, committedCommand: string) => void
@@ -92,26 +91,36 @@ export const NodeDetailPanel = ({
 }: NodeDetailPanelProps) => {
   const { aliases } = useAliases()
   const genieState = useGenieState(node.id)
-  const hasChildren = Boolean(node.children?.length)
   const isRoot = !node.parent
   const mutationDisabled = isExecuting
   const { formatMessage } = useIntl()
-  const showPreview = isPrompt || Boolean(node.command) || Boolean(node.title)
-  const commandValidation = validateCommandForExecution(node.command, false, aliases)
+
+  /* Draft-driven validation (workflow editor line) combined with the reliability grammar gate. */
+  const [commandDraft, setCommandDraft] = useState(node.command ?? '')
+  const commandIsValid = isSlashCommand(commandDraft)
+  const commandValidation = validateCommandForExecution(commandDraft, false, aliases)
   const reliabilitySyntaxError = isReliabilitySyntaxErrorReason(commandValidation.reason)
     ? commandValidation.reason
     : null
   const canExecute =
-    canExecuteNode(node.command, executeDisabled || electCostExceedsLimit === true) && !reliabilitySyntaxError
+    canExecuteNode(commandDraft, executeDisabled || electCostExceedsLimit === true) && !reliabilitySyntaxError
   const siblingActionsEnabled = !isRoot && canExecute
+  const titleRef = useRef<EditableTextAreaHandle>(null)
 
-  const commodityN = readCommodityN(node.command ?? '')
+  const commodityN = readCommodityN(commandDraft)
   const { baseTitle: nodeTitleBase, suffix: nodeTitleSuffix } = extractReliabilitySuffix(normalizeNodeTitle(node.title))
 
   const [settingsOpen, setSettingsOpen] = useState(!isPrompt)
-  const [previewOpen, setPreviewOpen] = useState(isPrompt)
   const [verdictOpen, setVerdictOpen] = useState(false)
   const [forksOpen, setForksOpen] = useState(false)
+
+  useEffect(() => {
+    setSettingsOpen(!isPrompt)
+  }, [isPrompt])
+
+  useEffect(() => {
+    setCommandDraft(node.command ?? '')
+  }, [node.id, node.command])
 
   useEffect(() => {
     if (openDrawerForNodeId !== node.id) return
@@ -119,21 +128,6 @@ export const NodeDetailPanel = ({
     if (!reliabilityMetadata) return
     setVerdictOpen(true)
   }, [openDrawerForNodeId, node.id, reliabilityMetadata, onDrawerOpened])
-  const previousExecutingRef = useRef(isExecuting)
-
-  useEffect(() => {
-    setSettingsOpen(!isPrompt)
-    setPreviewOpen(isPrompt)
-  }, [isPrompt])
-
-  useEffect(() => {
-    const wasExecuting = previousExecutingRef.current
-    previousExecutingRef.current = isExecuting
-
-    if (wasExecuting && !isExecuting) {
-      setPreviewOpen(true)
-    }
-  }, [isExecuting])
 
   const handleTitleChange = useCallback(
     (title: string) => {
@@ -144,6 +138,7 @@ export const NodeDetailPanel = ({
 
   const handleCommandChange = useCallback(
     (command: string) => {
+      setCommandDraft(command)
       const titleIsDerived = !node.title || isTitleDerivedFromCommand(node.title, node.command ?? '')
       onUpdateNode(node.id, titleIsDerived ? { command, title: command } : { command })
     },
@@ -152,28 +147,28 @@ export const NodeDetailPanel = ({
 
   const handleExecute = useCallback(async () => {
     if (reliabilitySyntaxError) return
-    const queryType = extractQueryTypeFromCommand(node.command, aliases)
-    await onExecute(node, queryType)
-  }, [node, onExecute, aliases, reliabilitySyntaxError])
+    const queryType = extractQueryTypeFromCommand(commandDraft, aliases)
+    await onExecute({ ...node, command: commandDraft }, queryType)
+  }, [node, commandDraft, onExecute, aliases, reliabilitySyntaxError])
 
   const handleAbort = useCallback(() => {
     onAbort(node.id)
   }, [node.id, onAbort])
 
   const handleDelete = useCallback(() => {
-    onDelete(node.id)
+    onDelete?.(node.id)
   }, [node.id, onDelete])
 
   const handleDuplicate = useCallback(() => {
-    onDuplicateNode(node.id)
+    onDuplicateNode?.(node.id)
   }, [node.id, onDuplicateNode])
 
   const handleAddChild = useCallback(() => {
-    onAddChild(node.id)
+    onAddChild?.(node.id)
   }, [node.id, onAddChild])
 
   const handleAddSibling = useCallback(() => {
-    onAddSibling(node.id)
+    onAddSibling?.(node.id)
   }, [node.id, onAddSibling])
 
   const handleEnterInCommand = useCallback(
@@ -199,256 +194,242 @@ export const NodeDetailPanel = ({
     [node.id, onShiftCtrlEnterInCommand],
   )
 
-  const hasCommand = Boolean(node.command?.trim())
-  const genieVariant = hasCommand ? 'full' : 'clipboard'
-  const genieColor = hasCommand
-    ? getColorForRole(getCommandRole(extractQueryTypeFromCommand(node.command, aliases)))
-    : '#9e9e9e'
-  const genieShowHandRibs = hasCommand
+  const autoTitle = isTitleDerivedFromCommand(node.title ?? '', node.command ?? '')
+  const effectiveToken = commandDraft.trim().split(/\s+/)[0] ?? ''
+  const commandIsSlash = effectiveToken.startsWith('/')
+  const geniePresentation = getNodeGeniePresentation({ command: commandDraft }, { aliases })
+  const genieColor = geniePresentation.color
 
-  return (
-    <div className="text-sm 3xl:flex 3xl:gap-6 3xl:items-start" data-testid="node-detail-panel">
-      <div className="flex-1 space-y-4">
+  const showForkEntry = Boolean(forkPreview) || Boolean(reliabilityMetadata)
+
+  const commandHints: ReactNode = (
+    <>
+      {reliabilitySyntaxError ? (
+        <span className="mt-1 block text-xs text-destructive" data-testid="command-validation-error">
+          <FormattedMessage id={RELIABILITY_SYNTAX_ERROR_I18N_KEY[reliabilitySyntaxError]} />
+        </span>
+      ) : null}
+      {typeof electCost === 'number' ? (
+        <span className="mt-1 block text-xs text-muted-foreground" data-testid="elect-cost-hint">
+          <FormattedMessage id="workflowTree.node.electCostHint" values={{ cost: electCost }} />
+        </span>
+      ) : null}
+      {typeof electCost === 'number' && electCostExceedsLimit ? (
+        <span className="mt-1 block text-xs text-destructive" data-testid="elect-cost-over-limit">
+          <FormattedMessage id="workflowTree.node.electCostOverLimit" values={{ cost: electCost }} />
+        </span>
+      ) : null}
+      {commodityN > 1 ? (
+        <span className="mt-1 block text-xs text-accent" data-testid="commodity-ceiling-hint">
+          <FormattedMessage id="workflowTree.node.commodityCeilingHint" />
+        </span>
+      ) : null}
+      {preExecuteWarnings && preExecuteWarnings.length > 0 ? (
+        <div className="mt-1 space-y-0.5" data-testid="pre-execute-warnings">
+          {preExecuteWarnings.map(w => (
+            <span
+              className={w.severity === 'high' ? 'block text-xs text-destructive' : 'block text-xs text-accent'}
+              data-testid={`pre-execute-warning-${w.condition}`}
+              key={w.condition}
+            >
+              <FormattedMessage id={`workflowTree.verdictDrawer.judgeQualityWarning_${w.condition}`} />
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {reliabilityMetadata?.mode === 'suppressed' || reliabilityMetadata?.suppressed ? (
+        <span className="mt-1 block text-xs text-accent" data-testid="suppressed-run-hint">
+          <FormattedMessage
+            id={
+              reliabilityMetadata.cause === 'nested-reliability-fork'
+                ? 'workflowTree.node.nestedReliabilitySuppressedHint'
+                : 'workflowTree.node.suppressedRunHint'
+            }
+            values={{ n: reliabilityMetadata.requestedN ?? '' }}
+          />
+        </span>
+      ) : null}
+      {reliabilityMetadata?.retryWithheld ? (
+        <span className="mt-1 block text-xs text-accent" data-testid="retry-withheld-hint">
+          <FormattedMessage
+            id="workflowTree.node.retryWithheldHint"
+            values={{ n: reliabilityMetadata.requestedRetry ?? '' }}
+          />
+        </span>
+      ) : null}
+      {reliabilityMetadata?.perCriterionVerdict?.length ? (
         <button
-          aria-label={formatMessage({ id: 'workflowTree.node.close' })}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors 3xl:hidden"
-          data-testid="close-detail-panel-button"
-          onClick={onClose}
+          className="mt-1 block text-xs text-primary underline underline-offset-2 transition-opacity hover:opacity-80"
+          data-testid="verdict-button"
+          onClick={() => setVerdictOpen(true)}
           type="button"
         >
-          <ArrowLeft className="h-3 w-3" />
-          <FormattedMessage id="workflowTree.node.close" />
+          <FormattedMessage id="workflowTree.node.verdictButton" />
         </button>
-
-        <Collapsible onOpenChange={setSettingsOpen} open={settingsOpen}>
-          <CollapsibleTrigger
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors [&[data-state=open]>svg]:rotate-90"
-            data-testid="settings-trigger"
-          >
-            <ChevronRight className="h-3 w-3 transition-transform" />
-            <FormattedMessage id="workflowTree.node.settings" />
-          </CollapsibleTrigger>
-
-          <CollapsibleContent>
-            <div className="flex items-start gap-4 pt-2">
-              <div className="flex-1 space-y-4">
-                <div className="flex items-center gap-2">
-                  {hasChildren ? (
-                    <Folder className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                  ) : (
-                    <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                  )}
-                  <NodeTitleEditor
-                    autoFocus={autoFocusTitle}
-                    className="flex-1 font-medium"
-                    onChange={handleTitleChange}
-                    value={nodeTitleBase}
-                  />
-                </div>
-
-                <div className="grid grid-cols-[100px_1fr] gap-2 items-start">
-                  <span className="text-muted-foreground text-xs pt-2">
-                    <FormattedMessage id="workflowTree.node.command" />
-                  </span>
-                  <div>
-                    <CommandField
-                      autoFocus={autoFocusCommand}
-                      className="min-h-[80px] text-xs font-mono w-full"
-                      nodeId={node.id}
-                      onChange={handleCommandChange}
-                      onCtrlEnter={siblingActionsEnabled ? handleCtrlEnterInCommand : undefined}
-                      onEnter={handleEnterInCommand}
-                      onShiftCtrlEnter={siblingActionsEnabled ? handleShiftCtrlEnterInCommand : undefined}
-                      placeholder={formatMessage({ id: 'workflowTree.node.commandPlaceholder' })}
-                      value={node.command ?? ''}
-                    />
-                    {reliabilitySyntaxError ? (
-                      <span className="text-xs text-destructive mt-1 block" data-testid="command-validation-error">
-                        <FormattedMessage id={RELIABILITY_SYNTAX_ERROR_I18N_KEY[reliabilitySyntaxError]} />
-                      </span>
-                    ) : null}
-                    {typeof electCost === 'number' ? (
-                      <span className="text-xs text-muted-foreground mt-1 block" data-testid="elect-cost-hint">
-                        <FormattedMessage id="workflowTree.node.electCostHint" values={{ cost: electCost }} />
-                      </span>
-                    ) : null}
-                    {typeof electCost === 'number' && electCostExceedsLimit ? (
-                      <span className="text-xs text-destructive mt-1 block" data-testid="elect-cost-over-limit">
-                        <FormattedMessage id="workflowTree.node.electCostOverLimit" values={{ cost: electCost }} />
-                      </span>
-                    ) : null}
-                    {commodityN > 1 ? (
-                      <span className="text-xs text-accent mt-1 block" data-testid="commodity-ceiling-hint">
-                        <FormattedMessage id="workflowTree.node.commodityCeilingHint" />
-                      </span>
-                    ) : null}
-                    {preExecuteWarnings && preExecuteWarnings.length > 0 ? (
-                      <div className="mt-1 space-y-0.5" data-testid="pre-execute-warnings">
-                        {preExecuteWarnings.map(w => (
-                          <span
-                            className={
-                              w.severity === 'high' ? 'text-xs text-destructive block' : 'text-xs text-accent block'
-                            }
-                            data-testid={`pre-execute-warning-${w.condition}`}
-                            key={w.condition}
-                          >
-                            <FormattedMessage id={`workflowTree.verdictDrawer.judgeQualityWarning_${w.condition}`} />
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                    {reliabilityMetadata?.mode === 'suppressed' || reliabilityMetadata?.suppressed ? (
-                      <span className="text-xs text-accent mt-1 block" data-testid="suppressed-run-hint">
-                        <FormattedMessage
-                          id={
-                            reliabilityMetadata.cause === 'nested-reliability-fork'
-                              ? 'workflowTree.node.nestedReliabilitySuppressedHint'
-                              : 'workflowTree.node.suppressedRunHint'
-                          }
-                          values={{ n: reliabilityMetadata.requestedN ?? '' }}
-                        />
-                      </span>
-                    ) : null}
-                    {reliabilityMetadata?.retryWithheld ? (
-                      <span className="text-xs text-accent mt-1 block" data-testid="retry-withheld-hint">
-                        <FormattedMessage
-                          id="workflowTree.node.retryWithheldHint"
-                          values={{ n: reliabilityMetadata.requestedRetry ?? '' }}
-                        />
-                      </span>
-                    ) : null}
-                    {reliabilityMetadata?.perCriterionVerdict?.length ? (
-                      <button
-                        className="text-xs text-primary underline underline-offset-2 mt-1 block hover:opacity-80 transition-opacity"
-                        data-testid="verdict-button"
-                        onClick={() => setVerdictOpen(true)}
-                        type="button"
-                      >
-                        <FormattedMessage id="workflowTree.node.verdictButton" />
-                      </button>
-                    ) : null}
-                    {forkPreview || reliabilityMetadata ? (
-                      <button
-                        className="text-xs text-primary underline underline-offset-2 mt-1 block hover:opacity-80 transition-opacity"
-                        data-testid="forks-button"
-                        onClick={() => setForksOpen(true)}
-                        type="button"
-                      >
-                        <FormattedMessage id="workflowTree.discardedForks.discardedForksButton" />
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <Button data-testid="execute-node-button" disabled={!canExecute} onClick={handleExecute} size="sm">
-                    {isExecuting ? (
-                      <>
-                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                        <FormattedMessage id="workflowTree.node.executing" />
-                      </>
-                    ) : (
-                      <>
-                        <Play className="mr-1 h-3 w-3" />
-                        <FormattedMessage id="workflowTree.node.execute" />
-                      </>
-                    )}
-                  </Button>
-
-                  {isExecuting ? (
-                    <Button data-testid="abort-node-button" onClick={handleAbort} size="sm" variant="danger">
-                      <Square className="mr-1 h-3 w-3" />
-                      <FormattedMessage id="workflowTree.node.abort" />
-                    </Button>
-                  ) : null}
-
-                  <Button
-                    data-testid="add-child-node-button"
-                    disabled={mutationDisabled}
-                    onClick={handleAddChild}
-                    size="sm"
-                    variant="ghost"
-                  >
-                    <Plus className="mr-1 h-3 w-3" />
-                    <FormattedMessage id="workflowTree.node.addChild" />
-                  </Button>
-
-                  <Button
-                    data-testid="add-sibling-node-button"
-                    disabled={isRoot || mutationDisabled}
-                    onClick={handleAddSibling}
-                    size="sm"
-                    variant="ghost"
-                  >
-                    <Plus className="mr-1 h-3 w-3" />
-                    <FormattedMessage id="workflowTree.node.addSibling" />
-                  </Button>
-
-                  <Button
-                    data-testid="duplicate-node-button"
-                    disabled={isRoot || mutationDisabled}
-                    onClick={handleDuplicate}
-                    size="sm"
-                    variant="ghost"
-                  >
-                    <Copy className="mr-1 h-3 w-3" />
-                    <FormattedMessage id="workflowTree.node.duplicate" />
-                  </Button>
-
-                  <Button
-                    data-testid="delete-node-button"
-                    disabled={isRoot || mutationDisabled}
-                    onClick={handleDelete}
-                    size="sm"
-                    variant="danger"
-                  >
-                    <Trash2 className="mr-1 h-3 w-3" />
-                    <FormattedMessage id="delete" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex-shrink-0" data-testid="node-genie">
-                <Genie
-                  clipboardEdge="#424242"
-                  clipboardFill="#ffffff"
-                  color={genieColor}
-                  showHandRibs={genieShowHandRibs}
-                  size={80}
-                  state={genieState}
-                  variant={genieVariant}
-                />
-              </div>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
-
-      {showPreview ? (
-        <Collapsible className="mt-4 3xl:w-96 3xl:flex-shrink-0" onOpenChange={setPreviewOpen} open={previewOpen}>
-          <CollapsibleTrigger
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors [&[data-state=open]>svg]:rotate-90"
-            data-testid="preview-trigger"
-          >
-            <ChevronRight className="h-3 w-3 transition-transform" />
-            <Eye className="h-3 w-3" />
-            <FormattedMessage id="workflowTree.node.preview" />
-          </CollapsibleTrigger>
-          <CollapsibleContent data-testid="node-preview-section">
-            <NodePreviewSection nodeId={node.id} />
-            {node.mcpFusionReport ? (
-              <div className="mt-2">
-                <McpFusionReportPanel report={node.mcpFusionReport} />
-              </div>
-            ) : null}
-          </CollapsibleContent>
-        </Collapsible>
       ) : null}
+      {showForkEntry ? (
+        <button
+          className="mt-1 block text-xs text-primary underline underline-offset-2 transition-opacity hover:opacity-80"
+          data-testid="forks-button"
+          onClick={() => setForksOpen(true)}
+          type="button"
+        >
+          <FormattedMessage id="workflowTree.discardedForks.discardedForksButton" />
+        </button>
+      ) : null}
+    </>
+  )
+
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-3 p-4" data-testid="node-detail-panel">
+      <button
+        aria-label={formatMessage({ id: 'workflowTree.node.close' })}
+        className="flex w-fit items-center gap-1 rounded-full px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground 3xl:hidden"
+        data-testid="close-detail-panel-button"
+        onClick={onClose}
+        type="button"
+      >
+        <ArrowLeft className="h-3 w-3" />
+        <FormattedMessage id="workflowTree.node.close" />
+      </button>
+
+      <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 border-b border-muted-foreground/10 pb-2">
+        <Genie
+          className="mt-0.5 shrink-0"
+          color={genieColor}
+          size={28}
+          state={genieState}
+          variant={geniePresentation.variant}
+        />
+        <div className="min-w-0 overflow-hidden" data-testid="node-detail-title-region">
+          <NodeTitleEditor
+            autoFocus={autoFocusTitle}
+            className="w-full min-w-0 text-base font-semibold leading-6"
+            editClassName="box-border max-h-24 !w-full !min-w-0 !max-w-full resize-none overflow-x-hidden overflow-y-auto rounded-lg border-primary/40 bg-background px-2 py-1 text-base font-semibold leading-6 shadow-none"
+            onChange={handleTitleChange}
+            readOnlyClassName="block max-w-full truncate whitespace-nowrap border-0 bg-transparent px-0 py-0 hover:border-transparent hover:bg-transparent"
+            ref={titleRef}
+            value={nodeTitleBase}
+          />
+        </div>
+        <div className="flex shrink-0 items-center gap-2" data-testid="node-detail-title-actions">
+          {autoTitle ? (
+            <span className="shrink-0 rounded-full border border-muted-foreground/20 bg-muted px-2 py-0.5 font-mono text-xs font-bold uppercase text-muted-foreground">
+              <FormattedMessage id="workflowTree.node.auto" />
+            </span>
+          ) : null}
+          <button
+            aria-label={formatMessage({ id: 'workflowTree.node.rename' })}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-muted-foreground/15 text-muted-foreground hover:border-accent/30 hover:bg-accent/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            data-testid="rename-node-button"
+            onClick={() => titleRef.current?.startEditing()}
+            type="button"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </header>
+
+      <Collapsible className="flex min-h-0 flex-1 flex-col" onOpenChange={setSettingsOpen} open={settingsOpen}>
+        <CollapsibleTrigger
+          className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground [&[data-state=open]>svg]:rotate-90"
+          data-testid="settings-trigger"
+        >
+          <ChevronRight className="h-3 w-3 transition-transform" />
+          <FormattedMessage id="workflowTree.node.settings" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="flex min-h-0 flex-1 flex-col gap-3 pt-2">
+          <NodeOutputSection
+            commandIsSlash={commandIsSlash}
+            commandToken={effectiveToken}
+            genieColor={genieColor}
+            genieState={genieState}
+            genieVariant={geniePresentation.variant}
+            mcpFusionReport={node.mcpFusionReport}
+            nodeId={node.id}
+          />
+
+          <NodeCommandComposer
+            autoFocusCommand={autoFocusCommand}
+            canExecute={canExecute}
+            command={node.command ?? ''}
+            commandDraft={commandDraft}
+            commandIsSlash={commandIsSlash}
+            commandIsValid={commandIsValid}
+            commandToken={effectiveToken}
+            genieColor={genieColor}
+            hints={commandHints}
+            isExecuting={isExecuting}
+            nodeId={node.id}
+            onAbort={handleAbort}
+            onCommandChange={handleCommandChange}
+            onCtrlEnter={handleCtrlEnterInCommand}
+            onDraftChange={setCommandDraft}
+            onEnter={handleEnterInCommand}
+            onExecute={handleExecute}
+            onShiftCtrlEnter={handleShiftCtrlEnterInCommand}
+            siblingActionsEnabled={siblingActionsEnabled}
+          />
+
+          {onAddChild || onDelete || onDuplicateNode ? (
+            <div className="flex flex-wrap gap-2 pt-1" data-testid="node-action-row">
+              {onAddChild ? (
+                <Button
+                  data-testid="add-child-node-button"
+                  disabled={mutationDisabled}
+                  onClick={handleAddChild}
+                  size="sm"
+                  variant="ghost"
+                >
+                  <Plus className="mr-1 h-3 w-3" />
+                  <FormattedMessage id="workflowTree.node.addChild" />
+                </Button>
+              ) : null}
+              {onAddSibling ? (
+                <Button
+                  data-testid="add-sibling-node-button"
+                  disabled={isRoot || mutationDisabled}
+                  onClick={handleAddSibling}
+                  size="sm"
+                  variant="ghost"
+                >
+                  <Plus className="mr-1 h-3 w-3" />
+                  <FormattedMessage id="workflowTree.node.addSibling" />
+                </Button>
+              ) : null}
+              {onDuplicateNode ? (
+                <Button
+                  data-testid="duplicate-node-button"
+                  disabled={isRoot || mutationDisabled}
+                  onClick={handleDuplicate}
+                  size="sm"
+                  variant="ghost"
+                >
+                  <Copy className="mr-1 h-3 w-3" />
+                  <FormattedMessage id="workflowTree.node.duplicate" />
+                </Button>
+              ) : null}
+              {onDelete ? (
+                <Button
+                  data-testid="delete-node-button"
+                  disabled={isRoot || mutationDisabled}
+                  onClick={handleDelete}
+                  size="sm"
+                  variant="danger"
+                >
+                  <Trash2 className="mr-1 h-3 w-3" />
+                  <FormattedMessage id="delete" />
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </CollapsibleContent>
+      </Collapsible>
 
       {reliabilityMetadata ? (
         <CriterionVerdictDrawer metadata={reliabilityMetadata} onOpenChange={setVerdictOpen} open={verdictOpen} />
       ) : null}
-      {forkPreview || reliabilityMetadata ? (
+      {showForkEntry ? (
         <DiscardedForksDrawer
           discardedForks={reliabilityMetadata?.discardedForks}
           forkPreview={forkPreview}

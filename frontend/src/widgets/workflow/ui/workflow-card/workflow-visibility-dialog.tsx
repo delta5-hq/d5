@@ -1,4 +1,5 @@
 import { type DialogProps, type PublicShare, type WorkflowContentData } from '@shared/base-types'
+import { useAuthContext } from '@entities/auth'
 import { useApiMutation, useApiQuery } from '@shared/composables'
 import { Button } from '@shared/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@shared/ui/dialog'
@@ -41,6 +42,7 @@ const VisibilityOption: React.FC<{
 const WorkflowVisibilityDialog: React.FC<VisibilityDialogProps> = ({ workflowId, open, onClose }) => {
   const { formatMessage } = useIntl()
   const queryClient = useQueryClient()
+  const { isAdmin } = useAuthContext()
 
   const { data: workflow } = useApiQuery<WorkflowContentData>({
     queryKey: ['workflow', workflowId],
@@ -118,28 +120,31 @@ const WorkflowVisibilityDialog: React.FC<VisibilityDialogProps> = ({ workflowId,
             title={<FormattedMessage id="buttonShare" />}
           />
 
-          <Separator />
+          {isAdmin ? (
+            <>
+              <Separator />
 
-          <VisibilityOption
-            active={isPublic && isWriteable ? isHidden : false}
-            description={<FormattedMessage id="buttonShareWritableHiddenMessage" />}
-            disabled={isLoading}
-            icon={<Pencil className="h-6 w-6" />}
-            onClick={() => setWorkflowVisibility({ enabled: true, hidden: true, writeable: true })}
-            title={<FormattedMessage id="buttonShareWritableHidden" />}
-          />
+              <VisibilityOption
+                active={isPublic && isWriteable ? isHidden : false}
+                description={<FormattedMessage id="buttonShareWritableHiddenMessage" />}
+                disabled={isLoading}
+                icon={<Pencil className="h-6 w-6" />}
+                onClick={() => setWorkflowVisibility({ enabled: true, hidden: true, writeable: true })}
+                title={<FormattedMessage id="buttonShareWritableHidden" />}
+              />
 
-          <Separator />
+              <Separator />
 
-          {/* TODO: hide for non-admin */}
-          <VisibilityOption
-            active={isPublic && isWriteable ? !isHidden : false}
-            description={<FormattedMessage id="buttonShareWritableMessage" />}
-            disabled={isLoading}
-            icon={<Pencil className="h-6 w-6" />}
-            onClick={() => setWorkflowVisibility({ enabled: true, hidden: false, writeable: true })}
-            title={<FormattedMessage id="buttonShareWritable" />}
-          />
+              <VisibilityOption
+                active={isPublic && isWriteable ? !isHidden : false}
+                description={<FormattedMessage id="buttonShareWritableMessage" />}
+                disabled={isLoading}
+                icon={<Pencil className="h-6 w-6" />}
+                onClick={() => setWorkflowVisibility({ enabled: true, hidden: false, writeable: true })}
+                title={<FormattedMessage id="buttonShareWritable" />}
+              />
+            </>
+          ) : null}
         </div>
 
         <DialogFooter>

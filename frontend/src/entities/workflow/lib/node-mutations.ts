@@ -1,6 +1,7 @@
 import type { NodeData, NodeId, EdgeData, EdgeId } from '@shared/base-types'
 import { generateUniqueNodeId, generateEdgeId } from '@shared/lib/generate-id'
 import { isValidNodeData, getDescendantIds, hasCircularReference } from './node-validation'
+import { remapTitleProjection, sanitizeTitleProjections, withoutTitleProjection } from './title-projection'
 
 export interface NodeMutationResult {
   nodes: Record<NodeId, NodeData>
@@ -122,7 +123,7 @@ export const updateNode = (
     parent: existingNode.parent,
   }
 
-  return { ...nodes, [nodeId]: updatedNode }
+  return sanitizeTitleProjections({ ...nodes, [nodeId]: updatedNode })
 }
 
 export const removeNode = (
@@ -153,6 +154,7 @@ export const removeNode = (
     newNodes[node.parent] = {
       ...parentNode,
       children: (parentNode.children ?? []).filter(id => id !== nodeId),
+      ...(parentNode.prompts && { prompts: parentNode.prompts.filter(id => id !== nodeId) }),
     }
   }
 
@@ -163,13 +165,14 @@ export const removeNode = (
     }
   }
 
-  return { nodes: newNodes, edges: newEdges, removedNodeIds }
+  return { nodes: sanitizeTitleProjections(newNodes), edges: newEdges, removedNodeIds }
 }
 
 export const moveNode = (
   nodes: Record<NodeId, NodeData>,
   nodeId: NodeId,
   newParentId: NodeId,
+  insertionIndex?: number,
 ): Record<NodeId, NodeData> => {
   const node = nodes[nodeId]
   if (!node) {
@@ -189,8 +192,35 @@ export const moveNode = (
   }
 
   const oldParentId = node.parent
-  if (oldParentId === newParentId) {
+  const oldSiblings = nodes[oldParentId]?.children ?? []
+  const newSiblings = nodes[newParentId]?.children ?? []
+  const sameParent = oldParentId === newParentId
+  if (sameParent && insertionIndex === undefined) {
     return nodes
+  }
+
+  const siblingsWithoutMovedNode = sameParent ? oldSiblings.filter(id => id !== nodeId) : newSiblings
+  const targetIndex =
+    insertionIndex === undefined
+      ? siblingsWithoutMovedNode.length
+      : Math.max(0, Math.min(insertionIndex, siblingsWithoutMovedNode.length))
+  const nextTargetChildren = [
+    ...siblingsWithoutMovedNode.slice(0, targetIndex),
+    nodeId,
+    ...siblingsWithoutMovedNode.slice(targetIndex),
+  ]
+
+  if (sameParent) {
+    const currentIndex = oldSiblings.indexOf(nodeId)
+    if (currentIndex === targetIndex) return nodes
+
+    return sanitizeTitleProjections({
+      ...nodes,
+      [oldParentId]: {
+        ...nodes[oldParentId],
+        children: nextTargetChildren,
+      },
+    })
   }
 
   const newNodes = { ...nodes }
@@ -206,7 +236,7 @@ export const moveNode = (
   const newParent = newNodes[newParentId]
   newNodes[newParentId] = {
     ...newParent,
-    children: [...(newParent.children ?? []), nodeId],
+    children: nextTargetChildren,
   }
 
   newNodes[nodeId] = {
@@ -214,7 +244,7 @@ export const moveNode = (
     parent: newParentId,
   }
 
-  return newNodes
+  return sanitizeTitleProjections(newNodes)
 }
 
 export const addPromptChild = (
@@ -266,7 +296,7 @@ export const removePromptChildren = (nodes: Record<NodeId, NodeData>, parentId: 
     prompts: [],
   }
 
-  return newNodes
+  return { ...newNodes, [parentId]: withoutTitleProjection(newNodes[parentId]) }
 }
 
 export const orphanMatchingPromptChildren = (
@@ -346,9 +376,16 @@ export const duplicateNode = (
       id: newId,
       parent: newParent,
       children: (source.children ?? []).map(childId => idMapping[childId]).filter(Boolean),
+      ...(source.prompts !== undefined && {
+        // Persisted workflows encode an absent prompts list as null. Normalize
+        // that wire shape instead of attempting to map it during duplication.
+        prompts: Array.isArray(source.prompts)
+          ? source.prompts.map(promptId => idMapping[promptId]).filter((id): id is NodeId => Boolean(id))
+          : undefined,
+      }),
     }
 
-    newNodes[newId] = newNode
+    newNodes[newId] = remapTitleProjection(newNode, idMapping)
   }
 
   const targetParent = newNodes[parentId]
@@ -383,4 +420,64 @@ export const duplicateNode = (
     newRootId: idMapping[nodeId],
     idMapping,
   }
+}
+
+export interface WrapNodesResult {
+  nodes: Record<NodeId, NodeData>
+  edges: Record<EdgeId, EdgeData>
+  newParentId: NodeId
+}
+
+export const wrapNodesInParent = (
+  nodes: Record<NodeId, NodeData>,
+  edges: Record<EdgeId, EdgeData>,
+  nodeIds: NodeId[],
+): WrapNodesResult => {
+  if (nodeIds.length === 0) {
+    throw new NodeMutationError('No nodes to wrap', 'NODE_NOT_FOUND')
+  }
+
+  const firstNode = nodes[nodeIds[0]]
+  if (!firstNode) {
+    throw new NodeMutationError(`Node "${nodeIds[0]}" not found`, 'NODE_NOT_FOUND')
+  }
+  if (!firstNode.parent) {
+    throw new NodeMutationError('Cannot wrap root node', 'CANNOT_MOVE_ROOT')
+  }
+
+  const sharedParentId = firstNode.parent
+  for (const id of nodeIds) {
+    const n = nodes[id]
+    if (!n) throw new NodeMutationError(`Node "${id}" not found`, 'NODE_NOT_FOUND')
+    if (n.parent !== sharedParentId) {
+      throw new NodeMutationError('All wrapped nodes must share the same parent', 'PARENT_NOT_FOUND')
+    }
+  }
+
+  const parentNode = nodes[sharedParentId]
+  const parentChildren = parentNode.children ?? []
+  const wrapSet = new Set(nodeIds)
+
+  const orderedToWrap = parentChildren.filter(id => wrapSet.has(id))
+  const insertionIndex = parentChildren.indexOf(orderedToWrap[0])
+
+  const newParentId = generateUniqueNodeId(nodes)
+  const newParent: NodeData = {
+    title: '',
+    id: newParentId,
+    parent: sharedParentId,
+    children: orderedToWrap,
+  }
+
+  const newNodes: Record<NodeId, NodeData> = { ...nodes, [newParentId]: newParent }
+
+  const remainingChildren = parentChildren.filter(id => !wrapSet.has(id))
+  remainingChildren.splice(insertionIndex, 0, newParentId)
+  newNodes[sharedParentId] = { ...parentNode, children: remainingChildren }
+
+  for (const id of orderedToWrap) {
+    newNodes[id] = { ...newNodes[id], parent: newParentId }
+  }
+
+  return { nodes: sanitizeTitleProjections(newNodes), edges, newParentId }
 }

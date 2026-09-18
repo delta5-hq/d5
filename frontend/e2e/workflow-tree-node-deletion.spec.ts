@@ -58,8 +58,8 @@ test.describe('Workflow tree node deletion', () => {
       await tree.selectNode(childIds[0])
       await detail.waitForComponent()
 
-      await tree.node(childIds[0]).dblclick()
-      await expect(tree.node(childIds[0]).locator('input')).toBeFocused()
+      await tree.treePanel.press('Enter')
+      await expect(tree.inlineTitleEditor(tree.node(childIds[0]))).toBeFocused()
 
       await page.keyboard.press('Delete')
 

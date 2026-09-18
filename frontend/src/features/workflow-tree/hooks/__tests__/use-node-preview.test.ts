@@ -35,6 +35,147 @@ describe('useNodePreview', () => {
       expect(result.current.previewText).toContain('Prompt child')
     })
 
+    it('replaces valid projected source title with materialized children exactly once', () => {
+      const sourceTitle = 'Topic\n  Detail\n\nAnother'
+      const nodes = makeNodes([
+        [
+          'parent',
+          {
+            title: sourceTitle,
+            children: ['topic', 'another', 'ordinary', 'execution'],
+            prompts: ['topic', 'another', 'execution'],
+            titleProjection: {
+              sourceTitle,
+              childIds: ['topic', 'another'],
+              nodeIds: ['topic', 'detail', 'another'],
+            },
+          },
+        ],
+        ['topic', { parent: 'parent', title: 'Topic', children: ['detail'] }],
+        ['detail', { parent: 'topic', title: 'Detail' }],
+        ['another', { parent: 'parent', title: 'Another' }],
+        ['ordinary', { parent: 'parent', title: 'Ordinary child' }],
+        ['execution', { parent: 'parent', title: 'Execution prompt' }],
+      ])
+
+      const { result } = renderPreview('parent', nodes)
+      const lines = result.current.previewText.split('\n')
+
+      expect(lines.filter(line => line.trim() === 'Topic')).toHaveLength(1)
+      expect(lines.filter(line => line.trim() === 'Detail')).toHaveLength(1)
+      expect(lines.filter(line => line.trim() === 'Another')).toHaveLength(1)
+      expect(result.current.previewText).toContain('Ordinary child')
+      expect(result.current.previewText).toContain('Execution prompt')
+    })
+
+    it('does not suppress content when title projection is stale', () => {
+      const nodes = makeNodes([
+        [
+          'parent',
+          {
+            title: 'Edited title',
+            children: ['projected'],
+            prompts: ['projected'],
+            titleProjection: { sourceTitle: 'Old title', childIds: ['projected'], nodeIds: ['projected'] },
+          },
+        ],
+        ['projected', { parent: 'parent', title: 'Old title' }],
+      ])
+
+      const { result } = renderPreview('parent', nodes)
+
+      expect(result.current.previewText).toContain('Edited title')
+      expect(result.current.previewText).toContain('Old title')
+    })
+
+    it('does not use prompt membership as title projection provenance', () => {
+      const nodes = makeNodes([
+        [
+          'parent',
+          {
+            title: 'Topic\n\nAnother',
+            children: ['topic', 'another'],
+            prompts: ['topic', 'another'],
+          },
+        ],
+        ['topic', { parent: 'parent', title: 'Topic' }],
+        ['another', { parent: 'parent', title: 'Another' }],
+      ])
+
+      const { result } = renderPreview('parent', nodes)
+      const lines = result.current.previewText.split('\n')
+
+      expect(lines.filter(line => line.trim() === 'Topic')).toHaveLength(2)
+      expect(lines.filter(line => line.trim() === 'Another')).toHaveLength(2)
+    })
+
+    it('applies nested title projections without shifting unrelated descendants', () => {
+      const sourceTitle = 'Outer'
+      const nestedSourceTitle = 'Inner\n  Leaf'
+      const nodes = makeNodes([
+        [
+          'parent',
+          {
+            title: sourceTitle,
+            children: ['outer', 'nested', 'sibling'],
+            titleProjection: { sourceTitle, childIds: ['outer'], nodeIds: ['outer'] },
+          },
+        ],
+        ['outer', { parent: 'parent', title: 'Outer' }],
+        [
+          'nested',
+          {
+            parent: 'parent',
+            title: nestedSourceTitle,
+            children: ['inner', 'plain'],
+            titleProjection: {
+              sourceTitle: nestedSourceTitle,
+              childIds: ['inner'],
+              nodeIds: ['inner', 'leaf'],
+            },
+          },
+        ],
+        ['inner', { parent: 'nested', title: 'Inner', children: ['leaf'] }],
+        ['leaf', { parent: 'inner', title: 'Leaf' }],
+        ['plain', { parent: 'nested', title: 'Plain descendant' }],
+        ['sibling', { parent: 'parent', title: 'Sibling' }],
+      ])
+
+      const { result } = renderPreview('parent', nodes)
+      const lines = result.current.previewText.split('\n')
+
+      expect(lines.filter(line => line.trim() === 'Outer')).toHaveLength(1)
+      expect(lines.filter(line => line.trim() === 'Inner')).toHaveLength(1)
+      expect(lines.filter(line => line.trim() === 'Leaf')).toHaveLength(1)
+      expect(result.current.previewText).toContain('Plain descendant')
+      expect(result.current.previewText).toContain('Sibling')
+    })
+
+    it('restores the source title when a nested projected line is edited', () => {
+      const sourceTitle = 'Root\n  Child'
+      const nodes = makeNodes([
+        [
+          'parent',
+          {
+            title: sourceTitle,
+            children: ['root-line'],
+            titleProjection: {
+              sourceTitle,
+              childIds: ['root-line'],
+              nodeIds: ['root-line', 'child-line'],
+            },
+          },
+        ],
+        ['root-line', { parent: 'parent', title: 'Root', children: ['child-line'] }],
+        ['child-line', { parent: 'root-line', title: 'Edited child' }],
+      ])
+
+      const { result } = renderPreview('parent', nodes)
+
+      expect(result.current.previewText).toContain(sourceTitle)
+      expect(result.current.previewText).toContain('Edited child')
+    })
+
     it('shows command-bearing child nodes by title in hierarchical preview', () => {
       const nodes = makeNodes([
         ['root', { children: ['cmd-child', 'plain'], title: 'Root' }],

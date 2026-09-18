@@ -3,11 +3,15 @@ package workflow
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"io"
 	"net/url"
+	"time"
 
+	commonErrors "backend-v2/internal/common/errors"
 	"backend-v2/internal/common/response"
 	"backend-v2/internal/common/utils"
 	"backend-v2/internal/models"
@@ -15,6 +19,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 func (h *WorkflowController) GetWriteable(c *fiber.Ctx) error {
@@ -41,6 +47,203 @@ func (h *WorkflowController) GetNodeLimit(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"limit": nodeLimit,
 	})
+}
+
+func (h *WorkflowController) UploadFile(c *fiber.Ctx) error {
+	access, ok := c.Locals("access").(WorkflowAccess)
+	if !ok {
+		return response.InternalError(c, "Internal error: access not set")
+	}
+	if !access.IsWriteable {
+		return response.Forbidden(c, "You do not have write access to this workflow.")
+	}
+
+	auth, err := utils.GetJwtPayload(c)
+	if err != nil {
+		return response.Forbidden(c, "Authentication is required.")
+	}
+
+	header, err := c.FormFile("file")
+	if err != nil {
+		return response.BadRequest(c, "File is required")
+	}
+
+	source, err := header.Open()
+	if err != nil {
+		return response.BadRequest(c, "Unable to read uploaded file")
+	}
+	defer source.Close()
+
+	workflow := c.Locals("workflow").(*models.Workflow)
+	release := h.fileLifecycleLocks.acquire(workflow.WorkflowID)
+	defer release()
+	uploadOperationID := primitive.NewObjectID().Hex()
+	if reservationErr := h.Service.BeginWorkflowFileUpload(
+		c.Context(),
+		workflow.WorkflowID,
+		uploadOperationID,
+	); reservationErr != nil {
+		return c.Status(reservationErr.Status).JSON(response.ErrorResponse{Message: reservationErr.Message})
+	}
+	heartbeatStop := make(chan struct{})
+	heartbeatDone := make(chan struct{})
+	go func() {
+		defer close(heartbeatDone)
+		ticker := time.NewTicker(workflowUploadLeaseRenewal)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-heartbeatStop:
+				return
+			case <-ticker.C:
+				renewalContext, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				_ = h.Service.RenewWorkflowFileUpload(
+					renewalContext,
+					workflow.WorkflowID,
+					uploadOperationID,
+				)
+				cancel()
+			}
+		}
+	}()
+	heartbeatStopped := false
+	stopHeartbeat := func() {
+		if heartbeatStopped {
+			return
+		}
+		heartbeatStopped = true
+		close(heartbeatStop)
+		<-heartbeatDone
+	}
+	defer stopHeartbeat()
+	completeReservation := func() *commonErrors.HTTPError {
+		stopHeartbeat()
+		completionContext, cancel := context.WithTimeout(context.WithoutCancel(c.Context()), 2*time.Second)
+		defer cancel()
+		var completionErr *commonErrors.HTTPError
+		for attempt := 0; attempt < 3; attempt++ {
+			completionErr = h.Service.CompleteWorkflowFileUpload(
+				completionContext,
+				workflow.WorkflowID,
+				uploadOperationID,
+			)
+			if completionErr == nil {
+				return nil
+			}
+		}
+		return completionErr
+	}
+
+	mongoDb := h.mongoClient.Database(h.db.GetDatabaseName())
+	fileRepo, err := workflowRepo.NewFileRepository(mongoDb)
+	if err != nil {
+		if completionErr := completeReservation(); completionErr != nil {
+			return c.Status(completionErr.Status).JSON(response.ErrorResponse{Message: completionErr.Message})
+		}
+		return response.InternalError(c, "Failed to initialize file storage")
+	}
+
+	storedFile, err := fileRepo.Upload(c.Context(), workflow.WorkflowID, auth.Sub, header.Filename, source)
+	if err != nil {
+		if completionErr := completeReservation(); completionErr != nil {
+			return c.Status(completionErr.Status).JSON(response.ErrorResponse{Message: completionErr.Message})
+		}
+		return response.InternalError(c, "Failed to store uploaded file")
+	}
+	reconciliationContext, cancelReconciliation := context.WithTimeout(context.WithoutCancel(c.Context()), 2*time.Second)
+	defer cancelReconciliation()
+	lifecycleErr := reconcileUploadedWorkflowFile(
+		reconciliationContext,
+		workflow.WorkflowID,
+		storedFile.ID.Hex(),
+		func(ctx context.Context, id string) error {
+			_, lookupErr := h.Service.GetByWorkflowID(ctx, id)
+			return lookupErr
+		},
+		fileRepo.Delete,
+	)
+	if completionErr := completeReservation(); completionErr != nil {
+		return c.Status(completionErr.Status).JSON(response.ErrorResponse{Message: completionErr.Message})
+	}
+	if lifecycleErr != nil {
+		return c.Status(lifecycleErr.Status).JSON(response.ErrorResponse{Message: lifecycleErr.Message})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"id":       storedFile.ID.Hex(),
+		"filename": header.Filename,
+		"length":   header.Size,
+	})
+}
+
+func (h *WorkflowController) DownloadFile(c *fiber.Ctx) error {
+	access, ok := c.Locals("access").(WorkflowAccess)
+	if !ok {
+		return response.InternalError(c, "Internal error: access not set")
+	}
+	if !access.IsReadable {
+		return response.Forbidden(c, "You do not have read access to this workflow.")
+	}
+
+	workflow := c.Locals("workflow").(*models.Workflow)
+	fileID := c.Params("fileId")
+	mongoDb := h.mongoClient.Database(h.db.GetDatabaseName())
+	fileRepo, err := workflowRepo.NewFileRepository(mongoDb)
+	if err != nil {
+		return response.InternalError(c, "Failed to initialize file storage")
+	}
+
+	file, err := fileRepo.FindByWorkflowIDAndFileID(c.Context(), workflow.WorkflowID, fileID)
+	if err != nil {
+		return response.NotFound(c, "Workflow file not found")
+	}
+
+	stream, err := file.OpenDownloadStream(c.Context())
+	if err != nil {
+		return response.InternalError(c, "Failed to read workflow file")
+	}
+
+	c.Set("Content-Type", "application/octet-stream")
+	c.Set("Content-Length", fmt.Sprintf("%d", file.Length))
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename*=UTF-8''%s", url.QueryEscape(file.Filename)))
+	return c.SendStream(stream, int(file.Length))
+}
+
+func workflowFileLookupError(c *fiber.Ctx, err error) error {
+	if stderrors.Is(err, mongo.ErrNoDocuments) {
+		return response.NotFound(c, "Workflow file not found")
+	}
+	return response.InternalError(c, "Failed to verify workflow file ownership")
+}
+
+func (h *WorkflowController) DeleteFile(c *fiber.Ctx) error {
+	access, ok := c.Locals("access").(WorkflowAccess)
+	if !ok {
+		return response.InternalError(c, "Internal error: access not set")
+	}
+	if !access.IsWriteable {
+		return response.Forbidden(c, "You do not have write access to this workflow.")
+	}
+
+	workflow := c.Locals("workflow").(*models.Workflow)
+	release := h.fileLifecycleLocks.acquire(workflow.WorkflowID)
+	defer release()
+	fileID := c.Params("fileId")
+	mongoDb := h.mongoClient.Database(h.db.GetDatabaseName())
+	fileRepo, err := workflowRepo.NewFileRepository(mongoDb)
+	if err != nil {
+		return response.InternalError(c, "Failed to initialize file storage")
+	}
+
+	if _, err := fileRepo.FindByWorkflowIDAndFileID(c.Context(), workflow.WorkflowID, fileID); err != nil {
+		return workflowFileLookupError(c, err)
+	}
+
+	if err := fileRepo.Delete(c.Context(), fileID); err != nil {
+		return response.InternalError(c, "Failed to delete workflow file")
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 func (h *WorkflowController) AddCategory(c *fiber.Ctx) error {

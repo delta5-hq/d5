@@ -8,6 +8,7 @@ import type { EdgeData, NodeData } from '@shared/base-types'
 
 vi.mock('@entities/workflow/lib', () => ({
   mergeWorkflowChanges: vi.fn(),
+  isPromptNode: vi.fn(() => false),
 }))
 
 vi.mock('../../api/execute-workflow-command', () => ({
@@ -18,6 +19,11 @@ vi.mock('../execution-genie-bridge', () => ({
   notifyExecutionStarted: vi.fn(),
   notifyExecutionCompleted: vi.fn(),
   notifyExecutionAborted: vi.fn(),
+}))
+
+vi.mock('../../core/tree-animation-store', () => ({
+  scheduleTreeAnimation: vi.fn(),
+  clearTreeAnimation: vi.fn(),
 }))
 
 vi.mock('../../api/streaming/fork-stream-client', () => ({
@@ -33,6 +39,8 @@ vi.mock('@shared/lib/reliability/elect-params', () => ({
 import { mergeWorkflowChanges } from '@entities/workflow/lib'
 import { executeWorkflowCommand } from '../../api/execute-workflow-command'
 import { notifyExecutionStarted, notifyExecutionCompleted, notifyExecutionAborted } from '../execution-genie-bridge'
+import { clearTreeAnimation, scheduleTreeAnimation } from '../../core/tree-animation-store'
+import { SPARK_DURATION_MS } from '../../core/constants'
 import { ForkStreamClient } from '../../api/streaming/fork-stream-client'
 import { isValidElectCell } from '@shared/lib/reliability/elect-params'
 import type { ForkEvent } from '../../api/streaming/fork-event-types'
@@ -56,20 +64,6 @@ function makeExecute(store: ReturnType<typeof makeStore>, persister: DebouncedPe
 }
 
 type ExecuteWorkflowResponse = Awaited<ReturnType<typeof executeWorkflowCommand>>
-
-function expectWorkflowStateReferencesPreserved(
-  store: ReturnType<typeof makeStore>,
-  stateBefore: WorkflowStoreState,
-): void {
-  expect(store.getState().nodes).toBe(stateBefore.nodes)
-  expect(store.getState().edges).toBe(stateBefore.edges)
-  expect(store.getState().root).toBe(stateBefore.root)
-  expect(store.getState().expandedIds).toBe(stateBefore.expandedIds)
-  expect(store.getState().selectedId).toBe(stateBefore.selectedId)
-  expect(store.getState().selectedIds).toBe(stateBefore.selectedIds)
-  expect(store.getState().anchorId).toBe(stateBefore.anchorId)
-  expect(store.getState().isDirty).toBe(stateBefore.isDirty)
-}
 
 function mockIdentityExecution(nodes: WorkflowStoreState['nodes']) {
   const firstNodeId = Object.keys(nodes)[0] ?? 'n1'
@@ -480,7 +474,7 @@ describe('bindExecuteAction', () => {
     })
 
     it('preserves surviving selectedIds after merge', async () => {
-      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: { n1: { id: 'n1' } } })
       vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
         nodes: { n1: { id: 'n1' }, n2: { id: 'n2' } },
         edges: {},
@@ -540,7 +534,7 @@ describe('bindExecuteAction', () => {
       expect(store.getState().selectedIds.size).toBe(0)
     })
 
-    it('preserves populated selectedIds on execution failure', async () => {
+    it('clears populated selectedIds when selecting an error output', async () => {
       vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(new Error('fail'))
 
       const store = makeStore({
@@ -553,7 +547,7 @@ describe('bindExecuteAction', () => {
 
       await execute(stubNode, 'query')
 
-      expect(store.getState().selectedIds).toEqual(new Set(['n1']))
+      expect(store.getState().selectedIds).toEqual(new Set())
     })
 
     it('clears anchorId when anchor node removed by merge', async () => {
@@ -1182,24 +1176,29 @@ describe('bindExecuteAction', () => {
       expect(store.getState().selectedId).toBeUndefined()
     })
 
-    it('clears selectedIds when auto-selecting a new child', async () => {
+    it('clears runtime multi-selection but preserves checked state when auto-selecting a new child', async () => {
       vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({
         nodesChanged: { child1: { id: 'child1', parent: 'n1' } },
       })
       vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
-        nodes: { n1: { id: 'n1' }, child1: { id: 'child1', parent: 'n1' } },
+        nodes: { n1: { id: 'n1', checked: true }, child1: { id: 'child1', parent: 'n1' } },
         edges: {},
         root: 'n1',
         share: { access: [] },
       })
 
-      const store = makeStore({ nodes: N1, root: 'n1', selectedIds: new Set(['n1']) })
+      const store = makeStore({
+        nodes: { n1: { ...N1.n1, checked: true } },
+        root: 'n1',
+        selectedIds: new Set(['n1']),
+      })
       const execute = makeExecute(store, makePersister())
 
       await execute(stubNode, 'query')
 
       expect(store.getState().selectedId).toBe('child1')
       expect(store.getState().selectedIds.size).toBe(0)
+      expect(store.getState().nodes.n1.checked).toBe(true)
     })
 
     it('clears selectedIds when auto-selecting among multiple new children', async () => {
@@ -1434,31 +1433,99 @@ describe('bindExecuteAction', () => {
       ['empty node and edge changes', { nodesChanged: {}, edgesChanged: {} }],
     ]
 
-    it.each(emptyChangeResponses)('treats %s as a successful workflow no-op', async (_label, response) => {
+    /* Merge resolution 2026-09-14: 360's quartet of empty-response shapes is kept, but the assertion
+       follows the target branch's contract — an empty successful response materialises a visible
+       "(no output)" child and persists it instead of being an invisible no-op. 360's gate
+       (`hasWorkflowChanges`, which counts edge changes) is kept, so edge-only responses still merge. */
+    it.each(emptyChangeResponses)('materialises a visible (no output) child for %s', async (_label, response) => {
       vi.mocked(executeWorkflowCommand).mockResolvedValueOnce(response)
 
-      const store = makeStore({
-        nodes: { n1: { id: 'n1', children: [] } },
-        edges: { e1: { id: 'e1', start: 'n1', end: 'n1' } as EdgeData },
-        root: 'n1',
-        expandedIds: new Set<string>(['n1']),
-        selectedId: 'n1',
-        selectedIds: new Set<string>(['n1']),
-        anchorId: 'n1',
-        isDirty: false,
-      })
+      const store = makeStore({ nodes: { n1: { id: 'n1', children: [] } }, root: 'n1' })
       const persister = makePersister()
-      const stateBefore = store.getState()
 
       const result = await makeExecute(store, persister)(stubNode, 'query')
 
       expect(result).toBe(true)
-      expectWorkflowStateReferencesPreserved(store, stateBefore)
+      const children = store.getState().nodes['n1'].children ?? []
+      expect(children).toHaveLength(1)
+      expect(store.getState().nodes[children[0]].title).toBe('(no output)')
+      expect(store.getState().nodes[children[0]].parent).toBe('n1')
+      expect(store.getState().isDirty).toBe(true)
       expect(mergeWorkflowChanges).not.toHaveBeenCalled()
-      expect(persister.flush).not.toHaveBeenCalled()
+      expect(persister.flush).toHaveBeenCalled()
     })
 
-    it('keeps the pre-execution flush boundary when an already-dirty workflow gets no changes back', async () => {
+    describe('(no output) node creation on empty response', () => {
+      it('creates a (no output) child node when backend returns empty nodesChanged', async () => {
+        vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+
+        const store = makeStore({ nodes: { n1: { id: 'n1' } }, root: 'n1' })
+        await makeExecute(store, makePersister())({ id: 'n1', title: 'Node 1', children: [] }, 'query')
+
+        const children = store.getState().nodes['n1'].children ?? []
+        expect(children).toHaveLength(1)
+        expect(store.getState().nodes[children[0]].title).toBe('(no output)')
+        expect(store.getState().nodes[children[0]].parent).toBe('n1')
+      })
+
+      it('auto-selects the (no output) child without clearing checked state', async () => {
+        vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+
+        const store = makeStore({
+          nodes: { n1: { id: 'n1', checked: true } },
+          root: 'n1',
+          selectedIds: new Set(['n1']),
+        })
+        await makeExecute(store, makePersister())({ id: 'n1', title: 'Node 1', children: [] }, 'query')
+
+        const children = store.getState().nodes['n1'].children ?? []
+        expect(store.getState().selectedId).toBe(children[0])
+        expect(store.getState().selectedIds.size).toBe(0)
+        expect(store.getState().nodes.n1.checked).toBe(true)
+      })
+
+      it('expands the executed node when backend returns empty nodesChanged', async () => {
+        vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+
+        const store = makeStore({ nodes: { n1: { id: 'n1' } }, root: 'n1', expandedIds: new Set<string>() })
+        await makeExecute(store, makePersister())({ id: 'n1', title: 'Node 1', children: [] }, 'query')
+
+        expect(store.getState().expandedIds.has('n1')).toBe(true)
+      })
+
+      it('creates a (no output) child when nodesChanged is absent from response', async () => {
+        vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({})
+
+        const store = makeStore({ nodes: { n1: { id: 'n1' } }, root: 'n1' })
+        await makeExecute(store, makePersister())({ id: 'n1', title: 'Node 1', children: [] }, 'query')
+
+        const children = store.getState().nodes['n1'].children ?? []
+        expect(children).toHaveLength(1)
+        expect(store.getState().nodes[children[0]].title).toBe('(no output)')
+      })
+
+      it('marks store dirty and persists after creating the (no output) node', async () => {
+        vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+
+        const store = makeStore({ nodes: { n1: { id: 'n1' } }, root: 'n1', isDirty: false })
+        const persister = makePersister()
+        await makeExecute(store, persister)({ id: 'n1', title: 'Node 1', children: [] }, 'query')
+
+        expect(store.getState().isDirty).toBe(true)
+        expect(persister.flush).toHaveBeenCalled()
+      })
+
+      it('returns true when backend returns empty nodesChanged', async () => {
+        vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {} })
+
+        const store = makeStore({ nodes: { n1: { id: 'n1' } }, root: 'n1' })
+        const result = await makeExecute(store, makePersister())({ id: 'n1', title: 'Node 1', children: [] }, 'query')
+
+        expect(result).toBe(true)
+      })
+    })
+
+    it('keeps the pre-execution flush boundary and still persists the empty-result child', async () => {
       vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: {}, edgesChanged: {} })
 
       const store = makeStore({ nodes: { n1: { id: 'n1', children: [] } }, root: 'n1', isDirty: true })
@@ -1466,7 +1533,8 @@ describe('bindExecuteAction', () => {
       const result = await makeExecute(store, persister)({ id: 'n1', title: 'Node 1', children: [] }, 'query')
 
       expect(result).toBe(true)
-      expect(persister.flush).toHaveBeenCalledTimes(1)
+      /* one flush for the dirty draft before the call, one for the materialised (no output) child */
+      expect(persister.flush).toHaveBeenCalledTimes(2)
       expect(mergeWorkflowChanges).not.toHaveBeenCalled()
     })
 
@@ -1496,15 +1564,21 @@ describe('bindExecuteAction', () => {
   })
 
   describe('error child auto-selection on API failure', () => {
-    it('auto-selects the error child node when API call fails', async () => {
+    it('auto-selects the error child without clearing checked state when the API call fails', async () => {
       vi.mocked(executeWorkflowCommand).mockRejectedValueOnce(new Error('boom'))
 
-      const store = makeStore({ nodes: { n1: { id: 'n1', children: [] } }, root: 'n1' })
+      const store = makeStore({
+        nodes: { n1: { id: 'n1', children: [], checked: true } },
+        root: 'n1',
+        selectedIds: new Set(['n1']),
+      })
       await makeExecute(store, makePersister())({ id: 'n1', title: 'Node 1', children: [] }, 'query')
 
       const children = store.getState().nodes['n1'].children ?? []
       expect(children).toHaveLength(1)
       expect(store.getState().selectedId).toBe(children[0])
+      expect(store.getState().selectedIds.size).toBe(0)
+      expect(store.getState().nodes.n1.checked).toBe(true)
     })
 
     it('does not auto-select when execution is aborted (no error child created)', async () => {
@@ -1636,6 +1710,288 @@ describe('bindExecuteAction', () => {
 
       const selected = store.getState().selectedId
       expect(['child1', 'child2']).toContain(selected)
+    })
+  })
+
+  describe('fan-out animation semantics', () => {
+    const foreachNode = { id: 'foreach', parent: 'chat', title: 'Fan out', command: '/foreach /chat @@' } as NodeData
+    const existingFanOutNodes = {
+      root: { id: 'root', children: ['chat'] } as NodeData,
+      chat: { id: 'chat', parent: 'root', children: ['foreach', 'leaf1', 'leaf2'] } as NodeData,
+      foreach: foreachNode,
+      leaf1: { id: 'leaf1', parent: 'chat', title: 'One', children: [] } as NodeData,
+      leaf2: { id: 'leaf2', parent: 'chat', title: 'Two', children: [] } as NodeData,
+    }
+    const foreachNodesChanged = {
+      leaf1: { ...existingFanOutNodes.leaf1, command: '/chat One', children: ['result1'] } as NodeData,
+      leaf2: { ...existingFanOutNodes.leaf2, command: '/chat Two', children: ['result2'] } as NodeData,
+      result1: { id: 'result1', parent: 'leaf1', title: 'One result' } as NodeData,
+      result2: { id: 'result2', parent: 'leaf2', title: 'Two result' } as NodeData,
+    }
+    const foreachMerged = {
+      nodes: {
+        ...existingFanOutNodes,
+        ...foreachNodesChanged,
+      },
+      edges: {},
+      root: 'root',
+      share: { access: [] },
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('schedules spark for existing populated leaves changed by backend /foreach execution', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: foreachNodesChanged })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce(foreachMerged)
+
+      const store = makeStore({ nodes: existingFanOutNodes, root: 'root', expandedIds: new Set(['chat']) })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(foreachNode, 'foreach')
+
+      expect(scheduleTreeAnimation).toHaveBeenCalledTimes(1)
+      expect(scheduleTreeAnimation).toHaveBeenCalledWith(
+        ['leaf1', 'leaf2'],
+        expect.objectContaining({ leaf1: expect.any(Number), leaf2: expect.any(Number) }),
+      )
+      // Pre-existing leaves reveal their results on the spark but keep their command presentation:
+      // only targets newly generated by this execution stand in as clipboard until the spark arrives.
+      expect(store.getState().pendingFanOutTargetIds.has('leaf1')).toBe(false)
+      expect(store.getState().pendingFanOutTargetIds.has('leaf2')).toBe(false)
+    })
+
+    it('reconstructs fan-out when a parent command triggers its /foreach post-processor', async () => {
+      const parentCommand = {
+        id: 'chat',
+        parent: 'root',
+        title: 'Prepare topics',
+        command: '/chat prepare topics',
+        children: ['foreach'],
+      } as NodeData
+      const before = {
+        root: { id: 'root', children: ['chat'] } as NodeData,
+        chat: parentCommand,
+        foreach: { id: 'foreach', parent: 'chat', command: '/foreach /chat @@', children: [] } as NodeData,
+      }
+      const changes = {
+        generated: {
+          id: 'generated',
+          parent: 'chat',
+          title: 'Generated topic',
+          command: '/chat Generated topic',
+          children: ['generated-result'],
+        } as NodeData,
+        'generated-result': { id: 'generated-result', parent: 'generated', title: 'Generated result' } as NodeData,
+      }
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: changes })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: {
+          ...before,
+          chat: { ...parentCommand, children: ['foreach', 'generated'] },
+          ...changes,
+        },
+        edges: {},
+        root: 'root',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: before, root: 'root', expandedIds: new Set(['chat']) })
+      await makeExecute(store, makePersister())(parentCommand, 'chat')
+
+      expect(scheduleTreeAnimation).toHaveBeenCalledWith(
+        ['generated'],
+        expect.objectContaining({ generated: expect.any(Number) }),
+      )
+      expect(store.getState().nodes.generated?.collapsed).toBe(true)
+      expect(store.getState().expandedIds.has('generated')).toBe(false)
+      // A newly generated target does stand in as clipboard until its spark arrives.
+      expect(store.getState().pendingFanOutTargetIds.has('generated')).toBe(true)
+
+      vi.runAllTimers()
+
+      expect(store.getState().nodes.generated?.collapsed).toBe(false)
+      expect(store.getState().expandedIds.has('generated')).toBe(true)
+    })
+
+    it('reveals an arbitrary-depth generated path before animating its populated leaf', async () => {
+      const parentCommand = {
+        id: 'chat',
+        parent: 'root',
+        command: '/chat prepare hierarchy',
+        children: ['foreach'],
+      } as NodeData
+      const before = {
+        root: { id: 'root', children: ['chat'] } as NodeData,
+        chat: parentCommand,
+        foreach: { id: 'foreach', parent: 'chat', command: '/foreach /chat @@', children: [] } as NodeData,
+      }
+      const changes = {
+        branch: { id: 'branch', parent: 'chat', title: 'Branch', children: ['nested'], collapsed: true } as NodeData,
+        nested: { id: 'nested', parent: 'branch', title: 'Nested', children: ['leaf'], collapsed: true } as NodeData,
+        leaf: {
+          id: 'leaf',
+          parent: 'nested',
+          title: 'Leaf',
+          command: '/chat Leaf',
+          children: ['leaf-result'],
+        } as NodeData,
+        'leaf-result': { id: 'leaf-result', parent: 'leaf', title: 'Leaf result' } as NodeData,
+      }
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: changes })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: {
+          ...before,
+          chat: { ...parentCommand, children: ['foreach', 'branch'] },
+          ...changes,
+        },
+        edges: {},
+        root: 'root',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: before, root: 'root', expandedIds: new Set(['chat']) })
+      await makeExecute(store, makePersister())(parentCommand, 'chat')
+
+      expect(store.getState().nodes.branch?.collapsed).toBe(false)
+      expect(store.getState().nodes.nested?.collapsed).toBe(false)
+      expect(store.getState().expandedIds.has('branch')).toBe(true)
+      expect(store.getState().expandedIds.has('nested')).toBe(true)
+      expect(store.getState().nodes.leaf?.collapsed).toBe(true)
+      expect(store.getState().expandedIds.has('leaf')).toBe(false)
+      expect(scheduleTreeAnimation).toHaveBeenCalledWith(
+        ['leaf'],
+        expect.objectContaining({ leaf: expect.any(Number) }),
+      )
+    })
+
+    it('does not schedule a fan-out spark for ordinary /execute', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({
+        nodesChanged: { child1: { id: 'child1', parent: 'n1', command: '/chat hi', children: [] } as NodeData },
+      })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: {
+          n1: { id: 'n1', children: ['child1'] } as NodeData,
+          child1: { id: 'child1', parent: 'n1', command: '/chat hi', children: [] } as NodeData,
+        },
+        edges: {},
+        root: 'n1',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: N1, root: 'n1' })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(stubNode, 'chat')
+
+      expect(scheduleTreeAnimation).not.toHaveBeenCalled()
+    })
+
+    it('does not infer fan-out from a nested command result without a /foreach post-processor', async () => {
+      const chatNode = { id: 'chat', parent: 'root', command: '/chat work', children: ['worker'] } as NodeData
+      const before = {
+        root: { id: 'root', children: ['chat'] } as NodeData,
+        chat: chatNode,
+        worker: { id: 'worker', parent: 'chat', command: '/chat nested', children: [] } as NodeData,
+      }
+      const changes = {
+        worker: { ...before.worker, children: ['worker-result'] } as NodeData,
+        'worker-result': { id: 'worker-result', parent: 'worker', title: 'Result' } as NodeData,
+      }
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: changes })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: { ...before, ...changes },
+        edges: {},
+        root: 'root',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: before, root: 'root', expandedIds: new Set(['chat']) })
+      await makeExecute(store, makePersister())(chatNode, 'chat')
+
+      expect(scheduleTreeAnimation).not.toHaveBeenCalled()
+    })
+
+    it('keeps results hidden through every delayed spark, then reveals and clears pending animation state', async () => {
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: foreachNodesChanged })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce(foreachMerged)
+
+      const store = makeStore({
+        nodes: existingFanOutNodes,
+        root: 'root',
+        expandedIds: new Set(['chat', 'leaf1', 'leaf2']),
+      })
+      const persister = makePersister()
+      const execute = makeExecute(store, persister)
+
+      await execute(foreachNode, 'foreach')
+
+      expect(store.getState().nodes['leaf1']?.collapsed).toBe(true)
+      expect(store.getState().nodes['leaf2']?.collapsed).toBe(true)
+      expect(store.getState().expandedIds.has('leaf1')).toBe(false)
+      expect(store.getState().expandedIds.has('leaf2')).toBe(false)
+      expect(persister.schedule).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(SPARK_DURATION_MS)
+
+      expect(store.getState().nodes['leaf1']?.collapsed).toBe(true)
+      expect(store.getState().nodes['leaf2']?.collapsed).toBe(true)
+
+      vi.runAllTimers()
+
+      expect(store.getState().nodes['leaf1']?.collapsed).toBe(false)
+      expect(store.getState().nodes['leaf2']?.collapsed).toBe(false)
+      expect(store.getState().expandedIds.has('leaf1')).toBe(true)
+      expect(store.getState().expandedIds.has('leaf2')).toBe(true)
+      expect(clearTreeAnimation).toHaveBeenCalledTimes(2)
+      expect(clearTreeAnimation).toHaveBeenCalledWith('leaf1')
+      expect(clearTreeAnimation).toHaveBeenCalledWith('leaf2')
+      expect(persister.schedule).toHaveBeenCalledTimes(1)
+    })
+
+    it('reveals a nested target path before animation while keeping its result hidden until completion', async () => {
+      const nestedNodes = {
+        root: { id: 'root', children: ['chat'] } as NodeData,
+        chat: { id: 'chat', parent: 'root', children: ['foreach', 'branch'] } as NodeData,
+        foreach: foreachNode,
+        branch: { id: 'branch', parent: 'chat', title: 'Branch', children: ['nested'], collapsed: true } as NodeData,
+        nested: { id: 'nested', parent: 'branch', title: 'Nested leaf', children: [] } as NodeData,
+      }
+      const nestedChanges = {
+        nested: { ...nestedNodes.nested, command: '/chat Nested leaf', children: ['nested-result'] } as NodeData,
+        'nested-result': { id: 'nested-result', parent: 'nested', title: 'Nested result' } as NodeData,
+      }
+      vi.mocked(executeWorkflowCommand).mockResolvedValueOnce({ nodesChanged: nestedChanges })
+      vi.mocked(mergeWorkflowChanges).mockReturnValueOnce({
+        nodes: { ...nestedNodes, ...nestedChanges },
+        edges: {},
+        root: 'root',
+        share: { access: [] },
+      })
+
+      const store = makeStore({ nodes: nestedNodes, root: 'root', expandedIds: new Set(['chat']) })
+      const execute = makeExecute(store, makePersister())
+
+      await execute(foreachNode, 'foreach')
+
+      expect(store.getState().nodes.branch?.collapsed).toBe(false)
+      expect(store.getState().expandedIds.has('branch')).toBe(true)
+      expect(store.getState().nodes.nested?.collapsed).toBe(true)
+      expect(store.getState().expandedIds.has('nested')).toBe(false)
+      expect(scheduleTreeAnimation).toHaveBeenCalledWith(
+        ['nested'],
+        expect.objectContaining({ nested: expect.any(Number) }),
+      )
+
+      vi.runAllTimers()
+
+      expect(store.getState().nodes.nested?.collapsed).toBe(false)
+      expect(store.getState().expandedIds.has('nested')).toBe(true)
     })
   })
 

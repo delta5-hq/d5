@@ -721,6 +721,18 @@ describe('CommandField', () => {
         const items = document.querySelectorAll('[data-type="autocomplete-item"]')
         expect(items.length).toBe(0)
       })
+
+      it('closes an exact-alias suggestion on blur so adjacent controls stay clickable', () => {
+        mockIntegrationData.mcp = [{ alias: '/e2e-empty', description: 'Empty-response MCP' }]
+        const { textarea } = renderField({ value: '' })
+        fireEvent.change(textarea(), { target: { value: '/e2e-empty' } })
+
+        expect(document.querySelector('[data-command="/e2e-empty"]')).toBeTruthy()
+
+        fireEvent.blur(textarea())
+
+        expect(document.querySelectorAll('[data-type="autocomplete-item"]')).toHaveLength(0)
+      })
     })
 
     describe('Suggestion filtering', () => {

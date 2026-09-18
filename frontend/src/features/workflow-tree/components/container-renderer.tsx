@@ -24,10 +24,18 @@ export const ContainerRenderer = ({
   selectedIds,
   onSelect,
   onAddChild,
+  onAddSibling,
   onDelete,
   onDuplicateNode,
   onRename,
-  onRequestRename,
+  onWrapNodes,
+  onToggleChecked,
+  onDragHoverNode,
+  onDragLeaveNode,
+  onPointerDragStartNode,
+  onDropFiles,
+  activeDropTargetId,
+  activeDropPosition,
   autoEditNodeId,
 }: ContainerRendererProps) => {
   const ContainerComponent = container.config.component || DefaultContainerWrapper
@@ -40,18 +48,26 @@ export const ContainerRenderer = ({
   const parentRow = (
     <div style={{ position: 'relative', height: `${rowHeight}px` }}>
       <MemoizedTreeNodeDefault
+        activeDropPosition={activeDropPosition}
+        activeDropTargetId={activeDropTargetId}
         autoEditNodeId={autoEditNodeId}
         data={parentNode}
         id={parentNode.id}
         isOpen={parentNode.isOpen}
         isSelected={selectedIds?.has(parentNode.id) ?? false}
         onAddChild={onAddChild}
+        onAddSibling={onAddSibling}
         onDelete={onDelete}
+        onDragHoverNode={onDragHoverNode}
+        onDragLeaveNode={onDragLeaveNode}
+        onDropFiles={onDropFiles}
         onDuplicateNode={onDuplicateNode}
+        onPointerDragStartNode={onPointerDragStartNode}
         onRename={onRename}
-        onRequestRename={onRequestRename}
         onSelect={onSelect}
         onToggle={onToggle}
+        onToggleChecked={onToggleChecked}
+        onWrapNodes={onWrapNodes}
         style={EMPTY_STYLE}
         wireExtendDown={paddingTop}
       />
@@ -77,18 +93,26 @@ export const ContainerRenderer = ({
             }}
           >
             <MemoizedTreeNodeDefault
+              activeDropPosition={activeDropPosition}
+              activeDropTargetId={activeDropTargetId}
               autoEditNodeId={autoEditNodeId}
               data={childNode}
               id={childNode.id}
               isOpen={childNode.isOpen}
               isSelected={selectedIds?.has(childNode.id) ?? false}
               onAddChild={onAddChild}
+              onAddSibling={onAddSibling}
               onDelete={onDelete}
+              onDragHoverNode={onDragHoverNode}
+              onDragLeaveNode={onDragLeaveNode}
+              onDropFiles={onDropFiles}
               onDuplicateNode={onDuplicateNode}
+              onPointerDragStartNode={onPointerDragStartNode}
               onRename={onRename}
-              onRequestRename={onRequestRename}
               onSelect={onSelect}
               onToggle={onToggle}
+              onToggleChecked={onToggleChecked}
+              onWrapNodes={onWrapNodes}
               style={EMPTY_STYLE}
               wireExtendDown={isLastChild ? paddingBottom : 0}
               wireExtendUp={isFirstChild ? paddingTop : 0}

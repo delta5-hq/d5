@@ -37,6 +37,46 @@ describe('mergeWorkflowChanges', () => {
     })
   })
 
+  it('preserves valid title projection across partial node merge', () => {
+    const state = createState({
+      parent: {
+        id: 'parent',
+        title: 'Source',
+        children: ['child'],
+        titleProjection: { sourceTitle: 'Source', childIds: ['child'], nodeIds: ['child'] },
+      },
+      child: { id: 'child', title: 'Source', parent: 'parent', children: [] },
+    })
+
+    const result = mergeWorkflowChanges(state, {
+      nodesChanged: { parent: { id: 'parent', title: 'Source' } },
+    })
+
+    expect(result.nodes.parent.titleProjection).toEqual({
+      sourceTitle: 'Source',
+      childIds: ['child'],
+      nodeIds: ['child'],
+    })
+  })
+
+  it('removes stale title projection after merge changes the source title', () => {
+    const state = createState({
+      parent: {
+        id: 'parent',
+        title: 'Source',
+        children: ['child'],
+        titleProjection: { sourceTitle: 'Source', childIds: ['child'], nodeIds: ['child'] },
+      },
+      child: { id: 'child', title: 'Source', parent: 'parent', children: [] },
+    })
+
+    const result = mergeWorkflowChanges(state, {
+      nodesChanged: { parent: { id: 'parent', title: 'Edited' } },
+    })
+
+    expect(result.nodes.parent.titleProjection).toBeUndefined()
+  })
+
   describe('node merging', () => {
     it('adds new node to state', () => {
       const state = createState({ n1: { id: 'n1' } })
@@ -727,6 +767,129 @@ describe('mergeWorkflowChanges', () => {
 
       expect(result.nodes.p1).toBeDefined()
       expect(result.nodes.n.children).toContain('p1')
+    })
+
+    describe('projection-protected prompt eviction', () => {
+      it('preserves projected prompt roots while replacing independently generated prompt roots', () => {
+        const sourceTitle = 'Alpha\n\nBeta'
+        const state = createState({
+          n: {
+            id: 'n',
+            title: sourceTitle,
+            children: ['projected-a', 'projected-b', 'old-result'],
+            prompts: ['projected-a', 'projected-b', 'old-result'],
+            titleProjection: {
+              sourceTitle,
+              childIds: ['projected-a', 'projected-b'],
+              nodeIds: ['projected-a', 'projected-b'],
+            },
+          },
+          'projected-a': { id: 'projected-a', parent: 'n', title: 'Alpha' },
+          'projected-b': { id: 'projected-b', parent: 'n', title: 'Beta' },
+          'old-result': { id: 'old-result', parent: 'n', title: 'Old output' },
+        })
+
+        const result = mergeWorkflowChanges(state, {
+          nodesChanged: {
+            n: { id: 'n', title: sourceTitle, children: ['new-result'], prompts: ['new-result'] },
+            'new-result': { id: 'new-result', parent: 'n', title: 'New output' },
+          },
+        })
+
+        expect(result.nodes['projected-a']).toBeDefined()
+        expect(result.nodes['projected-b']).toBeDefined()
+        expect(result.nodes['old-result']).toBeUndefined()
+        expect(result.nodes['new-result']).toBeDefined()
+        expect(result.nodes.n.children).toEqual(['projected-a', 'projected-b', 'new-result'])
+        expect(result.nodes.n.prompts).toEqual(['new-result'])
+        expect(result.nodes.n.titleProjection).toEqual({
+          sourceTitle,
+          childIds: ['projected-a', 'projected-b'],
+          nodeIds: ['projected-a', 'projected-b'],
+        })
+      })
+
+      it('does not duplicate a projected prompt root already retained by incoming prompts', () => {
+        const sourceTitle = 'Alpha\n\nBeta'
+        const state = createState({
+          n: {
+            id: 'n',
+            title: sourceTitle,
+            children: ['projected-a', 'projected-b'],
+            prompts: ['projected-a', 'projected-b'],
+            titleProjection: {
+              sourceTitle,
+              childIds: ['projected-a', 'projected-b'],
+              nodeIds: ['projected-a', 'projected-b'],
+            },
+          },
+          'projected-a': { id: 'projected-a', parent: 'n', title: 'Alpha' },
+          'projected-b': { id: 'projected-b', parent: 'n', title: 'Beta' },
+        })
+
+        const result = mergeWorkflowChanges(state, {
+          nodesChanged: {
+            n: { id: 'n', title: sourceTitle, children: ['projected-a'], prompts: ['projected-a'] },
+          },
+        })
+
+        expect(result.nodes.n.children).toEqual(['projected-a', 'projected-b'])
+        expect(result.nodes.n.prompts).toEqual(['projected-a'])
+      })
+
+      it('does not promote non-prompt projected children into prompt membership', () => {
+        const sourceTitle = 'Alpha'
+        const state = createState({
+          n: {
+            id: 'n',
+            title: sourceTitle,
+            children: ['projected-a'],
+            prompts: [],
+            titleProjection: { sourceTitle, childIds: ['projected-a'], nodeIds: ['projected-a'] },
+          },
+          'projected-a': { id: 'projected-a', parent: 'n', title: 'Alpha' },
+        })
+
+        const result = mergeWorkflowChanges(state, {
+          nodesChanged: {
+            n: { id: 'n', title: sourceTitle, children: ['new-result'], prompts: ['new-result'] },
+            'new-result': { id: 'new-result', parent: 'n', title: 'New output' },
+          },
+        })
+
+        expect(result.nodes.n.children).toEqual(['projected-a', 'new-result'])
+        expect(result.nodes.n.prompts).toEqual(['new-result'])
+      })
+
+      it('does not protect stale projected prompt roots from normal execution eviction', () => {
+        const sourceTitle = 'Alpha'
+        const state = createState({
+          n: {
+            id: 'n',
+            title: sourceTitle,
+            children: ['stale-projection'],
+            prompts: ['stale-projection'],
+            titleProjection: {
+              sourceTitle,
+              childIds: ['stale-projection'],
+              nodeIds: ['stale-projection'],
+            },
+          },
+          'stale-projection': { id: 'stale-projection', parent: 'n', title: 'Edited Alpha' },
+        })
+
+        const result = mergeWorkflowChanges(state, {
+          nodesChanged: {
+            n: { id: 'n', title: sourceTitle, children: ['new-result'], prompts: ['new-result'] },
+            'new-result': { id: 'new-result', parent: 'n', title: 'New output' },
+          },
+        })
+
+        expect(result.nodes['stale-projection']).toBeUndefined()
+        expect(result.nodes.n.children).toEqual(['new-result'])
+        expect(result.nodes.n.prompts).toEqual(['new-result'])
+        expect(result.nodes.n.titleProjection).toBeUndefined()
+      })
     })
 
     it('evicts prompt nodes independently across multiple parents in one batch', () => {

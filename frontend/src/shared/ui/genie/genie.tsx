@@ -3,6 +3,7 @@ import baseGenieJson from '@shared/assets/genie/base-genie.json'
 import eyesBlinkJson from '@shared/assets/genie/eyes-blink.json'
 import radialFlashJson from '@shared/assets/genie/radial-flash.json'
 import type { TgsPlayerInstance } from './types'
+import { loadPlayerRuntime } from './player-runtime'
 
 type GenieVariant = 'base' | 'eyes' | 'flash' | 'eyes-flash'
 
@@ -12,28 +13,6 @@ export interface GenieLottieProps {
   variant?: GenieVariant
   flashColor?: string
   eyeColor?: string
-}
-
-declare global {
-  interface Window {
-    TgsPlayer?: new (data: unknown, containerId: string) => TgsPlayerInstance
-  }
-}
-
-let playerLoaded = false
-const loadPlayerRuntime = async () => {
-  if (playerLoaded || typeof window === 'undefined') return
-  playerLoaded = true
-
-  try {
-    const response = await fetch('/src/shared/assets/genie/base-genie.player.js')
-    const code = await response.text()
-    const script = document.createElement('script')
-    script.textContent = code
-    document.head.appendChild(script)
-  } catch {
-    playerLoaded = false
-  }
 }
 
 function hexToRgba(hex: string): [number, number, number, number] {
@@ -87,31 +66,26 @@ export const GenieLottie = ({ size = 36, className, variant = 'base', flashColor
       const el = document.getElementById(`${playerId}-${i}`)
       if (el) el.innerHTML = ''
     })
+    let cancelled = false
 
     const initPlayer = async () => {
-      await loadPlayerRuntime()
+      const loaded = await loadPlayerRuntime()
+      if (cancelled || !loaded || !window.TgsPlayer || !containerRef.current || playersRef.current.length) return
 
-      const waitForPlayer = () => {
-        if (typeof window === 'undefined') return
-        if (window.TgsPlayer && containerRef.current && !playersRef.current.length) {
-          playersRef.current = animations.map((data, i) => {
-            const id = `${playerId}-${i}`
-            const el = document.getElementById(id)
-            if (el) el.innerHTML = ''
-            const player = new window.TgsPlayer!(data, id)
-            player.play()
-            return player
-          })
-        } else if (!window.TgsPlayer) {
-          setTimeout(waitForPlayer, 50)
-        }
-      }
-      waitForPlayer()
+      playersRef.current = animations.map((data, i) => {
+        const id = `${playerId}-${i}`
+        const el = document.getElementById(id)
+        if (el) el.innerHTML = ''
+        const player = new window.TgsPlayer!(data, id)
+        player.play()
+        return player
+      })
     }
 
     initPlayer()
 
     return () => {
+      cancelled = true
       playersRef.current.forEach(p => p?.stop())
       playersRef.current = []
       animations.forEach((_, i) => {

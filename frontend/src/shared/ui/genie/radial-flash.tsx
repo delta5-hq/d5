@@ -2,6 +2,7 @@ import { useEffect, useRef, useId, useImperativeHandle, forwardRef, useMemo, typ
 import radialFlashJson from '@shared/assets/genie/radial-flash.json'
 import { playerCache, RADIAL_FLASH_PREFIX } from '@shared/lib/player-cache'
 import type { TgsPlayerInstance } from './types'
+import { loadPlayerRuntime } from './player-runtime'
 
 export interface RadialFlashRef {
   flash: () => void
@@ -27,23 +28,6 @@ function replaceFlashColor(json: unknown, newColor: string): unknown {
   const str = JSON.stringify(json)
   const replaced = str.replace(/"k":\s*\[\s*0\s*,\s*0\.7\s*,\s*1\s*,\s*1\s*\]/g, `"k":${JSON.stringify(rgba)}`)
   return JSON.parse(replaced)
-}
-
-/* Load player runtime once */
-let playerLoaded = false
-const loadPlayerRuntime = async () => {
-  if (playerLoaded || typeof window === 'undefined') return
-  playerLoaded = true
-
-  try {
-    const response = await fetch('/src/shared/assets/genie/base-genie.player.js')
-    const code = await response.text()
-    const script = document.createElement('script')
-    script.textContent = code
-    document.head.appendChild(script)
-  } catch {
-    playerLoaded = false
-  }
 }
 
 /* Cleanup player from cache when node is permanently removed */
@@ -91,12 +75,13 @@ export const RadialFlash = forwardRef<RadialFlashRef, RadialFlashProps>(
       let cancelled = false
 
       const initPlayer = async () => {
-        await loadPlayerRuntime()
-        if (cancelled) return
+        const loaded = await loadPlayerRuntime()
+        if (cancelled || !loaded || !containerRef.current || playerRef.current) return
 
         const waitForPlayer = () => {
           if (cancelled || typeof window === 'undefined') return
-          if (window.TgsPlayer && containerRef.current && !playerRef.current) {
+          const Player = window.TgsPlayer
+          if (Player && containerRef.current && !playerRef.current) {
             const cachedPlayer = playerCache.get(playerId)
             if (cachedPlayer) {
               playerRef.current = cachedPlayer
@@ -105,12 +90,13 @@ export const RadialFlash = forwardRef<RadialFlashRef, RadialFlashProps>(
 
             const el = document.getElementById(playerId)
             if (el) el.innerHTML = ''
-            playerRef.current = new window.TgsPlayer!(flashJson, playerId)
+            playerRef.current = new Player(flashJson, playerId)
             playerCache.set(playerId, playerRef.current)
-          } else if (!window.TgsPlayer) {
+          } else if (!Player) {
             pollTimerRef.current = setTimeout(waitForPlayer, 50)
           }
         }
+
         waitForPlayer()
       }
 

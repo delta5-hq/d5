@@ -5,6 +5,7 @@ import { indentedText } from './indented-text'
 import { substituteReferences } from './substitute-references'
 import { substituteHashrefs } from './substitute-hashrefs'
 import { resolveNodeReferences } from './resolve-node-references'
+import { buildPreviewParams } from './preview-params'
 import {
   clearReferences,
   getReferences,
@@ -291,6 +292,31 @@ describe('indentedText', () => {
     const texts = indentedText(store.getNode('root')!, store, { ignorePostProccessCommand: true }).map(l => l.text)
     expect(texts.some(t => t.includes('inside foreach'))).toBe(false)
     expect(texts.some(t => t.includes('plain text'))).toBe(true)
+  })
+
+  it('renders direct children at zero indentation when the start node title is empty', () => {
+    const nodes = nodeMap([
+      ['parent', { title: '', children: ['child'] }],
+      ['child', { parent: 'parent', title: 'child text' }],
+    ])
+    const store = makeNodeStore(nodes)
+    const lines = indentedText(store.getNode('parent')!, store, { saveFirst: true })
+    const childLine = lines.find(l => l.text.includes('child text'))!
+    expect(childLine.text).toBe('child text')
+  })
+
+  it('renders a headless nested hierarchy at child indent 0 and grandchild indent 2', () => {
+    const nodes = nodeMap([
+      ['parent', { title: '', children: ['child'] }],
+      ['child', { parent: 'parent', title: 'child text', children: ['grandchild'] }],
+      ['grandchild', { parent: 'child', title: 'grandchild text' }],
+    ])
+    const store = makeNodeStore(nodes)
+    const lines = indentedText(store.getNode('parent')!, store, { saveFirst: true })
+    const childIndent = lines.find(l => l.text.includes('child text'))!.text.match(/^(\s*)/)?.[1].length ?? 0
+    const grandchildIndent = lines.find(l => l.text.includes('grandchild text'))!.text.match(/^(\s*)/)?.[1].length ?? 0
+    expect(childIndent).toBe(0)
+    expect(grandchildIndent).toBe(2)
   })
 })
 
@@ -935,6 +961,55 @@ describe('resolveNodeReferences', () => {
     expect(result).toContain('nested')
     expect(result).toContain('suffix')
     expect(result).not.toContain('@@inner')
+  })
+})
+
+// ─── resolveNodeReferences — commandless split preview equivalence ───────────
+
+describe('resolveNodeReferences — commandless split preview equivalence', () => {
+  const sourceSpans = (text: string): string[] =>
+    text
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+
+  it('recomposes the adversarial indented outline byte-for-byte after split', () => {
+    const beforeStore = makeNodeStore(nodeMap([['n1', { title: 'A\n  A1\nB\n  B1' }]]))
+    const beforeText = resolveNodeReferences(beforeStore.getNode('n1')!, beforeStore, buildPreviewParams())
+
+    const afterStore = makeNodeStore(
+      nodeMap([
+        ['parent', { title: '', children: ['a', 'b'] }],
+        ['a', { parent: 'parent', title: 'A', children: ['a1'] }],
+        ['a1', { parent: 'a', title: 'A1' }],
+        ['b', { parent: 'parent', title: 'B', children: ['b1'] }],
+        ['b1', { parent: 'b', title: 'B1' }],
+      ]),
+    )
+    const afterText = resolveNodeReferences(afterStore.getNode('parent')!, afterStore, buildPreviewParams())
+
+    expect(beforeText).toBe('A\n  A1\nB\n  B1')
+    expect(afterText).toBe(beforeText)
+  })
+
+  it('recomposes the blank-line fixture span-equivalently after split', () => {
+    const beforeStore = makeNodeStore(nodeMap([['n1', { title: 'First paragraph\n\nOutline\n  sub a\n  sub b' }]]))
+    const beforeText = resolveNodeReferences(beforeStore.getNode('n1')!, beforeStore, buildPreviewParams())
+
+    const afterStore = makeNodeStore(
+      nodeMap([
+        ['parent', { title: '', children: ['first', 'outline'] }],
+        ['first', { parent: 'parent', title: 'First paragraph' }],
+        ['outline', { parent: 'parent', title: 'Outline', children: ['subA', 'subB'] }],
+        ['subA', { parent: 'outline', title: 'sub a' }],
+        ['subB', { parent: 'outline', title: 'sub b' }],
+      ]),
+    )
+    const afterText = resolveNodeReferences(afterStore.getNode('parent')!, afterStore, buildPreviewParams())
+
+    expect(sourceSpans(afterText)).toEqual(sourceSpans(beforeText))
+    expect(afterText).toBe('First paragraph\nOutline\n  sub a\n  sub b')
+    expect(afterText).not.toContain('\n\n')
   })
 })
 

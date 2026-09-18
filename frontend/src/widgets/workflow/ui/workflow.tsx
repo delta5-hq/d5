@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef, type MouseEvent } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef, type DragEvent, type MouseEvent } from 'react'
 import type { NodeId } from '@shared/base-types'
 import {
   WorkflowSegmentTree,
@@ -9,12 +9,15 @@ import {
   useWorkflowNodes,
   useWorkflowRoot,
   useWorkflowActions,
+  useWorkflowExpandedIds,
   useWorkflowStatus,
   useWorkflowIsDirty,
   useIsNodeExecuting,
-  useIsPromptNode,
   useTreeKeyboardNavigation,
   useWorkflowExecutingNodeIds,
+  type TreeDropPosition,
+  getTreeMoveRequest,
+  useIsPromptNode,
   useNodeForkPreview,
   useWorkflowId,
 } from '@features/workflow-tree'
@@ -38,10 +41,13 @@ import { computePreExecuteWarnings } from '@shared/lib/reliability/judge-quality
 import { useIntegrationSettings } from '@shared/composables'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import { useAliases } from '@entities/aliases'
+import { toast } from 'sonner'
+import { useViewportBreakpoint } from '@shared/composables/use-viewport-breakpoint'
 import { EmptyWorkflowView } from './empty-workflow-view'
-import { DirtyIndicator } from './dirty-indicator'
+import { WorkflowRootHeader } from './workflow-root-header'
 import { NodeDetailPanel } from './node-detail-panel'
 import { DeleteConfirmDialog } from './delete-confirm-dialog'
+import { resolveWorkflowFileDropParentId } from '../lib/file-drop-target'
 
 interface WorkflowProps {
   workflowId: string
@@ -56,11 +62,15 @@ export const Workflow = ({ workflowId }: WorkflowProps) => (
 const WorkflowContent = () => {
   const nodes = useWorkflowNodes()
   const root = useWorkflowRoot()
+  const expandedIds = useWorkflowExpandedIds()
   const actions = useWorkflowActions()
   const { isLoading, error, isSaving } = useWorkflowStatus()
   const isDirty = useWorkflowIsDirty()
+  const rootNode = root ? nodes[root] : undefined
+  const rootIsOpen = Boolean(root && rootNode && (expandedIds.has(root) || rootNode.collapsed !== true))
   const { formatMessage } = useIntl()
   const { aliases } = useAliases()
+  const isMobile = useViewportBreakpoint()
 
   const selectedId = useWorkflowSelectedId()
   const selectedIds = useWorkflowSelectedIds()
@@ -126,6 +136,10 @@ const WorkflowContent = () => {
     onRequestEdit: setAutoEditNodeId,
     onRequestDelete: setPendingDeleteId,
     onRequestDeleteMultiple: setPendingDeleteIds,
+    onRequestWrap: nodeIds => {
+      const newId = actions.wrapNodes(nodeIds)
+      if (newId) setFlashNodeId(newId)
+    },
   })
 
   useClickOutside({
@@ -161,6 +175,19 @@ const WorkflowContent = () => {
       setAutoEditNodeId(undefined)
     },
     [actions],
+  )
+
+  const handleToggleRoot = useCallback(() => {
+    if (!root) return
+    actions.toggleExpanded(root)
+  }, [actions, root])
+
+  const handleSelectRoot = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      if (!root) return
+      handleSelect(root, nodes[root], event)
+    },
+    [handleSelect, nodes, root],
   )
 
   const handleCreateRoot = useCallback(() => {
@@ -265,6 +292,79 @@ const WorkflowContent = () => {
     [actions],
   )
 
+  const handleWrapNodes = useCallback(
+    (nodeId: string) => {
+      const toWrap = selectedIds.size > 1 && selectedIds.has(nodeId) ? selectedIds : new Set([nodeId])
+      const newId = actions.wrapNodes(toWrap)
+      if (newId) setFlashNodeId(newId)
+    },
+    [actions, selectedIds],
+  )
+
+  const handleMoveNode = useCallback(
+    (nodeId: string, targetNodeId: string, position: TreeDropPosition) => {
+      const request = getTreeMoveRequest(nodes, nodeId, targetNodeId, position)
+      if (!request) return
+
+      const moved = actions.moveNode(request.nodeId, request.parentId, request.insertionIndex)
+      if (!moved) return
+
+      actions.select(request.nodeId)
+      if (request.expandTargetId) actions.expandNode(request.expandTargetId)
+      void actions.persistNow()
+    },
+    [actions, nodes],
+  )
+
+  const handleDropFiles = useCallback(
+    (parentId: string, files: FileList) => {
+      void (async () => {
+        let lastNodeId: string | null = null
+        for (const file of Array.from(files)) {
+          lastNodeId = await actions.attachFileChild(parentId, file)
+        }
+        if (lastNodeId) setFlashNodeId(lastNodeId)
+      })().catch(error => {
+        toast.error(error instanceof Error ? error.message : 'Failed to attach file')
+      })
+    },
+    [actions],
+  )
+
+  const hasDraggedFiles = (event: DragEvent<HTMLElement>): boolean =>
+    Array.from(event.dataTransfer.types).includes('Files')
+
+  const getFileDropParentId = useCallback(
+    (event: DragEvent<HTMLElement>): string | undefined =>
+      resolveWorkflowFileDropParentId({
+        eventTarget: event.target instanceof Element ? event.target : undefined,
+        pointTarget: document.elementFromPoint(event.clientX, event.clientY),
+        rootId: root,
+        hasNode: nodeId => Boolean(nodes[nodeId]),
+      }),
+    [nodes, root],
+  )
+
+  const handleTreePanelDragOver = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      if (!root || !hasDraggedFiles(event)) return
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'copy'
+    },
+    [root],
+  )
+
+  const handleTreePanelDrop = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      if (!root || event.dataTransfer.files.length === 0) return
+      event.preventDefault()
+      const parentId = getFileDropParentId(event)
+      if (!parentId) return
+      handleDropFiles(parentId, event.dataTransfer.files)
+    },
+    [getFileDropParentId, handleDropFiles, root],
+  )
+
   const handleCloseDetailPanel = useCallback(() => {
     actions.select(undefined)
   }, [actions])
@@ -366,20 +466,32 @@ const WorkflowContent = () => {
   }
 
   return (
-    <div className="flex h-full min-h-[400px] gap-4 p-4" ref={workspaceContainerRef}>
+    <div
+      className="flex h-full min-h-[25rem] min-w-0 flex-col gap-3 overflow-y-auto p-2 md:flex-row md:gap-4 md:overflow-hidden md:p-4"
+      ref={workspaceContainerRef}
+    >
       <Card
-        className="w-80 flex flex-col min-h-0 focus:outline-none"
+        className="workflow-editor-panel workflow-editor-panel--tree relative flex h-[68svh] min-h-72 max-h-[calc(100svh-8rem)] w-full min-w-0 shrink-0 flex-col border-muted-foreground/15 shadow-none focus:outline-none md:h-auto md:min-h-0 md:max-h-none md:w-[32rem] xl:w-[34rem]"
         data-testid="workflow-tree-panel"
+        onDragOver={handleTreePanelDragOver}
+        onDrop={handleTreePanelDrop}
         ref={treeContainerRef}
         tabIndex={0}
       >
-        <CardHeader className="pb-2 flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">
-              <FormattedMessage id="workflowTree.title" />
-            </CardTitle>
-            <DirtyIndicator isDirty={isDirty} isSaving={isSaving} />
-          </div>
+        <CardHeader className="workflow-editor-panel-header flex-shrink-0 border-b border-muted-foreground/10 pb-2">
+          <WorkflowRootHeader
+            autoEdit={autoEditNodeId === root}
+            isDirty={isDirty}
+            isOpen={rootIsOpen}
+            isSaving={isSaving}
+            isSelected={selectedIds.has(root)}
+            onAddChild={() => handleAddChild(root)}
+            onRename={newTitle => handleRename(root, newTitle)}
+            onSelect={handleSelectRoot}
+            onToggle={handleToggleRoot}
+            rootId={root}
+            rootNode={rootNode}
+          />
         </CardHeader>
         <CardContent className="flex-1 p-0 overflow-hidden min-h-0">
           <WorkflowSegmentTree
@@ -387,26 +499,26 @@ const WorkflowContent = () => {
             flashNodeId={flashNodeId}
             nodes={nodes}
             onAddChild={handleAddChild}
+            onAddSibling={handleAddSibling}
             onDelete={handleDelete}
+            onDropFiles={handleDropFiles}
             onDuplicateNode={handleDuplicateNode}
+            onMoveNode={handleMoveNode}
             onRename={handleRename}
             onRequestRename={handleRequestRename}
             onSelect={handleSelect}
             onSuffixClick={handleSuffixClick}
             onVisibleOrderChange={handleVisibleOrderChange}
+            onWrapNodes={handleWrapNodes}
             rootId={root}
             selectedIds={selectedIds}
+            showCheckboxes={isMobile}
           />
         </CardContent>
       </Card>
 
-      <Card className="flex-1">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">
-            <FormattedMessage id="workflowTree.nodeDetails" />
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Card className="workflow-editor-panel relative flex min-w-0 flex-1 flex-col overflow-hidden border-muted-foreground/15 shadow-none">
+        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           {selectedNode ? (
             <NodeDetailPanel
               autoFocusCommand={autoFocusCommandNodeId === selectedId}
@@ -436,7 +548,7 @@ const WorkflowContent = () => {
               reliabilityMetadata={selectedNode.reliabilityMetadata}
             />
           ) : (
-            <p className="text-muted-foreground">
+            <p className="workflow-empty-panel-callout m-4 rounded-lg border border-dashed border-muted-foreground/25 bg-muted/35 px-4 py-5 text-sm text-muted-foreground">
               <FormattedMessage id="workflowTree.selectNode" />
             </p>
           )}

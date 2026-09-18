@@ -168,10 +168,10 @@ describe('areTreeNodePropsEqual', () => {
     onToggle: noop,
     onSelect: noop,
     onAddChild: noop,
+    onAddSibling: noop,
     onDelete: noop,
     onDuplicateNode: noop,
     onRename: noop,
-    onRequestRename: noop,
     wireExtendDown: 0,
     wireExtendUp: 0,
   })
@@ -260,10 +260,10 @@ describe('areTreeNodePropsEqual', () => {
       { callback: 'onToggle' },
       { callback: 'onSelect' },
       { callback: 'onAddChild' },
+      { callback: 'onAddSibling' },
       { callback: 'onDelete' },
       { callback: 'onDuplicateNode' },
       { callback: 'onRename' },
-      { callback: 'onRequestRename' },
     ])('$callback ref change → not equal', ({ callback }) => {
       expect(areTreeNodePropsEqual(baseProps(), { ...baseProps(), [callback]: () => {} })).toBe(false)
     })
@@ -272,10 +272,10 @@ describe('areTreeNodePropsEqual', () => {
       const withUndefined = {
         ...baseProps(),
         onAddChild: undefined,
+        onAddSibling: undefined,
         onDelete: undefined,
         onDuplicateNode: undefined,
         onRename: undefined,
-        onRequestRename: undefined,
       }
       expect(areTreeNodePropsEqual(withUndefined, { ...withUndefined })).toBe(true)
     })

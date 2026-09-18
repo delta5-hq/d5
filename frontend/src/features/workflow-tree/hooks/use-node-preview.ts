@@ -6,19 +6,20 @@ interface UseNodePreviewParams {
   nodeId: NodeId
   nodes: Record<NodeId, NodeData>
   edges: Record<EdgeId, EdgeData>
+  includeHead?: boolean
 }
 
 export interface UseNodePreviewResult {
   previewText: string
 }
 
-export function useNodePreview({ nodeId, nodes, edges }: UseNodePreviewParams): UseNodePreviewResult {
+export function useNodePreview({ nodeId, nodes, edges, includeHead }: UseNodePreviewParams): UseNodePreviewResult {
   const previewText = useMemo(() => {
     const store = makeNodeStore(nodes, edges)
     const node = store.getNode(nodeId)
     if (!node) return ''
-    return resolveNodeReferences(node, store, buildPreviewParams())
-  }, [nodeId, nodes, edges])
+    return resolveNodeReferences(node, store, buildPreviewParams({ includeHead }))
+  }, [nodeId, nodes, edges, includeHead])
 
   return { previewText }
 }

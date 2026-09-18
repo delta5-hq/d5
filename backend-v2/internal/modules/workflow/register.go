@@ -16,15 +16,29 @@ func RegisterRoutes(app fiber.Router, handler *WorkflowController, db *qmgo.Data
 
 	templateRoutes.Post("", handler.CreateWorkflowFromTemplate)
 
+	// Aggregate deletion uses a dedicated loader so an interrupted tombstoned
+	// deletion remains owner-authorized and retryable, while all other routes
+	// treat the tombstone as absent.
+	workflowRoutes.Delete(
+		"/:workflowId",
+		LoadForDelete(db),
+		OptionalAuth,
+		Authorization,
+		middlewares.RequireAuth,
+		handler.DeleteWorkflow,
+	)
+
 	workflowRoutes.Use("/:workflowId", Load(db), OptionalAuth, Authorization)
 
 	workflowRoutes.Get("/:workflowId", handler.GetWorkflow)
 	workflowRoutes.Put("/:workflowId", middlewares.RequireAuth, handler.UpdateWorkflow)
 	workflowRoutes.Patch("/:workflowId", RejectMethod)
-	workflowRoutes.Delete("/:workflowId", middlewares.RequireAuth, handler.DeleteWorkflow)
 
 	workflowRoutes.Get("/:workflowId/writeable", middlewares.RequireAuth, handler.GetWriteable)
 	workflowRoutes.Get("/:workflowId/nodeLimit", handler.GetNodeLimit)
+	workflowRoutes.Post("/:workflowId/files", middlewares.RequireAuth, handler.UploadFile)
+	workflowRoutes.Get("/:workflowId/files/:fileId", handler.DownloadFile)
+	workflowRoutes.Delete("/:workflowId/files/:fileId", middlewares.RequireAuth, handler.DeleteFile)
 	workflowRoutes.Post("/:workflowId/category", middlewares.RequireAuth, handler.AddCategory)
 
 	workflowRoutes.Get("/:workflowId/export", handler.ExportJSON)

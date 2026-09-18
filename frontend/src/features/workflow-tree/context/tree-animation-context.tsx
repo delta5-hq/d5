@@ -1,12 +1,25 @@
-import { createContext, useContext, useCallback, useRef, useMemo, type ReactNode } from 'react'
+import { createContext, useContext, useCallback, useRef, useMemo, useSyncExternalStore, type ReactNode } from 'react'
+import {
+  shouldAnimateTree,
+  getPendingTreeAnimationNodeIds,
+  getTreeAnimationStartDelayMs,
+  getTreeAnimationRemainingDurationMs,
+  subscribeTreeAnimation,
+  getTreeAnimationVersion,
+  clearTreeAnimation,
+} from '../core/tree-animation-store'
 
 interface AnimationContextValue {
-  /** Check if a node should animate (was just revealed by parent expansion) */
+  /** Check if a node should animate (was just scheduled by execution fan-out) */
   shouldAnimate: (nodeId: string) => boolean
-  /** Mark nodes as needing animation, with the trigger node's sparkDelay as base offset */
-  scheduleAnimation: (nodeIds: string[], baseDelay: number) => void
-  /** Retrieve the base sparkDelay of the trigger that scheduled this node */
-  getBaseDelay: (nodeId: string) => number
+  /** Pending direct fan-out targets, used to reveal their virtualized rows before the spark starts. */
+  getPendingNodeIds: () => string[]
+  /** Delay remaining before this target's animation should begin */
+  getStartDelay: (nodeId: string) => number
+  /** Duration remaining before this target's fixed completion deadline */
+  getRemainingDuration: (nodeId: string) => number
+  /** Reactive registry generation; changes whenever schedules are added or cleared */
+  animationVersion: number
   /** Clear animation flag for a node (called after animation completes) */
   clearAnimation: (nodeId: string) => void
   /** Signal that a node was just created so it flashes on first mount */
@@ -31,26 +44,17 @@ interface TreeAnimationProviderProps {
 
 export const TreeAnimationProvider = ({ children }: TreeAnimationProviderProps) => {
   /*
-   * Ref-based: mutations here never trigger re-renders.
-   * Newly mounted nodes read the ref on their first useEffect.
-   * scheduleAnimation is called BEFORE toggleNode, so the ref is populated
-   * before React renders the new children.
-   * Map value = baseDelay (trigger node's sparkDelay) for relative offset.
+   * Spark state lives in core/tree-animation-store so the non-React workflow
+   * store can schedule fan-out animations through the same registry the tree
+   * rows read here. New-node flash state is local: it is only written by this
+   * component tree and needs no store access.
    */
-  const pendingRef = useRef<Map<string, number>>(new Map())
   const newNodeRef = useRef<Set<string>>(new Set())
-
-  const shouldAnimate = useCallback((nodeId: string) => pendingRef.current.has(nodeId), [])
-
-  const scheduleAnimation = useCallback((nodeIds: string[], baseDelay: number = 0) => {
-    nodeIds.forEach(id => pendingRef.current.set(id, baseDelay))
-  }, [])
-
-  const getBaseDelay = useCallback((nodeId: string) => pendingRef.current.get(nodeId) ?? 0, [])
-
-  const clearAnimation = useCallback((nodeId: string) => {
-    pendingRef.current.delete(nodeId)
-  }, [])
+  const animationVersion = useSyncExternalStore(
+    subscribeTreeAnimation,
+    getTreeAnimationVersion,
+    getTreeAnimationVersion,
+  )
 
   const scheduleNewNodeFlash = useCallback((nodeId: string) => {
     newNodeRef.current.add(nodeId)
@@ -64,14 +68,16 @@ export const TreeAnimationProvider = ({ children }: TreeAnimationProviderProps) 
 
   const value = useMemo(
     () => ({
-      shouldAnimate,
-      scheduleAnimation,
-      getBaseDelay,
-      clearAnimation,
+      shouldAnimate: shouldAnimateTree,
+      getPendingNodeIds: getPendingTreeAnimationNodeIds,
+      getStartDelay: getTreeAnimationStartDelayMs,
+      getRemainingDuration: getTreeAnimationRemainingDurationMs,
+      animationVersion,
+      clearAnimation: clearTreeAnimation,
       scheduleNewNodeFlash,
       consumeNewNodeFlash,
     }),
-    [shouldAnimate, scheduleAnimation, getBaseDelay, clearAnimation, scheduleNewNodeFlash, consumeNewNodeFlash],
+    [animationVersion, scheduleNewNodeFlash, consumeNewNodeFlash],
   )
 
   return <AnimationContext.Provider value={value}>{children}</AnimationContext.Provider>

@@ -415,6 +415,7 @@ export default {
       settings: 'Settings',
       command: 'Command',
       commandPlaceholder: 'Enter command...',
+      invalidCommand: 'Enter a valid slash command to execute.',
       electCriterionMustBeValidate: 'Move the criterion to a sibling /validate cell; /elect accepts parameters only.',
       validateRetryMustBeRefine: 'Wrap the generating command with /refine :n=N; /validate evaluates once.',
       invalidRefineSyntax: 'Use /refine :n=N without trailing text.',
@@ -425,11 +426,17 @@ export default {
       addSibling: 'Add Sibling',
       close: 'Back',
       duplicate: 'Duplicate',
+      wrapInCard: 'Wrap in card',
       untitled: 'Untitled',
       rename: 'Rename',
       editHint: 'Double-click to edit',
+      expandCollapse: 'Expand or collapse',
       preview: 'Preview',
       previewError: 'Preview failed',
+      output: 'Output',
+      run: 'Run',
+      auto: 'auto',
+      commandFooterHint: '{count} chars · ⏎ run',
       electCostHint: '⚡ ~{cost} LLM {cost, plural, one {call} other {calls}}',
       electCostOverLimit: '⛔ Exceeds :limit= — will be refused ({cost} calls)',
       commodityCeilingHint:
@@ -526,6 +533,10 @@ export default {
       saving: 'Saving...',
       unsaved: 'Unsaved changes',
       saved: 'Saved',
+      done: 'done',
+      busy: 'busy',
+      failed: 'failed',
+      idle: 'idle',
     },
 
     deleteDialog: {
@@ -553,6 +564,14 @@ export default {
       selfParent: 'Node cannot be its own parent',
       failed: 'Operation failed',
       bulkDeletePartial: '{removed} removed, {skipped} skipped (in use)',
+    },
+
+    attachment: {
+      uploadFailed: 'Failed to upload file',
+      localCreateFailed: 'Parent node not found — attachment could not be created',
+      linkPersistFailed: 'File uploaded but could not be linked — the uploaded file was removed',
+      deleteFailed: 'Failed to delete attachment bytes',
+      removeFlushFailed: 'Attachment removed but workflow save failed — please retry',
     },
   },
 }

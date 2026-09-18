@@ -111,6 +111,35 @@ func TestRegisterRoutes_PATCHStillRejected(t *testing.T) {
 	}
 }
 
+func TestRegisterRoutes_WorkflowFileRoutesRegistered(t *testing.T) {
+	app := fiber.New()
+	controller := &WorkflowController{}
+	db := &qmgo.Database{}
+
+	RegisterRoutes(app, controller, db)
+
+	expected := map[string]bool{
+		"POST /workflow/:workflowId/files":           false,
+		"GET /workflow/:workflowId/files/:fileId":    false,
+		"DELETE /workflow/:workflowId/files/:fileId": false,
+	}
+
+	for _, routeStack := range app.Stack() {
+		for _, route := range routeStack {
+			key := route.Method + " " + route.Path
+			if _, ok := expected[key]; ok {
+				expected[key] = true
+			}
+		}
+	}
+
+	for route, found := range expected {
+		if !found {
+			t.Errorf("Required workflow file route not registered: %s", route)
+		}
+	}
+}
+
 func TestRegisterRoutes_MiddlewareOrderCorrect(t *testing.T) {
 	app := fiber.New()
 	controller := &WorkflowController{}

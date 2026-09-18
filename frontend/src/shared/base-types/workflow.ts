@@ -39,6 +39,11 @@ export type NodeContent = {
   id?: NodeId
   children?: NodeId[]
   prompts?: NodeId[]
+  titleProjection?: {
+    sourceTitle: string
+    childIds: NodeId[]
+    nodeIds: NodeId[]
+  }
   image?: ObjectId
   uml?: ObjectId
   imagePosition?: MediaPositions

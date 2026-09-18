@@ -617,6 +617,32 @@ describe('GenieStateStore', () => {
       expect(store.getSnapshot('node-1')).toBe('idle')
     })
 
+    it('resets done-success to idle after direct store transition', () => {
+      store.setState('node-1', 'done-success')
+
+      expect(store.getSnapshot('node-1')).toBe('done-success')
+      vi.advanceTimersByTime(3000)
+
+      expect(store.getSnapshot('node-1')).toBe('idle')
+    })
+
+    it('resets done-failure to idle after direct store transition', () => {
+      store.setState('node-1', 'done-failure')
+
+      vi.advanceTimersByTime(3000)
+
+      expect(store.getSnapshot('node-1')).toBe('idle')
+    })
+
+    it('clears pending direct reset timer when node is deleted', () => {
+      store.setState('node-1', 'done-success')
+      store.deleteNode('node-1')
+
+      vi.advanceTimersByTime(3000)
+
+      expect(store.getSnapshot('node-1')).toBe('idle')
+    })
+
     it('resets done-failure to idle 3 seconds after SSE event', () => {
       const onProgress = connectAndGetCallback()
       onProgress('node-1', 'done-failure')
@@ -624,6 +650,18 @@ describe('GenieStateStore', () => {
       vi.advanceTimersByTime(3000)
 
       expect(store.getSnapshot('node-1')).toBe('idle')
+    })
+
+    it('uses a custom done-state reset delay when configured', () => {
+      const customStore = new GenieStateStore({ doneStateResetDelayMs: 5000 })
+      customStore.connectToProgressStream('http://localhost')
+      capturedProgressCallback?.('node-1', 'done-success')
+
+      vi.advanceTimersByTime(3000)
+      expect(customStore.getSnapshot('node-1')).toBe('done-success')
+
+      vi.advanceTimersByTime(2000)
+      expect(customStore.getSnapshot('node-1')).toBe('idle')
     })
 
     it('timer does not reset if state changed before it fires', () => {
@@ -654,5 +692,61 @@ describe('GenieStateStore', () => {
 
       expect(store.getSnapshot('node-1')).toBe('idle')
     })
+  })
+})
+
+describe('GenieStateStore — done-reset timer edge cases', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('clearAll cancels a pending done-reset timer so it cannot reset a re-added node prematurely', () => {
+    const localStore = new GenieStateStore()
+    localStore.setState('node-1', 'done-success')
+
+    vi.advanceTimersByTime(1000)
+    localStore.clearAll()
+    localStore.setState('node-1', 'done-success')
+
+    vi.advanceTimersByTime(2500)
+    expect(localStore.getSnapshot('node-1')).toBe('done-success')
+  })
+
+  it('batchSetState schedules done-reset for done-success state', () => {
+    const localStore = new GenieStateStore()
+    localStore.batchSetState([{ nodeId: 'node-1', state: 'done-success' }])
+
+    expect(localStore.getSnapshot('node-1')).toBe('done-success')
+    vi.advanceTimersByTime(3000)
+
+    expect(localStore.getSnapshot('node-1')).toBe('idle')
+  })
+
+  it('batchSetState schedules done-reset for done-failure state', () => {
+    const localStore = new GenieStateStore()
+    localStore.batchSetState([{ nodeId: 'node-1', state: 'done-failure' }])
+
+    vi.advanceTimersByTime(3000)
+
+    expect(localStore.getSnapshot('node-1')).toBe('idle')
+  })
+
+  it('transitioning done-success → busy → done-success restarts the full reset countdown', () => {
+    const localStore = new GenieStateStore()
+    localStore.setState('node-1', 'done-success')
+
+    vi.advanceTimersByTime(2000)
+    localStore.setState('node-1', 'busy')
+    localStore.setState('node-1', 'done-success')
+
+    vi.advanceTimersByTime(2000)
+    expect(localStore.getSnapshot('node-1')).toBe('done-success')
+
+    vi.advanceTimersByTime(1000)
+    expect(localStore.getSnapshot('node-1')).toBe('idle')
   })
 })

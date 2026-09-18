@@ -53,10 +53,21 @@ describe('createTreeWalker — single root', () => {
     expect(results[0].id).toBe('r')
   })
 
-  it('root is always open regardless of expandedIds', () => {
+  it('root defaults open when collapsed state is absent', () => {
     const data: FlatTreeData = { nodes: { r: makeNode('r', ['c']) }, rootId: 'r', expandedIds: new Set() }
     const results = collectWalker(data)
     expect(results[0].isOpen).toBe(true)
+  })
+
+  it('persisted collapsed root is closed and hides its children', () => {
+    const nodes = { r: { ...makeNode('r', ['c']), collapsed: true }, c: makeNode('c') }
+    const data: FlatTreeData = { nodes, rootId: 'r', expandedIds: new Set() }
+    const results = collectWalker(data)
+
+    expect(results).toHaveLength(1)
+    expect(results[0].id).toBe('r')
+    expect(results[0].isOpen).toBe(false)
+    expect(results[0].isOpenByDefault).toBe(false)
   })
 
   it('root has depth 0', () => {
@@ -683,7 +694,10 @@ describe('createTreeWalker — isPrompt', () => {
     expect(results.find(n => n.id === 'p1')!.isPrompt).toBe(true)
   })
 
-  it('prompt with children is still marked as prompt', () => {
+  it('a prompt-node child keeps isPrompt strict but inherits the generated (translucent) state', () => {
+    // The lazy-split preview relies on strict prompt membership (data-prompt-node), while fan-out needs
+    // the visual generated state to reach cloned children that carry no prompts membership. So a child
+    // of a prompt node stays isPrompt=false yet renders generated via isGenerated.
     const nodes: Record<string, NodeData> = {
       r: { id: 'r', children: ['p1'], prompts: ['p1'] },
       p1: { id: 'p1', parent: 'r', children: ['child'] },
@@ -691,8 +705,54 @@ describe('createTreeWalker — isPrompt', () => {
     }
     const data: FlatTreeData = { nodes, rootId: 'r', expandedIds: new Set(['p1']) }
     const results = collectWalker(data)
+    const p1 = results.find(n => n.id === 'p1')!
+    const child = results.find(n => n.id === 'child')!
 
-    expect(results.find(n => n.id === 'p1')!.isPrompt).toBe(true)
-    expect(results.find(n => n.id === 'child')!.isPrompt).toBe(false)
+    expect(p1.isPrompt).toBe(true)
+    expect(p1.isGenerated).toBe(true)
+    expect(child.isPrompt).toBe(false)
+    expect(child.isGenerated).toBe(true)
+  })
+
+  it('fan-out /steps subtree renders fully generated while prompt membership stays strict', () => {
+    // Mirrors a `/foreach /steps` fan-out: the executed node registers the cloned `/steps` container in
+    // its prompts; the container's cloned step children carry no prompts membership; each step registers
+    // its own result. Everything under the generated container renders translucent (isGenerated), while
+    // data-prompt-node (isPrompt) still reflects only real prompts membership.
+    const nodes: Record<string, NodeData> = {
+      root: { id: 'root', children: ['exec'] },
+      exec: { id: 'exec', parent: 'root', children: ['tmpl', 'steps'], prompts: ['steps'] },
+      tmpl: { id: 'tmpl', parent: 'exec', children: ['tStep'] },
+      tStep: { id: 'tStep', parent: 'tmpl', children: [] },
+      steps: { id: 'steps', parent: 'exec', children: ['s10', 's20'] },
+      s10: { id: 's10', parent: 'steps', children: ['r10'], prompts: ['r10'] },
+      r10: { id: 'r10', parent: 's10', children: [] },
+      s20: { id: 's20', parent: 'steps', children: ['r20'], prompts: ['r20'] },
+      r20: { id: 'r20', parent: 's20', children: [] },
+    }
+    const data: FlatTreeData = {
+      nodes,
+      rootId: 'root',
+      expandedIds: new Set(['root', 'exec', 'tmpl', 'steps', 's10', 's20']),
+    }
+    const results = collectWalker(data)
+    const gen = (id: string) => results.find(n => n.id === id)!.isGenerated
+    const prompt = (id: string) => results.find(n => n.id === id)!.isPrompt
+
+    // Operator-authored: executed node and its untouched template steps stay opaque.
+    expect(gen('exec')).toBe(false)
+    expect(gen('tmpl')).toBe(false)
+    expect(gen('tStep')).toBe(false)
+    // Generated fan-out subtree: container, its cloned steps, and their results all render translucent.
+    expect(gen('steps')).toBe(true)
+    expect(gen('s10')).toBe(true)
+    expect(gen('r10')).toBe(true)
+    expect(gen('s20')).toBe(true)
+    expect(gen('r20')).toBe(true)
+    // Strict prompt membership: only real prompts, not the inheriting step clones or the operator node.
+    expect(prompt('exec')).toBe(false)
+    expect(prompt('steps')).toBe(true)
+    expect(prompt('s10')).toBe(false)
+    expect(prompt('r10')).toBe(true)
   })
 })

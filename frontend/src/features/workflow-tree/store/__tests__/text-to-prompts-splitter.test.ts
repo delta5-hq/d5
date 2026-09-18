@@ -1,298 +1,209 @@
 import { describe, it, expect } from 'vitest'
-import { parseTextIntoBlocks, createPromptNodesFromText } from '../text-to-prompts-splitter'
+import { parseTextToPromptSeeds, parseLosslessTextToPromptSeeds, type PromptSeed } from '../text-to-prompts-splitter'
 
-describe('text-to-prompts-splitter', () => {
-  describe('parseTextIntoBlocks', () => {
-    describe('paragraph splitting', () => {
-      it('splits text by double newlines', () => {
-        const text = 'First paragraph\n\nSecond paragraph\n\nThird paragraph'
-        const blocks = parseTextIntoBlocks(text)
-        expect(blocks).toHaveLength(3)
-        expect(blocks[0].content).toBe('First paragraph')
-        expect(blocks[1].content).toBe('Second paragraph')
-        expect(blocks[2].content).toBe('Third paragraph')
-      })
+const titles = (seeds: readonly PromptSeed[]): string[] => seeds.map(seed => seed.title)
 
-      it('treats single paragraph as single block', () => {
-        const text = 'Single paragraph'
-        const blocks = parseTextIntoBlocks(text)
-        expect(blocks).toHaveLength(1)
-        expect(blocks[0].content).toBe('Single paragraph')
-      })
-
-      it('handles many paragraphs', () => {
-        const text = Array(10)
-          .fill(0)
-          .map((_, i) => `Para ${i}`)
-          .join('\n\n')
-        const blocks = parseTextIntoBlocks(text)
-        expect(blocks).toHaveLength(10)
-      })
+describe('parseTextToPromptSeeds', () => {
+  describe('block separation', () => {
+    it('makes one root per blank-line-delimited block', () => {
+      const seeds = parseTextToPromptSeeds('First\n\nSecond\n\nThird')
+      expect(titles(seeds)).toEqual(['First', 'Second', 'Third'])
+      seeds.forEach(seed => expect(seed.children).toEqual([]))
     })
 
-    describe('whitespace trimming', () => {
-      it('trims whitespace from each block', () => {
-        const text = '  First  \n\n  Second  '
-        const blocks = parseTextIntoBlocks(text)
-        expect(blocks[0].content).toBe('First')
-        expect(blocks[1].content).toBe('Second')
-      })
-
-      it('trims leading and trailing newlines', () => {
-        const text = '\n\nFirst\n\nSecond\n\n'
-        const blocks = parseTextIntoBlocks(text)
-        expect(blocks).toHaveLength(2)
-        expect(blocks[0].content).toBe('First')
-        expect(blocks[1].content).toBe('Second')
-      })
-
-      it('removes paragraphs that are only whitespace', () => {
-        const text = 'First\n\n   \n\n\t\n\nSecond'
-        const blocks = parseTextIntoBlocks(text)
-        expect(blocks).toHaveLength(2)
-        expect(blocks[0].content).toBe('First')
-        expect(blocks[1].content).toBe('Second')
-      })
+    it('collapses runs of blank lines between blocks', () => {
+      expect(titles(parseTextToPromptSeeds('First\n\n\n\nSecond'))).toEqual(['First', 'Second'])
     })
 
-    describe('empty paragraph filtering', () => {
-      it('filters empty paragraphs between double newlines', () => {
-        const text = 'First\n\n\n\nSecond'
-        const blocks = parseTextIntoBlocks(text)
-        expect(blocks).toHaveLength(2)
-        expect(blocks[0].content).toBe('First')
-        expect(blocks[1].content).toBe('Second')
-      })
-
-      it('filters multiple consecutive empty paragraphs', () => {
-        const text = 'First\n\n\n\n\n\n\n\nSecond'
-        const blocks = parseTextIntoBlocks(text)
-        expect(blocks).toHaveLength(2)
-      })
-    })
-
-    describe('single newline preservation', () => {
-      it('preserves single newlines within paragraphs', () => {
-        const text = 'Line 1\nLine 2\n\nParagraph 2'
-        const blocks = parseTextIntoBlocks(text)
-        expect(blocks).toHaveLength(2)
-        expect(blocks[0].content).toBe('Line 1\nLine 2')
-        expect(blocks[1].content).toBe('Paragraph 2')
-      })
-
-      it('preserves multiple single newlines within paragraph', () => {
-        const text = 'L1\nL2\nL3\nL4\n\nParagraph 2'
-        const blocks = parseTextIntoBlocks(text)
-        expect(blocks[0].content).toBe('L1\nL2\nL3\nL4')
-      })
-    })
-
-    describe('edge cases', () => {
-      it('handles empty input', () => {
-        expect(parseTextIntoBlocks('')).toEqual([])
-      })
-
-      it('handles whitespace-only input', () => {
-        expect(parseTextIntoBlocks('   \n\n   ')).toEqual([])
-        expect(parseTextIntoBlocks('\t\t\t')).toEqual([])
-        expect(parseTextIntoBlocks('\n\n\n\n')).toEqual([])
-      })
-
-      it('handles single character paragraphs', () => {
-        const text = 'a\n\nb\n\nc'
-        const blocks = parseTextIntoBlocks(text)
-        expect(blocks).toHaveLength(3)
-        expect(blocks[0].content).toBe('a')
-        expect(blocks[1].content).toBe('b')
-        expect(blocks[2].content).toBe('c')
-      })
-
-      it('handles very long paragraphs', () => {
-        const longText = 'A'.repeat(10000)
-        const text = `${longText}\n\n${longText}`
-        const blocks = parseTextIntoBlocks(text)
-        expect(blocks).toHaveLength(2)
-        expect(blocks[0].content).toBe(longText)
-      })
-
-      it('handles special characters', () => {
-        const text = '!@#$%^&*()\n\n<html>\n\n{json}'
-        const blocks = parseTextIntoBlocks(text)
-        expect(blocks).toHaveLength(3)
-        expect(blocks[0].content).toBe('!@#$%^&*()')
-        expect(blocks[1].content).toBe('<html>')
-        expect(blocks[2].content).toBe('{json}')
-      })
-
-      it('handles unicode characters', () => {
-        const text = '你好\n\n🎉\n\nΩ'
-        const blocks = parseTextIntoBlocks(text)
-        expect(blocks).toHaveLength(3)
-        expect(blocks[0].content).toBe('你好')
-        expect(blocks[1].content).toBe('🎉')
-        expect(blocks[2].content).toBe('Ω')
-      })
-    })
-
-    describe('isEmpty flag', () => {
-      it('marks non-empty blocks correctly', () => {
-        const text = 'Content\n\nMore content'
-        const blocks = parseTextIntoBlocks(text)
-        expect(blocks[0].isEmpty).toBe(false)
-        expect(blocks[1].isEmpty).toBe(false)
-      })
-
-      it('does not include empty blocks in result', () => {
-        const text = 'Content\n\n\n\nMore content'
-        const blocks = parseTextIntoBlocks(text)
-        blocks.forEach(block => expect(block.isEmpty).toBe(false))
-      })
+    it('treats every non-indented line as its own root', () => {
+      expect(titles(parseTextToPromptSeeds('A\nB\nC'))).toEqual(['A', 'B', 'C'])
     })
   })
 
-  describe('createPromptNodesFromText', () => {
-    describe('node creation', () => {
-      it('creates node data for each non-empty paragraph', () => {
-        const text = 'First\n\nSecond\n\nThird'
-        const nodes = createPromptNodesFromText('parent-123', text)
-        expect(nodes).toHaveLength(3)
-        expect(nodes[0]).toEqual({ title: 'First', parent: 'parent-123' })
-        expect(nodes[1]).toEqual({ title: 'Second', parent: 'parent-123' })
-        expect(nodes[2]).toEqual({ title: 'Third', parent: 'parent-123' })
-      })
-
-      it('creates single node for single paragraph', () => {
-        const text = 'Single paragraph'
-        const nodes = createPromptNodesFromText('parent-123', text)
-        expect(nodes).toHaveLength(1)
-        expect(nodes[0]).toEqual({ title: 'Single paragraph', parent: 'parent-123' })
-      })
-
-      it('assigns correct parent to all nodes', () => {
-        const text = 'A\n\nB\n\nC'
-        const nodes = createPromptNodesFromText('custom-parent', text)
-        nodes.forEach(node => expect(node.parent).toBe('custom-parent'))
-      })
+  describe('indentation hierarchy', () => {
+    it('nests an indented line under the line above it', () => {
+      const [root] = parseTextToPromptSeeds('Parent\n  Child')
+      expect(root.title).toBe('Parent')
+      expect(titles(root.children)).toEqual(['Child'])
     })
 
-    describe('empty block filtering', () => {
-      it('filters empty blocks', () => {
-        const text = 'First\n\n\n\nSecond'
-        const nodes = createPromptNodesFromText('parent-123', text)
-        expect(nodes).toHaveLength(2)
-      })
-
-      it('filters whitespace-only blocks', () => {
-        const text = 'First\n\n   \n\nSecond'
-        const nodes = createPromptNodesFromText('parent-123', text)
-        expect(nodes).toHaveLength(2)
-      })
+    it('builds multiple levels and returns to shallower parents', () => {
+      const [root] = parseTextToPromptSeeds('Parent\n  Child\n    Grandchild\n  Child2')
+      expect(root.title).toBe('Parent')
+      expect(titles(root.children)).toEqual(['Child', 'Child2'])
+      expect(titles(root.children[0].children)).toEqual(['Grandchild'])
+      expect(root.children[1].children).toEqual([])
     })
 
-    describe('empty input handling', () => {
-      it('returns empty array for empty input', () => {
-        expect(createPromptNodesFromText('parent-123', '')).toEqual([])
-      })
-
-      it('returns empty array for whitespace-only input', () => {
-        expect(createPromptNodesFromText('parent-123', '   \n\n   ')).toEqual([])
-        expect(createPromptNodesFromText('parent-123', '\n\n\n\n')).toEqual([])
-      })
+    it('starts a fresh root when an indented line opens a new block', () => {
+      const seeds = parseTextToPromptSeeds('A\n\n  B')
+      expect(titles(seeds)).toEqual(['A', 'B'])
+      expect(seeds[1].children).toEqual([])
     })
 
-    describe('multiline content preservation', () => {
-      it('preserves multiline content within paragraphs', () => {
-        const text = 'Line 1\nLine 2\nLine 3\n\nParagraph 2'
-        const nodes = createPromptNodesFromText('parent-123', text)
-        expect(nodes[0].title).toBe('Line 1\nLine 2\nLine 3')
-        expect(nodes[1].title).toBe('Paragraph 2')
-      })
+    it('normalizes a tab to four spaces of indentation', () => {
+      const [root] = parseTextToPromptSeeds('Parent\n\tChild')
+      expect(titles(root.children)).toEqual(['Child'])
+    })
+  })
 
-      it('preserves code blocks', () => {
-        const code = '```js\nconst x = 1;\n```'
-        const text = `${code}\n\nExplanation`
-        const nodes = createPromptNodesFromText('parent-123', text)
-        expect(nodes[0].title).toBe(code)
-        expect(nodes[1].title).toBe('Explanation')
-      })
+  describe('sanitation', () => {
+    it('drops blank and whitespace-only lines', () => {
+      const [root] = parseTextToPromptSeeds('Parent\n   \n  Child')
+      expect(root.title).toBe('Parent')
+      expect(titles(root.children)).toEqual(['Child'])
     })
 
-    describe('special content handling', () => {
-      it('handles markdown formatting', () => {
-        const text = '# Heading\n\n**Bold** and *italic*\n\n- List item'
-        const nodes = createPromptNodesFromText('parent-123', text)
-        expect(nodes).toHaveLength(3)
-        expect(nodes[0].title).toBe('# Heading')
-        expect(nodes[1].title).toBe('**Bold** and *italic*')
-        expect(nodes[2].title).toBe('- List item')
-      })
-
-      it('handles HTML content', () => {
-        const text = '<div>Content</div>\n\n<span>More</span>'
-        const nodes = createPromptNodesFromText('parent-123', text)
-        expect(nodes).toHaveLength(2)
-        expect(nodes[0].title).toBe('<div>Content</div>')
-        expect(nodes[1].title).toBe('<span>More</span>')
-      })
-
-      it('handles JSON content', () => {
-        const json1 = '{"key": "value1"}'
-        const json2 = '{"key": "value2"}'
-        const text = `${json1}\n\n${json2}`
-        const nodes = createPromptNodesFromText('parent-123', text)
-        expect(nodes[0].title).toBe(json1)
-        expect(nodes[1].title).toBe(json2)
-      })
+    it('a tab-only line within a block is dropped without disrupting surrounding hierarchy', () => {
+      const [root] = parseTextToPromptSeeds('Parent\n\t\n  Child')
+      expect(root.title).toBe('Parent')
+      expect(titles(root.children)).toEqual(['Child'])
     })
 
-    describe('parent ID variations', () => {
-      it('handles different parent ID formats', () => {
-        const text = 'Content'
-        expect(createPromptNodesFromText('simple', text)[0].parent).toBe('simple')
-        expect(createPromptNodesFromText('parent-with-dashes', text)[0].parent).toBe('parent-with-dashes')
-        expect(createPromptNodesFromText('parent_with_underscores', text)[0].parent).toBe('parent_with_underscores')
-        expect(createPromptNodesFromText('UUID-1234-5678', text)[0].parent).toBe('UUID-1234-5678')
-      })
+    it.each([
+      ['CRLF (\\r\\n\\r\\n)', 'First\r\n\r\nSecond'],
+      ['bare CR (\\r\\r)', 'First\r\rSecond'],
+    ])('CR-family paragraph break (%s) produces the same two distinct roots as a bare LF break', (_encoding, input) => {
+      expect(titles(parseTextToPromptSeeds(input))).toEqual(['First', 'Second'])
     })
 
-    describe('node structure integrity', () => {
-      it('creates nodes with only title and parent fields', () => {
-        const text = 'Content'
-        const nodes = createPromptNodesFromText('parent-123', text)
-        const node = nodes[0]
-        expect(Object.keys(node)).toHaveLength(2)
-        expect(node).toHaveProperty('title')
-        expect(node).toHaveProperty('parent')
-      })
-
-      it('does not include children or other fields', () => {
-        const text = 'Content'
-        const nodes = createPromptNodesFromText('parent-123', text)
-        const node = nodes[0]
-        expect(node).not.toHaveProperty('children')
-        expect(node).not.toHaveProperty('id')
-        expect(node).not.toHaveProperty('command')
-      })
+    it('a blank line composed of CR-family endings does not create a paragraph boundary — indented content nests under the preceding root', () => {
+      for (const blank of ['\r\n\r\n', '\r\r']) {
+        const [root] = parseTextToPromptSeeds('Root' + blank + '  Child')
+        expect(root.title).toBe('Root')
+        expect(titles(root.children)).toEqual(['Child'])
+      }
     })
 
-    describe('large input handling', () => {
-      it('handles many paragraphs efficiently', () => {
-        const paragraphs = Array(100)
-          .fill(0)
-          .map((_, i) => `Paragraph ${i}`)
-        const text = paragraphs.join('\n\n')
-        const nodes = createPromptNodesFromText('parent-123', text)
-        expect(nodes).toHaveLength(100)
-        expect(nodes[50].title).toBe('Paragraph 50')
-      })
-
-      it('handles very long paragraph content', () => {
-        const longContent = 'A'.repeat(50000)
-        const text = `${longContent}\n\nShort`
-        const nodes = createPromptNodesFromText('parent-123', text)
-        expect(nodes).toHaveLength(2)
-        expect(nodes[0].title).toBe(longContent)
-      })
+    it('CRLF single-line ending within a block preserves nesting hierarchy identically to LF', () => {
+      const [root] = parseTextToPromptSeeds('Root\r\n  Child')
+      expect(root.title).toBe('Root')
+      expect(titles(root.children)).toEqual(['Child'])
     })
+
+    it('returns an empty list for empty or whitespace-only input', () => {
+      expect(parseTextToPromptSeeds('')).toEqual([])
+      expect(parseTextToPromptSeeds('   \n\n\t')).toEqual([])
+    })
+  })
+
+  describe('parity with an execution result shape', () => {
+    it('splits every line of an outline into its own node instead of one multiline node', () => {
+      const [root] = parseTextToPromptSeeds('Heading\n  point one\n  point two')
+      expect(root.title).toBe('Heading')
+      expect(titles(root.children)).toEqual(['point one', 'point two'])
+    })
+
+    it('preserves inline content of a single unindented block as one node', () => {
+      expect(titles(parseTextToPromptSeeds('```js const x = 1 ```'))).toEqual(['```js const x = 1 ```'])
+    })
+
+    it('mirrors linesToNodes on deep-jump/dedent outlines (shrinking dedent bound)', () => {
+      // Indents 0,2,3,4,1,1: the canonical linesToNodes dedent bound shrinks as
+      // levels pop, so both trailing indent-1 lines land on the root rather than
+      // the second nesting under the first. render-text-to-map must match this.
+      const [root] = parseTextToPromptSeeds('root\n  a\n   b\n    c\n d1\n d2')
+      expect(root.title).toBe('root')
+      expect(titles(root.children)).toEqual(['a', 'd1', 'd2'])
+      const a = root.children.find(child => child.title === 'a')!
+      expect(titles(a.children)).toEqual(['b'])
+      expect(titles(a.children[0].children)).toEqual(['c'])
+    })
+  })
+
+  describe('unicode whitespace parity with executor', () => {
+    it('nbsp counts as ASCII space for indentation — nesting depth equals the equivalent space count', () => {
+      const [root] = parseTextToPromptSeeds('parent\n\u00a0\u00a0child')
+      expect(root.title).toBe('parent')
+      expect(titles(root.children)).toEqual(['child'])
+    })
+
+    it('nbsp and ASCII space combine uniformly when determining indentation depth', () => {
+      const [root] = parseTextToPromptSeeds('parent\n\u00a0 child')
+      expect(root.title).toBe('parent')
+      expect(titles(root.children)).toEqual(['child'])
+    })
+
+    it('nbsp mid-title is normalized to an ASCII space', () => {
+      const [node] = parseTextToPromptSeeds('word\u00a0word')
+      expect(node.title).toBe('word word')
+      expect(node.children).toEqual([])
+    })
+
+    it('U+2424 within a block acts as a newline, enabling indentation hierarchy', () => {
+      const [root] = parseTextToPromptSeeds('parent\u2424  child')
+      expect(root.title).toBe('parent')
+      expect(titles(root.children)).toEqual(['child'])
+    })
+
+    it('U+2424 line breaks compose with multi-level indentation hierarchy', () => {
+      const [root] = parseTextToPromptSeeds('root\u2424  child\u2424    grandchild')
+      expect(root.title).toBe('root')
+      expect(titles(root.children)).toEqual(['child'])
+      expect(titles(root.children[0].children)).toEqual(['grandchild'])
+    })
+
+    it('consecutive U+2424 in a block produce filtered blank lines, not block separators', () => {
+      const seeds = parseTextToPromptSeeds('parent\u2424\u2424child')
+      expect(seeds).toHaveLength(2)
+      expect(titles(seeds)).toEqual(['parent', 'child'])
+      seeds.forEach(seed => expect(seed.children).toEqual([]))
+    })
+
+    it('U+2028 and U+2029 mid-title are preserved verbatim — not normalized', () => {
+      const [ls] = parseTextToPromptSeeds('hello\u2028world')
+      expect(ls.title).toBe('hello\u2028world')
+      expect(ls.children).toEqual([])
+      const [ps] = parseTextToPromptSeeds('hello\u2029world')
+      expect(ps.title).toBe('hello\u2029world')
+      expect(ps.children).toEqual([])
+    })
+
+    it('ASCII spaces before U+2028/U+2029 on an otherwise-blank line are stripped — separator becomes a root, not a child', () => {
+      const lsSeeds = parseTextToPromptSeeds('root\n  \u2028child')
+      expect(lsSeeds).toHaveLength(2)
+      expect(lsSeeds[0].title).toBe('root')
+      expect(lsSeeds[1].title).toBe('\u2028child')
+      expect(lsSeeds[0].children).toEqual([])
+      expect(lsSeeds[1].children).toEqual([])
+      const psSeeds = parseTextToPromptSeeds('root\n  \u2029child')
+      expect(psSeeds).toHaveLength(2)
+      expect(psSeeds[0].title).toBe('root')
+      expect(psSeeds[1].title).toBe('\u2029child')
+      expect(psSeeds[0].children).toEqual([])
+      expect(psSeeds[1].children).toEqual([])
+    })
+
+    it('U+2028 and U+2029 leading a line are not counted as indentation — each becomes its own root', () => {
+      for (const sep of ['\u2028', '\u2029']) {
+        const seeds = parseTextToPromptSeeds('parent\n' + sep + 'child')
+        expect(seeds).toHaveLength(2)
+        expect(seeds[0].title).toBe('parent')
+        expect(seeds[1].title).toBe(sep + 'child')
+        expect(seeds[0].children).toEqual([])
+        expect(seeds[1].children).toEqual([])
+      }
+    })
+  })
+})
+
+describe('parseLosslessTextToPromptSeeds', () => {
+  it.each([
+    ['LF hierarchy', 'A\n  A1\nB\n  B1'],
+    ['CRLF hierarchy', 'A\r\n  A1\r\nB\r\n  B1'],
+    ['bare CR hierarchy', 'A\r  A1\rB\r  B1'],
+    ['blank paragraphs', 'First paragraph\n\nOutline\n  sub a\n  sub b'],
+    ['NBSP indentation', 'A\n\u00a0\u00a0A1'],
+  ])('accepts canonical %s through the established parser', (_label, input) => {
+    expect(parseLosslessTextToPromptSeeds(input)).not.toBeNull()
+  })
+
+  it.each([
+    ['odd indentation', 'A\n A1'],
+    ['tab indentation', 'A\n\tA1'],
+    ['common and shrinking indentation that makes the parser underflow', '  A\n B'],
+    ['blank-delimited indented root whose source indentation cannot be reproduced', 'A\n\n  B'],
+  ])('fails closed for non-round-tripping %s', (_label, input) => {
+    expect(parseLosslessTextToPromptSeeds(input)).toBeNull()
   })
 })

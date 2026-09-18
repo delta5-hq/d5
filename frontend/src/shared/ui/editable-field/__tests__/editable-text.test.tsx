@@ -105,6 +105,34 @@ describe('EditableText', () => {
       const input = screen.getByDisplayValue('Hello')
       expect(input.className).toContain('custom-class')
     })
+
+    it('enters edit mode when autoFocus prop changes from false to true', () => {
+      const { rerender } = render(<EditableText autoFocus={false} onChange={vi.fn()} value="Hello" />)
+      expect(screen.queryByDisplayValue('Hello')).not.toBeInTheDocument()
+
+      rerender(<EditableText autoFocus onChange={vi.fn()} value="Hello" />)
+
+      expect(screen.getByDisplayValue('Hello')).toBeInTheDocument()
+    })
+
+    it('stays in edit mode when autoFocus changes from true to false', () => {
+      const { rerender } = render(<EditableText autoFocus onChange={vi.fn()} value="Hello" />)
+      expect(screen.getByDisplayValue('Hello')).toBeInTheDocument()
+
+      rerender(<EditableText autoFocus={false} onChange={vi.fn()} value="Hello" />)
+
+      expect(screen.getByDisplayValue('Hello')).toBeInTheDocument()
+    })
+
+    it('does not re-enter edit mode when autoFocus stays true after edit is cancelled', () => {
+      const { rerender } = render(<EditableText autoFocus onChange={vi.fn()} value="Hello" />)
+      fireEvent.keyDown(screen.getByDisplayValue('Hello'), { key: 'Escape' })
+      expect(screen.getByText('Hello').tagName).toBe('SPAN')
+
+      rerender(<EditableText autoFocus onChange={vi.fn()} value="Hello" />)
+
+      expect(screen.getByText('Hello').tagName).toBe('SPAN')
+    })
   })
 
   describe('edit commit and cancel', () => {

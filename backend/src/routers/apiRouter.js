@@ -13,7 +13,6 @@ import progressStreamRouter from './progressStreamRouter'
 const apiRouter = new Router({prefix: API_BASE_PATH})
 
 apiRouter.options('/execute', handleCorsPreflightRequest)
-apiRouter.options('/execute/preview', handleCorsPreflightRequest)
 
 const corsExecutorRouter = new Router()
 corsExecutorRouter.use(corsMiddleware()).use(executorRouter.routes(), executorRouter.allowedMethods())

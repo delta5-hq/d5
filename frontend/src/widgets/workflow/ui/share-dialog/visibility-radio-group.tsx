@@ -7,6 +7,7 @@ import { deriveVisibilityDisplayState } from '../../model/visibility-state'
 import { useVisibilityHandlers } from './use-visibility-handlers'
 import { VisibilityOption } from './visibility-option'
 import { CollaborativeToggle } from './collaborative-toggle'
+import { useAuthContext } from '@entities/auth'
 
 interface VisibilityRadioGroupProps {
   value: VisibilityStateValue
@@ -22,6 +23,8 @@ export const VisibilityRadioGroup: React.FC<VisibilityRadioGroupProps> = ({
   className,
 }) => {
   const displayState = deriveVisibilityDisplayState(value)
+  const { isAdmin } = useAuthContext()
+  const canUseCollaborative = Boolean(isAdmin)
 
   const {
     handlePrivateClick,
@@ -33,6 +36,7 @@ export const VisibilityRadioGroup: React.FC<VisibilityRadioGroupProps> = ({
     currentValue: value,
     onValueChange,
     disabled,
+    canUseCollaborative,
   })
 
   return (
@@ -60,7 +64,7 @@ export const VisibilityRadioGroup: React.FC<VisibilityRadioGroupProps> = ({
           onClick={handleUnlistedClick}
           value="unlisted"
         >
-          {displayState.isUnlisted ? (
+          {displayState.isUnlisted && canUseCollaborative ? (
             <CollaborativeToggle
               checked={displayState.isUnlistedCollaborative}
               descriptionId="collaborativeEditingUnlistedDescription"
@@ -81,7 +85,7 @@ export const VisibilityRadioGroup: React.FC<VisibilityRadioGroupProps> = ({
           onClick={handlePublicClick}
           value="public"
         >
-          {displayState.isPublic ? (
+          {displayState.isPublic && canUseCollaborative ? (
             <CollaborativeToggle
               checked={displayState.isPublicCollaborative}
               descriptionId="collaborativeEditingPublicDescription"
