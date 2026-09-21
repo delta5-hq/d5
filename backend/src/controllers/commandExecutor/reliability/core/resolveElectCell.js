@@ -202,6 +202,20 @@ export async function resolveElectCell(
       // candidate and therefore never transfers generated output without :fallback.
       flushNestedReliabilityDiagnostics(electNode, diagnosticFork.forkStore, store)
       flushValidateTitles(allValidates, diagnosticFork.forkStore, store)
+      // Never let an assertion cell keep a verdict from an earlier run. The flush
+      // copies a cell only when the diagnostic fork carries it, so a cell that fork
+      // never judged keeps whatever title it already had, which on a re-run is the
+      // previous run's verdict: an elect reading [✗ 0/n] beside an assertion cell
+      // still wearing an earlier [✓]. Strip the inherited verdict; do not author a
+      // new one and do not emit the cell, which stays outside the output snapshot
+      // until a run actually judges it.
+      for (const validateNode of allValidates) {
+        const targetValidate = store.getNode(validateNode.id)
+        if (!targetValidate) continue
+        const sourceValidate = diagnosticFork.forkStore.getNode(validateNode.id)
+        if (sourceValidate && sourceValidate.title) continue
+        targetValidate.title = stripReliabilitySuffix(targetValidate.title)
+      }
     }
     const currentElect = store.getNode(electNode.id) ?? electNode
     currentElect.title = appendElectSuffix(baseTitle, {
