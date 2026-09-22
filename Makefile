@@ -1,4 +1,4 @@
-.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e start-backend-e2e start-backend-v2-e2e start-frontend-e2e stop stop-dev stop-e2e ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend check-no-legacy-version-symbols check-suffix-grammar-parity sync-suffix-grammar forbid-range-assertions forbid-staged-agent-artifacts build-backend build-backend-v2 build-frontend test-backend test-backend-v2 test-frontend test-scripts e2e-backend-v2 e2e-frontend e2e-frontend-throttled e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks test-hook clean-e2e clean-all fix-permissions cleanup-old-data e2e-disk-preflight probe-version probe-version-e2e
+.PHONY: help lint test build e2e dev dev-frontend dev-backend-v2 start-mongodb-dev start-mongodb-e2e start-backend-e2e start-backend-v2-e2e start-frontend-e2e stop stop-dev stop-e2e ci-local ci-full lint-backend lint-backend-v2 lint-docker-backend lint-docker-backend-v2 lint-docker-frontend lint-frontend check-no-legacy-version-symbols check-suffix-grammar-parity sync-suffix-grammar forbid-range-assertions forbid-staged-agent-artifacts build-backend build-backend-v2 build-frontend test-backend test-backend-v2 test-frontend test-scripts e2e-backend-v2 e2e-frontend e2e-frontend-throttled reclaim-e2e-artefacts e2e-db-init e2e-db-drop dev-db-init dev-db-reset dev-db-drop setup-build-tools install-hooks test-hook clean-e2e clean-all fix-permissions cleanup-old-data e2e-disk-preflight probe-version probe-version-e2e
 
 # Configuration
 DOCKER_NETWORK := d5-dev-network
@@ -384,7 +384,12 @@ start-frontend-e2e:
 		exit 1; \
 	fi
 
-e2e-disk-preflight:
+reclaim-e2e-artefacts:
+	@bash scripts/ci-helpers.sh reclaim_e2e_artefacts
+
+# Reclaim first, then assert: the gate's own error tells the operator to reclaim, so it
+# does that itself and can never become a false block on a leftover run's artefacts.
+e2e-disk-preflight: reclaim-e2e-artefacts
 	@bash scripts/ci-helpers.sh assert_e2e_disk_free $(E2E_DISK_MIN_GB)
 
 e2e-backend-v2: e2e-disk-preflight start-mongodb-e2e e2e-db-init start-backend-e2e start-backend-v2-e2e
