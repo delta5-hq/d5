@@ -580,6 +580,7 @@ describe('SummarizeCommand error handling', () => {
     command = new SummarizeCommand(userId, workflowId, store)
     jest.clearAllMocks()
     store.importer.createNodes = jest.fn()
+    store.importer.createErrorNode = jest.fn()
     command.logError = jest.fn()
     getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k'}})
     getLLM.mockReturnValue({llm: {}, chunkSize: 1000})
@@ -594,7 +595,7 @@ describe('SummarizeCommand error handling', () => {
 
     await command.run(node, 'text')
 
-    expect(store.importer.createNodes).toHaveBeenCalledWith('Error: LLM unavailable', 'sum-node')
+    expect(store.importer.createErrorNode).toHaveBeenCalledWith('Error: LLM unavailable', 'sum-node')
   })
 
   it('logs the thrown error when LLM throws', async () => {
@@ -626,6 +627,6 @@ describe('SummarizeCommand error handling', () => {
 
     await command.run(node, 'text')
 
-    expect(store.importer.createNodes).toHaveBeenCalledTimes(1)
+    expect(store.importer.createErrorNode).toHaveBeenCalledTimes(1)
   })
 })

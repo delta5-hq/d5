@@ -25,7 +25,7 @@ describe('command-regexp', () => {
         expect(matchesAnyCommand('/outline structure')).toBe(true)
         expect(matchesAnyCommand('/summarize text')).toBe(true)
         expect(matchesAnyCommand('/switch context')).toBe(true)
-        expect(matchesAnyCommand('/refine improve')).toBe(true)
+        expect(matchesAnyCommand('/elect improve')).toBe(true)
         expect(matchesAnyCommand('/memorize fact')).toBe(true)
         expect(matchesAnyCommand('/ext external')).toBe(true)
       })
@@ -167,7 +167,7 @@ describe('command-regexp', () => {
         expect(matchesAnyCommandWithOrder('#4 /outline')).toBe(true)
         expect(matchesAnyCommandWithOrder('#5 /summarize')).toBe(true)
         expect(matchesAnyCommandWithOrder('#6 /switch')).toBe(true)
-        expect(matchesAnyCommandWithOrder('#7 /refine')).toBe(true)
+        expect(matchesAnyCommandWithOrder('#7 /elect')).toBe(true)
         expect(matchesAnyCommandWithOrder('#8 /memorize')).toBe(true)
         expect(matchesAnyCommandWithOrder('#9 /ext')).toBe(true)
         expect(matchesAnyCommandWithOrder('#10 /yandexgpt')).toBe(true)
@@ -327,19 +327,23 @@ describe('command-regexp', () => {
       })
     })
 
-    describe('multiple prefix handling', () => {
-      it('removes all step prefixes in text', () => {
-        expect(clearStepsPrefix('#1 text #2 more')).toBe('text  more')
-        expect(clearStepsPrefix('#1 #2 #3 multiple')).toBe('multiple')
+    describe('only the single leading order marker is stripped', () => {
+      // A step order marker is exclusively a leading `#N ` token. A `#N` later in the text is prompt
+      // content — an issue number, a ranked count — and must survive. This mirrors the backend's
+      // anchored STEPS_ORDER_PREFIX_REGEX (`/^#-?\\d+\\s+/`); the two stacks must strip identically.
+      it('strips the leading marker and preserves later #N tokens', () => {
+        expect(clearStepsPrefix('#1 text #2 more')).toBe('text #2 more')
+        expect(clearStepsPrefix('#1 #2 #3 multiple')).toBe('#2 #3 multiple')
       })
 
-      it('removes mixed positive and negative prefixes', () => {
-        expect(clearStepsPrefix('#1 text #-2 more')).toBe('text  more')
-        expect(clearStepsPrefix('#-5 first #10 second')).toBe('first  second')
+      it('preserves later #N tokens of any sign', () => {
+        expect(clearStepsPrefix('#1 text #-2 more')).toBe('text #-2 more')
+        expect(clearStepsPrefix('#-5 first #10 second')).toBe('first #10 second')
       })
 
-      it('preserves spacing when removing multiple prefixes', () => {
-        expect(clearStepsPrefix('#1 a #2 b #3 c')).toBe('a  b  c')
+      it('preserves prompt content that references numbers', () => {
+        expect(clearStepsPrefix('/chat see issue #360')).toBe('/chat see issue #360')
+        expect(clearStepsPrefix('/chat top #5 ideas')).toBe('/chat top #5 ideas')
       })
     })
 
@@ -366,25 +370,27 @@ describe('command-regexp', () => {
         expect(clearStepsPrefix('#-99999999 text')).toBe('text')
       })
 
-      it('handles prefix at end of text', () => {
-        expect(clearStepsPrefix('text #1')).toBe('text')
-        expect(clearStepsPrefix('content #-5')).toBe('content')
+      it('preserves a #N token that is not the leading order marker', () => {
+        expect(clearStepsPrefix('text #1')).toBe('text #1')
+        expect(clearStepsPrefix('content #-5')).toBe('content #-5')
       })
 
-      it('handles prefix in middle of text', () => {
-        expect(clearStepsPrefix('before #1 after')).toBe('before  after')
-        expect(clearStepsPrefix('start #-3 end')).toBe('start  end')
+      it('preserves a #N token in the middle of text', () => {
+        expect(clearStepsPrefix('before #1 after')).toBe('before #1 after')
+        expect(clearStepsPrefix('start #-3 end')).toBe('start #-3 end')
       })
 
-      it('handles only prefix with no content', () => {
-        expect(clearStepsPrefix('#1')).toBe('')
-        expect(clearStepsPrefix('#-5')).toBe('')
-        expect(clearStepsPrefix('#0')).toBe('')
+      it('leaves a bare #N with no following content untouched, exactly as the backend does', () => {
+        // The backend marker regex requires whitespace after the digits, so a lone `#1` is not a
+        // step prefix on either stack.
+        expect(clearStepsPrefix('#1')).toBe('#1')
+        expect(clearStepsPrefix('#-5')).toBe('#-5')
+        expect(clearStepsPrefix('#0')).toBe('#0')
       })
 
-      it('handles only prefix with whitespace', () => {
-        expect(clearStepsPrefix('#1 ')).toBe('')
-        expect(clearStepsPrefix('  #5  ')).toBe('')
+      it('leaves a whitespace-only remainder untouched after trimming', () => {
+        expect(clearStepsPrefix('#1 ')).toBe('#1')
+        expect(clearStepsPrefix('  #5  ')).toBe('#5')
       })
     })
 

@@ -1,0 +1,69 @@
+name: Backend Determinism Sweep
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  backend-v2-determinism:
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:4.2.8
+        ports:
+          - 27017:27017
+    env:
+      MONGO_URI: mongodb://localhost:27017/delta5_determinism_${{ github.run_id }}
+      E2E_MONGO_URI: mongodb://localhost:27017/delta5_determinism_${{ github.run_id }}
+      JWT_SECRET: test-jwt-secret-change-in-production
+      API_ROOT: /api/v2
+      BACKEND_PORT: 3005
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: backend-v2/go.sum
+      - run: cd backend-v2 && go mod download
+      - run: cd backend-v2 && go build -ldflags="-s -w" -o backend-v2 .
+      - run: cd backend-v2 && chmod +x backend-v2
+      - run: cd backend-v2 && go build -o seed-users ./cmd/seed-users
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: backend-v2/e2e/package-lock.json
+      - run: cd backend-v2/e2e && npm ci
+      - run: DROP_DB=true bash backend-v2/e2e-db-init.sh
+      - run: |
+          cd backend-v2
+          MONGO_URI="${MONGO_URI}" JWT_SECRET="${JWT_SECRET}" PORT="${BACKEND_PORT}" API_ROOT="${API_ROOT}" MOCK_EXTERNAL_SERVICES=true nohup ./backend-v2 > backend-determinism.log 2>&1 & echo $! > backend-determinism.pid
+          sleep 5
+          if ! kill -0 $(cat backend-determinism.pid); then
+            echo "Backend failed to start"
+            cat backend-determinism.log
+            exit 1
+          fi
+      - run: curl -f http://localhost:${BACKEND_PORT}${API_ROOT}/health || (cat backend-v2/backend-determinism.log; exit 1)
+      - name: Run 20-run determinism gate
+        run: |
+          E2E_DIR=backend-v2/e2e \
+          E2E_SERVER_URL=http://localhost:${BACKEND_PORT} \
+          E2E_API_BASE_PATH=${API_ROOT} \
+          E2E_MONGO_URI="${E2E_MONGO_URI}" \
+          DETERMINISM_RESET_CMD="backend-v2/seed-users -uri=${E2E_MONGO_URI} -drop" \
+          DETERMINISM_LOG=determinism-audit.log \
+          bash scripts/ci/determinism-gate-backend-v2.sh 20
+      - run: kill $(cat backend-v2/backend-determinism.pid) || true
+        if: always()
+      - run: cd backend-v2 && bash e2e-db-drop.sh 2>/dev/null || true
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-v2-determinism-audit
+          path: determinism-audit.log

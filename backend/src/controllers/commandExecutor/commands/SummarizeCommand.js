@@ -40,6 +40,7 @@ import {clearCommandsWithParams} from '../constants'
 import {clearStepsPrefix} from '../constants/steps'
 import {NodeTextExtractor} from './utils/NodeTextExtractor'
 import {runWithErrorNode} from './shared/runWithErrorNode'
+import {throwIfAborted, signalOptions} from './utils/executionSignal'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 
@@ -119,14 +120,12 @@ export class SummarizeCommand {
 
   async runRefinementQAChain(question, input_documents, llm, params) {
     const {signal, templates} = params || {}
-    const {
-      question: questionTemplate = QUESTION_PROMPT_TEMPLATE_EN,
-      refine: refineTemplate = REFINE_PROMPT_TEMPLATE_EN,
-    } = templates || {}
+    const {question: questionTemplate = QUESTION_PROMPT_TEMPLATE_EN, elect: electTemplate = REFINE_PROMPT_TEMPLATE_EN} =
+      templates || {}
 
     const refinePropmtTemplate = new PromptTemplate({
       inputVariables: ['question', 'existing_answer', 'context'],
-      template: refineTemplate,
+      template: electTemplate,
     })
     const questionPromptTemplate = new PromptTemplate({
       inputVariables: ['context', 'question'],
@@ -153,6 +152,7 @@ export class SummarizeCommand {
   }
 
   async runAgentExecutor(model, sourceText, userInput, params, settings) {
+    throwIfAborted(params?.signal)
     const {maxChunks, chunkSize, llmType} = params
 
     const embeddings = getEmbeddings({type: llmType, settings})
@@ -189,7 +189,8 @@ export class SummarizeCommand {
       tools,
     })
 
-    const answer = await executor.run(userInput)
+    const result = await executor.invoke({input: userInput}, signalOptions(params?.signal))
+    const answer = result.output ?? result
 
     return answer
   }
@@ -263,6 +264,7 @@ export class SummarizeCommand {
   }
 
   async replyDefault(node, command, prompt, params) {
+    throwIfAborted(params?.signal)
     const {lang = Lang.en, sizeLabel = SUMMARIZE_SIZE_DEFAULT, structured = false} = params ?? {}
 
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
@@ -284,24 +286,38 @@ export class SummarizeCommand {
 
     if (!this.verifyEmbedChunks(command)) {
       const docs = await this.getDocuments(chunkSize, text)
-      answer = await this.runRefinementQAChain(prompt, docs.slice(0, maxChunks), llm)
+      answer = await this.runRefinementQAChain(prompt, docs.slice(0, maxChunks), llm, {signal: params?.signal})
     } else {
-      answer = await this.runAgentExecutor(llm, text, prompt, {chunkSize, maxChunks, lang, llmType}, settings)
+      answer = await this.runAgentExecutor(
+        llm,
+        text,
+        prompt,
+        {chunkSize, maxChunks, lang, llmType, signal: params?.signal},
+        settings,
+      )
     }
 
     if (structured) {
-      answer = await new LLMChain({
+      const chain = new LLMChain({
         prompt: PromptTemplate.fromTemplate(getJSKnowledgeMapConvertInstructions(lang)),
         llm,
-      }).run(answer)
+      })
+      if (params?.signal) {
+        const result = await chain.call({input: answer}, signalOptions(params.signal))
+        answer = result.text
+      } else {
+        answer = await chain.run(answer)
+      }
     }
+
+    throwIfAborted(params?.signal)
 
     answer = await this.translate(answer, llm, lang, settings)
 
     return answer
   }
 
-  async run(node, originalPrompt) {
+  async run(node, originalPrompt, options = {}) {
     await runWithErrorNode(this.store, node, this.logError.bind(this), async () => {
       let prompt = originalPrompt
       const command = node?.command || node?.title
@@ -317,8 +333,10 @@ export class SummarizeCommand {
       const answer = await this.replyDefault(node, command, prompt, {
         lang: readLangParam(command),
         sizeLabel: readEmbedParam(command) || readMaxChunksParam(command),
+        signal: options.signal,
       })
 
+      throwIfAborted(options.signal)
       this.store.importer.createNodes(answer, node.id)
     })
   }

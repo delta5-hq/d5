@@ -1,12 +1,14 @@
 package integration
 
 import (
+	"backend-v2/internal/database"
 	"backend-v2/internal/models"
 	"context"
 
 	"github.com/qiniu/qmgo"
+	qopts "github.com/qiniu/qmgo/options"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	mongoOpts "go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const (
@@ -36,6 +38,7 @@ func NewService(db *qmgo.Database) (*Service, error) {
 	}
 
 	collection := db.Collection("integrations")
+	ensureScopeUniquenessIndex(collection)
 	fallbackFinder := newFallbackFinder(collection, encryptor)
 	secretRedactor := NewSecretRedactor()
 	serviceFieldExtractor := NewServiceFieldExtractor(secretRedactor)
@@ -50,6 +53,16 @@ func NewService(db *qmgo.Database) (*Service, error) {
 		serviceFieldExtractor: serviceFieldExtractor,
 		emptinessChecker:      emptinessChecker,
 	}, nil
+}
+
+func ensureScopeUniquenessIndex(collection *qmgo.Collection) {
+	err := collection.CreateOneIndex(context.Background(), qopts.IndexModel{
+		Key:          []string{"userId", "workflowId"},
+		IndexOptions: mongoOpts.Index().SetUnique(true),
+	})
+	if err != nil {
+		log.Warn("ensureScopeIndex: unique index unavailable; concurrent adds may produce duplicate scope documents: %v", err)
+	}
 }
 
 func (s *Service) FindByUserID(ctx context.Context, userID string) (*models.Integration, error) {
@@ -73,21 +86,7 @@ func (s *Service) Upsert(ctx context.Context, scope ScopeIdentifier, update map[
 	}
 
 	filter := buildScopeFilter(scope)
-	updateOp := bson.M{"$set": updateDoc}
-
-	var existing map[string]interface{}
-	err := s.collection.Find(ctx, filter).One(&existing)
-
-	if err == qmgo.ErrNoSuchDocuments {
-		_, insertErr := s.collection.InsertOne(ctx, updateDoc)
-		return insertErr
-	}
-
-	if err != nil {
-		return err
-	}
-
-	return s.collection.UpdateOne(ctx, filter, updateOp)
+	return database.AtomicUpsertOne(ctx, s.collection, filter, bson.M{"$set": updateDoc})
 }
 
 func (s *Service) setDefaultFields(fields map[string]interface{}, scope ScopeIdentifier) {
@@ -207,67 +206,31 @@ func (s *Service) CreateLLMVector(ctx context.Context, db *qmgo.Database, userID
 }
 
 func (s *Service) findOrCreateDefaultVector(ctx context.Context, collection *qmgo.Collection, userID string) (*models.LLMVector, error) {
-	var vector models.LLMVector
-	err := collection.Find(ctx, qmgo.M{"userId": userID, "name": nil}).One(&vector)
-
-	if err == qmgo.ErrNoSuchDocuments {
-		return s.createDefaultVector(ctx, collection, userID)
+	filter := qmgo.M{"userId": userID, "name": nil}
+	skeleton := bson.M{
+		"userId": userID,
+		"name":   nil,
+		"store":  make(map[string]map[string][]models.MemoryVector),
 	}
-
+	if err := database.AtomicUpsertOne(ctx, collection, filter, bson.M{"$setOnInsert": skeleton}); err != nil {
+		return nil, err
+	}
+	var vector models.LLMVector
+	err := collection.Find(ctx, filter).One(&vector)
 	return &vector, err
 }
 
-func (s *Service) createDefaultVector(ctx context.Context, collection *qmgo.Collection, userID string) (*models.LLMVector, error) {
-	vector := models.LLMVector{
-		UserID: userID,
-		Name:   nil,
-		Store:  make(map[string]map[string][]models.MemoryVector),
-	}
-
-	result, err := collection.InsertOne(ctx, vector)
-	if err != nil {
-		return nil, err
-	}
-
-	vector.ID = result.InsertedID.(primitive.ObjectID)
-	return &vector, nil
-}
-
 func (s *Service) ensureServiceStoreExists(ctx context.Context, collection *qmgo.Collection, vector *models.LLMVector, service, userID string) error {
-	if vector.Store == nil {
-		vector.Store = make(map[string]map[string][]models.MemoryVector)
-	}
-
-	if _, exists := vector.Store[service]; exists {
-		return nil
-	}
-
-	vector.Store[service] = make(map[string][]models.MemoryVector)
-
-	/* Use Find+Insert/Update pattern (same as Upsert method) for consistency and edge case safety */
-	filter := qmgo.M{"userId": userID, "name": nil}
-	updateOp := bson.M{"$set": bson.M{"store." + service: make(map[string][]models.MemoryVector)}}
-
-	var existing models.LLMVector
-	err := collection.Find(ctx, filter).One(&existing)
-
-	if err == qmgo.ErrNoSuchDocuments {
-		/* Document doesn't exist - insert new llmvectors doc with service store */
-		newVector := models.LLMVector{
-			UserID: userID,
-			Name:   nil,
-			Store: map[string]map[string][]models.MemoryVector{
-				service: make(map[string][]models.MemoryVector),
-			},
+	if vector.Store != nil {
+		if _, exists := vector.Store[service]; exists {
+			return nil
 		}
-		_, insertErr := collection.InsertOne(ctx, newVector)
-		return insertErr
 	}
 
-	if err != nil {
-		return err
+	filter := qmgo.M{"userId": userID, "name": nil}
+	update := bson.M{
+		"$set":         bson.M{"store." + service: bson.M{}},
+		"$setOnInsert": bson.M{"userId": userID, "name": nil},
 	}
-
-	/* Document exists - update store field with new service key */
-	return collection.UpdateOne(ctx, filter, updateOp)
+	return database.AtomicUpsertOne(ctx, collection, filter, update)
 }

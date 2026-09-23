@@ -1,7 +1,13 @@
+import debug from 'debug'
 import {fetchWithProxySupport} from './fetchWithProxySupport'
 import {getPdfParseOptions} from './getPdfParseOptions'
 import {stripTags} from './html'
 import {extractTextFromPdf, CONTENT_TYPES_APPLICATION_PDF} from './pdf'
+
+const log = debug('delta5:scrape')
+
+const isHtmlContentType = contentType =>
+  contentType.includes('text/html') || contentType.includes('application/xhtml+xml')
 
 export function PhraseChunkBuilderV2(snippets, chunkSize, maxChunks) {
   const MIN_TEXT_LENGTH = 50
@@ -65,12 +71,15 @@ export function PhraseChunkBuilderV2(snippets, chunkSize, maxChunks) {
 
 export async function fetchAsString(href) {
   const response = await fetchWithProxySupport(href)
-  if (CONTENT_TYPES_APPLICATION_PDF.some(type => response.headers.get('Content-type').includes(type))) {
+  const contentType = response.headers.get('Content-type') || ''
+  if (CONTENT_TYPES_APPLICATION_PDF.some(type => contentType.includes(type))) {
     const content = await response.arrayBuffer()
     return await extractTextFromPdf(content, getPdfParseOptions(href), {})
-  } else {
+  } else if (isHtmlContentType(contentType)) {
     const text = await response.text()
     return stripTags(text)
+  } else {
+    return response.text()
   }
 }
 
@@ -96,7 +105,7 @@ export const scrape = async (hrefs, snippets, maxChunks, chunkSize, Builder = Ph
         break
       }
     } catch (e) {
-      console.error('Unable to scrape:', e.message)
+      log('fetchAsString failed: %s', e.message)
     }
   }
 
@@ -143,7 +152,7 @@ export async function checkContentType(response, allowedTypes) {
 
     return allowedTypes.some(type => response.headers.get('content-type')?.includes(type))
   } catch (err) {
-    console.log('Unable to scrape: ', err.message)
+    log('content-type check failed: %s', err.message)
     return false
   }
 }
@@ -172,20 +181,14 @@ export async function processContentPdf(content, filename, options) {
   return {filename, content: extractedText}
 }
 
-export async function processContentString(response, filename) {
+export async function processContentString(response, filename, contentType = 'text/html') {
   const text = await response.text()
-  return {filename, content: stripTags(text)}
+  return {filename, content: isHtmlContentType(contentType) ? stripTags(text) : text}
 }
 
 export async function processUrl(url, options) {
   try {
     const response = await fetchWithProxySupport(url)
-
-    // eslint-disable-next-line
-    console.log('!!! scrape.processUrl -> fetchWithProxySupport', {
-      // eslint-disable-next-line
-      response, url
-    })
 
     const contentType = response.headers.get('content-type') || ''
     const filename = await getFileName(response, url)
@@ -193,28 +196,12 @@ export async function processUrl(url, options) {
     if (CONTENT_TYPES_APPLICATION_PDF.some(type => contentType.includes(type))) {
       const content = await response.arrayBuffer()
 
-      const result = await processContentPdf(content, filename, {url, ...options})
-
-      // eslint-disable-next-line
-      console.log('!!! scrape.processUrl -> processContentPdf', {
-        // eslint-disable-next-line
-        result, content, filename, params: {url, ...options},
-      })
-
-      return result
+      return await processContentPdf(content, filename, {url, ...options})
     }
 
-    const result = await processContentString(response, filename)
-
-    // eslint-disable-next-line
-    console.log('!!! scrape.processUrl -> processContentString', {
-      // eslint-disable-next-line
-      result, response, filename,
-    })
-
-    return result
+    return await processContentString(response, filename, contentType)
   } catch (err) {
-    console.log('Unable to scrape: ', err.message)
+    log('processUrl failed for %s: %s', url, err.message)
     return null
   }
 }

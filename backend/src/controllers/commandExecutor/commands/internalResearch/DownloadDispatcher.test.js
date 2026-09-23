@@ -72,7 +72,7 @@ describe('DownloadDispatcher — never throws', () => {
   it('creates an error node rather than propagating any rejection', async () => {
     scrapeFiles.mockRejectedValueOnce(new Error('Timeout'))
     const {cell, store} = makeRootedStore('/download https://example.com')
-    const spy = jest.spyOn(store.importer, 'createNodes')
+    const spy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
 
     await dispatchDownload(cell, store, undefined)
 
@@ -84,7 +84,7 @@ describe('DownloadDispatcher — URL extraction', () => {
   it('creates an error node when the resolved prompt contains no URL', async () => {
     substituteReferencesAndHashrefsChildrenAndSelf.mockReturnValueOnce('download some content please')
     const {cell, store} = makeRootedStore('/download no url here')
-    const spy = jest.spyOn(store.importer, 'createNodes')
+    const spy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
 
     await dispatchDownload(cell, store, undefined)
 
@@ -190,7 +190,7 @@ describe('DownloadDispatcher — scrape result validation', () => {
   it('creates an error node when scrapeFiles returns an empty array', async () => {
     scrapeFiles.mockResolvedValueOnce([])
     const {cell, store} = makeRootedStore('/download https://example.com')
-    const spy = jest.spyOn(store.importer, 'createNodes')
+    const spy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
 
     await dispatchDownload(cell, store, undefined)
 
@@ -201,7 +201,7 @@ describe('DownloadDispatcher — scrape result validation', () => {
   it('creates an error node when scrapeFiles returns null', async () => {
     scrapeFiles.mockResolvedValueOnce(null)
     const {cell, store} = makeRootedStore('/download https://example.com')
-    const spy = jest.spyOn(store.importer, 'createNodes')
+    const spy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
 
     await dispatchDownload(cell, store, undefined)
 
@@ -211,7 +211,7 @@ describe('DownloadDispatcher — scrape result validation', () => {
   it('creates an error node when scrapeFiles returns a non-array value', async () => {
     scrapeFiles.mockResolvedValueOnce('raw string')
     const {cell, store} = makeRootedStore('/download https://example.com')
-    const spy = jest.spyOn(store.importer, 'createNodes')
+    const spy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
 
     await dispatchDownload(cell, store, undefined)
 
@@ -295,7 +295,7 @@ describe('DownloadDispatcher — new file persistence', () => {
     ])
     WorkflowFile.write.mockResolvedValueOnce({_id: 'id-ok'}).mockRejectedValueOnce(new Error('Write failed'))
     const {cell, store} = makeRootedStore('/download https://a.com https://b.com')
-    const spy = jest.spyOn(store.importer, 'createNodes')
+    const spy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
 
     await dispatchDownload(cell, store, undefined)
 
@@ -342,7 +342,7 @@ describe('DownloadDispatcher — content deduplication', () => {
 
     scrapeFiles.mockResolvedValueOnce([{filename: 'page.txt', content}])
 
-    const spy = jest.spyOn(store.importer, 'createNodes')
+    const spy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
     await dispatchDownload(cell, store, undefined)
 
     expect(spy).toHaveBeenCalledWith(expect.stringContaining('Error:'), cell.id)

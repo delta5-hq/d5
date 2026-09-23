@@ -6,8 +6,8 @@ import {extractDynamicAlias} from './commandRecognition'
  * @property {string} alias - The command alias (e.g., "/coder1")
  */
 
-const MCP_PREFIX = 'mcp:'
-const RPC_PREFIX = 'rpc:'
+export const MCP_PREFIX = 'mcp:'
+export const RPC_PREFIX = 'rpc:'
 
 export const isMCPQueryType = queryType => queryType?.startsWith(MCP_PREFIX) ?? false
 export const isRPCQueryType = queryType => queryType?.startsWith(RPC_PREFIX) ?? false
@@ -17,7 +17,7 @@ export const rpcAliasToQueryType = alias => `${RPC_PREFIX}${alias.replace(/^\//,
 
 /**
  * Resolves queryType with category-aware priority:
- * 1. Control-flow built-ins (NON-overridable: steps, foreach, switch, summarize, refine, memorize)
+ * 1. Control-flow built-ins (NON-overridable: steps, foreach, switch, summarize, elect, memorize)
  * 2. User aliases (MCP/RPC - CAN override LLM built-ins)
  * 3. LLM built-ins (overridable: chat, claude, qwen, web, scholar, etc.)
  *

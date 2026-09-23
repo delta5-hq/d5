@@ -6,12 +6,20 @@ import {assertToolCallingCapability, createMCPAgentExecutor} from './utils/langc
 import {isInternalMcpServer, buildInternalServerEnv, resolveInternalServerScript} from './mcp/internalServerEnv'
 import {runWithErrorNode} from './shared/runWithErrorNode'
 import {resolveExternalCommandPrompt} from './shared/resolveExternalCommandPrompt'
+import {EXECUTION_FAILURE_TYPE} from './utils/executionNodeStatus'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 
 const MCP_TOOL_NAME_AUTO = 'auto'
 
 const log = debug('delta5:app:Command:MCP')
+
+class MCPToolError extends Error {
+  constructor() {
+    super('MCP tool reported failure')
+    this.name = 'MCPToolError'
+  }
+}
 
 export class MCPCommand {
   /**
@@ -44,7 +52,14 @@ export class MCPCommand {
     const {serverUrl, transport, headers, command, args, env} = this.aliasConfig
     const mergedEnv = extraEnv ? {...env, ...extraEnv} : env
     const resolvedArgs = normalizedArgs ?? args
-    return {serverUrl, transport, headers, command, args: resolvedArgs, env: mergedEnv}
+    return {
+      serverUrl,
+      transport,
+      headers,
+      command,
+      args: resolvedArgs,
+      env: mergedEnv,
+    }
   }
 
   async runAgentMode(prompt, signal, extraEnv, normalizedArgs) {
@@ -85,39 +100,53 @@ export class MCPCommand {
   }
 
   async run(node, context, originalPrompt, options = {}) {
-    await runWithErrorNode(this.store, node, this.logError.bind(this), async () => {
-      const {signal} = options
-      const prompt = this.extractPrompt(node, originalPrompt)
-      const fullPrompt = context ? context + prompt : prompt
+    await runWithErrorNode(
+      this.store,
+      node,
+      this.logError.bind(this),
+      async () => {
+        const {signal} = options
+        const prompt = this.extractPrompt(node, originalPrompt)
+        const fullPrompt = context ? context + prompt : prompt
 
-      const {command, args} = this.aliasConfig
-      const internal = isInternalMcpServer(command, args)
+        const {command, args} = this.aliasConfig
+        const internal = isInternalMcpServer(command, args)
 
-      let extraEnv
-      let normalizedArgs
-      if (internal) {
-        const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
-        extraEnv = buildInternalServerEnv(this.userId, this.workflowId, settings)
-        if (args?.[0]) {
-          normalizedArgs = [resolveInternalServerScript(args[0]), ...args.slice(1)]
+        let extraEnv
+        let normalizedArgs
+        if (internal) {
+          const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
+          extraEnv = buildInternalServerEnv(this.userId, this.workflowId, settings)
+          if (args?.[0]) {
+            normalizedArgs = [resolveInternalServerScript(args[0]), ...args.slice(1)]
+          }
         }
-      }
 
-      if (this.aliasConfig.toolName === MCP_TOOL_NAME_AUTO) {
-        const text = await this.runAgentMode(fullPrompt, signal, extraEnv, normalizedArgs)
-        this.store.importer.createNodes(text || '(empty MCP response)', node.id)
-        return
-      }
+        if (this.aliasConfig.toolName === MCP_TOOL_NAME_AUTO) {
+          const text = await this.runAgentMode(fullPrompt, signal, extraEnv, normalizedArgs)
+          this.store.importer.createNodes(text || '(empty MCP response)', node.id)
+          return
+        }
 
-      const result = await this.runDirectMode(fullPrompt, signal, extraEnv, normalizedArgs)
+        const result = await this.runDirectMode(fullPrompt, signal, extraEnv, normalizedArgs)
 
-      if (result.isError) {
-        throw new Error(result.content || 'MCP tool returned an error')
-      }
+        if (result.isError) {
+          throw new MCPToolError()
+        }
 
-      const text = result.content || '(empty MCP response)'
-      this.store.importer.createNodes(text, node.id)
-    })
+        const text = result.content || '(empty MCP response)'
+        this.store.importer.createNodes(text, node.id)
+      },
+      {
+        classifyError: error => ({
+          type:
+            error instanceof MCPToolError
+              ? EXECUTION_FAILURE_TYPE.MCP_TOOL_ERROR
+              : EXECUTION_FAILURE_TYPE.RUNTIME_ERROR,
+        }),
+        publicMessage: error => (error instanceof MCPToolError ? error.message : 'MCP command execution failed'),
+      },
+    )
   }
 
   extractPrompt(node, originalPrompt) {

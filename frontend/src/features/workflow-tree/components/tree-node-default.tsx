@@ -9,6 +9,7 @@ import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } 
 import { FormattedMessage, useIntl } from 'react-intl'
 import { isCommandlessTextNode, normalizeNodeTitle } from '@entities/workflow/lib'
 import { useViewportBreakpoint } from '@shared/composables/use-viewport-breakpoint'
+import { attachReliabilitySuffix, extractReliabilitySuffix } from '@shared/lib/reliability-suffix'
 import type { TreeNodeProps } from '../core/types'
 import { INDENT_PER_LEVEL, ROW_HEIGHT, WIRE_PADDING, BASE_PADDING } from '../core/constants'
 import type { TreeDropPosition } from '../core/tree-drag'
@@ -125,6 +126,7 @@ export const TreeNodeDefault = ({
   onDropFiles,
   activeDropTargetId,
   activeDropPosition,
+  onSuffixClick,
 }: TreeNodeProps) => {
   const {
     node,
@@ -224,11 +226,21 @@ export const TreeNodeDefault = ({
     [id, onDelete],
   )
 
+  const handleSuffixClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      onSuffixClick?.(id)
+    },
+    [id, onSuffixClick],
+  )
+
+  const { baseTitle, suffix } = extractReliabilitySuffix(normalizeNodeTitle(node.title) || node.id)
+
   const handleRename = useCallback(
     (newTitle: string) => {
-      onRename?.(id, newTitle)
+      onRename?.(id, attachReliabilitySuffix(newTitle, suffix))
     },
-    [id, onRename],
+    [id, onRename, suffix],
   )
 
   const handleToggleChecked = useCallback(
@@ -308,7 +320,11 @@ export const TreeNodeDefault = ({
   const sparkPath = depth > 0 ? buildSparkPath(wireIndentX, ROW_HEIGHT, INDENT_PER_LEVEL, rowsFromParent) : ''
 
   const normalizedTitle = normalizeNodeTitle(node.title)
-  const displayedTitle = truncateTitleForChip(normalizedTitle)
+  /* The chip shows a truncated title (the target contract asserts the cut and the stored
+     title's integrity). The full title stays addressable through the row's data-node-title
+     so node lookups do not depend on the chip's visible text. */
+  const displayedTitle = truncateTitleForChip(baseTitle)
+  const fullTitle = normalizedTitle || node.id
   const geniePresentation = getNodeGeniePresentation(presentedNode, { aliases, depth })
   const showThoughtTail = depth > 0 && depth <= 4 && geniePresentation.variant === 'full'
 
@@ -330,6 +346,7 @@ export const TreeNodeDefault = ({
           data-node-drop-position={dropPosition}
           data-node-id={id}
           data-node-selected={isSelected || undefined}
+          data-node-title={fullTitle}
           data-prompt-node={isPrompt || undefined}
           onClick={handleClick}
           onDragLeave={handleDragLeave}
@@ -458,11 +475,21 @@ export const TreeNodeDefault = ({
                   placeholder={formatMessage({ id: 'workflowTree.node.untitled' })}
                   readOnlyClassName="block min-w-0 max-w-full truncate whitespace-nowrap border-0 bg-transparent px-0 py-0 leading-5 hover:border-transparent hover:bg-transparent"
                   title={formatMessage({ id: 'workflowTree.node.editHint' })}
-                  value={normalizedTitle}
+                  value={baseTitle || ''}
                 />
               ) : (
                 displayedTitle || node.id
               )}
+              {suffix ? (
+                <button
+                  className="flex-shrink-0 rounded-sm text-xs font-mono text-muted-foreground hover:text-primary hover:underline underline-offset-2 transition-colors active:opacity-70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/50"
+                  data-testid="reliability-suffix"
+                  onClick={handleSuffixClick}
+                  type="button"
+                >
+                  {suffix}
+                </button>
+              ) : null}
             </span>
             {isDirty ? (
               <span

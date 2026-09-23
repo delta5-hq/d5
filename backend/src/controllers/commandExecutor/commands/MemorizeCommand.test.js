@@ -223,6 +223,7 @@ describe('MemorizeCommand', () => {
 
   describe('run', () => {
     let createNodesSpy
+    let createErrorNodeSpy
 
     beforeEach(() => {
       getIntegrationSettings.mockResolvedValue({
@@ -237,6 +238,7 @@ describe('MemorizeCommand', () => {
       ExtVectorStore.prototype.load = jest.fn()
       jest.clearAllMocks()
       createNodesSpy = jest.spyOn(mockStore.importer, 'createNodes').mockImplementation(() => {})
+      createErrorNodeSpy = jest.spyOn(mockStore.importer, 'createErrorNode').mockImplementation(() => {})
     })
 
     it('creates error node when parent id points to a node not in the store', async () => {
@@ -245,7 +247,7 @@ describe('MemorizeCommand', () => {
 
       await command.run(node)
 
-      expect(createNodesSpy).toHaveBeenCalledWith(
+      expect(createErrorNodeSpy).toHaveBeenCalledWith(
         'Error: /memorize requires a parent node containing content to store',
         'node',
       )
@@ -257,7 +259,7 @@ describe('MemorizeCommand', () => {
 
       await command.run(node)
 
-      expect(createNodesSpy).toHaveBeenCalledWith(
+      expect(createErrorNodeSpy).toHaveBeenCalledWith(
         'Error: /memorize requires a parent node containing content to store',
         'node',
       )
@@ -283,7 +285,7 @@ describe('MemorizeCommand', () => {
       await command.run(node)
 
       expect(command.logError).toHaveBeenCalled()
-      expect(createNodesSpy).toHaveBeenCalledWith(expect.stringMatching(/^Error:/), 'node')
+      expect(createErrorNodeSpy).toHaveBeenCalledWith(expect.stringMatching(/^Error:/), 'node')
     })
 
     it('does not throw to caller when parent node is missing', async () => {

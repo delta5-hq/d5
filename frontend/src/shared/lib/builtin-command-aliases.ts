@@ -30,14 +30,19 @@ export const BUILTIN_COMMANDS = [
     description: 'Search and summarize academic papers via SerpAPI Scholar',
   },
   {
-    alias: '/refine',
-    queryType: 'refine',
+    alias: '/elect',
+    queryType: 'elect',
     description: 'Iteratively improve text through multiple LLM passes',
   },
   {
     alias: '/validate',
     queryType: 'validate',
-    description: 'Validate parent node content against a criterion',
+    description: 'Validate parent node content once against a criterion',
+  },
+  {
+    alias: '/refine',
+    queryType: 'refine',
+    description: 'Retry a parent command until its direct validation criteria pass',
   },
   {
     alias: '/foreach',

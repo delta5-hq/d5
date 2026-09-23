@@ -1,4 +1,5 @@
 import {BlockLexer, OutlinerImportPlugin} from './createNodes'
+import {withExecutionFailureSignal} from './executionNodeStatus'
 // eslint-disable-next-line no-unused-vars
 import Store from './Store'
 
@@ -103,8 +104,11 @@ class ImportHandler {
     this.store.createNode({parent: parentId, title: text}, true)
   }
 
-  createErrorNode(errorMessage, parentId) {
-    this.store.createNode({parent: parentId, title: errorMessage}, true)
+  createErrorNode(errorMessage, parentId, failureSignal = null) {
+    return this.store.createNode(
+      withExecutionFailureSignal({parent: parentId, title: errorMessage}, failureSignal),
+      true,
+    )
   }
 }
 

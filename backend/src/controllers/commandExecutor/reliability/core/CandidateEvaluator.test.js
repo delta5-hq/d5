@@ -183,7 +183,9 @@ describe('CandidateEvaluator', () => {
           }),
         }
 
-        const result = CandidateEvaluator.validate(store, 'create table', {isTableCommand: true})
+        const result = CandidateEvaluator.validate(store, 'create table', {
+          isTableCommand: true,
+        })
 
         expect(result.pass).toBe(false)
         expect(result.reason).toBe('no_grid_options')
@@ -197,7 +199,9 @@ describe('CandidateEvaluator', () => {
           }),
         }
 
-        const result = CandidateEvaluator.validate(store, 'create table', {isTableCommand: true})
+        const result = CandidateEvaluator.validate(store, 'create table', {
+          isTableCommand: true,
+        })
 
         expect(result.pass).toBe(true)
         expect(result.reason).toBeNull()
@@ -214,7 +218,9 @@ describe('CandidateEvaluator', () => {
           }),
         }
 
-        const result = CandidateEvaluator.validate(store, 'create table', {isTableCommand: true})
+        const result = CandidateEvaluator.validate(store, 'create table', {
+          isTableCommand: true,
+        })
 
         expect(result.pass).toBe(true)
         expect(result.reason).toBeNull()
@@ -228,7 +234,9 @@ describe('CandidateEvaluator', () => {
           }),
         }
 
-        const result = CandidateEvaluator.validate(store, 'create table', {isTableCommand: false})
+        const result = CandidateEvaluator.validate(store, 'create table', {
+          isTableCommand: false,
+        })
 
         expect(result.pass).toBe(true)
         expect(result.reason).toBeNull()
@@ -269,7 +277,9 @@ describe('CandidateEvaluator', () => {
           }),
         }
 
-        const result = CandidateEvaluator.validate(store, 'test', {isTableCommand: true})
+        const result = CandidateEvaluator.validate(store, 'test', {
+          isTableCommand: true,
+        })
 
         expect(result.pass).toBe(false)
         expect(result.reason).toBe('echo_detected')
@@ -467,7 +477,12 @@ describe('CandidateEvaluator', () => {
         it('should treat the error prefix as case-sensitive', () => {
           const store = {
             getOutput: () => ({
-              nodes: [{id: '1', title: 'error: lowercase prefix is not an error marker'}],
+              nodes: [
+                {
+                  id: '1',
+                  title: 'error: lowercase prefix is not an error marker',
+                },
+              ],
               edges: [],
             }),
           }
@@ -495,7 +510,12 @@ describe('CandidateEvaluator', () => {
         it('should not match when the error prefix appears mid-string', () => {
           const store = {
             getOutput: () => ({
-              nodes: [{id: '1', title: 'Result contains Error: description mid-text'}],
+              nodes: [
+                {
+                  id: '1',
+                  title: 'Result contains Error: description mid-text',
+                },
+              ],
               edges: [],
             }),
           }

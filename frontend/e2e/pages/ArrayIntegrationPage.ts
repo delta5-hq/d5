@@ -80,6 +80,7 @@ export class ArrayIntegrationPage {
 
       if ((await integrationsTab.getAttribute('data-state')) !== 'active') {
         await integrationsTab.click()
+        await this.page.waitForLoadState('networkidle')
       }
 
       await expect(integrationsTab).toHaveAttribute('data-state', 'active', { timeout: TIMEOUTS.dialogAppear })
@@ -95,6 +96,7 @@ export class ArrayIntegrationPage {
 
     const addButton = this.page.locator(SELECTORS.addButton(fieldName)).first()
 
+    await addButton.scrollIntoViewIfNeeded()
     await addButton.waitFor({ state: 'visible', timeout: TIMEOUTS.dialogAppear })
     await expect(addButton).toBeEnabled({ timeout: TIMEOUTS.dialogAppear })
     await addButton.scrollIntoViewIfNeeded()

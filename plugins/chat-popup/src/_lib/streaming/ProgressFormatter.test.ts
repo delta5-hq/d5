@@ -30,7 +30,7 @@ describe("ProgressFormatter", () => {
         { input: "Started: ExtCommand.run", expected: "Querying knowledge base..." },
         { input: "Started: MemorizeCommand.run", expected: "Storing in memory..." },
         { input: "Started: DownloadCommand.run", expected: "Downloading content..." },
-        { input: "Started: RefineCommand.run", expected: "Refining output..." },
+        { input: "Started: ElectCommand.run", expected: "Refining output..." },
         { input: "Started: CompletionCommand.run", expected: "Running completion..." },
       ]
 

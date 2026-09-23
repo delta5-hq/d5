@@ -2,7 +2,7 @@ const JUDGE_MARKERS = ['strict quality judge', 'rank from best', 'comma-separate
 const VERIFIER_MARKERS = ['strict quality verifier', 'Reply ONLY with YES or NO']
 const USEFULNESS_MARKERS = ['Does this input state that there was no useful info', 'Respond strictly "true" or "false"']
 const QA_MARKERS = ['Your only task is to answer a question', 'Context ```']
-const REFINE_MARKERS = ['Your only task is to refine the answer', 'Original answer ```', 'New context ```']
+const ELECT_MARKERS = ['Your only task is to elect the answer', 'Original answer ```', 'New context ```']
 const KNOWLEDGE_MAP_MARKERS = ['Your only task is making a knowledge map', 'Input: ```']
 const PREVIEW_CHARS = 500
 
@@ -35,7 +35,7 @@ const detectKind = corpus => {
   if (JUDGE_MARKERS.some(marker => lower.includes(marker.toLowerCase()))) return 'judge'
   if (VERIFIER_MARKERS.some(marker => lower.includes(marker.toLowerCase()))) return 'verifier'
   if (USEFULNESS_MARKERS.every(marker => lower.includes(marker.toLowerCase()))) return 'usefulness'
-  if (REFINE_MARKERS.every(marker => lower.includes(marker.toLowerCase()))) return 'refine'
+  if (ELECT_MARKERS.every(marker => lower.includes(marker.toLowerCase()))) return 'elect'
   if (QA_MARKERS.every(marker => lower.includes(marker.toLowerCase()))) return 'qa'
   if (KNOWLEDGE_MAP_MARKERS.every(marker => lower.includes(marker.toLowerCase()))) return 'knowledge-map'
   return 'generator'
@@ -97,7 +97,7 @@ const qaResponse = corpus => {
   return `mock-answer${question ? `: ${question}` : ''} :: ${context || 'empty context'}`
 }
 
-const refineResponse = corpus => {
+const electResponse = corpus => {
   const question = preview(extractQuestion(corpus))
   const original = preview(extractFencedValue(corpus, 'Original answer'))
   const context = preview(extractFencedValue(corpus, 'New context'))
@@ -110,6 +110,42 @@ const knowledgeMapResponse = corpus => {
   return `mock-knowledge-map :: ${input || 'empty input'}`
 }
 
+export const MOCK_VERIFIER_FAIL_KEYWORD = 'MOCK_VALIDATE_FAIL'
+export const MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX = 'MOCK_VALIDATE_FAIL_IF_CONTENT_CONTAINS='
+
+const extractVerifierCriterion = corpus => {
+  const matches = [...corpus.matchAll(/^\s*Criterion:\s*(.+?)\s*$/gim)]
+  const lastCriterion = matches[matches.length - 1]
+  return lastCriterion?.[1]?.trim() ?? ''
+}
+
+const extractVerifierContent = corpus => {
+  const match = corpus.match(/Content:\s*---\s*([\s\S]*?)\s*---/i)
+  return match?.[1] ?? corpus
+}
+
+const CONDITIONAL_FAILURE_TOKEN_RE = new RegExp(`${MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX}(\\S+)`)
+
+const readConditionalFailureToken = criterion => criterion.match(CONDITIONAL_FAILURE_TOKEN_RE)?.[1] ?? ''
+
+const verifierVerdict = corpus => {
+  const criterion = extractVerifierCriterion(corpus)
+  const conditionalToken = readConditionalFailureToken(criterion)
+
+  if (
+    criterion.toUpperCase().includes(MOCK_VERIFIER_FAIL_KEYWORD) &&
+    !criterion.includes(MOCK_VALIDATE_FAIL_CONDITIONAL_PREFIX)
+  ) {
+    return `NO: mock rejection — criterion contains ${MOCK_VERIFIER_FAIL_KEYWORD}`
+  }
+
+  if (conditionalToken && extractVerifierContent(corpus).includes(conditionalToken)) {
+    return `NO: mock rejection — content contains ${conditionalToken}`
+  }
+
+  return 'YES'
+}
+
 export const planResponse = (messages, synthesizeGeneratorContent) => {
   const corpus = concatMessages(messages)
   const kind = detectKind(corpus)
@@ -118,13 +154,13 @@ export const planResponse = (messages, synthesizeGeneratorContent) => {
     case 'judge':
       return rankingResponse(extractCandidateCount(corpus))
     case 'verifier':
-      return 'YES: mock verifier accepts the content'
+      return verifierVerdict(corpus)
     case 'usefulness':
       return usefulnessResponse(corpus)
     case 'qa':
       return qaResponse(corpus)
-    case 'refine':
-      return refineResponse(corpus)
+    case 'elect':
+      return electResponse(corpus)
     case 'knowledge-map':
       return knowledgeMapResponse(corpus)
     case 'generator':

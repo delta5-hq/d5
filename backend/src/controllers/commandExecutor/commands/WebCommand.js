@@ -16,6 +16,7 @@ import {JSKnowledgeMapWebScholarSearch} from './utils/langchain/JSKnowledgeMapWe
 import {referencePatterns} from './references/utils/referencePatterns'
 import {clearReferences} from './references/utils/referenceUtils' // Direct import
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
+import {throwIfAbortError, throwIfAborted} from './utils/executionSignal'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
 
@@ -42,6 +43,7 @@ export class WebCommand {
     this.logError = this.log.extend('ERROR*', '::')
   }
   async createResponseWeb(node, userInput, params) {
+    throwIfAborted(params?.signal)
     const lang = params?.lang
 
     const settings = await getIntegrationSettings(this.userId, this.workflowId, this.store)
@@ -68,6 +70,8 @@ export class WebCommand {
 
     let result = await searchTool.getKnowledgeMapWebExt(userInput)
 
+    throwIfAborted(params?.signal)
+
     result = await conditionallyTranslate(result, lang, llm, this.logError, settings)
 
     if (params?.citations) {
@@ -91,7 +95,7 @@ export class WebCommand {
     }
   }
 
-  async run(node, originalPrompt) {
+  async run(node, originalPrompt, options = {}) {
     try {
       let prompt = originalPrompt
       const title = node?.command || node?.title
@@ -108,13 +112,16 @@ export class WebCommand {
         )
       }
 
-      const params = this.getParams(title)
+      const params = {...this.getParams(title), signal: options.signal}
 
       const text = await this.createResponseWeb(node, prompt, params)
 
+      throwIfAborted(options.signal)
       this.store.importer.createNodes(text, node.id)
     } catch (e) {
+      throwIfAbortError(e)
       this.logError(e)
+      throwIfAborted(options.signal)
       this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }
   }

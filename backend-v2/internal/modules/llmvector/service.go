@@ -8,6 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
+	"backend-v2/internal/database"
 	"backend-v2/internal/models"
 )
 
@@ -19,7 +20,6 @@ func NewService(collection *qmgo.Collection) *Service {
 	return &Service{collection: collection}
 }
 
-/* Get context by name and userId */
 func (s *Service) GetContext(ctx context.Context, name *string, userID string) (*models.LLMVector, error) {
 	var context models.LLMVector
 	filter := bson.M{"userId": userID, "name": name}
@@ -27,7 +27,6 @@ func (s *Service) GetContext(ctx context.Context, name *string, userID string) (
 	return &context, err
 }
 
-/* Get all contexts for user */
 func (s *Service) GetAllContexts(ctx context.Context, userID string) ([]models.LLMVector, error) {
 	contexts := []models.LLMVector{}
 	filter := bson.M{"userId": userID}
@@ -35,7 +34,6 @@ func (s *Service) GetAllContexts(ctx context.Context, userID string) ([]models.L
 	return contexts, err
 }
 
-/* Save or update context */
 func (s *Service) SaveContext(ctx context.Context, name *string, userID, contextType string, data map[string][]models.MemoryVector, keep bool) (*models.LLMVector, error) {
 	filter := bson.M{"userId": userID, "name": name}
 
@@ -45,34 +43,31 @@ func (s *Service) SaveContext(ctx context.Context, name *string, userID, context
 	now := time.Now()
 
 	if err != nil {
-		// Create new context
-		newContext := models.LLMVector{
-			ID:        primitive.NewObjectID(),
-			UserID:    userID,
-			Name:      name,
-			Store:     make(map[string]map[string][]models.MemoryVector),
-			CreatedAt: now,
-			UpdatedAt: now,
+		newDoc := bson.M{
+			"_id":       primitive.NewObjectID(),
+			"userId":    userID,
+			"name":      name,
+			"store":     map[string]map[string][]models.MemoryVector{contextType: data},
+			"createdAt": now,
+			"updatedAt": now,
 		}
-		newContext.Store[contextType] = data
-
-		_, err = s.collection.InsertOne(ctx, newContext)
-		if err != nil {
-			return nil, err
+		if upsertErr := database.AtomicUpsertOne(ctx, s.collection, filter, bson.M{"$setOnInsert": newDoc}); upsertErr != nil {
+			return nil, upsertErr
 		}
-		return &newContext, nil
+		var inserted models.LLMVector
+		if readErr := s.collection.Find(ctx, filter).One(&inserted); readErr != nil {
+			return nil, readErr
+		}
+		return &inserted, nil
 	}
 
-	// Update existing context
 	if existing.Store == nil {
 		existing.Store = make(map[string]map[string][]models.MemoryVector)
 	}
 
 	if !keep {
-		// Replace type data
 		existing.Store[contextType] = data
 	} else {
-		// Append to existing type
 		if existing.Store[contextType] == nil {
 			existing.Store[contextType] = make(map[string][]models.MemoryVector)
 		}
@@ -103,7 +98,6 @@ func (s *Service) SaveContext(ctx context.Context, name *string, userID, context
 	return &existing, nil
 }
 
-/* Delete context, type, or specific sources */
 func (s *Service) DeleteContext(ctx context.Context, name *string, userID string, contextType *string, sources []string) error {
 	filter := bson.M{"userId": userID, "name": name}
 
@@ -113,19 +107,16 @@ func (s *Service) DeleteContext(ctx context.Context, name *string, userID string
 		return err
 	}
 
-	// Delete entire context if no type specified
 	if contextType == nil {
 		return s.collection.Remove(ctx, filter)
 	}
 
-	// Delete specific sources from type
 	if len(sources) > 0 {
 		if typeStore, ok := existing.Store[*contextType]; ok {
 			for _, source := range sources {
 				delete(typeStore, source)
 			}
 
-			// If type is empty, remove it
 			if len(typeStore) == 0 {
 				delete(existing.Store, *contextType)
 			}
@@ -135,7 +126,6 @@ func (s *Service) DeleteContext(ctx context.Context, name *string, userID string
 		return s.collection.UpdateOne(ctx, filter, update)
 	}
 
-	// Delete entire type
 	if _, ok := existing.Store[*contextType]; ok {
 		delete(existing.Store, *contextType)
 		update := bson.M{"$set": bson.M{"store": existing.Store, "updatedAt": time.Now()}}
@@ -145,7 +135,6 @@ func (s *Service) DeleteContext(ctx context.Context, name *string, userID string
 	return nil
 }
 
-/* Get overview of all contexts (metadata only) */
 func (s *Service) GetOverview(ctx context.Context, userID string, filterType *string) (map[string]map[string][]string, error) {
 	contexts := []models.LLMVector{}
 	filter := bson.M{"userId": userID}

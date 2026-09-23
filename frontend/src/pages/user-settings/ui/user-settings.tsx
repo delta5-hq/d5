@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@shared/ui/popover'
 import { Check, ChevronDown } from 'lucide-react'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@shared/ui/command'
 import IntegrationDialog from './integration/integration-dialog'
+import { useLocale } from '@shared/lib/intl/locale-context'
 import { useDialog } from '@entities/dialog'
 
 const modelMapping: Record<string, Model> = {
@@ -29,6 +30,7 @@ const modelMapping: Record<string, Model> = {
 const UserSettingsPage: React.FC = () => {
   const { user } = useAuthContext()
   const { showDialog } = useDialog()
+  const { setLocale } = useLocale()
   const { formatMessage } = useIntl()
 
   const { data: integration, isLoading: isSettingsLoading } = useApiQuery<IntegrationSettings>({
@@ -87,6 +89,7 @@ const UserSettingsPage: React.FC = () => {
   const onLangChange = (newLang: string) => async () => {
     setLang(newLang)
     await changeUserLang({ lang: newLang, workflowId: null })
+    setLocale(newLang)
     setOpenLangBox(false)
   }
 

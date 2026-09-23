@@ -12,6 +12,7 @@ import {clearReferences} from './references/utils/referenceUtils' // Direct impo
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
+import {throwIfAborted, throwIfAbortError} from './utils/executionSignal'
 import {createContextForChat} from './utils/createContextForChat'
 
 const log = debug('delta5:app:Command:Perplexity')
@@ -54,7 +55,7 @@ export class PerplexityCommand {
     this.logError = this.log.extend('ERROR*', '::')
   }
 
-  async reply(messages, userId, workflowId, store) {
+  async reply(messages, userId, workflowId, store, options = {}) {
     const {perplexity} = await getIntegrationSettings(userId, workflowId, store)
 
     if (!perplexity?.apiKey) {
@@ -63,7 +64,7 @@ export class PerplexityCommand {
       )
     }
 
-    const {choices, citations} = await PerplexityCommand.call(messages, perplexity)
+    const {choices, citations} = await PerplexityCommand.call(messages, perplexity, options)
 
     let completionResult = cleanChainOfThoughtText(choices[0].message?.content.replace(/\[\d+\]/g, ''))
 
@@ -76,7 +77,7 @@ export class PerplexityCommand {
     return completionResult
   }
 
-  async run(node, context, originalPrompt) {
+  async run(node, context, originalPrompt, options = {}) {
     try {
       let prompt = originalPrompt
       const title = node?.command || node?.title
@@ -96,11 +97,14 @@ export class PerplexityCommand {
         role: 'user',
       }
       const messages = [userMessage]
-      const text = (await this.reply(messages, this.userId, this.workflowId, this.store))?.replaceAll('**', '')
+      const text = (await this.reply(messages, this.userId, this.workflowId, this.store, options))?.replaceAll('**', '')
 
+      throwIfAborted(options.signal)
       this.store.importer.createNodes(text, node.id)
     } catch (e) {
+      throwIfAbortError(e)
       this.logError(e)
+      throwIfAborted(options.signal)
       this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }
   }

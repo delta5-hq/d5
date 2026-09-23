@@ -1,7 +1,14 @@
 #!/bin/bash
 
 DOCKER_NETWORK="${DOCKER_NETWORK:-d5-dev-network}"
-GOLANGCI_LINT_TIMEOUT="${GOLANGCI_LINT_TIMEOUT:-15m}"
+
+# Go lint toolchain pin. Both CI hosts run golangci-lint from
+# golangci/golangci-lint:${GOLANGCI_LINT_VERSION}-alpine and backend-v2/.golangci.yml
+# is written in that release series' schema, so a local binary from a different
+# series cannot read it. Keep this in step with .gitlab-ci.yml and
+# .github/workflows/ci.yml.
+GOLANGCI_LINT_VERSION="${GOLANGCI_LINT_VERSION:-v1.62}"
+GOLANGCI_LINT_IMAGE="golangci/golangci-lint:${GOLANGCI_LINT_VERSION}-alpine"
 
 log_info() { echo "→ $*"; }
 log_success() { echo "✓ $*"; }
@@ -11,6 +18,29 @@ log_error() { echo "✗ $*" >&2; }
 ensure_docker_network() {
   docker network inspect "$DOCKER_NETWORK" >/dev/null 2>&1 || \
     docker network create "$DOCKER_NETWORK" >/dev/null 2>&1
+}
+
+resolve_golangci_lint() {
+  local series="${GOLANGCI_LINT_VERSION#v}"
+  series="${series%%.*}"
+  local candidate
+  local cache_home="${XDG_CACHE_HOME:-$HOME/.cache}"
+  for candidate in "${GOLANGCI_LINT_BIN:-}" "$(command -v golangci-lint 2>/dev/null)" \
+    "$cache_home/golangci-lint/${GOLANGCI_LINT_VERSION}/golangci-lint" /tmp/lintbin/golangci-lint; do
+    [ -n "$candidate" ] && [ -x "$candidate" ] || continue
+    local found
+    found=$("$candidate" --version 2>/dev/null | sed -n 's/.*version v\{0,1\}\([0-9][0-9.]*\).*/\1/p' | head -1)
+    [ -n "$found" ] || continue
+    if [ "${found%%.*}" = "$series" ]; then
+      GOLANGCI_LINT_RESOLVED="$candidate"
+      GOLANGCI_LINT_RESOLVED_VERSION="$found"
+      return 0
+    fi
+    log_warning "Ignoring $candidate: version $found is not the pinned ${GOLANGCI_LINT_VERSION} series"
+  done
+  GOLANGCI_LINT_RESOLVED=""
+  GOLANGCI_LINT_RESOLVED_VERSION=""
+  return 1
 }
 
 lint_go() {
@@ -35,31 +65,30 @@ lint_go() {
   fi
   
   log_info "Running golangci-lint..."
-  if command -v golangci-lint >/dev/null 2>&1; then
-    golangci-lint run --timeout="$GOLANGCI_LINT_TIMEOUT" --fix
+  if resolve_golangci_lint; then
+    log_info "Using $GOLANGCI_LINT_RESOLVED (version $GOLANGCI_LINT_RESOLVED_VERSION)"
+    "$GOLANGCI_LINT_RESOLVED" run --timeout=5m --fix
     local exit_code=$?
-    
+
     if [ $exit_code -eq 0 ]; then
       log_success "Lint passed (local)"
       return 0
-    else
-      log_warning "Local lint exit $exit_code, verifying with Docker..."
-      ensure_docker_network
-      docker run --rm --network "$DOCKER_NETWORK" \
-        -v "$(pwd)":/app -w /app \
-        golangci/golangci-lint:v1.62-alpine \
-        golangci-lint run --timeout="$GOLANGCI_LINT_TIMEOUT" --fix
-      return $?
     fi
+    log_warning "Local lint exit $exit_code, verifying with Docker..."
   else
-    log_warning "golangci-lint not installed, using Docker..."
-    ensure_docker_network
-    docker run --rm --network "$DOCKER_NETWORK" \
-      -v "$(pwd)":/app -w /app \
-      golangci/golangci-lint:v1.62-alpine \
-      golangci-lint run --timeout="$GOLANGCI_LINT_TIMEOUT" --fix
-    return $?
+    log_warning "No golangci-lint in the pinned ${GOLANGCI_LINT_VERSION} series found locally, using Docker..."
   fi
+
+  ensure_docker_network
+  docker run --rm --network "$DOCKER_NETWORK" \
+    -v "$(pwd)":/app -w /app \
+    "$GOLANGCI_LINT_IMAGE" \
+    golangci-lint run --timeout=5m --fix
+  local docker_exit=$?
+  if [ $docker_exit -ne 0 ]; then
+    log_error "golangci-lint could not produce a verdict: no pinned-series binary locally and the Docker fallback exited $docker_exit"
+  fi
+  return $docker_exit
 }
 
 lint_dockerfile() {
@@ -80,7 +109,7 @@ lint_dockerfile() {
       ensure_docker_network
       docker run --rm --network "$DOCKER_NETWORK" \
         -v "$(pwd)":/app -w /app \
-        hadolint/hadolint:latest-debian \
+        hadolint/hadolint:v2.12.0-debian \
         hadolint "$dockerfile_path"
       return $?
     fi
@@ -89,7 +118,7 @@ lint_dockerfile() {
     ensure_docker_network
     docker run --rm --network "$DOCKER_NETWORK" \
       -v "$(pwd)":/app -w /app \
-      hadolint/hadolint:latest-debian \
+      hadolint/hadolint:v2.12.0-debian \
       hadolint "$dockerfile_path"
     return $?
   fi
@@ -108,20 +137,64 @@ lint_node() {
   fi
 }
 
+# Top-level acceptance-test function names that must appear as "pass" in every
+# test_go run. Add an entry when a new mandatory integration or concurrency suite
+# is introduced. Remove an entry only when the corresponding test is deleted.
+_BACKEND_V2_REQUIRED_ACCEPTANCE_TESTS=(
+  "TestAddArrayItem_ScopeDocumentSingularity"
+  "TestAddArrayItem_AliasUniquenessUnderConcurrency"
+  "TestCrossTypeAliasValidation"
+)
+
+# Returns 0 when every name in the required-tests list appears as "pass" in the
+# go-test JSON stream written to <json_file>. Logs each absent or non-passing
+# test to stderr and returns 1 if any are missing, failed, or skipped.
+_assert_acceptance_tests_passed() {
+  local json_file="$1"; shift
+  local all_passed=true
+
+  for test_name in "$@"; do
+    if ! grep -F '"Action":"pass"' "$json_file" | grep -qF '"Test":"'"${test_name}"'"'; then
+      log_error "Acceptance test absent or did not pass: ${test_name}"
+      all_passed=false
+    fi
+  done
+
+  [ "$all_passed" = true ]
+}
+
 test_go() {
   local module_path="${1:-.}"
   cd "$module_path" || exit 1
-  
-  log_info "Running Go unit tests..."
+
+  local capture_file
+  capture_file="$(mktemp)"
+
+  log_info "Running Go tests (tags: integration)..."
+
+  local runner_exit
   if command -v go >/dev/null 2>&1; then
-    go test -v ./...
+    go test -tags integration -json ./... 2>&1 | tee "$capture_file"
+    runner_exit="${PIPESTATUS[0]}"
   else
     log_warning "Go not installed, using Docker..."
     ensure_docker_network
     docker run --rm --network "$DOCKER_NETWORK" \
+      --env TEST_MONGO_URI="${TEST_MONGO_URI:-}" \
       -v "$(pwd)":/app -w /app golang:1.23-alpine \
-      go test -v ./...
+      go test -tags integration -json ./... 2>&1 | tee "$capture_file"
+    runner_exit="${PIPESTATUS[0]}"
   fi
+
+  local assert_exit=0
+  if [ "$runner_exit" -eq 0 ]; then
+    _assert_acceptance_tests_passed "$capture_file" "${_BACKEND_V2_REQUIRED_ACCEPTANCE_TESTS[@]}"
+    assert_exit=$?
+  fi
+
+  rm -f "$capture_file"
+  [ "$runner_exit" -ne 0 ] && return "$runner_exit"
+  return "$assert_exit"
 }
 
 test_node() {
@@ -140,12 +213,22 @@ test_node() {
 build_go() {
   local module_path="${1:-.}"
   local binary_name="${2:-service}"
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   cd "$module_path" || exit 1
-  
-  log_info "Building Go binary via Docker..."
+
+  local version
+  version="$("${script_dir}/version.sh")"
+
+  log_info "Building Go binary via Docker (version: ${version})..."
   ensure_docker_network
-  
-  docker build --network "$DOCKER_NETWORK" --target builder -t "${binary_name}-builder" . > /tmp/go-build.log 2>&1 || {
+
+  # --network is honoured only by the legacy builder. Docker defaults to buildkit,
+  # which rejects a custom network mode outright, so select the legacy builder here
+  # rather than inheriting whatever the daemon happens to default to.
+  DOCKER_BUILDKIT=0 docker build --network "$DOCKER_NETWORK" --target builder \
+    --build-arg "BUILD_VERSION=${version}" \
+    -t "${binary_name}-builder" . > /tmp/go-build.log 2>&1 || {
     log_error "Build failed"
     tail -30 /tmp/go-build.log
     return 1
@@ -162,15 +245,20 @@ build_go() {
 
 build_node() {
   local module_path="${1:-.}"
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   cd "$module_path" || exit 1
-  
-  log_info "Building Node.js project..."
-  npm run build > /tmp/node-build.log 2>&1 || {
+
+  local version
+  version="$("${script_dir}/version.sh")"
+
+  log_info "Building Node.js project (version: ${version})..."
+  BUILD_VERSION="${version}" npm run build > /tmp/node-build.log 2>&1 || {
     log_error "Build failed"
     tail -30 /tmp/node-build.log
     return 1
   }
-  
+
   log_success "Build complete"
 }
 
@@ -245,6 +333,73 @@ reclaim_e2e_artefacts() {
   rm -rf backend-v2/e2e/.jest-cache
   rm -rf /tmp/playwright-artifacts-* /tmp/playwright-* 2>/dev/null || true
   log_success "E2E artefacts reclaimed"
+}
+
+check_no_legacy_version_symbols() {
+  local repo_root
+  repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+
+  local patterns=(
+    'BUILD_REVISION'
+    'bakeRevision'
+    'bakedRevision'
+    'buildRevision'
+    'revisionPlugin'
+    'revision-plugin'
+    'build-revision'
+    'probe-revision'
+    'BuildRevision'
+  )
+  local retired_ci_guard_make='check-no-stale-''revision'
+  local retired_ci_guard_shell='check_no_stale_''revision'
+  patterns+=("${retired_ci_guard_make}" "${retired_ci_guard_shell}")
+
+  local pattern
+  pattern="$(IFS='|'; echo "${patterns[*]}")"
+
+  local hits
+  hits=$(grep -rn \
+    --include="*.go" --include="*.ts" --include="*.tsx" \
+    --include="*.js" --include="*.json" --include="*.sh" \
+    --include="Makefile" --include="*.md" \
+    --exclude-dir=node_modules --exclude-dir=dist \
+    --exclude-dir=logs --exclude-dir=.git \
+    --exclude="ci-helpers.sh" \
+    --exclude="TODO.md" \
+    -E "$pattern" \
+    "$repo_root/scripts" \
+    "$repo_root/backend-v2" \
+    "$repo_root/frontend/src" \
+    "$repo_root/frontend/plugins" \
+    "$repo_root/backend/src" \
+    "$repo_root/backend/scripts" \
+    "$repo_root/backend/package.json" \
+    "$repo_root/Makefile" \
+    "$repo_root/.github/docs" \
+    2>/dev/null || true)
+
+  # Also check Dockerfiles (exact filename, not matched by --include)
+  local dockerfile_hits
+  dockerfile_hits=$(grep -rn \
+    --include="Dockerfile" \
+    --exclude-dir=node_modules --exclude-dir=.git \
+    -E "$pattern" \
+    "$repo_root" 2>/dev/null || true)
+
+  local lessons_hits=""
+  if [ -f "$repo_root/.github/docs/lessons-360.md" ]; then
+    lessons_hits=$(grep -n -E "$pattern" "$repo_root/.github/docs/lessons-360.md" 2>/dev/null || true)
+  fi
+
+  local all_hits="${hits}${dockerfile_hits}${lessons_hits}"
+
+  if [ -n "$all_hits" ]; then
+    log_error "Legacy build-version symbols found — rename is incomplete:"
+    echo "$all_hits" >&2
+    return 1
+  fi
+
+  log_success "No legacy build-version symbols found"
 }
 
 if [ -n "$1" ]; then

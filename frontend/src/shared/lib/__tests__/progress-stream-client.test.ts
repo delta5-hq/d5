@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable no-undef */
+
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { ProgressStreamClient } from '../progress-stream-client'
 import type { GenieState } from '@shared/ui/genie'
@@ -13,6 +13,7 @@ describe('ProgressStreamClient', () => {
     onProgressMock = vi.fn()
 
     global.EventSource = vi.fn().mockImplementation(function (this: any) {
+      // eslint-disable-next-line @typescript-eslint/no-this-alias
       mockEventSource = this
       mockEventSource.readyState = 0
       mockEventSource.close = vi.fn(() => {

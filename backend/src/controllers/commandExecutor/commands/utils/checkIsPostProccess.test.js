@@ -24,14 +24,19 @@ describe('checkIsPostProccess', () => {
   })
 
   describe('meta-instruction commands', () => {
-    it('should identify /refine as requiring exclusion', () => {
-      expect(checkIsPostProccess('/refine')).toBeTruthy()
-      expect(checkIsPostProccess('/refine with instructions')).toBeTruthy()
+    it('should identify /elect as requiring exclusion', () => {
+      expect(checkIsPostProccess('/elect')).toBeTruthy()
+      expect(checkIsPostProccess('/elect with instructions')).toBeTruthy()
     })
 
     it('should identify /validate as requiring exclusion', () => {
       expect(checkIsPostProccess('/validate')).toBeTruthy()
       expect(checkIsPostProccess('/validate criteria here')).toBeTruthy()
+    })
+
+    it('should identify /refine as requiring exclusion', () => {
+      expect(checkIsPostProccess('/refine')).toBeTruthy()
+      expect(checkIsPostProccess('/refine :n=3')).toBeTruthy()
     })
   })
 
@@ -74,13 +79,15 @@ describe('checkIsPostProccess', () => {
 
     it('should be case-sensitive', () => {
       expect(checkIsPostProccess('/VALIDATE')).toBeFalsy()
-      expect(checkIsPostProccess('/Refine')).toBeFalsy()
+      expect(checkIsPostProccess('/Elect')).toBeFalsy()
       expect(checkIsPostProccess('/FOREACH')).toBeFalsy()
     })
 
     it('should require exact prefix match', () => {
       expect(checkIsPostProccess('pre/validate')).toBeFalsy()
       expect(checkIsPostProccess(' /validate')).toBeFalsy()
+      expect(checkIsPostProccess('/elective :n=2')).toBeFalsy()
+      expect(checkIsPostProccess('/refinery :n=3')).toBeFalsy()
     })
   })
 })

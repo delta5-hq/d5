@@ -4,6 +4,7 @@ import (
 	"backend-v2/internal/common/constants"
 	"backend-v2/internal/common/dto"
 	"backend-v2/internal/common/response"
+	"backend-v2/internal/common/types"
 	"backend-v2/internal/common/utils"
 	"backend-v2/internal/models"
 	workflowRepo "backend-v2/internal/repositories/workflow"
@@ -24,6 +25,16 @@ type WorkflowController struct {
 	db                 *qmgo.Database
 	mongoClient        *mongo.Client
 	fileLifecycleLocks workflowKeyedMutex
+}
+
+func requireStringLocal(c *fiber.Ctx, key string) (string, bool) {
+	value, ok := c.Locals(key).(string)
+	return value, ok && value != ""
+}
+
+func requireJwtPayload(c *fiber.Ctx) (*types.JwtPayload, bool) {
+	auth, err := utils.GetJwtPayload(c)
+	return auth, err == nil && auth != nil
 }
 
 func NewHandler(service *WorkflowService, db *qmgo.Database, mongoClient *mongo.Client) *WorkflowController {
@@ -128,17 +139,14 @@ func (h *WorkflowController) GetWorkflows(c *fiber.Ctx) error {
 
 // POST /workflows
 func (h *WorkflowController) CreateWorkflow(c *fiber.Ctx) error {
-	userID := c.Locals(constants.ContextUserIDKey)
-
-	if userID == nil {
+	userID, hasUserID := requireStringLocal(c, constants.ContextUserIDKey)
+	if !hasUserID {
 		return response.Unauthorized(c, "Authentication required")
 	}
 
-	userIDStr := userID.(string)
-	auth, err := utils.GetJwtPayload(c)
-
-	if err != nil {
-		return response.InternalError(c, err.Error())
+	auth, hasAuth := requireJwtPayload(c)
+	if !hasAuth {
+		return response.Unauthorized(c, "Authentication required")
 	}
 
 	/* Parse request body for optional fields like title and share */
@@ -163,7 +171,7 @@ func (h *WorkflowController) CreateWorkflow(c *fiber.Ctx) error {
 	}
 
 	workflow, createErr := h.Service.CreateWorkflow(c.Context(), CreateWorkflowDto{
-		UserID: userIDStr,
+		UserID: userID,
 		Title:  title,
 		Auth:   auth,
 		Share:  share,

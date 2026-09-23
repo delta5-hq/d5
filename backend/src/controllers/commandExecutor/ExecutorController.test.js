@@ -14,6 +14,7 @@ jest.mock('./commands/aliases/loadUserAliases')
 jest.mock('./commands/utils/getWorkflowData')
 jest.mock('./commands/MCPCommand')
 jest.mock('./commands/RPCCommand')
+jest.mock('./commands/utils/getWorkflowData')
 jest.mock('../../services/progress-event-emitter', () => ({
   progressEventEmitter: {
     emitStart: jest.fn(),
@@ -30,8 +31,8 @@ describe('ExecutorController', () => {
   getIntegrationSettings.mockResolvedValue({
     openai: {apiKey: 'apiKey', model: 'model'},
   })
-  getLLM.mockResolvedValue({
-    llm: {},
+  getLLM.mockReturnValue({
+    llm: {invoke: (...args) => modelCallSpy(...args)},
   })
   loadUserAliases.mockResolvedValue({
     mcp: [],
@@ -576,7 +577,7 @@ describe('ExecutorController', () => {
   //   expect(responseBody.queryType).toBe(body.queryType)
   // })
 
-  // it('should execute /refine', async () => {
+  // it('should execute /elect', async () => {
   //   const root = {
   //     id: 'r7N6TRJttHd',
   //     x: 0,
@@ -602,13 +603,13 @@ describe('ExecutorController', () => {
   //   const body = {
   //     cell: {
   //       id: 'LQffD2r83pf',
-  //       title: '/refine Write a better story',
+  //       title: '/elect Write a better story',
   //       color: '@salmon-light',
   //       scale: 0.6666666666666666,
   //       width: 280.8,
   //       height: 405.59999999999997,
   //       autoshrink: false,
-  //       command: '/refine Write a better story',
+  //       command: '/elect Write a better story',
   //       prompts: [],
   //       tags: [],
   //       parent: 'r7N6TRJttHd',
@@ -616,19 +617,19 @@ describe('ExecutorController', () => {
   //       y: 140.39999999999998,
   //       children: [],
   //     },
-  //     queryType: 'refine',
+  //     queryType: 'elect',
   //     workflowNodes: {
   //       r7N6TRJttHd: root,
   //       tjbT7M4n2nD: workflowMaterials,
   //       LQffD2r83pf: {
   //         id: 'LQffD2r83pf',
-  //         title: '/refine Write a better story',
+  //         title: '/elect Write a better story',
   //         color: '@salmon-light',
   //         scale: 0.6666666666666666,
   //         width: 280.8,
   //         height: 405.59999999999997,
   //         autoshrink: false,
-  //         command: '/refine Write a better story',
+  //         command: '/elect Write a better story',
   //         prompts: [],
   //         tags: [],
   //         parent: 'r7N6TRJttHd',
@@ -650,13 +651,13 @@ describe('ExecutorController', () => {
   //   expect(responseBody.nodesChanged).toEqual([
   //     {
   //       id: 'LQffD2r83pf',
-  //       title: '/refine Write a better story',
+  //       title: '/elect Write a better story',
   //       color: '@salmon-light',
   //       scale: 0.6666666666666666,
   //       width: 280.8,
   //       height: 405.59999999999997,
   //       autoshrink: false,
-  //       command: '/refine Write a better story',
+  //       command: '/elect Write a better story',
   //       prompts: ['g26fG76b39g'],
   //       tags: [],
   //       parent: 'r7N6TRJttHd',
@@ -673,23 +674,23 @@ describe('ExecutorController', () => {
   //   ])
   //   expect(responseBody.cell.children).toEqual(['g26fG76b39g'])
   //   expect(responseBody.workflowNodes).toHaveProperty('g26fG76b39g')
-  //   expect(responseBody.queryType).toBe('refine')
+  //   expect(responseBody.queryType).toBe('elect')
   // })
 
   /*
    * REMOVED in P0.1: "should maintain output structure when executing steps feedback loop"
    *
-   * The deleted test wrapped a /steps cell containing a legacy /refine cell that
-   * iteratively transformed content via the /chatgpt feedback. Legacy /refine was
+   * The deleted test wrapped a /steps cell containing a legacy /elect cell that
+   * iteratively transformed content via the /chatgpt feedback. Legacy /elect was
    * removed in P0.1; the feedback-loop semantics it provided are now expected to
-   * land via /refine :n=N (P0.3-P0.11) and a /chatgpt-based prompt restructure.
+   * land via /elect :n=N (P0.3-P0.11) and a /chatgpt-based prompt restructure.
    *
    * Surviving architectural coverage:
    *   - /steps orchestration mechanics: runCommand.integrations.test.js (StepsCommand block)
    *   - post-processor priority + recursion: runCommand.postprocess.test.js
    *   - alias resolution + dispatch: this file, "alias resolution and queryType dispatch" describe
    *
-   * A new /steps + /chatgpt + /refine :n=N feedback-loop integration test will be
+   * A new /steps + /chatgpt + /elect :n=N feedback-loop integration test will be
    * added under P0.11 acceptance.
    */
 
@@ -831,14 +832,9 @@ describe('ExecutorController', () => {
         expect(MCPCommand.prototype.run).not.toHaveBeenCalled()
       })
 
-      // /refine has its own protection test (below) because legacy /refine was
-      // removed in P0.1: /refine top-level execution now errors via
-      // "Unknown queryType: refine" (CommandFactory.createRunner default branch).
-      // The security property — alias cannot hijack the dispatch — is still
-      // verified, but via a different response shape (5xx error, not success body).
-      it('should protect /refine from alias override even though top-level /refine is no longer runnable (P0.1)', async () => {
+      it('should protect /elect from alias override even though top-level /elect is a modifier-root error', async () => {
         loadUserAliases.mockResolvedValueOnce({
-          mcp: [{alias: '/refine', name: 'Malicious Override'}],
+          mcp: [{alias: '/elect', name: 'Malicious Override'}],
           rpc: [],
         })
         generateNodeId.mockReturnValueOnce('childId')
@@ -846,18 +842,21 @@ describe('ExecutorController', () => {
         chainCallSpy.mockReturnValueOnce({text: 'Result'})
 
         const body = {
-          ...createTestWorkflow('test-cell', '/refine'),
-          queryType: 'refine',
+          ...createTestWorkflow('test-cell', '/elect'),
+          queryType: 'elect',
         }
 
         const response = await customerRequest.post(apiEndpoint).send(body)
 
         // Security: malicious alias was NOT invoked (the central protection invariant).
         expect(MCPCommand.prototype.run).not.toHaveBeenCalled()
-        // Behavior: top-level /refine errors per P0.1 — returns 200 with error node in body
-        // (UnknownQueryTypeError is surfaced through nodesChanged, not HTTP status).
+        // Behavior: top-level /elect now returns 200 with a visible [✗ !] error
+        // node instead of a 500 — the alias-protection invariant is the security claim
+        // being tested here; the response shape is an observable consequence.
         expect(response.status).toBe(200)
-        expect(JSON.stringify(response.body)).toMatch(/refine/i)
+        const body2 = response.body
+        const changedTitles = (body2?.nodesChanged ?? []).map(n => n.title ?? '')
+        expect(changedTitles.some(t => t.includes('[✗ !]'))).toBe(true)
       })
     })
 
@@ -1052,71 +1051,115 @@ describe('ExecutorController', () => {
           queryType: 'mcp:custom',
         })
       })
+    })
 
-      it.each([
-        ['generic Error', 'tool schema invalid', new Error('tool schema invalid')],
-        [
-          'AbortError',
-          'The operation was aborted',
-          Object.assign(new Error('The operation was aborted'), {name: 'AbortError'}),
-        ],
-      ])(
-        'should return 200 with error node for %s thrown after store is created',
-        async (_errorType, expectedMessage, thrownError) => {
-          loadUserAliases.mockResolvedValueOnce({
-            mcp: [{alias: '/fail', name: 'FailAgent'}],
-            rpc: [],
-          })
-          MCPCommand.prototype.run = jest.fn().mockRejectedValue(thrownError)
+    describe('error handling and execution cancellation', () => {
+      const findErrorNode = nodesChanged => Object.values(nodesChanged ?? {}).find(n => n.title?.startsWith('Error:'))
 
-          const body = {
-            ...createTestWorkflow('cell13', '/fail test'),
+      describe('non-abort runtime errors', () => {
+        it('mints an error node parented to the cell when the command throws after store initialization', async () => {
+          loadUserAliases.mockResolvedValueOnce({mcp: [{alias: '/fail', name: 'FailAgent'}], rpc: []})
+          MCPCommand.prototype.run = jest.fn().mockRejectedValue(new Error('tool schema invalid'))
+
+          const response = await customerRequest.post(apiEndpoint).send({
+            ...createTestWorkflow('cell-err-post', '/fail test'),
             queryType: 'mcp:fail',
-          }
-
-          const response = await customerRequest.post(apiEndpoint).send(body)
+          })
 
           expect(response.status).toBe(200)
-          const errorNode = Object.values(response.body.nodesChanged ?? {}).find(n => n.title?.startsWith('Error:'))
+          const errorNode = findErrorNode(response.body.nodesChanged)
           expect(errorNode).toBeDefined()
-          expect(errorNode.title).toContain(expectedMessage)
-          expect(errorNode.parent).toBe('cell13')
-        },
-      )
+          expect(errorNode.title).toContain('tool schema invalid')
+          expect(errorNode.parent).toBe('cell-err-post')
+        })
 
-      it('should return 200 with error node when getWorkflowData fails before store is initialized', async () => {
-        getWorkflowData.mockRejectedValueOnce(new Error('database unavailable'))
-        generateNodeId.mockReturnValueOnce('pre-store-error-node-id')
+        it('mints a pre-store error node parented to the cell when workflow data cannot be loaded', async () => {
+          getWorkflowData.mockRejectedValueOnce(new Error('database unavailable'))
+          generateNodeId.mockReturnValueOnce('pre-store-error-node-id')
 
-        const {workflowNodes: _wn, ...bodyWithoutNodes} = createTestWorkflow('cell15', '/chatgpt test')
-        const body = {...bodyWithoutNodes, workflowNodes: undefined}
+          const {workflowNodes: _wn, ...body} = createTestWorkflow('cell-err-pre', '/chatgpt test')
+          const response = await customerRequest.post(apiEndpoint).send({...body, workflowNodes: undefined})
 
-        const response = await customerRequest.post(apiEndpoint).send(body)
+          expect(response.status).toBe(200)
+          const errorNode = findErrorNode(response.body.nodesChanged)
+          expect(errorNode).toBeDefined()
+          expect(errorNode.title).toContain('database unavailable')
+          expect(errorNode.parent).toBe('cell-err-pre')
+          expect(response.body.workflowId).toBe('test-workflow')
+          expect(response.body.cell).toBeDefined()
+        })
 
-        expect(response.status).toBe(200)
-        const errorNode = Object.values(response.body.nodesChanged ?? {}).find(n => n.title?.startsWith('Error:'))
-        expect(errorNode).toBeDefined()
-        expect(errorNode.title).toContain('database unavailable')
-        expect(errorNode.parent).toBe('cell15')
-        expect(response.body.workflowId).toBe('test-workflow')
-        expect(response.body.cell).toBeDefined()
+        it('mints a pre-store error node parented to the cell when store initialization fails', async () => {
+          generateNodeId.mockReturnValueOnce('store-ctor-error-node-id')
+
+          const response = await customerRequest.post(apiEndpoint).send({
+            ...createTestWorkflow('cell-err-ctor', '/chatgpt test'),
+            workflowNodes: [],
+          })
+
+          expect(response.status).toBe(200)
+          const errorNode = findErrorNode(response.body.nodesChanged)
+          expect(errorNode).toBeDefined()
+          expect(errorNode.parent).toBe('cell-err-ctor')
+          expect(response.body.workflowId).toBe('test-workflow')
+        })
       })
 
-      it('should return 200 with error node when Store constructor fails before store is initialized', async () => {
-        generateNodeId.mockReturnValueOnce('store-ctor-error-node-id')
+      describe('execution cancellation', () => {
+        const makeAbortError = () => Object.assign(new Error('Operation cancelled'), {name: 'AbortError'})
 
-        const body = {
-          ...createTestWorkflow('cell16', '/chatgpt test'),
-          workflowNodes: [],
-        }
+        it('does not add an error node to the workflow when execution is cancelled mid-run', async () => {
+          loadUserAliases.mockResolvedValueOnce({mcp: [{alias: '/fail', name: 'FailAgent'}], rpc: []})
+          MCPCommand.prototype.run = jest.fn().mockRejectedValue(makeAbortError())
 
-        const response = await customerRequest.post(apiEndpoint).send(body)
+          const response = await customerRequest.post(apiEndpoint).send({
+            ...createTestWorkflow('cell-cancel-mid', '/fail test'),
+            queryType: 'mcp:fail',
+          })
 
-        expect(response.status).toBe(200)
-        const errorNode = Object.values(response.body.nodesChanged ?? {}).find(n => n.title?.startsWith('Error:'))
-        expect(errorNode).toBeDefined()
-        expect(errorNode.parent).toBe('cell16')
-        expect(response.body.workflowId).toBe('test-workflow')
+          expect(response.status).toBe(200)
+          expect(findErrorNode(response.body.nodesChanged)).toBeUndefined()
+        })
+
+        it('does not add an error node to the workflow when execution is cancelled before the store is ready', async () => {
+          getWorkflowData.mockRejectedValueOnce(makeAbortError())
+
+          const {workflowNodes: _wn, ...body} = createTestWorkflow('cell-cancel-early', '/chatgpt test')
+          const response = await customerRequest.post(apiEndpoint).send({...body, workflowNodes: undefined})
+
+          expect(response.status).toBe(200)
+          expect(findErrorNode(response.body.nodesChanged)).toBeUndefined()
+          expect(response.body.workflowId).toBe('test-workflow')
+        })
+
+        it('signals idle state to all viewers when execution is cancelled mid-run', async () => {
+          const {progressEventEmitter} = require('../../services/progress-event-emitter')
+          loadUserAliases.mockResolvedValueOnce({mcp: [{alias: '/fail', name: 'FailAgent'}], rpc: []})
+          MCPCommand.prototype.run = jest.fn().mockRejectedValue(makeAbortError())
+
+          await customerRequest.post(apiEndpoint).send({
+            ...createTestWorkflow('cell-cancel-idle-mid', '/fail test'),
+            queryType: 'mcp:fail',
+          })
+
+          expect(progressEventEmitter.emitComplete).toHaveBeenCalledWith('cell-cancel-idle-mid', {
+            queryType: 'mcp:fail',
+          })
+          expect(progressEventEmitter.emitError).not.toHaveBeenCalled()
+        })
+
+        it('signals idle state to all viewers when execution is cancelled before the store is ready', async () => {
+          const {progressEventEmitter} = require('../../services/progress-event-emitter')
+          getWorkflowData.mockRejectedValueOnce(makeAbortError())
+
+          const {workflowNodes: _wn, ...body} = createTestWorkflow('cell-cancel-idle-early', '/chatgpt test')
+          await customerRequest.post(apiEndpoint).send({...body, workflowNodes: undefined})
+
+          expect(progressEventEmitter.emitComplete).toHaveBeenCalledWith('cell-cancel-idle-early', {
+            queryType: undefined,
+          })
+          expect(progressEventEmitter.emitError).not.toHaveBeenCalled()
+        })
       })
     })
 
@@ -1161,6 +1204,146 @@ describe('ExecutorController', () => {
         await customerRequest.post(apiEndpoint).send(body)
         expect(consoleErrorSpy).toHaveBeenCalledWith(cause)
       })
+
+      it('does not call console.error when execution is cancelled', async () => {
+        loadUserAliases.mockResolvedValueOnce({mcp: [{alias: '/fail', name: 'FailAgent'}], rpc: []})
+        MCPCommand.prototype.run = jest
+          .fn()
+          .mockRejectedValue(Object.assign(new Error('Operation cancelled'), {name: 'AbortError'}))
+        const body = {...createTestWorkflow('cell-abort-quiet', '/fail test'), queryType: 'mcp:fail'}
+        await customerRequest.post(apiEndpoint).send(body)
+        expect(consoleErrorSpy).not.toHaveBeenCalled()
+      })
+    })
+  })
+
+  describe('CriteriaFailedError catch branch — HTTP 200 with nodesChanged', () => {
+    const apiEndpoint = '/execute'
+
+    const buildValidateWorkflow = () => {
+      const root = {
+        id: 'root',
+        x: 0,
+        y: 0,
+        width: 1024,
+        height: 768,
+        parent: null,
+        command: '/chat do task',
+        title: '/chat do task',
+        children: ['v0'],
+      }
+      const validateNode = {
+        id: 'v0',
+        x: 0,
+        y: 0,
+        width: 280,
+        height: 50,
+        parent: 'root',
+        command: '/validate criterion',
+        title: '/validate criterion',
+        children: [],
+      }
+      return {
+        workflowId: 'test-wf',
+        queryType: 'chat',
+        cell: root,
+        workflowNodes: {root, v0: validateNode},
+        workflowFiles: {},
+      }
+    }
+
+    it('returns HTTP 200 (not 500) when validate exhausts retry budget', async () => {
+      const {ChatCommand} = require('./commands/ChatCommand')
+      const {ValidateCommand} = require('./reliability/core/ValidateCommand')
+      const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+      const validateSpy = jest
+        .spyOn(ValidateCommand.prototype, 'run')
+        .mockResolvedValue({passed: false, criterion: 'criterion', reason: 'fail'})
+
+      const response = await customerRequest.post(apiEndpoint).send(buildValidateWorkflow())
+
+      chatSpy.mockRestore()
+      validateSpy.mockRestore()
+
+      expect(response.status).toBe(200)
+    })
+
+    it('returns nodesChanged containing the validate node with failure suffix', async () => {
+      const {ChatCommand} = require('./commands/ChatCommand')
+      const {ValidateCommand} = require('./reliability/core/ValidateCommand')
+      const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+      const validateSpy = jest
+        .spyOn(ValidateCommand.prototype, 'run')
+        .mockResolvedValue({passed: false, criterion: 'criterion', reason: 'fail'})
+
+      const {body} = await customerRequest.post(apiEndpoint).send(buildValidateWorkflow())
+
+      chatSpy.mockRestore()
+      validateSpy.mockRestore()
+
+      const validateChanged = body.nodesChanged?.find(n => n.id === 'v0')
+      expect(validateChanged).toBeDefined()
+      expect(validateChanged.title).toMatch(/\[✗\]/)
+    })
+
+    it('emits emitComplete (not emitError) on CriteriaFailedError', async () => {
+      const {progressEventEmitter} = require('../../services/progress-event-emitter')
+      const {ChatCommand} = require('./commands/ChatCommand')
+      const {ValidateCommand} = require('./reliability/core/ValidateCommand')
+      const chatSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+      const validateSpy = jest
+        .spyOn(ValidateCommand.prototype, 'run')
+        .mockResolvedValue({passed: false, criterion: 'criterion', reason: 'fail'})
+
+      await customerRequest.post(apiEndpoint).send(buildValidateWorkflow())
+
+      chatSpy.mockRestore()
+      validateSpy.mockRestore()
+
+      expect(progressEventEmitter.emitComplete).toHaveBeenCalled()
+      expect(progressEventEmitter.emitError).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('CriteriaFailedError catch branch — HTTP 422 when store not yet initialized', () => {
+    const workflowOnlyId = {
+      workflowId: 'wf-no-nodes',
+      queryType: 'chat',
+      cell: {id: 'root', command: '/chat do task', parent: null, children: [], title: '/chat do task'},
+      workflowFiles: {},
+    }
+
+    it('returns HTTP 422 when CriteriaFailedError is thrown before store initialization', async () => {
+      const {getWorkflowData} = require('./commands/utils/getWorkflowData')
+      const {CriteriaFailedError} = require('./reliability/core/CriteriaFailedError')
+      getWorkflowData.mockRejectedValueOnce(new CriteriaFailedError('criterion', 0))
+
+      const response = await customerRequest.post(apiEndpoint).send(workflowOnlyId)
+
+      expect(response.status).toBe(422)
+    })
+
+    it('emits emitError (not emitComplete) when CriteriaFailedError is thrown before store initialization', async () => {
+      const {progressEventEmitter} = require('../../services/progress-event-emitter')
+      const {getWorkflowData} = require('./commands/utils/getWorkflowData')
+      const {CriteriaFailedError} = require('./reliability/core/CriteriaFailedError')
+      getWorkflowData.mockRejectedValueOnce(new CriteriaFailedError('criterion', 0))
+
+      await customerRequest.post(apiEndpoint).send(workflowOnlyId)
+
+      expect(progressEventEmitter.emitError).toHaveBeenCalled()
+      expect(progressEventEmitter.emitComplete).not.toHaveBeenCalled()
+    })
+
+    it('includes the criterion message in the 422 response body', async () => {
+      const {getWorkflowData} = require('./commands/utils/getWorkflowData')
+      const {CriteriaFailedError} = require('./reliability/core/CriteriaFailedError')
+      getWorkflowData.mockRejectedValueOnce(new CriteriaFailedError('output must mention price', 0))
+
+      const response = await customerRequest.post(apiEndpoint).send(workflowOnlyId)
+
+      expect(response.status).toBe(422)
+      expect(response.text).toContain('output must mention price')
     })
   })
 })

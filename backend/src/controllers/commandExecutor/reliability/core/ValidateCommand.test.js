@@ -1,4 +1,4 @@
-import {ValidateCommand} from './ValidateCommand'
+import {ValidateCommand, parseJurorResponse} from './ValidateCommand'
 import Store from '../../commands/utils/Store'
 
 jest.mock('debug', () => {
@@ -45,6 +45,12 @@ const setupExtractor = content => {
   }))
 }
 
+const runValidation = async nodes => {
+  const store = buildStore(nodes)
+  const cmd = new ValidateCommand('user1', null, store)
+  return cmd.run(store.getNode('v'))
+}
+
 beforeEach(() => {
   jest.clearAllMocks()
   getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'test-key'}})
@@ -52,41 +58,64 @@ beforeEach(() => {
 })
 
 describe('ValidateCommand.run', () => {
-  describe('guard: no parent node → passes silently', () => {
-    it('returns passed when validateNode has no parent field', async () => {
-      const store = buildStore({
-        v: {id: 'v', command: '/validate must include numbers', children: []},
+  describe('target-content availability guards', () => {
+    it.each([
+      [
+        'validate node has no parent field',
+        {
+          v: {
+            id: 'v',
+            command: '/validate must include numbers',
+            children: [],
+          },
+        },
+        'must include numbers',
+      ],
+      [
+        'parent id does not resolve',
+        {
+          v: {
+            id: 'v',
+            parent: 'ghost',
+            command: '/validate criterion',
+            children: [],
+          },
+        },
+        'criterion',
+      ],
+    ])('%s → failed without invoking extractor or LLM', async (_caseName, nodes, criterion) => {
+      const result = await runValidation(nodes)
+      expect(result).toEqual({
+        passed: false,
+        criterion,
+        reason: 'parent cell is missing',
       })
-      setupLLM(['YES'])
-      setupExtractor('')
-      const cmd = new ValidateCommand('user1', null, store)
-      const result = await cmd.run(store.getNode('v'))
-      expect(result.passed).toBe(true)
+      expect(NodeTextExtractor).not.toHaveBeenCalled()
+      expect(getLLM).not.toHaveBeenCalled()
     })
 
-    it('returns passed when parent id does not resolve', async () => {
-      const store = buildStore({
-        v: {id: 'v', parent: 'ghost', command: '/validate criterion', children: []},
-      })
-      setupLLM(['YES'])
-      setupExtractor('')
-      const cmd = new ValidateCommand('user1', null, store)
-      const result = await cmd.run(store.getNode('v'))
-      expect(result.passed).toBe(true)
-    })
-  })
-
-  describe('guard: empty parent content → passes silently', () => {
-    it('returns passed when extractFullContent returns empty string', async () => {
-      const store = buildStore({
+    it.each([
+      ['empty string', ''],
+      ['spaces only', '   '],
+      ['tabs and newlines only', '\n\t  \n'],
+    ])('parent content is %s → failed without invoking LLM', async (_caseName, content) => {
+      setupExtractor(content)
+      const result = await runValidation({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate criterion',
+          children: [],
+        },
       })
-      setupLLM(['NO: missing'])
-      setupExtractor('   ')
-      const cmd = new ValidateCommand('user1', null, store)
-      const result = await cmd.run(store.getNode('v'))
-      expect(result.passed).toBe(true)
+      expect(result).toEqual({
+        passed: false,
+        criterion: 'criterion',
+        reason: 'parent output is empty',
+      })
+      expect(NodeTextExtractor).toHaveBeenCalledTimes(1)
+      expect(getLLM).not.toHaveBeenCalled()
     })
   })
 
@@ -94,7 +123,12 @@ describe('ValidateCommand.run', () => {
     it('YES response → {passed: true}', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate must include numbers', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate must include numbers',
+          children: [],
+        },
       })
       const mockLlm = setupLLM(['YES'])
       setupExtractor('The response contains 42 and other numbers.')
@@ -108,7 +142,12 @@ describe('ValidateCommand.run', () => {
     it('NO response → {passed: false, reason: ...}', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate must include numbers', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate must include numbers',
+          children: [],
+        },
       })
       setupLLM(['NO: no numbers found in the content'])
       setupExtractor('The response has only words.')
@@ -124,7 +163,12 @@ describe('ValidateCommand.run', () => {
     it(':n=3, all YES → passed', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate :n=3 criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate :n=3 criterion',
+          children: [],
+        },
       })
       const mockLlm = setupLLM(['YES', 'YES', 'YES'])
       setupExtractor('good content')
@@ -137,7 +181,12 @@ describe('ValidateCommand.run', () => {
     it(':n=3, all NO → failed', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate :n=3 criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate :n=3 criterion',
+          children: [],
+        },
       })
       setupLLM(['NO: reason A', 'NO: reason B', 'NO: reason C'])
       setupExtractor('bad content')
@@ -150,7 +199,12 @@ describe('ValidateCommand.run', () => {
     it(':n=3, one NO → failed (first failure reported)', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate :n=3 criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate :n=3 criterion',
+          children: [],
+        },
       })
       setupLLM(['YES', 'NO: missing detail', 'YES'])
       setupExtractor('some content')
@@ -163,7 +217,12 @@ describe('ValidateCommand.run', () => {
     it(':n=1 fires exactly one juror call', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate :n=1 criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate :n=1 criterion',
+          children: [],
+        },
       })
       const mockLlm = setupLLM(['YES'])
       setupExtractor('content')
@@ -177,7 +236,12 @@ describe('ValidateCommand.run', () => {
     it('exposes criterion from validate command in result', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate must mention competitors', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate must mention competitors',
+          children: [],
+        },
       })
       setupLLM(['YES'])
       setupExtractor('We analyzed Acme, Globex, and Initech.')
@@ -189,7 +253,12 @@ describe('ValidateCommand.run', () => {
     it('criterion strips :n= and :retry= params', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate :n=2 :retry=1 must cite sources', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate :n=2 :retry=1 must cite sources',
+          children: [],
+        },
       })
       setupLLM(['YES', 'YES'])
       setupExtractor('Sources: [1] Smith 2023')
@@ -203,7 +272,12 @@ describe('ValidateCommand.run', () => {
     it('lowercase "yes" is treated as pass', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate criterion',
+          children: [],
+        },
       })
       setupLLM(['yes'])
       setupExtractor('content')
@@ -215,7 +289,12 @@ describe('ValidateCommand.run', () => {
     it('"YES" with trailing explanation text is treated as pass', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate criterion',
+          children: [],
+        },
       })
       setupLLM(['YES this content satisfies the requirement'])
       setupExtractor('content')
@@ -229,7 +308,12 @@ describe('ValidateCommand.run', () => {
     it('"NO" with no colon or space → reason is the full response text', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate criterion',
+          children: [],
+        },
       })
       setupLLM(['NO'])
       setupExtractor('content')
@@ -239,23 +323,33 @@ describe('ValidateCommand.run', () => {
       expect(result.reason).toBe('NO')
     })
 
-    it('"no:" with colon but empty reason → reason is empty string', async () => {
+    it('"no:" with an empty tail falls back to the raw reply so a reason is always shown', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate criterion',
+          children: [],
+        },
       })
       setupLLM(['no: '])
       setupExtractor('content')
       const cmd = new ValidateCommand('user1', null, store)
       const result = await cmd.run(store.getNode('v'))
       expect(result.passed).toBe(false)
-      expect(result.reason).toBe('')
+      expect(result.reason).toBe('no:')
     })
 
     it('multi-line NO response: only first line treated as reason', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate criterion',
+          children: [],
+        },
       })
       setupLLM(['NO: criterion not met\nAdditional context here'])
       setupExtractor('content')
@@ -270,20 +364,32 @@ describe('ValidateCommand.run', () => {
     it('passes signal to llm.invoke when signal is provided', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate criterion',
+          children: [],
+        },
       })
       const ac = new AbortController()
       const mockLlm = setupLLM(['YES'])
       setupExtractor('content')
       const cmd = new ValidateCommand('user1', null, store)
       await cmd.run(store.getNode('v'), {signal: ac.signal})
-      expect(mockLlm.invoke).toHaveBeenCalledWith(expect.anything(), {signal: ac.signal})
+      expect(mockLlm.invoke).toHaveBeenCalledWith(expect.anything(), {
+        signal: ac.signal,
+      })
     })
 
     it('passes undefined options to llm.invoke when signal is absent', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate criterion',
+          children: [],
+        },
       })
       const mockLlm = setupLLM(['YES'])
       setupExtractor('content')
@@ -293,24 +399,39 @@ describe('ValidateCommand.run', () => {
     })
   })
 
-  describe('juror error → quorum excludes crashed jurors (fail-safe)', () => {
-    it('single juror crashes → passed:false with all-jurors-failed reason', async () => {
+  describe('juror error → any crashed juror surfaces NO_JUDGE_SIGNAL carrying its error text', () => {
+    it('single juror crashes → passed:false with no-judge-signal cause', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate criterion',
+          children: [],
+        },
       })
-      getLLM.mockReturnValue({llm: {invoke: jest.fn().mockRejectedValue(new Error('network timeout'))}})
+      getLLM.mockReturnValue({
+        llm: {
+          invoke: jest.fn().mockRejectedValue(new Error('network timeout')),
+        },
+      })
       setupExtractor('some content')
       const cmd = new ValidateCommand('user1', null, store)
       const result = await cmd.run(store.getNode('v'))
       expect(result.passed).toBe(false)
-      expect(result.reason).toBe('all jurors failed')
+      expect(result.reason).toBe('network timeout')
+      expect(result.failureCause).toBe('no-judge-signal')
     })
 
-    it(':n=3, one juror crashes → surviving two form quorum; YES+YES → passed', async () => {
+    it(':n=3, one juror crashes → the crash is surfaced, not outvoted; YES+YES → still fails', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate :n=3 criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate :n=3 criterion',
+          children: [],
+        },
       })
       let call = 0
       const partialErrorLlm = {
@@ -324,14 +445,21 @@ describe('ValidateCommand.run', () => {
       setupExtractor('good content')
       const cmd = new ValidateCommand('user1', null, store)
       const result = await cmd.run(store.getNode('v'))
-      expect(result.passed).toBe(true)
+      expect(result.passed).toBe(false)
+      expect(result.reason).toBe('timeout')
+      expect(result.failureCause).toBe('no-judge-signal')
       expect(partialErrorLlm.invoke).toHaveBeenCalledTimes(3)
     })
 
-    it(':n=3, one juror crashes → surviving two form quorum; YES+NO → failed', async () => {
+    it(':n=3, one juror crashes → the crash is surfaced ahead of the surviving NO; YES+crash+NO', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate :n=3 criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate :n=3 criterion',
+          children: [],
+        },
       })
       let call = 0
       const partialErrorLlm = {
@@ -347,26 +475,42 @@ describe('ValidateCommand.run', () => {
       const cmd = new ValidateCommand('user1', null, store)
       const result = await cmd.run(store.getNode('v'))
       expect(result.passed).toBe(false)
-      expect(result.reason).toBe('missing detail')
+      expect(result.reason).toBe('timeout')
+      expect(result.failureCause).toBe('no-judge-signal')
     })
 
-    it(':n=3, all jurors crash → passed:false with all-jurors-failed reason', async () => {
+    it(':n=3, all jurors crash → passed:false with no-judge-signal cause', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate :n=3 criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate :n=3 criterion',
+          children: [],
+        },
       })
-      getLLM.mockReturnValue({llm: {invoke: jest.fn().mockRejectedValue(new Error('provider down'))}})
+      getLLM.mockReturnValue({
+        llm: {
+          invoke: jest.fn().mockRejectedValue(new Error('provider down')),
+        },
+      })
       setupExtractor('some content')
       const cmd = new ValidateCommand('user1', null, store)
       const result = await cmd.run(store.getNode('v'))
       expect(result.passed).toBe(false)
-      expect(result.reason).toBe('all jurors failed')
+      expect(result.reason).toBe('provider down')
+      expect(result.failureCause).toBe('no-judge-signal')
     })
 
-    it(':n=3, two jurors crash → single survivor decides; NO → failed', async () => {
+    it(':n=3, two jurors crash → the crash is surfaced regardless of the survivor', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate :n=3 criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate :n=3 criterion',
+          children: [],
+        },
       })
       let call = 0
       const twoErrorLlm = {
@@ -382,15 +526,23 @@ describe('ValidateCommand.run', () => {
       const cmd = new ValidateCommand('user1', null, store)
       const result = await cmd.run(store.getNode('v'))
       expect(result.passed).toBe(false)
-      expect(result.reason).toBe('lone survivor says no')
+      expect(result.reason).toBe('timeout')
+      expect(result.failureCause).toBe('no-judge-signal')
     })
 
     it('all jurors crash → result.criterion is still populated', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate must cite sources', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate must cite sources',
+          children: [],
+        },
       })
-      getLLM.mockReturnValue({llm: {invoke: jest.fn().mockRejectedValue(new Error('error'))}})
+      getLLM.mockReturnValue({
+        llm: {invoke: jest.fn().mockRejectedValue(new Error('error'))},
+      })
       setupExtractor('content')
       const cmd = new ValidateCommand('user1', null, store)
       const result = await cmd.run(store.getNode('v'))
@@ -401,7 +553,12 @@ describe('ValidateCommand.run', () => {
     it('all N juror calls are fired in parallel regardless of partial failures', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate :n=4 criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate :n=4 criterion',
+          children: [],
+        },
       })
       const invokeMock = jest.fn().mockRejectedValue(new Error('timeout'))
       getLLM.mockReturnValue({llm: {invoke: invokeMock}})
@@ -412,11 +569,41 @@ describe('ValidateCommand.run', () => {
     })
   })
 
+  describe('unrecognised juror verdict surfaces VERDICT_UNPARSED, never dropped from quorum', () => {
+    it('single unparsed reply → passed:false with verdict-unparsed cause', async () => {
+      setupExtractor('some content')
+      setupLLM(['The moon is bright tonight.'])
+      const result = await runValidation({
+        parent: {id: 'parent', command: '/chat', children: ['v']},
+        v: {id: 'v', parent: 'parent', command: '/validate criterion', children: []},
+      })
+      expect(result.passed).toBe(false)
+      expect(result.failureCause).toBe('verdict-unparsed')
+      expect(result.reason).toBe('verdict-unparsed')
+    })
+
+    it(':n=2 — one unparsed juror plus one YES still fails (unparsed counted, not abstained)', async () => {
+      setupExtractor('some content')
+      setupLLM(['completely unrecognised', 'YES'])
+      const result = await runValidation({
+        parent: {id: 'parent', command: '/chat', children: ['v']},
+        v: {id: 'v', parent: 'parent', command: '/validate :n=2 criterion', children: []},
+      })
+      expect(result.passed).toBe(false)
+      expect(result.failureCause).toBe('verdict-unparsed')
+    })
+  })
+
   describe('integration settings are forwarded to getLLM', () => {
     it('passes resolved settings to getLLM', async () => {
       const store = buildStore({
         parent: {id: 'parent', command: '/chat', children: ['v']},
-        v: {id: 'v', parent: 'parent', command: '/validate criterion', children: []},
+        v: {
+          id: 'v',
+          parent: 'parent',
+          command: '/validate criterion',
+          children: [],
+        },
       })
       const fakeSettings = {claude: {apiKey: 'claude-key'}}
       getIntegrationSettings.mockResolvedValue(fakeSettings)
@@ -426,5 +613,468 @@ describe('ValidateCommand.run', () => {
       await cmd.run(store.getNode('v'))
       expect(getLLM).toHaveBeenCalledWith(expect.objectContaining({settings: fakeSettings}))
     })
+  })
+})
+
+describe('elect-local validation content', () => {
+  it("when validate parent is /elect with no prompts, walks up to /elect's parent for content", async () => {
+    const store = buildStore({
+      grandparent: {
+        id: 'grandparent',
+        command: '/chat do task',
+        children: ['elect'],
+      },
+      elect: {
+        id: 'elect',
+        parent: 'grandparent',
+        command: '/elect :n=2',
+        children: ['v'],
+      },
+      v: {
+        id: 'v',
+        parent: 'elect',
+        command: '/validate must include numbers',
+        children: [],
+      },
+    })
+    setupLLM(['YES'])
+    // A bare (postfix) /elect has no generated output of its own — its only child is the /validate
+    // assertion, which the extractor skips — so its subtree is empty and resolution walks to the
+    // parent whose output the elect refines. The sequencing (/steps) case, where the elect's step
+    // children DO carry output, is covered by the runCommand /steps suite.
+    const capturedNodes = []
+    NodeTextExtractor.mockImplementation(() => ({
+      extractFullContent: jest.fn().mockImplementation(node => {
+        capturedNodes.push(node)
+        return Promise.resolve(node.id === 'grandparent' ? 'content with 42 numbers' : '')
+      }),
+    }))
+
+    const cmd = new ValidateCommand('user1', null, store)
+    const result = await cmd.run(store.getNode('v'))
+
+    expect(capturedNodes).toContain(store.getNode('grandparent'))
+    expect(result.passed).toBe(true)
+  })
+
+  it('fails when /elect itself yields no content', async () => {
+    const store = buildStore({
+      elect: {id: 'elect', command: '/elect :n=2', children: ['v']},
+      v: {
+        id: 'v',
+        parent: 'elect',
+        command: '/validate must include numbers',
+        children: [],
+      },
+    })
+    setupLLM(['NO: missing'])
+    setupExtractor('')
+
+    const cmd = new ValidateCommand('user1', null, store)
+    const result = await cmd.run(store.getNode('v'))
+    expect(result).toEqual({
+      passed: false,
+      criterion: 'must include numbers',
+      reason: 'parent output is empty',
+    })
+  })
+
+  it('falls through to extractor when /elect has no prompts and grandparent yields empty content', async () => {
+    const store = buildStore({
+      grandparent: {
+        id: 'grandparent',
+        command: '/chat do task',
+        children: ['elect'],
+        prompts: [],
+      },
+      elect: {
+        id: 'elect',
+        parent: 'grandparent',
+        command: '/elect :n=2',
+        children: ['v'],
+        prompts: [],
+      },
+      v: {
+        id: 'v',
+        parent: 'elect',
+        command: '/validate must include numbers',
+        children: [],
+      },
+    })
+    setupLLM(['NO: missing'])
+    NodeTextExtractor.mockImplementation(() => ({
+      extractFullContent: jest.fn().mockResolvedValue(''),
+    }))
+
+    const cmd = new ValidateCommand('user1', null, store)
+    const result = await cmd.run(store.getNode('v'))
+
+    expect(result).toEqual({
+      passed: false,
+      criterion: 'must include numbers',
+      reason: 'parent output is empty',
+    })
+  })
+
+  it('when /elect prompts array has a stale id (node absent from store), falls through to grandparent content', async () => {
+    const store = buildStore({
+      grandparent: {
+        id: 'grandparent',
+        command: '/chat do task',
+        children: ['elect'],
+        prompts: ['grandparent-output'],
+      },
+      'grandparent-output': {
+        id: 'grandparent-output',
+        parent: 'grandparent',
+        title: 'grandparent content with numbers: 42',
+        children: [],
+      },
+      elect: {
+        id: 'elect',
+        parent: 'grandparent',
+        command: '/elect :n=2',
+        children: ['v'],
+        prompts: ['dangling-id'], // stale: node does not exist in store
+      },
+      v: {
+        id: 'v',
+        parent: 'elect',
+        command: '/validate must include numbers',
+        children: [],
+      },
+    })
+    setupLLM(['YES'])
+    NodeTextExtractor.mockImplementation(() => ({
+      extractFullContent: jest.fn().mockImplementation(node => Promise.resolve(node.title ?? '')),
+    }))
+
+    const cmd = new ValidateCommand('user1', null, store)
+    const result = await cmd.run(store.getNode('v'))
+
+    // Stale prompt ID does not resolve in store → hasMaterializedPromptOutput returns false
+    // → falls through to grandparent → receives "grandparent content with numbers: 42"
+    // → juror passes the "must include numbers" criterion
+    expect(result.passed).toBe(true)
+  })
+
+  it('normal topology (validate parent is /chat, not /elect) is unaffected', async () => {
+    const store = buildStore({
+      chat: {id: 'chat', command: '/chat do task', children: ['v']},
+      v: {
+        id: 'v',
+        parent: 'chat',
+        command: '/validate must include numbers',
+        children: [],
+      },
+    })
+    setupLLM(['YES'])
+    let capturedNode
+    NodeTextExtractor.mockImplementation(() => ({
+      extractFullContent: jest.fn().mockImplementation(node => {
+        capturedNode = node
+        return Promise.resolve('content with 42 numbers')
+      }),
+    }))
+
+    const cmd = new ValidateCommand('user1', null, store)
+    await cmd.run(store.getNode('v'))
+
+    expect(capturedNode).toBe(store.getNode('chat'))
+  })
+
+  it('when validate parent is /elect with materialized prompts, validates the winner prompt node — does not walk up to grandparent', async () => {
+    const store = buildStore({
+      grandparent: {
+        id: 'grandparent',
+        command: '/chat do task',
+        children: ['elect'],
+        prompts: ['grandparent-output'],
+      },
+      'grandparent-output': {
+        id: 'grandparent-output',
+        parent: 'grandparent',
+        title: 'grandparent output — must NOT be used',
+        children: [],
+      },
+      elect: {
+        id: 'elect',
+        parent: 'grandparent',
+        command: '/elect :n=2',
+        children: ['v'],
+        prompts: ['elect-winner'],
+      },
+      'elect-winner': {
+        id: 'elect-winner',
+        parent: 'elect',
+        title: 'elect winner content with 42 numbers',
+        children: [],
+      },
+      v: {
+        id: 'v',
+        parent: 'elect',
+        command: '/validate must include numbers',
+        children: [],
+      },
+    })
+    setupLLM(['YES'])
+    const capturedNodes = []
+    NodeTextExtractor.mockImplementation(() => ({
+      extractFullContent: jest.fn().mockImplementation(node => {
+        capturedNodes.push(node)
+        return Promise.resolve(node.title ?? '')
+      }),
+    }))
+
+    const cmd = new ValidateCommand('user1', null, store)
+    const result = await cmd.run(store.getNode('v'))
+
+    const visitedIds = capturedNodes.map(n => n.id)
+    expect(visitedIds).toContain('elect-winner')
+    expect(visitedIds).not.toContain('grandparent-output')
+    expect(result.passed).toBe(true)
+  })
+
+  it('when validate parent is /elect with materialized prompts, a failing criterion discriminates against grandparent content', async () => {
+    const store = buildStore({
+      grandparent: {
+        id: 'grandparent',
+        command: '/chat do task',
+        children: ['elect'],
+        prompts: ['grandparent-output'],
+      },
+      'grandparent-output': {
+        id: 'grandparent-output',
+        parent: 'grandparent',
+        title: 'grandparent content also has numbers: 42',
+        children: [],
+      },
+      elect: {
+        id: 'elect',
+        parent: 'grandparent',
+        command: '/elect :n=2',
+        children: ['v'],
+        prompts: ['elect-winner'],
+      },
+      'elect-winner': {
+        id: 'elect-winner',
+        parent: 'elect',
+        title: 'elect winner output: no digits here',
+        children: [],
+      },
+      v: {
+        id: 'v',
+        parent: 'elect',
+        command: '/validate must include numbers',
+        children: [],
+      },
+    })
+    // grandparent content would pass (has "42"), elect's own output would not (no digits)
+    // the verdict proves which content the judge received
+    setupLLM(['NO: no numbers found'])
+    NodeTextExtractor.mockImplementation(() => ({
+      extractFullContent: jest.fn().mockImplementation(node => Promise.resolve(node.title ?? '')),
+    }))
+
+    const cmd = new ValidateCommand('user1', null, store)
+    const result = await cmd.run(store.getNode('v'))
+
+    expect(result.passed).toBe(false)
+  })
+})
+
+describe('nested /elect: /validate checks nearest-enclosing elect winner, not outer elect', () => {
+  // Structure:
+  //   outerElect (/elect :n=2)
+  //     └── innerElect (/elect :n=2)
+  //           ├── innerWinner  ← the content /validate must check
+  //           └── v (/validate)
+  //   outerWinner ← outer elect's winner; must NOT be used by v
+  //
+  // Criterion: "must contain INNER" passes for innerWinner, fails for outerWinner.
+  // If the walk-up logic mistakenly escapes to outerElect's prompts, the test sees outerWinner's
+  // content and the juror response doesn't match — a discriminating failure.
+
+  it('passes on inner-elect winner content and would fail on outer-elect content', async () => {
+    const store = buildStore({
+      outerElect: {
+        id: 'outerElect',
+        command: '/elect :n=2',
+        children: ['innerElect'],
+        prompts: ['outerWinner'],
+        parent: null,
+      },
+      outerWinner: {
+        id: 'outerWinner',
+        parent: 'outerElect',
+        title: 'outer elect winner: OUTER content only',
+        children: [],
+      },
+      innerElect: {
+        id: 'innerElect',
+        parent: 'outerElect',
+        command: '/elect :n=2',
+        children: ['v'],
+        prompts: ['innerWinner'],
+      },
+      innerWinner: {
+        id: 'innerWinner',
+        parent: 'innerElect',
+        title: 'inner elect winner: INNER content',
+        children: [],
+      },
+      v: {
+        id: 'v',
+        parent: 'innerElect',
+        command: '/validate must contain INNER',
+        children: [],
+      },
+    })
+
+    setupLLM(['YES'])
+    NodeTextExtractor.mockImplementation(() => ({
+      extractFullContent: jest.fn().mockImplementation(node => Promise.resolve(node.title ?? '')),
+    }))
+
+    const cmd = new ValidateCommand('user1', null, store)
+    const result = await cmd.run(store.getNode('v'))
+
+    // Passes because innerWinner's title contains "INNER".
+    // Would fail if the outer winner ("OUTER content only") were used instead.
+    expect(result.passed).toBe(true)
+  })
+
+  it('fails when inner-elect winner does not satisfy the criterion, even if outer winner would pass', async () => {
+    const store = buildStore({
+      outerElect: {
+        id: 'outerElect',
+        command: '/elect :n=2',
+        children: ['innerElect'],
+        prompts: ['outerWinner'],
+        parent: null,
+      },
+      outerWinner: {
+        id: 'outerWinner',
+        parent: 'outerElect',
+        title: 'outer winner has INNER too — must not mislead the validate',
+        children: [],
+      },
+      innerElect: {
+        id: 'innerElect',
+        parent: 'outerElect',
+        command: '/elect :n=2',
+        children: ['v'],
+        prompts: ['innerWinner'],
+      },
+      innerWinner: {
+        id: 'innerWinner',
+        parent: 'innerElect',
+        title: 'inner winner: only OUTER keyword here',
+        children: [],
+      },
+      v: {
+        id: 'v',
+        parent: 'innerElect',
+        command: '/validate must contain INNER',
+        children: [],
+      },
+    })
+
+    setupLLM(['NO: keyword INNER not found'])
+    NodeTextExtractor.mockImplementation(() => ({
+      extractFullContent: jest.fn().mockImplementation(node => Promise.resolve(node.title ?? '')),
+    }))
+
+    const cmd = new ValidateCommand('user1', null, store)
+    const result = await cmd.run(store.getNode('v'))
+
+    // Fails because innerWinner's title does NOT contain "INNER".
+    // The outer winner's title does — proving the test would give a false PASS
+    // if the outer elect's content were used. This discriminates the two paths.
+    expect(result.passed).toBe(false)
+  })
+})
+
+describe('parseJurorResponse — juror verdict is a gate predicate (only a recognised affirmation passes)', () => {
+  it.each([
+    ['**YES**'],
+    ['Answer: YES'],
+    ['yes.'],
+    ['YES: the reply is non-empty'],
+    ['  YES'],
+    ['> YES, it satisfies the criterion'],
+    ['PASS'],
+    ['true'],
+    ['correct.'],
+    ['affirmative'],
+  ])('affirmation passes: %s', reply => {
+    expect(parseJurorResponse(reply).passed).toBe(true)
+  })
+
+  it.each([
+    ['The content does not satisfy the criterion.'],
+    ['Nope.'],
+    ['Negative: the content is empty.'],
+    ['FAIL: empty output'],
+    ['NO: missing revenue figures'],
+    ['I am not sure'],
+    ['maybe'],
+    ['false: broken output'],
+    ['incorrect: nope'],
+    ['failed: bad response'],
+    ['Correct format, but the content is empty, so NO.'],
+    ['Passed the format check but failed the emptiness check.'],
+    ['True negative: the content is empty.'],
+    ['Criterion not satisfied: yes the reply is empty'],
+    ['Verdict: PASSED'],
+    ['TRUE: satisfies the criterion'],
+    [''],
+  ])('non-affirmation fails (never abstains): %s', reply => {
+    const result = parseJurorResponse(reply)
+    expect(result.passed).toBe(false)
+    expect(result.passed).not.toBeNull()
+  })
+
+  it.each([
+    ['NO: correct format but missing data'],
+    ['No: passed structure but empty body'],
+    ['FAIL: passed the schema check but the body is empty'],
+  ])('a negative verdict whose reason opens with an affirmative word still fails: %s', reply => {
+    const result = parseJurorResponse(reply)
+    expect(result.passed).toBe(false)
+  })
+
+  it('surfaces the negative reason even when that reason opens with an affirmative word', () => {
+    expect(parseJurorResponse('NO: correct format but missing data').reason).toBe('correct format but missing data')
+  })
+
+  it('a labelled or noisy affirmation is recognised but the verdict token is never consumed as a label', () => {
+    expect(parseJurorResponse('YES: reason follows').passed).toBe(true)
+    expect(parseJurorResponse('Answer: NO because empty').passed).toBe(false)
+  })
+
+  it('surfaces a genuine NO reason, and the raw reply for an unrecognised verdict', () => {
+    expect(parseJurorResponse('NO: missing revenue figures').reason).toBe('missing revenue figures')
+    expect(parseJurorResponse('Negative: the content is empty.').reason).toBe('the content is empty.')
+    expect(parseJurorResponse('gibberish verdict').reason).toBe('gibberish verdict')
+    expect(parseJurorResponse('NO').reason).toBe('NO')
+  })
+
+  it('accepts a message object shape and never returns the null crash sentinel', () => {
+    expect(parseJurorResponse({content: '**YES**'}).passed).toBe(true)
+    expect(parseJurorResponse({content: 'whatever'}).passed).toBe(false)
+    expect(parseJurorResponse('anything').passed).not.toBeNull()
+  })
+
+  it.each([
+    ['null', null],
+    ['undefined', undefined],
+    ['empty object', {}],
+    ['object with null content', {content: null}],
+    ['non-string primitive', 42],
+  ])('an input carrying no readable verdict (%s) fails without abstaining', (_label, raw) => {
+    const result = parseJurorResponse(raw)
+    expect(result.passed).toBe(false)
+    expect(result.passed).not.toBeNull()
   })
 })

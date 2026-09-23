@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateId, generateNodeId, generateEdgeId, generateUniqueNodeId } from './generate-id'
+import { generateId, generateNodeId, generateSessionId, generateEdgeId, generateUniqueNodeId } from './generate-id'
 
 describe('generateId', () => {
   it('returns non-empty string', () => {
@@ -22,6 +22,27 @@ describe('generateNodeId', () => {
     const id = generateNodeId()
     expect(typeof id).toBe('string')
     expect(id.length).toBeGreaterThan(0)
+  })
+})
+
+describe('generateSessionId', () => {
+  it('returns a non-empty string', () => {
+    const id = generateSessionId()
+    expect(typeof id).toBe('string')
+    expect(id.length).toBeGreaterThan(0)
+  })
+
+  it('generates an id without crypto.randomUUID available', () => {
+    const original = globalThis.crypto.randomUUID
+    Object.defineProperty(globalThis.crypto, 'randomUUID', { value: undefined, configurable: true })
+
+    try {
+      const id = generateSessionId()
+      expect(typeof id).toBe('string')
+      expect(id.length).toBeGreaterThan(0)
+    } finally {
+      Object.defineProperty(globalThis.crypto, 'randomUUID', { value: original, configurable: true })
+    }
   })
 })
 

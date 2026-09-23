@@ -1,349 +1,237 @@
 import StreamBridge from './StreamBridge'
 import {StreamEvent} from './StreamEvent'
 
-describe('StreamBridge', () => {
-  afterEach(() => {
-    for (const [id] of StreamBridge.sessions) {
-      StreamBridge.closeSession(id)
-    }
+afterEach(() => {
+  for (const [id] of StreamBridge.sessions) {
+    StreamBridge.closeSession(id)
+  }
+  jest.restoreAllMocks()
+})
+
+describe('getOrCreateSession', () => {
+  it('should create a new session when none exists for the given id', () => {
+    const s = StreamBridge.getOrCreateSession('s1')
+    expect(s).toBeDefined()
+    expect(s.id).toBe('s1')
+    expect(StreamBridge.hasSession('s1')).toBe(true)
   })
 
-  describe('createSession', () => {
-    it('should create new session with ID', () => {
-      const session = StreamBridge.createSession('test-1')
-
-      expect(session).toBeDefined()
-      expect(session.id).toBe('test-1')
-      expect(StreamBridge.hasSession('test-1')).toBe(true)
-    })
-
-    it('should close existing session with same ID before creating new one', () => {
-      const session1 = StreamBridge.createSession('test-1')
-      const closeSpy = jest.spyOn(session1, 'close')
-
-      const session2 = StreamBridge.createSession('test-1')
-
-      expect(closeSpy).toHaveBeenCalled()
-      expect(session1.active).toBe(false)
-      expect(session2.active).toBe(true)
-      expect(StreamBridge.getSession('test-1')).toBe(session2)
-    })
-
-    it('should support multiple concurrent sessions with different IDs', () => {
-      const session1 = StreamBridge.createSession('id-1')
-      const session2 = StreamBridge.createSession('id-2')
-      const session3 = StreamBridge.createSession('id-3')
-
-      expect(StreamBridge.hasSession('id-1')).toBe(true)
-      expect(StreamBridge.hasSession('id-2')).toBe(true)
-      expect(StreamBridge.hasSession('id-3')).toBe(true)
-      expect(session1).not.toBe(session2)
-      expect(session2).not.toBe(session3)
-    })
-
-    it('should handle rapid session creation with same ID', () => {
-      for (let i = 0; i < 10; i++) {
-        StreamBridge.createSession('rapid-test')
-      }
-
-      expect(StreamBridge.hasSession('rapid-test')).toBe(true)
-      expect(StreamBridge.sessions.size).toBe(1)
-    })
+  it('should return the same session on repeated calls — idempotent', () => {
+    const a = StreamBridge.getOrCreateSession('s1')
+    const b = StreamBridge.getOrCreateSession('s1')
+    expect(a).toBe(b)
   })
 
-  describe('getSession', () => {
-    it('should return session by ID', () => {
-      const session = StreamBridge.createSession('test-1')
-      const retrieved = StreamBridge.getSession('test-1')
-
-      expect(retrieved).toBe(session)
-    })
-
-    it('should return undefined for non-existent session', () => {
-      const retrieved = StreamBridge.getSession('non-existent')
-
-      expect(retrieved).toBeUndefined()
-    })
-
-    it('should return different sessions for different IDs', () => {
-      const session1 = StreamBridge.createSession('id-1')
-      const session2 = StreamBridge.createSession('id-2')
-
-      expect(StreamBridge.getSession('id-1')).toBe(session1)
-      expect(StreamBridge.getSession('id-2')).toBe(session2)
-      expect(StreamBridge.getSession('id-1')).not.toBe(session2)
-    })
+  it('should create a fresh session when the existing one is no longer alive', () => {
+    const a = StreamBridge.getOrCreateSession('s1')
+    a.close()
+    const b = StreamBridge.getOrCreateSession('s1')
+    expect(b).not.toBe(a)
+    expect(b.isAlive()).toBe(true)
   })
 
-  describe('hasSession', () => {
-    it('should return true for existing session', () => {
-      StreamBridge.createSession('test-1')
+  it('should support any number of concurrent sessions with distinct ids', () => {
+    StreamBridge.getOrCreateSession('a')
+    StreamBridge.getOrCreateSession('b')
+    StreamBridge.getOrCreateSession('c')
+    expect(StreamBridge.hasSession('a')).toBe(true)
+    expect(StreamBridge.hasSession('b')).toBe(true)
+    expect(StreamBridge.hasSession('c')).toBe(true)
+  })
+})
 
-      expect(StreamBridge.hasSession('test-1')).toBe(true)
-    })
-
-    it('should return false for non-existent session', () => {
-      expect(StreamBridge.hasSession('non-existent')).toBe(false)
-    })
-
-    it('should return false after session is closed', () => {
-      StreamBridge.createSession('test-1')
-      StreamBridge.closeSession('test-1')
-
-      expect(StreamBridge.hasSession('test-1')).toBe(false)
-    })
-
-    it('should handle empty string session ID', () => {
-      StreamBridge.createSession('')
-
-      expect(StreamBridge.hasSession('')).toBe(true)
-    })
+describe('getSession', () => {
+  it('should return the session object for a known id', () => {
+    const s = StreamBridge.getOrCreateSession('s1')
+    expect(StreamBridge.getSession('s1')).toBe(s)
   })
 
-  describe('emit', () => {
-    it('should emit event to existing session', () => {
-      const session = StreamBridge.createSession('test-1')
-      const writeSpy = jest.spyOn(session, 'write')
-      const event = StreamEvent.progress('test')
+  it('should return undefined for an unknown id', () => {
+    expect(StreamBridge.getSession('missing')).toBeUndefined()
+  })
+})
 
-      const result = StreamBridge.emit('test-1', event)
+describe('hasSession', () => {
+  it('should return true for an existing session', () => {
+    StreamBridge.getOrCreateSession('s1')
+    expect(StreamBridge.hasSession('s1')).toBe(true)
+  })
 
-      expect(result).toBe(true)
-      expect(writeSpy).toHaveBeenCalledWith(event)
+  it('should return false for an unknown id', () => {
+    expect(StreamBridge.hasSession('nope')).toBe(false)
+  })
+
+  it('should return false after the session is closed via closeSession', () => {
+    StreamBridge.getOrCreateSession('s1')
+    StreamBridge.closeSession('s1')
+    expect(StreamBridge.hasSession('s1')).toBe(false)
+  })
+})
+
+describe('emit', () => {
+  it('should write the event to the session and return true', () => {
+    const s = StreamBridge.getOrCreateSession('s1')
+    const writeSpy = jest.spyOn(s, 'write').mockReturnValue(true)
+    expect(StreamBridge.emit('s1', StreamEvent.progress('x'))).toBe(true)
+    expect(writeSpy).toHaveBeenCalled()
+  })
+
+  it('should return false for an unknown session id', () => {
+    const result = StreamBridge.emit('ghost', StreamEvent.progress('x'))
+    expect(result).toBe(false)
+  })
+
+  it('should return false when the session was removed by closeSession', () => {
+    StreamBridge.getOrCreateSession('s1')
+    StreamBridge.closeSession('s1')
+    expect(StreamBridge.emit('s1', StreamEvent.progress('x'))).toBe(false)
+  })
+
+  it('should return false when the session is in the map but has been closed directly', () => {
+    const s = StreamBridge.getOrCreateSession('s1')
+    s.close()
+    expect(StreamBridge.emit('s1', StreamEvent.progress('x'))).toBe(false)
+  })
+
+  it('should deliver events to a reader attached to the session', done => {
+    StreamBridge.getOrCreateSession('s1')
+    const stream = StreamBridge.attachReader('s1')
+    const chunks = []
+    stream.on('data', c => chunks.push(c.toString()))
+
+    StreamBridge.emit('s1', StreamEvent.progress('hello'))
+    StreamBridge.closeSession('s1')
+
+    stream.on('end', () => {
+      expect(chunks.join('')).toContain('hello')
+      done()
     })
+  })
+})
 
-    it('should return false for non-existent session', () => {
-      const event = StreamEvent.progress('test')
-      const result = StreamBridge.emit('non-existent', event)
+describe('attachReader', () => {
+  it('should return a readable stream for an existing session', () => {
+    StreamBridge.getOrCreateSession('s1')
+    const stream = StreamBridge.attachReader('s1')
+    expect(typeof stream.pipe).toBe('function')
+    StreamBridge.closeSession('s1')
+  })
 
-      expect(result).toBe(false)
-    })
+  it('should create the session when no writer has reserved it yet (GET-before-POST)', done => {
+    const stream = StreamBridge.attachReader('new-session')
+    const chunks = []
+    stream.on('data', c => chunks.push(c.toString()))
 
-    it('should return false for closed session', () => {
-      StreamBridge.createSession('test-1')
-      StreamBridge.closeSession('test-1')
+    StreamBridge.emit('new-session', StreamEvent.progress('written-after-attach'))
+    StreamBridge.closeSession('new-session')
 
-      const event = StreamEvent.progress('test')
-      const result = StreamBridge.emit('test-1', event)
-
-      expect(result).toBe(false)
-    })
-
-    it('should return result from session write', () => {
-      const session = StreamBridge.createSession('test-1')
-      jest.spyOn(session, 'write').mockReturnValue(false)
-
-      const result = StreamBridge.emit('test-1', StreamEvent.progress('test'))
-
-      expect(result).toBe(false)
-    })
-
-    it('should handle multiple events to same session', () => {
-      StreamBridge.createSession('test-1')
-      const events = [StreamEvent.progress('event1'), StreamEvent.update({data: 1}), StreamEvent.progress('event2')]
-
-      const results = events.map(e => StreamBridge.emit('test-1', e))
-
-      expect(results.every(r => r === true)).toBe(true)
-    })
-
-    it('should isolate events between sessions', () => {
-      const session1 = StreamBridge.createSession('id-1')
-      const session2 = StreamBridge.createSession('id-2')
-      const spy1 = jest.spyOn(session1, 'write')
-      const spy2 = jest.spyOn(session2, 'write')
-
-      StreamBridge.emit('id-1', StreamEvent.progress('to session 1'))
-
-      expect(spy1).toHaveBeenCalled()
-      expect(spy2).not.toHaveBeenCalled()
+    stream.on('end', () => {
+      expect(chunks.join('')).toContain('written-after-attach')
+      done()
     })
   })
 
-  describe('closeSession', () => {
-    it('should close and remove session', () => {
-      const session = StreamBridge.createSession('test-1')
-      const closeSpy = jest.spyOn(session, 'close')
+  it('should replay events buffered before the reader attached (POST-before-GET)', done => {
+    StreamBridge.getOrCreateSession('s1')
+    StreamBridge.emit('s1', StreamEvent.progress('pre-attach'))
 
-      StreamBridge.closeSession('test-1')
+    const stream = StreamBridge.attachReader('s1')
+    const chunks = []
+    stream.on('data', c => chunks.push(c.toString()))
+    StreamBridge.closeSession('s1')
 
-      expect(closeSpy).toHaveBeenCalled()
-      expect(session.active).toBe(false)
-      expect(StreamBridge.hasSession('test-1')).toBe(false)
-    })
-
-    it('should be safe to call on non-existent session', () => {
-      expect(() => {
-        StreamBridge.closeSession('non-existent')
-      }).not.toThrow()
-    })
-
-    it('should be idempotent', () => {
-      StreamBridge.createSession('test-1')
-
-      StreamBridge.closeSession('test-1')
-      StreamBridge.closeSession('test-1')
-      StreamBridge.closeSession('test-1')
-
-      expect(StreamBridge.hasSession('test-1')).toBe(false)
-    })
-
-    it('should only close specified session', () => {
-      StreamBridge.createSession('id-1')
-      StreamBridge.createSession('id-2')
-
-      StreamBridge.closeSession('id-1')
-
-      expect(StreamBridge.hasSession('id-1')).toBe(false)
-      expect(StreamBridge.hasSession('id-2')).toBe(true)
+    stream.on('end', () => {
+      expect(chunks.join('')).toContain('pre-attach')
+      done()
     })
   })
 
-  describe('cleanup', () => {
-    it('should remove dead sessions', () => {
-      const session1 = StreamBridge.createSession('test-1')
-      const session2 = StreamBridge.createSession('test-2')
+  it('should replay only events emitted after lastEventId on reconnect', done => {
+    StreamBridge.getOrCreateSession('s1')
+    StreamBridge.emit('s1', StreamEvent.progress('e1'))
+    StreamBridge.emit('s1', StreamEvent.progress('e2'))
+    StreamBridge.emit('s1', StreamEvent.progress('e3'))
 
-      session1.close()
+    const stream = StreamBridge.attachReader('s1', 2)
+    const chunks = []
+    stream.on('data', c => chunks.push(c.toString()))
+    StreamBridge.closeSession('s1')
 
-      StreamBridge.cleanup()
-
-      expect(StreamBridge.hasSession('test-1')).toBe(false)
-      expect(StreamBridge.hasSession('test-2')).toBe(true)
-      expect(session2.active).toBe(true)
-    })
-
-    it('should handle destroyed streams', () => {
-      const session = StreamBridge.createSession('test-1')
-      session.stream.destroy()
-
-      StreamBridge.cleanup()
-
-      expect(StreamBridge.hasSession('test-1')).toBe(false)
-    })
-
-    it('should not affect alive sessions', () => {
-      const session1 = StreamBridge.createSession('alive-1')
-      const session2 = StreamBridge.createSession('alive-2')
-
-      StreamBridge.cleanup()
-
-      expect(StreamBridge.hasSession('alive-1')).toBe(true)
-      expect(StreamBridge.hasSession('alive-2')).toBe(true)
-      expect(session1.active).toBe(true)
-      expect(session2.active).toBe(true)
-    })
-
-    it('should handle mixed alive and dead sessions', () => {
-      StreamBridge.createSession('alive-1')
-      const dead1 = StreamBridge.createSession('dead-1')
-      StreamBridge.createSession('alive-2')
-      const dead2 = StreamBridge.createSession('dead-2')
-
-      dead1.close()
-      dead2.stream.destroy()
-
-      StreamBridge.cleanup()
-
-      expect(StreamBridge.hasSession('alive-1')).toBe(true)
-      expect(StreamBridge.hasSession('dead-1')).toBe(false)
-      expect(StreamBridge.hasSession('alive-2')).toBe(true)
-      expect(StreamBridge.hasSession('dead-2')).toBe(false)
-    })
-
-    it('should not throw on empty session map', () => {
-      expect(() => {
-        StreamBridge.cleanup()
-      }).not.toThrow()
+    stream.on('end', () => {
+      const body = chunks.join('')
+      expect(body).not.toContain('"message":"e1"')
+      expect(body).not.toContain('"message":"e2"')
+      expect(body).toContain('"message":"e3"')
+      done()
     })
   })
 
-  describe('shutdown', () => {
-    it('should close all active sessions', () => {
-      const session1 = StreamBridge.createSession('id-1')
-      const session2 = StreamBridge.createSession('id-2')
-      const spy1 = jest.spyOn(session1, 'close')
-      const spy2 = jest.spyOn(session2, 'close')
+  it('should treat lastEventId 0 as a valid replay point and replay all subsequent events', done => {
+    StreamBridge.getOrCreateSession('s1')
+    StreamBridge.emit('s1', StreamEvent.progress('e1'))
+    StreamBridge.emit('s1', StreamEvent.progress('e2'))
 
-      StreamBridge.shutdown()
+    const stream = StreamBridge.attachReader('s1', 0)
+    const chunks = []
+    stream.on('data', c => chunks.push(c.toString()))
+    StreamBridge.closeSession('s1')
 
-      expect(spy1).toHaveBeenCalled()
-      expect(spy2).toHaveBeenCalled()
-    })
-
-    it('should clear cleanup interval', () => {
-      const clearIntervalSpy = jest.spyOn(global, 'clearInterval')
-      const interval = StreamBridge.cleanupInterval
-
-      StreamBridge.shutdown()
-
-      expect(clearIntervalSpy).toHaveBeenCalledWith(interval)
-    })
-
-    it('should clear all sessions from map', () => {
-      StreamBridge.createSession('id-1')
-      StreamBridge.createSession('id-2')
-      StreamBridge.createSession('id-3')
-
-      StreamBridge.shutdown()
-
-      expect(StreamBridge.sessions.size).toBe(0)
-    })
-
-    it('should be safe to call multiple times', () => {
-      expect(() => {
-        StreamBridge.shutdown()
-        StreamBridge.shutdown()
-      }).not.toThrow()
+    stream.on('end', () => {
+      const body = chunks.join('')
+      expect(body).toContain('"message":"e1"')
+      expect(body).toContain('"message":"e2"')
+      done()
     })
   })
+})
 
-  describe('singleton behavior', () => {
-    it('should maintain state across imports', () => {
-      const session = StreamBridge.createSession('singleton-test')
-
-      expect(StreamBridge.hasSession('singleton-test')).toBe(true)
-      expect(StreamBridge.getSession('singleton-test')).toBe(session)
-    })
-
-    it('should share session map across operations', () => {
-      StreamBridge.createSession('shared-1')
-      StreamBridge.createSession('shared-2')
-
-      expect(StreamBridge.sessions.size).toBe(2)
-
-      StreamBridge.closeSession('shared-1')
-
-      expect(StreamBridge.sessions.size).toBe(1)
-    })
+describe('closeSession', () => {
+  it('should remove the session from the registry', () => {
+    StreamBridge.getOrCreateSession('s1')
+    StreamBridge.closeSession('s1')
+    expect(StreamBridge.hasSession('s1')).toBe(false)
   })
 
-  describe('edge cases', () => {
-    it('should handle rapid session create/close cycles', () => {
-      for (let i = 0; i < 100; i++) {
-        StreamBridge.createSession('rapid')
-        StreamBridge.closeSession('rapid')
-      }
+  it('should be a no-op for an unknown id', () => {
+    expect(() => StreamBridge.closeSession('ghost')).not.toThrow()
+  })
+})
 
-      expect(StreamBridge.hasSession('rapid')).toBe(false)
-    })
+describe('cleanup', () => {
+  it('should remove sessions that are no longer alive', () => {
+    const s = StreamBridge.getOrCreateSession('s1')
+    s.close()
+    StreamBridge.cleanup()
+    expect(StreamBridge.hasSession('s1')).toBe(false)
+  })
 
-    it('should handle session IDs with special characters', () => {
-      const specialIds = ['test-123', 'test_456', 'test.789', 'test@abc', 'test:xyz']
+  it('should remove sessions that exceed the stale threshold', () => {
+    const s = StreamBridge.getOrCreateSession('s1')
+    s.createdAt = Date.now() - 6 * 60 * 1000
+    StreamBridge.cleanup()
+    expect(StreamBridge.hasSession('s1')).toBe(false)
+  })
 
-      specialIds.forEach(id => {
-        StreamBridge.createSession(id)
-        expect(StreamBridge.hasSession(id)).toBe(true)
-        StreamBridge.closeSession(id)
-      })
-    })
+  it('should keep sessions that are alive and within the stale threshold', () => {
+    StreamBridge.getOrCreateSession('s1')
+    StreamBridge.cleanup()
+    expect(StreamBridge.hasSession('s1')).toBe(true)
+  })
 
-    it('should handle very long session IDs', () => {
-      const longId = 'x'.repeat(1000)
+  it('should not throw when no sessions are registered', () => {
+    expect(() => StreamBridge.cleanup()).not.toThrow()
+  })
+})
 
-      StreamBridge.createSession(longId)
+describe('shutdown', () => {
+  it('should close all sessions and clear the registry', () => {
+    StreamBridge.getOrCreateSession('x1')
+    StreamBridge.getOrCreateSession('x2')
+    StreamBridge.shutdown()
+    expect(StreamBridge.sessions.size).toBe(0)
+  })
 
-      expect(StreamBridge.hasSession(longId)).toBe(true)
-    })
+  it('should be callable when no sessions exist', () => {
+    expect(() => StreamBridge.shutdown()).not.toThrow()
   })
 })

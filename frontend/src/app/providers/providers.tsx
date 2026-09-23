@@ -1,6 +1,5 @@
-import { IntlProvider } from 'react-intl'
 import { ThemeProvider } from '@shared/lib/theme-provider'
-import messages from '@shared/lib/intl'
+import { LocaleProvider } from '@shared/lib/intl/locale-context'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from '@shared/ui/sonner'
 import { DialogProvider } from '@entities/dialog'
@@ -14,7 +13,7 @@ const queryClient = new QueryClient()
 
 const Providers = () => (
   <ThemeProvider>
-    <IntlProvider locale="en" messages={messages.en}>
+    <LocaleProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <AliasProvider>
@@ -29,7 +28,7 @@ const Providers = () => (
         </AuthProvider>
       </QueryClientProvider>
       <Toaster position="bottom-left" />
-    </IntlProvider>
+    </LocaleProvider>
   </ThemeProvider>
 )
 

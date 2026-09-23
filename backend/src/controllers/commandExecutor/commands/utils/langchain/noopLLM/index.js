@@ -2,10 +2,16 @@ import {NoopChatModel} from './NoopChatModel'
 import {NoopEmbeddings} from './NoopEmbeddings'
 import {planResponse} from './ResponsePlanner'
 import {synthesizeForkContent} from './ForkContentSynthesizer'
+import {assertGeneratorAllowed} from './MockFailurePolicy'
 
 const DEFAULT_CHUNK_SIZE = 4000
 
-const plan = messages => planResponse(messages, synthesizeForkContent)
+const synthesizeWithFailurePolicy = corpus => {
+  assertGeneratorAllowed()
+  return synthesizeForkContent(corpus)
+}
+
+const plan = messages => planResponse(messages, synthesizeWithFailurePolicy)
 
 export const createNoopLLM = () => ({
   llm: new NoopChatModel({plan}),

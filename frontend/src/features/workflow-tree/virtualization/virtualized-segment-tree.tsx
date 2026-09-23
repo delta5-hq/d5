@@ -75,6 +75,8 @@ export const SegmentRowComponent = ({ index, rowProps }: SegmentRowComponentProp
     onDropFiles: rowProps.onDropFiles,
     activeDropTargetId: rowProps.activeDropTargetId,
     activeDropPosition: rowProps.activeDropPosition,
+    onRequestRename: rowProps.onRequestRename,
+    onSuffixClick: rowProps.onSuffixClick,
     autoEditNodeId: rowProps.autoEditNodeId,
   }
 
@@ -116,6 +118,8 @@ export const VirtualizedSegmentTree = ({
   onDropFiles,
   activeDropTargetId,
   activeDropPosition,
+  onRequestRename,
+  onSuffixClick,
   autoEditNodeId,
   rootId,
   onVisibleOrderChange,
@@ -185,6 +189,8 @@ export const VirtualizedSegmentTree = ({
       onDropFiles,
       activeDropTargetId,
       activeDropPosition,
+      onRequestRename,
+      onSuffixClick,
       autoEditNodeId,
     }),
     [
@@ -206,6 +212,8 @@ export const VirtualizedSegmentTree = ({
       onDropFiles,
       activeDropTargetId,
       activeDropPosition,
+      onRequestRename,
+      onSuffixClick,
       autoEditNodeId,
     ],
   )

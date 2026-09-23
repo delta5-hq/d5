@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { NodeId } from '@shared/base-types'
 import { Button } from '@shared/ui/button'
 import { Loader2, Play, Square } from 'lucide-react'
@@ -16,6 +17,7 @@ interface NodeCommandComposerProps {
   canExecute: boolean
   siblingActionsEnabled: boolean
   autoFocusCommand?: boolean
+  hints?: ReactNode
   onCommandChange: (command: string) => void
   onDraftChange: (draft: string) => void
   onEnter: (committedCommand: string) => void
@@ -37,6 +39,7 @@ export const NodeCommandComposer = ({
   canExecute,
   siblingActionsEnabled,
   autoFocusCommand,
+  hints,
   onCommandChange,
   onDraftChange,
   onEnter,
@@ -93,6 +96,8 @@ export const NodeCommandComposer = ({
             <FormattedMessage id="workflowTree.node.invalidCommand" />
           </p>
         ) : null}
+
+        {hints}
 
         <footer className="mt-2 flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-muted-foreground/10 pt-2">
           <span className="min-w-0 flex-1 truncate font-mono text-xs tabular-nums text-muted-foreground">

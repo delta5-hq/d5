@@ -122,11 +122,11 @@ describe('OutlineSummarizeDispatcher', () => {
 
       const cell = makeCell('/outline --summarize topic')
       const store = buildStore({outlineNode: cell, rootNode: {id: 'rootNode', title: 'Root'}})
-      const createNodesSpy = jest.spyOn(store.importer, 'createNodes')
+      const createErrorNodeSpy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
 
       await dispatchOutlineSummarize(cell, store, undefined)
 
-      expect(createNodesSpy).toHaveBeenCalledWith(expect.stringContaining('LLM unavailable'), cell.id)
+      expect(createErrorNodeSpy).toHaveBeenCalledWith(expect.stringContaining('LLM unavailable'), cell.id)
     })
 
     it('never throws — always resolves even on complete failure', async () => {

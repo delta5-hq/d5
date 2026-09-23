@@ -49,6 +49,7 @@ export const RadialFlash = forwardRef<RadialFlashRef, RadialFlashProps>(
     const fallbackId = useId().replace(/:/g, '')
     const playerId = nodeId ? `${RADIAL_FLASH_PREFIX}${nodeId}` : `${RADIAL_FLASH_PREFIX}${fallbackId}`
     const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const flashJson = useMemo(() => replaceFlashColor(radialFlashJson, flashColor), [flashColor])
 
@@ -75,18 +76,28 @@ export const RadialFlash = forwardRef<RadialFlashRef, RadialFlashProps>(
 
       const initPlayer = async () => {
         const loaded = await loadPlayerRuntime()
-        if (cancelled || !loaded || !window.TgsPlayer || !containerRef.current || playerRef.current) return
+        if (cancelled || !loaded || !containerRef.current || playerRef.current) return
 
-        const cachedPlayer = playerCache.get(playerId)
-        if (cachedPlayer) {
-          playerRef.current = cachedPlayer
-          return
+        const waitForPlayer = () => {
+          if (cancelled || typeof window === 'undefined') return
+          const Player = window.TgsPlayer
+          if (Player && containerRef.current && !playerRef.current) {
+            const cachedPlayer = playerCache.get(playerId)
+            if (cachedPlayer) {
+              playerRef.current = cachedPlayer
+              return
+            }
+
+            const el = document.getElementById(playerId)
+            if (el) el.innerHTML = ''
+            playerRef.current = new Player(flashJson, playerId)
+            playerCache.set(playerId, playerRef.current)
+          } else if (!Player) {
+            pollTimerRef.current = setTimeout(waitForPlayer, 50)
+          }
         }
 
-        const el = document.getElementById(playerId)
-        if (el) el.innerHTML = ''
-        playerRef.current = new window.TgsPlayer(flashJson, playerId)
-        playerCache.set(playerId, playerRef.current)
+        waitForPlayer()
       }
 
       initPlayer()
@@ -95,6 +106,9 @@ export const RadialFlash = forwardRef<RadialFlashRef, RadialFlashProps>(
         cancelled = true
         if (stopTimerRef.current) {
           clearTimeout(stopTimerRef.current)
+        }
+        if (pollTimerRef.current) {
+          clearTimeout(pollTimerRef.current)
         }
         playerRef.current?.stop()
         playerRef.current = null

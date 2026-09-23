@@ -18,6 +18,8 @@ export interface TreeNodeCallbacks {
   onDropFiles?: (parentId: string, files: FileList) => void
   activeDropTargetId?: string
   activeDropPosition?: TreeDropPosition
+  onRequestRename?: (nodeId: string) => void
+  onSuffixClick?: (nodeId: string) => void
 }
 
 export interface TreeNode {

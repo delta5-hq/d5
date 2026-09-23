@@ -33,8 +33,9 @@ import {DOWNLOAD_MAX_PAGES_REGEX, DOWNLOAD_MAX_SIZE_REGEX, DOWNLOAD_QUERY, DOWNL
 import {REF_DEF_PREFIX, REF_PREFIX, HASHREF_DEF_PREFIX, HASHREF_PREFIX} from '../commands/references/referenceConstants'
 import {clearReferences} from '../commands/references/utils/referenceUtils'
 import {CUSTOM_LLM_CHAT_QUERY, CUSTOM_LLM_CHAT_QUERY_TYPE} from './custom_llm'
-import {REFINE_QUERY, REFINE_QUERY_TYPE} from './refine'
+import {ELECT_QUERY, ELECT_QUERY_TYPE} from './elect'
 import {VALIDATE_QUERY, VALIDATE_QUERY_TYPE} from './validate'
+import {REFINE_QUERY, REFINE_QUERY_TYPE} from './refine'
 import {COMPLETION_QUERY, COMPLETION_QUERY_TYPE} from './completion'
 import {
   MEMORIZE_PARAM_KEEP_REGEX,
@@ -84,10 +85,12 @@ export const getQueryType = title => {
     return DEEPSEEK_QUERY_TYPE
   } else if (matchesCommand(clearedTitle, CUSTOM_LLM_CHAT_QUERY)) {
     return CUSTOM_LLM_CHAT_QUERY_TYPE
-  } else if (matchesCommand(clearedTitle, REFINE_QUERY)) {
-    return REFINE_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, ELECT_QUERY)) {
+    return ELECT_QUERY_TYPE
   } else if (matchesCommand(clearedTitle, VALIDATE_QUERY)) {
     return VALIDATE_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, REFINE_QUERY)) {
+    return REFINE_QUERY_TYPE
   } else if (matchesCommand(clearedTitle, COMPLETION_QUERY)) {
     return COMPLETION_QUERY_TYPE
   } else if (matchesCommand(clearedTitle, MEMORIZE_QUERY)) {
@@ -100,8 +103,9 @@ export const CONTROL_FLOW_COMMANDS = new Set([
   FOREACH_QUERY_TYPE,
   SWITCH_QUERY_TYPE,
   SUMMARIZE_QUERY_TYPE,
-  REFINE_QUERY_TYPE,
+  ELECT_QUERY_TYPE,
   VALIDATE_QUERY_TYPE,
+  REFINE_QUERY_TYPE,
   MEMORIZE_QUERY_TYPE,
 ])
 
@@ -124,10 +128,12 @@ export const getControlFlowQueryType = title => {
     return SWITCH_QUERY_TYPE
   } else if (matchesCommand(clearedTitle, SUMMARIZE_QUERY)) {
     return SUMMARIZE_QUERY_TYPE
-  } else if (matchesCommand(clearedTitle, REFINE_QUERY)) {
-    return REFINE_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, ELECT_QUERY)) {
+    return ELECT_QUERY_TYPE
   } else if (matchesCommand(clearedTitle, VALIDATE_QUERY)) {
     return VALIDATE_QUERY_TYPE
+  } else if (matchesCommand(clearedTitle, REFINE_QUERY)) {
+    return REFINE_QUERY_TYPE
   } else if (matchesCommand(clearedTitle, MEMORIZE_QUERY)) {
     return MEMORIZE_QUERY_TYPE
   } else if (matchesCommand(clearedTitle, MCP_FUSION_QUERY)) {
@@ -192,13 +198,16 @@ export const allowedCommands = [
   PERPLEXITY_QUERY_TYPE,
   DEEPSEEK_QUERY_TYPE,
   CUSTOM_LLM_CHAT_QUERY_TYPE,
-  REFINE_QUERY_TYPE,
+  ELECT_QUERY_TYPE,
   VALIDATE_QUERY_TYPE,
+  REFINE_QUERY_TYPE,
   EXT_QUERY_TYPE,
   MEMORIZE_QUERY_TYPE,
   DOWNLOAD_QUERY_TYPE,
   COMPLETION_QUERY_TYPE,
 ]
+
+export const modifierQueryTypes = [ELECT_QUERY_TYPE, VALIDATE_QUERY_TYPE, REFINE_QUERY_TYPE]
 
 export const LANG_PARAM = '--lang'
 export const LANG_PARAM_REGEX = `${LANG_PARAM}=([a-zA-Z]+)`
@@ -293,6 +302,7 @@ export const clearCommandsWithParams = str => {
         MEMORIZE_PARAM_RECHUNK_REGEX,
         MEMORIZE_PARAM_KEEP_REGEX,
         MEMORIZE_PARAM_SPLIT_REGEX,
+        '\\s*:n=\\d+',
       ].join('|'),
       'g',
     )

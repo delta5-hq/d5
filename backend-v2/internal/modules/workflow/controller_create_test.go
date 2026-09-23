@@ -1,14 +1,40 @@
 package workflow
 
 import (
+	"backend-v2/internal/common/constants"
+
 	"bytes"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/valyala/fasthttp"
 )
+
+func postCreateWorkflowWithLocals(t *testing.T, arrange func(*fiber.Ctx)) *http.Response {
+	t.Helper()
+
+	handler := &WorkflowController{}
+	app := fiber.New()
+	app.Post("/workflow", func(c *fiber.Ctx) error {
+		if arrange != nil {
+			arrange(c)
+		}
+		return handler.CreateWorkflow(c)
+	})
+
+	req := httptest.NewRequest("POST", "/workflow", bytes.NewBufferString(`{"title":"QA workflow"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("HTTP test failed: %v", err)
+	}
+
+	return resp
+}
 
 func TestCreateWorkflow_RequestBodyParsing(t *testing.T) {
 	tests := []struct {
@@ -276,4 +302,54 @@ func TestCreateWorkflow_HTTPIntegration(t *testing.T) {
 			t.Errorf("Expected 'Integration Test', got %v", result["extractedTitle"])
 		}
 	})
+}
+
+func TestCreateWorkflow_AuthenticationContextContract(t *testing.T) {
+	tests := []struct {
+		name     string
+		arrange  func(*fiber.Ctx)
+		expected int
+	}{
+		{
+			name:     "missing user id",
+			arrange:  func(*fiber.Ctx) {},
+			expected: fiber.StatusUnauthorized,
+		},
+		{
+			name: "non-string user id",
+			arrange: func(c *fiber.Ctx) {
+				c.Locals(constants.ContextUserIDKey, 123)
+			},
+			expected: fiber.StatusUnauthorized,
+		},
+		{
+			name: "missing auth payload with valid user id",
+			arrange: func(c *fiber.Ctx) {
+				c.Locals(constants.ContextUserIDKey, "qa-bot")
+			},
+			expected: fiber.StatusUnauthorized,
+		},
+		{
+			name: "non-object auth payload with valid user id",
+			arrange: func(c *fiber.Ctx) {
+				c.Locals(constants.ContextUserIDKey, "qa-bot")
+				c.Locals(constants.ContextAuthKey, "malformed")
+			},
+			expected: fiber.StatusUnauthorized,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := postCreateWorkflowWithLocals(t, tt.arrange)
+
+			if resp.StatusCode != tt.expected {
+				t.Fatalf("expected status %d, got %d", tt.expected, resp.StatusCode)
+			}
+
+			if tt.expected != fiber.StatusInternalServerError && resp.StatusCode == fiber.StatusInternalServerError {
+				t.Fatal("authentication boundary must reject invalid context without Internal Server Error")
+			}
+		})
+	}
 }

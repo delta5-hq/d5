@@ -11,7 +11,7 @@ export const buildObjectSchema = (schema, recurse) => {
   const shape = {}
   for (const [name, propSchema] of Object.entries(properties)) {
     const zodType = recurse(propSchema)
-    shape[name] = required.includes(name) ? zodType : zodType.optional()
+    shape[name] = required.includes(name) || propSchema?.default !== undefined ? zodType : zodType.optional()
   }
 
   return z.object(shape).passthrough()

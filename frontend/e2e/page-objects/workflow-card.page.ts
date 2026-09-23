@@ -19,12 +19,14 @@ export class WorkflowCardPage {
 
   async navigateToList(): Promise<void> {
     await this.page.goto('/workflows')
-    await this.page.waitForLoadState('networkidle')
+    // `networkidle` never settles under throttled-network tests (ongoing polling),
+    // timing out on firefox. Wait for the specific card instead — deterministic.
+    await this.card.waitFor({ state: 'visible', timeout: 30_000 })
   }
 
   async clickShare(): Promise<void> {
     await this.card.scrollIntoViewIfNeeded()
-    await this.page.waitForLoadState('networkidle')
+    await this.shareButton.waitFor({ state: 'visible', timeout: 30_000 })
     await this.shareButton.evaluate(el => (el as HTMLElement).click())
   }
 

@@ -19,14 +19,14 @@ describe('DocumentRetriever', () => {
   const scrapeSpy = jest.spyOn(SearchScrape.prototype, 'callScrape')
   const loadVectorsSpy = jest.spyOn(vectorStore, 'load')
   const relevantSpy = jest.spyOn(vectorStore, 'getRelevantData')
-  const refineSpy = jest.spyOn(BaseChain.prototype, 'call')
+  const electSpy = jest.spyOn(BaseChain.prototype, 'call')
 
   beforeEach(() => {
     serpCallSpy.mockClear()
     scrapeSpy.mockClear()
     loadVectorsSpy.mockClear()
     relevantSpy.mockClear()
-    refineSpy.mockClear()
+    electSpy.mockClear()
   })
 
   describe('getDocuments', () => {
@@ -146,7 +146,7 @@ describe('DocumentRetriever', () => {
       const question = 'Test question'
       const input_documents = [{pageContent: 'Short text', metadata: {source: 'source'}}]
 
-      refineSpy.mockResolvedValue({output_text: 'result'})
+      electSpy.mockResolvedValue({output_text: 'result'})
 
       await tool.runImprovementRefineChain(question, input_documents)
 
@@ -159,7 +159,7 @@ describe('DocumentRetriever', () => {
       const question = 'Test question'
       const input_documents = [{pageContent: 'Longer text', metadata: {source: 'source'}}]
 
-      refineSpy.mockResolvedValue({output_text: 'result'})
+      electSpy.mockResolvedValue({output_text: 'result'})
 
       await tool.runImprovementRefineChain(question, input_documents)
 

@@ -10,6 +10,7 @@ import {clearReferences} from './references/utils/referenceUtils' // Direct impo
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
+import {throwIfAborted, throwIfAbortError} from './utils/executionSignal'
 import {createContextForChat} from './utils/createContextForChat'
 
 const log = debug('delta5:app:Command:Claude')
@@ -35,7 +36,7 @@ export class ClaudeCommand {
     this.logError = this.log.extend('ERROR*', '::')
   }
 
-  async replyClaude(messages, userId, workflowId, store) {
+  async replyClaude(messages, userId, workflowId, store, options = {}) {
     const settings = await getIntegrationSettings(userId, workflowId, store)
     const {apiKey, model} = settings?.claude || {}
 
@@ -46,14 +47,14 @@ export class ClaudeCommand {
     }
 
     const max_tokens = getClaudeMaxOutput(model)
-    const params = {apiKey, model, messages, max_tokens, userId}
+    const params = {apiKey, model, messages, max_tokens, userId, ...options}
 
     const response = await ClaudeService.sendMessages(params)
 
     return response?.content[0].text
   }
 
-  async run(node, context, originalPrompt) {
+  async run(node, context, originalPrompt, options = {}) {
     try {
       let prompt = originalPrompt
       const title = node?.command || node?.title
@@ -73,11 +74,17 @@ export class ClaudeCommand {
         role: 'user',
       }
       const messages = [userMessage]
-      const text = (await this.replyClaude(messages, this.userId, this.workflowId, this.store))?.replaceAll('**', '')
+      const text = (await this.replyClaude(messages, this.userId, this.workflowId, this.store, options))?.replaceAll(
+        '**',
+        '',
+      )
 
+      throwIfAborted(options.signal)
       this.store.importer.createNodes(text, node.id)
     } catch (e) {
+      throwIfAbortError(e)
       this.logError(e)
+      throwIfAborted(options.signal)
       this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }
   }

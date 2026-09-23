@@ -13,6 +13,7 @@ interface ExecuteRequest {
   context?: unknown
   prompt?: string
   signal?: AbortSignal
+  streamSessionId?: string
 }
 
 interface BackendExecuteResponse {

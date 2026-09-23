@@ -5,6 +5,7 @@ import util from 'util'
 import server from './server'
 import {closeDb, connectDb} from './db'
 import * as constants from './constants'
+import {runRuntimePreflight} from './config/runtimePreflight'
 import StreamBridge from './controllers/commandExecutor/streaming/StreamBridge'
 
 if (process.env.NODE_ENV === 'production') {
@@ -20,7 +21,6 @@ collectDefaultMetrics()
 
 let shuttingDown
 const shutDown = async () => {
-  // receiving this twice for whatever reason
   if (shuttingDown) return
   shuttingDown = true
   log('Shutting down')
@@ -30,9 +30,10 @@ const shutDown = async () => {
   log('Shut down complete')
 }
 
-const startUp = async () => {
+export const startUp = async () => {
   try {
     log('Starting application')
+    runRuntimePreflight()
     await connectDb()
 
     log(`Starting HTTP Server on port ${constants.PORT}`)
@@ -73,4 +74,4 @@ process.on('uncaughtException', async (...args) => {
   process.exit(1)
 })
 
-startUp()
+if (process.env.NODE_ENV !== 'test') startUp()

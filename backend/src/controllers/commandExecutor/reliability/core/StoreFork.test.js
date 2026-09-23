@@ -35,7 +35,13 @@ describe('StoreFork', () => {
       const original = new Store({
         userId: 'user1',
         nodes: {
-          n1: {id: 'n1', title: 'Original', children: ['n2'], prompts: ['p1'], tags: ['t1']},
+          n1: {
+            id: 'n1',
+            title: 'Original',
+            children: ['n2'],
+            prompts: ['p1'],
+            tags: ['t1'],
+          },
         },
       })
 
@@ -56,7 +62,14 @@ describe('StoreFork', () => {
       const original = new Store({
         userId: 'user1',
         nodes: {
-          n1: {id: 'n1', title: 'Table', gridOptions: {columnDefs: [{field: 'name'}], rowData: [{name: 'row1'}]}},
+          n1: {
+            id: 'n1',
+            title: 'Table',
+            gridOptions: {
+              columnDefs: [{field: 'name'}],
+              rowData: [{name: 'row1'}],
+            },
+          },
         },
       })
 
@@ -80,6 +93,19 @@ describe('StoreFork', () => {
       expect(fork._files).toEqual({})
       expect(fork._output.nodes).toEqual([])
       expect(fork._output.edges).toEqual([])
+    })
+
+    it.each([
+      ['empty cache', null],
+      ['map cache', new Map([['scope-key', {model: 'OpenAI'}]])],
+      ['keyed object cache', {key: 'scope-key', settings: {model: 'OpenAI'}}],
+    ])('should preserve the request-scoped integration settings cache: %s', (_caseName, cache) => {
+      const original = new Store({userId: 'user1', workflowId: 'wf1'})
+      original._integrationSettingsCache = cache
+
+      const fork = StoreFork.createFork(original)
+
+      expect(fork._integrationSettingsCache).toBe(cache)
     })
 
     it('should preserve ImportHandler binding to forked store', () => {
@@ -125,6 +151,31 @@ describe('StoreFork', () => {
       expect(fork._nodes).toEqual(original._nodes)
     })
 
+    describe('withinForkExecution — commodity re-fork suppression contract', () => {
+      it('Store defaults withinForkExecution to false before any fork operation', () => {
+        expect(new Store({userId: 'user1'}).withinForkExecution).toBe(false)
+      })
+
+      it('createFork marks the fork store as withinForkExecution', () => {
+        const original = new Store({userId: 'user1'})
+        const fork = StoreFork.createFork(original)
+        expect(fork.withinForkExecution).toBe(true)
+      })
+
+      it('createFork does not mutate the source store — withinForkExecution stays false on original', () => {
+        const original = new Store({userId: 'user1'})
+        StoreFork.createFork(original)
+        expect(original.withinForkExecution).toBe(false)
+      })
+
+      it('fork of a fork also has withinForkExecution true (nested fork depth)', () => {
+        const original = new Store({userId: 'user1'})
+        const fork = StoreFork.createFork(original)
+        const deepFork = StoreFork.createFork(fork)
+        expect(deepFork.withinForkExecution).toBe(true)
+      })
+    })
+
     describe('memory guard', () => {
       let warnSpy
 
@@ -162,7 +213,10 @@ describe('StoreFork', () => {
       })
 
       it('should not warn for typical small workflows', () => {
-        const store = new Store({userId: 'user1', nodes: {n1: {id: 'n1', title: 'test'}}})
+        const store = new Store({
+          userId: 'user1',
+          nodes: {n1: {id: 'n1', title: 'test'}},
+        })
 
         StoreFork.createFork(store)
 
@@ -186,7 +240,12 @@ describe('StoreFork', () => {
       const candidate = new Store({
         userId: 'user1',
         nodes: {
-          cell: {id: 'cell', title: 'Cell', children: ['n1', 'n2'], prompts: []},
+          cell: {
+            id: 'cell',
+            title: 'Cell',
+            children: ['n1', 'n2'],
+            prompts: [],
+          },
           n1: {id: 'n1', parent: 'cell', title: 'Child 1', children: []},
           n2: {id: 'n2', parent: 'cell', title: 'Child 2', children: ['n3']},
           n3: {id: 'n3', parent: 'n2', title: 'Grandchild', children: []},
@@ -222,13 +281,20 @@ describe('StoreFork', () => {
     it('syncs cell node children and prompts', () => {
       const target = new Store({
         userId: 'user1',
-        nodes: {cell: {id: 'cell', title: 'Cell', children: [], prompts: []}},
+        nodes: {
+          cell: {id: 'cell', title: 'Cell', children: [], prompts: []},
+        },
       })
 
       const candidate = new Store({
         userId: 'user1',
         nodes: {
-          cell: {id: 'cell', title: 'Cell', children: ['n1', 'n2'], prompts: ['p1']},
+          cell: {
+            id: 'cell',
+            title: 'Cell',
+            children: ['n1', 'n2'],
+            prompts: ['p1'],
+          },
           n1: {id: 'n1', parent: 'cell', title: 'Child 1', children: []},
           n2: {id: 'n2', parent: 'cell', title: 'Child 2', children: []},
           p1: {id: 'p1', parent: 'cell', title: 'Prompt', children: []},
@@ -308,21 +374,59 @@ describe('StoreFork', () => {
       const target = new Store({
         userId: 'user1',
         nodes: {
-          steps: {id: 'steps', command: '/steps', children: ['chat', 'refine']},
+          steps: {
+            id: 'steps',
+            command: '/steps',
+            children: ['chat', 'elect'],
+          },
           chat: {id: 'chat', parent: 'steps', command: '/chat', children: []},
-          refine: {id: 'refine', parent: 'steps', command: '/refine :n=2', children: []},
+          elect: {
+            id: 'elect',
+            parent: 'steps',
+            command: '/elect :n=2',
+            children: [],
+          },
         },
       })
 
       const candidate = new Store({
         userId: 'user1',
         nodes: {
-          steps: {id: 'steps', command: '/steps', children: ['chat', 'refine', 'sum']},
-          chat: {id: 'chat', parent: 'steps', command: '/chat', children: ['out1']},
-          out1: {id: 'out1', parent: 'chat', title: 'LLM output', children: []},
-          sum: {id: 'sum', parent: 'steps', command: '/summarize', children: ['sumOut']},
-          sumOut: {id: 'sumOut', parent: 'sum', title: 'Summary output', children: []},
-          refine: {id: 'refine', parent: 'steps', command: '/refine :n=2', children: []},
+          steps: {
+            id: 'steps',
+            command: '/steps',
+            children: ['chat', 'elect', 'sum'],
+          },
+          chat: {
+            id: 'chat',
+            parent: 'steps',
+            command: '/chat',
+            children: ['out1'],
+          },
+          out1: {
+            id: 'out1',
+            parent: 'chat',
+            title: 'LLM output',
+            children: [],
+          },
+          sum: {
+            id: 'sum',
+            parent: 'steps',
+            command: '/summarize',
+            children: ['sumOut'],
+          },
+          sumOut: {
+            id: 'sumOut',
+            parent: 'sum',
+            title: 'Summary output',
+            children: [],
+          },
+          elect: {
+            id: 'elect',
+            parent: 'steps',
+            command: '/elect :n=2',
+            children: [],
+          },
         },
         edges: {
           e1: {id: 'e1', start: 'chat', end: 'out1'},
@@ -338,7 +442,7 @@ describe('StoreFork', () => {
       expect(target._nodes.out1).toBeDefined()
       expect(target._nodes.sum).toBeDefined()
       expect(target._nodes.sumOut).toBeDefined()
-      expect(target._nodes.refine).toBeDefined()
+      expect(target._nodes.elect).toBeDefined()
 
       // Edges transferred
       expect(target._edges.e1).toBeDefined()
@@ -346,6 +450,66 @@ describe('StoreFork', () => {
 
       // No orphaned nodes — steps.children updated
       expect(target._nodes.steps.children).toContain('sum')
+    })
+
+    it('traverses a candidate node with absent children and prompts arrays without error', () => {
+      const target = new Store({userId: 'user1', nodes: {}})
+      const candidate = new Store({
+        userId: 'user1',
+        nodes: {cell: {id: 'cell', title: 'Leaf with no arrays'}},
+      })
+      StoreFork.applyCandidate(target, candidate, 'cell')
+      expect(target._nodes.cell).toBeDefined()
+      expect(target._nodes.cell.title).toBe('Leaf with no arrays')
+    })
+  })
+
+  describe('deepClone — structuredClone availability', () => {
+    it('delegates to structuredClone when it is available in the runtime', () => {
+      const saved = global.structuredClone
+      const spy = jest.fn(obj => JSON.parse(JSON.stringify(obj)))
+      global.structuredClone = spy
+      try {
+        const original = new Store({userId: 'user1', nodes: {n1: {id: 'n1', title: 'T', nested: {x: 1}}}})
+        StoreFork.createFork(original)
+        expect(spy).toHaveBeenCalled()
+      } finally {
+        global.structuredClone = saved
+      }
+    })
+  })
+
+  describe('applyCandidate — cycle and shared-node safety', () => {
+    it('visits a shared node only once when it is reachable from multiple parents', () => {
+      const target = new Store({userId: 'user1', nodes: {}})
+      const candidate = new Store({
+        userId: 'user1',
+        nodes: {
+          cell: {id: 'cell', title: 'Root', children: ['left', 'shared'], prompts: []},
+          left: {id: 'left', title: 'Left', children: ['shared'], prompts: []},
+          shared: {id: 'shared', title: 'Shared', children: [], prompts: []},
+        },
+      })
+      StoreFork.applyCandidate(target, candidate, 'cell')
+      expect(Object.keys(target._nodes)).toEqual(expect.arrayContaining(['cell', 'left', 'shared']))
+      expect(Object.keys(target._nodes)).toHaveLength(3)
+    })
+  })
+
+  describe('deepClone environment fallback', () => {
+    it('falls back to JSON.parse clone when structuredClone is unavailable', () => {
+      const saved = global.structuredClone
+      try {
+        delete global.structuredClone
+        const original = new Store({userId: 'user1', nodes: {n1: {id: 'n1', title: 'Before', nested: {x: 1}}}})
+        const fork = StoreFork.createFork(original)
+        fork._nodes.n1.title = 'After'
+        fork._nodes.n1.nested.x = 99
+        expect(original._nodes.n1.title).toBe('Before')
+        expect(original._nodes.n1.nested.x).toBe(1)
+      } finally {
+        global.structuredClone = saved
+      }
     })
   })
 })

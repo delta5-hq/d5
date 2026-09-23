@@ -24,9 +24,10 @@ jest.mock('../constants', () => {
 import {clearStepsPrefix} from '../constants/steps'
 import {referencePatterns} from './references/utils/referencePatterns'
 
-import {getIntegrationSettings} from './utils/langchain/getLLM'
+import {getIntegrationSettings, getLLM, Model} from './utils/langchain/getLLM'
 import {substituteReferencesAndHashrefsChildrenAndSelf} from './references/substitution'
 import Store from './utils/Store'
+import {ChatOpenAI} from '@langchain/openai'
 
 jest.mock('./utils/langchain/getLLM')
 jest.mock('openai')
@@ -45,6 +46,7 @@ describe('ChatCommand', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     substituteReferencesAndHashrefsChildrenAndSelf.mockReturnValue('substituted prompt')
+    getLLM.mockReturnValue({llm: new ChatOpenAI({apiKey: 'test-key'})})
   })
 
   const callSpy = jest.spyOn(BaseChatModel.prototype, 'invoke')
@@ -68,40 +70,73 @@ describe('ChatCommand', () => {
       expect(result).toBe('Response')
     })
 
-    it('should propagate errors from LLM invocation', async () => {
-      getIntegrationSettings.mockResolvedValue({
-        openai: {apiKey: 'apiKey', model: 'model'},
-      })
-      const testError = new Error('API rate limit exceeded')
-      callSpy.mockRejectedValue(testError)
+    it.each([
+      ['rate-limit', 'API rate limit exceeded'],
+      ['network', 'ECONNREFUSED'],
+      ['authentication', 'Invalid API key'],
+    ])('propagates %s error from LLM invocation unchanged', async (_label, message) => {
+      getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'apiKey', model: 'model'}})
+      callSpy.mockRejectedValue(new Error(message))
 
-      const messages = [{content: 'prompt', role: 'user'}]
-
-      await expect(command.replyChatOpenAIAPI(messages)).rejects.toThrow('API rate limit exceeded')
+      await expect(command.replyChatOpenAIAPI([{content: 'prompt', role: 'user'}])).rejects.toThrow(message)
     })
 
-    it('should propagate network errors from LLM', async () => {
-      getIntegrationSettings.mockResolvedValue({
-        openai: {apiKey: 'apiKey', model: 'model'},
-      })
-      const networkError = new Error('ECONNREFUSED')
-      callSpy.mockRejectedValue(networkError)
+    it('constructs LLM via getLLM with Model.OpenAI type', async () => {
+      getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k', model: 'm'}})
+      callSpy.mockResolvedValue({content: 'ok'})
 
-      const messages = [{content: 'prompt', role: 'user'}]
+      await command.replyChatOpenAIAPI([{role: 'user', content: 'hello'}])
 
-      await expect(command.replyChatOpenAIAPI(messages)).rejects.toThrow('ECONNREFUSED')
+      expect(getLLM).toHaveBeenCalledWith(expect.objectContaining({type: Model.OpenAI}))
+      expect(getLLM).toHaveBeenCalledTimes(1)
     })
 
-    it('should propagate authentication errors from LLM', async () => {
-      getIntegrationSettings.mockResolvedValue({
-        openai: {apiKey: 'invalid-key', model: 'model'},
-      })
-      const authError = new Error('Invalid API key')
-      callSpy.mockRejectedValue(authError)
+    it('maps system-role messages to SystemMessage and user-role messages to HumanMessage', async () => {
+      getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k'}})
+      callSpy.mockResolvedValue({content: 'ok'})
 
-      const messages = [{content: 'prompt', role: 'user'}]
+      await command.replyChatOpenAIAPI([
+        {role: 'system', content: 'system context'},
+        {role: 'user', content: 'user input'},
+      ])
 
-      await expect(command.replyChatOpenAIAPI(messages)).rejects.toThrow('Invalid API key')
+      const [[invokedMessages]] = callSpy.mock.calls
+      expect(invokedMessages[0].constructor.name).toBe('SystemMessage')
+      expect(invokedMessages[1].constructor.name).toBe('HumanMessage')
+    })
+
+    it('forwards resolved integration settings to getLLM as the settings argument', async () => {
+      const settings = {openai: {apiKey: 'k', model: 'm'}}
+      getIntegrationSettings.mockResolvedValue(settings)
+      callSpy.mockResolvedValue({content: 'ok'})
+
+      await command.replyChatOpenAIAPI([{role: 'user', content: 'hello'}])
+
+      expect(getLLM).toHaveBeenCalledWith(expect.objectContaining({settings}))
+    })
+
+    it('forwards abort signal to the LLM invocation', async () => {
+      const signal = new AbortController().signal
+      getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k', model: 'm'}})
+      callSpy.mockResolvedValue({content: 'ok'})
+
+      await command.replyChatOpenAIAPI([{role: 'user', content: 'hello'}], {signal})
+
+      expect(callSpy.mock.calls[0][1]?.signal).toBe(signal)
+    })
+
+    it('maps any non-system role (assistant, unknown) to HumanMessage', async () => {
+      getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k'}})
+      callSpy.mockResolvedValue({content: 'ok'})
+
+      await command.replyChatOpenAIAPI([
+        {role: 'assistant', content: 'assistant turn'},
+        {role: 'custom-role', content: 'unknown turn'},
+      ])
+
+      const [[invokedMessages]] = callSpy.mock.calls
+      expect(invokedMessages[0].constructor.name).toBe('HumanMessage')
+      expect(invokedMessages[1].constructor.name).toBe('HumanMessage')
     })
   })
 
@@ -243,64 +278,15 @@ describe('ChatCommand', () => {
   })
 
   describe('ChatOpenAI constructor arguments', () => {
-    it('passes apiKey (not the deprecated openAIApiKey) to ChatOpenAI', async () => {
-      const {ChatOpenAI} = jest.requireActual('@langchain/openai')
-      const spy = jest.spyOn(ChatOpenAI.prototype, 'invoke').mockResolvedValue({content: 'ok'})
-
-      getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'test-key', model: 'gpt-4o'}})
-
-      const cmd = new ChatCommand('u', 'w', new Store({userId: 'u', nodes: {}}))
-      await cmd.replyChatOpenAIAPI([{role: 'user', content: 'hi'}])
-
-      expect(spy.mock.instances[0].apiKey).toBe('test-key')
-      spy.mockRestore()
-    })
-
-    it('uses the user-configured model name', async () => {
-      const {ChatOpenAI} = jest.requireActual('@langchain/openai')
-      const spy = jest.spyOn(ChatOpenAI.prototype, 'invoke').mockResolvedValue({content: 'ok'})
-
-      getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'k', model: 'gpt-4-turbo'}})
+    it('delegates provider constructor policy to getLLM with the resolved settings', async () => {
+      const settings = {openai: {apiKey: 'test-key', model: 'gpt-4o'}}
+      getIntegrationSettings.mockResolvedValue(settings)
+      callSpy.mockResolvedValue({content: 'ok'})
 
       const cmd = new ChatCommand('u', 'w', new Store({userId: 'u', nodes: {}}))
       await cmd.replyChatOpenAIAPI([{role: 'user', content: 'hi'}])
 
-      expect(spy.mock.instances[0].model).toBe('gpt-4-turbo')
-      spy.mockRestore()
-    })
-
-    it('throws when openai apiKey is absent from settings', async () => {
-      getIntegrationSettings.mockResolvedValue({openai: {}})
-      const cmd = new ChatCommand('u', 'w', new Store({userId: 'u', nodes: {}}))
-      await expect(cmd.replyChatOpenAIAPI([{role: 'user', content: 'hi'}])).rejects.toThrow(
-        'OpenAI API key not configured',
-      )
-    })
-
-    it('throws when openai settings block is absent entirely', async () => {
-      getIntegrationSettings.mockResolvedValue({claude: {apiKey: 'k'}})
-      const cmd = new ChatCommand('u', 'w', new Store({userId: 'u', nodes: {}}))
-      await expect(cmd.replyChatOpenAIAPI([{role: 'user', content: 'hi'}])).rejects.toThrow(
-        'OpenAI API key not configured',
-      )
-    })
-
-    it.each([
-      ['an empty string', {apiKey: 'k', model: ''}],
-      ['null', {apiKey: 'k', model: null}],
-      ['undefined', {apiKey: 'k', model: undefined}],
-      ['absent from the settings block', {apiKey: 'k'}],
-    ])('resolves to gpt-4o when model is %s', async (_label, openaiSettings) => {
-      const {ChatOpenAI} = jest.requireActual('@langchain/openai')
-      const spy = jest.spyOn(ChatOpenAI.prototype, 'invoke').mockResolvedValue({content: 'ok'})
-
-      getIntegrationSettings.mockResolvedValue({openai: openaiSettings})
-
-      const cmd = new ChatCommand('u', 'w', new Store({userId: 'u', nodes: {}}))
-      await cmd.replyChatOpenAIAPI([{role: 'user', content: 'hi'}])
-
-      expect(spy.mock.instances[0].model).toBe('gpt-4o')
-      spy.mockRestore()
+      expect(getLLM).toHaveBeenCalledWith(expect.objectContaining({type: Model.OpenAI, settings}))
     })
   })
 })

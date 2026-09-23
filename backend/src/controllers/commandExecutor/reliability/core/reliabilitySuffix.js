@@ -1,60 +1,63 @@
-// Suffix grammar is symbols-only (no translatable words) so titles stay locale-neutral.
-// Rich breakdown lives in cell metadata; the frontend i18n layer renders prose labels.
-
-// Purges legacy English suffixes left in persisted titles by the now-deleted reliability
-// subsystem so existing workflows render cleanly on re-execution.
-const LEGACY_SUFFIX_PATTERN =
-  /\s*\[[✓✗⚠]\s+(\d+\/\d+\s+(best\s+of\s+\d+(\s+·\s+[\d.]+)?|first-survivor[^\]]*|passed)|refined|refine\s+failed)\]\s*$/i
-
-// Longest/most-specific entries first to minimise backtracking on ✓-prefixed alternates.
-const ENGINE_SUFFIX_SHAPES = [
-  '✓ retry-\\d+',
-  '✓ \\d+/\\d+',
-  '✓',
-  '✗ \\d+ attempts',
-  '✗ \\d+/\\d+',
-  '⚠ no judge signal',
-  '⚠ fallback: 0/\\d+ passed; chose fork-\\d+',
-]
-
-const ENGINE_SUFFIX_PATTERN = new RegExp(`\\s*\\[(?:${ENGINE_SUFFIX_SHAPES.join('|')})\\]\\s*$`)
+import {HISTORICAL_SUFFIX_RE, ENGINE_SUFFIX_RE} from './suffixGrammar'
 
 const MAX_TITLE_LEN = 80
 
-const clamp = (title, suffix) => {
-  const full = `${title.trim()} ${suffix}`.trim()
+const clamp = (base, suffix) => {
+  const full = `${base.trim()} ${suffix}`.trim()
   if (full.length <= MAX_TITLE_LEN) return full
   const budget = MAX_TITLE_LEN - suffix.length - 1
-  return `${title.trim().slice(0, Math.max(0, budget))} ${suffix}`.trim()
+  return `${base.trim().slice(0, Math.max(0, budget))} ${suffix}`.trim()
 }
 
 export const stripReliabilitySuffix = title => {
   if (!title) return ''
-  return title.replace(LEGACY_SUFFIX_PATTERN, '').replace(ENGINE_SUFFIX_PATTERN, '')
+  return title.replace(HISTORICAL_SUFFIX_RE, '').replace(ENGINE_SUFFIX_RE, '')
 }
 
-export const appendValidateSuffix = (title, {passed, retryCount}) => {
+export const appendValidateSuffix = (title, {passed}) => {
   const base = stripReliabilitySuffix(title)
-  const suffix = passed ? (retryCount > 0 ? `[✓ retry-${retryCount}]` : '[✓]') : `[✗ ${retryCount} attempts]`
+  return clamp(base, passed ? '[✓]' : '[✗]')
+}
+
+export const appendRefineSuffix = (title, {passed, attempts}) =>
+  clamp(stripReliabilitySuffix(title), passed ? `[✓ ${attempts}×]` : `[✗ ${attempts}×]`)
+
+export const appendInvalidSuffix = title => clamp(stripReliabilitySuffix(title), '[✗ !]')
+
+export const appendCommoditySuffix = (title, {successCount, total}) => {
+  const base = stripReliabilitySuffix(title)
+  const partial = successCount > 0 && successCount < total
+  const suffix =
+    successCount === 0
+      ? `[↻ 0/${total} ⚠]`
+      : partial
+      ? `[↻ ${successCount}/${total} ⚠]`
+      : `[↻ ${successCount}/${total}]`
   return clamp(base, suffix)
 }
 
-export const appendRefineSuffix = (
+// noSignal warns only in strict mode: fallback mode opts into degraded selection,
+// making the eligible-fraction suffix the correct signal when primary forks passed.
+// ⚠ trails ✓/✗ so pass/fail outcome and judge-quality signal remain orthogonal.
+const selectElectSuffix = ({eligible, total, fallback, winnerForkIndex, noSignal, degradedInput}) => {
+  if (eligible === 0 && fallback && winnerForkIndex !== null) return `[⚠ 0/${total}]`
+  if (noSignal && !fallback) return '[⚠ ∅]'
+  if (eligible === 0) return `[✗ 0/${total}]`
+  return `[✓ ${eligible}/${total}${degradedInput ? ' ⚠' : ''}]`
+}
+
+export const appendElectSuffix = (
   title,
-  {eligible, total, fallback = false, winnerForkIndex = null, noSignal = false},
-) => {
-  const base = stripReliabilitySuffix(title)
-  let suffix
-  if (noSignal) {
-    suffix = '[⚠ no judge signal]'
-  } else if (eligible === 0 && fallback && winnerForkIndex !== null) {
-    suffix = `[⚠ fallback: 0/${total} passed; chose fork-${winnerForkIndex}]`
-  } else if (eligible === 0) {
-    suffix = `[✗ 0/${total}]`
-  } else if (eligible < total) {
-    suffix = `[✓ ${eligible}/${total}]`
-  } else {
-    suffix = `[✓ ${total}/${total}]`
-  }
-  return clamp(base, suffix)
-}
+  {eligible, total, fallback = false, winnerForkIndex = null, noSignal = false, degradedInput = false},
+) =>
+  clamp(
+    stripReliabilitySuffix(title),
+    selectElectSuffix({
+      eligible,
+      total,
+      fallback,
+      winnerForkIndex,
+      noSignal,
+      degradedInput,
+    }),
+  )

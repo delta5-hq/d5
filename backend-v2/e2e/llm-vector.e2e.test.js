@@ -14,7 +14,12 @@ describe('LLM Vector E2E', () => {
   })
 
   beforeEach(async () => {
-    
+    /* per-test llmvectors purge — prior describes (POST /vector, GET /vector)
+       leak docs via subscriberRequest.post directly bypassing factory tracking,
+       and the integration suite's PUT /integration/openai/update inserts
+       {userId, name:nil} default-vector rows. Without this purge the
+       GET /vector/all "expected >= 2 received 1" assertion fires intermittently. */
+    await testOrchestrator.cleanupLLMVectors()
   })
 
   describe('POST /vector', () => {

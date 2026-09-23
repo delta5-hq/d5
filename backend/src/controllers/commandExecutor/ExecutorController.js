@@ -10,6 +10,8 @@ import StreamBridge from './streaming/StreamBridge'
 import {StreamEvent} from './streaming/StreamEvent'
 import {progressEventEmitter} from '../../services/progress-event-emitter'
 import {buildExecutionResult, buildPreStoreErrorResult} from './ExecutorResponse'
+import {CriteriaFailedError} from './reliability/core/CriteriaFailedError'
+import {isAbortError} from './commands/utils/executionSignal'
 
 const logError = debug('delta5:app:ExecutorController')
 
@@ -35,6 +37,7 @@ const ExecutorController = {
     let store = null
     let otherData = null
     let workflowId = null
+    let storeResponseContext = null
 
     const log = debug('delta5:app:ProgressReporter').extend(userId, '/')
     const ProgressReporterClass = streamSessionId ? StreamableProgressReporter : ProgressReporter
@@ -77,9 +80,14 @@ const ExecutorController = {
       }
 
       otherData.queryType = queryType
+      storeResponseContext = {otherData, workflowId}
 
       if (nodeId) {
         progressEventEmitter.emitRunning(nodeId, {queryType})
+      }
+
+      if (streamSessionId) {
+        StreamBridge.getOrCreateSession(streamSessionId)
       }
 
       await runCommand({...otherData, store, mcpAlias, rpcAlias, signal: abortController.signal}, progress)
@@ -96,28 +104,64 @@ const ExecutorController = {
 
       ctx.body = result
     } catch (e) {
-      console.error(e)
-
-      if (store && otherData) {
-        store.importer.createNodes(`Error: ${e.message}`, cell.id)
-        const result = buildExecutionResult(otherData, store, workflowId)
-
+      if (e instanceof CriteriaFailedError && store && storeResponseContext) {
+        const result = buildExecutionResult(storeResponseContext.otherData, store, storeResponseContext.workflowId)
         if (streamSessionId) {
           finalizeStream(streamSessionId, result)
         }
-
+        if (nodeId) {
+          progressEventEmitter.emitComplete(nodeId, {queryType})
+        }
         ctx.body = result
-      } else {
+      } else if (e instanceof CriteriaFailedError) {
+        logError('criteria failed before response context initialized: %o', e)
         if (streamSessionId) {
           StreamBridge.emit(streamSessionId, StreamEvent.error(e))
           StreamBridge.closeSession(streamSessionId)
         }
+        if (nodeId) {
+          progressEventEmitter.emitError(nodeId, e, {queryType})
+        }
+        ctx.throw(422, e.message || 'All criteria failed')
+      } else if (isAbortError(e)) {
+        if (streamSessionId) {
+          StreamBridge.closeSession(streamSessionId)
+        }
+        if (nodeId) {
+          progressEventEmitter.emitComplete(nodeId, {queryType})
+        }
+        ctx.body =
+          store && otherData
+            ? buildExecutionResult(otherData, store, workflowId)
+            : {nodesChanged: [], edgesChanged: [], workflowId, cell}
+      } else {
+        console.error(e)
 
-        ctx.body = buildPreStoreErrorResult(cell, workflowId, e)
-      }
+        if (store && otherData) {
+          store.importer.createErrorNode(`Error: ${e.message}`, cell.id)
+          const result = buildExecutionResult(otherData, store, workflowId)
 
-      if (nodeId) {
-        progressEventEmitter.emitError(nodeId, e, {queryType})
+          if (streamSessionId) {
+            finalizeStream(streamSessionId, result)
+          }
+
+          if (nodeId) {
+            progressEventEmitter.emitError(nodeId, e, {queryType})
+          }
+
+          ctx.body = result
+        } else {
+          if (streamSessionId) {
+            StreamBridge.emit(streamSessionId, StreamEvent.error(e))
+            StreamBridge.closeSession(streamSessionId)
+          }
+
+          if (nodeId) {
+            progressEventEmitter.emitError(nodeId, e, {queryType})
+          }
+
+          ctx.body = buildPreStoreErrorResult(cell, workflowId, e)
+        }
       }
     } finally {
       ctx.req.off('close', requestCloseHandler)

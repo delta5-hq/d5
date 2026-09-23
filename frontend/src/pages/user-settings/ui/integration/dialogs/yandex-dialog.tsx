@@ -35,6 +35,7 @@ const YandexModelNames: Record<YandexGPTModel, string> = {
   [YandexGPTModel.GPT_LITE_LATEST]: 'YandexGPT 5 Lite',
   [YandexGPTModel.GPT_LITE_RC]: 'YandexGPT 5 Lite RC',
   [YandexGPTModel.GPT_LITE_DEPRECATED]: 'YandexGPT 5 Lite Deprecated',
+  [YandexGPTModel.GPT_32K_RC]: 'YandexGPT Pro 32k RC',
   [YandexGPTModel.GPT_32K_DEPRECATED]: 'YandexGPT Pro 32k Deprecated',
   [YandexGPTModel.GPT_32K_LATEST]: 'YandexGPT Pro 32k',
   [YandexGPTModel.LLAMA_70B_LATEST]: 'Llama 70b',

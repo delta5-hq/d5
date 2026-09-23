@@ -1,6 +1,8 @@
 # Go binaries (in root only)
 /backend-v2
+/backend-v2-new
 /seed-users
+/service
 
 # Environment
 .env

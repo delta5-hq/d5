@@ -3,6 +3,7 @@ import path from 'path'
 import {USER_DEFAULT_MODEL} from '../../../../../shared/config/constants'
 import {CLAUDE_DEFAULT_MODEL} from '../../../../../constants'
 import {resolveSettings, PROVIDER_CREDENTIAL_ENV_VARS} from './IntegrationSettingsResolver'
+import {MOCK_EXTERNAL_SERVICES_ALLOW_ENV} from './MockExternalServices'
 
 const withEnv = (vars, fn) => {
   const originals = Object.fromEntries(Object.keys(vars).map(k => [k, process.env[k]]))
@@ -327,6 +328,34 @@ describe('resolveSettings', () => {
       expect(settings.userId).toBe('u1')
       expect(settings.model).toBeDefined()
     })
+
+    it.each(['development', 'qa', 'e2e', 'production', undefined])(
+      'refuses mock settings synthesis in non-allowlisted runtime NODE_ENV=%s',
+      nodeEnv => {
+        expect(() =>
+          withEnv({...ALL_PROVIDER_ENV_VARS_ABSENT, MOCK_EXTERNAL_SERVICES: 'true', NODE_ENV: nodeEnv}, () =>
+            resolveSettings(nullDbArgs),
+          ),
+        ).toThrow(/MOCK_EXTERNAL_SERVICES=true/)
+      },
+    )
+
+    it.each(['development', 'qa', 'e2e'])(
+      'explicit allow env permits mock settings synthesis in runtime NODE_ENV=%s',
+      nodeEnv => {
+        expect(() =>
+          withEnv(
+            {
+              ...ALL_PROVIDER_ENV_VARS_ABSENT,
+              MOCK_EXTERNAL_SERVICES: 'true',
+              NODE_ENV: nodeEnv,
+              [MOCK_EXTERNAL_SERVICES_ALLOW_ENV]: 'true',
+            },
+            () => resolveSettings(nullDbArgs),
+          ),
+        ).not.toThrow()
+      },
+    )
 
     it.each(['false', '', '1', 'TRUE', undefined])(
       'still enforces credential presence when MOCK_EXTERNAL_SERVICES=%s (strict "true" gate)',

@@ -205,6 +205,24 @@ describe('StreamEvent', () => {
       expect(sse.startsWith('data: ')).toBe(true)
     })
 
+    it('should include id: N line before data: when eventId is provided', () => {
+      const event = StreamEvent.progress('test')
+      const sse = event.toSSE(42)
+
+      expect(sse.startsWith('id: 42\n')).toBe(true)
+      expect(sse).toContain('\ndata: ')
+      expect(sse.endsWith('\n\n')).toBe(true)
+      const dataLine = sse.split('\n').find(l => l.startsWith('data: '))
+      expect(() => JSON.parse(dataLine.replace('data: ', ''))).not.toThrow()
+    })
+
+    it('should treat eventId 0 as a valid id and include id: 0 line', () => {
+      const event = StreamEvent.progress('test')
+      const sse = event.toSSE(0)
+
+      expect(sse.startsWith('id: 0\n')).toBe(true)
+    })
+
     it('should serialize circular references without error', () => {
       const circular = {value: 1}
       circular.self = circular

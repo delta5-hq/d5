@@ -745,7 +745,7 @@ describe('ArrayIntegrationSection — layout contract', () => {
   })
 
   it('alias flex row container has min-w-0 to prevent flex overflow expansion', () => {
-    const { container } = renderWithIntl(
+    renderWithIntl(
       <ArrayIntegrationSection
         fieldName="mcp"
         items={[makeItem({ alias: '/overflow-test' })]}

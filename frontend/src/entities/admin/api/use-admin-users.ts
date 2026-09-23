@@ -4,7 +4,7 @@ import { useApiQuery } from '@shared/composables'
 import { queryKeys } from '@shared/config'
 import type { FullUserStatistics } from '../model'
 
-interface UseAdminUsersProps extends PaginationQuery {}
+type UseAdminUsersProps = PaginationQuery
 
 export const useAdminUsers = ({ page = 1, limit = 25, search = '' }: UseAdminUsersProps) => {
   const { data, isLoading, error, refetch } = useApiQuery<Paginated<FullUserStatistics>>({

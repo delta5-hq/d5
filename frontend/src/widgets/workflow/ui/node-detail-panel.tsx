@@ -1,18 +1,31 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { NodeData, NodeId } from '@shared/base-types'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import type { NodeData, NodeId, ReliabilityMetadata, JudgeQualityWarning } from '@shared/base-types'
 import { Genie } from '@shared/ui/genie'
 import { useGenieState } from '@shared/lib/use-genie-state'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import { canExecuteNode, isSlashCommand } from '@shared/lib/commands/command-validator'
+import {
+  isReliabilitySyntaxErrorReason,
+  validateCommandForExecution,
+  type ReliabilitySyntaxErrorReason,
+} from '@shared/lib/command-validation'
 import { useAliases } from '@entities/aliases'
 import { ArrowLeft, Pencil } from 'lucide-react'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { normalizeNodeTitle } from '@entities/workflow/lib'
 import { getNodeGeniePresentation } from '@features/workflow-tree/lib/node-genie-presenter'
-import { isTitleDerivedFromCommand } from '@shared/lib/reliability-suffix'
+import {
+  attachReliabilitySuffix,
+  extractReliabilitySuffix,
+  isTitleDerivedFromCommand,
+} from '@shared/lib/reliability-suffix'
+import { readCommodityN } from '@shared/lib/reliability/commodity-params'
 import { NodeTitleEditor } from './node-title-editor'
 import { NodeOutputSection } from './node-output-section'
 import { NodeCommandComposer } from './node-command-composer'
+import { CriterionVerdictDrawer } from './criterion-verdict-drawer'
+import { DiscardedForksDrawer } from './discarded-forks-drawer'
+import type { ForkPreviewState } from '@features/workflow-tree/store/fork-preview-state'
 import type { EditableTextAreaHandle } from '@shared/ui/editable-field'
 
 interface NodeDetailPanelProps {
@@ -26,8 +39,22 @@ interface NodeDetailPanelProps {
   onAbort: (nodeId: NodeId) => void
   isExecuting: boolean
   executeDisabled: boolean
+  electCost?: number | null
+  electCostExceedsLimit?: boolean
+  reliabilityMetadata?: ReliabilityMetadata
+  forkPreview?: ForkPreviewState
+  preExecuteWarnings?: JudgeQualityWarning[]
   autoFocusTitle?: boolean
   autoFocusCommand?: boolean
+  openDrawerForNodeId?: string
+  onDrawerOpened?: () => void
+}
+
+const RELIABILITY_SYNTAX_ERROR_I18N_KEY: Record<ReliabilitySyntaxErrorReason, string> = {
+  elect_criterion_must_be_validate: 'workflowTree.node.electCriterionMustBeValidate',
+  validate_retry_must_be_refine: 'workflowTree.node.validateRetryMustBeRefine',
+  invalid_refine_syntax: 'workflowTree.node.invalidRefineSyntax',
+  external_dispatch_refused: 'workflowTree.node.externalDispatchRefused',
 }
 
 export const NodeDetailPanel = ({
@@ -41,28 +68,55 @@ export const NodeDetailPanel = ({
   onAbort,
   isExecuting,
   executeDisabled,
+  electCost,
+  electCostExceedsLimit,
+  reliabilityMetadata,
+  forkPreview,
+  preExecuteWarnings,
   autoFocusTitle,
   autoFocusCommand,
+  openDrawerForNodeId,
+  onDrawerOpened,
 }: NodeDetailPanelProps) => {
   const { aliases } = useAliases()
   const genieState = useGenieState(node.id)
   const isRoot = !node.parent
   const { formatMessage } = useIntl()
+
+  /* Draft-driven validation (workflow editor line) combined with the reliability grammar gate. */
   const [commandDraft, setCommandDraft] = useState(node.command ?? '')
   const commandIsValid = isSlashCommand(commandDraft)
-  const canExecute = canExecuteNode(commandDraft, executeDisabled)
+  const commandValidation = validateCommandForExecution(commandDraft, false, aliases)
+  const reliabilitySyntaxError = isReliabilitySyntaxErrorReason(commandValidation.reason)
+    ? commandValidation.reason
+    : null
+  const canExecute =
+    canExecuteNode(commandDraft, executeDisabled || electCostExceedsLimit === true) && !reliabilitySyntaxError
   const siblingActionsEnabled = !isRoot && canExecute
   const titleRef = useRef<EditableTextAreaHandle>(null)
+
+  const commodityN = readCommodityN(commandDraft)
+  const { baseTitle: nodeTitleBase, suffix: nodeTitleSuffix } = extractReliabilitySuffix(normalizeNodeTitle(node.title))
+
+  const [verdictOpen, setVerdictOpen] = useState(false)
+  const [forksOpen, setForksOpen] = useState(false)
 
   useEffect(() => {
     setCommandDraft(node.command ?? '')
   }, [node.id, node.command])
 
+  useEffect(() => {
+    if (openDrawerForNodeId !== node.id) return
+    onDrawerOpened?.()
+    if (!reliabilityMetadata) return
+    setVerdictOpen(true)
+  }, [openDrawerForNodeId, node.id, reliabilityMetadata, onDrawerOpened])
+
   const handleTitleChange = useCallback(
     (title: string) => {
-      onUpdateNode(node.id, { title })
+      onUpdateNode(node.id, { title: attachReliabilitySuffix(title, nodeTitleSuffix) })
     },
-    [node.id, onUpdateNode],
+    [node.id, nodeTitleSuffix, onUpdateNode],
   )
 
   const handleCommandChange = useCallback(
@@ -75,22 +129,31 @@ export const NodeDetailPanel = ({
   )
 
   const handleExecute = useCallback(async () => {
+    if (reliabilitySyntaxError) return
     const queryType = extractQueryTypeFromCommand(commandDraft, aliases)
     await onExecute({ ...node, command: commandDraft }, queryType)
-  }, [node, commandDraft, onExecute, aliases])
+  }, [node, commandDraft, onExecute, aliases, reliabilitySyntaxError])
 
   const handleAbort = useCallback(() => {
     onAbort(node.id)
   }, [node.id, onAbort])
 
   const handleEnterInCommand = useCallback(
-    (committedCommand: string) => onEnterInCommand(node.id, committedCommand),
-    [node.id, onEnterInCommand],
+    (committedCommand: string) => {
+      const validation = validateCommandForExecution(committedCommand, false, aliases)
+      if (isReliabilitySyntaxErrorReason(validation.reason)) return
+      onEnterInCommand(node.id, committedCommand)
+    },
+    [node.id, onEnterInCommand, aliases],
   )
 
   const handleCtrlEnterInCommand = useCallback(
-    (committedCommand: string) => onCtrlEnterInCommand(node.id, committedCommand),
-    [node.id, onCtrlEnterInCommand],
+    (committedCommand: string) => {
+      const validation = validateCommandForExecution(committedCommand, false, aliases)
+      if (isReliabilitySyntaxErrorReason(validation.reason)) return
+      onCtrlEnterInCommand(node.id, committedCommand)
+    },
+    [node.id, onCtrlEnterInCommand, aliases],
   )
 
   const handleShiftCtrlEnterInCommand = useCallback(
@@ -99,10 +162,78 @@ export const NodeDetailPanel = ({
   )
 
   const autoTitle = isTitleDerivedFromCommand(node.title ?? '', node.command ?? '')
-  const commandToken = commandDraft.trim().split(/\s+/)[0] ?? ''
-  const commandIsSlash = commandToken.startsWith('/')
+  const effectiveToken = commandDraft.trim().split(/\s+/)[0] ?? ''
+  const commandIsSlash = effectiveToken.startsWith('/')
   const geniePresentation = getNodeGeniePresentation({ command: commandDraft }, { aliases })
   const genieColor = geniePresentation.color
+
+  const showForkEntry = Boolean(forkPreview) || Boolean(reliabilityMetadata)
+
+  const commandHints: ReactNode = (
+    <>
+      {reliabilitySyntaxError ? (
+        <span className="mt-1 block text-xs text-destructive" data-testid="command-validation-error">
+          <FormattedMessage id={RELIABILITY_SYNTAX_ERROR_I18N_KEY[reliabilitySyntaxError]} />
+        </span>
+      ) : null}
+      {typeof electCost === 'number' ? (
+        <span className="mt-1 block text-xs text-muted-foreground" data-testid="elect-cost-hint">
+          <FormattedMessage id="workflowTree.node.electCostHint" values={{ cost: electCost }} />
+        </span>
+      ) : null}
+      {typeof electCost === 'number' && electCostExceedsLimit ? (
+        <span className="mt-1 block text-xs text-destructive" data-testid="elect-cost-over-limit">
+          <FormattedMessage id="workflowTree.node.electCostOverLimit" values={{ cost: electCost }} />
+        </span>
+      ) : null}
+      {commodityN > 1 ? (
+        <span className="mt-1 block text-xs text-accent" data-testid="commodity-ceiling-hint">
+          <FormattedMessage id="workflowTree.node.commodityCeilingHint" />
+        </span>
+      ) : null}
+      {preExecuteWarnings && preExecuteWarnings.length > 0 ? (
+        <div className="mt-1 space-y-0.5" data-testid="pre-execute-warnings">
+          {preExecuteWarnings.map(w => (
+            <span
+              className={w.severity === 'high' ? 'block text-xs text-destructive' : 'block text-xs text-accent'}
+              data-testid={`pre-execute-warning-${w.condition}`}
+              key={w.condition}
+            >
+              <FormattedMessage id={`workflowTree.verdictDrawer.judgeQualityWarning_${w.condition}`} />
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {reliabilityMetadata?.mode === 'suppressed' ? (
+        <span className="mt-1 block text-xs text-accent" data-testid="suppressed-run-hint">
+          <FormattedMessage
+            id="workflowTree.node.nestedReliabilitySuppressedHint"
+            values={{ n: reliabilityMetadata.requestedN ?? '' }}
+          />
+        </span>
+      ) : null}
+      {reliabilityMetadata?.perCriterionVerdict?.length ? (
+        <button
+          className="mt-1 block text-xs text-primary underline underline-offset-2 transition-opacity hover:opacity-80"
+          data-testid="verdict-button"
+          onClick={() => setVerdictOpen(true)}
+          type="button"
+        >
+          <FormattedMessage id="workflowTree.node.verdictButton" />
+        </button>
+      ) : null}
+      {showForkEntry ? (
+        <button
+          className="mt-1 block text-xs text-primary underline underline-offset-2 transition-opacity hover:opacity-80"
+          data-testid="forks-button"
+          onClick={() => setForksOpen(true)}
+          type="button"
+        >
+          <FormattedMessage id="workflowTree.discardedForks.discardedForksButton" />
+        </button>
+      ) : null}
+    </>
+  )
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 p-4" data-testid="node-detail-panel">
@@ -133,7 +264,7 @@ export const NodeDetailPanel = ({
             onChange={handleTitleChange}
             readOnlyClassName="block max-w-full truncate whitespace-nowrap border-0 bg-transparent px-0 py-0 hover:border-transparent hover:bg-transparent"
             ref={titleRef}
-            value={normalizeNodeTitle(node.title)}
+            value={nodeTitleBase}
           />
         </div>
         <div className="flex shrink-0 items-center gap-2" data-testid="node-detail-title-actions">
@@ -154,36 +285,53 @@ export const NodeDetailPanel = ({
         </div>
       </header>
 
-      <NodeOutputSection
-        commandIsSlash={commandIsSlash}
-        commandToken={commandToken}
-        genieColor={genieColor}
-        genieState={genieState}
-        genieVariant={geniePresentation.variant}
-        mcpFusionReport={node.mcpFusionReport}
-        nodeId={node.id}
-      />
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <NodeOutputSection
+          commandIsSlash={commandIsSlash}
+          commandToken={effectiveToken}
+          genieColor={genieColor}
+          genieState={genieState}
+          genieVariant={geniePresentation.variant}
+          mcpFusionReport={node.mcpFusionReport}
+          nodeId={node.id}
+        />
 
-      <NodeCommandComposer
-        autoFocusCommand={autoFocusCommand}
-        canExecute={canExecute}
-        command={node.command ?? ''}
-        commandDraft={commandDraft}
-        commandIsSlash={commandIsSlash}
-        commandIsValid={commandIsValid}
-        commandToken={commandToken}
-        genieColor={genieColor}
-        isExecuting={isExecuting}
-        nodeId={node.id}
-        onAbort={handleAbort}
-        onCommandChange={handleCommandChange}
-        onCtrlEnter={handleCtrlEnterInCommand}
-        onDraftChange={setCommandDraft}
-        onEnter={handleEnterInCommand}
-        onExecute={handleExecute}
-        onShiftCtrlEnter={handleShiftCtrlEnterInCommand}
-        siblingActionsEnabled={siblingActionsEnabled}
-      />
+        <NodeCommandComposer
+          autoFocusCommand={autoFocusCommand}
+          canExecute={canExecute}
+          command={node.command ?? ''}
+          commandDraft={commandDraft}
+          commandIsSlash={commandIsSlash}
+          commandIsValid={commandIsValid}
+          commandToken={effectiveToken}
+          genieColor={genieColor}
+          hints={commandHints}
+          isExecuting={isExecuting}
+          nodeId={node.id}
+          onAbort={handleAbort}
+          onCommandChange={handleCommandChange}
+          onCtrlEnter={handleCtrlEnterInCommand}
+          onDraftChange={setCommandDraft}
+          onEnter={handleEnterInCommand}
+          onExecute={handleExecute}
+          onShiftCtrlEnter={handleShiftCtrlEnterInCommand}
+          siblingActionsEnabled={siblingActionsEnabled}
+        />
+      </div>
+
+      {reliabilityMetadata ? (
+        <CriterionVerdictDrawer metadata={reliabilityMetadata} onOpenChange={setVerdictOpen} open={verdictOpen} />
+      ) : null}
+      {showForkEntry ? (
+        <DiscardedForksDrawer
+          discardedForks={reliabilityMetadata?.discardedForks}
+          forkPreview={forkPreview}
+          metadata={reliabilityMetadata}
+          nodeId={node.id}
+          onOpenChange={setForksOpen}
+          open={forksOpen}
+        />
+      ) : null}
     </div>
   )
 }

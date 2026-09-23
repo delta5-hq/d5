@@ -26,6 +26,8 @@ export interface WorkflowSegmentTreeProps {
   onWrapNodes?: (nodeId: string) => void
   onMoveNode?: (nodeId: string, targetNodeId: string, position: TreeDropPosition) => void
   onDropFiles?: (parentId: string, files: FileList) => void
+  onRequestRename?: (nodeId: string) => void
+  onSuffixClick?: (nodeId: string) => void
   onVisibleOrderChange?: (order: readonly string[]) => void
   /** Newly created node ID — signals the tree to flash it on mount */
   flashNodeId?: string
@@ -46,9 +48,11 @@ const WorkflowSegmentTreeInner = ({
   onDelete,
   onDuplicateNode,
   onRename,
+  onRequestRename,
   onWrapNodes,
   onMoveNode,
   onDropFiles,
+  onSuffixClick,
   onVisibleOrderChange,
   flashNodeId,
   showCheckboxes,
@@ -252,7 +256,9 @@ const WorkflowSegmentTreeInner = ({
               onDuplicateNode={onDuplicateNode}
               onPointerDragStartNode={handlePointerDragStartNode}
               onRename={onRename}
+              onRequestRename={onRequestRename}
               onSelect={handleSelect}
+              onSuffixClick={onSuffixClick}
               onToggle={handleToggle}
               onToggleChecked={showCheckboxes ? handleToggleChecked : undefined}
               onVisibleOrderChange={onVisibleOrderChange}

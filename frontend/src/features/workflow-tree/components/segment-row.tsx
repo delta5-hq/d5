@@ -33,6 +33,7 @@ export const SegmentRow = ({
   onDropFiles,
   activeDropTargetId,
   activeDropPosition,
+  onSuffixClick,
   autoEditNodeId,
 }: SegmentRowProps) => {
   if (segment.type === 'node') {
@@ -59,6 +60,7 @@ export const SegmentRow = ({
         onPointerDragStartNode={onPointerDragStartNode}
         onRename={onRename}
         onSelect={onSelect}
+        onSuffixClick={onSuffixClick}
         onToggle={onToggle}
         onToggleChecked={onToggleChecked}
         onWrapNodes={onWrapNodes}

@@ -17,6 +17,8 @@ import {
   useWorkflowExecutingNodeIds,
   type TreeDropPosition,
   getTreeMoveRequest,
+  useNodeForkPreview,
+  useWorkflowId,
 } from '@features/workflow-tree'
 import { Card, CardContent, CardHeader, CardTitle } from '@shared/ui/card'
 import { Loader2, RefreshCw } from 'lucide-react'
@@ -24,8 +26,16 @@ import { Button } from '@shared/ui/button'
 import { FormattedMessage, useIntl } from 'react-intl'
 import { getDescendantIds, normalizeNodeTitle, hasUsableRoot } from '@entities/workflow/lib'
 import { useClickOutside } from '@shared/lib/hooks'
-import { matchesAnyCommandWithOrder } from '@shared/lib/command-validation'
+import { isSlashCommand } from '@shared/lib/commands/command-validator'
+import {
+  isReliabilitySyntaxErrorReason,
+  matchesAnyCommandWithOrder,
+  validateCommandForExecution,
+} from '@shared/lib/command-validation'
 import { deriveNodeTitle } from '@shared/lib/reliability-suffix'
+import { projectSelectedNodeElectCostPreview } from '@shared/lib/reliability/fork-cost-projector'
+import { computePreExecuteWarnings } from '@shared/lib/reliability/judge-quality-warnings'
+import { useIntegrationSettings } from '@shared/composables'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import { useAliases } from '@entities/aliases'
 import { toast } from 'sonner'
@@ -63,12 +73,14 @@ const WorkflowContent = () => {
   const selectedIds = useWorkflowSelectedIds()
   const selectedNode = useWorkflowNode(selectedId)
   const isSelectedNodeExecuting = useIsNodeExecuting(selectedId)
+  const selectedNodeForkPreview = useNodeForkPreview(selectedId)
   const executingNodeIds = useWorkflowExecutingNodeIds()
   const [autoEditNodeId, setAutoEditNodeId] = useState<string | undefined>()
   const [autoFocusCommandNodeId, setAutoFocusCommandNodeId] = useState<string | undefined>()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>()
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<NodeId>>(new Set())
   const [flashNodeId, setFlashNodeId] = useState<string | undefined>()
+  const [openDrawerForNodeId, setOpenDrawerForNodeId] = useState<string | undefined>()
 
   useEffect(() => {
     if (flashNodeId) setFlashNodeId(undefined)
@@ -77,6 +89,20 @@ const WorkflowContent = () => {
   useEffect(() => {
     if (autoFocusCommandNodeId) setAutoFocusCommandNodeId(undefined)
   }, [autoFocusCommandNodeId])
+
+  const hasValidCommand = useMemo(() => isSlashCommand(selectedNode?.command), [selectedNode?.command])
+
+  const selectedNodeElectProjection = useMemo(
+    () => projectSelectedNodeElectCostPreview(selectedNode, nodes, aliases),
+    [selectedNode, nodes, aliases],
+  )
+
+  const workflowId = useWorkflowId()
+  const integrationSettings = useIntegrationSettings(workflowId)
+  const selectedNodePreExecuteWarnings = useMemo(
+    () => computePreExecuteWarnings(selectedNode?.command, selectedNode?.id ?? '', nodes, integrationSettings),
+    [selectedNode?.command, selectedNode?.id, nodes, integrationSettings],
+  )
 
   const visibleOrderRef = useRef<readonly string[]>([])
   const treeContainerRef = useRef<HTMLDivElement>(null)
@@ -132,6 +158,7 @@ const WorkflowContent = () => {
 
   const handleSelect = useCallback(
     (id: string, _node: unknown, event?: MouseEvent) => {
+      setOpenDrawerForNodeId(undefined)
       if (event?.shiftKey) {
         actions.rangeSelect(id, visibleOrderRef.current)
       } else if (event && (event.ctrlKey || event.metaKey)) {
@@ -167,6 +194,7 @@ const WorkflowContent = () => {
 
   const handleAddChild = useCallback(
     (parentId: string) => {
+      actions.expandNode(parentId)
       const newId = actions.addChild(parentId, { title: '' })
       if (newId) {
         actions.select(newId)
@@ -178,13 +206,14 @@ const WorkflowContent = () => {
   )
 
   const handleAddSibling = useCallback(
-    (nodeId: string) => {
+    (nodeId: string): string | null => {
       const newId = actions.addSibling(nodeId, { title: '' })
       if (newId) {
         actions.select(newId)
         setAutoEditNodeId(newId)
         setFlashNodeId(newId)
       }
+      return newId
     },
     [actions],
   )
@@ -214,6 +243,24 @@ const WorkflowContent = () => {
     },
     [actions, nodes],
   )
+
+  const handleRequestRename = useCallback(
+    (nodeId: string) => {
+      actions.select(nodeId)
+      setAutoEditNodeId(nodeId)
+    },
+    [actions],
+  )
+
+  const handleSuffixClick = useCallback(
+    (nodeId: string) => {
+      actions.select(nodeId)
+      setOpenDrawerForNodeId(nodeId)
+    },
+    [actions],
+  )
+
+  const handleDrawerOpened = useCallback(() => setOpenDrawerForNodeId(undefined), [])
 
   const handleConfirmDelete = useCallback(() => {
     if (!pendingDeleteId) return
@@ -334,6 +381,8 @@ const WorkflowContent = () => {
       const node = nodes[nodeId]
       if (!node) return
       if (!matchesAnyCommandWithOrder(committedCommand, aliases)) return
+      const validation = validateCommandForExecution(committedCommand, false, aliases)
+      if (isReliabilitySyntaxErrorReason(validation.reason)) return
       const queryType = extractQueryTypeFromCommand(committedCommand, aliases)
       void actions.executeCommand(
         { ...node, command: committedCommand, title: deriveNodeTitle(node, committedCommand) },
@@ -347,7 +396,9 @@ const WorkflowContent = () => {
     (nodeId: string, committedCommand: string) => {
       const node = nodes[nodeId]
       if (!node) return
-      const isExecutable = matchesAnyCommandWithOrder(committedCommand, aliases)
+      const validation = validateCommandForExecution(committedCommand, false, aliases)
+      const isExecutable =
+        matchesAnyCommandWithOrder(committedCommand, aliases) && !isReliabilitySyntaxErrorReason(validation.reason)
       if (isExecutable) {
         const queryType = extractQueryTypeFromCommand(committedCommand, aliases)
         void actions.executeCommand(
@@ -448,7 +499,9 @@ const WorkflowContent = () => {
             onDuplicateNode={handleDuplicateNode}
             onMoveNode={handleMoveNode}
             onRename={handleRename}
+            onRequestRename={handleRequestRename}
             onSelect={handleSelect}
+            onSuffixClick={handleSuffixClick}
             onVisibleOrderChange={handleVisibleOrderChange}
             onWrapNodes={handleWrapNodes}
             rootId={root}
@@ -464,17 +517,24 @@ const WorkflowContent = () => {
             <NodeDetailPanel
               autoFocusCommand={autoFocusCommandNodeId === selectedId}
               autoFocusTitle={false}
-              executeDisabled={isSelectedNodeExecuting}
+              electCost={selectedNodeElectProjection?.cost ?? null}
+              electCostExceedsLimit={selectedNodeElectProjection?.limitExceeded ?? false}
+              executeDisabled={isSelectedNodeExecuting || !hasValidCommand}
+              forkPreview={selectedNodeForkPreview}
               isExecuting={isSelectedNodeExecuting}
               key={selectedNode.id}
               node={selectedNode}
               onAbort={handleAbort}
               onClose={handleCloseDetailPanel}
               onCtrlEnterInCommand={handleCtrlEnterInCommand}
+              onDrawerOpened={handleDrawerOpened}
               onEnterInCommand={handleEnterInCommand}
               onExecute={handleExecute}
               onShiftCtrlEnterInCommand={handleShiftCtrlEnterInCommand}
               onUpdateNode={handleUpdateNode}
+              openDrawerForNodeId={openDrawerForNodeId}
+              preExecuteWarnings={selectedNodePreExecuteWarnings}
+              reliabilityMetadata={selectedNode.reliabilityMetadata}
             />
           ) : (
             <p className="workflow-empty-panel-callout m-4 rounded-lg border border-dashed border-muted-foreground/25 bg-muted/35 px-4 py-5 text-sm text-muted-foreground">

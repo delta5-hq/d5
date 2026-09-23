@@ -1,9 +1,16 @@
 /**
- * P0.11 end-to-end wiring tests: runCommand → resolveRefineCell → suffix + applyCandidate.
+ * Top-level inline `/refine :n=N <term>` post-processing seam.
  *
- * resolveRefineCell is NOT mocked — it runs naturally.
- * The test controls the result by mocking SubtreeForkRunner.runForks and ForkJudge.
- * StoreFork.applyCandidate is mocked to isolate store-merge side effects.
+ * These tests pin the routing decisions `resolveRootRefineCell` owns, not the
+ * dispatch of any individual post-processor: whether the refine cell's subtree is
+ * handed to `postProcessExistingOutput` at all (gated on the refinement outcome)
+ * and whether the already-evaluated `/validate` children are excluded from that
+ * pass. Per-child-type dispatch and ordering (summarize < memorize < outline,
+ * foreach, recursion) are covered by `runCommand.postprocess.test.js` and are not
+ * re-asserted here. `/summarize` is used only as a representative subtree child.
+ *
+ * The generating term is a no-op (CommandFactory mocked) so the assertions turn on
+ * routing alone; validation outcome is driven through the validateGroup mock.
  */
 import {runCommand} from './runCommand'
 import Store from './Store'
@@ -24,245 +31,125 @@ jest.mock('../../ProgressReporter', () => ({
   })),
 }))
 
-// Mock SubtreeForkRunner so forks return controlled results without real LLM calls
-jest.mock('../../reliability/core/SubtreeForkRunner', () => ({runForks: jest.fn()}))
-
-// Mock ForkJudge so winner selection is deterministic
-jest.mock('../../reliability/core/ForkJudge', () => ({ForkJudge: jest.fn()}))
-
-// Mock StoreFork.applyCandidate to prevent actual store merging; verify it's called
-jest.mock('../../reliability/core/StoreFork', () => ({
+jest.mock('../../reliability/CommandFactory', () => ({
   __esModule: true,
-  default: {
-    createFork: jest.fn(s => s),
-    applyCandidate: jest.fn(),
-  },
+  default: {createRunner: jest.fn(() => async () => {})},
 }))
 
-// RefineTopology must return empty to avoid triggering nested /refine resolution
-jest.mock('../../reliability/core/RefineTopology', () => jest.fn(() => []))
+jest.mock('../../reliability/core/validateGroup', () => ({
+  ...jest.requireActual('../../reliability/core/validateGroup'),
+  evaluateValidateGroup: jest.fn(),
+  firstFailedValidate: jest.fn(),
+}))
 
-const {runForks: mockRunForks} = require('../../reliability/core/SubtreeForkRunner')
-const {ForkJudge: MockForkJudge} = require('../../reliability/core/ForkJudge')
-const MockStoreFork = require('../../reliability/core/StoreFork').default
+const validateGroup = require('../../reliability/core/validateGroup')
+const passingResult = node => ({node, passed: true, criterion: 'c'})
+const failingResult = node => ({node, passed: false, criterion: 'c', reason: 'missing'})
+
+const allValidatesPass = () => {
+  validateGroup.evaluateValidateGroup.mockImplementation(async validates => validates.map(passingResult))
+  validateGroup.firstFailedValidate.mockReturnValue(undefined)
+}
+const someValidateFails = () => {
+  validateGroup.evaluateValidateGroup.mockImplementation(async validates => validates.map(failingResult))
+  validateGroup.firstFailedValidate.mockImplementation(results => results.find(r => !r.passed))
+}
+
+const summarizeSpy = () =>
+  jest.spyOn(require('../SummarizeCommand').SummarizeCommand.prototype, 'run').mockResolvedValue({})
 
 const buildStore = nodeMap => new Store({userId: 'u1', nodes: nodeMap})
 
-// Spy on ChatCommand.run to avoid real LLM call for the parent /chat execution
-const chatSpy = () => jest.spyOn(require('../ChatCommand').ChatCommand.prototype, 'run').mockResolvedValue({})
-
-const makeOkForkStore = () =>
-  buildStore({
-    parent: {id: 'parent', parent: null, command: '/chat do task', children: ['refine']},
-    refine: {id: 'refine', parent: 'parent', command: '/refine :n=2', children: []},
-  })
+const rootRefine = (children, extraNodes = {}) => ({
+  refine: {id: 'refine', parent: null, command: '/refine :n=1 /chatgpt propose directions', children},
+  ...extraNodes,
+})
+const validateNode = id => ({[id]: {id, parent: 'refine', command: '/validate directions listed', children: []}})
+const summarizeNode = id => ({[id]: {id, parent: 'refine', command: '/summarize condense', children: []}})
 
 beforeEach(() => {
   jest.clearAllMocks()
-  MockForkJudge.mockImplementation(() => ({selectWinner: jest.fn().mockResolvedValue(null)}))
-  mockRunForks.mockResolvedValue([])
+  allValidatesPass()
 })
+afterEach(() => jest.restoreAllMocks())
 
-// ────────────────────────────────────────────────────────────────────────────
-// P0.11(a): strict mode — winner picked and applied, title gets ✓ suffix
-// ────────────────────────────────────────────────────────────────────────────
-describe('P0.11(a): /refine :n=2 strict mode — winner selected and applied', () => {
-  it('calls StoreFork.applyCandidate with the winning forkStore', async () => {
-    const winnerForkStore = makeOkForkStore(0)
-    const loserForkStore = makeOkForkStore(1)
+describe('/refine :n=N /term — top-level inline refine post-processing seam', () => {
+  it('hands the resolved subtree to post-processing when every criterion passes', async () => {
+    const runSpy = summarizeSpy()
+    const store = buildStore(rootRefine(['val', 'sum'], {...validateNode('val'), ...summarizeNode('sum')}))
 
-    mockRunForks.mockResolvedValue([
-      {forkIndex: 0, status: 'ok', forkStore: winnerForkStore},
-      {forkIndex: 1, status: 'ok', forkStore: loserForkStore},
-    ])
-    MockForkJudge.mockImplementation(() => ({
-      selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: 0, selectionLayer: 'primary'}),
-    }))
+    await runCommand({queryType: 'refine', cell: store.getNode('refine'), store})
 
-    const store = buildStore({
-      parent: {id: 'parent', parent: null, command: '/chat do task', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', command: '/refine :n=2', children: []},
-    })
-
-    const spy = chatSpy()
-    await runCommand({queryType: 'chat', cell: store.getNode('parent'), store})
-    spy.mockRestore()
-
-    expect(MockStoreFork.applyCandidate).toHaveBeenCalledWith(store, winnerForkStore, 'refine')
+    expect(runSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('updates refine node title with ✓ suffix after winner is applied', async () => {
-    const winnerForkStore = makeOkForkStore(0)
+  it('skips the subtree when the refinement is INVALID (no /validate child)', async () => {
+    const runSpy = summarizeSpy()
+    const store = buildStore(rootRefine(['sum'], summarizeNode('sum')))
 
-    mockRunForks.mockResolvedValue([
-      {forkIndex: 0, status: 'ok', forkStore: winnerForkStore},
-      {forkIndex: 1, status: 'ok', forkStore: makeOkForkStore(1)},
-    ])
-    MockForkJudge.mockImplementation(() => ({
-      selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: 0, selectionLayer: 'primary'}),
-    }))
+    await runCommand({queryType: 'refine', cell: store.getNode('refine'), store})
 
-    const store = buildStore({
-      parent: {id: 'parent', parent: null, command: '/chat do task', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', command: '/refine :n=2', children: []},
-    })
-
-    const spy = chatSpy()
-    await runCommand({queryType: 'chat', cell: store.getNode('parent'), store})
-    spy.mockRestore()
-
-    expect(store.getNode('refine').title).toMatch(/\[✓ 2\/2\]/)
+    expect(runSpy).not.toHaveBeenCalled()
   })
 
-  it('does NOT write an error node when a winner is found (strict mode)', async () => {
-    const winnerForkStore = makeOkForkStore(0)
-    mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'ok', forkStore: winnerForkStore}])
-    MockForkJudge.mockImplementation(() => ({
-      selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: 0, selectionLayer: 'primary'}),
-    }))
+  it('skips the subtree and propagates when the best attempt still fails a criterion', async () => {
+    someValidateFails()
+    const runSpy = summarizeSpy()
+    const store = buildStore(rootRefine(['val', 'sum'], {...validateNode('val'), ...summarizeNode('sum')}))
 
-    const store = buildStore({
-      parent: {id: 'parent', parent: null, command: '/chat do task', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', command: '/refine :n=2', children: []},
-    })
-    const createErrorSpy = jest.spyOn(store.importer, 'createErrorNode')
-
-    const spy = chatSpy()
-    await runCommand({queryType: 'chat', cell: store.getNode('parent'), store})
-    spy.mockRestore()
-
-    expect(createErrorSpy).not.toHaveBeenCalled()
+    await expect(runCommand({queryType: 'refine', cell: store.getNode('refine'), store})).rejects.toThrow()
+    expect(runSpy).not.toHaveBeenCalled()
   })
 
-  it('passes ownedValidates gathered by OwnershipResolver to ForkJudge.selectWinner', async () => {
-    // /validate is a child of /refine → OwnershipResolver assigns it to /refine
-    const winnerForkStore = buildStore({
-      parent: {id: 'parent', parent: null, command: '/chat do task', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', command: '/refine :n=2', children: ['validate']},
-      validate: {id: 'validate', parent: 'refine', command: '/validate must include numbers', children: []},
-    })
-    mockRunForks.mockResolvedValue([
-      {forkIndex: 0, status: 'ok', forkStore: winnerForkStore},
-      {forkIndex: 1, status: 'ok', forkStore: winnerForkStore},
-    ])
+  it('does not re-evaluate /validate children during the post-processing pass', async () => {
+    summarizeSpy()
+    const store = buildStore(rootRefine(['val', 'sum'], {...validateNode('val'), ...summarizeNode('sum')}))
 
-    let capturedValidateNodes
-    MockForkJudge.mockImplementation(() => ({
-      selectWinner: jest.fn(async ({validateNodes}) => {
-        capturedValidateNodes = validateNodes
-        return {winnerForkIndex: 0, selectionLayer: 'primary'}
-      }),
-    }))
+    await runCommand({queryType: 'refine', cell: store.getNode('refine'), store})
 
-    const store = buildStore({
-      parent: {id: 'parent', parent: null, command: '/chat do task', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', command: '/refine :n=2', children: ['validate']},
-      validate: {id: 'validate', parent: 'refine', command: '/validate must include numbers', children: []},
-    })
-
-    const spy = chatSpy()
-    await runCommand({queryType: 'chat', cell: store.getNode('parent'), store})
-    spy.mockRestore()
-
-    expect(capturedValidateNodes).toHaveLength(1)
-    expect(capturedValidateNodes[0].id).toBe('validate')
-  })
-})
-
-// ────────────────────────────────────────────────────────────────────────────
-// P0.11(b): :fallback mode — all forks fail criteria, commits highest-ranked
-// ────────────────────────────────────────────────────────────────────────────
-describe('P0.11(b): /refine :n=3 :fallback — all forks fail criteria, commits highest-ranked', () => {
-  const makeFailedForkStore = () =>
-    buildStore({
-      parent: {id: 'parent', parent: null, command: '/chat do task', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', command: '/refine :n=3 :fallback', children: ['validate']},
-      validate: {id: 'validate', parent: 'refine', command: '/validate must include numbers', children: []},
-    })
-
-  it('applies the highest-ranked criteria-failed fork via StoreFork.applyCandidate', async () => {
-    const f0 = makeFailedForkStore()
-    const f1 = makeFailedForkStore()
-    const f2 = makeFailedForkStore()
-
-    mockRunForks.mockResolvedValue([
-      {forkIndex: 0, status: 'criteria-failed', failedAt: 'must include numbers', attempts: 3, forkStore: f0},
-      {forkIndex: 1, status: 'criteria-failed', failedAt: 'must include numbers', attempts: 3, forkStore: f1},
-      {forkIndex: 2, status: 'criteria-failed', failedAt: 'must include numbers', attempts: 3, forkStore: f2},
-    ])
-    MockForkJudge.mockImplementation(() => ({
-      selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: 1, selectionLayer: 'fallback'}),
-    }))
-
-    const store = buildStore({
-      parent: {id: 'parent', parent: null, command: '/chat do task', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', command: '/refine :n=3 :fallback', children: ['validate']},
-      validate: {id: 'validate', parent: 'refine', command: '/validate must include numbers', children: []},
-    })
-
-    const spy = chatSpy()
-    await runCommand({queryType: 'chat', cell: store.getNode('parent'), store})
-    spy.mockRestore()
-
-    // f1 is fork at index 1 — the one the mocked judge selected
-    expect(MockStoreFork.applyCandidate).toHaveBeenCalledWith(store, f1, 'refine')
+    expect(validateGroup.evaluateValidateGroup).toHaveBeenCalledTimes(1)
   })
 
-  it('updates refine node title with ⚠ fallback suffix including chosen fork index', async () => {
-    const f0 = makeFailedForkStore()
-    const f1 = makeFailedForkStore()
-    const f2 = makeFailedForkStore()
+  it.each([
+    ['/refine :n=2 /mcp:jira create issue', 'MCP'],
+    ['/refine :n=2 /rpc:worker run', 'RPC'],
+  ])(
+    'refuses an inline %s term on its shape alone when no alias is configured, before running the subtree',
+    async command => {
+      const runSpy = summarizeSpy()
+      const store = buildStore({
+        refine: {id: 'refine', parent: null, command, children: ['val', 'sum']},
+        ...validateNode('val'),
+        ...summarizeNode('sum'),
+      })
+      store._aliases = {mcp: [], rpc: []}
+      const errorSpy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
 
-    mockRunForks.mockResolvedValue([
-      {forkIndex: 0, status: 'criteria-failed', failedAt: 'must include numbers', attempts: 3, forkStore: f0},
-      {forkIndex: 1, status: 'criteria-failed', failedAt: 'must include numbers', attempts: 3, forkStore: f1},
-      {forkIndex: 2, status: 'criteria-failed', failedAt: 'must include numbers', attempts: 3, forkStore: f2},
-    ])
-    MockForkJudge.mockImplementation(() => ({
-      selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: 1, selectionLayer: 'fallback'}),
-    }))
+      await runCommand({queryType: 'refine', cell: store.getNode('refine'), store})
 
+      expect(runSpy).not.toHaveBeenCalled()
+      const [msg] = errorSpy.mock.calls[0]
+      expect(msg).toContain('external dispatch')
+      expect(msg).not.toContain('side effect')
+      expect(store.getNode('refine').reliabilityMetadata.failureCause).toBe('external-dispatch-refused')
+    },
+  )
+
+  // Ordering boundary: the external-dispatch refusal is barred by the dispatch shape itself, so it
+  // wins over the validate-required check even when the cell carries no /validate child — the user
+  // sees why the fan-out is refused, not the unrelated "needs a /validate" message.
+  it('refuses an external-dispatch shape before the validate-required check when no /validate child exists', async () => {
     const store = buildStore({
-      parent: {id: 'parent', parent: null, command: '/chat do task', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', command: '/refine :n=3 :fallback', children: ['validate']},
-      validate: {id: 'validate', parent: 'refine', command: '/validate must include numbers', children: []},
+      refine: {id: 'refine', parent: null, command: '/refine :n=2 /mcp:jira create issue', children: []},
     })
+    store._aliases = {mcp: [], rpc: []}
+    const errorSpy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
 
-    const spy = chatSpy()
-    await runCommand({queryType: 'chat', cell: store.getNode('parent'), store})
-    spy.mockRestore()
+    await runCommand({queryType: 'refine', cell: store.getNode('refine'), store})
 
-    const title = store.getNode('refine').title
-    expect(title).toMatch(/⚠/)
-    expect(title).toContain('fallback')
-    expect(title).toContain('0/3')
-    expect(title).toContain('fork-1')
-  })
-
-  it('strict mode: no commit when all forks fail criteria — writes error node instead', async () => {
-    const f0 = makeFailedForkStore()
-    const f1 = makeFailedForkStore()
-
-    mockRunForks.mockResolvedValue([
-      {forkIndex: 0, status: 'criteria-failed', failedAt: 'criterion', attempts: 3, forkStore: f0},
-      {forkIndex: 1, status: 'criteria-failed', failedAt: 'criterion', attempts: 3, forkStore: f1},
-    ])
-    // selectWinner returns null (strict: no eligible forks)
-    MockForkJudge.mockImplementation(() => ({
-      selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: null, selectionLayer: 'none'}),
-    }))
-
-    const store = buildStore({
-      parent: {id: 'parent', parent: null, command: '/chat do task', children: ['refine']},
-      refine: {id: 'refine', parent: 'parent', command: '/refine :n=2', children: []},
-    })
-    const createErrorSpy = jest.spyOn(store.importer, 'createErrorNode')
-
-    const spy = chatSpy()
-    await runCommand({queryType: 'chat', cell: store.getNode('parent'), store})
-    spy.mockRestore()
-
-    expect(MockStoreFork.applyCandidate).not.toHaveBeenCalled()
-    expect(createErrorSpy).toHaveBeenCalled()
+    const [msg] = errorSpy.mock.calls[0]
+    expect(msg).toContain('external dispatch')
+    expect(msg).not.toContain('/validate child')
+    expect(store.getNode('refine').reliabilityMetadata.failureCause).toBe('external-dispatch-refused')
   })
 })

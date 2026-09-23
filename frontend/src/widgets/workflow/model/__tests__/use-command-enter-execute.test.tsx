@@ -96,6 +96,15 @@ describe('useCommandEnterExecute', () => {
       await act(async () => result.current.handleCommandEnter())
       expect(handlers.onExecute).not.toHaveBeenCalled()
     })
+
+    it.each(['/elect :n=3 must cite sources', '/validate :retry=2 criterion', '/refine :n=3 unexpected'])(
+      'command violates reliability grammar: %s',
+      async command => {
+        const { result, handlers } = renderChain(makeNode({ command }))
+        await act(async () => result.current.handleCommandEnter())
+        expect(handlers.onExecute).not.toHaveBeenCalled()
+      },
+    )
   })
 
   describe('execution', () => {

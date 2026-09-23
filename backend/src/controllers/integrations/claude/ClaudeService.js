@@ -6,7 +6,7 @@ const log = debug('delta5:Integration:ClaudeAPI')
 const claudeService = container.get('claudeService')
 
 export const ClaudeService = {
-  sendMessages: async ({apiKey, model, messages, userId, ...params}) => {
+  sendMessages: async ({apiKey, model, messages, userId, signal, ...params}) => {
     if (!apiKey) {
       throw new HttpError('Claude API key not found', 400)
     }
@@ -30,6 +30,7 @@ export const ClaudeService = {
       apiKey,
       model,
       messages,
+      signal,
       ...params,
     })
 

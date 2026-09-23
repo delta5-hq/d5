@@ -12,6 +12,7 @@ import {clearReferences} from './references/utils/referenceUtils'
 import {REF_DEF_PREFIX, HASHREF_DEF_PREFIX} from './references/referenceConstants'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
+import {throwIfAborted, throwIfAbortError} from './utils/executionSignal'
 import {createContextForChat} from './utils/createContextForChat'
 
 const log = debug('delta5:app:Command:Deepseek')
@@ -28,7 +29,7 @@ export class DeepseekCommand {
     this.logError = this.log.extend('ERROR*', '::')
   }
 
-  async replyDeepseek(message, userId, workflowId, store) {
+  async replyDeepseek(message, userId, workflowId, store, options = {}) {
     const settings = await getIntegrationSettings(userId, workflowId, store)
     const {apiKey, model} = settings?.deepseek || {}
 
@@ -47,12 +48,12 @@ export class DeepseekCommand {
       maxRetries: 1,
     })
 
-    const result = await llm.invoke([new HumanMessage(message)])
+    const result = await llm.invoke([new HumanMessage(message)], options)
 
     return result.content
   }
 
-  async run(node, context, originalPrompt) {
+  async run(node, context, originalPrompt, options = {}) {
     try {
       let prompt = originalPrompt
       const title = node?.command || node?.title
@@ -67,11 +68,17 @@ export class DeepseekCommand {
 
       prompt = context ? context + prompt : createContextForChat(node, {store: this.store}) + prompt
 
-      const text = (await this.replyDeepseek(prompt, this.userId, this.workflowId, this.store))?.replaceAll('**', '')
+      const text = (await this.replyDeepseek(prompt, this.userId, this.workflowId, this.store, options))?.replaceAll(
+        '**',
+        '',
+      )
 
+      throwIfAborted(options.signal)
       this.store.importer.createNodes(text, node.id)
     } catch (e) {
+      throwIfAbortError(e)
       this.logError(e)
+      throwIfAborted(options.signal)
       this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }
   }

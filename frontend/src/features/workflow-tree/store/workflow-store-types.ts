@@ -1,4 +1,5 @@
 import type { NodeData, NodeId, EdgeData, EdgeId, Share } from '@shared/base-types'
+import type { ForkPreviewState } from './fork-preview-state'
 
 export interface WorkflowStoreState {
   workflowId: string
@@ -21,6 +22,7 @@ export interface WorkflowStoreState {
   // target is here it renders as clipboard (no command pill, no thought tail); it
   // switches to its full command presentation when the spark arrives (results reveal).
   pendingFanOutTargetIds: Set<NodeId>
+  forkPreviews: Map<NodeId, ForkPreviewState>
 }
 
 export interface WorkflowStoreActions {
@@ -78,4 +80,5 @@ export const INITIAL_WORKFLOW_STATE: Omit<WorkflowStoreState, 'workflowId'> = {
   dirtyNodeIds: new Set<NodeId>(),
   executingNodeIds: new Set<NodeId>(),
   pendingFanOutTargetIds: new Set<NodeId>(),
+  forkPreviews: new Map<NodeId, ForkPreviewState>(),
 }

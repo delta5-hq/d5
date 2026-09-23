@@ -43,6 +43,7 @@ import {conditionallyTranslate} from './utils/translate'
 import {getNodeCommand} from './utils/isCommand'
 // eslint-disable-next-line no-unused-vars
 import Store from './utils/Store'
+import {throwIfAbortError} from './utils/executionSignal'
 
 const log = debug('delta5:app:Command:Outline')
 
@@ -81,6 +82,7 @@ export class OutlineCommand {
 
       return textTree
     } catch (e) {
+      throwIfAbortError(e)
       this.logError(e)
       return undefined
     }
@@ -263,6 +265,7 @@ export class OutlineCommand {
         await this.replyDefault(node, prompt, params)
       }
     } catch (e) {
+      throwIfAbortError(e)
       this.logError(e)
       this.store.importer.createErrorNode(`Error: ${e.message}`, node.id)
     }

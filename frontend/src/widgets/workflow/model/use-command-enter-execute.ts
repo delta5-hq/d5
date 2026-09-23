@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import type { NodeData, NodeId } from '@shared/base-types'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
 import { isSlashCommand } from '@shared/lib/commands/command-validator'
+import { isReliabilitySyntaxErrorReason, validateCommandForExecution } from '@shared/lib/command-validation'
 import { useAliases } from '@entities/aliases'
 
 export interface UseCommandEnterExecuteOptions {
@@ -31,6 +32,8 @@ export function useCommandEnterExecute({
     if (isRoot) return
     if (isExecuting) return
     if (!isSlashCommand(node.command)) return
+    const validation = validateCommandForExecution(node.command, false, aliases)
+    if (isReliabilitySyntaxErrorReason(validation.reason)) return
 
     const queryType = extractQueryTypeFromCommand(node.command, aliases)
 

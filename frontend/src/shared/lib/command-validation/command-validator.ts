@@ -1,4 +1,30 @@
 import { matchesAnyCommandWithOrder } from './command-matcher'
+import { clearStepsPrefix } from '@shared/lib/command-regexp'
+import { readElectTrailingText } from '@shared/lib/reliability/elect-params'
+import { readRefineN, readRefineTrailingText } from '@shared/lib/reliability/refine-params'
+import { parseInlineTerm } from '@shared/lib/reliability/inline-term-parser'
+import { isExternalDispatchShape } from '@shared/lib/reliability/external-dispatch'
+import type { DynamicAlias } from '@shared/lib/command-querytype-mapper'
+
+export type ReliabilitySyntaxErrorReason =
+  | 'elect_criterion_must_be_validate'
+  | 'validate_retry_must_be_refine'
+  | 'invalid_refine_syntax'
+  | 'external_dispatch_refused'
+
+const RELIABILITY_SYNTAX_ERROR_REASONS = new Set<ReliabilitySyntaxErrorReason>([
+  'elect_criterion_must_be_validate',
+  'validate_retry_must_be_refine',
+  'invalid_refine_syntax',
+  'external_dispatch_refused',
+])
+
+const matchesCommand = (command: string, keyword: string): boolean =>
+  command === keyword || (command.startsWith(keyword) && /\s/.test(command.charAt(keyword.length)))
+
+export function isReliabilitySyntaxErrorReason(reason: string | undefined): reason is ReliabilitySyntaxErrorReason {
+  return RELIABILITY_SYNTAX_ERROR_REASONS.has(reason as ReliabilitySyntaxErrorReason)
+}
 
 export interface CommandValidationResult {
   isValid: boolean
@@ -9,6 +35,7 @@ export interface CommandValidationResult {
 export function validateCommandForExecution(
   command: string | undefined,
   isExecuting: boolean,
+  dynamicAliases?: DynamicAlias[],
 ): CommandValidationResult {
   if (isExecuting) {
     return {
@@ -26,7 +53,7 @@ export function validateCommandForExecution(
     }
   }
 
-  const hasValidCommand = matchesAnyCommandWithOrder(command.trim())
+  const hasValidCommand = matchesAnyCommandWithOrder(command.trim(), dynamicAliases)
 
   if (!hasValidCommand) {
     return {
@@ -34,6 +61,35 @@ export function validateCommandForExecution(
       canExecute: false,
       reason: 'invalid_command_syntax',
     }
+  }
+
+  const normalized = clearStepsPrefix(command)
+  const electTrailing = readElectTrailingText(normalized)
+  if (matchesCommand(normalized, '/elect') && isExternalDispatchShape(electTrailing)) {
+    return { isValid: false, canExecute: false, reason: 'external_dispatch_refused' }
+  }
+  if (matchesCommand(normalized, '/elect') && electTrailing && !parseInlineTerm(electTrailing, dynamicAliases)) {
+    return { isValid: false, canExecute: false, reason: 'elect_criterion_must_be_validate' }
+  }
+  if (matchesCommand(normalized, '/validate') && /:retry=\d+(?=\s|$)/.test(normalized)) {
+    return { isValid: false, canExecute: false, reason: 'validate_retry_must_be_refine' }
+  }
+  // /refine :n=N accepts an inline generating term, mirroring /elect; trailing text that is not a
+  // recognized generating command (criterion prose, a non-generating command) is refused, matching
+  // the backend. A bare /refine :n=N stays valid as a child that refines its parent's output.
+  const refineTrailing = readRefineTrailingText(normalized)
+  const refineFansOut = (readRefineN(normalized) ?? 0) > 1
+  if (matchesCommand(normalized, '/refine') && refineFansOut && isExternalDispatchShape(refineTrailing)) {
+    return { isValid: false, canExecute: false, reason: 'external_dispatch_refused' }
+  }
+  if (
+    matchesCommand(normalized, '/refine') &&
+    (readRefineN(normalized) === null ||
+      (refineTrailing.length > 0 &&
+        !parseInlineTerm(refineTrailing, dynamicAliases) &&
+        !isExternalDispatchShape(refineTrailing)))
+  ) {
+    return { isValid: false, canExecute: false, reason: 'invalid_refine_syntax' }
   }
 
   return {

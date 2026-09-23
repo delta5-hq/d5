@@ -41,11 +41,12 @@ const runValidate = async (store, result) => {
   }
 
   const createNodesSpy = jest.spyOn(store.importer, 'createNodes')
+  const createErrorNodeSpy = jest.spyOn(store.importer, 'createErrorNode').mockImplementation(() => {})
   const command = new ValidateCommand('user1', 'wf1', store)
 
   await command.run(store.getNode(VALIDATE_NODE_ID))
 
-  return createNodesSpy
+  return {createNodesSpy, createErrorNodeSpy}
 }
 
 describe('ValidateCommand', () => {
@@ -62,7 +63,7 @@ describe('ValidateCommand', () => {
     [{passed: false, criterion: '', reason: ''}, 'Validation failed'],
     [{passed: true, criterion: '', reason: ''}, 'Validation passed'],
   ])('creates one visible result node for verdict %#', async (result, expectedTitle) => {
-    const createNodesSpy = await runValidate(buildValidatableStore(), result)
+    const {createNodesSpy} = await runValidate(buildValidatableStore(), result)
 
     expect(createNodesSpy).toHaveBeenCalledWith(expectedTitle, VALIDATE_NODE_ID)
     expect(createNodesSpy).toHaveBeenCalledTimes(1)
@@ -96,24 +97,24 @@ describe('ValidateCommand', () => {
       'Error: /validate requires non-empty parent content to validate',
     ],
   ])('creates one error node and skips validation for %s', async (_name, nodes, expectedTitle) => {
-    const createNodesSpy = await runValidate(buildStore(nodes), {
+    const {createErrorNodeSpy} = await runValidate(buildStore(nodes), {
       passed: true,
       criterion: 'contains numbers',
       reason: '',
     })
 
     expect(mockReliabilityRun).not.toHaveBeenCalled()
-    expect(createNodesSpy).toHaveBeenCalledWith(expectedTitle, VALIDATE_NODE_ID)
-    expect(createNodesSpy).toHaveBeenCalledTimes(1)
+    expect(createErrorNodeSpy).toHaveBeenCalledWith(expectedTitle, VALIDATE_NODE_ID)
+    expect(createErrorNodeSpy).toHaveBeenCalledTimes(1)
   })
 
   it.each([
     ['standard error', new Error('validator unavailable')],
     ['typed error', new TypeError('invalid validator response')],
   ])('creates one error node when validation throws a %s', async (_label, error) => {
-    const createNodesSpy = await runValidate(buildValidatableStore(), error)
+    const {createErrorNodeSpy} = await runValidate(buildValidatableStore(), error)
 
-    expect(createNodesSpy).toHaveBeenCalledWith(`Error: ${error.message}`, VALIDATE_NODE_ID)
-    expect(createNodesSpy).toHaveBeenCalledTimes(1)
+    expect(createErrorNodeSpy).toHaveBeenCalledWith(`Error: ${error.message}`, VALIDATE_NODE_ID)
+    expect(createErrorNodeSpy).toHaveBeenCalledTimes(1)
   })
 })

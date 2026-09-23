@@ -57,5 +57,124 @@ describe('command-validator', () => {
       expect(result.canExecute).toBe(false)
       expect(result.reason).toBe('invalid_command_syntax')
     })
+
+    it.each(['/elect :n=3', '/elect :n=3 :fallback', '/elect :limit=s :n=3', '/elect :n=3   '])(
+      'accepts parameter-only elect grammar: %s',
+      command => expect(validateCommandForExecution(command, false)).toMatchObject({ isValid: true, canExecute: true }),
+    )
+
+    it('rejects inert trailing elect criterion text with a specific reason', () => {
+      expect(validateCommandForExecution('/elect :n=3 must cite sources', false)).toEqual({
+        isValid: false,
+        canExecute: false,
+        reason: 'elect_criterion_must_be_validate',
+      })
+    })
+
+    it('rejects legacy validate retry ownership with a specific reason', () => {
+      expect(validateCommandForExecution('/validate :retry=2 criterion', false)).toEqual({
+        isValid: false,
+        canExecute: false,
+        reason: 'validate_retry_must_be_refine',
+      })
+    })
+
+    it('does not classify a longer malformed retry token as legacy retry ownership', () => {
+      expect(validateCommandForExecution('/validate criterion :retry=2abc', false)).toMatchObject({
+        isValid: true,
+        canExecute: true,
+      })
+    })
+
+    it('uses dynamic aliases when deciding whether a neighboring command is executable', () => {
+      expect(
+        validateCommandForExecution('/refinement :n=3', false, [{ alias: '/refinement', queryType: 'custom' }]),
+      ).toMatchObject({ isValid: true, canExecute: true })
+    })
+
+    it.each(['/refine', '/refine :n=0', '/refine :n=3.5', '/refine :n=3 unexpected'])(
+      'rejects malformed refine grammar: %s',
+      command => expect(validateCommandForExecution(command, false).reason).toBe('invalid_refine_syntax'),
+    )
+
+    it.each(['/refine :n=1', '/refine :n=3'])('accepts bounded refine grammar: %s', command =>
+      expect(validateCommandForExecution(command, false)).toMatchObject({ isValid: true, canExecute: true }),
+    )
+
+    // Refusal is decided by command class, not by N alone: /elect has no single-dispatch form, so an
+    // external dispatch is refused at every N including n=1; /refine refuses only where it fans out.
+    it.each([
+      '/elect :n=1 /mcp:jira create issue',
+      '/elect :n=2 /rpc:worker run',
+      '/elect :n=3 /mcp:jira create issue',
+      '/refine :n=2 /mcp:jira create issue',
+      '/refine :n=2 /rpc:worker run',
+    ])('refuses an external-dispatch term the engine cannot prove safe to repeat: %s', command =>
+      expect(validateCommandForExecution(command, false)).toEqual({
+        isValid: false,
+        canExecute: false,
+        reason: 'external_dispatch_refused',
+      }),
+    )
+
+    it.each(['/refine :n=1 /mcp:jira create issue', '/refine :n=1 /rpc:worker run'])(
+      'accepts /refine :n=1 over any external-dispatch shape — a single non-repeated attempt, matching the backend n>1 gate: %s',
+      command => expect(validateCommandForExecution(command, false)).toMatchObject({ isValid: true, canExecute: true }),
+    )
+  })
+})
+
+describe('inline modifier form — trailing recognized command is accepted', () => {
+  it.each(['/elect :n=3 /chatgpt propose directions', '/elect :n=2 /chat summarize', '/elect :n=3 /web latest news'])(
+    'accepts inline elect with recognized built-in term: %s',
+    command => {
+      expect(validateCommandForExecution(command, false)).toMatchObject({ isValid: true, canExecute: true })
+    },
+  )
+
+  it('accepts inline elect with a dynamic alias as the term', () => {
+    expect(validateCommandForExecution('/elect :n=3 /coder1 fix it', false, [{ alias: '/coder1' }])).toMatchObject({
+      isValid: true,
+      canExecute: true,
+    })
+  })
+
+  it.each(['/refine :n=3 /chatgpt propose directions', '/refine :n=2 /chat summarize', '/refine :n=3 /web query'])(
+    'accepts inline refine with recognized built-in term: %s',
+    command => {
+      expect(validateCommandForExecution(command, false)).toMatchObject({ isValid: true, canExecute: true })
+    },
+  )
+
+  it('accepts inline refine with a dynamic alias as the term', () => {
+    expect(validateCommandForExecution('/refine :n=3 /coder1 fix it', false, [{ alias: '/coder1' }])).toMatchObject({
+      isValid: true,
+      canExecute: true,
+    })
+  })
+
+  it.each(['/refine :n=3 /summarize the text', '/refine :n=2 /outline the topic'])(
+    'refuses inline refine whose term is a non-generating command: %s',
+    command => {
+      expect(validateCommandForExecution(command, false)).toMatchObject({
+        isValid: false,
+        canExecute: false,
+        reason: 'invalid_refine_syntax',
+      })
+    },
+  )
+
+  it('still rejects elect with trailing prose that is not a command', () => {
+    expect(validateCommandForExecution('/elect :n=3 must cite sources', false)).toMatchObject({
+      isValid: false,
+      reason: 'elect_criterion_must_be_validate',
+    })
+  })
+
+  it('still rejects refine with trailing prose that is not a command', () => {
+    expect(validateCommandForExecution('/refine :n=3 unexpected prose', false)).toMatchObject({
+      isValid: false,
+      reason: 'invalid_refine_syntax',
+    })
   })
 })

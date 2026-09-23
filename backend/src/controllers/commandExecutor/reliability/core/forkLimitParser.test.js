@@ -47,7 +47,7 @@ describe('readForkLimit', () => {
   })
 
   describe(':limit absent → null', () => {
-    it.each(['/refine :n=3', '/refine :n=3 :fallback', '/chat do something', '/validate must include numbers'])(
+    it.each(['/elect :n=3', '/elect :n=3 :fallback', '/chat do something', '/validate must include numbers'])(
       'returns null for "%s"',
       cmd => {
         expect(readForkLimit(cmd)).toBeNull()
@@ -57,12 +57,12 @@ describe('readForkLimit', () => {
 
   describe('T-shirt sizes → correct execution budgets', () => {
     it.each([
-      ['/refine :n=10 :limit=xxs', 10],
-      ['/refine :n=10 :limit=xs', 20],
-      ['/refine :n=10 :limit=s', 50],
-      ['/refine :n=10 :limit=l', 100],
-      ['/refine :n=10 :limit=xl', 200],
-      ['/refine :n=10 :limit=xxl', 500],
+      ['/elect :n=10 :limit=xxs', 10],
+      ['/elect :n=10 :limit=xs', 20],
+      ['/elect :n=10 :limit=s', 50],
+      ['/elect :n=10 :limit=l', 100],
+      ['/elect :n=10 :limit=xl', 200],
+      ['/elect :n=10 :limit=xxl', 500],
     ])('parses "%s" → %i', (cmd, expected) => {
       expect(readForkLimit(cmd)).toBe(expected)
     })
@@ -70,10 +70,10 @@ describe('readForkLimit', () => {
 
   describe('raw integer passthrough', () => {
     it.each([
-      ['/refine :n=3 :limit=30', 30],
-      ['/refine :n=3 :limit=0', 0],
-      ['/refine :n=3 :limit=1', 1],
-      ['/refine :n=3 :limit=999', 999],
+      ['/elect :n=3 :limit=30', 30],
+      ['/elect :n=3 :limit=0', 0],
+      ['/elect :n=3 :limit=1', 1],
+      ['/elect :n=3 :limit=999', 999],
     ])('parses "%s" → %i', (cmd, expected) => {
       expect(readForkLimit(cmd)).toBe(expected)
     })
@@ -81,10 +81,10 @@ describe('readForkLimit', () => {
 
   describe('param ordering: :limit can appear anywhere in the command', () => {
     it.each([
-      '/refine :limit=xs :n=10',
-      '/refine :n=10 :limit=xs',
-      '/refine :limit=xs :n=10 :fallback',
-      '/refine :n=10 :fallback :limit=xs',
+      '/elect :limit=xs :n=10',
+      '/elect :n=10 :limit=xs',
+      '/elect :limit=xs :n=10 :fallback',
+      '/elect :n=10 :fallback :limit=xs',
     ])('extracts limit from "%s"', cmd => {
       expect(readForkLimit(cmd)).toBe(20)
     })
@@ -92,31 +92,31 @@ describe('readForkLimit', () => {
 
   describe('T-shirt tokens with adjacent non-space characters are not matched', () => {
     it('ignores :limit=xs2 (not a valid T-shirt or integer)', () => {
-      expect(readForkLimit('/refine :n=3 :limit=xs2')).toBeNull()
+      expect(readForkLimit('/elect :n=3 :limit=xs2')).toBeNull()
     })
 
     it('ignores :limit=small (unknown size word)', () => {
-      expect(readForkLimit('/refine :n=3 :limit=small')).toBeNull()
+      expect(readForkLimit('/elect :n=3 :limit=small')).toBeNull()
     })
   })
 
   describe('when multiple :limit params appear, first match wins', () => {
     it('returns the first :limit value found', () => {
-      expect(readForkLimit('/refine :n=3 :limit=xs :limit=xxl')).toBe(20)
+      expect(readForkLimit('/elect :n=3 :limit=xs :limit=xxl')).toBe(20)
     })
   })
 
   describe('T-shirt prefixes do not bleed into each other', () => {
     it(':limit=xxs parses as xxs (10), not xs (20)', () => {
-      expect(readForkLimit('/refine :limit=xxs')).toBe(10)
+      expect(readForkLimit('/elect :limit=xxs')).toBe(10)
     })
 
     it(':limit=xxl parses as xxl (500), not xl (200)', () => {
-      expect(readForkLimit('/refine :limit=xxl')).toBe(500)
+      expect(readForkLimit('/elect :limit=xxl')).toBe(500)
     })
 
     it(':limit=xl parses as xl (200), not l (100)', () => {
-      expect(readForkLimit('/refine :limit=xl')).toBe(200)
+      expect(readForkLimit('/elect :limit=xl')).toBe(200)
     })
   })
 })
@@ -169,14 +169,14 @@ describe('exceedsForkLimit — zero-limit edge cases', () => {
 
 describe('readForkLimit — integer zero is a valid explicit limit', () => {
   it(':limit=0 returns 0 (not null)', () => {
-    expect(readForkLimit('/refine :n=3 :limit=0')).toBe(0)
+    expect(readForkLimit('/elect :n=3 :limit=0')).toBe(0)
   })
 })
 
 describe('readForkLimit — end-of-string without trailing space', () => {
   it.each([
-    ['/refine :limit=xs', 20],
-    ['/refine :limit=100', 100],
+    ['/elect :limit=xs', 20],
+    ['/elect :limit=100', 100],
   ])('"%s" with no trailing space still parses correctly', (cmd, expected) => {
     expect(readForkLimit(cmd)).toBe(expected)
   })

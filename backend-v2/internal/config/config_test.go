@@ -138,3 +138,46 @@ func TestResolveMongoDatabase(t *testing.T) {
 		})
 	}
 }
+
+// "dev" is the sentinel for "no SHA injected at build time", not merely a non-empty placeholder.
+func TestBuildVersion_SentinelExactValue(t *testing.T) {
+	if BuildVersion != "dev" {
+		t.Errorf("BuildVersion without ldflags injection = %q; want sentinel %q", BuildVersion, "dev")
+	}
+}
+
+// Env fills missing versions at runtime but cannot overwrite a SHA baked in by ldflags.
+func TestOverrideVersionFromEnv(t *testing.T) {
+	cases := []struct {
+		name    string
+		current string
+		envVal  string
+		want    string
+	}{
+		{"sentinel + non-empty env: env wins", "dev", "abc123", "abc123"},
+		{"sentinel + empty env: sentinel kept", "dev", "", "dev"},
+		{"non-sentinel + non-empty env: current kept", "baked-sha", "abc123", "baked-sha"},
+		{"non-sentinel + empty env: current kept", "baked-sha", "", "baked-sha"},
+		{"sentinel + composite sha+tree format: composite wins", "dev", "deadbeef+cafebabe", "deadbeef+cafebabe"},
+		{"sentinel + composite sha+tree[dirty] format: dirty composite wins", "dev", "deadbeef+cafebabe[dirty]", "deadbeef+cafebabe[dirty]"},
+		{"non-sentinel + composite sha+tree[dirty] format: current kept", "baked-sha", "deadbeef+cafebabe[dirty]", "baked-sha"},
+		{"non-sentinel matching env: current returned unchanged", "abc123", "abc123", "abc123"},
+		{"sentinel + env also sentinel: env wins (idempotent, both are dev)", "dev", "dev", "dev"},
+		// Content validation is the caller's responsibility; non-empty whitespace is a valid override.
+		{"sentinel + whitespace-only env: whitespace overrides sentinel (non-empty beats dev)", "dev", "  ", "  "},
+		{"sentinel + tab-only env: tab overrides sentinel", "dev", "\t", "\t"},
+		{"non-sentinel + whitespace-only env: current kept (env gate requires sentinel)", "baked-sha", "  ", "baked-sha"},
+		// Empty-string current is not the dev sentinel — env cannot override it either.
+		{"empty-string current + non-empty env: current kept (empty string is not the dev sentinel)", "", "abc123", ""},
+		{"empty-string current + empty env: current kept", "", "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := overrideVersionFromEnv(tc.current, tc.envVal)
+			if got != tc.want {
+				t.Errorf("overrideVersionFromEnv(%q, %q) = %q; want %q",
+					tc.current, tc.envVal, got, tc.want)
+			}
+		})
+	}
+}

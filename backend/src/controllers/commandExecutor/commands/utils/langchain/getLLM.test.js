@@ -1,22 +1,15 @@
 import {EmbStorageType} from '../../../../../shared/config/constants'
-import {determineLLMType, getEmbeddings, getIntegrationSettings, getLLM, Model} from './getLLM'
+import {
+  determineLLMType,
+  getEmbeddings,
+  getIntegrationSettings,
+  getLLM,
+  Model,
+  writeCachedIntegrationSettings,
+} from './getLLM'
 import IntegrationFacade from '../../../../../repositories/IntegrationFacade'
-
-const withEnv = async (vars, fn) => {
-  const originals = Object.fromEntries(Object.keys(vars).map(k => [k, process.env[k]]))
-  Object.entries(vars).forEach(([k, v]) => {
-    if (v === undefined) delete process.env[k]
-    else process.env[k] = v
-  })
-  try {
-    return await fn()
-  } finally {
-    Object.entries(originals).forEach(([k, v]) => {
-      if (v === undefined) delete process.env[k]
-      else process.env[k] = v
-    })
-  }
-}
+import {MOCK_EXTERNAL_SERVICES_ALLOW_ENV} from './MockExternalServices'
+import {withEnvAsync as withEnv} from '../../../../../test/env'
 
 const ALL_PROVIDER_ENV_VARS = {
   OPENAI_API_KEY: undefined,
@@ -319,6 +312,39 @@ describe('getIntegrationSettings', () => {
     await expect(withEnv(ALL_PROVIDER_ENV_VARS, () => getIntegrationSettings('user-1'))).rejects.toThrow(
       'No LLM credentials configured',
     )
+  })
+
+  it('resolves settings under MOCK_EXTERNAL_SERVICES=true, still consulting the store so configured keys are honored', async () => {
+    IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged: null, workflowDoc: null})
+    const store = {}
+
+    const result = await withEnv({...ALL_PROVIDER_ENV_VARS, MOCK_EXTERNAL_SERVICES: 'true'}, () =>
+      getIntegrationSettings('user-1', 'workflow-1', store),
+    )
+
+    expect(IntegrationFacade.findMergedDecryptedWithMetadata).toHaveBeenCalledWith('user-1', 'workflow-1')
+    expect(result).toMatchObject({userId: 'user-1', workflowId: 'workflow-1'})
+    expect(Array.from(store._integrationSettingsCache.values())).toContain(result)
+  })
+
+  it('applies environment credential fallback under mock when the integration lookup yields no record', async () => {
+    IntegrationFacade.findMergedDecryptedWithMetadata.mockResolvedValue({merged: null, workflowDoc: null})
+    const store = {}
+
+    const result = await withEnv(
+      {
+        ...ALL_PROVIDER_ENV_VARS,
+        MOCK_EXTERNAL_SERVICES: 'true',
+        OPENAI_API_KEY: 'sk-openai-env',
+        CLAUDE_API_KEY: 'sk-claude-env',
+      },
+      () => getIntegrationSettings('user-1', 'workflow-1', store),
+    )
+
+    expect(IntegrationFacade.findMergedDecryptedWithMetadata).toHaveBeenCalled()
+    expect(result.openai.apiKey).toBe('sk-openai-env')
+    expect(result.claude.apiKey).toBe('sk-claude-env')
+    expect(Array.from(store._integrationSettingsCache.values())).toContain(result)
   })
 
   it('returns merged settings when workflowId is null', async () => {
@@ -729,6 +755,46 @@ describe('getIntegrationSettings', () => {
         'apiKey',
         'sk-user-2',
       ],
+      [
+        'null workflow scope and empty-string workflow scope',
+        [
+          {
+            userId: 'user-1',
+            workflowId: null,
+            providerKey: 'openai',
+            providerSettings: {apiKey: 'sk-null-workflow'},
+          },
+          {
+            userId: 'user-1',
+            workflowId: '',
+            providerKey: 'openai',
+            providerSettings: {apiKey: 'sk-empty-workflow'},
+          },
+        ],
+        'openai',
+        'apiKey',
+        'sk-empty-workflow',
+      ],
+      [
+        'empty-string user and named user',
+        [
+          {
+            userId: '',
+            workflowId: 'wf-1',
+            providerKey: 'custom_llm',
+            providerSettings: {apiRootUrl: 'https://empty-user.test'},
+          },
+          {
+            userId: 'user-1',
+            workflowId: 'wf-1',
+            providerKey: 'custom_llm',
+            providerSettings: {apiRootUrl: 'https://named-user.test'},
+          },
+        ],
+        'custom_llm',
+        'apiRootUrl',
+        'https://named-user.test',
+      ],
     ])(
       'does not reuse cached settings across %s',
       async (_caseName, requests, providerKey, fieldKey, expectedValue) => {
@@ -775,6 +841,21 @@ describe('getIntegrationSettings', () => {
 
       expect(secondResult).toBe(firstResult)
       expect(IntegrationFacade.findMergedDecryptedWithMetadata).toHaveBeenCalledTimes(1)
+    })
+
+    it.each([
+      ['omitted workflow scope', undefined],
+      ['explicit null workflow scope', null],
+    ])('reuses a manually primed user-scope cache for %s', async (_caseName, workflowId) => {
+      const store = {}
+      const settings = {model: Model.OpenAI, openai: {apiKey: 'sk-cached-user-scope'}}
+
+      writeCachedIntegrationSettings(store, 'user-1', workflowId, settings)
+
+      const result = await getIntegrationSettings('user-1', workflowId, store)
+
+      expect(result).toBe(settings)
+      expect(IntegrationFacade.findMergedDecryptedWithMetadata).not.toHaveBeenCalled()
     })
   })
 })
@@ -852,14 +933,24 @@ describe('getLLM error handling for missing API keys', () => {
   })
 
   describe('succeeds when apiKey present', () => {
-    it('does not throw for OpenAI when apiKey present', () => {
-      expect(() =>
-        getLLM({
+    it.each([
+      ['configured model', {apiKey: 'sk-openai-test', model: 'gpt-4-turbo'}, 'sk-openai-test', 'gpt-4-turbo'],
+      ['default model when absent', {apiKey: 'sk-openai-test'}, 'sk-openai-test', 'gpt-4o'],
+      ['default model when empty string', {apiKey: 'sk-openai-test', model: ''}, 'sk-openai-test', 'gpt-4o'],
+      ['default model when null', {apiKey: 'sk-openai-test', model: null}, 'sk-openai-test', 'gpt-4o'],
+      ['default model when undefined', {apiKey: 'sk-openai-test', model: undefined}, 'sk-openai-test', 'gpt-4o'],
+    ])(
+      'builds OpenAI chat model with normalized settings: %s',
+      (_label, openaiSettings, expectedApiKey, expectedModel) => {
+        const {llm} = getLLM({
           type: Model.OpenAI,
-          settings: {openai: {apiKey: 'sk-key'}},
-        }),
-      ).not.toThrow()
-    })
+          settings: {openai: openaiSettings},
+        })
+
+        expect(llm.apiKey).toBe(expectedApiKey)
+        expect(llm.model).toBe(expectedModel)
+      },
+    )
 
     it('does not throw for YandexGPT when both apiKey and folder_id present', () => {
       expect(() =>
@@ -887,7 +978,7 @@ describe('getLLM error handling for missing API keys', () => {
       ['custom_llm absent', {}],
       ['settings is null', null],
     ])('throws when apiRootUrl is %s', (_label, settings) => {
-      expect(() => getLLM({type: Model.CustomLLM, settings})).toThrow('Custom LLM API URL not configured')
+      expect(() => getLLM({type: Model.CustomLLM, settings})).toThrow('Custom LLM API root URL not configured')
     })
   })
 
@@ -918,14 +1009,6 @@ describe('getLLM error handling for missing API keys', () => {
       expect(llm.apiKey).toBe('sk-custom-key')
     })
 
-    it('leaves apiKey undefined on CustomLLMChat when absent from settings', () => {
-      const {llm} = getLLM({
-        type: Model.CustomLLM,
-        settings: {custom_llm: {apiRootUrl: 'https://api.custom.com'}},
-      })
-      expect(llm.apiKey).toBeUndefined()
-    })
-
     it('passes model to CustomLLMChat when provided', () => {
       const {llm} = getLLM({
         type: Model.CustomLLM,
@@ -940,22 +1023,6 @@ describe('getLLM error handling for missing API keys', () => {
         settings: {custom_llm: {apiRootUrl: 'https://api.custom.com'}},
       })
       expect(llm.model).toBe('gpt-4o-mini')
-    })
-
-    it('defaults model to gpt-4o-mini on CustomLLMChat when absent from OpenAI-compatible Chain-of-Thought settings', () => {
-      const {llm} = getLLM({
-        type: Model.CustomLLM,
-        settings: {custom_llm: {apiRootUrl: 'https://api.custom.com', apiType: 'OpenAI compatible Chain-of-Thought'}},
-      })
-      expect(llm.model).toBe('gpt-4o-mini')
-    })
-
-    it('leaves model undefined on CustomLLMChat when absent from non-OpenAI-compatible settings', () => {
-      const {llm} = getLLM({
-        type: Model.CustomLLM,
-        settings: {custom_llm: {apiRootUrl: 'https://api.custom.com', apiType: 'SomeOtherProtocol'}},
-      })
-      expect(llm.model).toBeUndefined()
     })
   })
 })
@@ -1082,6 +1149,27 @@ describe('getLLM MOCK_EXTERNAL_SERVICES gate', () => {
       expect(() => getLLM({type: Model.YandexGPT, settings: {}})).not.toThrow()
     })
   })
+
+  it.each(['development', 'qa', 'e2e', 'production', undefined])(
+    'refuses mock LLM usage in non-allowlisted runtime NODE_ENV=%s before returning NoopLLM',
+    async nodeEnv => {
+      await withEnv({MOCK_EXTERNAL_SERVICES: 'true', NODE_ENV: nodeEnv}, () => {
+        expect(() => getLLM({type: Model.OpenAI, settings: {}})).toThrow(/MOCK_EXTERNAL_SERVICES=true/)
+      })
+    },
+  )
+
+  it.each(['development', 'qa', 'e2e'])(
+    'explicit allow env permits mock LLM usage in runtime NODE_ENV=%s',
+    async nodeEnv => {
+      await withEnv(
+        {MOCK_EXTERNAL_SERVICES: 'true', NODE_ENV: nodeEnv, [MOCK_EXTERNAL_SERVICES_ALLOW_ENV]: 'true'},
+        () => {
+          expect(() => getLLM({type: Model.OpenAI, settings: {}})).not.toThrow()
+        },
+      )
+    },
+  )
 })
 
 describe('getEmbeddings MOCK_EXTERNAL_SERVICES gate', () => {

@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"backend-v2/internal/common/constants"
 	"backend-v2/internal/common/types"
 	"backend-v2/internal/models"
 	"testing"
@@ -262,4 +263,46 @@ func TestCreateWorkflowDto_ZeroValueBehavior(t *testing.T) {
 			t.Errorf("Zero value CreateWorkflowDto GetLimit should return 0, got %d", dto.GetLimit())
 		}
 	})
+}
+
+func TestHasOrgSubscriberRole(t *testing.T) {
+	tests := []struct {
+		name     string
+		auth     *types.JwtPayload
+		expected bool
+	}{
+		{
+			name:     "nil auth",
+			auth:     nil,
+			expected: false,
+		},
+		{
+			name:     "empty roles",
+			auth:     &types.JwtPayload{Roles: []string{}},
+			expected: false,
+		},
+		{
+			name:     "unrelated role",
+			auth:     &types.JwtPayload{Roles: []string{"subscriber"}},
+			expected: false,
+		},
+		{
+			name:     "org subscriber role",
+			auth:     &types.JwtPayload{Roles: []string{string(constants.Org_subscriber)}},
+			expected: true,
+		},
+		{
+			name:     "org subscriber among multiple roles",
+			auth:     &types.JwtPayload{Roles: []string{"subscriber", string(constants.Org_subscriber)}},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := hasOrgSubscriberRole(tt.auth); got != tt.expected {
+				t.Fatalf("expected %v, got %v", tt.expected, got)
+			}
+		})
+	}
 }
