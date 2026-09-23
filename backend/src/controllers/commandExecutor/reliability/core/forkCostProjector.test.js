@@ -1,6 +1,7 @@
 import {projectForkCost} from './forkCostProjector'
 import {exceedsForkLimit, readForkLimit} from './forkLimitParser'
 import Store from '../../commands/utils/Store'
+import parityFixtures from '../../../../../../shared-contracts/reliability-fork-cost-parity-fixtures.json'
 
 jest.mock('debug', () => {
   const fn = jest.fn(() => fn)
@@ -804,6 +805,130 @@ describe('projectForkCost', () => {
         r: {id: 'r', parent: 'parent', command: '/elect :n=2', children: []},
       })
       expect(projectForkCost(store.getNode('r'), store)).toBe(4)
+    })
+  })
+})
+
+describe('projectForkCost — admitSourceCandidate saves exactly one parent generation', () => {
+  it('returns n*scope without subtraction when admitSourceCandidate is false (default)', () => {
+    const store = buildStore({
+      parent: {id: 'parent', command: '/chat', children: ['r']},
+      r: {id: 'r', parent: 'parent', command: '/elect :n=3', children: []},
+    })
+    expect(projectForkCost(store.getNode('r'), store, false)).toBe(3)
+  })
+
+  it('returns n*scope minus one when admitSourceCandidate is true', () => {
+    const store = buildStore({
+      parent: {id: 'parent', command: '/chat', children: ['out', 'r'], prompts: ['out']},
+      out: {id: 'out', parent: 'parent', title: 'existing output', children: []},
+      r: {id: 'r', parent: 'parent', command: '/elect :n=3', children: []},
+    })
+    expect(projectForkCost(store.getNode('r'), store, true)).toBe(2)
+  })
+
+  it('does not apply source-candidate saving when elect :n=1 is invalid', () => {
+    const store = buildStore({
+      parent: {id: 'parent', command: '/chat', children: ['out', 'r'], prompts: ['out']},
+      out: {id: 'out', parent: 'parent', title: 'existing output', children: []},
+      r: {id: 'r', parent: 'parent', command: '/elect :n=1', children: []},
+    })
+    expect(projectForkCost(store.getNode('r'), store, false)).toBe(0)
+    expect(projectForkCost(store.getNode('r'), store, true)).toBe(0)
+  })
+
+  it('does not subtract when source admission is requested before parent output exists', () => {
+    const store = buildStore({
+      parent: {id: 'parent', command: '/chat', children: ['r']},
+      r: {id: 'r', parent: 'parent', command: '/elect :n=3', children: []},
+    })
+    expect(projectForkCost(store.getNode('r'), store, true)).toBe(3)
+  })
+
+  it('counts prompt outputs as source material, not executable scope', () => {
+    const store = buildStore({
+      parent: {id: 'parent', command: '/chat', children: ['out', 'r'], prompts: ['out']},
+      out: {id: 'out', parent: 'parent', title: 'existing output', children: []},
+      r: {id: 'r', parent: 'parent', command: '/elect :n=3', children: []},
+    })
+    expect(projectForkCost(store.getNode('r'), store, true)).toBe(2)
+  })
+
+  it('does not subtract from elect-child scope because that sum contains no parent generation', () => {
+    const store = buildStore({
+      parent: {id: 'parent', command: '/chat', children: ['out', 'r'], prompts: ['out']},
+      out: {id: 'out', parent: 'parent', title: 'existing output', children: []},
+      r: {id: 'r', parent: 'parent', command: '/elect :n=3', children: ['innerChat']},
+      innerChat: {id: 'innerChat', parent: 'r', command: '/chat :n=5', children: []},
+    })
+    expect(projectForkCost(store.getNode('r'), store, true)).toBe(15)
+  })
+
+  it('does not admit the merged output of a commodity parent as a saved source candidate', () => {
+    const store = buildStore({
+      parent: {id: 'parent', command: '/chat :n=5', children: ['out', 'r'], prompts: ['out']},
+      out: {id: 'out', parent: 'parent', title: 'merged output', children: []},
+      r: {id: 'r', parent: 'parent', command: '/elect :n=3', children: []},
+    })
+    expect(projectForkCost(store.getNode('r'), store, true)).toBe(15)
+  })
+
+  it('saving is exactly one regardless of n', () => {
+    const store = buildStore({
+      parent: {id: 'parent', command: '/chat', children: ['out', 'r'], prompts: ['out']},
+      out: {id: 'out', parent: 'parent', title: 'existing output', children: []},
+      r: {id: 'r', parent: 'parent', command: '/elect :n=5', children: []},
+    })
+    const withoutSaving = projectForkCost(store.getNode('r'), store, false)
+    const withSaving = projectForkCost(store.getNode('r'), store, true)
+    expect(withoutSaving - withSaving).toBe(1)
+  })
+
+  it('saving is exactly one regardless of parent scope size', () => {
+    const store = buildStore({
+      parent: {id: 'parent', command: '/chat', children: ['out', 'sibling', 'r'], prompts: ['out']},
+      out: {id: 'out', parent: 'parent', title: 'existing output', children: []},
+      sibling: {id: 'sibling', parent: 'parent', command: '/chat :n=10', children: []},
+      r: {id: 'r', parent: 'parent', command: '/elect :n=3', children: []},
+    })
+    const withoutSaving = projectForkCost(store.getNode('r'), store, false)
+    const withSaving = projectForkCost(store.getNode('r'), store, true)
+    expect(withoutSaving - withSaving).toBe(1)
+  })
+
+  it('saving does not apply when admitSourceCandidate is absent (default false)', () => {
+    const store = buildStore({
+      parent: {id: 'parent', command: '/chat', children: ['r']},
+      r: {id: 'r', parent: 'parent', command: '/elect :n=2', children: []},
+    })
+    expect(projectForkCost(store.getNode('r'), store)).toBe(projectForkCost(store.getNode('r'), store, false))
+  })
+
+  it('side-effecting parent: projector takes no saving when runner collapses to one fork', () => {
+    const store = buildStore({
+      parent: {id: 'parent', command: '/mcp create issue', children: ['out', 'r'], prompts: ['out']},
+      out: {id: 'out', parent: 'parent', title: 'existing output', children: []},
+      r: {id: 'r', parent: 'parent', command: '/elect :n=3', children: []},
+    })
+    expect(projectForkCost(store.getNode('r'), store, true)).toBe(3)
+  })
+
+  describe('frontend parity fixtures', () => {
+    it.each(parityFixtures)('$name projects to the shared UI/backend cost', fixture => {
+      const store = buildStore(fixture.nodes)
+      const electNode = store.getNode(fixture.electNodeId)
+      // Production always passes true at runCommand.js:381; the predicate itself
+      // gates the side-effecting case so the fixture must not supply the answer.
+      const cost = projectForkCost(electNode, store, true)
+      const limit = readForkLimit(electNode.command)
+
+      expect({
+        cost,
+        limitExceeded: exceedsForkLimit(cost, limit),
+      }).toEqual({
+        cost: fixture.expectedCost,
+        limitExceeded: fixture.expectedLimitExceeded,
+      })
     })
   })
 })

@@ -33,9 +33,7 @@ import {
   validateCommandForExecution,
 } from '@shared/lib/command-validation'
 import { deriveNodeTitle } from '@shared/lib/reliability-suffix'
-import { isValidElectCell } from '@shared/lib/reliability/elect-params'
-import { projectForkCost } from '@shared/lib/reliability/fork-cost-projector'
-import { readForkLimit, exceedsForkLimit } from '@shared/lib/reliability/fork-limit-parser'
+import { projectSelectedNodeElectCostPreview } from '@shared/lib/reliability/fork-cost-projector'
 import { computePreExecuteWarnings } from '@shared/lib/reliability/judge-quality-warnings'
 import { useIntegrationSettings } from '@shared/composables'
 import { extractQueryTypeFromCommand } from '@shared/lib/command-querytype-mapper'
@@ -94,12 +92,10 @@ const WorkflowContent = () => {
 
   const hasValidCommand = useMemo(() => isSlashCommand(selectedNode?.command), [selectedNode?.command])
 
-  const selectedNodeElectProjection = useMemo(() => {
-    if (!selectedNode || !isValidElectCell(selectedNode.command)) return null
-    const cost = projectForkCost(selectedNode, nodes)
-    const limit = readForkLimit(selectedNode.command)
-    return { cost, limitExceeded: exceedsForkLimit(cost, limit) }
-  }, [selectedNode, nodes])
+  const selectedNodeElectProjection = useMemo(
+    () => projectSelectedNodeElectCostPreview(selectedNode, nodes, aliases),
+    [selectedNode, nodes, aliases],
+  )
 
   const workflowId = useWorkflowId()
   const integrationSettings = useIntegrationSettings(workflowId)

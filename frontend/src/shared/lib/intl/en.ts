@@ -474,8 +474,7 @@ export default {
         'Fallback mode with weak judge — degraded output accepted with reduced confidence',
       judgeQualityWarning_noReasoningMode:
         'No reasoning-capable model configured — judge operates without extended analysis',
-      judgeQualityWarning_allGateFiltered:
-        'All candidates were structurally rejected — fallback cannot rescue empty or refusal output',
+      judgeQualityWarning_allGateFiltered: 'All candidates were structurally rejected — inspect fork reasons',
       judgeQualityWarning_degradedInput:
         'Per-fork token budget too small for full-context evaluation — judge ranked on truncated input; confidence is reduced',
       judgeQualityWarning_commodityPartialSuccess:
@@ -516,11 +515,14 @@ export default {
       status_selected: 'selected winner',
       'status_criteria-failed': 'criteria failed',
       'status_runtime-failed': 'error',
+      failureReasonEmptyOutput: 'Empty output',
+      failureReasonRefusalOutput: 'Refusal output',
       failureReasonMcpTool: 'MCP tool reported an error',
       failureReasonHttpStatus: 'HTTP transport returned a non-success status',
       failureReasonSshExit: 'SSH command returned a nonzero exit code',
       failureReasonRuntime: 'Command execution failed at runtime',
       failureReasonExecution: 'Command produced an execution error',
+      failureReasonStructuralGate: 'Structurally rejected by the gate',
       failedAt: 'criterion: {criterion}',
       attempts: '{count} attempts',
       selectionLabel: '{eligible} of {total} forks eligible; selection: {layer}',

@@ -1,6 +1,11 @@
 import {ForkJudge} from './ForkJudge'
 import Store from '../../commands/utils/Store'
-import {FAILURE_CAUSE, REMEDIATION_HINT, JUDGE_WARNING_CONDITION} from './failureSemantics'
+import {
+  FAILURE_CAUSE,
+  REMEDIATION_HINT,
+  JUDGE_WARNING_CONDITION,
+  STRUCTURAL_GATE_REJECTION_REASON,
+} from './failureSemantics'
 
 jest.mock('debug', () => {
   const fn = jest.fn(() => fn)
@@ -959,7 +964,6 @@ describe('ForkJudge.selectWinner — structural gate on candidate content', () =
     ['empty string', ''],
     ['whitespace-only string', '   '],
     ['refusal pattern', "I'm sorry, I cannot help with that."],
-    ['truncated output below MIN_SUBSTANTIVE_CHARS', 'Too short.'],
   ]
 
   const mockContentSequence = (...contentItems) => {
@@ -1058,7 +1062,37 @@ describe('ForkJudge.selectWinner — structural gate on candidate content', () =
       expect(fork0.reason).toBeUndefined()
     })
 
-    it('non-deterministic gate rejection (empty content, no failure signal) does not set fork.reason — reason is exclusive to machine-readable signals', async () => {
+    it.each([
+      ['', STRUCTURAL_GATE_REJECTION_REASON.EMPTY_OUTPUT],
+      ['   ', STRUCTURAL_GATE_REJECTION_REASON.EMPTY_OUTPUT],
+      ["I'm sorry, I cannot help with that.", STRUCTURAL_GATE_REJECTION_REASON.REFUSAL_OUTPUT],
+    ])('persists the typed %s structural rejection reason', async (rejectedContent, reason) => {
+      mockContentSequence(rejectedContent, SUBSTANTIVE_A)
+      const rejectedFork = makeFork(0)
+      await makeJudge().selectWinner({
+        forks: [rejectedFork, makeFork(1)],
+        validateNodes: [],
+        parentNodeId: 'parent',
+        fallback: false,
+      })
+      expect(rejectedFork.reason).toBe(reason)
+    })
+
+    it('short valid candidates remain eligible for ranking', async () => {
+      mockContentSequence('Ox', 'Cat', 'Dog')
+      mockLLMRanking('2,3,1')
+      const result = await makeJudge().selectWinner({
+        forks: [makeFork(0), makeFork(1), makeFork(2)],
+        validateNodes: [],
+        parentNodeId: 'parent',
+        fallback: false,
+      })
+      expect(result.winnerForkIndex).toBe(1)
+      expect(result.allGateFiltered).toBe(false)
+      expect(getLLM).toHaveBeenCalled()
+    })
+
+    it('empty content rejection sets fork.reason when no failure signal exists', async () => {
       mockContentSequence('', SUBSTANTIVE_A)
       const rejectedFork = makeFork(0)
       await makeJudge().selectWinner({
@@ -1067,11 +1101,11 @@ describe('ForkJudge.selectWinner — structural gate on candidate content', () =
         parentNodeId: 'parent',
         fallback: false,
       })
-      expect(rejectedFork.reason).toBeUndefined()
+      expect(rejectedFork.reason).toBe(STRUCTURAL_GATE_REJECTION_REASON.EMPTY_OUTPUT)
     })
 
     it('sole survivor when multiple earlier forks are gate-rejected', async () => {
-      mockContentSequence('', 'Too short.', SUBSTANTIVE_A)
+      mockContentSequence('', "I'm sorry, I cannot help with that.", SUBSTANTIVE_A)
       const result = await makeJudge().selectWinner({
         forks: [makeFork(0), makeFork(1), makeFork(2)],
         validateNodes: [],

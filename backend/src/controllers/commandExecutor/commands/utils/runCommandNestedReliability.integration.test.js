@@ -129,7 +129,8 @@ describe('nested /refine composition inside /elect', () => {
 
     await runCommand({queryType: 'chat', cell: store.getNode('root'), store})
 
-    expect(generator).toHaveBeenCalledTimes(5)
+    // Candidate-0 reuses the initial root generation as fork-0, so the exhaustion path drives 4 not 5.
+    expect(generator).toHaveBeenCalledTimes(4)
     expect(validator).toHaveBeenCalledTimes(4)
     expect(store.getNode('elect').title).toBe('/elect :n=2 [✗ 0/2]')
     expect(store.getNode('refine')).toMatchObject({

@@ -2,6 +2,14 @@ import type { NodeData, NodeDatas, NodeId } from '@shared/base-types'
 import { VALIDATE_QUERY } from '@shared/lib/commands/command-constants'
 import { isValidElectCell, readElectN } from './elect-params'
 import { readCommodityN } from './commodity-params'
+import { exceedsForkLimit, readForkLimit } from './fork-limit-parser'
+import { extractQueryTypeFromCommand, type DynamicAlias } from '../command-querytype-mapper'
+import { admitsSourceCandidate } from './source-candidate-admission'
+
+export interface ElectCostPreview {
+  cost: number
+  limitExceeded: boolean
+}
 
 const isProperAncestor = (ancestorId: NodeId, nodeId: NodeId | undefined, nodes: NodeDatas): boolean => {
   let parent = nodeId ? nodes[nodes[nodeId]?.parent ?? ''] : undefined
@@ -30,8 +38,10 @@ const collectAllNestedElects = (node: NodeData, nodes: NodeDatas, excludeId: Nod
 const countImmediateScope = (node: NodeData | undefined, nodes: NodeDatas, excludeId: NodeId): number => {
   if (!node) return 0
   let count = readCommodityN(node.command)
+  const promptIds = new Set(node.prompts ?? [])
   for (const childId of node.children ?? []) {
     if (childId === excludeId) continue
+    if (promptIds.has(childId)) continue
     const child = nodes[childId]
     if (!child) continue
     if (isValidElectCell(child.command)) continue
@@ -60,7 +70,9 @@ const directlyOwnedNestedElects = (electNode: NodeData, nodes: NodeDatas): NodeD
 
 const countElectChildrenScope = (electNode: NodeData, nodes: NodeDatas): number => {
   let cost = 0
+  const promptIds = new Set(electNode.prompts ?? [])
   for (const childId of electNode.children ?? []) {
+    if (promptIds.has(childId)) continue
     const child = nodes[childId]
     if (!child) continue
     if (!child.command || isValidElectCell(child.command) || child.command.startsWith(VALIDATE_QUERY)) continue
@@ -69,7 +81,28 @@ const countElectChildrenScope = (electNode: NodeData, nodes: NodeDatas): number 
   return cost
 }
 
-export const projectForkCost = (electNode: NodeData | undefined | null, nodes: NodeDatas): number => {
+export const canProjectSourceCandidate = (
+  electNode: NodeData | undefined | null,
+  nodes: NodeDatas,
+  parentQueryType?: string,
+): boolean => {
+  if (!electNode?.parent) return false
+  const n = readElectN(electNode.command)
+  if (!n || n <= 1) return false
+  const parent = nodes[electNode.parent]
+  if (!parent) return false
+  const electChildScope = countElectChildrenScope(electNode, nodes)
+  return (
+    electChildScope === 0 &&
+    admitsSourceCandidate({ admitSourceCandidate: true, n, parentQueryType, electNode, parent, nodes })
+  )
+}
+
+export const projectForkCost = (
+  electNode: NodeData | undefined | null,
+  nodes: NodeDatas,
+  admitSourceCandidate = false,
+): number => {
   if (!electNode) return 0
   const n = readElectN(electNode.command)
   if (!n) return 0
@@ -82,6 +115,32 @@ export const projectForkCost = (electNode: NodeData | undefined | null, nodes: N
   const perForkScope = electChildScope > 0 ? electChildScope : immediateScope
   const ownedNested = directlyOwnedNestedElects(electNode, nodes)
   const nestedCost = ownedNested.reduce((sum, nr) => sum + projectForkCost(nr, nodes), 0)
+  const sourceCandidateSaving =
+    electChildScope === 0 &&
+    admitsSourceCandidate({ admitSourceCandidate, n, parentQueryType: undefined, electNode, parent, nodes })
+      ? 1
+      : 0
 
-  return n * perForkScope + nestedCost
+  return n * perForkScope + nestedCost - sourceCandidateSaving
+}
+
+export const projectElectCostPreview = (
+  electNode: NodeData | undefined | null,
+  nodes: NodeDatas,
+  parentQueryType?: string,
+): ElectCostPreview | null => {
+  if (!electNode || !isValidElectCell(electNode.command)) return null
+  const cost = projectForkCost(electNode, nodes, canProjectSourceCandidate(electNode, nodes, parentQueryType))
+  const limit = readForkLimit(electNode.command)
+  return { cost, limitExceeded: exceedsForkLimit(cost, limit) }
+}
+
+export const projectSelectedNodeElectCostPreview = (
+  selectedNode: NodeData | undefined | null,
+  nodes: NodeDatas,
+  aliases?: DynamicAlias[],
+): ElectCostPreview | null => {
+  const parentNode = selectedNode?.parent ? nodes[selectedNode.parent] : undefined
+  const parentQueryType = extractQueryTypeFromCommand(parentNode?.command, aliases)
+  return projectElectCostPreview(selectedNode, nodes, parentQueryType)
 }

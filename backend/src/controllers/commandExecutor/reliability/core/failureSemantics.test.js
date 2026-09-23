@@ -218,6 +218,20 @@ describe('JUDGE_WARNING_CONDITION constants', () => {
   })
 })
 
+describe('STRUCTURAL_GATE_REJECTION_REASON constants', () => {
+  it.each([
+    ['EMPTY_OUTPUT', 'empty-output'],
+    ['REFUSAL_OUTPUT', 'refusal-output'],
+    ['EXECUTION_ERROR', 'execution-error'],
+    ['MCP_TOOL_ERROR', 'mcp-tool-error'],
+    ['HTTP_STATUS_ERROR', 'http-status-error'],
+    ['SSH_EXIT_ERROR', 'ssh-exit-error'],
+    ['RUNTIME_ERROR', 'runtime-error'],
+  ])('STRUCTURAL_GATE_REJECTION_REASON.%s === %s', (key, value) => {
+    expect(STRUCTURAL_GATE_REJECTION_REASON[key]).toBe(value)
+  })
+})
+
 describe('deterministicFailureReason', () => {
   it.each([
     ['mcp-tool-error', STRUCTURAL_GATE_REJECTION_REASON.MCP_TOOL_ERROR],

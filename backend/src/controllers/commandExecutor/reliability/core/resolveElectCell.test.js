@@ -269,6 +269,34 @@ describe('resolveElectCell — runForks invocation parameters', () => {
 
     expect(capturedSignal).toBe(ac.signal)
   })
+
+  it('passes admitSourceCandidate=false to runForks when not provided', async () => {
+    const store = makeStore()
+    let capturedArgs
+
+    mockRunForks.mockImplementation(async args => {
+      capturedArgs = args
+      return []
+    })
+
+    await resolveElectCell(store.getNode('r1'), store, new Map())
+
+    expect(capturedArgs.admitSourceCandidate).toBe(false)
+  })
+
+  it('passes admitSourceCandidate=true to runForks when called with the flag', async () => {
+    const store = makeStore()
+    let capturedArgs
+
+    mockRunForks.mockImplementation(async args => {
+      capturedArgs = args
+      return []
+    })
+
+    await resolveElectCell(store.getNode('r1'), store, new Map(), null, undefined, true)
+
+    expect(capturedArgs.admitSourceCandidate).toBe(true)
+  })
 })
 
 describe('resolveElectCell — ForkJudge instantiation and selectWinner parameters', () => {
@@ -510,14 +538,50 @@ describe('resolveElectCell — all forks gate-filtered (allGateFiltered)', () =>
     )
   })
 
-  it('error node message names empty/refusal output — does not suggest :fallback (inapplicable here)', async () => {
+  it('error node message names each structural rejection reason and does not suggest :fallback', async () => {
+    mockRunForks.mockResolvedValue([
+      {forkIndex: 0, status: 'ok', forkStore: okForkStore(), reason: 'empty-output'},
+      {forkIndex: 1, status: 'ok', forkStore: okForkStore(), reason: 'refusal-output'},
+      {forkIndex: 2, status: 'ok', forkStore: okForkStore(), reason: 'mcp-tool-error'},
+    ])
     const store = makeStore('/elect :n=3')
 
     await resolveElectCell(store.getNode('r1'), store, new Map())
 
     const [msg] = store.importer.createErrorNode.mock.calls[0]
-    expect(msg).toContain('empty or refusal output')
+    expect(msg).toContain('fork 0: empty-output')
+    expect(msg).toContain('fork 1: refusal-output')
+    expect(msg).toContain('fork 2: mcp-tool-error')
+    expect(msg).not.toContain('empty or refusal output')
     expect(msg).not.toContain(':fallback')
+  })
+
+  it('error node message uses "structural-gate" for a fork whose reason was not carried by the gate', async () => {
+    mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'ok', forkStore: okForkStore()}])
+    const store = makeStore('/elect :n=2')
+
+    await resolveElectCell(store.getNode('r1'), store, new Map())
+
+    const [msg] = store.importer.createErrorNode.mock.calls[0]
+    expect(msg).toContain('fork 0: structural-gate')
+  })
+
+  it('error message includes only gate-rejected ok-status forks — runtime-failed and criteria-failed forks are not reported under structural rejection', async () => {
+    mockRunForks.mockResolvedValue([
+      {forkIndex: 0, status: 'ok', forkStore: okForkStore(), reason: 'empty-output'},
+      {forkIndex: 1, status: 'runtime-failed', forkStore: null, reason: 'ECONNREFUSED socket error'},
+      {forkIndex: 2, status: 'criteria-failed', forkStore: okForkStore()},
+    ])
+    const store = makeStore('/elect :n=3')
+
+    await resolveElectCell(store.getNode('r1'), store, new Map())
+
+    const [msg] = store.importer.createErrorNode.mock.calls[0]
+    expect(msg).toContain('fork 0: empty-output')
+    expect(msg).not.toContain('ECONNREFUSED')
+    expect(msg).not.toContain('fork 1')
+    expect(msg).not.toContain('fork 2')
+    expect(msg).toContain('all 1 candidate(s) were structurally rejected')
   })
 
   it.each([2, 3, 5])(
@@ -532,6 +596,17 @@ describe('resolveElectCell — all forks gate-filtered (allGateFiltered)', () =>
       expect(store._nodes.r1.reliabilityMetadata.total).toBe(n)
     },
   )
+
+  it('error message names a deterministic rejection reason and not "empty or refusal" when the gate rejects on execution failure, not content', async () => {
+    mockRunForks.mockResolvedValue([{forkIndex: 0, status: 'ok', forkStore: okForkStore(), reason: 'execution-error'}])
+    const store = makeStore('/elect :n=2')
+
+    await resolveElectCell(store.getNode('r1'), store, new Map())
+
+    const [msg] = store.importer.createErrorNode.mock.calls[0]
+    expect(msg).toContain('fork 0: execution-error')
+    expect(msg).not.toContain('empty or refusal')
+  })
 })
 
 describe('resolveElectCell — winner selected', () => {

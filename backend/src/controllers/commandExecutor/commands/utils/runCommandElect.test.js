@@ -288,6 +288,49 @@ describe('/elect :n=2 strict mode — winner selected and applied', () => {
     expect(capturedValidateNodes).toHaveLength(1)
     expect(capturedValidateNodes[0].id).toBe('validate')
   })
+
+  it('post-processing /elect enables source-candidate admission for the already-produced parent output', async () => {
+    const winnerForkStore = makeOkForkStore()
+    mockRunForks.mockResolvedValue([
+      {forkIndex: 0, status: 'ok', forkStore: winnerForkStore},
+      {forkIndex: 1, status: 'ok', forkStore: makeOkForkStore()},
+    ])
+    MockForkJudge.mockImplementation(() => ({
+      selectWinner: jest.fn().mockResolvedValue({winnerForkIndex: 0, selectionLayer: 'primary'}),
+    }))
+
+    const store = buildStore({
+      parent: {
+        id: 'parent',
+        parent: null,
+        command: '/chat do task',
+        children: ['out', 'elect'],
+        prompts: ['out'],
+      },
+      out: {id: 'out', parent: 'parent', title: 'existing output', children: []},
+      elect: {
+        id: 'elect',
+        parent: 'parent',
+        command: '/elect :n=2',
+        children: [],
+      },
+    })
+
+    const spy = chatSpy()
+    await runCommand({
+      queryType: 'chat',
+      cell: store.getNode('parent'),
+      store,
+    })
+    spy.mockRestore()
+
+    expect(mockRunForks).toHaveBeenCalledWith(
+      expect.objectContaining({
+        electNode: expect.objectContaining({id: 'elect'}),
+        admitSourceCandidate: true,
+      }),
+    )
+  })
 })
 
 // ────────────────────────────────────────────────────────────────────────────

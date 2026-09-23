@@ -66,16 +66,29 @@ const buildNestedTree = () =>
 
 describe('nested /elect — memoization guard enforces additive not multiplicative fork cost', () => {
   let chatRunSpy
+  let outputIndex
 
   beforeEach(() => {
-    chatRunSpy = jest.spyOn(ChatCommand.prototype, 'run').mockResolvedValue({})
+    outputIndex = 0
+    chatRunSpy = jest
+      .spyOn(ChatCommand.prototype, 'run')
+      .mockImplementation(async function (cell, _context, _prompt, options = {}) {
+        const store = options.store ?? this?.store
+        const parent = store?.getNode?.(cell.id)
+        if (!store || !parent) return
+        outputIndex += 1
+        const outputId = `${cell.id}-output-${outputIndex}`
+        store._nodes[outputId] = {id: outputId, parent: cell.id, title: `${cell.id} output`, children: []}
+        parent.children = [...(parent.children ?? []), outputId]
+        parent.prompts = [outputId]
+      })
   })
 
   afterEach(() => {
     chatRunSpy.mockRestore()
   })
 
-  it('memoization guard: /elect :n=2 wrapping /elect :n=3 costs 1+3+2=6 leaf calls, not 2×(3+1)=8 or 2×3=6 multiplicative', async () => {
+  it('memoization guard: /elect :n=2 wrapping /elect :n=3 costs 2+3=5 leaf calls with candidate-0, not 2×(3+1)=8 or 2×3=6 multiplicative', async () => {
     const store = buildNestedTree()
 
     await runCommand(
@@ -93,7 +106,7 @@ describe('nested /elect — memoization guard enforces additive not multiplicati
     const outerCalls = calls.filter(([cell]) => cell?.id === 'outerParent')
 
     expect(innerCalls).toHaveLength(3) // not 2×3=6: memoization skips inner re-execution per outer fork
-    expect(outerCalls).toHaveLength(3) // 1 triggering call + 2 fork calls
-    expect(calls).toHaveLength(6)
+    expect(outerCalls).toHaveLength(2) // 1 triggering call + 1 rerun fork (candidate-0 reuses the first)
+    expect(calls).toHaveLength(5)
   })
 })

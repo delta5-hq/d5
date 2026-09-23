@@ -1,6 +1,6 @@
 import {getNodeCommand} from '../../commands/utils/isCommand'
 import {resolveCommand} from '../../commands/utils/queryTypeResolver'
-import {runCommand} from '../../commands/utils/runCommand'
+import {foreachValidateTemplateExclusions, postProcessExistingOutput, runCommand} from '../../commands/utils/runCommand'
 import NullProgress from './NullProgress'
 import StoreFork from './StoreFork'
 import {CriteriaFailedError} from './CriteriaFailedError'
@@ -9,6 +9,7 @@ import {isSideEffectingDispatch} from './sideEffectingDispatch'
 import {COMMODITY_SUPPRESSION_CAUSE} from './failureSemantics'
 import {MEMO_SENTINEL_PRE_EXECUTED_CHILD} from './memoSentinels'
 import {isPostProcessorOrControlQuery, hasElectDescendant} from './electChildPredicates'
+import {isSideEffectingParent, admitsSourceCandidate} from './sourceCandidateAdmission'
 
 /**
  * @typedef {import('../../commands/utils/Store').NodeData} NodeData
@@ -18,10 +19,10 @@ import {isPostProcessorOrControlQuery, hasElectDescendant} from './electChildPre
 
 /**
  * @typedef {Object} ForkResult
- * @property {Store|null} forkStore  - Fork store; null for runtime-failed forks
+ * @property {Store|null} forkStore  - Fork store when execution reached a fork-local store; null before one exists
  * @property {number} forkIndex     - Zero-based index (stable across all N results)
  * @property {'ok'|'runtime-failed'|'criteria-failed'} status
- * @property {string} [reason]      - runtime-failed only: error message
+ * @property {string} [reason]      - runtime failure or structural rejection reason
  * @property {string} [failedAt]    - criteria-failed only: criterion that exhausted retries
  * @property {number} [attempts]    - criteria-failed only: retry count attempted
  * @property {LeafOutput[]} leafOutputs - Content preview from the fork's prompt nodes; [] when none available
@@ -29,14 +30,6 @@ import {isPostProcessorOrControlQuery, hasElectDescendant} from './electChildPre
  * @property {string} [cause]
  * @property {number} [requestedN]
  */
-
-function isSideEffectingParent(electNode, store) {
-  const parentNode = store.getNode(electNode.parent)
-  if (!parentNode) return false
-  const command = getNodeCommand(parentNode)
-  const {queryType, mcpAlias, rpcAlias} = resolveCommand(command, store._aliases)
-  return isSideEffectingDispatch({queryType, mcpAlias, rpcAlias})
-}
 
 async function preExecuteSideEffectingElectChildren(electNode, store, memoMap, signal) {
   for (const childId of electNode.children ?? []) {
@@ -53,24 +46,160 @@ async function preExecuteSideEffectingElectChildren(electNode, store, memoMap, s
   }
 }
 
-function buildPreExecFailureResults(effectiveN, err) {
-  if (err instanceof CriteriaFailedError) {
-    return Array.from({length: effectiveN}, (_, forkIndex) => ({
-      forkStore: null,
-      forkIndex,
-      status: 'criteria-failed',
-      failedAt: err.criterion,
-      attempts: err.attempts,
-      leafOutputs: [],
-    }))
+function suppressionFields(suppressedForSideEffect, requestedN) {
+  return suppressedForSideEffect
+    ? {
+        suppressed: true,
+        cause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS,
+        requestedN,
+      }
+    : {}
+}
+
+function buildOkResult({forkStore, forkIndex, parentNodeId, suppressedForSideEffect, requestedN}) {
+  return {
+    forkStore,
+    forkIndex,
+    status: 'ok',
+    leafOutputs: extractForkLeafOutputs(forkStore, parentNodeId),
+    ...suppressionFields(suppressedForSideEffect, requestedN),
   }
-  return Array.from({length: effectiveN}, (_, forkIndex) => ({
+}
+
+function buildCriteriaFailedResult({forkStore, forkIndex, parentNodeId, error, suppressedForSideEffect, requestedN}) {
+  return {
+    forkStore,
+    forkIndex,
+    status: 'criteria-failed',
+    failedAt: error.criterion,
+    attempts: error.attempts,
+    leafOutputs: extractForkLeafOutputs(forkStore, parentNodeId),
+    ...suppressionFields(suppressedForSideEffect, requestedN),
+  }
+}
+
+function buildRuntimeFailedResult({forkIndex, error, suppressedForSideEffect, requestedN}) {
+  return {
     forkStore: null,
     forkIndex,
     status: 'runtime-failed',
-    reason: err?.message || String(err),
+    reason: error?.message || String(error),
     leafOutputs: [],
-  }))
+    ...suppressionFields(suppressedForSideEffect, requestedN),
+  }
+}
+
+function buildFailureResult({
+  forkStore = null,
+  forkIndex,
+  parentNodeId = null,
+  error,
+  suppressedForSideEffect,
+  requestedN,
+}) {
+  if (error instanceof CriteriaFailedError) {
+    return buildCriteriaFailedResult({
+      forkStore,
+      forkIndex,
+      parentNodeId,
+      error,
+      suppressedForSideEffect,
+      requestedN,
+    })
+  }
+  return buildRuntimeFailedResult({
+    forkIndex,
+    error,
+    suppressedForSideEffect,
+    requestedN,
+  })
+}
+
+function buildPreExecFailureResults(effectiveN, error) {
+  return Array.from({length: effectiveN}, (_, forkIndex) => buildFailureResult({forkIndex, error}))
+}
+
+function notifyForkSettled(onForkSettled, result) {
+  onForkSettled?.(result)
+}
+
+async function runFreshFork({forkStore, forkIndex, parentNode, queryType, mcpAlias, rpcAlias, signal, memoMap, n}) {
+  try {
+    await runCommand(
+      {
+        queryType,
+        cell: forkStore.getNode(parentNode.id) || parentNode,
+        store: forkStore,
+        mcpAlias,
+        rpcAlias,
+        signal,
+        memoMap,
+      },
+      new NullProgress(),
+    )
+    return buildOkResult({
+      forkStore,
+      forkIndex,
+      parentNodeId: parentNode.id,
+      suppressedForSideEffect: false,
+      requestedN: n,
+    })
+  } catch (err) {
+    return buildFailureResult({
+      forkStore,
+      forkIndex,
+      parentNodeId: parentNode.id,
+      error: err,
+      suppressedForSideEffect: false,
+      requestedN: n,
+    })
+  }
+}
+
+async function buildSourceCandidateResult({
+  forkStore,
+  forkIndex,
+  parentNode,
+  queryType,
+  mcpAlias,
+  rpcAlias,
+  ids,
+  signal,
+  memoMap,
+  suppressedForSideEffect,
+  requestedN,
+}) {
+  try {
+    await postProcessExistingOutput({
+      node: forkStore.getNode(parentNode.id),
+      ids,
+      store: forkStore,
+      progress: new NullProgress(),
+      signal,
+      memoMap: new Map(memoMap),
+      sideEffectingDispatch: suppressedForSideEffect,
+      cell: forkStore.getNode(parentNode.id) || parentNode,
+      queryType,
+      mcpAlias,
+      rpcAlias,
+    })
+    return buildOkResult({
+      forkStore,
+      forkIndex,
+      parentNodeId: parentNode.id,
+      suppressedForSideEffect,
+      requestedN,
+    })
+  } catch (err) {
+    return buildFailureResult({
+      forkStore,
+      forkIndex,
+      parentNodeId: parentNode.id,
+      error: err,
+      suppressedForSideEffect,
+      requestedN,
+    })
+  }
 }
 
 /**
@@ -89,10 +218,19 @@ function buildPreExecFailureResults(effectiveN, err) {
  *   memoMap: Map<string, *>,
  *   signal?: AbortSignal|null,
  *   onForkSettled?: ((result: ForkResult) => void)|null,
+ *   admitSourceCandidate?: boolean,
  * }} params
  * @returns {Promise<ForkResult[]>} one result per executed fork; never throws.
  */
-export const runForks = async ({electNode, store, n, memoMap, signal = null, onForkSettled = null}) => {
+export const runForks = async ({
+  electNode,
+  store,
+  n,
+  memoMap,
+  signal = null,
+  onForkSettled = null,
+  admitSourceCandidate = false,
+}) => {
   const parentNode = store.getNode(electNode.parent)
   if (!parentNode) {
     throw new Error(`[SubtreeForkRunner] electNode '${electNode.id}' has no parent in store`)
@@ -108,7 +246,7 @@ export const runForks = async ({electNode, store, n, memoMap, signal = null, onF
       await preExecuteSideEffectingElectChildren(electNode, store, memoMap, signal)
     } catch (preExecErr) {
       const results = buildPreExecFailureResults(effectiveN, preExecErr)
-      results.forEach(r => onForkSettled?.(r))
+      results.forEach(r => notifyForkSettled(onForkSettled, r))
       return results
     }
   }
@@ -117,72 +255,59 @@ export const runForks = async ({electNode, store, n, memoMap, signal = null, onF
   const forkStores = Array.from({length: effectiveN}, () => StoreFork.createFork(store))
   const results = new Array(effectiveN)
 
+  if (suppressedForSideEffect) {
+    const result = await buildSourceCandidateResult({
+      forkStore: forkStores[0],
+      forkIndex: 0,
+      parentNode,
+      queryType,
+      mcpAlias,
+      rpcAlias,
+      ids: foreachValidateTemplateExclusions(queryType, parentNode, store),
+      signal,
+      memoMap,
+      suppressedForSideEffect: true,
+      requestedN: n,
+    })
+    results[0] = result
+    notifyForkSettled(onForkSettled, result)
+    return results
+  }
+
+  const useSourceCandidate = admitsSourceCandidate({admitSourceCandidate, n, electNode, parentNode, store})
+  const sourceCandidateIds = useSourceCandidate ? foreachValidateTemplateExclusions(queryType, parentNode, store) : []
+
   await Promise.allSettled(
     forkStores.map(async (forkStore, forkIndex) => {
       const forkMemoMap = new Map(memoMap)
-      let result
-      try {
-        await runCommand(
-          {
-            queryType,
-            cell: forkStore.getNode(parentNode.id) || parentNode,
-            store: forkStore,
-            mcpAlias,
-            rpcAlias,
-            signal,
-            memoMap: forkMemoMap,
-          },
-          new NullProgress(),
-        )
-        result = {
-          forkStore,
-          forkIndex,
-          status: 'ok',
-          leafOutputs: extractForkLeafOutputs(forkStore, parentNode.id),
-          ...(suppressedForSideEffect
-            ? {
-                suppressed: true,
-                cause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS,
-                requestedN: n,
-              }
-            : {}),
-        }
-      } catch (err) {
-        if (err instanceof CriteriaFailedError) {
-          result = {
-            forkStore,
-            forkIndex,
-            status: 'criteria-failed',
-            failedAt: err.criterion,
-            attempts: err.attempts,
-            leafOutputs: extractForkLeafOutputs(forkStore, parentNode.id),
-            ...(suppressedForSideEffect
-              ? {
-                  suppressed: true,
-                  cause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS,
-                  requestedN: n,
-                }
-              : {}),
-          }
-        } else {
-          result = {
-            forkStore: null,
-            forkIndex,
-            status: 'runtime-failed',
-            reason: err?.message || String(err),
-            leafOutputs: [],
-            ...(suppressedForSideEffect
-              ? {
-                  suppressed: true,
-                  cause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS,
-                  requestedN: n,
-                }
-              : {}),
-          }
-        }
-      }
+      const result =
+        useSourceCandidate && forkIndex === 0
+          ? await buildSourceCandidateResult({
+              forkStore,
+              forkIndex,
+              parentNode,
+              queryType,
+              mcpAlias,
+              rpcAlias,
+              ids: sourceCandidateIds,
+              signal,
+              memoMap: forkMemoMap,
+              suppressedForSideEffect: false,
+              requestedN: n,
+            })
+          : await runFreshFork({
+              forkStore,
+              forkIndex,
+              parentNode,
+              queryType,
+              mcpAlias,
+              rpcAlias,
+              signal,
+              memoMap: forkMemoMap,
+              n,
+            })
       results[forkIndex] = result
-      onForkSettled?.(result)
+      notifyForkSettled(onForkSettled, result)
     }),
   )
 

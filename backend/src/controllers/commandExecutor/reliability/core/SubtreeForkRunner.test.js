@@ -1,4 +1,5 @@
 import {runForks, computeEffectiveN} from './SubtreeForkRunner'
+import {ForkJudge} from './ForkJudge'
 import {CriteriaFailedError} from './CriteriaFailedError'
 import Store from '../../commands/utils/Store'
 
@@ -9,10 +10,22 @@ jest.mock('debug', () => {
 })
 
 jest.mock('../../commands/utils/runCommand', () => ({
+  foreachValidateTemplateExclusions: jest.fn().mockReturnValue([]),
+  postProcessExistingOutput: jest.fn(),
   runCommand: jest.fn(),
 }))
 
-const {runCommand: mockRunCommand} = require('../../commands/utils/runCommand')
+jest.mock('../../commands/utils/langchain/getLLM', () => ({
+  Model: {OpenAI: 'OpenAI'},
+  getIntegrationSettings: jest.fn().mockResolvedValue({openai: {apiKey: 'test'}}),
+  getLLM: jest.fn(),
+}))
+
+const {
+  postProcessExistingOutput: mockPostProcessExistingOutput,
+  runCommand: mockRunCommand,
+} = require('../../commands/utils/runCommand')
+const {getLLM, getIntegrationSettings} = require('../../commands/utils/langchain/getLLM')
 
 const buildStore = nodeMap => new Store({userId: 'user1', nodes: nodeMap})
 
@@ -33,9 +46,56 @@ const minimalTree = () =>
     },
   })
 
+const treeWithParentOutput = () =>
+  buildStore({
+    root: {id: 'root', children: ['parent']},
+    parent: {
+      id: 'parent',
+      parent: 'root',
+      command: '/chat name one animal',
+      children: ['out0', 'elect'],
+      prompts: ['out0'],
+    },
+    out0: {
+      id: 'out0',
+      parent: 'parent',
+      title: 'Ox',
+      children: [],
+    },
+    elect: {
+      id: 'elect',
+      parent: 'parent',
+      command: '/elect :n=3',
+      children: [],
+    },
+  })
+
+function replaceParentOutput(forkStore, title) {
+  const outputId = `out-${title}`
+  const parent = forkStore._nodes.parent
+  for (const promptId of parent.prompts ?? []) {
+    delete forkStore._nodes[promptId]
+  }
+  forkStore._nodes[outputId] = {
+    id: outputId,
+    parent: 'parent',
+    title,
+    children: [],
+  }
+  parent.children = [...(parent.children ?? []).filter(id => !(parent.prompts ?? []).includes(id)), outputId]
+  parent.prompts = [outputId]
+}
+
 beforeEach(() => {
+  mockPostProcessExistingOutput.mockReset()
+  mockPostProcessExistingOutput.mockResolvedValue(undefined)
   mockRunCommand.mockReset()
   mockRunCommand.mockResolvedValue(undefined)
+  getLLM.mockReset()
+  getLLM.mockReturnValue({
+    llm: {invoke: jest.fn().mockResolvedValue({content: '2,3,1'})},
+  })
+  getIntegrationSettings.mockResolvedValue({openai: {apiKey: 'test'}})
 })
 
 describe('runForks', () => {
@@ -120,13 +180,9 @@ describe('runForks', () => {
         memoMap: new Map(),
       })
 
-      expect(mockRunCommand).toHaveBeenCalledTimes(1)
-      expect(mockRunCommand).toHaveBeenCalledWith(
-        expect.objectContaining({
-          queryType: 'mcp:tool',
-          mcpAlias: expect.objectContaining({alias: '/tool'}),
-        }),
-        expect.anything(),
+      expect(mockRunCommand).not.toHaveBeenCalled()
+      expect(mockPostProcessExistingOutput).toHaveBeenCalledWith(
+        expect.objectContaining({queryType: 'mcp:tool', mcpAlias: expect.objectContaining({alias: '/tool'})}),
       )
       expect(results).toHaveLength(1)
       expect(results[0]).toMatchObject({
@@ -162,13 +218,9 @@ describe('runForks', () => {
         memoMap: new Map(),
       })
 
-      expect(mockRunCommand).toHaveBeenCalledTimes(1)
-      expect(mockRunCommand).toHaveBeenCalledWith(
-        expect.objectContaining({
-          queryType: 'rpc:ssh',
-          rpcAlias: expect.objectContaining({alias: '/ssh'}),
-        }),
-        expect.anything(),
+      expect(mockRunCommand).not.toHaveBeenCalled()
+      expect(mockPostProcessExistingOutput).toHaveBeenCalledWith(
+        expect.objectContaining({queryType: 'rpc:ssh', rpcAlias: expect.objectContaining({alias: '/ssh'})}),
       )
       expect(results[0]).toMatchObject({suppressed: true, requestedN: 3})
     })
@@ -197,8 +249,8 @@ describe('runForks', () => {
         memoMap: new Map(),
       })
 
-      expect(mockRunCommand).toHaveBeenCalledTimes(1)
-      expect(mockRunCommand).toHaveBeenCalledWith(expect.objectContaining({queryType: 'mcp-fusion'}), expect.anything())
+      expect(mockRunCommand).not.toHaveBeenCalled()
+      expect(mockPostProcessExistingOutput).toHaveBeenCalledWith(expect.objectContaining({queryType: 'mcp-fusion'}))
       expect(results[0]).toMatchObject({suppressed: true, requestedN: 3})
     })
 
@@ -233,6 +285,21 @@ describe('runForks', () => {
       expect(results[0].requestedN).toBeUndefined()
     })
 
+    it('calls runCommand exactly N times for n=3 — all fresh forks, no source candidate shortcut', async () => {
+      const store = minimalTree()
+      const memoMap = new Map()
+
+      await runForks({
+        electNode: store.getNode('elect'),
+        store,
+        n: 3,
+        memoMap,
+      })
+
+      expect(mockRunCommand).toHaveBeenCalledTimes(3)
+      expect(mockPostProcessExistingOutput).not.toHaveBeenCalled()
+    })
+
     it('calls runCommand exactly 1 time for n=1', async () => {
       const store = minimalTree()
       const memoMap = new Map()
@@ -245,6 +312,354 @@ describe('runForks', () => {
       })
 
       expect(mockRunCommand).toHaveBeenCalledTimes(1)
+      expect(mockPostProcessExistingOutput).not.toHaveBeenCalled()
+    })
+
+    it('all N fresh forks generate independent outputs and are judged together', async () => {
+      const store = minimalTree()
+      const generated = ['Ox', 'Cat', 'Dog']
+
+      mockRunCommand.mockImplementation(async ({store: forkStore}) => {
+        replaceParentOutput(forkStore, generated.shift())
+      })
+
+      const forkResults = await runForks({
+        electNode: store.getNode('elect'),
+        store,
+        n: 3,
+        memoMap: new Map(),
+      })
+      const verdict = await new ForkJudge('user1', null, store).selectWinner({
+        forks: forkResults,
+        validateNodes: [],
+        parentNodeId: 'parent',
+        fallback: false,
+      })
+
+      expect(mockRunCommand).toHaveBeenCalledTimes(3)
+      expect(forkResults.map(r => r.leafOutputs[0]?.content)).toEqual(['Ox', 'Cat', 'Dog'])
+      expect(verdict.allGateFiltered).toBe(false)
+    })
+
+    it('fork 0 criteria failure carries fork-local evidence intact', async () => {
+      const store = treeWithParentOutput()
+      const settled = []
+
+      mockRunCommand.mockImplementationOnce(async ({store: forkStore}) => {
+        forkStore._nodes['source-partial'] = {
+          id: 'source-partial',
+          parent: 'parent',
+          title: 'source candidate partial output',
+          children: [],
+        }
+        forkStore._nodes.parent.prompts = ['source-partial']
+        throw new CriteriaFailedError('source criterion', 4)
+      })
+
+      const results = await runForks({
+        electNode: store.getNode('elect'),
+        store,
+        n: 2,
+        memoMap: new Map(),
+        onForkSettled: result => settled.push(result),
+      })
+
+      const failed = results.find(r => r.status === 'criteria-failed')
+      expect(failed).toMatchObject({
+        status: 'criteria-failed',
+        failedAt: 'source criterion',
+        attempts: 4,
+        leafOutputs: [
+          {
+            nodeId: 'source-partial',
+            content: 'source candidate partial output',
+          },
+        ],
+      })
+      expect(failed.forkStore).toBeInstanceOf(Store)
+      expect(settled.find(r => r.status === 'criteria-failed')).toBe(failed)
+      expect(results.filter(r => r.status === 'ok')).toHaveLength(1)
+    })
+
+    it('fork 0 runtime failure does not expose a stale fork store', async () => {
+      const store = treeWithParentOutput()
+
+      mockRunCommand.mockRejectedValueOnce(new Error('source provider down'))
+
+      const results = await runForks({
+        electNode: store.getNode('elect'),
+        store,
+        n: 2,
+        memoMap: new Map(),
+      })
+
+      const failed = results.find(r => r.status === 'runtime-failed')
+      expect(failed).toMatchObject({
+        status: 'runtime-failed',
+        reason: 'source provider down',
+        leafOutputs: [],
+      })
+      expect(failed.forkStore).toBeNull()
+      expect(results.filter(r => r.status === 'ok')).toHaveLength(1)
+    })
+
+    it('suppressed candidate receives the ids exclusion set from foreachValidateTemplateExclusions', async () => {
+      const {foreachValidateTemplateExclusions} = require('../../commands/utils/runCommand')
+      const exclusionIds = ['validate-template-1', 'validate-template-2']
+      foreachValidateTemplateExclusions.mockReturnValueOnce(exclusionIds)
+
+      const store = buildStore({
+        root: {id: 'root', children: ['parent']},
+        parent: {
+          id: 'parent',
+          parent: 'root',
+          command: '/tool mutate',
+          children: ['elect'],
+        },
+        elect: {
+          id: 'elect',
+          parent: 'parent',
+          command: '/elect :n=3',
+          children: [],
+        },
+      })
+      store._aliases = {mcp: [{alias: '/tool'}], rpc: []}
+
+      await runForks({
+        electNode: store.getNode('elect'),
+        store,
+        n: 3,
+        memoMap: new Map(),
+      })
+
+      const [callArgs] = mockPostProcessExistingOutput.mock.calls
+      expect(callArgs[0].ids).toEqual(exclusionIds)
+    })
+
+    describe('admitSourceCandidate — candidate 0 from existing parent output', () => {
+      it('admits existing output as candidate 0 and runs exactly N-1 fresh forks for n=3', async () => {
+        const store = treeWithParentOutput()
+
+        await runForks({
+          electNode: store.getNode('elect'),
+          store,
+          n: 3,
+          memoMap: new Map(),
+          admitSourceCandidate: true,
+        })
+
+        expect(mockPostProcessExistingOutput).toHaveBeenCalledTimes(1)
+        expect(mockRunCommand).toHaveBeenCalledTimes(2)
+      })
+
+      it('total result count is still N when admitSourceCandidate is true', async () => {
+        const store = treeWithParentOutput()
+
+        const results = await runForks({
+          electNode: store.getNode('elect'),
+          store,
+          n: 3,
+          memoMap: new Map(),
+          admitSourceCandidate: true,
+        })
+
+        expect(results).toHaveLength(3)
+      })
+
+      it('candidate 0 uses postProcessExistingOutput (not runCommand), forks 1..N-1 use runCommand', async () => {
+        const store = treeWithParentOutput()
+        const callOrder = []
+
+        mockPostProcessExistingOutput.mockImplementation(async () => {
+          callOrder.push('postProcess')
+        })
+        mockRunCommand.mockImplementation(async () => {
+          callOrder.push('runCommand')
+        })
+
+        await runForks({
+          electNode: store.getNode('elect'),
+          store,
+          n: 2,
+          memoMap: new Map(),
+          admitSourceCandidate: true,
+        })
+
+        expect(callOrder).toContain('postProcess')
+        expect(callOrder).toContain('runCommand')
+        expect(callOrder.filter(e => e === 'postProcess')).toHaveLength(1)
+        expect(callOrder.filter(e => e === 'runCommand')).toHaveLength(1)
+      })
+
+      it('without admitSourceCandidate runs all N forks fresh (no postProcess)', async () => {
+        const store = treeWithParentOutput()
+
+        await runForks({
+          electNode: store.getNode('elect'),
+          store,
+          n: 3,
+          memoMap: new Map(),
+        })
+
+        expect(mockPostProcessExistingOutput).not.toHaveBeenCalled()
+        expect(mockRunCommand).toHaveBeenCalledTimes(3)
+      })
+
+      it('does not admit candidate 0 when the parent has no materialized output', async () => {
+        const store = minimalTree()
+
+        await runForks({
+          electNode: store.getNode('elect'),
+          store,
+          n: 3,
+          memoMap: new Map(),
+          admitSourceCandidate: true,
+        })
+
+        expect(mockPostProcessExistingOutput).not.toHaveBeenCalled()
+        expect(mockRunCommand).toHaveBeenCalledTimes(3)
+      })
+
+      it('nested elect (admitSourceCandidate=false) still forks full N fresh candidates', async () => {
+        const store = minimalTree()
+
+        await runForks({
+          electNode: store.getNode('elect'),
+          store,
+          n: 3,
+          memoMap: new Map(),
+          admitSourceCandidate: false,
+        })
+
+        expect(mockPostProcessExistingOutput).not.toHaveBeenCalled()
+        expect(mockRunCommand).toHaveBeenCalledTimes(3)
+      })
+
+      it('admits candidate 0 when elect has non-elect, non-validate children (runner does not gate on per-fork elect children)', async () => {
+        const store = buildStore({
+          root: {id: 'root', children: ['parent']},
+          parent: {
+            id: 'parent',
+            parent: 'root',
+            command: '/chat name one animal',
+            children: ['out0', 'elect'],
+            prompts: ['out0'],
+          },
+          out0: {id: 'out0', parent: 'parent', title: 'Ox', children: []},
+          elect: {
+            id: 'elect',
+            parent: 'parent',
+            command: '/elect :n=2',
+            children: ['refine'],
+          },
+          refine: {id: 'refine', parent: 'elect', command: '/refine :n=2', children: []},
+        })
+
+        await runForks({
+          electNode: store.getNode('elect'),
+          store,
+          n: 2,
+          memoMap: new Map(),
+          admitSourceCandidate: true,
+        })
+
+        expect(mockPostProcessExistingOutput).toHaveBeenCalledTimes(1)
+        expect(mockRunCommand).toHaveBeenCalledTimes(1)
+      })
+
+      it('commodity parent does not admit merged output as candidate 0', async () => {
+        const store = buildStore({
+          root: {id: 'root', children: ['parent']},
+          parent: {
+            id: 'parent',
+            parent: 'root',
+            command: '/chat :n=5',
+            children: ['out0', 'out1', 'elect'],
+            prompts: ['out0', 'out1'],
+          },
+          out0: {
+            id: 'out0',
+            parent: 'parent',
+            title: 'merged 0',
+            children: [],
+          },
+          out1: {
+            id: 'out1',
+            parent: 'parent',
+            title: 'merged 1',
+            children: [],
+          },
+          elect: {
+            id: 'elect',
+            parent: 'parent',
+            command: '/elect :n=3',
+            children: [],
+          },
+        })
+
+        await runForks({
+          electNode: store.getNode('elect'),
+          store,
+          n: 3,
+          memoMap: new Map(),
+          admitSourceCandidate: true,
+        })
+
+        expect(mockPostProcessExistingOutput).not.toHaveBeenCalled()
+        expect(mockRunCommand).toHaveBeenCalledTimes(3)
+      })
+
+      it('candidate 0 receives the foreachValidateTemplateExclusions ids', async () => {
+        const {foreachValidateTemplateExclusions} = require('../../commands/utils/runCommand')
+        const exclusionIds = ['tmpl-a', 'tmpl-b']
+        foreachValidateTemplateExclusions.mockReturnValueOnce(exclusionIds)
+
+        const store = treeWithParentOutput()
+
+        await runForks({
+          electNode: store.getNode('elect'),
+          store,
+          n: 2,
+          memoMap: new Map(),
+          admitSourceCandidate: true,
+        })
+
+        const [callArgs] = mockPostProcessExistingOutput.mock.calls
+        expect(callArgs[0].ids).toEqual(exclusionIds)
+      })
+
+      it('side-effecting parent collapses to 1 even when admitSourceCandidate is true', async () => {
+        const store = buildStore({
+          root: {id: 'root', children: ['parent']},
+          parent: {
+            id: 'parent',
+            parent: 'root',
+            command: '/tool mutate',
+            children: ['elect'],
+            prompts: ['out0'],
+          },
+          out0: {id: 'out0', parent: 'parent', title: 'Ox', children: []},
+          elect: {
+            id: 'elect',
+            parent: 'parent',
+            command: '/elect :n=3',
+            children: [],
+          },
+        })
+        store._aliases = {mcp: [{alias: '/tool'}], rpc: []}
+
+        const results = await runForks({
+          electNode: store.getNode('elect'),
+          store,
+          n: 3,
+          memoMap: new Map(),
+          admitSourceCandidate: true,
+        })
+
+        expect(results).toHaveLength(1)
+        expect(results[0]).toMatchObject({suppressed: true, requestedN: 3})
+        expect(mockRunCommand).not.toHaveBeenCalled()
+      })
     })
   })
 
@@ -741,6 +1156,7 @@ describe('runForks', () => {
     it('failed fork has status runtime-failed with reason', async () => {
       const store = minimalTree()
       const memoMap = new Map()
+
       let callCount = 0
 
       mockRunCommand.mockImplementation(async () => {
@@ -808,6 +1224,7 @@ describe('runForks', () => {
     it('fork that throws CriteriaFailedError gets status criteria-failed', async () => {
       const store = minimalTree()
       const memoMap = new Map()
+
       let callCount = 0
 
       mockRunCommand.mockImplementation(async () => {
@@ -1354,9 +1771,49 @@ describe('runForks — suppressed metadata propagates to failure shapes', () => 
     return store
   }
 
-  it('criteria-failed result from a suppressed fork carries suppressed/cause/requestedN', async () => {
+  it('suppressed side-effecting parent uses candidate 0 with suppression evidence', async () => {
     const store = buildSuppressedTree()
     mockRunCommand.mockRejectedValue(new CriteriaFailedError('quality', [{content: 'x'}]))
+
+    const results = await runForks({
+      electNode: store.getNode('elect'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+    })
+
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatchObject({
+      status: 'ok',
+      suppressed: true,
+      cause: 'side-effecting-alias',
+      requestedN: 3,
+    })
+  })
+
+  it('suppressed side-effecting parent does not rerun when runCommand would fail', async () => {
+    const store = buildSuppressedTree()
+    mockRunCommand.mockRejectedValue(new Error('network error'))
+
+    const results = await runForks({
+      electNode: store.getNode('elect'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+    })
+
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatchObject({
+      status: 'ok',
+      suppressed: true,
+      cause: 'side-effecting-alias',
+      requestedN: 3,
+    })
+  })
+
+  it('criteria-failed result from a suppressed source candidate carries suppressed/cause/requestedN', async () => {
+    const store = buildSuppressedTree()
+    mockPostProcessExistingOutput.mockRejectedValue(new CriteriaFailedError('quality', [{content: 'x'}]))
 
     const results = await runForks({
       electNode: store.getNode('elect'),
@@ -1374,9 +1831,9 @@ describe('runForks — suppressed metadata propagates to failure shapes', () => 
     })
   })
 
-  it('runtime-failed result from a suppressed fork carries suppressed/cause/requestedN', async () => {
+  it('runtime-failed result from a suppressed source candidate carries suppressed/cause/requestedN', async () => {
     const store = buildSuppressedTree()
-    mockRunCommand.mockRejectedValue(new Error('network error'))
+    mockPostProcessExistingOutput.mockRejectedValue(new Error('network error'))
 
     const results = await runForks({
       electNode: store.getNode('elect'),
@@ -1550,9 +2007,24 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
   const buildPreExecTree = () => {
     const store = buildStore({
       root: {id: 'root', children: ['parent']},
-      parent: {id: 'parent', parent: 'root', command: '/chat do', children: ['elect']},
-      elect: {id: 'elect', parent: 'parent', command: '/elect :n=3', children: ['child']},
-      child: {id: 'child', parent: 'elect', command: '/tool run', children: []},
+      parent: {
+        id: 'parent',
+        parent: 'root',
+        command: '/chat do',
+        children: ['elect'],
+      },
+      elect: {
+        id: 'elect',
+        parent: 'parent',
+        command: '/elect :n=3',
+        children: ['child'],
+      },
+      child: {
+        id: 'child',
+        parent: 'elect',
+        command: '/tool run',
+        children: [],
+      },
     })
     store._aliases = {mcp: [mcpAlias], rpc: []}
     return store
@@ -1563,7 +2035,14 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new CriteriaFailedError('must-be-valid', 2)
     })
     const store = buildPreExecTree()
-    await expect(runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})).resolves.toBeDefined()
+    await expect(
+      runForks({
+        electNode: store.getNode('elect'),
+        store,
+        n: 3,
+        memoMap: new Map(),
+      }),
+    ).resolves.toBeDefined()
   })
 
   it('returns exactly N results when pre-exec throws CriteriaFailedError — one result per requested fork', async () => {
@@ -1571,7 +2050,12 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new CriteriaFailedError('must-be-valid', 2)
     })
     const store = buildPreExecTree()
-    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
+    const results = await runForks({
+      electNode: store.getNode('elect'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+    })
     expect(results).toHaveLength(3)
   })
 
@@ -1580,7 +2064,12 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new CriteriaFailedError('must-be-valid', 2)
     })
     const store = buildPreExecTree()
-    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
+    const results = await runForks({
+      electNode: store.getNode('elect'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+    })
     expect(results.every(r => r.status === 'criteria-failed')).toBe(true)
   })
 
@@ -1589,7 +2078,12 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new CriteriaFailedError('must-be-valid', 2)
     })
     const store = buildPreExecTree()
-    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
+    const results = await runForks({
+      electNode: store.getNode('elect'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+    })
     for (const r of results) {
       expect(r.failedAt).toBe('must-be-valid')
       expect(r.attempts).toBe(2)
@@ -1601,7 +2095,12 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new CriteriaFailedError('criterion', 1)
     })
     const store = buildPreExecTree()
-    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
+    const results = await runForks({
+      electNode: store.getNode('elect'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+    })
     const indices = results.map(r => r.forkIndex).sort((a, b) => a - b)
     expect(indices).toEqual([0, 1, 2])
   })
@@ -1611,7 +2110,12 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new CriteriaFailedError('criterion', 1)
     })
     const store = buildPreExecTree()
-    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
+    const results = await runForks({
+      electNode: store.getNode('elect'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+    })
     expect(results.every(r => r.forkStore === null)).toBe(true)
   })
 
@@ -1637,7 +2141,14 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new Error('network timeout')
     })
     const store = buildPreExecTree()
-    await expect(runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})).resolves.toBeDefined()
+    await expect(
+      runForks({
+        electNode: store.getNode('elect'),
+        store,
+        n: 3,
+        memoMap: new Map(),
+      }),
+    ).resolves.toBeDefined()
   })
 
   it('returns N runtime-failed results when pre-exec throws a generic error', async () => {
@@ -1645,7 +2156,12 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new Error('network timeout')
     })
     const store = buildPreExecTree()
-    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
+    const results = await runForks({
+      electNode: store.getNode('elect'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+    })
     expect(results).toHaveLength(3)
     expect(results.every(r => r.status === 'runtime-failed')).toBe(true)
   })
@@ -1655,7 +2171,12 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new Error('network timeout')
     })
     const store = buildPreExecTree()
-    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
+    const results = await runForks({
+      electNode: store.getNode('elect'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+    })
     expect(results.every(r => r.reason === 'network timeout')).toBe(true)
   })
 
@@ -1666,20 +2187,45 @@ describe('runForks — pre-exec failure folds into results; never-throws contrac
       if (cell?.id === 'child') throw new CriteriaFailedError('criterion', 1)
     })
     const store = buildPreExecTree()
-    await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
+    await runForks({
+      electNode: store.getNode('elect'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+    })
     expect(callCount).toBe(1)
   })
 })
 
 describe('runForks — pre-exec shared-child result and per-fork dispatch', () => {
-  const mcpAlias = {alias: '/tool', serverUrl: 'http://mcp', transport: 'streamable-http', toolName: 'run'}
+  const mcpAlias = {
+    alias: '/tool',
+    serverUrl: 'http://mcp',
+    transport: 'streamable-http',
+    toolName: 'run',
+  }
 
   const buildPreExecWithChildTree = () => {
     const store = buildStore({
       root: {id: 'root', children: ['parent']},
-      parent: {id: 'parent', parent: 'root', command: '/chat do', children: ['elect']},
-      elect: {id: 'elect', parent: 'parent', command: '/elect :n=3', children: ['child']},
-      child: {id: 'child', parent: 'elect', command: '/tool run', children: []},
+      parent: {
+        id: 'parent',
+        parent: 'root',
+        command: '/chat do',
+        children: ['elect'],
+      },
+      elect: {
+        id: 'elect',
+        parent: 'parent',
+        command: '/elect :n=3',
+        children: ['child'],
+      },
+      child: {
+        id: 'child',
+        parent: 'elect',
+        command: '/tool run',
+        children: [],
+      },
     })
     store._aliases = {mcp: [mcpAlias], rpc: []}
     return store
@@ -1690,12 +2236,21 @@ describe('runForks — pre-exec shared-child result and per-fork dispatch', () =
 
     mockRunCommand.mockImplementation(async ({cell, store: executionStore}) => {
       if (cell.id === 'child') {
-        executionStore._nodes['child_output'] = {id: 'child_output', title: 'tool result', parent: 'child'}
+        executionStore._nodes['child_output'] = {
+          id: 'child_output',
+          title: 'tool result',
+          parent: 'child',
+        }
         executionStore._nodes['child'].title = 'executed'
       }
     })
 
-    const results = await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
+    const results = await runForks({
+      electNode: store.getNode('elect'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+    })
 
     for (const result of results) {
       expect(result.forkStore._nodes['child_output']).toBeDefined()
@@ -1707,9 +2262,24 @@ describe('runForks — pre-exec shared-child result and per-fork dispatch', () =
   it('non-side-effecting child dispatches once per fork — 3 executions for n=3', async () => {
     const store = buildStore({
       root: {id: 'root', children: ['parent']},
-      parent: {id: 'parent', parent: 'root', command: '/chat do', children: ['elect']},
-      elect: {id: 'elect', parent: 'parent', command: '/elect :n=3', children: ['child']},
-      child: {id: 'child', parent: 'elect', command: '/chat explain', children: []},
+      parent: {
+        id: 'parent',
+        parent: 'root',
+        command: '/chat do',
+        children: ['elect'],
+      },
+      elect: {
+        id: 'elect',
+        parent: 'parent',
+        command: '/elect :n=3',
+        children: ['child'],
+      },
+      child: {
+        id: 'child',
+        parent: 'elect',
+        command: '/chat explain',
+        children: [],
+      },
     })
     store._aliases = {mcp: [], rpc: []}
 
@@ -1722,7 +2292,12 @@ describe('runForks — pre-exec shared-child result and per-fork dispatch', () =
       }
     })
 
-    await runForks({electNode: store.getNode('elect'), store, n: 3, memoMap: new Map()})
+    await runForks({
+      electNode: store.getNode('elect'),
+      store,
+      n: 3,
+      memoMap: new Map(),
+    })
 
     const childCalls = mockRunCommand.mock.calls.filter(([params]) => params.cell?.id === 'child')
     expect(childCalls).toHaveLength(3)

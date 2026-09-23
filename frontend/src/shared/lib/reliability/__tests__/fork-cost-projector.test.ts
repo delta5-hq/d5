@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import type { NodeDatas } from '@shared/base-types'
-import { projectForkCost } from '../fork-cost-projector'
+import {
+  canProjectSourceCandidate,
+  projectElectCostPreview,
+  projectForkCost,
+  projectSelectedNodeElectCostPreview,
+} from '../fork-cost-projector'
 import { COMMODITY_N_MAX } from '../commodity-params'
+import parityFixtures from '@contracts/reliability-fork-cost-parity-fixtures.json'
 
 /*
  * Cost model: Σ Nᵢ × Sᵢ  (additive in depth, NOT multiplicative)
@@ -426,5 +432,187 @@ describe('projectForkCost — commodity :n=N as direct child of /elect (P0.30 ch
       v: { id: 'v', parent: 'r', command: '/validate must mention revenue', children: [] },
     })
     expect(projectForkCost(n.r, n)).toBe(8)
+  })
+})
+
+describe('projectForkCost — admitSourceCandidate saves exactly one parent generation', () => {
+  it('returns n*scope without subtraction when admitSourceCandidate is false (default)', () => {
+    const n = nodes({
+      parent: { id: 'parent', command: '/chat', children: ['r'] },
+      r: { id: 'r', parent: 'parent', command: '/elect :n=3', children: [] },
+    })
+    expect(projectForkCost(n.r, n, false)).toBe(3)
+  })
+
+  it('returns n*scope minus one when admitSourceCandidate is true', () => {
+    const n = nodes({
+      parent: { id: 'parent', command: '/chat', children: ['out', 'r'], prompts: ['out'] },
+      out: { id: 'out', parent: 'parent', title: 'existing output', children: [] },
+      r: { id: 'r', parent: 'parent', command: '/elect :n=3', children: [] },
+    })
+    expect(projectForkCost(n.r, n, true)).toBe(2)
+  })
+
+  it('does not subtract when source admission is requested before parent output exists', () => {
+    const n = nodes({
+      parent: { id: 'parent', command: '/chat', children: ['r'] },
+      r: { id: 'r', parent: 'parent', command: '/elect :n=3', children: [] },
+    })
+    expect(canProjectSourceCandidate(n.r, n, 'chat')).toBe(false)
+    expect(projectForkCost(n.r, n, true)).toBe(3)
+  })
+
+  it('counts prompt outputs as source material, not executable scope', () => {
+    const n = nodes({
+      parent: { id: 'parent', command: '/chat', children: ['out', 'r'], prompts: ['out'] },
+      out: { id: 'out', parent: 'parent', title: 'existing output', children: [] },
+      r: { id: 'r', parent: 'parent', command: '/elect :n=3', children: [] },
+    })
+    expect(projectForkCost(n.r, n, true)).toBe(2)
+  })
+
+  it('does not subtract from elect-child scope because that sum contains no parent generation', () => {
+    const n = nodes({
+      parent: { id: 'parent', command: '/chat', children: ['out', 'r'], prompts: ['out'] },
+      out: { id: 'out', parent: 'parent', title: 'existing output', children: [] },
+      r: { id: 'r', parent: 'parent', command: '/elect :n=3', children: ['innerChat'] },
+      innerChat: { id: 'innerChat', parent: 'r', command: '/chat :n=5', children: [] },
+    })
+    expect(projectForkCost(n.r, n, true)).toBe(15)
+  })
+
+  it('does not admit the merged output of a commodity parent as a saved source candidate', () => {
+    const n = nodes({
+      parent: { id: 'parent', command: '/chat :n=5', children: ['out', 'r'], prompts: ['out'] },
+      out: { id: 'out', parent: 'parent', title: 'merged output', children: [] },
+      r: { id: 'r', parent: 'parent', command: '/elect :n=3', children: [] },
+    })
+    expect(projectForkCost(n.r, n, true)).toBe(15)
+  })
+
+  it('exposes the same frontend precondition used by the workflow projection', () => {
+    const n = nodes({
+      parent: { id: 'parent', command: '/chat', children: ['out', 'r'], prompts: ['out'] },
+      out: { id: 'out', parent: 'parent', title: 'existing output', children: [] },
+      r: { id: 'r', parent: 'parent', command: '/elect :n=3', children: [] },
+    })
+    expect(canProjectSourceCandidate(n.r, n, 'chat')).toBe(true)
+    expect(projectForkCost(n.r, n, canProjectSourceCandidate(n.r, n, 'chat'))).toBe(2)
+  })
+
+  it('blocks frontend source-candidate projection for elect-child scope', () => {
+    const n = nodes({
+      parent: { id: 'parent', command: '/chat', children: ['out', 'r'], prompts: ['out'] },
+      out: { id: 'out', parent: 'parent', title: 'existing output', children: [] },
+      r: { id: 'r', parent: 'parent', command: '/elect :n=3', children: ['innerChat'] },
+      innerChat: { id: 'innerChat', parent: 'r', command: '/chat :n=5', children: [] },
+    })
+    expect(canProjectSourceCandidate(n.r, n, 'chat')).toBe(false)
+  })
+
+  it('blocks frontend source-candidate projection for side-effecting parent query types', () => {
+    const n = nodes({
+      parent: { id: 'parent', command: '/mcp create issue', children: ['out', 'r'], prompts: ['out'] },
+      out: { id: 'out', parent: 'parent', title: 'existing output', children: [] },
+      r: { id: 'r', parent: 'parent', command: '/elect :n=3', children: [] },
+    })
+    expect(canProjectSourceCandidate(n.r, n, 'mcp-fusion')).toBe(false)
+    expect(canProjectSourceCandidate(n.r, n, 'mcp:jira')).toBe(false)
+    expect(canProjectSourceCandidate(n.r, n, 'rpc:ssh')).toBe(false)
+  })
+
+  it('saving is exactly one regardless of n', () => {
+    const n = nodes({
+      parent: { id: 'parent', command: '/chat', children: ['out', 'r'], prompts: ['out'] },
+      out: { id: 'out', parent: 'parent', title: 'existing output', children: [] },
+      r: { id: 'r', parent: 'parent', command: '/elect :n=5', children: [] },
+    })
+    expect(projectForkCost(n.r, n, false) - projectForkCost(n.r, n, true)).toBe(1)
+  })
+
+  it('saving is exactly one regardless of parent scope size', () => {
+    const n = nodes({
+      parent: { id: 'parent', command: '/chat', children: ['out', 'sibling', 'r'], prompts: ['out'] },
+      out: { id: 'out', parent: 'parent', title: 'existing output', children: [] },
+      sibling: { id: 'sibling', parent: 'parent', command: '/chat :n=10', children: [] },
+      r: { id: 'r', parent: 'parent', command: '/elect :n=3', children: [] },
+    })
+    expect(projectForkCost(n.r, n, false) - projectForkCost(n.r, n, true)).toBe(1)
+  })
+
+  it('saving does not apply when admitSourceCandidate is absent (default false)', () => {
+    const n = nodes({
+      parent: { id: 'parent', command: '/chat', children: ['r'] },
+      r: { id: 'r', parent: 'parent', command: '/elect :n=2', children: [] },
+    })
+    expect(projectForkCost(n.r, n)).toBe(projectForkCost(n.r, n, false))
+  })
+})
+
+describe('projectElectCostPreview — UI-facing projection contract', () => {
+  it('returns null for absent or non-elect selections', () => {
+    const n = nodes({
+      parent: { id: 'parent', command: '/chat', children: ['plain'] },
+      plain: { id: 'plain', parent: 'parent', command: '/chat', children: [] },
+    })
+    expect(projectElectCostPreview(undefined, n, 'chat')).toBeNull()
+    expect(projectElectCostPreview(n.plain, n, 'chat')).toBeNull()
+  })
+
+  it('preserves the over-limit boundary after source-candidate eligibility is applied', () => {
+    const n = nodes({
+      parent: { id: 'parent', command: '/chat', children: ['out', 'sibling', 'r'], prompts: ['out'] },
+      out: { id: 'out', parent: 'parent', title: 'existing output', children: [] },
+      sibling: { id: 'sibling', parent: 'parent', command: '/chat :n=10', children: [] },
+      r: { id: 'r', parent: 'parent', command: '/elect :n=3 :limit=xs', children: [] },
+    })
+    expect(projectElectCostPreview(n.r, n, 'chat')).toEqual({ cost: 32, limitExceeded: true })
+  })
+
+  it.each(parityFixtures)('$name matches the shared UI/backend projection contract', fixture => {
+    const n = nodes(fixture.nodes as NodeDatas)
+    const expectedPreview =
+      fixture.expectedPreview === null
+        ? null
+        : {
+            cost: fixture.expectedCost,
+            limitExceeded: fixture.expectedLimitExceeded,
+          }
+
+    expect(projectElectCostPreview(n[fixture.electNodeId], n, fixture.parentQueryType)).toEqual(expectedPreview)
+  })
+})
+
+describe('projectSelectedNodeElectCostPreview — selected-node UI handoff', () => {
+  it('derives built-in parent query type before projecting source-candidate eligibility', () => {
+    const n = nodes({
+      parent: { id: 'parent', command: '/mcp create issue', children: ['out', 'r'], prompts: ['out'] },
+      out: { id: 'out', parent: 'parent', title: 'existing output', children: [] },
+      r: { id: 'r', parent: 'parent', command: '/elect :n=3 :limit=xs', children: [] },
+    })
+
+    expect(projectSelectedNodeElectCostPreview(n.r, n)).toEqual({ cost: 3, limitExceeded: false })
+  })
+
+  it('derives dynamic alias parent query type before projecting source-candidate eligibility', () => {
+    const n = nodes({
+      parent: { id: 'parent', command: '/jira create issue', children: ['out', 'r'], prompts: ['out'] },
+      out: { id: 'out', parent: 'parent', title: 'existing output', children: [] },
+      r: { id: 'r', parent: 'parent', command: '/elect :n=3 :limit=xs', children: [] },
+    })
+
+    expect(projectSelectedNodeElectCostPreview(n.r, n, [{ alias: '/jira', queryType: 'mcp:jira' }])).toEqual({
+      cost: 3,
+      limitExceeded: false,
+    })
+  })
+
+  it('returns null when the selected node is not a valid elect cell', () => {
+    const n = nodes({
+      parent: { id: 'parent', command: '/chat', children: ['plain'] },
+      plain: { id: 'plain', parent: 'parent', command: '/chat', children: [] },
+    })
+
+    expect(projectSelectedNodeElectCostPreview(n.plain, n)).toBeNull()
   })
 })

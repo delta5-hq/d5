@@ -1,6 +1,7 @@
 import {getNodeCommand} from '../../commands/utils/isCommand'
 import {isValidElectCell, readElectN} from './electParams'
 import {readCommodityN} from './commodityParams'
+import {admitsSourceCandidate} from './sourceCandidateAdmission'
 import {VALIDATE_QUERY} from '../../constants/validate'
 
 const isProperAncestor = (ancestorId, nodeId, store) => {
@@ -31,8 +32,10 @@ const collectAllNestedElects = (node, store, excludeId) => {
 const countImmediateScope = (node, store, excludeId) => {
   if (!node) return 0
   let count = readCommodityN(getNodeCommand(node))
+  const promptIds = new Set(node.prompts ?? [])
   for (const childId of node.children ?? []) {
     if (childId === excludeId) continue
+    if (promptIds.has(childId)) continue
     const child = store.getNode(childId)
     if (!child) continue
     if (isValidElectCell(getNodeCommand(child))) continue
@@ -63,7 +66,9 @@ const directlyOwnedNestedElects = (electNode, store) => {
 // and must be included so :limit= refuses correctly when commodity :n= is present.
 const countElectChildrenScope = (electNode, store) => {
   let cost = 0
+  const promptIds = new Set(electNode.prompts ?? [])
   for (const childId of electNode.children ?? []) {
+    if (promptIds.has(childId)) continue
     const child = store.getNode(childId)
     if (!child) continue
     const q = getNodeCommand(child)
@@ -73,7 +78,7 @@ const countElectChildrenScope = (electNode, store) => {
   return cost
 }
 
-export const projectForkCost = (electNode, store) => {
+export const projectForkCost = (electNode, store, admitSourceCandidate = false) => {
   const n = readElectN(getNodeCommand(electNode))
   if (!n) return 0
 
@@ -88,6 +93,17 @@ export const projectForkCost = (electNode, store) => {
   const perForkScope = electChildScope > 0 ? electChildScope : immediateScope
   const ownedNested = directlyOwnedNestedElects(electNode, store)
   const nestedCost = ownedNested.reduce((sum, nr) => sum + projectForkCost(nr, store), 0)
+  const sourceCandidateSaving =
+    electChildScope === 0 &&
+    admitsSourceCandidate({
+      admitSourceCandidate,
+      n,
+      electNode,
+      parentNode: parent,
+      store,
+    })
+      ? 1
+      : 0
 
-  return n * perForkScope + nestedCost
+  return n * perForkScope + nestedCost - sourceCandidateSaving
 }

@@ -257,7 +257,7 @@ async function runCommodityForks({
  * }} params
  * @param {ProgressReporter} progress
  */
-function foreachValidateTemplateExclusions(queryType, cell, store) {
+export function foreachValidateTemplateExclusions(queryType, cell, store) {
   if (queryType !== FOREACH_QUERY_TYPE) return []
   return (store.getNode(cell.id)?.children ?? []).filter(id => isValidate(store.getNode(id)))
 }
@@ -286,6 +286,253 @@ function sanitizeAliasDispatchInputs(cell, prompt) {
     },
     sanitizedPrompt: stripCommodityToken(prompt),
   }
+}
+
+export async function postProcessExistingOutput({
+  node,
+  ids = [],
+  store,
+  progress,
+  signal,
+  memoMap = new Map(),
+  sideEffectingDispatch = false,
+  cell,
+  queryType,
+  context,
+  prompt,
+}) {
+  if (!node) return
+
+  const postProcessNode = async (currentNode, processedIds = []) => {
+    const sortedNodes = (currentNode.children || [])
+      .map(id => store.getNode(id))
+      .sort((a, b) => {
+        const getOrder = command => {
+          if (command?.includes(FOREACH_QUERY)) return 1
+          if (command?.includes(SUMMARIZE_QUERY)) return 2
+          if (command?.includes(MEMORIZE_QUERY)) return 3
+          if (command?.includes(OUTLINE_QUERY) && readSummarizeParam(command)) return 4
+          if (command?.includes(ELECT_QUERY)) return 4.5
+          if (command?.startsWith(REFINE_QUERY)) return 4.75
+          if (command?.startsWith(VALIDATE_QUERY)) return 5
+          return 6
+        }
+
+        return getOrder(getNodeCommand(a)) - getOrder(getNodeCommand(b))
+      })
+
+    if (currentNode.prompts?.length) {
+      processedIds.push(...currentNode.prompts)
+    }
+
+    for (const childNode of sortedNodes) {
+      if (signal?.aborted) {
+        throwIfAborted(signal)
+      }
+
+      if (processedIds.includes(childNode.id)) {
+        continue
+      }
+
+      processedIds.push(childNode.id)
+      const query = getNodeCommand(childNode)
+
+      let flag = false
+
+      try {
+        const postProcessProgress = new ProgressReporter({title: 'postProcess'}, progress)
+        let postProcessTracker
+
+        if (query?.startsWith(FOREACH_QUERY)) {
+          const command = new ForeachCommand(
+            store._userId,
+            store._workflowId,
+            store,
+
+            postProcessProgress,
+            {usePrompts: true},
+          )
+
+          postProcessTracker = await postProcessProgress.add('ForeachCommand.run')
+          await command.run(childNode, {signal})
+        } else if (query?.startsWith(SUMMARIZE_QUERY)) {
+          const command = new SummarizeCommand(store._userId, store._workflowId, store)
+
+          postProcessTracker = await postProcessProgress.add('SummarizeCommand.run')
+          await command.run(childNode, undefined, {signal})
+
+          flag = true
+        } else if (query?.startsWith(MEMORIZE_QUERY)) {
+          await dispatchMemorize(childNode, store, signal)
+          flag = true
+        } else if (query?.startsWith(OUTLINE_QUERY) && readSummarizeParam(query)) {
+          await dispatchOutlineSummarize(childNode, store, signal)
+        } else if (isElect(childNode)) {
+          if (!memoMap?.has(childNode.id)) {
+            const electParent = store.getNode(childNode.parent)
+            if (electParent) {
+              for (const {electNode: inner, depth} of ElectTopology(electParent, store)) {
+                if (depth > 1 && inner.id !== childNode.id && !memoMap.has(inner.id)) {
+                  await resolveElectCell(inner, store, memoMap, signal)
+                }
+              }
+            }
+            const emitter = createForkProgressEmitter(progress)
+            await resolveElectCell(childNode, store, memoMap, signal, emitter, true)
+          } else if (memoMap?.get(childNode.id) === 'in-progress') {
+            for (const electChildId of childNode.children ?? []) {
+              const electChild = store.getNode(electChildId)
+              if (!electChild || processedIds.includes(electChildId)) continue
+              const rcQuery = getNodeCommand(electChild)
+              if (isPostProcessorOrControlQuery(rcQuery)) continue
+              // Skip children whose subtree contains /elect: memoization pre-resolution
+              // already ran them; re-running would double-execute per outer fork.
+              if (hasElectDescendant(electChild, store)) continue
+              const {
+                queryType: rcQueryType,
+                mcpAlias: rcMcpAlias,
+                rpcAlias: rcRpcAlias,
+              } = resolveCommand(rcQuery, store._aliases)
+              if (rcQueryType) {
+                if (memoMap?.get(electChildId) === MEMO_SENTINEL_PRE_EXECUTED_CHILD) {
+                  processedIds.push(electChildId)
+                  continue
+                }
+                processedIds.push(electChildId)
+                await runCommand(
+                  {
+                    queryType: rcQueryType,
+                    cell: electChild,
+                    store,
+                    mcpAlias: rcMcpAlias,
+                    rpcAlias: rcRpcAlias,
+                    signal,
+                    memoMap,
+                  },
+                  progress,
+                )
+              }
+            }
+            await postProcessNode(childNode, processedIds)
+          }
+        } else if (isRefine(childNode)) {
+          const query = getNodeCommand(childNode)
+          const maxAttempts = readRefineN(query)
+          const trailingText = readRefineTrailingText(query)
+          const refineValidates = (childNode.children ?? []).map(id => store.getNode(id)).filter(isValidate)
+
+          refineValidates.forEach(validateNode => processedIds.push(validateNode.id))
+
+          if (!maxAttempts || trailingText) {
+            const rawN = readRawRefineN(query)
+            writeInvalidModifier(
+              childNode,
+              store,
+              trailingText
+                ? `Error: /refine accepts only :n=N; unexpected text: "${trailingText}"`
+                : rawN === 0
+                ? 'Error: /refine :n=0 is a no-op — minimum is :n=1'
+                : 'Error: /refine requires :n=N (e.g. /refine :n=3)',
+            )
+            postProcessProgress.dispose()
+            continue
+          }
+
+          if (refineValidates.length === 0) {
+            writeInvalidModifier(childNode, store, 'Error: /refine requires at least one direct /validate child')
+            postProcessProgress.dispose()
+            continue
+          }
+
+          postProcessTracker = await postProcessProgress.add('RefineCommand.run')
+          let attempts = 1
+          let results = await evaluateValidateGroup(refineValidates, store, signal)
+          let bestAttempt = buildRefineAttempt(attempts, results, store, cell.id)
+          const attemptSnapshots = [bestAttempt.snapshot]
+          let firstFail = firstFailedValidate(results)
+          const retryWithheld = Boolean(firstFail && sideEffectingDispatch && maxAttempts > 1)
+
+          while (firstFail && attempts < maxAttempts && !sideEffectingDispatch) {
+            const retryContext = buildRefineAttemptContext(context, firstFail.criterion, firstFail.reason)
+            await executeCommandWithProgress(
+              queryType,
+              retryContext,
+              prompt,
+              cell,
+              store,
+              progress,
+              buildExecutionOptions(signal),
+            )
+            await postProcessNode(store.getNode(cell.id), [childNode.id, ...refineValidates.map(v => v.id)])
+            throwIfAborted(signal)
+            attempts++
+            results = await evaluateValidateGroup(refineValidates, store, signal)
+            const currentAttempt = buildRefineAttempt(attempts, results, store, cell.id)
+            attemptSnapshots.push(currentAttempt.snapshot)
+            if (isBetterRefineAttempt(currentAttempt, bestAttempt)) bestAttempt = currentAttempt
+            firstFail = firstFailedValidate(results)
+            if (!firstFail) bestAttempt = currentAttempt
+          }
+
+          restoreStoreExecutionSnapshot(store, bestAttempt.snapshot, {attemptSnapshots})
+          results = bestAttempt.results
+          const passed = !firstFailedValidate(results)
+          refineValidates.forEach((validateNode, index) => {
+            const current = store.getNode(validateNode.id) ?? validateNode
+            const validatePassed = results[index]?.passed ?? false
+            current.title = appendValidateSuffix(current.title || '', {
+              passed: validatePassed,
+            })
+            current.reliabilityMetadata = buildValidateReliabilityMetadata({passed: validatePassed})
+            store.saveNodeToOutput(current.id)
+          })
+          const currentRefine = store.getNode(childNode.id) ?? childNode
+          currentRefine.title = appendRefineSuffix(currentRefine.title || '', {
+            passed,
+            attempts,
+          })
+          currentRefine.reliabilityMetadata = buildRefineReliabilityMetadata({
+            passed,
+            attempts,
+            requestedN: maxAttempts,
+            ...(retryWithheld
+              ? {
+                  suppressedCause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS,
+                }
+              : {}),
+          })
+          store.saveNodeToOutput(currentRefine.id)
+
+          if (!passed) {
+            const failed = firstFailedValidate(results)
+            throw new CriteriaFailedError(failed?.criterion ?? '', attempts)
+          }
+        } else if (isValidate(childNode)) {
+          const remainingValidates = sortedNodes.filter(n => isValidate(n) && !processedIds.includes(n.id))
+          remainingValidates.forEach(v => processedIds.push(v.id))
+          const allValidates = [childNode, ...remainingValidates]
+          postProcessTracker = await postProcessProgress.add('ValidateCommand.run')
+          const results = await evaluateValidateGroup(allValidates, store, signal)
+          const failed = firstFailedValidate(results)
+          if (failed) throw new CriteriaFailedError(failed.criterion, 1)
+        }
+
+        if (postProcessTracker) postProcessProgress.remove(postProcessTracker)
+        postProcessProgress.dispose()
+      } catch (e) {
+        if (isAbortError(e)) throw e
+        if (e instanceof CriteriaFailedError) throw e
+        logError('post-processing failed: %o', {query, error: e})
+        continue
+      }
+
+      if (flag) {
+        await postProcessNode(childNode, processedIds)
+      }
+    }
+  }
+
+  await postProcessNode(node, ids)
 }
 
 export const runCommand = async (
@@ -386,245 +633,25 @@ export const runCommand = async (
   }
 
   let runPostProccess = !preventPostProcess
-  const postProcessNode = async (node, ids = []) => {
-    const sortedNodes = (node.children || [])
-      .map(id => store.getNode(id))
-      .sort((a, b) => {
-        const getOrder = command => {
-          if (command?.includes(FOREACH_QUERY)) return 1
-          if (command?.includes(SUMMARIZE_QUERY)) return 2
-          if (command?.includes(MEMORIZE_QUERY)) return 3
-          if (command?.includes(OUTLINE_QUERY) && readSummarizeParam(command)) return 4
-          if (command?.includes(ELECT_QUERY)) return 4.5
-          if (command?.startsWith(REFINE_QUERY)) return 4.75
-          if (command?.startsWith(VALIDATE_QUERY)) return 5
-          return 6
-        }
-
-        return getOrder(getNodeCommand(a)) - getOrder(getNodeCommand(b))
-      })
-
-    if (node.prompts?.length) {
-      ids.push(...node.prompts)
-    }
-
-    for (const childNode of sortedNodes) {
-      if (signal?.aborted) {
-        throwIfAborted(signal)
-      }
-
-      if (ids.includes(childNode.id)) {
-        continue
-      }
-
-      ids.push(childNode.id)
-      const query = getNodeCommand(childNode)
-
-      let flag = false
-
-      try {
-        const postProcessProgress = new ProgressReporter({title: 'postProcess'}, progress)
-        let postProcessTracker
-
-        if (query?.startsWith(FOREACH_QUERY)) {
-          const command = new ForeachCommand(
-            store._userId,
-            store._workflowId,
-            store,
-
-            postProcessProgress,
-            {usePrompts: true},
-          )
-
-          postProcessTracker = await postProcessProgress.add('ForeachCommand.run')
-          await command.run(childNode, {signal})
-        } else if (query?.startsWith(SUMMARIZE_QUERY)) {
-          const command = new SummarizeCommand(store._userId, store._workflowId, store)
-
-          postProcessTracker = await postProcessProgress.add('SummarizeCommand.run')
-          await command.run(childNode, undefined, {signal})
-
-          flag = true
-        } else if (query?.startsWith(MEMORIZE_QUERY)) {
-          await dispatchMemorize(childNode, store, signal)
-          flag = true
-        } else if (query?.startsWith(OUTLINE_QUERY) && readSummarizeParam(query)) {
-          await dispatchOutlineSummarize(childNode, store, signal)
-        } else if (isElect(childNode)) {
-          if (!memoMap?.has(childNode.id)) {
-            if (!memoMap) memoMap = new Map()
-            const electParent = store.getNode(childNode.parent)
-            if (electParent) {
-              for (const {electNode: inner, depth} of ElectTopology(electParent, store)) {
-                if (depth > 1 && inner.id !== childNode.id && !memoMap.has(inner.id)) {
-                  await resolveElectCell(inner, store, memoMap, signal)
-                }
-              }
-            }
-            const emitter = createForkProgressEmitter(progress)
-            await resolveElectCell(childNode, store, memoMap, signal, emitter)
-          } else if (memoMap?.get(childNode.id) === 'in-progress') {
-            for (const electChildId of childNode.children ?? []) {
-              const electChild = store.getNode(electChildId)
-              if (!electChild || ids.includes(electChildId)) continue
-              const rcQuery = getNodeCommand(electChild)
-              if (isPostProcessorOrControlQuery(rcQuery)) continue
-              // Skip children whose subtree contains /elect: memoization pre-resolution
-              // already ran them; re-running would double-execute per outer fork.
-              if (hasElectDescendant(electChild, store)) continue
-              const {
-                queryType: rcQueryType,
-                mcpAlias: rcMcpAlias,
-                rpcAlias: rcRpcAlias,
-              } = resolveCommand(rcQuery, store._aliases)
-              if (rcQueryType) {
-                // SubtreeForkRunner pre-executes side-effecting elect children once in the
-                // source store and records this sentinel. Every fork observes the cloned
-                // output; skipping here is the exactly-once half of that two-part mechanism.
-                if (memoMap?.get(electChildId) === MEMO_SENTINEL_PRE_EXECUTED_CHILD) {
-                  ids.push(electChildId)
-                  continue
-                }
-                ids.push(electChildId)
-                await runCommand(
-                  {
-                    queryType: rcQueryType,
-                    cell: electChild,
-                    store,
-                    mcpAlias: rcMcpAlias,
-                    rpcAlias: rcRpcAlias,
-                    signal,
-                    memoMap,
-                  },
-                  progress,
-                )
-              }
-            }
-            await postProcessNode(childNode, ids)
-          }
-        } else if (isRefine(childNode)) {
-          const query = getNodeCommand(childNode)
-          const maxAttempts = readRefineN(query)
-          const trailingText = readRefineTrailingText(query)
-          const refineValidates = (childNode.children ?? []).map(id => store.getNode(id)).filter(isValidate)
-
-          refineValidates.forEach(node => ids.push(node.id))
-
-          if (!maxAttempts || trailingText) {
-            const rawN = readRawRefineN(query)
-            writeInvalidModifier(
-              childNode,
-              store,
-              trailingText
-                ? `Error: /refine accepts only :n=N; unexpected text: "${trailingText}"`
-                : rawN === 0
-                ? 'Error: /refine :n=0 is a no-op — minimum is :n=1'
-                : 'Error: /refine requires :n=N (e.g. /refine :n=3)',
-            )
-            postProcessProgress.dispose()
-            continue
-          }
-
-          if (refineValidates.length === 0) {
-            writeInvalidModifier(childNode, store, 'Error: /refine requires at least one direct /validate child')
-            postProcessProgress.dispose()
-            continue
-          }
-
-          postProcessTracker = await postProcessProgress.add('RefineCommand.run')
-          let attempts = 1
-          let results = await evaluateValidateGroup(refineValidates, store, signal)
-          let bestAttempt = buildRefineAttempt(attempts, results, store, cell.id)
-          const attemptSnapshots = [bestAttempt.snapshot]
-          let firstFail = firstFailedValidate(results)
-          const retryWithheld = Boolean(firstFail && sideEffectingDispatch && maxAttempts > 1)
-
-          while (firstFail && attempts < maxAttempts && !sideEffectingDispatch) {
-            const retryContext = buildRefineAttemptContext(context, firstFail.criterion, firstFail.reason)
-            await executeCommandWithProgress(
-              queryType,
-              retryContext,
-              prompt,
-              cell,
-              store,
-              progress,
-              buildExecutionOptions(signal),
-            )
-            await postProcessNode(store.getNode(cell.id), [childNode.id, ...refineValidates.map(v => v.id)])
-            throwIfAborted(signal)
-            attempts++
-            results = await evaluateValidateGroup(refineValidates, store, signal)
-            const currentAttempt = buildRefineAttempt(attempts, results, store, cell.id)
-            attemptSnapshots.push(currentAttempt.snapshot)
-            if (isBetterRefineAttempt(currentAttempt, bestAttempt)) bestAttempt = currentAttempt
-            firstFail = firstFailedValidate(results)
-            if (!firstFail) bestAttempt = currentAttempt
-          }
-
-          restoreStoreExecutionSnapshot(store, bestAttempt.snapshot, {attemptSnapshots})
-          results = bestAttempt.results
-          const passed = !firstFailedValidate(results)
-          refineValidates.forEach((node, index) => {
-            const current = store.getNode(node.id) ?? node
-            const validatePassed = results[index]?.passed ?? false
-            current.title = appendValidateSuffix(current.title || '', {
-              passed: validatePassed,
-            })
-            current.reliabilityMetadata = buildValidateReliabilityMetadata({passed: validatePassed})
-            store.saveNodeToOutput(current.id)
-          })
-          const currentRefine = store.getNode(childNode.id) ?? childNode
-          currentRefine.title = appendRefineSuffix(currentRefine.title || '', {
-            passed,
-            attempts,
-          })
-          currentRefine.reliabilityMetadata = buildRefineReliabilityMetadata({
-            passed,
-            attempts,
-            requestedN: maxAttempts,
-            ...(retryWithheld
-              ? {
-                  suppressedCause: COMMODITY_SUPPRESSION_CAUSE.SIDE_EFFECTING_ALIAS,
-                }
-              : {}),
-          })
-          store.saveNodeToOutput(currentRefine.id)
-
-          if (!passed) {
-            const failed = firstFailedValidate(results)
-            throw new CriteriaFailedError(failed?.criterion ?? '', attempts)
-          }
-        } else if (isValidate(childNode)) {
-          const remainingValidates = sortedNodes.filter(n => isValidate(n) && !ids.includes(n.id))
-          remainingValidates.forEach(v => ids.push(v.id))
-          const allValidates = [childNode, ...remainingValidates]
-          postProcessTracker = await postProcessProgress.add('ValidateCommand.run')
-          const results = await evaluateValidateGroup(allValidates, store, signal)
-          const failed = firstFailedValidate(results)
-          if (failed) throw new CriteriaFailedError(failed.criterion, 1)
-        }
-
-        if (postProcessTracker) postProcessProgress.remove(postProcessTracker)
-        postProcessProgress.dispose()
-      } catch (e) {
-        if (isAbortError(e)) throw e
-        if (e instanceof CriteriaFailedError) throw e
-        logError('post-processing failed: %o', {query, error: e})
-        continue
-      }
-
-      if (flag) {
-        await postProcessNode(childNode, ids)
-      }
-    }
-  }
 
   if (queryType === STEPS_QUERY_TYPE) {
     runPostProccess = false
   }
 
   if (runPostProccess) {
-    await postProcessNode(store.getNode(cell.id), foreachValidateTemplateExclusions(queryType, cell, store))
+    await postProcessExistingOutput({
+      node: store.getNode(cell.id),
+      ids: foreachValidateTemplateExclusions(queryType, cell, store),
+      store,
+      progress,
+      signal,
+      memoMap: memoMap ?? new Map(),
+      sideEffectingDispatch,
+      cell,
+      queryType,
+      context,
+      prompt,
+    })
   }
 
   store.removeOrphanedNodes()

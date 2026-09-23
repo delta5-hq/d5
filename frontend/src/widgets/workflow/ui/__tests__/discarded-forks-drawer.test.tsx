@@ -93,6 +93,30 @@ describe('DiscardedForksDrawer', () => {
     })
 
     it.each([
+      ['empty-output', 'Empty output'],
+      ['refusal-output', 'Refusal output'],
+      ['mcp-tool-error', 'MCP tool reported an error'],
+      ['http-status-error', 'HTTP transport returned a non-success status'],
+      ['ssh-exit-error', 'SSH command returned a nonzero exit code'],
+      ['runtime-error', 'Command execution failed at runtime'],
+      ['execution-error', 'Command produced an execution error'],
+      ['structural-gate', 'Structurally rejected by the gate'],
+      ['provider-specific-error', 'provider-specific-error'],
+    ])('renders structural rejection reason %s with the drawer display contract', (reason, expected) => {
+      render(
+        <DiscardedForksDrawer
+          discardedForks={[discardedFork({ forkIndex: 0, status: 'runtime-failed', reason })]}
+          nodeId="n1"
+          onOpenChange={vi.fn()}
+          open={true}
+        />,
+        { wrapper },
+      )
+
+      expect(screen.getByText(expected)).toBeDefined()
+    })
+
+    it.each([
       {
         winnerForkIndex: 0,
         discardedIndexes: [1, 2],

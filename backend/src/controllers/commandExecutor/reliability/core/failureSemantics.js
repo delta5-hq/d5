@@ -32,6 +32,8 @@ export const COMMODITY_SUPPRESSION_CAUSE = Object.freeze({
 })
 
 export const STRUCTURAL_GATE_REJECTION_REASON = Object.freeze({
+  EMPTY_OUTPUT: 'empty-output',
+  REFUSAL_OUTPUT: 'refusal-output',
   EXECUTION_ERROR: 'execution-error',
   MCP_TOOL_ERROR: 'mcp-tool-error',
   HTTP_STATUS_ERROR: 'http-status-error',

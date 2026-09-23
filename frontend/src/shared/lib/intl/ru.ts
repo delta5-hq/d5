@@ -455,8 +455,7 @@ export default {
       judgeQualityWarning_fallbackWithWeakJudge:
         'Резервный режим со слабым судьёй — ухудшенный вывод принят со сниженной достоверностью',
       judgeQualityWarning_noReasoningMode: 'Нет модели с режимом рассуждений — оценка без расширенного анализа',
-      judgeQualityWarning_allGateFiltered:
-        'Все кандидаты структурно отклонены — fallback не исправит пустой вывод или отказ',
+      judgeQualityWarning_allGateFiltered: 'Все кандидаты структурно отклонены — проверьте причины по форкам',
       judgeQualityWarning_degradedInput:
         'Бюджет токенов на форк слишком мал для оценки полного контекста — судья ранжирует усечённые данные; достоверность снижена',
       judgeQualityWarning_commodityPartialSuccess:
@@ -499,11 +498,14 @@ export default {
       status_selected: 'выбранный победитель',
       'status_criteria-failed': 'критерий не выполнен',
       'status_runtime-failed': 'ошибка',
+      failureReasonEmptyOutput: 'Пустой вывод',
+      failureReasonRefusalOutput: 'Отказ в выводе',
       failureReasonMcpTool: 'Инструмент MCP сообщил об ошибке',
       failureReasonHttpStatus: 'HTTP-транспорт вернул код ошибки',
       failureReasonSshExit: 'SSH-команда завершилась с ненулевым кодом',
       failureReasonRuntime: 'Ошибка выполнения команды',
       failureReasonExecution: 'Команда создала узел ошибки выполнения',
+      failureReasonStructuralGate: 'Отклонено структурным фильтром',
       failedAt: 'критерий: {criterion}',
       attempts: '{count} попыток',
       selectionLabel: '{eligible} из {total} форков допущены; выбор: {layer}',

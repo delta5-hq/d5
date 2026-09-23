@@ -20,7 +20,7 @@ import {
   buildPerCriterionVerdictEntry,
   buildForkRankingEntry,
 } from './reliabilityMetadataFields'
-import {passesStructuralGate} from './structuralGate'
+import {readStructuralGateResult} from './structuralGate'
 import {recordStructuralGateDrift} from './structuralGateDrift'
 import {classifyNoWinner, deterministicFailureReason, JUDGE_WARNING_CONDITION} from './failureSemantics'
 
@@ -71,12 +71,11 @@ const applyStructuralGate = (candidateForks, contents) => {
   }))
   const passing = pairs.filter(({fork, content}) => {
     const failureSignal = fork.leafOutputs?.find(output => deterministicFailureReason(output))
-    const accepted = passesStructuralGate(content, fork.forkIndex, failureSignal)
-    const deterministicReason = deterministicFailureReason(failureSignal)
-    if (!accepted && deterministicReason) {
-      fork.reason = deterministicReason
+    const gateResult = readStructuralGateResult(content, fork.forkIndex, failureSignal)
+    if (!gateResult.passed && gateResult.reason) {
+      fork.reason = gateResult.reason
     }
-    return accepted
+    return gateResult.passed
   })
   return {
     activeCandidates: passing.map(p => p.fork),

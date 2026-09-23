@@ -10,7 +10,7 @@ import {getNodeCommand} from '../../commands/utils/isCommand'
 import {isValidateCell} from './validateParams'
 import {NullForkProgressEmitter} from './ForkProgressEmitter'
 import {buildReliabilityMetadata, buildSuppressedReliabilityMetadata} from './reliabilityMetadataFields'
-import {classifyNoWinner} from './failureSemantics'
+import {classifyNoWinner, FAILURE_CAUSE} from './failureSemantics'
 import {copyParentPromptOutputToElect} from './electWinnerOutput'
 
 /**
@@ -29,6 +29,13 @@ function missingNErrorMessage(rawN) {
     return `Error: /elect :n=${rawN} is a no-op — minimum is :n=2`
   }
   return 'Error: /elect requires :n=N (e.g. /elect :n=3)'
+}
+
+function gateFilteredErrorMessage(effectiveN, forkResults) {
+  const gateRejected = forkResults.filter(f => f.status === 'ok')
+  const reasons = gateRejected.map(f => `fork ${f.forkIndex}: ${f.reason || FAILURE_CAUSE.STRUCTURAL_GATE}`).join('; ')
+  const judgedCount = gateRejected.length
+  return `/elect :n=${effectiveN} — all ${judgedCount} candidate(s) were structurally rejected: ${reasons}`
 }
 
 function flushValidateTitles(validates, sourceForkStore, outerStore) {
@@ -72,6 +79,7 @@ export async function resolveElectCell(
   memoMap,
   signal = null,
   emitter = new NullForkProgressEmitter(),
+  admitSourceCandidate = false,
 ) {
   const query = getNodeCommand(electNode)
   const n = readElectN(query)
@@ -91,7 +99,7 @@ export async function resolveElectCell(
     return
   }
 
-  const cost = projectForkCost(electNode, store)
+  const cost = projectForkCost(electNode, store, admitSourceCandidate)
   const limit = readForkLimit(query)
   if (exceedsForkLimit(cost, limit)) {
     writeErrorNode(electNode, store, forkLimitRefusalMessage(cost, limit))
@@ -122,6 +130,7 @@ export async function resolveElectCell(
     memoMap,
     signal,
     onForkSettled: result => emitter.forkSettled(electNode.id, result),
+    admitSourceCandidate,
   })
 
   const okCount = forkResults.filter(f => f.status === 'ok').length
@@ -219,7 +228,7 @@ export async function resolveElectCell(
     }
     store.importer.createErrorNode(
       verdict?.allGateFiltered
-        ? `/elect :n=${effectiveN} — all ${effectiveN} fork(s) produced empty or refusal output; revise the prompt`
+        ? gateFilteredErrorMessage(effectiveN, forkResults)
         : `/elect :n=${effectiveN} — all ${effectiveN} fork(s) failed; use :fallback to accept best degraded result`,
       currentElect.id,
     )
